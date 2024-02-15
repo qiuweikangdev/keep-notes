@@ -1,4 +1,4 @@
-import { watch, Ref, watchEffect, ref, onMounted } from 'vue'
+import { watch, Ref, watchEffect, ref } from 'vue'
 import {
   defaultValueCtx,
   Editor,
@@ -26,8 +26,7 @@ import { emoji } from '@milkdown/plugin-emoji'
 import {
   useNodeViewFactory,
   usePluginViewFactory,
-  useWidgetViewFactory,
-  usePluginViewContext
+  useWidgetViewFactory
 } from '@prosemirror-adapter/vue'
 import { slashFactory } from '@milkdown/plugin-slash'
 import { refractor } from 'refractor/lib/common'
