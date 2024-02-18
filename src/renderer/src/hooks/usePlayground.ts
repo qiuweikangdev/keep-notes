@@ -32,6 +32,7 @@ import { slashFactory } from '@milkdown/plugin-slash'
 import { refractor } from 'refractor/lib/common'
 import CodeBlock from '@renderer/components/md-editor/CodeBlock.vue'
 import Slash from '@renderer/components/md-editor/Slash.vue'
+import Block from '@renderer/components/md-editor/Block.vue'
 import {
   useTableTooltip,
   tableSelectorPlugin,
@@ -70,12 +71,18 @@ export const usePlayground = (defaultValue: Ref<string>, onChange?: (markdown: s
           ...prev,
           configureRefractor: () => refractor
         }))
+        ctx.set(block.key, {
+          view: pluginViewFactory({
+            component: Block
+          })
+        })
         // 自定义斜杠命令
         ctx.set(tooltipSlash.key, {
           view: pluginViewFactory({
             component: Slash
           })
         })
+        // 自定义
         tableTooltip.config(ctx)
       })
       .config(nord)
@@ -110,6 +117,7 @@ export const usePlayground = (defaultValue: Ref<string>, onChange?: (markdown: s
   const autoFocus = () => {
     ctxRef.value?.get(editorViewCtx).dom.focus()
   }
+
   watchEffect(() => {
     requestAnimationFrame(() => {
       const effect = async () => {

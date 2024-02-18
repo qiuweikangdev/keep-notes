@@ -1,3 +1,41 @@
+<script setup lang="ts">
+import { BlockProvider } from '@milkdown/plugin-block'
+import { useInstance } from '@milkdown/vue'
+import { usePluginViewContext } from '@prosemirror-adapter/vue'
+import { onUnmounted, ref, VNodeRef, watch, nextTick, watchEffect } from 'vue'
+
+const { view } = usePluginViewContext()
+const [loading, get] = useInstance()
+
+const divRef = ref<VNodeRef>()
+
+let tooltipProvider: BlockProvider | undefined
+
+watchEffect(() => {
+  nextTick(() => {
+    const editor = get()
+    console.log('view', view)
+    if (loading.value || !editor || tooltipProvider) return
+    editor.action((ctx) => {
+      tooltipProvider = new BlockProvider({
+        ctx,
+        content: divRef.value as any
+      })
+      tooltipProvider.update(view.value)
+    })
+  })
+})
+
+watch([view], () => {
+  tooltipProvider?.update(view.value)
+})
+
+onUnmounted(() => {
+  tooltipProvider?.destroy()
+  tooltipProvider = undefined
+})
+</script>
+
 <template>
   <div ref="divRef" className="w-6 bg-slate-200 rounded hover:bg-slate-300 cursor-grab">
     <svg
@@ -16,40 +54,3 @@
     </svg>
   </div>
 </template>
-
-<script setup lang="ts">
-import { BlockProvider } from '@milkdown/plugin-block'
-import { useInstance } from '@milkdown/vue'
-import { usePluginViewContext } from '@prosemirror-adapter/vue'
-import { onUnmounted, ref, VNodeRef, watch } from 'vue'
-
-const { view } = usePluginViewContext()
-const [loading, get] = useInstance()
-
-const divRef = ref<VNodeRef>()
-
-let tooltipProvider: BlockProvider | undefined
-
-watch([loading], () => {
-  const editor = get()
-  if (loading.value || !editor || tooltipProvider) return
-
-  editor.action((ctx) => {
-    tooltipProvider = new BlockProvider({
-      ctx,
-      content: divRef.value as any
-    })
-
-    tooltipProvider.update(view.value)
-  })
-})
-
-watch([view], () => {
-  tooltipProvider?.update(view.value)
-})
-
-onUnmounted(() => {
-  tooltipProvider?.destroy()
-  tooltipProvider = undefined
-})
-</script>
