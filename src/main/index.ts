@@ -3,6 +3,7 @@ import process from 'node:process'
 import { BrowserWindow, app, shell } from 'electron'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { ipcMenuAction } from './menu'
 
 function createWindow(): void {
   // Create the browser window.
@@ -53,6 +54,8 @@ app.whenReady().then(() => {
   })
 
   createWindow()
+
+  ipcMenuAction()
 
   app.on('activate', () => {
     // On macOS it's common to re-create a window in the app when the
