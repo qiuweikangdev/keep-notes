@@ -7,6 +7,11 @@ import { AntDesignVueResolver } from 'unplugin-vue-components/resolvers'
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
+    resolve: {
+      alias: {
+        '@common': resolve('src/common'),
+      },
+    },
   },
   preload: {
     plugins: [externalizeDepsPlugin()],
@@ -15,6 +20,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@renderer': resolve('src/renderer/src'),
+        '@common': resolve('src/common'),
       },
     },
     plugins: [
@@ -27,5 +33,6 @@ export default defineConfig({
         ],
       }),
     ],
+    css: {},
   },
 })
