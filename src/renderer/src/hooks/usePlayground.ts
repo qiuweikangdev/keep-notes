@@ -1,11 +1,12 @@
-import { watch, Ref, watchEffect, ref } from 'vue'
+import type { Ref } from 'vue'
+import { ref, watch, watchEffect } from 'vue'
 import {
-  defaultValueCtx,
   Editor,
+  defaultValueCtx,
+  editorStateCtx,
+  editorViewCtx,
   editorViewOptionsCtx,
   rootCtx,
-  editorViewCtx,
-  editorStateCtx
 } from '@milkdown/core'
 import type { Ctx } from '@milkdown/ctx'
 import { clipboard } from '@milkdown/plugin-clipboard'
@@ -26,7 +27,7 @@ import { emoji } from '@milkdown/plugin-emoji'
 import {
   useNodeViewFactory,
   usePluginViewFactory,
-  useWidgetViewFactory
+  useWidgetViewFactory,
 } from '@prosemirror-adapter/vue'
 import { slashFactory } from '@milkdown/plugin-slash'
 import { refractor } from 'refractor/lib/common'
@@ -34,12 +35,15 @@ import CodeBlock from '@renderer/components/md-editor/CodeBlock.vue'
 import Slash from '@renderer/components/md-editor/Slash.vue'
 import Block from '@renderer/components/md-editor/Block.vue'
 import {
-  useTableTooltip,
   tableSelectorPlugin,
-  tableTooltipCtx
+  tableTooltipCtx,
+  useTableTooltip,
 } from '@renderer/components/md-editor/table-widget/plugins'
 
-export const usePlayground = (defaultValue: Ref<string>, onChange?: (markdown: string) => void) => {
+export function usePlayground(
+  defaultValue: Ref<string>,
+  onChange?: (markdown: string) => void,
+) {
   const nodeViewFactory = useNodeViewFactory()
   const pluginViewFactory = usePluginViewFactory()
   const widgetViewFactory = useWidgetViewFactory()
@@ -55,11 +59,11 @@ export const usePlayground = (defaultValue: Ref<string>, onChange?: (markdown: s
       .enableInspector()
       .config((ctx) => {
         ctxRef.value = ctx
-        ctx.update(editorViewOptionsCtx, (prev) => ({
+        ctx.update(editorViewOptionsCtx, prev => ({
           ...prev,
           attributes: {
-            class: 'mx-auto px-2 py-4 box-border'
-          }
+            class: 'mx-auto px-2 py-4 box-border',
+          },
         }))
         ctx.set(rootCtx, root)
         ctx.set(defaultValueCtx, defaultValue.value)
@@ -67,20 +71,20 @@ export const usePlayground = (defaultValue: Ref<string>, onChange?: (markdown: s
           size.value = ctx.get(editorStateCtx).doc.textContent.length || 0
           onChange?.(markdown)
         })
-        ctx.update(prismConfig.key, (prev) => ({
+        ctx.update(prismConfig.key, prev => ({
           ...prev,
-          configureRefractor: () => refractor
+          configureRefractor: () => refractor,
         }))
         ctx.set(block.key, {
           view: pluginViewFactory({
-            component: Block
-          })
+            component: Block,
+          }),
         })
         // 自定义斜杠命令
         ctx.set(tooltipSlash.key, {
           view: pluginViewFactory({
-            component: Slash
-          })
+            component: Slash,
+          }),
         })
         // 自定义
         tableTooltip.config(ctx)
@@ -106,9 +110,8 @@ export const usePlayground = (defaultValue: Ref<string>, onChange?: (markdown: s
         $view(codeBlockSchema.node, () =>
           nodeViewFactory({
             // 自定义代码块
-            component: CodeBlock
-          })
-        )
+            component: CodeBlock,
+          })),
       )
   })
 
@@ -122,7 +125,8 @@ export const usePlayground = (defaultValue: Ref<string>, onChange?: (markdown: s
     requestAnimationFrame(() => {
       const effect = async () => {
         const editor = get()
-        if (!editor) return
+        if (!editor)
+          return
         await editor.create()
         autoFocus()
       }
@@ -140,6 +144,6 @@ export const usePlayground = (defaultValue: Ref<string>, onChange?: (markdown: s
   return {
     editorInfo,
     autoFocus,
-    size
+    size,
   }
 }

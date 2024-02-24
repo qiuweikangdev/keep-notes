@@ -19,7 +19,11 @@
 </template>
 
 <script setup lang="ts">
-import { CloseOutlined, ExpandOutlined, MinusOutlined } from '@ant-design/icons-vue'
+import {
+  CloseOutlined,
+  ExpandOutlined,
+  MinusOutlined,
+} from '@ant-design/icons-vue'
 import type { MenuActionOptions } from '@common/types/menu'
 import { ref } from 'vue'
 
@@ -30,7 +34,7 @@ const rightMenu: MenuActionOptions[] = [
     icon: MinusOutlined,
     tooltip: '最小化',
     command: 'minimize',
-    handle: () => window.api.onWinMinimize()
+    handle: () => window.api.onWinMinimize(),
   },
   {
     icon: ExpandOutlined,
@@ -39,13 +43,13 @@ const rightMenu: MenuActionOptions[] = [
     handle: () => {
       isMaximize.value = !isMaximize.value
       window.api.onWinMaximize()
-    }
+    },
   },
   {
     icon: CloseOutlined,
     tooltip: '关闭',
     command: 'close',
-    handle: () => window.api.onWinClose()
-  }
+    handle: () => window.api.onWinClose(),
+  },
 ]
 </script>

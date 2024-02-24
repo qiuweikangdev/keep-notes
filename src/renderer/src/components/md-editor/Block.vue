@@ -1,5 +1,8 @@
 <template>
-  <div ref="divRef" class="w-[18px] bg-slate-200 rounded hover:bg-slate-300 cursor-grab">
+  <div
+    ref="divRef"
+    class="w-[18px] bg-slate-200 rounded hover:bg-slate-300 cursor-grab"
+  >
     <svg
       xmlns="http://www.w3.org/2000/svg"
       fill="none"
@@ -31,14 +34,15 @@ const divRef = ref<VNodeRef>()
 
 let tooltipProvider: BlockProvider | undefined
 
-const initTooltipProvider = () => {
+function initTooltipProvider() {
   const editor = get()
-  if (loading.value || !editor || tooltipProvider) return
+  if (loading.value || !editor || tooltipProvider)
+    return
 
   editor.action((ctx) => {
     tooltipProvider = new BlockProvider({
       ctx,
-      content: divRef.value as any
+      content: divRef.value as any,
     })
     tooltipProvider.update(view.value)
   })

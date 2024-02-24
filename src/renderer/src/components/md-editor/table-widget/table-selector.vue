@@ -8,20 +8,20 @@
     @dragover="handleDragOver"
     @dragleave="handleDragLeave"
     @drop="handleDrop"
-  ></div>
+  />
 </template>
+
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useWidgetViewContext } from '@prosemirror-adapter/vue'
 import { useInstance } from '@milkdown/vue'
 import { commandsCtx } from '@milkdown/core'
 import {
+  moveColCommand,
+  moveRowCommand,
   selectColCommand,
   selectRowCommand,
   selectTableCommand,
-  setAlignCommand,
-  moveColCommand,
-  moveRowCommand
 } from '@milkdown/preset-gfm'
 import { tableTooltipCtx } from './plugins/index'
 
@@ -36,7 +36,7 @@ const dragOver = ref(false)
 const common = computed(() => {
   return [
     'hover:bg-color-primary hover:opacity-60 hover:dark:bg-[#e5e7eb] absolute cursor-pointer bg-gray-200 dark:bg-gray-600',
-    dragOver.value ? 'ring-2' : ''
+    dragOver.value ? 'ring-2' : '',
   ].join(',')
 })
 
@@ -50,52 +50,60 @@ const getClassName = computed(() => {
   return 'h-3 w-3 -left-4 -top-4 rounded-full'
 })
 
-const handleTableSelector = (e) => {
+function handleTableSelector(e) {
   e.stopPropagation()
   const div = tableSelectorRef.value
-  if (loading.value || !div) return
+  if (loading.value || !div)
+    return
   getEditor()?.action((ctx) => {
     const tooltip = ctx.get(tableTooltipCtx.key)
     tooltip?.getInstance?.()?.setProps({
       getReferenceClientRect: () => {
         return div.getBoundingClientRect()
-      }
+      },
     })
     tooltip?.show?.()
     const commands = ctx.get(commandsCtx)
     if (type === 'left') {
       commands.call(selectRowCommand.key, index)
-    } else if (type === 'top') {
+    }
+    else if (type === 'top') {
       commands.call(selectColCommand.key, index)
-    } else {
+    }
+    else {
       commands.call(selectTableCommand.key)
     }
   })
 }
 
-const handleDragStart = (e) => {
+function handleDragStart(e) {
   e.stopPropagation()
   const data = { index: spec?.index, type: spec?.type }
-  e.dataTransfer.setData('application/milkdown-table-sort', JSON.stringify(data))
+  e.dataTransfer.setData(
+    'application/milkdown-table-sort',
+    JSON.stringify(data),
+  )
   e.dataTransfer.effectAllowed = 'move'
 }
 
-const handleDragOver = (e) => {
+function handleDragOver(e) {
   dragOver.value = true
   e.stopPropagation()
   e.preventDefault()
   e.dataTransfer.dropEffect = 'move'
 }
 
-const handleDragLeave = () => {
+function handleDragLeave() {
   dragOver.value = false
 }
 
-const handleDrop = (e) => {
+function handleDrop(e) {
   dragOver.value = false
-  if (type === 'top-left') return
+  if (type === 'top-left')
+    return
   const i = spec?.index
-  if (loading.value || i == null) return
+  if (loading.value || i == null)
+    return
   const data = e.dataTransfer.getData('application/milkdown-table-sort')
   try {
     const { index, type } = JSON.parse(data)
@@ -103,11 +111,15 @@ const handleDrop = (e) => {
       const commands = ctx.get(commandsCtx)
       const options = {
         from: Number(index),
-        to: i
+        to: i,
       }
-      commands.call(type === 'left' ? moveRowCommand.key : moveColCommand.key, options)
+      commands.call(
+        type === 'left' ? moveRowCommand.key : moveColCommand.key,
+        options,
+      )
     })
-  } catch {
+  }
+  catch {
     // ignore data from other source
   }
 }

@@ -1,5 +1,7 @@
 <template>
-  <div class="flex justify-center items-center border-y-2 border-[#e5e7eb] border-solid">
+  <div
+    class="flex justify-center items-center border-y-2 border-[#e5e7eb] border-solid"
+  >
     <div
       v-for="(item, index) in toolbarList"
       :key="index"
@@ -10,23 +12,23 @@
           :is="item.icon"
           class="text-[#8e8e94] py-[12px] hover:font-bold hover:text-[#c0835d] text-[22px]"
           @click="handleAction(item.command)"
-        >
-        </component>
+        />
       </a-tooltip>
     </div>
   </div>
 </template>
+
 <script setup lang="ts">
 import {
-  UndoOutlined,
-  RedoOutlined,
+  AliyunOutlined,
   BoldOutlined,
   ItalicOutlined,
+  OrderedListOutlined,
+  RedoOutlined,
   StrikethroughOutlined,
   TableOutlined,
+  UndoOutlined,
   UnorderedListOutlined,
-  OrderedListOutlined,
-  AliyunOutlined
 } from '@ant-design/icons-vue'
 import { redoCommand, undoCommand } from '@milkdown/plugin-history'
 import {
@@ -34,78 +36,82 @@ import {
   toggleStrongCommand,
   wrapInBlockquoteCommand,
   wrapInBulletListCommand,
-  wrapInOrderedListCommand
+  wrapInOrderedListCommand,
 } from '@milkdown/preset-commonmark'
-import { insertTableCommand, toggleStrikethroughCommand } from '@milkdown/preset-gfm'
+import {
+  insertTableCommand,
+  toggleStrikethroughCommand,
+} from '@milkdown/preset-gfm'
 import type { CmdKey } from '@milkdown/core'
 import { callCommand } from '@milkdown/utils'
-import { FunctionalComponent, toRefs } from 'vue'
-import { UseEditorReturn } from '@milkdown/vue'
-import { AntdIconProps } from '@ant-design/icons-vue/lib/components/AntdIcon'
+import type { FunctionalComponent } from 'vue'
+import { toRefs } from 'vue'
+import type { UseEditorReturn } from '@milkdown/vue'
+import type { AntdIconProps } from '@ant-design/icons-vue/lib/components/AntdIcon'
 
-type ToolbarListType = {
+interface ToolbarListType {
   icon: FunctionalComponent<AntdIconProps>
   tooltip: string
   command: () => CmdKey<any>
 }
 
+const props = withDefaults(defineProps<ToolbarPropsType>(), {})
+
 const toolbarList: ToolbarListType[] = [
   {
     icon: UndoOutlined,
     tooltip: '撤销',
-    command: () => undoCommand.key
+    command: () => undoCommand.key,
   },
   {
     icon: RedoOutlined,
     tooltip: '重做',
-    command: () => redoCommand.key
+    command: () => redoCommand.key,
   },
   {
     icon: BoldOutlined,
     tooltip: '加粗',
-    command: () => toggleStrongCommand.key
+    command: () => toggleStrongCommand.key,
   },
   {
     icon: ItalicOutlined,
     tooltip: '斜体',
-    command: () => toggleEmphasisCommand.key
+    command: () => toggleEmphasisCommand.key,
   },
   {
     icon: StrikethroughOutlined,
     tooltip: '删除线',
-    command: () => toggleStrikethroughCommand.key
+    command: () => toggleStrikethroughCommand.key,
   },
   {
     icon: AliyunOutlined,
     tooltip: '引用',
-    command: () => wrapInBlockquoteCommand.key
+    command: () => wrapInBlockquoteCommand.key,
   },
   {
     icon: UnorderedListOutlined,
     tooltip: '无序列表',
-    command: () => wrapInBulletListCommand.key
+    command: () => wrapInBulletListCommand.key,
   },
   {
     icon: OrderedListOutlined,
     tooltip: '有序列表',
-    command: () => wrapInOrderedListCommand.key
+    command: () => wrapInOrderedListCommand.key,
   },
   {
     icon: TableOutlined,
     tooltip: '表格',
-    command: () => insertTableCommand.key
-  }
+    command: () => insertTableCommand.key,
+  },
 ]
 
-type ToolbarPropsType = {
+interface ToolbarPropsType {
   editorInfo: UseEditorReturn | undefined
 }
 
-const props = withDefaults(defineProps<ToolbarPropsType>(), {})
-
 const { editorInfo } = toRefs(props)
 
-const handleAction = (command: () => CmdKey<any>, payload?: any) => {
+function handleAction(command: () => CmdKey<any>, payload?: any) {
   if (command()) {
     editorInfo.value?.get()?.action(callCommand(command(), payload))
   }

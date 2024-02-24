@@ -1,14 +1,15 @@
 {
   "name": "keep-notes",
+  "type": "module",
   "version": "1.0.0",
   "description": "Markdown编辑器笔记软件",
-  "type": "module",
-  "main": "./out/main/index.js",
   "author": "example.com",
   "homepage": "https://electron-vite.org",
+  "main": "./out/main/index.js",
   "scripts": {
     "format": "prettier --write .",
-    "lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts,.vue --fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",

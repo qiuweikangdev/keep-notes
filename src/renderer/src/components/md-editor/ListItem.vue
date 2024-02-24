@@ -3,33 +3,35 @@
     class="flex-column flex items-start gap-2"
     :class="{ ['ProseMirror-selectednode']: selected }"
   >
-    <span className="flex h-6 items-center">
+    <span class="flex h-6 items-center">
       <template v-if="checked != null">
         <input
-          className="form-checkbox rounded"
+          class="form-checkbox rounded"
           type="checkbox"
           :checked="checked"
           @change="onChange"
-        />
+        >
       </template>
       <template v-else-if="isBullet">
-        <span className="h-2 w-2 rounded-full bg-nord8 dark:bg-nord9" />
+        <span class="h-2 w-2 rounded-full bg-nord8 dark:bg-nord9" />
       </template>
       <template v-else>
-        <span className="text-nord8">{{ attrs?.label }}</span>
+        <span class="text-nord8">{{ attrs?.label }}</span>
       </template>
     </span>
-    <div className="min-w-0" ref="contentRef" />
+    <div ref="contentRef" class="min-w-0" />
   </li>
 </template>
+
 <script setup lang="ts">
 import { useNodeViewContext } from '@prosemirror-adapter/vue'
+
 const { contentRef, node, setAttrs, selected } = useNodeViewContext()
 const { attrs } = node.value
 const checked = attrs?.checked
 const isBullet = attrs?.listType === 'bullet'
 
-const onChange = () => {
+function onChange() {
   setAttrs({ checked: !checked })
 }
 </script>

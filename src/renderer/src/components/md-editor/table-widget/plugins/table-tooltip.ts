@@ -1,23 +1,27 @@
-import { Ctx } from '@milkdown/ctx'
+import type { Ctx } from '@milkdown/ctx'
 import { usePluginViewFactory } from '@prosemirror-adapter/vue'
-import TableTooltip from '../table-tooltip.vue'
-import { TooltipProvider, tooltipFactory } from '@milkdown/plugin-tooltip'
+import type { TooltipProvider } from '@milkdown/plugin-tooltip'
+import { tooltipFactory } from '@milkdown/plugin-tooltip'
 import { $ctx } from '@milkdown/utils'
+import TableTooltip from '../table-tooltip.vue'
 
 export const tableTooltip = tooltipFactory('TableTooltip')
 
-export const tableTooltipCtx = $ctx<TooltipProvider | null, 'tableTooltip'>(null, 'tableTooltip')
+export const tableTooltipCtx = $ctx<TooltipProvider | null, 'tableTooltip'>(
+  null,
+  'tableTooltip',
+)
 
-export const useTableTooltip = () => {
+export function useTableTooltip() {
   const pluginViewFactory = usePluginViewFactory()
   return {
     plugins: tableTooltip,
     config: (ctx: Ctx) => {
       ctx.set(tableTooltip.key, {
         view: pluginViewFactory({
-          component: TableTooltip
-        })
+          component: TableTooltip,
+        }),
       })
-    }
+    },
   }
 }

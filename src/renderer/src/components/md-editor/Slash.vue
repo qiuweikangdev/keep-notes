@@ -1,3 +1,14 @@
+<template>
+  <div ref="divRef">
+    <button
+      class="text-gray-600 bg-slate-200 px-2 py-1 rounded-lg hover:bg-slate-300 border hover:text-gray-900"
+      @mousedown="addCodeBlock"
+    >
+      Code Block
+    </button>
+  </div>
+</template>
+
 <script setup lang="ts">
 import { editorViewCtx } from '@milkdown/core'
 import { SlashProvider } from '@milkdown/plugin-slash'
@@ -5,7 +16,8 @@ import { createCodeBlockCommand } from '@milkdown/preset-commonmark'
 import { callCommand } from '@milkdown/utils'
 import { useInstance } from '@milkdown/vue'
 import { usePluginViewContext } from '@prosemirror-adapter/vue'
-import { onMounted, onUnmounted, ref, VNodeRef, watch } from 'vue'
+import type { VNodeRef } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 
 const { view, prevState } = usePluginViewContext()
 const [loading, get] = useInstance()
@@ -16,7 +28,7 @@ let tooltipProvider: SlashProvider
 
 onMounted(() => {
   tooltipProvider = new SlashProvider({
-    content: divRef.value as any
+    content: divRef.value as any,
   })
 
   tooltipProvider.update(view.value, prevState.value)
@@ -30,12 +42,13 @@ onUnmounted(() => {
   tooltipProvider.destroy()
 })
 
-const addCodeBlock = (e: Event) => {
-  if (loading.value) return
+function addCodeBlock(e: Event) {
+  if (loading.value)
+    return
 
   e.preventDefault()
 
-  get()!.action((ctx) => {
+  get()?.action((ctx) => {
     const view = ctx.get(editorViewCtx)
     const { dispatch, state } = view
     const { tr, selection } = state
@@ -45,14 +58,3 @@ const addCodeBlock = (e: Event) => {
   })
 }
 </script>
-
-<template>
-  <div ref="divRef">
-    <button
-      className="text-gray-600 bg-slate-200 px-2 py-1 rounded-lg hover:bg-slate-300 border hover:text-gray-900"
-      @mousedown="addCodeBlock"
-    >
-      Code Block
-    </button>
-  </div>
-</template>

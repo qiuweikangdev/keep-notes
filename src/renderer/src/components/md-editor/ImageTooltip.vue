@@ -6,38 +6,30 @@
     >
       <label class="flex flex-row items-center justify-center gap-4">
         <span class="w-10">Link</span>
-        <input />
+        <input>
       </label>
       <label class="flex flex-row items-center justify-center gap-4">
         <span class="w-10">Alt</span>
-        <input />
+        <input>
       </label>
       <label class="flex flex-row items-center justify-center gap-4">
         <span class="w-10">Title</span>
-        <input />
+        <input>
       </label>
     </div>
   </div>
 </template>
+
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { commandsCtx } from '@milkdown/core'
-import { tooltipFactory, TooltipProvider } from '@milkdown/plugin-tooltip'
-import { updateImageCommand } from '@milkdown/preset-commonmark'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { TooltipProvider } from '@milkdown/plugin-tooltip'
 import { NodeSelection } from '@milkdown/prose/state'
 import { useInstance } from '@milkdown/vue'
-import { usePluginViewContext } from '@prosemirror-adapter/vue'
 
 const tooltipRef = ref<HTMLDivElement>()
 
-const { view, prevState } = usePluginViewContext()
 const tooltipProvider = ref<TooltipProvider>()
-console.log('view', view)
-const { state } = view.value
-const { selection } = state
-const imageNode = state.doc.nodeAt(selection.from)
-const [loading, getEditor] = useInstance()
-const { src, alt, title } = imageNode?.attrs ?? {}
+const [loading] = useInstance()
 
 onMounted(() => {
   if (tooltipRef.value && !tooltipProvider.value && !loading) {
@@ -45,13 +37,15 @@ onMounted(() => {
       content: tooltipRef.value,
       tippyOptions: {
         zIndex: 30,
-        appendTo: document.body
+        appendTo: document.body,
       },
       shouldShow: (view) => {
         const { selection } = view.state
         const { empty, from } = selection
 
-        const isTooltipChildren = provider.element.contains(document.activeElement)
+        const isTooltipChildren = provider.element.contains(
+          document.activeElement,
+        )
 
         const notHasFocus = !view.hasFocus() && !isTooltipChildren
 
@@ -62,9 +56,10 @@ onMounted(() => {
         }
 
         return (
-          selection instanceof NodeSelection && view.state.doc.nodeAt(from)?.type.name === 'image'
+          selection instanceof NodeSelection
+          && view.state.doc.nodeAt(from)?.type.name === 'image'
         )
-      }
+      },
     })
 
     tooltipProvider.value = provider

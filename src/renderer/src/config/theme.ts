@@ -4,5 +4,5 @@ export const themeConfig = {
   colorBgContainer: '#f8f8f8',
   colorText: '#000000',
   colorPrimaryHover: '#c0835d',
-  tooltipColorText: '#ffffff'
+  tooltipColorText: '#ffffff',
 }
