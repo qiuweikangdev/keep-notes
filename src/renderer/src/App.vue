@@ -5,13 +5,13 @@
         colorBgContainer: themeConfig.colorBgContainer,
         colorPrimary: themeConfig.colorPrimary,
         colorTextLightSolid: themeConfig.colorText,
-        colorPrimaryHover: themeConfig.colorPrimaryHover
+        colorPrimaryHover: themeConfig.colorPrimaryHover,
       },
       components: {
         Tooltip: {
-          colorTextLightSolid: themeConfig.tooltipColorText
-        }
-      }
+          colorTextLightSolid: themeConfig.tooltipColorText,
+        },
+      },
     }"
   >
     <div class="h-full flex flex-col">
@@ -53,10 +53,11 @@ import MenuBar from './components/menu-bar/index.vue'
 
 const paneSize = ref(30)
 
-const handleToggleCollapse = () => {
-  if (paneSize.value == 0) {
+function handleToggleCollapse() {
+  if (paneSize.value === 0) {
     paneSize.value = 30
-  } else {
+  }
+  else {
     paneSize.value = 0
   }
 }
