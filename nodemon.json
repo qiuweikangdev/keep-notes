@@ -1,0 +1,7 @@
+{
+  "verbose": true,
+  "ignore": ["node_modules", "src/renderer"],
+  "watch": ["src/main", "src/preload"],
+  "restartable": "rs",
+  "ext": "js,ts"
+}
