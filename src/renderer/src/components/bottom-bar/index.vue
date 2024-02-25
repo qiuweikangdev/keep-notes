@@ -1,5 +1,8 @@
 <template>
-  <div :class="themeClass" class="py-[6px] flex justify-between items-center">
+  <div
+    :class="themeClass"
+    class="py-[6px] flex justify-between items-center transition-none"
+  >
     <a-button
       size="small"
       class="bg-none border-none"

@@ -8,17 +8,20 @@ export default {
   theme: {
     extend: {
       colors: {
-        'color-primary': lightConfig.primary,
+        'color-primary': lightConfig.colorPrimary,
       },
       backgroundColor: {
-        'color-primary': lightConfig.primary,
+        'color-primary': lightConfig.colorPrimary,
+        'color-secondary': lightConfig.colorSecondary,
+        'color-secondary-hover': lightConfig.colorSecondaryHover,
         'color-container': lightConfig.colorBgContainer,
+        'dark:color-secondary': darkConfig.colorSecondary,
         'dark-color-container': darkConfig.colorBgContainer,
         'dark-color-icon': darkConfig.colorBgIcon,
         'dark-color-hover': darkConfig.colorPrimaryBgHover,
       },
       borderColor: {
-        'dark-color-border': darkConfig.colorBorder,
+        'dark-color': darkConfig.colorBorder,
       },
     },
   },

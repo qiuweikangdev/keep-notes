@@ -34,10 +34,12 @@ const tableSelectorRef = ref<HTMLDivElement>()
 const dragOver = ref(false)
 
 const common = computed(() => {
-  return [
-    'hover:bg-color-primary hover:opacity-60 hover:dark:bg-[#e5e7eb] absolute cursor-pointer bg-gray-200 dark:bg-gray-600',
-    dragOver.value ? 'ring-2' : '',
-  ].join(',')
+  const baseClass
+    = 'absolute cursor-pointer bg-color-secondary dark:bg-color-secondary'
+  const hoverClass
+    = 'hover:bg-color-secondary-hover hover:dark:bg-[#81A1C1] hover:opacity-60 dark:bg-gray-600'
+  const dragOverClass = dragOver.value ? 'ring-2' : ''
+  return [baseClass, hoverClass, dragOverClass].filter(Boolean).join(' ')
 })
 
 const getClassName = computed(() => {

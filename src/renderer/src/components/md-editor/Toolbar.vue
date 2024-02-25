@@ -1,6 +1,6 @@
 <template>
   <div
-    class="flex justify-center items-center bg-transparent border-t-[1px] dark:border-dark-color-border"
+    class="flex justify-center items-center bg-transparent border-t-[1px] dark:border-dark-color"
   >
     <div
       v-for="(item, index) in toolbarList"

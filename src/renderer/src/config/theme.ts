@@ -1,21 +1,27 @@
 export const lightConfig = {
-  primary: '#a98b79',
   colorPrimary: '#e9e9e9',
+  colorSecondary: '#e5e7eb',
   colorBgContainer: '#f8f8f8',
+  colorBgIcon: '#ffffff',
   colorText: '#000000',
   colorPrimaryHover: '#c0835d',
+  colorSecondaryHover: '#c0835d',
   tooltipColorText: '#ffffff',
+  colorPrimaryActive: '#23272e',
 }
 
 export const darkConfig = {
-  colorBgContainer: '#23272E',
+  colorSecondary: '#4b5563',
+  colorBgContainer: '#23272e',
   colorBorder: '#444C5B',
-  colorBgIcon: '#8E8E94',
+  colorBgIcon: '#8e8e94',
   colorPrimaryBgHover: '#444950',
   tooltipColorText: '#ffffff',
   colorText: '#B9805C',
   colorPrimaryHover: '#c0835d',
-  colorPrimary: '#23272E',
+  colorSecondaryHover: '#c0835d',
+  colorPrimary: '#323842',
+  colorPrimaryActive: '#eeeeee',
 }
 
 export const themeConfigType = {

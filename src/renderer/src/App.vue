@@ -5,7 +5,7 @@
       <div class="flex flex-1">
         <splitpanes class="default-theme" vertical>
           <pane :size="paneSize">
-            <div class="min-w-[250px] h-full bg-color-container">
+            <div class="min-w-[250px] h-full">
               <dir-tree />
             </div>
           </pane>

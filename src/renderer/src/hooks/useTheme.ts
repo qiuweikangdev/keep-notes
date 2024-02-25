@@ -35,11 +35,13 @@ export default function useTheme() {
     return {
       algorithm: getAlgorithm([theme.value]),
       token: {
-        motionDurationSlow: '0.15',
+        // motionDurationSlow: '0',
+        // motionDurationMid: '0',
         colorBgContainer: themeConfigType[theme.value].colorBgContainer,
         colorPrimary: themeConfigType[theme.value].colorPrimary,
         colorTextLightSolid: themeConfigType[theme.value].colorText,
         colorPrimaryHover: themeConfigType[theme.value].colorPrimaryHover,
+        colorPrimaryActive: themeConfigType[theme.value].colorPrimaryActive,
       },
       components: {
         Tooltip: {
@@ -52,7 +54,7 @@ export default function useTheme() {
   const { token } = antdTheme.useToken()
 
   const themeClass = computed(() => {
-    return ['bg-white', 'dark:bg-[#23272E]']
+    return ['bg-white', 'dark:bg-[#23272E]', 'transition-all', 'duration-250']
   })
 
   onMounted(() => {

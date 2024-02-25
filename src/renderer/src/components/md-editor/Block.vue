@@ -1,7 +1,7 @@
 <template>
   <div
     ref="divRef"
-    class="w-[18px] bg-slate-200 rounded hover:bg-slate-300 cursor-grab"
+    class="w-[18px] bg-slate-200 rounded hover:bg-slate-300 dark:bg-dark-color-icon cursor-grab"
   >
     <svg
       xmlns="http://www.w3.org/2000/svg"
