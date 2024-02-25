@@ -1,6 +1,24 @@
-@import url('splitpanes/dist/splitpanes.css');
+@import 'splitpanes/dist/splitpanes.css';
 
 .splitpanes,
 .splitpanes.default-theme .splitpanes__pane {
-  background-color: #f8f8f8;
+  @apply bg-white dark:bg-dark-color-container;
+}
+
+.splitpanes.default-theme .splitpanes__splitter {
+  @apply dark:bg-dark-color-container;
+}
+
+.default-theme.splitpanes--vertical>.splitpanes__splitter,
+.default-theme .splitpanes--vertical>.splitpanes__splitter,
+.default-theme.splitpanes--horizontal>.splitpanes__splitter,
+.default-theme .splitpanes--horizontal>.splitpanes__splitter {
+  @apply dark:border-dark-color-border;
+}
+
+.splitpanes.default-theme .splitpanes__splitter::before,
+.splitpanes.default-theme .splitpanes__splitter::after,
+.splitpanes.default-theme .splitpanes__splitter:hover::before,
+.splitpanes.default-theme .splitpanes__splitter:hover::after {
+  @apply dark:bg-dark-color-icon;
 }

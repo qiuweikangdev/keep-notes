@@ -5,6 +5,7 @@
       v-model:selectedKeys="selectedKeys"
       multiple
       :tree-data="treeData"
+      class="h-full"
     >
       <template #title="{ title }">
         <span class="pl-[6px]">{{ title }}</span>

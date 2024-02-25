@@ -1,11 +1,11 @@
 <template>
   <div
-    class="flex justify-center items-center border-y-2 border-[#e5e7eb] border-solid"
+    class="flex justify-center items-center bg-transparent border-t-[1px] dark:border-dark-color-border"
   >
     <div
       v-for="(item, index) in toolbarList"
       :key="index"
-      class="px-[12px] hover:bg-[#f2f2f2] mx-[8px]"
+      class="px-[12px] hover:bg-[#F2F2F2] hover:dark:bg-dark-color-hover mx-[8px] rounded-full"
     >
       <a-tooltip :title="item.tooltip" placement="bottom">
         <component
