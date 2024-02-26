@@ -1,4 +1,4 @@
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { theme as antdTheme } from 'ant-design-vue'
 import type { ThemeConfig } from 'ant-design-vue/es/config-provider/context'
 import { themeConfigType } from '@renderer/config/theme'
@@ -17,10 +17,49 @@ export default function useTheme() {
     }
   }
 
-  const changeTheme = (t: ThemeName) => {
-    theme.value = t
+  const setTheme = (t) => {
     localStorage.setItem('theme', t)
+    theme.value = t
     changeHtml(t)
+  }
+
+  const animateTheme = (e: MouseEvent, themeCallback: Function) => {
+    const x = e.clientX
+    const y = e.clientY
+    const endRadius = Math.hypot(
+      Math.max(x, innerWidth - x),
+      Math.max(y, innerHeight - y),
+    )
+
+    // @ts-expect-error: Transition API
+    const transition = document.startViewTransition(async () => {
+      themeCallback?.()
+      await nextTick()
+    })
+
+    transition.ready.then(() => {
+      const clipPath = [
+        `circle(0px at ${x}px ${y}px)`,
+        `circle(${endRadius}px at ${x}px ${y}px)`,
+      ]
+      document.documentElement.animate(
+        {
+          clipPath: theme.value === 'dark' ? [...clipPath].reverse() : clipPath,
+        },
+        {
+          duration: 400,
+          easing: 'ease-out',
+          pseudoElement:
+            theme.value === 'dark'
+              ? '::view-transition-old(root)'
+              : '::view-transition-new(root)',
+        },
+      )
+    })
+  }
+
+  const changeTheme = (e: MouseEvent, t: ThemeName) => {
+    animateTheme(e, () => setTheme(t))
   }
 
   const getAlgorithm = (themes: ThemeName[] = []) =>
