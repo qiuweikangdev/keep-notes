@@ -52,7 +52,7 @@ export function usePlayground(
   const tooltipSlash = slashFactory('Commands')
 
   const ctxRef = ref<Ctx>()
-  const size = ref(0)
+  const total = ref(0)
 
   const editorInfo = useEditor((root) => {
     return Editor.make()
@@ -68,7 +68,7 @@ export function usePlayground(
         ctx.set(rootCtx, root)
         ctx.set(defaultValueCtx, defaultValue.value)
         ctx.get(listenerCtx).markdownUpdated((_, markdown) => {
-          size.value = ctx.get(editorStateCtx).doc.textContent.length || 0
+          total.value = ctx.get(editorStateCtx).doc.textContent.length || 0
           onChange?.(markdown)
         })
         ctx.update(prismConfig.key, prev => ({
@@ -115,8 +115,6 @@ export function usePlayground(
       )
   })
 
-  const { get } = editorInfo
-
   const autoFocus = () => {
     ctxRef.value?.get(editorViewCtx).dom.focus()
   }
@@ -124,13 +122,12 @@ export function usePlayground(
   watchEffect(() => {
     requestAnimationFrame(() => {
       const effect = async () => {
-        const editor = get()
-        if (!editor)
-          return
-        await editor.create()
-        autoFocus()
+        const editor = editorInfo?.get()
+        if (editor) {
+          await editor.create()
+          autoFocus()
+        }
       }
-
       effect().catch((e) => {
         console.error(e)
       })
@@ -144,6 +141,6 @@ export function usePlayground(
   return {
     editorInfo,
     autoFocus,
-    size,
+    total,
   }
 }
