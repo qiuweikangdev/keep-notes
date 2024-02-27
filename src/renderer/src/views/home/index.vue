@@ -2,18 +2,21 @@
   <div :class="themeClass" class="h-full flex flex-col">
     <menu-bar />
     <div class="flex flex-1">
-      <splitpanes class="default-theme" vertical>
-        <pane :size="paneSize">
+      <splitpanes class="default-theme" vertical @resize="handleResize">
+        <pane :size="panelSize" min-size="1">
           <div class="min-w-[250px] h-full">
             <dir-tree />
           </div>
         </pane>
-        <pane :size="100 - paneSize">
+        <pane :size="100 - panelSize">
           <div class="flex-1 h-full flex flex-col">
             <div class="md-wrapper flex-1">
               <milkdown-provider>
                 <prosemirror-adapter-provider>
-                  <milkdown @toggle-collapse="handleToggleCollapse" />
+                  <milkdown
+                    :panel-size="leftPanelSize"
+                    @toggle-collapse="handleToggleCollapse"
+                  />
                 </prosemirror-adapter-provider>
               </milkdown-provider>
             </div>
@@ -36,9 +39,15 @@ import MenuBar from '@renderer/components/menu-bar/index.vue'
 
 const { themeClass } = useTheme()
 
-const paneSize = ref(30)
+const panelSize = ref(30)
+const leftPanelSize = ref(30)
 
 function handleToggleCollapse() {
-  paneSize.value = paneSize.value === 0 ? 30 : 0
+  panelSize.value = panelSize.value === 0 ? 30 : 0
+}
+
+function handleResize(value) {
+  const [minValue] = value
+  leftPanelSize.value = minValue.size
 }
 </script>

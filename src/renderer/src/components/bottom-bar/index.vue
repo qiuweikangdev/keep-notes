@@ -15,16 +15,22 @@
       <span
         className="text-gray-600 bg-slate-300 p-[4px] rounded-lg text-[12px]"
       >
-        {{ size }} 词
+        {{ total }} 词
       </span>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons-vue'
 import useTheme from '@renderer/hooks/useTheme'
+
+interface BottomBarType {
+  total?: number
+  panelSize?: number
+  collapsed: boolean
+}
 
 const props = withDefaults(defineProps<BottomBarType>(), {
   collapsed: false,
@@ -34,11 +40,6 @@ const emits = defineEmits(['toggleCollapse', 'update:collapsed'])
 
 const { themeClass } = useTheme()
 
-interface BottomBarType {
-  size?: number
-  collapsed: boolean
-}
-
 const collapsed = ref(false)
 
 function handleToggleCollapse() {
@@ -46,4 +47,11 @@ function handleToggleCollapse() {
   emits('toggleCollapse')
   emits('update:collapsed', !props.collapsed)
 }
+
+watch(
+  () => props.panelSize,
+  (value) => {
+    collapsed.value = !!(value && value <= 1)
+  },
+)
 </script>
