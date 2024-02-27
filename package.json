@@ -55,7 +55,8 @@
     "ant-design-vue": "^4.1.2",
     "electron-updater": "^6.1.8",
     "prism-themes": "^1.9.0",
-    "splitpanes": "^3.1.5"
+    "splitpanes": "^3.1.5",
+    "vue-router": "4"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^2.6.4",
