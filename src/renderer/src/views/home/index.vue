@@ -43,11 +43,13 @@ const panelSize = ref(30)
 const leftPanelSize = ref(30)
 
 function handleToggleCollapse() {
-  panelSize.value = panelSize.value === 0 ? 30 : 0
+  panelSize.value = leftPanelSize.value <= 1 ? 30 : 1
+  leftPanelSize.value = panelSize.value
 }
 
 function handleResize(value) {
   const [minValue] = value
   leftPanelSize.value = minValue.size
+  panelSize.value = minValue.size
 }
 </script>
