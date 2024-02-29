@@ -51,7 +51,7 @@ function handleToggleCollapse() {
 watch(
   () => props.panelSize,
   (value) => {
-    collapsed.value = !!(value && value <= 1)
+    collapsed.value = !!(value === 0)
   },
 )
 </script>

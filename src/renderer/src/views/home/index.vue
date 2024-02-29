@@ -3,7 +3,7 @@
     <menu-bar />
     <div class="flex flex-1">
       <splitpanes class="default-theme" vertical @resize="handleResize">
-        <pane :size="panelSize" min-size="1">
+        <pane :size="panelSize" class="min-w-[4px]">
           <div class="min-w-[250px] h-full">
             <dir-tree />
           </div>
@@ -43,7 +43,7 @@ const panelSize = ref(30)
 const leftPanelSize = ref(30)
 
 function handleToggleCollapse() {
-  panelSize.value = leftPanelSize.value <= 1 ? 30 : 1
+  panelSize.value = leftPanelSize.value <= 0 ? 30 : 0
   leftPanelSize.value = panelSize.value
 }
 
