@@ -5,7 +5,7 @@
         <toolbar :editor-info="editorInfo" />
       </pane>
       <pane class="flex flex-col h-full flex-1">
-        <milkdown class="flex-1 flex w-full" />
+        <milkdown class="flex-1 flex w-full" spellcheck="false" />
         <bottom-bar
           :total="total"
           :panel-size="panelSize"
