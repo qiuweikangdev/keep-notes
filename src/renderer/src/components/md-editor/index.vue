@@ -5,7 +5,7 @@
         <toolbar :editor-info="editorInfo" />
       </pane>
       <pane class="flex flex-col h-full flex-1">
-        <milkdown class="flex-1 flex w-full" @click="autoFocus" />
+        <milkdown class="flex-1 flex w-full" />
         <bottom-bar
           :total="total"
           :panel-size="panelSize"
@@ -30,5 +30,5 @@ const emits = defineEmits(['toggle-collapse'])
 
 const content = ref('')
 
-const { editorInfo, autoFocus, total } = usePlayground(content)
+const { editorInfo, total } = usePlayground(content)
 </script>
