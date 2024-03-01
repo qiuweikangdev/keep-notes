@@ -30,6 +30,7 @@
     "@ant-design/icons-vue": "^7.0.1",
     "@electron-toolkit/preload": "^3.0.0",
     "@electron-toolkit/utils": "^3.0.0",
+    "@milkdown/components": "^7.3.5",
     "@milkdown/core": "^7.3.5",
     "@milkdown/ctx": "^7.3.5",
     "@milkdown/plugin-block": "^7.3.5",

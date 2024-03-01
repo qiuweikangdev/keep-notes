@@ -11,7 +11,7 @@
         <component
           :is="item.icon"
           class="text-[#8e8e94] py-[12px] hover:font-bold hover:text-[#c0835d] text-[22px]"
-          @click="handleAction(item.command)"
+          @click="handleAction(item)"
         />
       </a-tooltip>
     </div>
@@ -23,6 +23,7 @@ import {
   AliyunOutlined,
   BoldOutlined,
   ItalicOutlined,
+  LinkOutlined,
   OrderedListOutlined,
   RedoOutlined,
   StrikethroughOutlined,
@@ -42,68 +43,71 @@ import {
   insertTableCommand,
   toggleStrikethroughCommand,
 } from '@milkdown/preset-gfm'
-import type { CmdKey } from '@milkdown/core'
 import { callCommand } from '@milkdown/utils'
-import type { FunctionalComponent } from 'vue'
-import { toRefs } from 'vue'
+import { computed, toRefs } from 'vue'
 import type { UseEditorReturn } from '@milkdown/vue'
-import type { AntdIconProps } from '@ant-design/icons-vue/lib/components/AntdIcon'
-
-interface ToolbarListType {
-  icon: FunctionalComponent<AntdIconProps>
-  tooltip: string
-  command: () => CmdKey<any>
-}
+import type { MenuActionOptions } from '@common/types/menu'
+import { useLink } from '@renderer/hooks/useLink'
 
 const props = withDefaults(defineProps<ToolbarPropsType>(), {})
 
-const toolbarList: ToolbarListType[] = [
-  {
-    icon: UndoOutlined,
-    tooltip: '撤销',
-    command: () => undoCommand.key,
-  },
-  {
-    icon: RedoOutlined,
-    tooltip: '重做',
-    command: () => redoCommand.key,
-  },
-  {
-    icon: BoldOutlined,
-    tooltip: '加粗',
-    command: () => toggleStrongCommand.key,
-  },
-  {
-    icon: ItalicOutlined,
-    tooltip: '斜体',
-    command: () => toggleEmphasisCommand.key,
-  },
-  {
-    icon: StrikethroughOutlined,
-    tooltip: '删除线',
-    command: () => toggleStrikethroughCommand.key,
-  },
-  {
-    icon: AliyunOutlined,
-    tooltip: '引用',
-    command: () => wrapInBlockquoteCommand.key,
-  },
-  {
-    icon: UnorderedListOutlined,
-    tooltip: '无序列表',
-    command: () => wrapInBulletListCommand.key,
-  },
-  {
-    icon: OrderedListOutlined,
-    tooltip: '有序列表',
-    command: () => wrapInOrderedListCommand.key,
-  },
-  {
-    icon: TableOutlined,
-    tooltip: '表格',
-    command: () => insertTableCommand.key,
-  },
-]
+const { addLink } = useLink()
+
+const toolbarList = computed(
+  () =>
+    [
+      {
+        icon: UndoOutlined,
+        tooltip: '撤销',
+        command: () => undoCommand.key,
+      },
+      {
+        icon: RedoOutlined,
+        tooltip: '重做',
+        command: () => redoCommand.key,
+      },
+      {
+        icon: BoldOutlined,
+        tooltip: '加粗',
+        command: () => toggleStrongCommand.key,
+      },
+      {
+        icon: ItalicOutlined,
+        tooltip: '斜体',
+        command: () => toggleEmphasisCommand.key,
+      },
+      {
+        icon: LinkOutlined,
+        tooltip: '链接',
+        handle: () => addLink(),
+      },
+      {
+        icon: StrikethroughOutlined,
+        tooltip: '删除线',
+        command: () => toggleStrikethroughCommand.key,
+      },
+      {
+        icon: AliyunOutlined,
+        tooltip: '引用',
+        command: () => wrapInBlockquoteCommand.key,
+      },
+      {
+        icon: UnorderedListOutlined,
+        tooltip: '无序列表',
+        command: () => wrapInBulletListCommand.key,
+      },
+      {
+        icon: OrderedListOutlined,
+        tooltip: '有序列表',
+        command: () => wrapInOrderedListCommand.key,
+      },
+      {
+        icon: TableOutlined,
+        tooltip: '表格',
+        command: () => insertTableCommand.key,
+      },
+    ] as MenuActionOptions[],
+)
 
 interface ToolbarPropsType {
   editorInfo: UseEditorReturn | undefined
@@ -111,9 +115,8 @@ interface ToolbarPropsType {
 
 const { editorInfo } = toRefs(props)
 
-function handleAction(command: () => CmdKey<any>, payload?: any) {
-  if (command()) {
-    editorInfo.value?.get()?.action(callCommand(command(), payload))
-  }
+function handleAction(item: MenuActionOptions) {
+  item.handle?.()
+  item.command && editorInfo.value?.get()?.action(callCommand(item.command()))
 }
 </script>

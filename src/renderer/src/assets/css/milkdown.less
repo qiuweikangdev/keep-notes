@@ -3,16 +3,110 @@
 .milkdown {
   @apply bg-slate-50 px-2 py-4 m-5 border rounded dark:bg-dark-color-container dark:border-dark-color;
 
-    flex: 1;
-    margin: 0;
+  flex: 1;
+  margin: 0;
 
   .tableWrapper {
-      overflow-x: hidden !important;
+    overflow-x: hidden !important;
   }
 
   .editor {
     @apply mx-auto;
 
     left: 20px;
+  }
+}
+
+milkdown-link-preview {
+  & > .link-preview {
+    @apply bg-blue-50;
+    height: 42px;
+    display: flex;
+    justify-content: center;
+    padding: 8px;
+    gap: 8px;
+    border-radius: 16px;
+    cursor: pointer;
+
+    & > .link-display:hover:before {
+      display: block;
+    }
+
+    & > .link-display:before {
+      content: 'click to copy link';
+      position: absolute;
+      transform: translate(50%, -130%);
+      padding: 6px 10px;
+      font-size: 12px;
+      border-radius: 10px;
+      background: #000;
+      color: #fff;
+      text-align: center;
+
+      display: none;
+    }
+
+    & > .link-icon {
+      & > svg {
+        width: 14px;
+        height: 14px;
+      }
+      padding: 5px;
+    }
+
+    & > .link-display {
+      width: 240px;
+      line-height: 24px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 14px;
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+
+    & > .button {
+      & > svg {
+        width: 14px;
+        height: 14px;
+      }
+      padding: 5px;
+      border-radius: 99px;
+      &:hover {
+        @apply bg-blue-400;
+      }
+    }
+  }
+}
+
+milkdown-link-edit {
+  & > .link-edit {
+    @apply bg-blue-50;
+    height: 42px;
+    display: flex;
+    justify-content: center;
+    padding: 8px 12px;
+    gap: 8px;
+    border-radius: 16px;
+
+    & > .input-area {
+      outline: none;
+      background: transparent;
+      width: 200px;
+      font-size: 14px;
+    }
+
+    & > .button {
+      cursor: pointer;
+      border-radius: 8px;
+      font-size: 12px;
+      padding: 4px;
+      &:hover {
+        @apply bg-blue-400;
+      }
+      &.hidden {
+        visibility: hidden;
+      }
+    }
   }
 }

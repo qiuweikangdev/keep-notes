@@ -1,5 +1,5 @@
 import type { Ref } from 'vue'
-import { ref, watch, watchEffect } from 'vue'
+import { ref, watch } from 'vue'
 import {
   Editor,
   defaultValueCtx,
@@ -39,6 +39,10 @@ import {
   tableTooltipCtx,
   useTableTooltip,
 } from '@renderer/components/md-editor/table-widget/plugins'
+import {
+  configureLinkTooltip,
+  linkTooltipPlugin,
+} from '@milkdown/components/link-tooltip'
 
 export function usePlayground(
   defaultValue: Ref<string>,
@@ -88,6 +92,7 @@ export function usePlayground(
         })
         // 自定义
         tableTooltip.config(ctx)
+        configureLinkTooltip(ctx)
       })
       .config(nord)
       .use(block)
@@ -106,6 +111,7 @@ export function usePlayground(
       .use(tableTooltipCtx)
       .use(tableTooltip.plugins)
       .use(tableSelectorPlugin(widgetViewFactory))
+      .use(linkTooltipPlugin)
       .use(
         $view(codeBlockSchema.node, () =>
           nodeViewFactory({
@@ -116,10 +122,10 @@ export function usePlayground(
   })
 
   const autoFocus = () => {
-    ctxRef.value?.get(editorViewCtx).dom.focus()
+    ctxRef.value?.get(editorViewCtx)?.dom?.focus()
   }
 
-  watchEffect(() => {
+  watch([editorInfo], () => {
     requestAnimationFrame(() => {
       const effect = async () => {
         const editor = editorInfo?.get()

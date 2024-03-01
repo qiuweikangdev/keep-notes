@@ -14,6 +14,9 @@ dependencies:
   '@electron-toolkit/utils':
     specifier: ^3.0.0
     version: 3.0.0(electron@28.2.4)
+  '@milkdown/components':
+    specifier: ^7.3.5
+    version: 7.3.5(@codemirror/language@6.10.1)(@codemirror/state@6.4.1)(@codemirror/view@6.24.1)(@milkdown/core@7.3.5)(@milkdown/ctx@7.3.5)(@milkdown/plugin-tooltip@7.3.5)(@milkdown/preset-commonmark@7.3.5)(@milkdown/prose@7.3.5)(@milkdown/transformer@7.3.5)(element-internals-polyfill@0.1.55)
   '@milkdown/core':
     specifier: ^7.3.5
     version: 7.3.5(@milkdown/ctx@7.3.5)(@milkdown/prose@7.3.5)(@milkdown/transformer@7.3.5)
@@ -327,6 +330,319 @@ packages:
     resolution: {integrity: sha512-gFPqTG7otEJ8uP6wrhDv6mqwGWYZKNvAcCq6u9hOj0c+IKCEsY4L1oC9trPq2SaWIzAfHvqfBDxF591JkMf+kg==}
     dev: true
 
+  /@atomico/hooks@4.0.1(atomico@1.76.0)(element-internals-polyfill@0.1.55):
+    resolution: {integrity: sha512-ZUQd04cWxJX05gj1fS7JJkKgGeUeUBOu28SO1vcRSGzRABT0v1vV9CkeLxsJwt4Hr8VLsaHFP6Gs+PEj+O2Jcg==}
+    peerDependencies:
+      '@atomico/react': '*'
+      '@atomico/vue': '*'
+      atomico: ^1.75.1
+    peerDependenciesMeta:
+      '@atomico/react':
+        optional: true
+      '@atomico/vue':
+        optional: true
+    dependencies:
+      '@atomico/use-attributes': 1.0.0(atomico@1.76.0)
+      '@atomico/use-click-coordinates': 1.0.0(atomico@1.76.0)
+      '@atomico/use-click-press': 1.0.0(atomico@1.76.0)
+      '@atomico/use-copy': 1.0.0(atomico@1.76.0)
+      '@atomico/use-css-light-dom': 1.0.0(atomico@1.76.0)
+      '@atomico/use-current-value': 1.0.0(atomico@1.76.0)
+      '@atomico/use-debounce-state': 1.0.0(atomico@1.76.0)
+      '@atomico/use-disabled': 1.0.0(atomico@1.76.0)
+      '@atomico/use-drag-resize': 1.0.2-beta(atomico@1.76.0)
+      '@atomico/use-form': 1.0.0(atomico@1.76.0)(element-internals-polyfill@0.1.55)
+      '@atomico/use-internals': 1.0.0(atomico@1.76.0)
+      '@atomico/use-intersection-observer': 1.0.0(atomico@1.76.0)
+      '@atomico/use-keyboard': 1.0.0(atomico@1.76.0)
+      '@atomico/use-listener': 1.0.0(atomico@1.76.0)
+      '@atomico/use-media-query': 1.0.0(atomico@1.76.0)
+      '@atomico/use-mutation-observer': 1.0.0(atomico@1.76.0)
+      '@atomico/use-parallax': 1.0.0(atomico@1.76.0)
+      '@atomico/use-parent': 1.0.0(atomico@1.76.0)
+      '@atomico/use-prop-proxy': 1.0.0(atomico@1.76.0)
+      '@atomico/use-ref-values': 1.0.0(atomico@1.76.0)
+      '@atomico/use-reflect-event': 1.0.0(atomico@1.76.0)
+      '@atomico/use-render': 1.0.0(atomico@1.76.0)
+      '@atomico/use-resize-observer': 1.0.0(atomico@1.76.0)
+      '@atomico/use-resize-state': 1.0.0(atomico@1.76.0)
+      '@atomico/use-responsive-state': 1.0.0(atomico@1.76.0)
+      '@atomico/use-router': 1.0.0(atomico@1.76.0)
+      '@atomico/use-script': 1.0.0(atomico@1.76.0)
+      '@atomico/use-slot': 1.0.0(atomico@1.76.0)
+      '@atomico/use-value-history': 1.0.0(atomico@1.76.0)
+      atomico: 1.76.0
+    transitivePeerDependencies:
+      - element-internals-polyfill
+    dev: false
+
+  /@atomico/use-attributes@1.0.0(atomico@1.76.0):
+    resolution: {integrity: sha512-vHMNOE8PsFK71FUvoZ+OrzUy8BoypMtduT5MadcEF0XxMWMzBSGTcYkJpevZkuBu3jja9lpusWBqfX5Mv+kEDA==}
+    peerDependencies:
+      atomico: ^1.75.1
+    dependencies:
+      '@atomico/use-mutation-observer': 1.0.0(atomico@1.76.0)
+      atomico: 1.76.0
+    dev: false
+
+  /@atomico/use-click-coordinates@1.0.0(atomico@1.76.0):
+    resolution: {integrity: sha512-jOG4g/a+OG4fjPUDuNDqVnI1D002HWkcmrunlvZKmYhevujeM819wZeJg0wnKOMs6k88tDvVYc0vCYxC8l0Lqw==}
+    peerDependencies:
+      atomico: ^1.75.1
+    dependencies:
+      '@atomico/use-current-value': 1.0.0(atomico@1.76.0)
+      '@atomico/use-listener': 1.0.0(atomico@1.76.0)
+      atomico: 1.76.0
+    dev: false
+
+  /@atomico/use-click-press@1.0.0(atomico@1.76.0):
+    resolution: {integrity: sha512-nvRTd0xgQzb56ahPPuGebAfYs5zWoifPGcajcI0ElPFnmvYaZOBWkN8djEvzjuYK6sRoGEflpuBYhs51gvDYiA==}
+    peerDependencies:
+      atomico: ^1.75.1
+    dependencies:
+      '@atomico/use-listener': 1.0.0(atomico@1.76.0)
+      atomico: 1.76.0
+    dev: false
+
+  /@atomico/use-copy@1.0.0(atomico@1.76.0):
+    resolution: {integrity: sha512-ffjRajTLuZF89pMBHmodB1Zr9ldd5D1yEUqJkCUm1wvbHKqdC1JtTop2GJmzIitOYcaXQ2q/XiF8YVb87kkqdg==}
+    peerDependencies:
+      atomico: ^1.75.1
+    dependencies:
+      atomico: 1.76.0
+    dev: false
+
+  /@atomico/use-css-light-dom@1.0.0(atomico@1.76.0):
+    resolution: {integrity: sha512-e4GoAySORdf1OwJw1qcaep4pOCEiPseNhvEer2olqdmhCOlSQCkzeMbUeV4uyHPmGcFlOR93lf0U49Q40/qSqw==}
+    peerDependencies:
+      atomico: ^1.75.1
+    dependencies:
+      atomico: 1.76.0
+    dev: false
+
+  /@atomico/use-current-value@1.0.0(atomico@1.76.0):
+    resolution: {integrity: sha512-ts94Yyw1UulMGtYmy9930GPAyfvZDEe0aThV1Sbr15bgR8UeM68QcnvMOrb8AcLWH4kTm1T96vobBsO4HToD5g==}
+    peerDependencies:
+      atomico: ^1.75.1
+    dependencies:
+      atomico: 1.76.0
+    dev: false
+
+  /@atomico/use-debounce-state@1.0.0(atomico@1.76.0):
+    resolution: {integrity: sha512-olBlrh73kXut6i5dUS0U2M5wfcAnZIKgepw7Htbe5vjHa/tEKzsJiigGMLJE4s14Maes4m1EsbkWEgRt/sHaKQ==}
+    peerDependencies:
+      atomico: ^1.75.1
+    dependencies:
+      atomico: 1.76.0
+    dev: false
+
+  /@atomico/use-disabled@1.0.0(atomico@1.76.0):
+    resolution: {integrity: sha512-Jj+aN8huOrDkMUzCQri+gcCTHHxU7/fnMd3+HgaTXMIWxarFMAy8cUmQst9j04xkxs1sHGjJqoPS8cU8oaO3VQ==}
+    peerDependencies:
+      atomico: ^1.75.1
+    dependencies:
+      '@atomico/use-mutation-observer': 1.0.0(atomico@1.76.0)
+      '@atomico/use-parent': 1.0.0(atomico@1.76.0)
+      atomico: 1.76.0
+    dev: false
+
+  /@atomico/use-drag-resize@1.0.2-beta(atomico@1.76.0):
+    resolution: {integrity: sha512-TQp6gBcURzEdRtBZy2DQbMw9a544ss3Ii4HKyfN+Zmh34rj97w0E7rYbqUqtBkWyusfefTdqzb6Yb+q6tyO7Hg==}
+    peerDependencies:
+      atomico: ^1.75.1
+    dependencies:
+      '@atomico/use-debounce-state': 1.0.0(atomico@1.76.0)
+      '@atomico/use-listener': 1.0.0(atomico@1.76.0)
+      atomico: 1.76.0
+    dev: false
+
+  /@atomico/use-form@1.0.0(atomico@1.76.0)(element-internals-polyfill@0.1.55):
+    resolution: {integrity: sha512-eWSkjOLV70kpUA6s0Z3vEDrqCNVzbFzUs3Aicd6gNFU+KEVy3ZJmDCBQs+4QobhdlLpuCKy2XKD3NRK9rq7avQ==}
+    peerDependencies:
+      atomico: ^1.75.1
+      element-internals-polyfill: ^0.1.49
+    dependencies:
+      '@atomico/use-listener': 1.0.0(atomico@1.76.0)
+      '@atomico/use-parent': 1.0.0(atomico@1.76.0)
+      '@atomico/use-render': 1.0.0(atomico@1.76.0)
+      atomico: 1.76.0
+      element-internals-polyfill: 0.1.55
+    dev: false
+
+  /@atomico/use-internals@1.0.0(atomico@1.76.0):
+    resolution: {integrity: sha512-5RE0W33orL62UW+Z1IRNqCl3dFdponhoJm3M/BbVL1MoIMavSJEKIYAqjUsQ5LE9LnTealmPcAPrrHKa8e7d3A==}
+    peerDependencies:
+      atomico: ^1.75.1
+    dependencies:
+      atomico: 1.76.0
+    dev: false
+
+  /@atomico/use-intersection-observer@1.0.0(atomico@1.76.0):
+    resolution: {integrity: sha512-XBUPOTzXq4a1c93Q3mrq82sx4h+XwyZMbbCdDOR8OocoHuRQusj9JRN7FE1mtjNu4x/1zrCMkDgOpjRzDAQYAQ==}
+    peerDependencies:
+      atomico: ^1.75.1
+    dependencies:
+      '@atomico/use-ref-values': 1.0.0(atomico@1.76.0)
+      atomico: 1.76.0
+    dev: false
+
+  /@atomico/use-keyboard@1.0.0(atomico@1.76.0):
+    resolution: {integrity: sha512-TLoJZZxFL1SXxDaDwfrbm+bO6Rsn+0O+zEdaxXgzocjmTa2cexLEoDAjjcSg22znscy+wTPnmJxDgijHsHnF/A==}
+    peerDependencies:
+      atomico: ^1.75.1
+    dependencies:
+      '@atomico/use-current-value': 1.0.0(atomico@1.76.0)
+      '@atomico/use-listener': 1.0.0(atomico@1.76.0)
+      '@atomico/use-ref-values': 1.0.0(atomico@1.76.0)
+      atomico: 1.76.0
+    dev: false
+
+  /@atomico/use-listener@1.0.0(atomico@1.76.0):
+    resolution: {integrity: sha512-r813DkUzPlyr21k6rEsPWgZqLC0nQAHyJPSgUydcWxiUHst0AMOgbxwO5FvEVfhtsQyHZKv5sIJ/xiT/5U2ejA==}
+    peerDependencies:
+      atomico: ^1.75.1
+    dependencies:
+      '@atomico/use-current-value': 1.0.0(atomico@1.76.0)
+      '@atomico/use-ref-values': 1.0.0(atomico@1.76.0)
+      atomico: 1.76.0
+    dev: false
+
+  /@atomico/use-media-query@1.0.0(atomico@1.76.0):
+    resolution: {integrity: sha512-kctBwJ/cLIHCrQZr85kSBrXzwNFRBbvzpwHXGx0wEEvbfNm+1WkxXRW8ovbJHfJhWs4kZ4dTjIYEQTFnXBlZcw==}
+    peerDependencies:
+      atomico: ^1.75.1
+    dependencies:
+      atomico: 1.76.0
+    dev: false
+
+  /@atomico/use-mutation-observer@1.0.0(atomico@1.76.0):
+    resolution: {integrity: sha512-R2VFiA2F32fzOmthSYLBi5zo16sqlqYdwRN7+hQdq/5KnxcN2hPHAozchp+Vml65T5jWoPgtVT93XEd3//BcDw==}
+    peerDependencies:
+      atomico: ^1.75.1
+    dependencies:
+      '@atomico/use-current-value': 1.0.0(atomico@1.76.0)
+      '@atomico/use-ref-values': 1.0.0(atomico@1.76.0)
+      atomico: 1.76.0
+    dev: false
+
+  /@atomico/use-parallax@1.0.0(atomico@1.76.0):
+    resolution: {integrity: sha512-SCMJh+9nOWduT2fpze5gZdNRQOHXhDH4z7eSDtxCZ3Qb7es5bpnn/+JoypnRsag77Ke/EaAQOyVa2nXyVF/cZQ==}
+    peerDependencies:
+      atomico: ^1.75.1
+    dependencies:
+      '@atomico/use-debounce-state': 1.0.0(atomico@1.76.0)
+      '@atomico/use-intersection-observer': 1.0.0(atomico@1.76.0)
+      '@atomico/use-listener': 1.0.0(atomico@1.76.0)
+      atomico: 1.76.0
+    dev: false
+
+  /@atomico/use-parent@1.0.0(atomico@1.76.0):
+    resolution: {integrity: sha512-CmHx9ll3+xtAEc6tUwlfyjFKkI3BChbJWvqA2wyyv6lxCYTkexWGXaLUEFz1uRLSz2DfTUbvhVEAYzjzE9v2DA==}
+    peerDependencies:
+      atomico: ^1.75.1
+    dependencies:
+      atomico: 1.76.0
+    dev: false
+
+  /@atomico/use-prop-proxy@1.0.0(atomico@1.76.0):
+    resolution: {integrity: sha512-YJsYSkdimi50ScJJAk+0n3K77AcSNsdzuq62Z0OqgoSDVa0wU+q49Yl76GGO7cn94uq8eVl5nNsthkrO5AQqaw==}
+    peerDependencies:
+      atomico: ^1.75.1
+    dependencies:
+      '@atomico/use-current-value': 1.0.0(atomico@1.76.0)
+      atomico: 1.76.0
+    dev: false
+
+  /@atomico/use-ref-values@1.0.0(atomico@1.76.0):
+    resolution: {integrity: sha512-me2zR4jd0+xp3PRDZme32vgQBnzxnIL912itVZOJnUZqcQTjqDeJPyfvEfDPdhpw38PMu5K2VDs5kScDnaA1GA==}
+    peerDependencies:
+      atomico: ^1.75.1
+    dependencies:
+      atomico: 1.76.0
+    dev: false
+
+  /@atomico/use-reflect-event@1.0.0(atomico@1.76.0):
+    resolution: {integrity: sha512-paPpt/CpS/Bnv2aVRq2wBEOR6iU6Fe8lvk97N+hiEL8aUUABom6PbsMejyCMnzKBb7O8kStDrUIxWAO0ZOwYFA==}
+    peerDependencies:
+      atomico: ^1.75.1
+    dependencies:
+      '@atomico/use-listener': 1.0.0(atomico@1.76.0)
+      atomico: 1.76.0
+    dev: false
+
+  /@atomico/use-render@1.0.0(atomico@1.76.0):
+    resolution: {integrity: sha512-w31OXw88lzR1pAQjYKMmgXBbQcg3818wYb+bRfrhZAsvJdeeeID3SqpdU7Qcq2hT6LxpbCZuwXIxd3EUwidAvQ==}
+    peerDependencies:
+      atomico: ^1.75.1
+    dependencies:
+      atomico: 1.76.0
+    dev: false
+
+  /@atomico/use-resize-observer@1.0.0(atomico@1.76.0):
+    resolution: {integrity: sha512-XwFQ0hk5DNCmBVf3OKATABeqCX7VJ9+/Fmaso8rZtB7m9ICDYJMBd8D0F0wTMn+wiIQqK8hy334NHHIr1WqiTQ==}
+    peerDependencies:
+      atomico: ^1.75.1
+    dependencies:
+      '@atomico/use-current-value': 1.0.0(atomico@1.76.0)
+      '@atomico/use-ref-values': 1.0.0(atomico@1.76.0)
+      atomico: 1.76.0
+    dev: false
+
+  /@atomico/use-resize-state@1.0.0(atomico@1.76.0):
+    resolution: {integrity: sha512-oOMlawQzGzQEyfAV7qcg6zb7cgyJCNXG1ilob6+Gdx8xMuUZXVBA47AqtwV0wtnCQjg0cCPW+JjWSb9tCr/wqw==}
+    peerDependencies:
+      atomico: ^1.75.1
+    dependencies:
+      '@atomico/use-resize-observer': 1.0.0(atomico@1.76.0)
+      '@uppercod/match-media': 1.1.1
+      atomico: 1.76.0
+    dev: false
+
+  /@atomico/use-responsive-state@1.0.0(atomico@1.76.0):
+    resolution: {integrity: sha512-lxRxT3t5I3b6gVyUo5Lsx5hTftgvcZEQPl/VewoljHWx10bJrQ7yARfWdInTftY7MtcF7Mg/cSmQ6KnRbAOgJg==}
+    peerDependencies:
+      atomico: ^1.75.1
+    dependencies:
+      '@uppercod/match-media': 1.1.1
+      atomico: 1.76.0
+    dev: false
+
+  /@atomico/use-router@1.0.0(atomico@1.76.0):
+    resolution: {integrity: sha512-mHmfNOiU/gfkoUqh8XSyXbuTew34NyMpEaqLSM5eNmP+h1Ghs/9i8jAXDT2jasLuUjUq4h2ZlhjOMxeLw7Zfsg==}
+    peerDependencies:
+      atomico: ^1.75.1
+    dependencies:
+      '@atomico/use-current-value': 1.0.0(atomico@1.76.0)
+      '@atomico/use-listener': 1.0.0(atomico@1.76.0)
+      '@uppercod/exp-route': 1.4.2
+      atomico: 1.76.0
+    dev: false
+
+  /@atomico/use-script@1.0.0(atomico@1.76.0):
+    resolution: {integrity: sha512-KabWWE6pwlR6OvXb8Vx0h1EZXVZEzEfd0+HUh6D1dWDmviIWDWZhVAULdTzu28yU11cj0ZJ57B3PH5wFNiJrQw==}
+    peerDependencies:
+      atomico: ^1.75.1
+    dependencies:
+      atomico: 1.76.0
+    dev: false
+
+  /@atomico/use-slot@1.0.0(atomico@1.76.0):
+    resolution: {integrity: sha512-yHv9jAD57DzRjtOtcZVcDNNN8k/eJuLTdGBCrE46XQj9ig8mpU+IfuiSL0KZbiZ4IIkDx3nNRfvmmfgKoKy+gg==}
+    peerDependencies:
+      atomico: ^1.75.1
+    dependencies:
+      '@atomico/use-listener': 1.0.0(atomico@1.76.0)
+      atomico: 1.76.0
+    dev: false
+
+  /@atomico/use-value-history@1.0.0(atomico@1.76.0):
+    resolution: {integrity: sha512-PGVDragG7wrjijIQDqzCGtru7h4+wQcnrYPCHSVZw6VD12TVp7CuICs/RjUS+QEEVMqz/hgYkGbT9OAmkS8bjg==}
+    peerDependencies:
+      atomico: ^1.75.1
+    dependencies:
+      atomico: 1.76.0
+    dev: false
+
   /@babel/code-frame@7.23.5:
     resolution: {integrity: sha512-CgH3s1a96LipHCmSUmYFPwY7MNx8C3avkq7i4Wl3cfa662ldtUe4VM1TPXX70pfmrlWTb6jLqTYrZyT2ZTJBgA==}
     engines: {node: '>=6.9.0'}
@@ -535,6 +851,29 @@ packages:
       '@babel/helper-string-parser': 7.23.4
       '@babel/helper-validator-identifier': 7.22.20
       to-fast-properties: 2.0.0
+
+  /@codemirror/language@6.10.1:
+    resolution: {integrity: sha512-5GrXzrhq6k+gL5fjkAwt90nYDmjlzTIJV8THnxNFtNKWotMIlzzN+CpqxqwXOECnUdOndmSeWntVrVcv5axWRQ==}
+    dependencies:
+      '@codemirror/state': 6.4.1
+      '@codemirror/view': 6.24.1
+      '@lezer/common': 1.2.1
+      '@lezer/highlight': 1.2.0
+      '@lezer/lr': 1.4.0
+      style-mod: 4.1.1
+    dev: false
+
+  /@codemirror/state@6.4.1:
+    resolution: {integrity: sha512-QkEyUiLhsJoZkbumGZlswmAhA7CBU02Wrz7zvH4SrcifbsqwlXShVXg65f3v/ts57W3dqyamEriMhij1Z3Zz4A==}
+    dev: false
+
+  /@codemirror/view@6.24.1:
+    resolution: {integrity: sha512-sBfP4rniPBRQzNakwuQEqjEuiJDWJyF2kqLLqij4WXRoVwPPJfjx966Eq3F7+OPQxDtMt/Q9MWLoZLWjeveBlg==}
+    dependencies:
+      '@codemirror/state': 6.4.1
+      style-mod: 4.1.1
+      w3c-keyname: 2.2.8
+    dev: false
 
   /@commitlint/config-validator@18.6.1:
     resolution: {integrity: sha512-05uiToBVfPhepcQWE1ZQBR/Io3+tb3gEotZjnI4tTzzPk16NffN6YABgwFQCLmzZefbDcmwWqJWc2XT47q7Znw==}
@@ -1012,6 +1351,23 @@ packages:
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
     dev: true
 
+  /@floating-ui/core@1.6.0:
+    resolution: {integrity: sha512-PcF++MykgmTj3CIyOQbKA/hDzOAiqI3mhuoN44WRCopIs1sgoDoU4oty4Jtqaj/y3oDU6fnVSm4QG0a3t5i0+g==}
+    dependencies:
+      '@floating-ui/utils': 0.2.1
+    dev: false
+
+  /@floating-ui/dom@1.6.3:
+    resolution: {integrity: sha512-RnDthu3mzPlQ31Ss/BTwQ1zjzIhr3lk1gZB1OC56h/1vEtaXkESrOqL5fQVMfXpwGtRwX+YsZBdyHtJMQnkArw==}
+    dependencies:
+      '@floating-ui/core': 1.6.0
+      '@floating-ui/utils': 0.2.1
+    dev: false
+
+  /@floating-ui/utils@0.2.1:
+    resolution: {integrity: sha512-9TANp6GPoMtYzQdt54kfAyMmz1+osLlXdg2ENroU7zzrtflTLrrC/lgrIfaSe+Wu0b89GKccT7vxXA0MoAIO+Q==}
+    dev: false
+
   /@humanwhocodes/config-array@0.11.14:
     resolution: {integrity: sha512-3T8LkOmg45BV5FICb15QQMsyUSWrQ8AygVfC7ZG32zOalnqrilm018ZVCw0eapXux8FtA33q8PSRSstjee3jSg==}
     engines: {node: '>=10.10.0'}
@@ -1073,6 +1429,22 @@ packages:
       '@jridgewell/sourcemap-codec': 1.4.15
     dev: true
 
+  /@lezer/common@1.2.1:
+    resolution: {integrity: sha512-yemX0ZD2xS/73llMZIK6KplkjIjf2EvAHcinDi/TfJ9hS25G0388+ClHt6/3but0oOxinTcQHJLDXh6w1crzFQ==}
+    dev: false
+
+  /@lezer/highlight@1.2.0:
+    resolution: {integrity: sha512-WrS5Mw51sGrpqjlh3d4/fOwpEV2Hd3YOkp9DBt4k8XZQcoTHZFB7sx030A6OcahF4J1nDQAa3jXlTVVYH50IFA==}
+    dependencies:
+      '@lezer/common': 1.2.1
+    dev: false
+
+  /@lezer/lr@1.4.0:
+    resolution: {integrity: sha512-Wst46p51km8gH0ZUmeNrtpRYmdlRHUpN1DQd3GFAyKANi8WVz8c2jHYTf1CVScFaCjQw1iO3ZZdqGDxQPRErTg==}
+    dependencies:
+      '@lezer/common': 1.2.1
+    dev: false
+
   /@malept/cross-spawn-promise@1.1.1:
     resolution: {integrity: sha512-RTBGWL5FWQcg9orDOCcp4LvItNzUPcyEU9bwaeJX0rJ1IQxzucC48Y0/sQLp/g6t99IQgAlGIaesJS+gTn7tVQ==}
     engines: {node: '>= 10'}
@@ -1091,6 +1463,44 @@ packages:
     transitivePeerDependencies:
       - supports-color
     dev: true
+
+  /@milkdown/components@7.3.5(@codemirror/language@6.10.1)(@codemirror/state@6.4.1)(@codemirror/view@6.24.1)(@milkdown/core@7.3.5)(@milkdown/ctx@7.3.5)(@milkdown/plugin-tooltip@7.3.5)(@milkdown/preset-commonmark@7.3.5)(@milkdown/prose@7.3.5)(@milkdown/transformer@7.3.5)(element-internals-polyfill@0.1.55):
+    resolution: {integrity: sha512-blnviD5S2Y9mPNvPvowowdWscbAXoQIQiPjIyfEuxsnzGcKRTzotVemKu4Sw6L9K23HeSWW4j93MIXSa2rZSFA==}
+    peerDependencies:
+      '@codemirror/language': ^6
+      '@codemirror/state': ^6
+      '@codemirror/view': ^6
+      '@milkdown/core': ^7.2.0
+      '@milkdown/ctx': ^7.2.0
+      '@milkdown/plugin-tooltip': ^7.2.0
+      '@milkdown/preset-commonmark': ^7.2.0
+      '@milkdown/prose': ^7.2.0
+      '@milkdown/transformer': ^7.2.0
+    dependencies:
+      '@atomico/hooks': 4.0.1(atomico@1.76.0)(element-internals-polyfill@0.1.55)
+      '@codemirror/language': 6.10.1
+      '@codemirror/state': 6.4.1
+      '@codemirror/view': 6.24.1
+      '@floating-ui/dom': 1.6.3
+      '@milkdown/core': 7.3.5(@milkdown/ctx@7.3.5)(@milkdown/prose@7.3.5)(@milkdown/transformer@7.3.5)
+      '@milkdown/ctx': 7.3.5
+      '@milkdown/exception': 7.3.5
+      '@milkdown/plugin-tooltip': 7.3.5(@milkdown/core@7.3.5)(@milkdown/ctx@7.3.5)(@milkdown/prose@7.3.5)(@milkdown/transformer@7.3.5)
+      '@milkdown/preset-commonmark': 7.3.5(@milkdown/core@7.3.5)(@milkdown/ctx@7.3.5)(@milkdown/prose@7.3.5)(@milkdown/transformer@7.3.5)
+      '@milkdown/prose': 7.3.5
+      '@milkdown/transformer': 7.3.5(@milkdown/prose@7.3.5)
+      '@milkdown/utils': 7.3.5(@milkdown/core@7.3.5)(@milkdown/ctx@7.3.5)(@milkdown/prose@7.3.5)(@milkdown/transformer@7.3.5)
+      '@types/lodash.debounce': 4.0.9
+      atomico: 1.76.0
+      clsx: 2.1.0
+      lodash.debounce: 4.0.8
+      tslib: 2.6.2
+      unist-util-visit: 5.0.0
+    transitivePeerDependencies:
+      - '@atomico/react'
+      - '@atomico/vue'
+      - element-internals-polyfill
+    dev: false
 
   /@milkdown/core@7.3.5(@milkdown/ctx@7.3.5)(@milkdown/prose@7.3.5)(@milkdown/transformer@7.3.5):
     resolution: {integrity: sha512-aynL3fsgAdZReq6I10ZGzSwQC1bbNaNDYC04KjunHfACKaBD65oeK2yG93AvEf97fzGw+mfnVXMnGt6VNbJLuQ==}
@@ -2040,6 +2450,14 @@ packages:
     resolution: {integrity: sha512-zuVdFrMJiuCDQUMCzQaD6KL28MjnqqN8XnAqiEq9PNm/hCPTSGfrXCOfwj1ow4LFb/tNymJPwsNbVePc1xFqrQ==}
     dev: true
 
+  /@uppercod/exp-route@1.4.2:
+    resolution: {integrity: sha512-rRljihqBd3fBdWSKi4F+ev7OVJfjQyXSfwAxtjaA6PUcpBPbT0GjlJrXKa3wcFAMqE5brAjW0rMxTpXwbKv0pQ==}
+    dev: false
+
+  /@uppercod/match-media@1.1.1:
+    resolution: {integrity: sha512-ITGhdyxadb1ypwow3TkXGdF6vWAmRZWxxfUysZz2kvsGjgaCNSuJzbfLTeWEC+BeL651U18RwZlgpX93ZCRTFg==}
+    dev: false
+
   /@vitejs/plugin-vue@5.0.4(vite@5.1.4)(vue@3.4.19):
     resolution: {integrity: sha512-WS3hevEszI6CEVEx28F8RjTX97k3KsrcY6kvTg7+Whm5y3oYvcqzVeGCU3hxSAn4uY2CLCkeokkGKpoctccilQ==}
     engines: {node: ^18.0.0 || >=20.0.0}
@@ -2400,6 +2818,10 @@ packages:
     resolution: {integrity: sha512-+q/t7Ekv1EDY2l6Gda6LLiX14rU9TV20Wa3ofeQmwPFZbOMo9DXrLbOjFaaclkXKWidIaopwAObQDqwWtGUjqg==}
     engines: {node: '>= 4.0.0'}
     dev: true
+
+  /atomico@1.76.0:
+    resolution: {integrity: sha512-5iOvbLmXHJ8EDYiczJJvmYX2leOjoddl2Nk+JRQQcdLcYxIW/TbGCmex1cCGdQovzIs8Nn263667RjYEQ4KpjA==}
+    dev: false
 
   /autoprefixer@10.4.17(postcss@8.4.35):
     resolution: {integrity: sha512-/cpVNRLSfhOtcGflT13P2794gVSgmPgTR+erw5ifnMLZb0UnSlkK4tquLmkd3BhA+nLo5tX8Cu0upUsGKvKbmg==}
@@ -3338,6 +3760,10 @@ packages:
       extract-zip: 2.0.1
     transitivePeerDependencies:
       - supports-color
+
+  /element-internals-polyfill@0.1.55:
+    resolution: {integrity: sha512-clsNGQoOsCs8zlkT3q8Sgk9JcFZgYT0cDuXPEmD7ca8bthrYjhXQ19cIz5JGmo8CfQ+g7+SXJkfqBVw5mWB64w==}
+    dev: false
 
   /emoji-regex@10.3.0:
     resolution: {integrity: sha512-QpLs9D9v9kArv4lfDEgg1X/gN5XLnf/A6l9cs8SPZLRZR3ZkY9+kwIQTxm+fsSej5UMYGE8fdoaZVIBlqG0XTw==}
@@ -6960,6 +7386,10 @@ packages:
     resolution: {integrity: sha512-6fPc+R4ihwqP6N/aIv2f1gMH8lOVtWQHoqC4yK6oSDVVocumAsfCqjkXnqiYMhmMwS/mEHLp7Vehlt3ql6lEig==}
     engines: {node: '>=8'}
     dev: true
+
+  /style-mod@4.1.1:
+    resolution: {integrity: sha512-nFSNaYG2I8jgB3GZ67q7WjnHlZBzyX5OKgx89k6JkPlaNoyMlRstdBvWgo95qRgUa6tUuvpt4zZM6KWCj+oU6Q==}
+    dev: false
 
   /stylis@4.3.1:
     resolution: {integrity: sha512-EQepAV+wMsIaGVGX1RECzgrcqRRU/0sYOHkeLsZ3fzHaHXZy4DaOOX0vOlGQdlsjkh3mFHAIlVimpwAs4dslyQ==}
