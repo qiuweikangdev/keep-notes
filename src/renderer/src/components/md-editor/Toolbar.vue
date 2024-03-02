@@ -47,7 +47,7 @@ import { callCommand } from '@milkdown/utils'
 import { computed, toRefs } from 'vue'
 import type { UseEditorReturn } from '@milkdown/vue'
 import type { MenuActionOptions } from '@common/types/menu'
-import { useLink } from '@renderer/hooks/useLink'
+import useLink from '@renderer/hooks/useLink'
 
 const props = withDefaults(defineProps<ToolbarPropsType>(), {})
 

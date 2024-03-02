@@ -1,12 +1,13 @@
 import {
   linkTooltipAPI,
+  linkTooltipConfig,
   linkTooltipState,
 } from '@milkdown/components/link-tooltip'
 import { editorViewCtx } from '@milkdown/core'
 import { linkSchema } from '@milkdown/preset-commonmark'
 import { useInstance } from '@milkdown/vue'
 
-export function useLink() {
+export default function useLink() {
   const [_, get] = useInstance()
 
   const addLink = () => {
@@ -29,5 +30,14 @@ export function useLink() {
       ctx.get(linkTooltipAPI.key).addLink(selection.from, selection.to)
     })
   }
-  return { addLink }
+
+  const configureLink = (ctx) => {
+    ctx.set(linkTooltipConfig.key, {
+      confirmButton: () => '确认',
+      linkIcon: () => null,
+      editButton: () => '编辑',
+      removeButton: () => '删除',
+    })
+  }
+  return { addLink, configureLink }
 }

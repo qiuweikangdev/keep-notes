@@ -43,6 +43,7 @@ import {
   configureLinkTooltip,
   linkTooltipPlugin,
 } from '@milkdown/components/link-tooltip'
+import useLink from './useLink'
 
 export function usePlayground(
   defaultValue: Ref<string>,
@@ -52,6 +53,7 @@ export function usePlayground(
   const pluginViewFactory = usePluginViewFactory()
   const widgetViewFactory = useWidgetViewFactory()
   const tableTooltip = useTableTooltip()
+  const { configureLink } = useLink()
 
   const tooltipSlash = slashFactory('Commands')
 
@@ -93,6 +95,7 @@ export function usePlayground(
         // 自定义
         tableTooltip.config(ctx)
         configureLinkTooltip(ctx)
+        configureLink(ctx)
       })
       .config(nord)
       .use(block)
