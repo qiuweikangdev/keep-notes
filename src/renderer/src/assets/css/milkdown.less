@@ -1,10 +1,12 @@
 @import 'prism-themes/themes/prism-nord.css';
 
 .milkdown {
-  @apply bg-slate-50 px-2 py-4 m-5 border rounded dark:bg-dark-color-container dark:border-dark-color;
+  @apply bg-slate-50 dark:bg-dark-color-container dark:border-dark-color px-2 py-4 m-5 border rounded;
 
   flex: 1;
   margin: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 
   .tableWrapper {
     overflow-x: hidden !important;
