@@ -25,7 +25,7 @@ import { BlockProvider } from '@milkdown/plugin-block'
 import { useInstance } from '@milkdown/vue'
 import { usePluginViewContext } from '@prosemirror-adapter/vue'
 import type { VNodeRef } from 'vue'
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { onUnmounted, ref, watch } from 'vue'
 
 const { view } = usePluginViewContext()
 const [loading, get] = useInstance()
@@ -48,7 +48,7 @@ function initTooltipProvider() {
   })
 }
 
-onMounted(() => {
+watch([loading], () => {
   initTooltipProvider()
 })
 
