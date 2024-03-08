@@ -24,11 +24,13 @@ declare module 'vue' {
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     Slash: typeof import('./src/components/md-editor/Slash.vue')['default']
+    Spinner: typeof import('./src/components/Spinner/index.vue')['default']
     SyncSettings: typeof import('./src/components/sync-settings/index.vue')['default']
     TableSelector: typeof import('./src/components/md-editor/table-widget/table-selector.vue')['default']
     TableTooltip: typeof import('./src/components/md-editor/table-widget/table-tooltip.vue')['default']
     Toolbar: typeof import('./src/components/md-editor/Toolbar.vue')['default']
     Tooltip: typeof import('./src/components/md-editor/Tooltip.vue')['default']
     TooltipIcon: typeof import('./src/components/md-editor/table-widget/tooltip-icon.vue')['default']
+    Upload: typeof import('./src/components/dir-tree/components/upload.vue')['default']
   }
 }

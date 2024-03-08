@@ -1,57 +1,41 @@
 <template>
-  <div class="tree-wrapper min-w-[200px] h-full">
-    <a-directory-tree
-      v-model:expandedKeys="expandedKeys"
-      v-model:selectedKeys="selectedKeys"
-      multiple
-      :tree-data="treeData"
-      class="h-full"
-    >
-      <template #title="{ title }">
-        <span class="pl-[6px]">{{ title }}</span>
-      </template>
-    </a-directory-tree>
+  <div ref="containerRef" class="tree-wrapper h-full w-full">
+    <template v-if="treeData?.length">
+      <a-directory-tree
+        v-model:expandedKeys="expandedKeys"
+        v-model:selectedKeys="selectedKeys"
+        :height="panelHeight - 10"
+        :tree-data="treeData"
+        block-node
+        class="min-w-[50px] h-full bg-color-action-bar dark:bg-dark-color-action-bar"
+      >
+        <template #title="{ title }">
+          <span class="pl-[6px]">{{ title }}</span>
+        </template>
+      </a-directory-tree>
+    </template>
+    <template v-else>
+      <upload v-show="panelWidth > 2" @success="handleUploadSuccess" />
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { TreeProps } from 'ant-design-vue'
+import Upload from './components/upload.vue'
 
-const expandedKeys = ref<string[]>(['0-0', '0-1'])
+withDefaults(defineProps<{ panelWidth?: number, panelHeight?: number }>(), {
+  panelWidth: 30,
+  panelHeight: window.innerHeight,
+})
+
+const containerRef = ref(HTMLElement)
+const expandedKeys = ref<string[]>()
 const selectedKeys = ref<string[]>([])
-const treeData: TreeProps['treeData'] = [
-  {
-    title: '测试1',
-    key: '0-0',
-    children: [
-      {
-        title: '测试1-1',
-        key: '0-0-0',
-        isLeaf: true,
-      },
-      {
-        title: '测试1-2',
-        key: '0-0-1',
-        isLeaf: true,
-      },
-    ],
-  },
-  {
-    title: '测试2',
-    key: '0-1',
-    children: [
-      {
-        title: '测试2-1',
-        key: '0-1-0',
-        isLeaf: true,
-      },
-      {
-        title: '测试2-2',
-        key: '0-1-1',
-        isLeaf: true,
-      },
-    ],
-  },
-]
+const treeData = ref<TreeProps['treeData']>([])
+
+function handleUploadSuccess(tree) {
+  treeData.value = tree || []
+}
 </script>
