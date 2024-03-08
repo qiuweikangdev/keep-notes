@@ -25,6 +25,7 @@
 import { ref, watch } from 'vue'
 import { MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons-vue'
 import useTheme from '@renderer/hooks/useTheme'
+import panelConfig from '@renderer/config/panel'
 
 interface BottomBarType {
   total?: number
@@ -48,7 +49,7 @@ function handleToggleCollapse() {
 
 watch(
   () => props.panelSize,
-  (value = 30) => {
+  (value = panelConfig.leftPanelSize) => {
     collapsed.value = !!(value === 0 || value <= 10)
   },
 )

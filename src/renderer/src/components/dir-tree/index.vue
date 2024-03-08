@@ -23,10 +23,11 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { TreeProps } from 'ant-design-vue'
+import panelConfig from '@renderer/config/panel'
 import Upload from './components/upload.vue'
 
 withDefaults(defineProps<{ panelWidth?: number, panelHeight?: number }>(), {
-  panelWidth: 30,
+  panelWidth: panelConfig.leftPanelSize,
   panelHeight: window.innerHeight,
 })
 

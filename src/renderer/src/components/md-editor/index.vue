@@ -22,9 +22,12 @@ import { Pane, Splitpanes } from 'splitpanes'
 import { Milkdown } from '@milkdown/vue'
 import { usePlayground } from '@renderer/hooks/usePlayground'
 import BottomBar from '@renderer/components/bottom-bar/index.vue'
+import panelConfig from '@renderer/config/panel'
 import Toolbar from './Toolbar.vue'
 
-withDefaults(defineProps<{ panelSize?: number }>(), { panelSize: 30 })
+withDefaults(defineProps<{ panelSize?: number }>(), {
+  panelSize: panelConfig.leftPanelSize,
+})
 
 const emits = defineEmits(['toggle-collapse'])
 

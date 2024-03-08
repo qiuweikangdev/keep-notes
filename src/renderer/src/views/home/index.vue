@@ -48,10 +48,11 @@ import DirTree from '@renderer/components/dir-tree/index.vue'
 import useTheme from '@renderer/hooks/useTheme'
 import Milkdown from '@renderer/components/md-editor/index.vue'
 import MenuBar from '@renderer/components/menu-bar/index.vue'
+import panelConfig from '@renderer/config/panel'
 
 const { themeClass } = useTheme()
 
-const panelSize = ref<number>(30)
+const panelSize = ref<number>(panelConfig.leftPanelSize)
 const leftPanelSizeRef = ref()
 const leftWidth = ref<number>(0)
 const leftPanelStyle = ref<CSSProperties>({})
@@ -66,7 +67,8 @@ function handleToggleCollapse(collapsed) {
     panelSize.value = 0
   }
   else {
-    panelSize.value = preLeftPanelSize <= 10 ? 30 : preLeftPanelSize
+    panelSize.value
+      = preLeftPanelSize <= 10 ? panelConfig.leftPanelSize : preLeftPanelSize
   }
   leftPanelStyle.value = { transition: 'width .2s ease-out' }
   rightPanelStyle.value = { transition: 'width .2s ease-out' }
