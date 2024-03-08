@@ -9,16 +9,20 @@ export default {
     extend: {
       colors: {
         'color-primary': lightConfig.colorPrimary,
+        'color-icon': lightConfig.colorIcon,
+        'dark-color-icon': darkConfig.colorIcon,
       },
       backgroundColor: {
         'color-primary': lightConfig.colorPrimary,
         'color-secondary': lightConfig.colorSecondary,
         'color-secondary-hover': lightConfig.colorSecondaryHover,
         'color-container': lightConfig.colorBgContainer,
+        'color-action-bar': lightConfig.colorBgActionBar,
         'dark:color-secondary': darkConfig.colorSecondary,
         'dark-color-container': darkConfig.colorBgContainer,
         'dark-color-icon': darkConfig.colorBgIcon,
         'dark-color-hover': darkConfig.colorPrimaryBgHover,
+        'dark-color-action-bar': darkConfig.colorBgActionBar,
       },
       borderColor: {
         'dark-color': darkConfig.colorBorder,
