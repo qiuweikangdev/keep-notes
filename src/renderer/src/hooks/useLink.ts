@@ -1,6 +1,5 @@
 import {
   linkTooltipAPI,
-  linkTooltipConfig,
   linkTooltipState,
 } from '@milkdown/components/link-tooltip'
 import { editorViewCtx } from '@milkdown/core'
@@ -31,13 +30,5 @@ export default function useLink() {
     })
   }
 
-  const configureLink = (ctx) => {
-    ctx.set(linkTooltipConfig.key, {
-      confirmButton: () => '确认',
-      linkIcon: () => null,
-      editButton: () => '编辑',
-      removeButton: () => '删除',
-    })
-  }
-  return { addLink, configureLink }
+  return { addLink }
 }
