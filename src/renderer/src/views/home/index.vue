@@ -1,20 +1,31 @@
 <template>
-  <div :class="themeClass" class="h-full flex flex-col">
+  <div :class="themeClass" class="h-full flex flex-col overflow-hidden">
     <menu-bar />
     <div class="flex flex-1">
-      <splitpanes class="default-theme" vertical @resize="handleResize">
-        <pane :size="panelSize" class="min-w-[4px]">
-          <div class="min-w-[250px] h-full">
-            <dir-tree />
-          </div>
+      <splitpanes
+        class="default-theme w-full"
+        vertical
+        @resize="handlePanelResize"
+      >
+        <pane
+          ref="leftPanelSizeRef"
+          :size="panelSize"
+          class="min-w-[4px]"
+          :style="leftPanelStyle"
+        >
+          <dir-tree :panel-width="panelSize" :panel-height="panelHeight" />
         </pane>
-        <pane :size="100 - panelSize">
+        <pane
+          :size="100 - panelSize"
+          class="outline-teal-600"
+          :style="rightPanelStyle"
+        >
           <div class="flex-1 h-full flex flex-col">
             <div class="md-wrapper flex-1">
               <milkdown-provider>
                 <prosemirror-adapter-provider>
                   <milkdown
-                    :panel-size="leftPanelSize"
+                    :panel-size="panelSize"
                     @toggle-collapse="handleToggleCollapse"
                   />
                 </prosemirror-adapter-provider>
@@ -28,7 +39,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import type { CSSProperties } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { MilkdownProvider } from '@milkdown/vue'
 import { ProsemirrorAdapterProvider } from '@prosemirror-adapter/vue'
 import { Pane, Splitpanes } from 'splitpanes'
@@ -39,17 +51,57 @@ import MenuBar from '@renderer/components/menu-bar/index.vue'
 
 const { themeClass } = useTheme()
 
-const panelSize = ref(30)
-const leftPanelSize = ref(30)
+const panelSize = ref<number>(30)
+const leftPanelSizeRef = ref()
+const leftWidth = ref<number>(0)
+const leftPanelStyle = ref<CSSProperties>({})
+const rightPanelStyle = ref<CSSProperties>({})
+const panelHeight = ref<number>(window.innerHeight - 40)
 
-function handleToggleCollapse() {
-  panelSize.value = leftPanelSize.value <= 0 ? 30 : 0
-  leftPanelSize.value = panelSize.value
+let preLeftPanelSize = 0
+
+function handleToggleCollapse(collapsed) {
+  if (collapsed) {
+    preLeftPanelSize = panelSize.value
+    panelSize.value = 0
+  }
+  else {
+    panelSize.value = preLeftPanelSize
+  }
+  leftPanelStyle.value = { transition: 'width .2s ease-out' }
+  rightPanelStyle.value = { transition: 'width .2s ease-out' }
 }
 
-function handleResize(value) {
+function handlePanelResize(value: { size: number }[]) {
   const [minValue] = value
-  leftPanelSize.value = minValue.size
+  leftPanelStyle.value = { width: `${minValue.size}%` }
+  rightPanelStyle.value = {}
   panelSize.value = minValue.size
+  getPanelWidth()
 }
+
+async function getPanelWidth() {
+  await nextTick()
+  leftPanelStyle.value = { width: `${leftPanelSizeRef.value.$el.style.width}` }
+  leftWidth.value = leftPanelSizeRef.value.$el.clientWidth
+}
+
+function handleWinResize() {
+  if (leftPanelSizeRef.value?.$el) {
+    rightPanelStyle.value = {
+      width: `${window.innerWidth - leftWidth.value}px`,
+    }
+    leftPanelStyle.value.width = `${leftWidth.value}px`
+  }
+  panelHeight.value = window.innerHeight - 40
+}
+
+onMounted(() => {
+  getPanelWidth()
+  window.addEventListener('resize', handleWinResize)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleWinResize)
+})
 </script>

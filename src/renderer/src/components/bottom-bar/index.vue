@@ -29,11 +29,10 @@ import useTheme from '@renderer/hooks/useTheme'
 interface BottomBarType {
   total?: number
   panelSize?: number
-  collapsed: boolean
 }
 
 const props = withDefaults(defineProps<BottomBarType>(), {
-  collapsed: false,
+  total: 0,
 })
 
 const emits = defineEmits(['toggleCollapse', 'update:collapsed'])
@@ -44,8 +43,7 @@ const collapsed = ref(false)
 
 function handleToggleCollapse() {
   collapsed.value = !collapsed.value
-  emits('toggleCollapse')
-  emits('update:collapsed', !props.collapsed)
+  emits('toggleCollapse', collapsed.value)
 }
 
 watch(

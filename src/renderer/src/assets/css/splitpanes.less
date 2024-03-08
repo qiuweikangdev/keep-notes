@@ -2,17 +2,17 @@
 
 .splitpanes,
 .splitpanes.default-theme .splitpanes__pane {
-  @apply bg-white dark:bg-dark-color-container;
+  @apply bg-white dark:bg-dark-color-container transition-none;
 }
 
 .splitpanes.default-theme .splitpanes__splitter {
   @apply dark:bg-dark-color-container;
 }
 
-.default-theme.splitpanes--vertical>.splitpanes__splitter,
-.default-theme .splitpanes--vertical>.splitpanes__splitter,
-.default-theme.splitpanes--horizontal>.splitpanes__splitter,
-.default-theme .splitpanes--horizontal>.splitpanes__splitter {
+.default-theme.splitpanes--vertical > .splitpanes__splitter,
+.default-theme .splitpanes--vertical > .splitpanes__splitter,
+.default-theme.splitpanes--horizontal > .splitpanes__splitter,
+.default-theme .splitpanes--horizontal > .splitpanes__splitter {
   @apply dark:border-dark-color;
 }
 
