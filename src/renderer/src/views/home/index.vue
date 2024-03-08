@@ -66,7 +66,7 @@ function handleToggleCollapse(collapsed) {
     panelSize.value = 0
   }
   else {
-    panelSize.value = preLeftPanelSize
+    panelSize.value = preLeftPanelSize <= 10 ? 30 : preLeftPanelSize
   }
   leftPanelStyle.value = { transition: 'width .2s ease-out' }
   rightPanelStyle.value = { transition: 'width .2s ease-out' }
