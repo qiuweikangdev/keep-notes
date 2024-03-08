@@ -7,6 +7,7 @@ declare global {
       onWinMinimize: () => void
       onWinMaximize: () => void
       onWinClose: () => void
+      openDialog: () => void
     }
   }
 }

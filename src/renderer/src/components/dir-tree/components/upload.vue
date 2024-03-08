@@ -1,6 +1,7 @@
 <template>
   <div
     class="bg-color-action-bar dark:bg-dark-color-action-bar upload-wrapper w-full h-full cursor-pointer"
+    @click="handleOpenDialog"
   >
     <spinner :loading="loading" class="h-full flex justify-center items-center">
       <plus-outlined
@@ -15,5 +16,16 @@ import { ref } from 'vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import Spinner from '@renderer/components/Spinner/index.vue'
 
+const emits = defineEmits(['success'])
+
 const loading = ref<boolean>(false)
+
+async function handleOpenDialog() {
+  if (!loading.value) {
+    loading.value = true
+    const result = await window.api.openDialog()
+    emits('success', result)
+    loading.value = false
+  }
+}
 </script>

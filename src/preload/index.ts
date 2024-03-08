@@ -2,12 +2,14 @@ import process from 'node:process'
 import { contextBridge } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import { onWinClose, onWinMaximize, onWinMinimize } from './menu'
+import { openDialog } from './file'
 
 // Custom APIs for renderer
 const api = {
   onWinClose,
   onWinMaximize,
   onWinMinimize,
+  openDialog,
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
