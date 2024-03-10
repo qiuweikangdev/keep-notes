@@ -14,7 +14,7 @@
 <script lang="ts" setup>
 import { ref } from 'vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
-import Spinner from '@renderer/components/Spinner/index.vue'
+import Spinner from '@renderer/components/spinner/index.vue'
 
 const emits = defineEmits(['success'])
 

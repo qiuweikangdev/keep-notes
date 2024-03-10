@@ -11,7 +11,7 @@ withDefaults(defineProps<{ loading: boolean }>(), { loading: false })
 
 <style>
 .loader {
-  width: 50px;
+  width: 30px;
   --b: 8px;
   aspect-ratio: 1;
   border-radius: 50%;
