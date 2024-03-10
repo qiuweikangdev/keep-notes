@@ -28,7 +28,7 @@ async function readDirectory(directoryPath) {
       ) {
         directories.push(file)
       }
-      else if (['.md', '.txt'].includes(path.extname(file))) {
+      else if (['.md'].includes(path.extname(file))) {
         markdownFiles.push(file)
       }
     }
@@ -45,8 +45,8 @@ async function readDirectory(directoryPath) {
         const subtree = await readDirectory(path.join(directoryPath, dir))
         return {
           fileName: dir,
+          filePath: path.join(directoryPath, dir),
           title: dir,
-          value: path.join(directoryPath, dir),
           key: path.join(directoryPath, dir),
           children: subtree,
         }
@@ -58,8 +58,8 @@ async function readDirectory(directoryPath) {
       ...directoryTrees,
       ...markdownFiles.map(file => ({
         fileName: file,
+        filePath: path.join(directoryPath, file),
         title: file,
-        value: path.join(directoryPath, file),
         key: path.join(directoryPath, file),
       })),
     ]
@@ -69,6 +69,17 @@ async function readDirectory(directoryPath) {
   catch (error) {
     console.error('Error while reading directory:', error)
     return null
+  }
+}
+
+// 读取文件内容
+async function readFileContent(filePath) {
+  try {
+    const fileContent = await fs.promises.readFile(filePath, 'utf-8')
+    return fileContent
+  }
+  catch (error) {
+    console.error('Error while reading file:', error)
   }
 }
 
@@ -99,5 +110,9 @@ export function ipcFileAction() {
     const win = getBrowserWindow(event)
     const directoryTree = await openDialog(win)
     return directoryTree
+  })
+  ipcMain.handle('read-file-content', async (_, filePath) => {
+    const content = await readFileContent(filePath)
+    return content
   })
 }

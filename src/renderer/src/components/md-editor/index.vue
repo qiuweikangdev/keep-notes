@@ -23,6 +23,7 @@ import { Milkdown } from '@milkdown/vue'
 import { usePlayground } from '@renderer/hooks/usePlayground'
 import BottomBar from '@renderer/components/bottom-bar/index.vue'
 import panelConfig from '@renderer/config/panel'
+import useContent from '@renderer/hooks/useContent'
 import Toolbar from './Toolbar.vue'
 
 withDefaults(defineProps<{ panelSize?: number }>(), {
@@ -31,7 +32,7 @@ withDefaults(defineProps<{ panelSize?: number }>(), {
 
 const emits = defineEmits(['toggle-collapse'])
 
-const content = ref('')
+const { content } = useContent()
 const topPanelSizeRef = ref()
 const topHeight = ref(50)
 

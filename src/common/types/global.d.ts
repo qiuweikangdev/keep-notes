@@ -8,6 +8,7 @@ declare global {
       onWinMaximize: () => void
       onWinClose: () => void
       openDialog: () => void
+      readFileContent: (path: string) => void
     }
   }
 }
