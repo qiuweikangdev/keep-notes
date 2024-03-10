@@ -6,6 +6,7 @@ import {
   editorStateCtx,
   editorViewCtx,
   editorViewOptionsCtx,
+  parserCtx,
   rootCtx,
 } from '@milkdown/core'
 import type { Ctx } from '@milkdown/ctx'
@@ -43,6 +44,7 @@ import {
   configureLinkTooltip,
   linkTooltipPlugin,
 } from '@milkdown/components/link-tooltip'
+import { Slice } from '@milkdown/prose/model'
 
 export function usePlayground(
   defaultValue: Ref<string>,
@@ -125,6 +127,24 @@ export function usePlayground(
     ctxRef.value?.get(editorViewCtx)?.dom?.focus()
   }
 
+  const updateContent = (content) => {
+    editorInfo?.get()?.action((ctx: Ctx) => {
+      const view = ctx.get(editorViewCtx)
+      const parser = ctx.get(parserCtx)
+      const doc = parser(content || '')
+      if (!doc)
+        return
+      const state = view.state
+      view.dispatch(
+        state.tr.replace(
+          0,
+          state.doc.content.size,
+          new Slice(doc.content, 0, 0),
+        ),
+      )
+    })
+  }
+
   watch([editorInfo], () => {
     requestAnimationFrame(() => {
       const effect = async () => {
@@ -140,8 +160,9 @@ export function usePlayground(
     })
   })
 
-  watch(defaultValue, () => {
-    onChange?.(defaultValue.value)
+  watch(defaultValue, (content) => {
+    onChange?.(content)
+    updateContent(content)
   })
 
   return {
