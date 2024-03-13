@@ -1,30 +1,34 @@
 <template>
-  <div class="menu-bar flex items-center justify-between">
-    <div class="config-menu">
+  <div class="menu-bar flex items-center justify-end">
+    <div class="config-menu mx-[12px]">
       <a-tooltip
         v-for="(item, index) in configMenu"
         :key="index"
         placement="bottom"
-        class="px-[12px] hover:bg-[#f2f2f2] dark:hover:bg-dark-color-hover mx-[8px] outline-none rounded-full"
+        class="px-[12px] hover:bg-color-icon dark:hover:bg-dark-color-hover mx-[8px] outline-none rounded-full"
       >
         <component
           :is="item.icon"
-          class="text-[#8e8e94] py-[10px] hover:font-bold hover:text-[#c0835d] text-[12px] cursor-pointer"
+          class="text-[#8e8e94] py-[10px] hover:font-bold hover:text-color-primary-hover text-[12px] cursor-pointer"
           @click="item.handle"
         />
       </a-tooltip>
     </div>
+
+    <span
+      class="mx-[12px] w-[1px] h-[16px] bg-color-secondary dark:bg-dark-color-secondary"
+    />
 
     <div class="win-menu">
       <a-tooltip
         v-for="(item, index) in winMenu"
         :key="index"
         placement="bottom"
-        class="px-[12px] hover:bg-[#f2f2f2] dark:hover:bg-dark-color-hover mx-[8px]"
+        class="px-[12px] hover:bg-color-icon dark:hover:bg-dark-color-hover mx-[8px]"
       >
         <component
           :is="item.icon"
-          class="text-[#8e8e94] py-[12px] hover:font-bold hover:text-[#c0835d] text-[12px]"
+          class="text-[#8e8e94] py-[12px] hover:font-bold hover:text-color-primary-hover text-[12px]"
           @click="item.handle"
         />
       </a-tooltip>

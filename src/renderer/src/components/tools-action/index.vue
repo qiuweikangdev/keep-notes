@@ -1,30 +1,32 @@
 <template>
-  <div
-    class="flex justify-center items-center bg-color-action-bar dark:bg-dark-color-action-bar dark:border-dark-color"
+  <a-dropdown
+    :trigger="['click', 'hover']"
+    class="w-fit absolute right-0 top-[44px] cursor-pointer z-[999]"
   >
-    <div
-      v-for="(item, index) in toolbarList"
-      :key="index"
-      class="px-[12px] hover:bg-[#F2F2F2] hover:dark:bg-dark-color-hover mx-[8px] rounded-full"
-    >
-      <a-tooltip :title="item.tooltip" placement="bottom">
-        <div>
-          <component
-            :is="item.icon"
-            class="text-[#8e8e94] py-[12px] hover:font-bold hover:text-[#c0835d] text-[22px]"
+    <dash-outlined
+      class="text-[24px] text-color-icon rounded-[4px] hover:bg-color-icon hover:dark:bg-dark-color-icon/20 px-[12px] hover:text-color-primary-hover"
+    />
+    <template #overlay>
+      <a-menu>
+        <a-menu-item v-for="(item, index) in toolbarList" :key="index">
+          <div
+            class="flex items-center hover:text-color-primary-hover"
             @click="handleAction(item)"
-          />
-          <span>{{ item.tooltip }}</span>
-        </div>
-      </a-tooltip>
-    </div>
-  </div>
+          >
+            <component :is="item.icon" class="py-[12px] text-[22px]" />
+            <span class="px-[12px]">{{ item.tooltip }}</span>
+          </div>
+        </a-menu-item>
+      </a-menu>
+    </template>
+  </a-dropdown>
 </template>
 
 <script setup lang="ts">
 import {
   AliyunOutlined,
   BoldOutlined,
+  DashOutlined,
   ItalicOutlined,
   LinkOutlined,
   OrderedListOutlined,
@@ -34,6 +36,7 @@ import {
   UndoOutlined,
   UnorderedListOutlined,
 } from '@ant-design/icons-vue'
+
 import { redoCommand, undoCommand } from '@milkdown/plugin-history'
 import {
   toggleEmphasisCommand,
@@ -51,6 +54,10 @@ import { computed, toRefs } from 'vue'
 import type { UseEditorReturn } from '@milkdown/vue'
 import type { MenuActionOptions } from '@common/types/menu'
 import useLink from '@renderer/hooks/useLink'
+
+interface ToolbarPropsType {
+  editorInfo: UseEditorReturn
+}
 
 const props = withDefaults(defineProps<ToolbarPropsType>(), {})
 
@@ -111,10 +118,6 @@ const toolbarList = computed(
       },
     ] as MenuActionOptions[],
 )
-
-interface ToolbarPropsType {
-  editorInfo: UseEditorReturn | undefined
-}
 
 const { editorInfo } = toRefs(props)
 

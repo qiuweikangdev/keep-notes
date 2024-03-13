@@ -10,6 +10,7 @@ export default {
       colors: {
         'color-primary': lightConfig.colorPrimary,
         'color-icon': lightConfig.colorIcon,
+        'color-primary-hover': lightConfig.colorPrimaryHover,
         'dark-color-icon': darkConfig.colorIcon,
       },
       backgroundColor: {
@@ -18,7 +19,8 @@ export default {
         'color-secondary-hover': lightConfig.colorSecondaryHover,
         'color-container': lightConfig.colorBgContainer,
         'color-action-bar': lightConfig.colorBgActionBar,
-        'dark:color-secondary': darkConfig.colorSecondary,
+        'color-icon': lightConfig.colorBgIcon,
+        'dark-color-secondary': darkConfig.colorSecondary,
         'dark-color-container': darkConfig.colorBgContainer,
         'dark-color-icon': darkConfig.colorBgIcon,
         'dark-color-hover': darkConfig.colorPrimaryBgHover,

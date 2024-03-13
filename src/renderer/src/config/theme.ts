@@ -4,7 +4,7 @@ export const lightConfig = {
   colorSecondary: '#e5e7eb',
   colorBgContainer: '#FFFFFF',
   colorBgActionBar: '#FAFAFA',
-  colorBgIcon: '#ffffff',
+  colorBgIcon: '#f2f2f2',
   colorIcon: '#8E8E94',
   colorBorder: '#eeeeee',
   colorText: '#000000',
