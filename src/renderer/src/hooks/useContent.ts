@@ -10,7 +10,9 @@ export default function useContent() {
     contentFilePath.value = filePath
   }
   const writeFileContent = (content) => {
-    window.api.writeFileContent(contentFilePath.value, content)
+    if (contentFilePath.value) {
+      window.api.writeFileContent(contentFilePath.value, content)
+    }
   }
 
   return {

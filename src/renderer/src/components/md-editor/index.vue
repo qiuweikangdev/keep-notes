@@ -1,6 +1,5 @@
 <template>
   <div class="md-editor flex flex-col h-full">
-    <!-- <div class="flex flex-col h-full flex-1"> -->
     <tools-action :editor-info="editorInfo" />
     <milkdown class="flex-1 flex w-full" spellcheck="false" />
     <bottom-bar
@@ -8,7 +7,6 @@
       :panel-size="panelSize"
       @toggle-collapse="(collapsed) => emits('toggle-collapse', collapsed)"
     />
-    <!-- </div> -->
   </div>
 </template>
 
