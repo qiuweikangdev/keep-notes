@@ -9,6 +9,7 @@ declare global {
       onWinClose: () => void
       openDialog: () => void
       readFileContent: (path: string) => void
+      writeFileContent: (path: string, content: string) => void
     }
   }
 }

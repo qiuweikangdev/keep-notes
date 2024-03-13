@@ -47,7 +47,7 @@ import {
 import { Slice } from '@milkdown/prose/model'
 
 export function usePlayground(
-  defaultValue: Ref<string>,
+  content: Ref<string>,
   onChange?: (markdown: string) => void,
 ) {
   const nodeViewFactory = useNodeViewFactory()
@@ -72,7 +72,7 @@ export function usePlayground(
           },
         }))
         ctx.set(rootCtx, root)
-        ctx.set(defaultValueCtx, defaultValue.value)
+        ctx.set(defaultValueCtx, content.value)
         ctx.get(listenerCtx).markdownUpdated((_, markdown) => {
           total.value = ctx.get(editorStateCtx).doc.textContent.length || 0
           onChange?.(markdown)
@@ -145,6 +145,10 @@ export function usePlayground(
     })
   }
 
+  watch(content, (v) => {
+    updateContent(v)
+  })
+
   watch([editorInfo], () => {
     requestAnimationFrame(() => {
       const effect = async () => {
@@ -160,13 +164,9 @@ export function usePlayground(
     })
   })
 
-  watch(defaultValue, (content) => {
-    onChange?.(content)
-    updateContent(content)
-  })
-
   return {
     editorInfo,
+    updateContent,
     autoFocus,
     total,
   }

@@ -38,7 +38,7 @@ const expandedKeys = ref<string[]>()
 const selectedKeys = ref<string[]>([])
 const treeData = ref<TreeProps['treeData']>([])
 
-const { setContent } = useContent()
+const { setContent, setContentFilePath } = useContent()
 
 function handleUploadSuccess(tree) {
   treeData.value = tree || []
@@ -50,6 +50,7 @@ async function handleSelect(_, info) {
   if (fileName.endsWith('md')) {
     const content = await window.api.readFileContent(filePath)
     setContent(content)
+    setContentFilePath(filePath)
   }
 }
 </script>

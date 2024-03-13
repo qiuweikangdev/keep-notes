@@ -32,11 +32,15 @@ withDefaults(defineProps<{ panelSize?: number }>(), {
 
 const emits = defineEmits(['toggle-collapse'])
 
-const { content } = useContent()
+const { content, writeFileContent } = useContent()
 const topPanelSizeRef = ref()
 const topHeight = ref(50)
 
-const { editorInfo, total } = usePlayground(content)
+function contentChange(content) {
+  writeFileContent(content)
+}
+
+const { editorInfo, total } = usePlayground(content, contentChange)
 
 function handleResize() {
   topHeight.value = topPanelSizeRef.value.$el.clientHeight

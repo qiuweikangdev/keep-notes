@@ -8,3 +8,7 @@ export async function openDialog() {
 export async function readFileContent(filePath: string) {
   return await ipcRenderer.invoke('read-file-content', filePath)
 }
+
+export async function writeFileContent(filePath: string, content: string) {
+  return await ipcRenderer.send('write-file-content', filePath, content)
+}

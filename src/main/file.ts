@@ -80,6 +80,17 @@ async function readFileContent(filePath) {
   }
   catch (error) {
     console.error('Error while reading file:', error)
+    return ''
+  }
+}
+
+// 写入文件内容
+async function writeFileContent(filePath, content) {
+  try {
+    await fs.promises.writeFile(filePath, content, 'utf-8')
+  }
+  catch (error) {
+    console.error('Error while reading file:', error)
   }
 }
 
@@ -114,5 +125,8 @@ export function ipcFileAction() {
   ipcMain.handle('read-file-content', async (_, filePath) => {
     const content = await readFileContent(filePath)
     return content
+  })
+  ipcMain.on('write-file-content', async (_, filePath, content) => {
+    await writeFileContent(filePath, content)
   })
 }
