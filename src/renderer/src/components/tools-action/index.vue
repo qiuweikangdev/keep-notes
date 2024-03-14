@@ -1,25 +1,34 @@
 <template>
-  <a-dropdown
-    :trigger="['click', 'hover']"
-    class="w-fit absolute right-0 top-[44px] cursor-pointer z-[999]"
-  >
-    <dash-outlined
-      class="text-[24px] text-color-icon rounded-[4px] hover:bg-color-icon hover:dark:bg-dark-color-icon/20 px-[12px] hover:text-color-primary-hover"
-    />
-    <template #overlay>
-      <a-menu>
-        <a-menu-item v-for="(item, index) in toolbarList" :key="index">
-          <div
-            class="flex items-center hover:text-color-primary-hover"
-            @click="handleAction(item)"
-          >
-            <component :is="item.icon" class="py-[12px] text-[22px]" />
-            <span class="px-[12px]">{{ item.tooltip }}</span>
-          </div>
-        </a-menu-item>
-      </a-menu>
-    </template>
-  </a-dropdown>
+  <div class="absolute right-[10px] top-[44px] z-[999]">
+    <a-dropdown
+      :trigger="['click', 'hover']"
+      class="w-fit cursor-pointer"
+      destroy-popup-on-hide
+      placement="bottomRight"
+    >
+      <dash-outlined
+        class="text-[24px] text-color-icon rounded-[4px] hover:bg-color-icon hover:dark:bg-dark-color-icon/20 px-[12px] hover:text-color-primary-hover"
+      />
+      <template #overlay>
+        <a-menu
+          class="h-full overflow-auto"
+          :style="{ maxHeight: 'calc(100vh - 120px)' }"
+        >
+          <a-menu-item v-for="(item, index) in toolbarList" :key="index">
+            <div
+              class="flex items-center hover:text-color-primary-hover"
+              @click="handleAction(item)"
+            >
+              <component :is="item.icon" class="py-[12px] text-[18px]" />
+              <span class="px-[12px] whitespace-nowrap">{{
+                item.tooltip
+              }}</span>
+            </div>
+          </a-menu-item>
+        </a-menu>
+      </template>
+    </a-dropdown>
+  </div>
 </template>
 
 <script setup lang="ts">
