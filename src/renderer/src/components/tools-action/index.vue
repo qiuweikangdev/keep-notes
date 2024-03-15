@@ -1,7 +1,7 @@
 <template>
   <div class="absolute right-[10px] top-[44px] z-[999]">
     <a-dropdown
-      :trigger="['click', 'hover']"
+      :trigger="['click']"
       class="w-fit cursor-pointer"
       destroy-popup-on-hide
       placement="bottomRight"
