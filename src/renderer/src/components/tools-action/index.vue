@@ -1,5 +1,5 @@
 <template>
-  <div class="absolute right-[10px] top-[44px] z-[999]">
+  <div class="text-right bg-slate-50 mr-[8px] dark:bg-dark-color-container">
     <a-dropdown
       :trigger="['click']"
       class="w-fit cursor-pointer"
