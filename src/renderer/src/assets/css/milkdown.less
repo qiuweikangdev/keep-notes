@@ -19,6 +19,11 @@
 
     left: 20px;
   }
+
+  :is(.dark .milkdown-theme-nord.prose :where(td, th):nth-child(odd)),
+  :is(.dark .milkdown-theme-nord.prose :where(td, th):nth-child(even)) {
+    @apply dark:bg-dark-color-action-bar;
+  }
 }
 
 milkdown-link-preview {
