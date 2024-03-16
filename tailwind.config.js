@@ -20,11 +20,13 @@ export default {
         'color-container': lightConfig.colorBgContainer,
         'color-action-bar': lightConfig.colorBgActionBar,
         'color-icon': lightConfig.colorBgIcon,
+        'color-scrollbar': lightConfig.scrollbarColor,
         'dark-color-secondary': darkConfig.colorSecondary,
         'dark-color-container': darkConfig.colorBgContainer,
         'dark-color-icon': darkConfig.colorBgIcon,
         'dark-color-hover': darkConfig.colorPrimaryBgHover,
         'dark-color-action-bar': darkConfig.colorBgActionBar,
+        'dark-color-scrollbar': darkConfig.scrollbarColor,
       },
       borderColor: {
         'dark-color': darkConfig.colorBorder,

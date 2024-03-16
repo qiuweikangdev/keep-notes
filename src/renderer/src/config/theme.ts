@@ -13,6 +13,7 @@ export const lightConfig = {
   colorPrimaryActive: '#23272e',
   // components
   tooltipColorText: '#ffffff',
+  scrollbarColor: '#C9D3E1',
 }
 
 export const darkConfig = {
@@ -31,6 +32,7 @@ export const darkConfig = {
   colorPrimaryActive: '#eeeeee',
   // components
   tooltipColorText: '#ffffff',
+  scrollbarColor: '#3C434E',
 }
 
 export const themeConfigType = {
