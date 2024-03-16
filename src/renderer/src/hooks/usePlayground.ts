@@ -24,7 +24,6 @@ import { gfm } from '@milkdown/preset-gfm'
 import { useEditor } from '@milkdown/vue'
 import { nord } from '@milkdown/theme-nord'
 import { $view } from '@milkdown/utils'
-import { emoji } from '@milkdown/plugin-emoji'
 import {
   useNodeViewFactory,
   usePluginViewFactory,
@@ -61,66 +60,68 @@ export function usePlayground(
   const total = ref(0)
 
   const editorInfo = useEditor((root) => {
-    return Editor.make()
-      .enableInspector()
-      .config((ctx) => {
-        ctxRef.value = ctx
-        ctx.update(editorViewOptionsCtx, prev => ({
-          ...prev,
-          attributes: {
-            class: 'mx-auto px-2 py-4 box-border',
-          },
-        }))
-        ctx.set(rootCtx, root)
-        ctx.set(defaultValueCtx, content.value)
-        ctx.get(listenerCtx).markdownUpdated((_, markdown) => {
-          total.value = ctx.get(editorStateCtx).doc.textContent.length || 0
-          onChange?.(markdown)
+    return (
+      Editor.make()
+        .enableInspector()
+        .config((ctx) => {
+          ctxRef.value = ctx
+          ctx.update(editorViewOptionsCtx, prev => ({
+            ...prev,
+            attributes: {
+              class: 'mx-auto px-2 py-4 box-border',
+            },
+          }))
+          ctx.set(rootCtx, root)
+          ctx.set(defaultValueCtx, content.value)
+          ctx.get(listenerCtx).markdownUpdated((_, markdown) => {
+            total.value = ctx.get(editorStateCtx).doc.textContent.length || 0
+            onChange?.(markdown)
+          })
+          ctx.update(prismConfig.key, prev => ({
+            ...prev,
+            configureRefractor: () => refractor,
+          }))
+          ctx.set(block.key, {
+            view: pluginViewFactory({
+              component: Block,
+            }),
+          })
+          // 自定义斜杠命令
+          ctx.set(tooltipSlash.key, {
+            view: pluginViewFactory({
+              component: Slash,
+            }),
+          })
+          // 自定义
+          tableTooltip.config(ctx)
+          configureLinkTooltip(ctx)
         })
-        ctx.update(prismConfig.key, prev => ({
-          ...prev,
-          configureRefractor: () => refractor,
-        }))
-        ctx.set(block.key, {
-          view: pluginViewFactory({
-            component: Block,
-          }),
-        })
-        // 自定义斜杠命令
-        ctx.set(tooltipSlash.key, {
-          view: pluginViewFactory({
-            component: Slash,
-          }),
-        })
-        // 自定义
-        tableTooltip.config(ctx)
-        configureLinkTooltip(ctx)
-      })
-      .config(nord)
-      .use(block)
-      .use(tooltipSlash)
-      .use(commonmark)
-      .use(listener)
-      .use(clipboard)
-      .use(history)
-      .use(cursor)
-      .use(prism)
-      .use(indent)
-      .use(upload)
-      .use(trailing)
-      .use(emoji)
-      .use(gfm)
-      .use(tableTooltipCtx)
-      .use(tableTooltip.plugins)
-      .use(tableSelectorPlugin(widgetViewFactory))
-      .use(linkTooltipPlugin)
-      .use(
-        $view(codeBlockSchema.node, () =>
-          nodeViewFactory({
-            // 自定义代码块
-            component: CodeBlock,
-          })),
-      )
+        .config(nord)
+        .use(block)
+        .use(tooltipSlash)
+        .use(commonmark)
+        .use(listener)
+        .use(clipboard)
+        .use(history)
+        .use(cursor)
+        .use(prism)
+        .use(indent)
+        .use(upload)
+        .use(trailing)
+        // .use(emoji)
+        .use(gfm)
+        .use(tableTooltipCtx)
+        .use(tableTooltip.plugins)
+        .use(tableSelectorPlugin(widgetViewFactory))
+        .use(linkTooltipPlugin)
+        .use(
+          $view(codeBlockSchema.node, () =>
+            nodeViewFactory({
+              // 自定义代码块
+              component: CodeBlock,
+            })),
+        )
+    )
   })
 
   const autoFocus = () => {
