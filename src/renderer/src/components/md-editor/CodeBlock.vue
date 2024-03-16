@@ -1,29 +1,30 @@
 <template>
   <div
-    :class="selected ? 'ProseMirror-selectednode' : ''"
-    class="not-prose my-4 rounded bg-gray-200 p-5 shadow dark:bg-gray-800"
+    class="not-prose my-4 rounded bg-gray-100 p-5 shadow dark:bg-dark-color-action-bar"
+    @mouseenter="showCopy = true"
+    @mouseleave="showCopy = false"
   >
     <div
       contentEditable="false"
       suppressContentEditableWarning
       class="mb-2 flex justify-between"
     >
-      <select
-        class="!focus:shadow-none cursor-pointer rounded !border-0 bg-white shadow-sm focus:ring-2 focus:ring-offset-2 dark:bg-black"
-        :value="node.attrs.language || 'text'"
-        @change="onChange"
+      <a-select
+        v-model:value="codeType"
+        style="width: 120px"
+        @change="handleChange"
       >
-        <option v-for="lang in langs" :key="lang" :value="lang">
+        <a-select-option v-for="lang in langs" :key="lang" :value="lang">
           {{ lang }}
-        </option>
-      </select>
+        </a-select-option>
+      </a-select>
 
-      <button
-        class="inline-flex items-center justify-center rounded border border-gray-200 bg-white px-4 py-2 text-base font-medium leading-6 shadow-sm hover:bg-gray-50 focus:ring-2 focus:ring-offset-2 dark:bg-black"
-        @click="handleBtn"
-      >
-        Copy
-      </button>
+      <a-button
+        v-if="showCopy"
+        :icon="h(CopyOutlined)"
+        class="!px-[2px] !pt-[0px]"
+        @click="handleCopy"
+      />
     </div>
     <pre :spellCheck="false" class="!m-0 !mb-4">
         <code :ref="contentRef" />
@@ -32,7 +33,9 @@
 </template>
 
 <script setup lang="ts">
+import { CopyOutlined } from '@ant-design/icons-vue'
 import { useNodeViewContext } from '@prosemirror-adapter/vue'
+import { h, ref } from 'vue'
 
 const langs = [
   'text',
@@ -46,14 +49,18 @@ const langs = [
   'json',
 ]
 
-const { contentRef, selected, node, setAttrs } = useNodeViewContext()
+const { contentRef, node, setAttrs } = useNodeViewContext()
 
-function onChange(e) {
-  setAttrs({ language: e.target.value })
+const codeType = ref(node.value.attrs.language || 'text')
+const showCopy = ref(false)
+
+function handleChange(value) {
+  codeType.value = value
+  setAttrs({ language: value })
 }
 
-function handleBtn(e) {
+function handleCopy(e) {
   e.preventDefault()
-  navigator.clipboard.writeText(node.textContent)
+  navigator.clipboard.writeText(node.value.textContent)
 }
 </script>
