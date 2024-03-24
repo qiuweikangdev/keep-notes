@@ -1,6 +1,6 @@
 <template>
   <div :class="themeClass" class="h-full flex flex-col overflow-hidden">
-    <menu-bar />
+    <menu-bar @open-sync-settings="handleOpenSyncSettings" />
     <div class="flex flex-1">
       <splitpanes
         class="default-theme w-full"
@@ -35,6 +35,7 @@
         </pane>
       </splitpanes>
     </div>
+    <sync-settings v-model:open="openSyncSettings" />
   </div>
 </template>
 
@@ -49,6 +50,7 @@ import useTheme from '@renderer/hooks/useTheme'
 import Milkdown from '@renderer/components/md-editor/index.vue'
 import MenuBar from '@renderer/components/menu-bar/index.vue'
 import panelConfig from '@renderer/config/panel'
+import SyncSettings from '@renderer/components/sync-settings/index.vue'
 
 const { themeClass } = useTheme()
 
@@ -58,6 +60,7 @@ const leftWidth = ref<number>(0)
 const leftPanelStyle = ref<CSSProperties>({})
 const rightPanelStyle = ref<CSSProperties>({})
 const panelHeight = ref<number>(window.innerHeight - 40)
+const openSyncSettings = ref(false)
 
 let preLeftPanelSize = 0
 
@@ -96,6 +99,10 @@ function handleWinResize() {
     leftPanelStyle.value.width = `${leftWidth.value}px`
   }
   panelHeight.value = window.innerHeight - 40
+}
+
+function handleOpenSyncSettings() {
+  openSyncSettings.value = true
 }
 
 onMounted(() => {

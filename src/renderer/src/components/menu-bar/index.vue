@@ -1,6 +1,6 @@
 <template>
   <div class="menu-bar flex items-center justify-end">
-    <div class="config-menu mx-[12px]">
+    <div class="config-menu mx-[12px] flex items-center">
       <a-tooltip
         v-for="(item, index) in configMenu"
         :key="index"
@@ -9,7 +9,7 @@
       >
         <component
           :is="item.icon"
-          class="text-[#8e8e94] py-[10px] hover:font-bold hover:text-color-primary-hover text-[12px] cursor-pointer"
+          class="text-[#8e8e94] py-[10px] hover:font-bold hover:text-color-primary-hover text-[16px] cursor-pointer"
           @click="item.handle"
         />
       </a-tooltip>
@@ -40,6 +40,7 @@
 import {
   CloseOutlined,
   ExpandOutlined,
+  GithubFilled,
   MinusOutlined,
 } from '@ant-design/icons-vue'
 import LightSvg from '@renderer/icons/light.svg'
@@ -48,6 +49,8 @@ import type { MenuActionOptions } from '@common/types/menu'
 import { computed, ref } from 'vue'
 import useTheme from '@renderer/hooks/useTheme'
 
+const emits = defineEmits(['openSyncSettings'])
+
 const isMaximize = ref(false)
 
 const { theme, changeTheme } = useTheme()
@@ -55,6 +58,12 @@ const { theme, changeTheme } = useTheme()
 const configMenu = computed(
   () =>
     [
+      {
+        icon: GithubFilled,
+        handle: () => {
+          emits('openSyncSettings')
+        },
+      },
       {
         icon: theme.value === 'light' ? LightSvg : DarkSvg,
         handle: (e: MouseEvent) => {
