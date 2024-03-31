@@ -94,6 +94,22 @@ async function writeFileContent(filePath, content) {
   }
 }
 
+// 文件目录树更新到本地目录中
+async function updateLocalDirectory(treeData, basePath) {
+  for (const node of treeData) {
+    const filePath = path.join(basePath, node.fileName)
+    if (node.children) {
+      // 如果是目录，创建目录并递归更新子节点
+      await fs.promises.mkdir(filePath, { recursive: true })
+      await updateLocalDirectory(node.children, filePath)
+    }
+    else {
+      // 如果是文件，创建文件并写入内容
+      await fs.promises.writeFile(filePath, node.content)
+    }
+  }
+}
+
 async function openDialog(win) {
   try {
     const result = await dialog.showOpenDialog(win, {
@@ -128,5 +144,8 @@ export function ipcFileAction() {
   })
   ipcMain.on('write-file-content', async (_, filePath, content) => {
     await writeFileContent(filePath, content)
+  })
+  ipcMain.handle('update-local-directory', async (_, treeData, path) => {
+    await updateLocalDirectory(treeData, path)
   })
 }

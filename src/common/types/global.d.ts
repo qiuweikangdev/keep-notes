@@ -10,6 +10,7 @@ declare global {
       openDialog: () => void
       readFileContent: (path: string) => void
       writeFileContent: (path: string, content: string) => void
+      updateLocalDirectory: (treeData: FileTreeNode[], path: string) => void
     }
   }
 }

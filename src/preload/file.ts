@@ -12,3 +12,7 @@ export async function readFileContent(filePath: string) {
 export async function writeFileContent(filePath: string, content: string) {
   return await ipcRenderer.send('write-file-content', filePath, content)
 }
+
+export async function updateLocalDirectory(treeData, path) {
+  return await ipcRenderer.invoke('update-local-directory', treeData, path)
+}

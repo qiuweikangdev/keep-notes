@@ -1,39 +1,47 @@
 <template>
-  <a-modal v-model:open="open" @ok="handleOk" @cancel="handleCancel">
-    <github-outlined
-      class="flex items-center justify-center text-[24px] cursor-pointer"
-    />
-    <a-form
-      class="p-[20px]"
-      :model="formData"
-      :label-col="{ style: { width: '100px', textAlign: 'left' } }"
-    >
-      <a-form-item label="用户名" name="username">
-        <a-input
-          v-model:value="formData.username"
-          class="dark:bg-transparent"
-        />
-      </a-form-item>
-      <a-form-item label="仓库名" name="repositoryName">
-        <a-input
-          v-model:value="formData.repositoryName"
-          class="dark:bg-transparent"
-        />
-      </a-form-item>
-      <a-form-item label="目录路径" name="uploadDir">
-        <a-input
-          v-model:value="formData.uploadDir"
-          class="dark:bg-transparent"
-        />
-      </a-form-item>
-      <a-form-item label="Access Token" name="accessToken">
-        <a-input
-          v-model:value="formData.accessToken"
-          type="password"
-          class="dark:bg-transparent"
-        />
-      </a-form-item>
-    </a-form>
+  <a-modal
+    v-model:open="open"
+    class="!max-w-[500px] !min-w-[300px]"
+    width="65vw"
+    @ok="handleOk"
+    @cancel="handleCancel"
+  >
+    <a-spin :spinning="downloadLoading">
+      <github-outlined
+        class="flex items-center justify-center text-[24px] cursor-pointer"
+      />
+      <a-form
+        class="p-[20px]"
+        :model="formData"
+        :label-col="{ style: { width: '100px', textAlign: 'left' } }"
+      >
+        <a-form-item label="用户名" name="username">
+          <a-input
+            v-model:value="formData.username"
+            class="dark:bg-transparent"
+          />
+        </a-form-item>
+        <a-form-item label="仓库名" name="repositoryName">
+          <a-input
+            v-model:value="formData.repositoryName"
+            class="dark:bg-transparent"
+          />
+        </a-form-item>
+        <a-form-item label="目录路径" name="uploadDir">
+          <a-input
+            v-model:value="formData.localPath"
+            class="dark:bg-transparent"
+          />
+        </a-form-item>
+        <a-form-item label="Access Token" name="accessToken">
+          <a-input
+            v-model:value="formData.accessToken"
+            type="password"
+            class="dark:bg-transparent"
+          />
+        </a-form-item>
+      </a-form>
+    </a-spin>
 
     <template #footer>
       <div class="flex justify-end">
@@ -47,6 +55,7 @@
         <a-button
           :icon="h(CloudDownloadOutlined)"
           class="flex items-center mx-[12px] text-[12px]"
+          :loading="downloadLoading"
           @click="downloadGithub"
         >
           下载
@@ -57,25 +66,28 @@
 </template>
 
 <script setup lang="ts">
-import { h, reactive } from 'vue'
+import { h } from 'vue'
 import {
   CloudDownloadOutlined,
   CloudUploadOutlined,
   GithubOutlined,
 } from '@ant-design/icons-vue'
+import useGitub from '@renderer/hooks/useGithub'
+import { useStore } from '@renderer/store/index'
 
 const open = defineModel('open', { type: Boolean, default: false })
 
-const formData = reactive({
-  username: 'qiuweikangdev',
-  repositoryName: 'my-test',
-  accessToken: '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',
-  uploadDir: 'D:\\Desktop\\test',
-})
+const { githubInfo: formData, setTreeData } = useStore()
+
+const { downloadFile, downloadLoading } = useGitub()
 
 function uploadGithub() {}
 
-async function downloadGithub() {}
+async function downloadGithub() {
+  const treeData = await downloadFile()
+  setTreeData(treeData)
+  open.value = downloadLoading.value
+}
 
 function handleOk() {}
 

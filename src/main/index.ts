@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import process from 'node:process'
-import { BrowserWindow, app, shell } from 'electron'
+import { BrowserWindow, app, session, shell } from 'electron'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { ipcMenuAction } from './menu'
@@ -58,6 +58,14 @@ app.whenReady().then(() => {
   // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
+  })
+
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+      },
+    })
   })
 
   createWindow()

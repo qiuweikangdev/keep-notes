@@ -23,9 +23,9 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import type { TreeProps } from 'ant-design-vue'
 import panelConfig from '@renderer/config/panel'
 import useContent from '@renderer/hooks/useContent'
+import { useStore } from '@renderer/store/index'
 import Upload from './components/upload.vue'
 
 withDefaults(defineProps<{ panelWidth?: number, panelHeight?: number }>(), {
@@ -36,12 +36,11 @@ withDefaults(defineProps<{ panelWidth?: number, panelHeight?: number }>(), {
 const containerRef = ref(HTMLElement)
 const expandedKeys = ref<string[]>()
 const selectedKeys = ref<string[]>([])
-const treeData = ref<TreeProps['treeData']>([])
 
 const { setContent, setContentFilePath } = useContent()
-
-function handleUploadSuccess(tree) {
-  treeData.value = tree || []
+const { treeData, setTreeData } = useStore()
+function handleUploadSuccess(data) {
+  setTreeData(data)
 }
 
 async function handleSelect(_, info) {
