@@ -1,12 +1,12 @@
-import { reactive, ref, toRefs } from 'vue'
+import { onMounted, reactive, ref, toRefs, watch } from 'vue'
 
 const treeData = ref<FileTreeNode[]>([])
 
 const githubInfo = reactive({
-  username: 'qiuweikangdev',
-  repositoryName: 'my-test',
+  username: '',
+  repositoryName: '',
   accessToken: '',
-  localPath: 'D:\\Desktop\\my-test',
+  localPath: '',
 })
 
 export function useStore() {
@@ -17,6 +17,17 @@ export function useStore() {
   const setGithubInfo = (data) => {
     Object.assign(githubInfo, data)
   }
+
+  onMounted(() => {
+    const githubInfoStorage = JSON.parse(
+      localStorage.getItem('githubInfo') || '{}',
+    )
+    setGithubInfo(githubInfoStorage)
+  })
+
+  watch(githubInfo, () => {
+    localStorage.setItem('githubInfo', JSON.stringify(githubInfo))
+  })
 
   return {
     treeData,

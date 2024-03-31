@@ -3,6 +3,7 @@ import { contextBridge } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import { onWinClose, onWinMaximize, onWinMinimize } from './menu'
 import {
+  getSelectedPath,
   openDialog,
   readFileContent,
   transformSysPath,
@@ -20,6 +21,7 @@ const api = {
   writeFileContent,
   updateLocalDirectory,
   transformSysPath,
+  getSelectedPath,
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

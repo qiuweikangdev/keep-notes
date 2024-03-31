@@ -142,6 +142,26 @@ async function openDialog(win) {
   }
 }
 
+async function getSelectedPath(win) {
+  try {
+    const result = await dialog.showOpenDialog(win, {
+      properties: ['openDirectory'],
+    })
+
+    if (!result.canceled) {
+      const selectedPath = result.filePaths[0]
+      return selectedPath
+    }
+    else {
+      return null
+    }
+  }
+  catch (error) {
+    console.error('Error while opening dialog:', error)
+    return null
+  }
+}
+
 export function ipcFileAction() {
   ipcMain.handle('open-directory', async (event) => {
     const win = getBrowserWindow(event)
@@ -160,5 +180,10 @@ export function ipcFileAction() {
   })
   ipcMain.handle('transform-sys-path', async (_, treeData, path) => {
     return await transformSysPath(treeData, path)
+  })
+  ipcMain.handle('get-selected-path', async (event) => {
+    const win = getBrowserWindow(event)
+    const selectedPath = await getSelectedPath(win)
+    return selectedPath
   })
 }

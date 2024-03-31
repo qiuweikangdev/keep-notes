@@ -20,3 +20,7 @@ export async function updateLocalDirectory(treeData, path) {
 export async function transformSysPath(treeData, path) {
   return await ipcRenderer.invoke('transform-sys-path', treeData, path)
 }
+
+export async function getSelectedPath() {
+  return await ipcRenderer.invoke('get-selected-path')
+}

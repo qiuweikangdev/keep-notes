@@ -15,6 +15,7 @@ declare global {
         treeData: FileTreeNode[],
         path: string,
       ) => FileTreeNode[]
+      getSelectedPath: () => string | null
     }
   }
 }
