@@ -45,11 +45,12 @@ function handleUploadSuccess(data) {
 
 async function handleSelect(_, info) {
   const { node } = info
-  const { fileName, filePath } = node || {}
+  const { fileName, filePath, sysPath } = node || {}
   if (fileName.endsWith('md')) {
-    const content = await window.api.readFileContent(filePath)
+    const realPath = sysPath ?? filePath
+    const content = await window.api.readFileContent(realPath)
     setContent(content)
-    setContentFilePath(filePath)
+    setContentFilePath(realPath)
   }
 }
 </script>

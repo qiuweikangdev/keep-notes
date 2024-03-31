@@ -5,6 +5,7 @@ import { onWinClose, onWinMaximize, onWinMinimize } from './menu'
 import {
   openDialog,
   readFileContent,
+  transformSysPath,
   updateLocalDirectory,
   writeFileContent,
 } from './file'
@@ -18,6 +19,7 @@ const api = {
   readFileContent,
   writeFileContent,
   updateLocalDirectory,
+  transformSysPath,
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

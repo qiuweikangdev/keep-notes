@@ -114,15 +114,20 @@ export default function useGithub() {
     return fileTreeSort(fileTreeList)
   }
 
-  async function downloadFile(): Promise<FileTreeNode[] | void> {
+  async function downloadFile(): Promise<FileTreeNode[]> {
     try {
       downloadLoading.value = true
       const treeData = await genDirectory()
+      const newTreeData = await window.api.transformSysPath(
+        treeData,
+        localPath.value,
+      )
       await window.api.updateLocalDirectory(treeData, localPath.value)
-      return treeData
+      return newTreeData
     }
     catch (e: any) {
       message.error(e.toString())
+      return []
     }
     finally {
       downloadLoading.value = false
