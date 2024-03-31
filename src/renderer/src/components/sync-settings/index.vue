@@ -97,8 +97,10 @@ function uploadGithub() {}
 
 async function downloadGithub() {
   const treeData = await downloadFile()
-  setTreeData(treeData)
-  open.value = downloadLoading.value
+  if (treeData) {
+    setTreeData(treeData)
+    open.value = downloadLoading.value
+  }
 }
 
 function handleOk() {}

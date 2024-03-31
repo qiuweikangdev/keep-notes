@@ -114,7 +114,7 @@ export default function useGithub() {
     return fileTreeSort(fileTreeList)
   }
 
-  async function downloadFile(): Promise<FileTreeNode[]> {
+  async function downloadFile(): Promise<FileTreeNode[] | null> {
     try {
       downloadLoading.value = true
       const treeData = await genDirectory()
@@ -127,7 +127,7 @@ export default function useGithub() {
     }
     catch (e: any) {
       message.error(e.toString())
-      return []
+      return null
     }
     finally {
       downloadLoading.value = false
