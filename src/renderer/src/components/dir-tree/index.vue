@@ -54,3 +54,18 @@ async function handleSelect(_, info) {
   }
 }
 </script>
+
+<style lang="less" scoped>
+.tree-wrapper {
+  :deep(.ant-tree .ant-tree-list),
+  :deep(.ant-tree .ant-tree-list-holder) {
+    height: 100%;
+  }
+  :deep(.ant-tree ::-webkit-scrollbar-thumb) {
+    display: none;
+  }
+  :deep(.ant-tree:hover ::-webkit-scrollbar-thumb) {
+    display: block;
+  }
+}
+</style>
