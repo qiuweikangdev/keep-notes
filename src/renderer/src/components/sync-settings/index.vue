@@ -11,25 +11,27 @@
         class="flex items-center justify-center text-[24px] cursor-pointer"
       />
       <a-form
+        ref="formRef"
         class="p-[20px]"
         :model="formData"
-        :label-col="{ style: { width: '100px', textAlign: 'left' } }"
+        :label-col="{ style: { width: '120px', textAlign: 'left' } }"
+        :rules="rules"
       >
-        <a-form-item label="用户名" name="username">
+        <a-form-item label="用户名" name="username" required>
           <a-input
             v-model:value="formData.username"
             class="dark:bg-transparent"
             allow-clear
           />
         </a-form-item>
-        <a-form-item label="仓库名" name="repositoryName">
+        <a-form-item label="仓库名" name="repositoryName" required>
           <a-input
             v-model:value="formData.repositoryName"
             class="dark:bg-transparent"
             allow-clear
           />
         </a-form-item>
-        <a-form-item label="目录路径" name="uploadDir">
+        <a-form-item label="目录路径" name="localPath" required>
           <a-input
             v-model:value="formData.localPath"
             class="dark:bg-transparent cursor-pointer"
@@ -43,7 +45,7 @@
             </template>
           </a-input>
         </a-form-item>
-        <a-form-item label="Access Token" name="accessToken">
+        <a-form-item label="Access Token" name="accessToken" required>
           <a-input
             v-model:value="formData.accessToken"
             type="password"
@@ -77,7 +79,7 @@
 </template>
 
 <script setup lang="ts">
-import { h } from 'vue'
+import { computed, h, ref } from 'vue'
 import {
   CloudDownloadOutlined,
   CloudUploadOutlined,
@@ -89,13 +91,23 @@ import { useStore } from '@renderer/store/index'
 
 const open = defineModel('open', { type: Boolean, default: false })
 
+const formRef = ref()
+
 const { githubInfo: formData, setTreeData, setGithubInfo } = useStore()
 
 const { downloadFile, downloadLoading } = useGitub()
 
+const rules = computed(() => {
+  return Object.keys(formData).reduce((acc, key) => {
+    acc[key] = [{ required: true, message: '必填~', trigger: 'change' }]
+    return acc
+  }, {})
+})
+
 function uploadGithub() {}
 
 async function downloadGithub() {
+  await formRef.value.validate()
   const treeData = await downloadFile()
   if (treeData) {
     setTreeData(treeData)
