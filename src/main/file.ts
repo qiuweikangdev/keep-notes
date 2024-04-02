@@ -110,16 +110,6 @@ async function updateLocalDirectory(treeData, basePath) {
   }
 }
 
-// 文件目录转换对应系统路径
-async function transformSysPath(treeData, basePath) {
-  return treeData.map((file) => {
-    return {
-      ...file,
-      sysPath: path.join(basePath, file.filePath),
-    }
-  })
-}
-
 async function openDialog(win) {
   try {
     const result = await dialog.showOpenDialog(win, {
@@ -177,9 +167,6 @@ export function ipcFileAction() {
   })
   ipcMain.on('update-local-directory', async (_, treeData, path) => {
     await updateLocalDirectory(treeData, path)
-  })
-  ipcMain.handle('transform-sys-path', async (_, treeData, path) => {
-    return await transformSysPath(treeData, path)
   })
   ipcMain.handle('get-selected-path', async (event) => {
     const win = getBrowserWindow(event)

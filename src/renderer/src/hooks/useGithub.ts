@@ -92,6 +92,7 @@ export default function useGithub() {
         })
         fileTreeList.push({
           filePath: fileContent.path,
+          sysPath: window.api.pathJoin(localPath.value, fileContent.path),
           fileName: fileContent.name,
           title: fileContent.name,
           key: fileContent.path,
@@ -103,6 +104,7 @@ export default function useGithub() {
         const children = await genDirectory(content.path)
         fileTreeList.push({
           filePath: content.path,
+          sysPath: window.api.pathJoin(localPath.value, content.path),
           fileName: content.name,
           title: content.name,
           key: content.path,
@@ -118,12 +120,8 @@ export default function useGithub() {
     try {
       downloadLoading.value = true
       const treeData = await genDirectory()
-      const newTreeData = await window.api.transformSysPath(
-        treeData,
-        localPath.value,
-      )
       await window.api.updateLocalDirectory(treeData, localPath.value)
-      return newTreeData
+      return treeData
     }
     catch (e: any) {
       message.error(e.toString())

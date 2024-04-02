@@ -11,11 +11,8 @@ declare global {
       readFileContent: (path: string) => void
       writeFileContent: (path: string, content: string) => void
       updateLocalDirectory: (treeData: FileTreeNode[], path: string) => void
-      transformSysPath: (
-        treeData: FileTreeNode[],
-        path: string,
-      ) => FileTreeNode[]
       getSelectedPath: () => string | null
+      pathJoin: (...paths: string[]) => string
     }
   }
 }
