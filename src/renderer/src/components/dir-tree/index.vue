@@ -13,6 +13,13 @@
         <template #title="{ title }">
           <span class="pl-[6px]">{{ title }}</span>
         </template>
+        <template #icon="{ title }">
+          <file-text-filled
+            v-if="title.endsWith('md')"
+            class="text-slate-400"
+          />
+          <folder-filled v-else class="text-slate-500" />
+        </template>
       </a-directory-tree>
     </template>
     <template v-else>
@@ -23,6 +30,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { FileTextFilled, FolderFilled } from '@ant-design/icons-vue'
 import panelConfig from '@renderer/config/panel'
 import useContent from '@renderer/hooks/useContent'
 import { useStore } from '@renderer/store/index'
