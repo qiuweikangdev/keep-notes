@@ -1,13 +1,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { dialog, ipcMain } from 'electron/main'
-import { getBrowserWindow } from './utils'
+import { dialog } from 'electron/main'
 
 // 过滤目录
 const ignoreDir = ['node_modules']
 
 // 递归读取目录结构，生成目录树
-async function readDirectory(directoryPath) {
+export async function readDirectory(directoryPath) {
   try {
     const files = await fs.promises.readdir(directoryPath)
 
@@ -73,7 +72,7 @@ async function readDirectory(directoryPath) {
 }
 
 // 读取文件内容
-async function readFileContent(filePath) {
+export async function readFileContent(filePath) {
   try {
     const fileContent = await fs.promises.readFile(filePath, 'utf-8')
     return fileContent
@@ -85,7 +84,7 @@ async function readFileContent(filePath) {
 }
 
 // 写入文件内容
-async function writeFileContent(filePath, content) {
+export async function writeFileContent(filePath, content) {
   try {
     await fs.promises.writeFile(filePath, content, 'utf-8')
   }
@@ -95,7 +94,7 @@ async function writeFileContent(filePath, content) {
 }
 
 // 文件目录树更新到本地目录中
-async function updateLocalDirectory(treeData, basePath) {
+export async function updateLocalDirectory(treeData, basePath) {
   for (const node of treeData) {
     const filePath = path.join(basePath, node.fileName)
     if (node.children) {
@@ -110,7 +109,7 @@ async function updateLocalDirectory(treeData, basePath) {
   }
 }
 
-async function openDialog(win) {
+export async function openDialog(win) {
   try {
     const result = await dialog.showOpenDialog(win, {
       properties: ['openDirectory'],
@@ -132,7 +131,7 @@ async function openDialog(win) {
   }
 }
 
-async function getSelectedPath(win) {
+export async function getSelectedPath(win) {
   try {
     const result = await dialog.showOpenDialog(win, {
       properties: ['openDirectory'],
@@ -150,27 +149,4 @@ async function getSelectedPath(win) {
     console.error('Error while opening dialog:', error)
     return null
   }
-}
-
-export function ipcFileAction() {
-  ipcMain.handle('open-directory', async (event) => {
-    const win = getBrowserWindow(event)
-    const directoryTree = await openDialog(win)
-    return directoryTree
-  })
-  ipcMain.handle('read-file-content', async (_, filePath) => {
-    const content = await readFileContent(filePath)
-    return content
-  })
-  ipcMain.on('write-file-content', async (_, filePath, content) => {
-    await writeFileContent(filePath, content)
-  })
-  ipcMain.on('update-local-directory', async (_, treeData, path) => {
-    await updateLocalDirectory(treeData, path)
-  })
-  ipcMain.handle('get-selected-path', async (event) => {
-    const win = getBrowserWindow(event)
-    const selectedPath = await getSelectedPath(win)
-    return selectedPath
-  })
 }
