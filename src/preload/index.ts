@@ -10,6 +10,7 @@ import {
   updateLocalDirectory,
   writeFileContent,
 } from './file'
+import { createFile } from './treeAction'
 
 // Custom APIs for renderer
 const api = {
@@ -22,6 +23,7 @@ const api = {
   updateLocalDirectory,
   getSelectedPath,
   pathJoin,
+  createFile,
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

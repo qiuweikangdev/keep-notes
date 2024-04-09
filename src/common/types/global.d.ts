@@ -13,6 +13,11 @@ declare global {
       updateLocalDirectory: (treeData: FileTreeNode[], path: string) => void
       getSelectedPath: () => string | null
       pathJoin: (...paths: string[]) => string
+      createFile: (
+        path: string,
+        title: string,
+        treeData: FileTreeNode[],
+      ) => { code: number, message: string, treeData: FileTreeNode[] }
     }
   }
 }

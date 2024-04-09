@@ -10,8 +10,21 @@
         class="min-w-[50px] h-full bg-color-action-bar dark:bg-dark-color-action-bar"
         @select="handleSelect"
       >
-        <template #title="{ title }">
-          <span class="pl-[6px]">{{ title }}</span>
+        <template #title="{ title, key }">
+          <a-dropdown :trigger="['contextmenu']">
+            <span class="pl-[6px]">{{ title }}</span>
+            <template #overlay>
+              <a-menu
+                @click="
+                  ({ key: menuKey }) => handleContextMenuClick(key, menuKey)
+                "
+              >
+                <a-menu-item v-for="item in contextMenuList" :key="item.key">
+                  {{ item.title }}
+                </a-menu-item>
+              </a-menu>
+            </template>
+          </a-dropdown>
         </template>
         <template #icon="{ title }">
           <file-text-filled
@@ -29,17 +42,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, toRaw } from 'vue'
 import { FileTextFilled, FolderFilled } from '@ant-design/icons-vue'
 import panelConfig from '@renderer/config/panel'
 import useContent from '@renderer/hooks/useContent'
 import { useStore } from '@renderer/store/index'
+import useTreeAction from '@renderer/hooks/useTreeAction'
 import Upload from './components/upload.vue'
 
 withDefaults(defineProps<{ panelWidth?: number, panelHeight?: number }>(), {
   panelWidth: panelConfig.leftPanelSize,
   panelHeight: window.innerHeight,
 })
+
+const { contextMenuList, createFile } = useTreeAction()
 
 const containerRef = ref(HTMLElement)
 const expandedKeys = ref<string[]>()
@@ -60,6 +76,13 @@ async function handleSelect(_, info) {
     setContent(content)
     setContentFilePath(realPath)
   }
+}
+
+function handleContextMenuClick(nodeKey: string, menuKey: string | number) {
+  const actionMap = {
+    createFile: () => createFile(nodeKey, '新建文件', toRaw(treeData.value)),
+  }
+  actionMap[menuKey]()
 }
 </script>
 
