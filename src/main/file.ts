@@ -1,5 +1,5 @@
 import fs from 'node:fs'
-import path from 'node:path'
+import path, { basename } from 'node:path'
 import { dialog } from 'electron/main'
 
 // 过滤目录
@@ -118,8 +118,17 @@ export async function openDialog(win) {
     if (!result.canceled) {
       const selectedPath = result.filePaths[0]
       // 递归读取目录结构，生成目录树
-      const directoryTree = await readDirectory(selectedPath)
-      return directoryTree
+      const directoryTree = (await readDirectory(
+        selectedPath,
+      )) as FileTreeNode[]
+      const treeRoot: FileTreeNode = {
+        fileName: basename(selectedPath),
+        filePath: selectedPath,
+        title: basename(selectedPath),
+        key: selectedPath,
+        children: directoryTree,
+      }
+      return [treeRoot]
     }
     else {
       return []

@@ -1,12 +1,14 @@
 import fs from 'node:fs'
-import { sep } from 'node:path'
+import { dirname, sep } from 'node:path'
 import { findNodeByKey } from './utils'
 
 const fsPromises = fs.promises
 
 // 新建文件
 export async function createFile(path, title, treeData) {
-  const newPath = `${path}${sep}${title}.md`
+  const result = await fsPromises.stat(path)
+  const dealPath = result.isFile() ? dirname(path) : path
+  const newPath = `${dealPath}${sep}${title}.md`
   const isExists = fs.existsSync(newPath)
   if (isExists) {
     return {
@@ -16,7 +18,7 @@ export async function createFile(path, title, treeData) {
   }
   try {
     await fsPromises.writeFile(newPath, '', { encoding: 'utf-8' })
-    const targetNode = findNodeByKey(treeData, path) as FileTreeNode
+    const targetNode = findNodeByKey(treeData, dealPath) as FileTreeNode
     if (targetNode.children) {
       targetNode.children.push({
         title: `${title}.md`,
