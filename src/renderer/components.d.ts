@@ -36,6 +36,7 @@ declare module 'vue' {
     MdAction: (typeof import("./src/components/menu-bar/components/md-action.vue"))["default"]
     MdEditor: typeof import('./src/components/md-editor/index.vue')['default']
     MenuBar: typeof import('./src/components/menu-bar/index.vue')['default']
+    Modal: typeof import('./src/components/dir-tree/components/modal.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     Slash: typeof import('./src/components/md-editor/Slash.vue')['default']

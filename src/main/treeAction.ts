@@ -13,7 +13,7 @@ export async function createFile(path, title, treeData) {
   if (isExists) {
     return {
       code: 0,
-      message: '该文件夹已存在',
+      message: '该文件已存在',
     }
   }
   try {

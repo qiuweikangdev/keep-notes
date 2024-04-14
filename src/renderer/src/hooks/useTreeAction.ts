@@ -1,28 +1,41 @@
 import { useStore } from '@renderer/store'
 import { message } from 'ant-design-vue'
 
+export enum ContextMenuKey {
+  CreateFile = 'createFile',
+  CreateFolder = 'createFolder',
+  Delete = 'delete',
+  Rename = 'rename',
+  Move = 'move',
+}
+
+export interface ContextMenu {
+  title: string
+  key: ContextMenuKey
+}
+
 export default function useContextMenuAction() {
   const { setTreeData } = useStore()
-  const contextMenuList = [
+  const contextMenuList: ContextMenu[] = [
     {
       title: '新建文件',
-      key: 'createFile',
+      key: ContextMenuKey.CreateFile,
     },
     {
       title: '新建文件夹',
-      key: 'createFolder',
+      key: ContextMenuKey.CreateFolder,
     },
     {
       title: '删除',
-      key: 'delete',
+      key: ContextMenuKey.Delete,
     },
     {
       title: '重命名',
-      key: 'rename',
+      key: ContextMenuKey.Rename,
     },
     {
       title: '移动',
-      key: 'move',
+      key: ContextMenuKey.Move,
     },
   ]
 

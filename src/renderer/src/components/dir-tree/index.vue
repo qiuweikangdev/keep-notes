@@ -2,24 +2,31 @@
   <div ref="containerRef" class="tree-wrapper h-full w-full">
     <template v-if="treeData?.length">
       <a-directory-tree
-        v-model:expandedKeys="expandedKeys"
         v-model:selectedKeys="selectedKeys"
+        :default-expanded-keys="[rootNode]"
+        :expanded-keys="expandedKeys"
         :height="panelHeight - 10"
         :tree-data="treeData"
         block-node
         class="min-w-[50px] h-full bg-color-action-bar dark:bg-dark-color-action-bar"
         @select="handleSelect"
+        @expand="handleExpand"
       >
         <template #title="{ title, key }">
           <a-dropdown :trigger="['contextmenu']">
-            <span class="pl-[6px]">{{ title }}</span>
+            <span>{{ title }}</span>
             <template #overlay>
               <a-menu
                 @click="
-                  ({ key: menuKey }) => handleContextMenuClick(key, menuKey)
+                  ({ key: menuKey, item: { title: menuTitle } }) =>
+                    handleContextMenuClick(key, menuKey, menuTitle as string)
                 "
               >
-                <a-menu-item v-for="item in contextMenuList" :key="item.key">
+                <a-menu-item
+                  v-for="item in contextMenuList"
+                  :key="item.key"
+                  :title="item.title"
+                >
                   {{ item.title }}
                 </a-menu-item>
               </a-menu>
@@ -38,31 +45,47 @@
     <template v-else>
       <upload v-show="panelWidth > 2" @success="handleUploadSuccess" />
     </template>
+    <modal
+      v-model:open="modalInfo.open"
+      :title="modalInfo.title"
+      :type="modalInfo.type"
+      @ok="handleModalOk"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, toRaw } from 'vue'
+import { computed, reactive, ref, toRaw } from 'vue'
 import { FileTextFilled, FolderFilled } from '@ant-design/icons-vue'
 import panelConfig from '@renderer/config/panel'
 import useContent from '@renderer/hooks/useContent'
 import { useStore } from '@renderer/store/index'
-import useTreeAction from '@renderer/hooks/useTreeAction'
+import useTreeAction, { ContextMenuKey } from '@renderer/hooks/useTreeAction'
 import Upload from './components/upload.vue'
+import Modal from './components/modal.vue'
 
 withDefaults(defineProps<{ panelWidth?: number, panelHeight?: number }>(), {
   panelWidth: panelConfig.leftPanelSize,
   panelHeight: window.innerHeight,
 })
+const { treeData, setTreeData } = useStore()
+
+const containerRef = ref(HTMLElement)
+const selectedKeys = ref<string[]>([])
+const expandedKeys = ref<string[]>([])
+const modalInfo = reactive<{
+  open: boolean
+  title: string
+  type: ContextMenuKey
+  nodeKey: string
+}>({ open: false, title: '', type: ContextMenuKey.CreateFile, nodeKey: '' })
 
 const { contextMenuList, createFile } = useTreeAction()
 
-const containerRef = ref(HTMLElement)
-const expandedKeys = ref<string[]>()
-const selectedKeys = ref<string[]>([])
-
 const { setContent, setContentFilePath } = useContent()
-const { treeData, setTreeData } = useStore()
+
+const rootNode = computed(() => treeData.value?.[0]?.key)
+
 function handleUploadSuccess(data) {
   setTreeData(data)
 }
@@ -78,11 +101,31 @@ async function handleSelect(_, info) {
   }
 }
 
-function handleContextMenuClick(nodeKey: string, menuKey: string | number) {
+function handleContextMenuClick(
+  nodeKey: string,
+  menuKey: string | number,
+  menuTitle: string,
+) {
+  Object.assign(modalInfo, {
+    open: true,
+    title: menuTitle,
+    type: menuKey,
+    nodeKey,
+  })
+}
+
+function handleExpand(keys) {
+  expandedKeys.value = keys
+}
+
+function handleModalOk(value) {
   const actionMap = {
-    createFile: () => createFile(nodeKey, '新建文件', toRaw(treeData.value)),
+    createFile: async () => {
+      await createFile(modalInfo.nodeKey, value, toRaw(treeData.value))
+      modalInfo.open = false
+    },
   }
-  actionMap[menuKey]()
+  actionMap[modalInfo.type]()
 }
 </script>
 
