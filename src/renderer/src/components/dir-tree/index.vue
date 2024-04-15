@@ -1,14 +1,18 @@
 <template>
-  <div ref="containerRef" class="tree-wrapper h-full w-full">
+  <div ref="containerRef" class="relative tree-wrapper h-full w-full">
     <template v-if="treeData?.length">
+      <div
+        class="absolute top-[6px] left-[4px] whitespace-nowrap px-[12px] my-[px] dark:text-color-primary"
+      >
+        <folder-open-filled class="text-slate-500 dark:text-slate-400" />
+        <span class="ml-[6px] font-semibold">{{ rootNode }}</span>
+      </div>
       <a-directory-tree
         v-model:selectedKeys="selectedKeys"
-        :default-expanded-keys="[rootNode]"
-        :expanded-keys="expandedKeys"
-        :height="panelHeight - 10"
+        :height="panelHeight - 10 - 34"
         :tree-data="treeData"
         block-node
-        class="min-w-[50px] h-full bg-color-action-bar dark:bg-dark-color-action-bar"
+        class="pt-[42px] min-w-[50px] h-full bg-color-action-bar dark:bg-dark-color-action-bar"
         @select="handleSelect"
         @expand="handleExpand"
       >
@@ -56,7 +60,11 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref, toRaw } from 'vue'
-import { FileTextFilled, FolderFilled } from '@ant-design/icons-vue'
+import {
+  FileTextFilled,
+  FolderFilled,
+  FolderOpenFilled,
+} from '@ant-design/icons-vue'
 import panelConfig from '@renderer/config/panel'
 import useContent from '@renderer/hooks/useContent'
 import { useStore } from '@renderer/store/index'
@@ -68,7 +76,7 @@ withDefaults(defineProps<{ panelWidth?: number, panelHeight?: number }>(), {
   panelWidth: panelConfig.leftPanelSize,
   panelHeight: window.innerHeight,
 })
-const { treeData, setTreeData } = useStore()
+const { treeData, setTreeData, localPath, setGithubInfo } = useStore()
 
 const containerRef = ref(HTMLElement)
 const selectedKeys = ref<string[]>([])
@@ -84,10 +92,11 @@ const { contextMenuList, createFile } = useTreeAction()
 
 const { setContent, setContentFilePath } = useContent()
 
-const rootNode = computed(() => treeData.value?.[0]?.key)
+const rootNode = computed(() => window.api.pathBasename(localPath.value))
 
-function handleUploadSuccess(data) {
-  setTreeData(data)
+function handleUploadSuccess({ treeData, treeRoot }) {
+  setTreeData(treeData)
+  setGithubInfo({ localPath: treeRoot.filePath })
 }
 
 async function handleSelect(_, info) {

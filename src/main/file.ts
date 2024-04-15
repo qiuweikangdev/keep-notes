@@ -126,12 +126,14 @@ export async function openDialog(win) {
         filePath: selectedPath,
         title: basename(selectedPath),
         key: selectedPath,
-        children: directoryTree,
       }
-      return [treeRoot]
+      return {
+        treeData: directoryTree,
+        treeRoot,
+      }
     }
     else {
-      return []
+      return {}
     }
   }
   catch (error) {

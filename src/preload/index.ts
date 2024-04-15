@@ -5,6 +5,7 @@ import { onWinClose, onWinMaximize, onWinMinimize } from './menu'
 import {
   getSelectedPath,
   openDialog,
+  pathBasename,
   pathJoin,
   readFileContent,
   updateLocalDirectory,
@@ -23,6 +24,7 @@ const api = {
   updateLocalDirectory,
   getSelectedPath,
   pathJoin,
+  pathBasename,
   createFile,
 }
 

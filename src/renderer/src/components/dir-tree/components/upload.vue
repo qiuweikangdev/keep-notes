@@ -23,8 +23,8 @@ const loading = ref<boolean>(false)
 async function handleOpenDialog() {
   if (!loading.value) {
     loading.value = true
-    const result = await window.api.openDialog()
-    emits('success', result)
+    const { treeData, treeRoot } = await window.api.openDialog()
+    emits('success', { treeData, treeRoot })
     loading.value = false
   }
 }

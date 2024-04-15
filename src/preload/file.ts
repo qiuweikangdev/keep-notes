@@ -25,3 +25,7 @@ export async function getSelectedPath() {
 export function pathJoin(...paths: string[]) {
   return path.join(...paths)
 }
+
+export function pathBasename(filePath) {
+  return path.basename(filePath)
+}

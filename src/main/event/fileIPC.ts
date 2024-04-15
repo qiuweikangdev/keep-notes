@@ -10,8 +10,7 @@ import {
 export default {
   'handle:open-directory': async (event) => {
     const win = getBrowserWindow(event)
-    const directoryTree = await openDialog(win)
-    return directoryTree
+    return await openDialog(win)
   },
   'handle:read-file-content': async (_, filePath) => {
     const content = await readFileContent(filePath)
