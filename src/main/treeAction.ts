@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import { dirname, sep } from 'node:path'
-import { findNodeByKey, treeDataSort } from './utils'
+import { findNodeByKey, treeDataSort, updateFilePaths } from './utils'
 
 const fsPromises = fs.promises
 
@@ -116,7 +116,9 @@ export async function rename(path, title, treeData) {
     await fsPromises.rename(path, newPath)
     const targetNode = findNodeByKey(treeData, path) as FileTreeNode
     if (targetNode) {
+      updateFilePaths(targetNode, newPath)
       targetNode.title = curTitle
+      targetNode.fileName = curTitle
       targetNode.key = newPath
       targetNode.filePath = newPath
       treeDataSort(treeData)
