@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import { dirname, sep } from 'node:path'
-import { findNodeByKey } from './utils'
+import { findNodeByKey, treeDataSort } from './utils'
 
 const fsPromises = fs.promises
 
@@ -39,7 +39,7 @@ export async function createFile(path, title, treeData) {
     return {
       code: 1,
       message: '文件创建成功',
-      treeData,
+      treeData: treeDataSort(treeData),
     }
   }
   catch (e) {
@@ -84,7 +84,7 @@ export async function createFolder(path, title, treeData) {
     return {
       code: 1,
       message: '文件夹创建成功',
-      treeData,
+      treeData: treeDataSort(treeData),
     }
   }
   catch (e) {

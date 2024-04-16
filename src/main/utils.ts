@@ -16,3 +16,10 @@ export function findNodeByKey(treeData, key) {
     }
   }
 }
+
+// 对文件和目录进行排序、对文件和目录按照字母顺序进行排序，忽略大小写
+export function treeDataSort(treeData) {
+  return [...treeData].sort((a, b) =>
+    a.title.toLowerCase().localeCompare(b.title.toLowerCase()),
+  )
+}
