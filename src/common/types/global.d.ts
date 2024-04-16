@@ -19,6 +19,11 @@ declare global {
         title: string,
         treeData: FileTreeNode[],
       ) => { code: number, message: string, treeData: FileTreeNode[] }
+      createFolder: (
+        path: string,
+        title: string,
+        treeData: FileTreeNode[],
+      ) => { code: number, message: string, treeData: FileTreeNode[] }
     }
   }
 }
