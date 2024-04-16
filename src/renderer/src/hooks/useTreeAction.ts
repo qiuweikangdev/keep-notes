@@ -57,9 +57,19 @@ export default function useContextMenuAction() {
     setTreeData(result.treeData)
   }
 
+  const rename = async (path, title, treeData) => {
+    const result = await window.api.rename(path, title, treeData)
+    if (result.code === 0) {
+      message.error(result.message.toString())
+      return
+    }
+    setTreeData(result.treeData)
+  }
+
   return {
     contextMenuList,
     createFile,
     createFolder,
+    rename,
   }
 }

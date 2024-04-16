@@ -98,3 +98,39 @@ export async function createFolder(path, title, treeData) {
     }
   }
 }
+
+// 重命名文件或文件夹
+export async function rename(path, title, treeData) {
+  const result = await fsPromises.stat(path)
+  const parentPath = dirname(path)
+  const curTitle = result.isFile() ? `${title}.md` : title
+  const newPath = `${parentPath}${sep}${curTitle}`
+  const isExists = fs.existsSync(newPath)
+  if (isExists) {
+    return {
+      code: 0,
+      message: '已存在文件/文件夹',
+    }
+  }
+  try {
+    await fsPromises.rename(path, newPath)
+    const targetNode = findNodeByKey(treeData, path) as FileTreeNode
+    if (targetNode) {
+      targetNode.title = curTitle
+      targetNode.key = newPath
+      targetNode.filePath = newPath
+      treeDataSort(treeData)
+    }
+    return {
+      code: 1,
+      message: '重命名成功',
+      treeData,
+    }
+  }
+  catch (e) {
+    return {
+      code: 0,
+      message: e,
+    }
+  }
+}

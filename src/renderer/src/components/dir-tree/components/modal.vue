@@ -2,7 +2,11 @@
   <a-modal v-model:open="open" :title="title" width="300px" destroy-on-close>
     <template
       v-if="
-        [ContextMenuKey.CreateFile, ContextMenuKey.CreateFolder].includes(type)
+        [
+          ContextMenuKey.CreateFile,
+          ContextMenuKey.CreateFolder,
+          ContextMenuKey.Rename,
+        ].includes(type)
       "
     >
       <a-input v-model:value="name" class="dark:bg-transparent" allow-clear />

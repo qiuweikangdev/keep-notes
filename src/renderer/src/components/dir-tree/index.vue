@@ -88,7 +88,7 @@ const modalInfo = reactive<{
   nodeKey: string
 }>({ open: false, title: '', type: ContextMenuKey.CreateFile, nodeKey: '' })
 
-const { contextMenuList, createFile, createFolder } = useTreeAction()
+const { contextMenuList, createFile, createFolder, rename } = useTreeAction()
 
 const { setContent, setContentFilePath } = useContent()
 
@@ -135,6 +135,10 @@ function handleModalOk(value) {
     },
     createFolder: async () => {
       await createFolder(modalInfo.nodeKey, value, toRaw(treeData.value))
+      modalInfo.open = false
+    },
+    rename: async () => {
+      await rename(modalInfo.nodeKey, value, toRaw(treeData.value))
       modalInfo.open = false
     },
   }

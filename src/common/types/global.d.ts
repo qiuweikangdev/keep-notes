@@ -24,6 +24,11 @@ declare global {
         title: string,
         treeData: FileTreeNode[],
       ) => { code: number, message: string, treeData: FileTreeNode[] }
+      rename: (
+        path: string,
+        title: string,
+        treeData: FileTreeNode[],
+      ) => { code: number, message: string, treeData: FileTree }
     }
   }
 }

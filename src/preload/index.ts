@@ -11,7 +11,7 @@ import {
   updateLocalDirectory,
   writeFileContent,
 } from './file'
-import { createFile, createFolder } from './treeAction'
+import { createFile, createFolder, rename } from './treeAction'
 
 // Custom APIs for renderer
 const api = {
@@ -27,6 +27,7 @@ const api = {
   pathBasename,
   createFile,
   createFolder,
+  rename,
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
