@@ -41,6 +41,7 @@ declare module 'vue' {
     RouterView: typeof import('vue-router')['RouterView']
     Slash: typeof import('./src/components/md-editor/Slash.vue')['default']
     Spinner: typeof import('./src/components/spinner/index.vue')['default']
+    Sspinner: (typeof import("./src/components/Sspinner/index.vue"))["default"]
     SyncSettings: typeof import('./src/components/sync-settings/index.vue')['default']
     TableSelector: typeof import('./src/components/md-editor/table-widget/table-selector.vue')['default']
     TableTooltip: typeof import('./src/components/md-editor/table-widget/table-tooltip.vue')['default']
