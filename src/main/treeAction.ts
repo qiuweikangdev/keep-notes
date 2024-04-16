@@ -25,6 +25,7 @@ export async function createFile(path, title, treeData) {
         key: newPath,
         filePath: newPath,
       })
+      treeDataSort(targetNode.children)
     }
     else {
       const targetNodeIndex = treeData.findIndex(
@@ -35,11 +36,12 @@ export async function createFile(path, title, treeData) {
         key: newPath,
         filePath: newPath,
       })
+      treeDataSort(treeData)
     }
     return {
       code: 1,
       message: '文件创建成功',
-      treeData: treeDataSort(treeData),
+      treeData,
     }
   }
   catch (e) {
@@ -72,6 +74,7 @@ export async function createFolder(path, title, treeData) {
         filePath: newPath,
         children: [],
       })
+      treeDataSort(targetNode.children)
     }
     if (!targetNode) {
       treeData.push({
@@ -80,11 +83,12 @@ export async function createFolder(path, title, treeData) {
         filePath: newPath,
         children: [],
       })
+      treeDataSort(treeData)
     }
     return {
       code: 1,
       message: '文件夹创建成功',
-      treeData: treeDataSort(treeData),
+      treeData,
     }
   }
   catch (e) {

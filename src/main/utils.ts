@@ -18,8 +18,27 @@ export function findNodeByKey(treeData, key) {
 }
 
 // 对文件和目录进行排序、对文件和目录按照字母顺序进行排序，忽略大小写
-export function treeDataSort(treeData) {
-  return [...treeData].sort((a, b) =>
-    a.title.toLowerCase().localeCompare(b.title.toLowerCase()),
-  )
+export function treeDataSort(treeData, isHandlerChildren = false) {
+  treeData.sort((a, b) => {
+    const isDirA = !!a.children
+    const isDirB = !!b.children
+
+    if (isDirA && !isDirB) {
+      return -1
+    }
+    else if (!isDirA && isDirB) {
+      return 1
+    }
+    else {
+      return a.title.toLowerCase().localeCompare(b.title.toLowerCase())
+    }
+  })
+
+  if (isHandlerChildren) {
+    treeData.forEach((node) => {
+      if (node.children) {
+        node.children = treeDataSort(node.children)
+      }
+    })
+  }
 }
