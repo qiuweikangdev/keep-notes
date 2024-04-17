@@ -104,6 +104,7 @@ export default function useGithub() {
           sysPath: window.api.pathJoin(localPath.value, content.path),
           title: content.name,
           key: content.path,
+          selectable: children.length > 0,
           children,
         })
       }

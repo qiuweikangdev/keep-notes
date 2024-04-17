@@ -1,4 +1,5 @@
 interface FileTreeNode {
+  selectable?: boolean
   sysPath?: string
   title: string
   key: string

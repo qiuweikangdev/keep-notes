@@ -45,6 +45,7 @@ export async function readDirectory(directoryPath) {
         return {
           title: dir,
           key: path.join(directoryPath, dir),
+          selectable: subtree.length > 0,
           children: subtree,
         }
       }),
