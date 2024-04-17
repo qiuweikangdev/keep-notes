@@ -1,8 +1,23 @@
-import { onMounted, reactive, ref, toRefs, watch } from 'vue'
+import { onMounted, reactive, toRefs, watch } from 'vue'
 
-const treeData = ref<FileTreeNode[]>([])
+interface TreeInfo {
+  treeData: FileTreeNode[]
+  treeRoot: FileTreeNode
+}
 
-const githubInfo = reactive({
+interface GithubInfo {
+  username: string
+  repositoryName: string
+  accessToken: string
+  localPath: string
+}
+
+const treeInfo = reactive<TreeInfo>({
+  treeData: [],
+  treeRoot: { title: '', key: '' },
+})
+
+const githubInfo = reactive<GithubInfo>({
   username: '',
   repositoryName: '',
   accessToken: '',
@@ -10,11 +25,11 @@ const githubInfo = reactive({
 })
 
 export function useStore() {
-  const setTreeData = (data: FileTreeNode[]) => {
-    treeData.value = data
+  const setTreeInfo = (data: Partial<TreeInfo>) => {
+    Object.assign(treeInfo, data)
   }
 
-  const setGithubInfo = (data) => {
+  const setGithubInfo = (data: Partial<GithubInfo>) => {
     Object.assign(githubInfo, data)
   }
 
@@ -30,10 +45,11 @@ export function useStore() {
   })
 
   return {
-    treeData,
+    treeInfo,
     githubInfo,
     ...toRefs(githubInfo),
-    setTreeData,
+    ...toRefs(treeInfo),
+    setTreeInfo,
     setGithubInfo,
   }
 }

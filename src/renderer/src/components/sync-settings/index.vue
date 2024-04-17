@@ -93,7 +93,7 @@ const open = defineModel('open', { type: Boolean, default: false })
 
 const formRef = ref()
 
-const { githubInfo: formData, setTreeData, setGithubInfo } = useStore()
+const { githubInfo: formData, setTreeInfo, setGithubInfo } = useStore()
 
 const { downloadFile, downloadLoading } = useGitub()
 
@@ -110,7 +110,10 @@ async function downloadGithub() {
   await formRef.value.validate()
   const treeData = await downloadFile()
   if (treeData) {
-    setTreeData(treeData)
+    setTreeInfo({
+      treeData,
+      treeRootPath: formData.localPath,
+    })
     open.value = downloadLoading.value
   }
 }

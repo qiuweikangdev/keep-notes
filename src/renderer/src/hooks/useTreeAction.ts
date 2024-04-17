@@ -15,7 +15,7 @@ export interface ContextMenu {
 }
 
 export default function useContextMenuAction() {
-  const { setTreeData } = useStore()
+  const { setTreeInfo } = useStore()
   const contextMenuList: ContextMenu[] = [
     {
       title: '新建文件',
@@ -45,7 +45,7 @@ export default function useContextMenuAction() {
       message.error(result.message.toString())
       return
     }
-    setTreeData(result.treeData)
+    setTreeInfo({ treeData: result.treeData })
   }
 
   const createFolder = async (path, title, treeData) => {
@@ -54,7 +54,7 @@ export default function useContextMenuAction() {
       message.error(result.message.toString())
       return
     }
-    setTreeData(result.treeData)
+    setTreeInfo({ treeData: result.treeData })
   }
 
   const rename = async (path, title, treeData) => {
@@ -63,7 +63,7 @@ export default function useContextMenuAction() {
       message.error(result.message.toString())
       return
     }
-    setTreeData(result.treeData)
+    setTreeInfo({ treeData: result.treeData })
   }
 
   return {

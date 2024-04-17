@@ -5,7 +5,7 @@
         class="absolute top-[6px] left-[4px] whitespace-nowrap px-[12px] my-[px] dark:text-color-primary"
       >
         <folder-open-filled class="text-slate-500 dark:text-slate-400" />
-        <span class="ml-[6px] font-semibold">{{ rootNode }}</span>
+        <span class="ml-[6px] font-semibold">{{ treeRoot.title }}</span>
       </div>
       <a-directory-tree
         v-model:selectedKeys="selectedKeys"
@@ -59,7 +59,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, toRaw } from 'vue'
+import { reactive, ref, toRaw } from 'vue'
 import {
   FileTextFilled,
   FolderFilled,
@@ -76,7 +76,7 @@ withDefaults(defineProps<{ panelWidth?: number, panelHeight?: number }>(), {
   panelWidth: panelConfig.leftPanelSize,
   panelHeight: window.innerHeight,
 })
-const { treeData, setTreeData, localPath, setGithubInfo } = useStore()
+const { treeData, setTreeInfo, treeRoot } = useStore()
 
 const containerRef = ref(HTMLElement)
 const selectedKeys = ref<string[]>([])
@@ -92,11 +92,11 @@ const { contextMenuList, createFile, createFolder, rename } = useTreeAction()
 
 const { setContent, setContentFilePath } = useContent()
 
-const rootNode = computed(() => window.api.pathBasename(localPath.value))
-
 function handleUploadSuccess({ treeData, treeRoot }) {
-  setTreeData(treeData)
-  setGithubInfo({ localPath: treeRoot.key })
+  setTreeInfo({
+    treeData,
+    treeRoot,
+  })
 }
 
 async function handleSelect(_, info) {
