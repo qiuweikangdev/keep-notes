@@ -91,9 +91,7 @@ export default function useGithub() {
           path: content.path,
         })
         fileTreeList.push({
-          filePath: fileContent.path,
           sysPath: window.api.pathJoin(localPath.value, fileContent.path),
-          fileName: fileContent.name,
           title: fileContent.name,
           key: fileContent.path,
           content: parseFileContent(fileContent.content),
@@ -103,9 +101,7 @@ export default function useGithub() {
         // 递归处理子目录
         const children = await genDirectory(content.path)
         fileTreeList.push({
-          filePath: content.path,
           sysPath: window.api.pathJoin(localPath.value, content.path),
-          fileName: content.name,
           title: content.name,
           key: content.path,
           children,

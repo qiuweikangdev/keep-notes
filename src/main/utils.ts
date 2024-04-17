@@ -46,8 +46,7 @@ export function treeDataSort(treeData, isHandlerChildren = false) {
 export function updateFilePaths(node, newPath) {
   if (node.children && node.children.length > 0) {
     node.children.forEach((child) => {
-      child.key = child.key.replace(node.filePath, newPath)
-      child.filePath = child.filePath.replace(node.filePath, newPath)
+      child.key = child.key.replace(node.key, newPath)
       updateFilePaths(child, newPath)
     })
   }

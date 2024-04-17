@@ -1,6 +1,4 @@
 interface FileTreeNode {
-  fileName: string
-  filePath: string
   sysPath?: string
   title: string
   key: string

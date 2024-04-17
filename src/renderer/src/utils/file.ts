@@ -23,7 +23,7 @@ export function fileTreeSort(treeData) {
       return 1 // a 是文件，b 是目录，b 在前面
     }
     else {
-      return a.fileName.localeCompare(b.fileName, undefined, {
+      return a.title.localeCompare(b.title, undefined, {
         sensitivity: 'base',
       })
     }

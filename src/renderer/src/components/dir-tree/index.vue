@@ -96,12 +96,12 @@ const rootNode = computed(() => window.api.pathBasename(localPath.value))
 
 function handleUploadSuccess({ treeData, treeRoot }) {
   setTreeData(treeData)
-  setGithubInfo({ localPath: treeRoot.filePath })
+  setGithubInfo({ localPath: treeRoot.key })
 }
 
 async function handleSelect(_, info) {
   const { node } = info
-  const { fileName, filePath, sysPath } = node || {}
+  const { title: fileName, sysPath, key: filePath } = node || {}
   if (fileName.endsWith('md')) {
     const realPath = sysPath ?? filePath
     const content = await window.api.readFileContent(realPath)

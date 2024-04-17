@@ -43,8 +43,6 @@ export async function readDirectory(directoryPath) {
       directories.map(async (dir) => {
         const subtree = await readDirectory(path.join(directoryPath, dir))
         return {
-          fileName: dir,
-          filePath: path.join(directoryPath, dir),
           title: dir,
           key: path.join(directoryPath, dir),
           children: subtree,
@@ -56,8 +54,6 @@ export async function readDirectory(directoryPath) {
     const tree = [
       ...directoryTrees,
       ...markdownFiles.map(file => ({
-        fileName: file,
-        filePath: path.join(directoryPath, file),
         title: file,
         key: path.join(directoryPath, file),
       })),
@@ -96,7 +92,7 @@ export async function writeFileContent(filePath, content) {
 // 文件目录树更新到本地目录中
 export async function updateLocalDirectory(treeData, basePath) {
   for (const node of treeData) {
-    const filePath = path.join(basePath, node.fileName)
+    const filePath = path.join(basePath, node.title)
     if (node.children) {
       // 如果是目录，创建目录并递归更新子节点
       await fs.promises.mkdir(filePath, { recursive: true })
@@ -122,8 +118,6 @@ export async function openDialog(win) {
         selectedPath,
       )) as FileTreeNode[]
       const treeRoot: FileTreeNode = {
-        fileName: basename(selectedPath),
-        filePath: selectedPath,
         title: basename(selectedPath),
         key: selectedPath,
       }

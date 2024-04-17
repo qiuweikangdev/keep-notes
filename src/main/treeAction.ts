@@ -23,7 +23,6 @@ export async function createFile(path, title, treeData) {
       targetNode.children.push({
         title: `${title}.md`,
         key: newPath,
-        filePath: newPath,
       })
       treeDataSort(targetNode.children)
     }
@@ -34,7 +33,6 @@ export async function createFile(path, title, treeData) {
       treeData.splice(targetNodeIndex + 1, 0, {
         title: `${title}`,
         key: newPath,
-        filePath: newPath,
       })
       treeDataSort(treeData)
     }
@@ -71,7 +69,6 @@ export async function createFolder(path, title, treeData) {
       targetNode.children.push({
         title,
         key: newPath,
-        filePath: newPath,
         children: [],
       })
       treeDataSort(targetNode.children)
@@ -80,7 +77,6 @@ export async function createFolder(path, title, treeData) {
       treeData.push({
         title: `${title}`,
         key: newPath,
-        filePath: newPath,
         children: [],
       })
       treeDataSort(treeData)
@@ -118,9 +114,7 @@ export async function rename(path, title, treeData) {
     if (targetNode) {
       updateFilePaths(targetNode, newPath)
       targetNode.title = curTitle
-      targetNode.fileName = curTitle
       targetNode.key = newPath
-      targetNode.filePath = newPath
       treeDataSort(treeData)
     }
     return {
