@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path, { basename } from 'node:path'
 import { dialog } from 'electron/main'
+import { genColor } from '@common/utils/color'
 
 // 过滤目录
 const ignoreDir = ['node_modules']
@@ -47,17 +48,22 @@ export async function readDirectory(directoryPath) {
           key: path.join(directoryPath, dir),
           selectable: subtree.length > 0,
           children: subtree,
-        }
+          color: genColor(dir),
+        } as FileTreeNode
       }),
     )
 
     // 拼接文件和目录的目录树
     const tree = [
       ...directoryTrees,
-      ...markdownFiles.map(file => ({
-        title: file,
-        key: path.join(directoryPath, file),
-      })),
+      ...markdownFiles.map(
+        file =>
+          ({
+            title: file,
+            key: path.join(directoryPath, file),
+            color: genColor(file),
+          }) as FileTreeNode,
+      ),
     ]
 
     return tree

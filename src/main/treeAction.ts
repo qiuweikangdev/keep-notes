@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import { dirname, sep } from 'node:path'
+import { genColor } from '@common/utils/color'
 import { findNodeByKey, treeDataSort, updateFilePaths } from './utils'
 
 const fsPromises = fs.promises
@@ -69,6 +70,7 @@ export async function createFolder(path, title, treeData) {
       targetNode.children.push({
         title,
         key: newPath,
+        color: genColor(title),
         children: [],
       })
       treeDataSort(targetNode.children)
@@ -77,6 +79,7 @@ export async function createFolder(path, title, treeData) {
       treeData.push({
         title: `${title}`,
         key: newPath,
+        color: genColor(title),
         children: [],
       })
       treeDataSort(treeData)

@@ -18,6 +18,7 @@
     "src/main/*",
     "src/preload/*",
     "src/common/types/*.d.ts",
+    "src/common/**/*",
     "src/common/*"
   ]
 }

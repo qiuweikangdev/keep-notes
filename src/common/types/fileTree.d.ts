@@ -5,4 +5,5 @@ interface FileTreeNode {
   key: string
   children?: TreeNode[]
   content?: string
+  color?: string
 }

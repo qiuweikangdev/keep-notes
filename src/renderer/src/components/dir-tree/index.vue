@@ -4,8 +4,10 @@
       <div
         class="absolute top-[6px] left-[4px] whitespace-nowrap px-[12px] my-[px] dark:text-color-primary"
       >
-        <folder-open-filled class="text-slate-500 dark:text-slate-400" />
-        <span class="ml-[6px] font-semibold">{{ treeRoot.title }}</span>
+        <folder-open-filled
+          class="text-slate-500 dark:text-slate-400 text-[18px]"
+        />
+        <span class="pl-[8px] font-semibold">{{ treeRoot.title }}</span>
       </div>
       <a-directory-tree
         v-model:selectedKeys="selectedKeys"
@@ -18,7 +20,7 @@
       >
         <template #title="{ title, key }">
           <a-dropdown :trigger="['contextmenu']">
-            <span>{{ title }}</span>
+            <span class="pl-[4px]">{{ title }}</span>
             <template #overlay>
               <a-menu
                 @click="
@@ -37,12 +39,17 @@
             </template>
           </a-dropdown>
         </template>
-        <template #icon="{ title }">
+        <template #icon="{ title, color }">
           <file-text-filled
             v-if="title.endsWith('md')"
-            class="text-slate-400"
+            class="text-[18px]"
+            :style="{ color: colorMd }"
           />
-          <folder-filled v-else class="text-slate-500" />
+          <folder-filled
+            v-else
+            class="text-slate-500 text-[18px]"
+            :style="{ color }"
+          />
         </template>
       </a-directory-tree>
     </template>
@@ -69,6 +76,7 @@ import panelConfig from '@renderer/config/panel'
 import useContent from '@renderer/hooks/useContent'
 import { useStore } from '@renderer/store/index'
 import useTreeAction, { ContextMenuKey } from '@renderer/hooks/useTreeAction'
+import { colorMd } from '@common/utils/color'
 import Upload from './components/upload.vue'
 import Modal from './components/modal.vue'
 
