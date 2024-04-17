@@ -17,7 +17,7 @@
         @expand="handleExpand"
       >
         <template #title="{ title, key }">
-          <a-dropdown :trigger="['contextmenu']">
+          <a-dropdown :trigger="['contextmenu']" class="inline-block w-full">
             <span>{{ title }}</span>
             <template #overlay>
               <a-menu
