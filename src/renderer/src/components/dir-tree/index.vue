@@ -7,7 +7,7 @@
         <folder-open-filled
           class="text-slate-500 dark:text-slate-400 text-[18px]"
         />
-        <span class="pl-[8px] font-semibold">{{ treeRoot.title }}</span>
+        <span class="pl-[8px]">{{ treeRoot.title }}</span>
       </div>
       <a-directory-tree
         v-model:selectedKeys="selectedKeys"

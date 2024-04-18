@@ -36,12 +36,15 @@
             v-model:value="formData.localPath"
             class="dark:bg-transparent cursor-pointer"
             style="cursor: pointer"
-            placeholder="点击选择本地目录"
+            placeholder="请选择文件夹"
+            disabled
             allow-clear
-            @click="handleSelectedPath"
           >
             <template #addonAfter>
-              <upload-outlined @click="handleSelectedPath" />
+              <folder-open-filled
+                class="w-[32px] flex justify-center"
+                @click="handleSelectedPath"
+              />
             </template>
           </a-input>
         </a-form-item>
@@ -60,14 +63,14 @@
       <div class="flex justify-end">
         <a-button
           :icon="h(CloudUploadOutlined)"
-          class="flex items-center text-[12px]"
+          class="flex items-center"
           @click="uploadGithub"
         >
           上传
         </a-button>
         <a-button
           :icon="h(CloudDownloadOutlined)"
-          class="flex items-center mx-[12px] text-[12px]"
+          class="text-color-primary-hover border-color-primary-hover/35 flex items-center"
           :loading="downloadLoading"
           @click="downloadGithub"
         >
@@ -83,8 +86,8 @@ import { computed, h, ref } from 'vue'
 import {
   CloudDownloadOutlined,
   CloudUploadOutlined,
+  FolderOpenFilled,
   GithubOutlined,
-  UploadOutlined,
 } from '@ant-design/icons-vue'
 import useGitub from '@renderer/hooks/useGithub'
 import { useStore } from '@renderer/store/index'
@@ -112,7 +115,10 @@ async function downloadGithub() {
   if (treeData) {
     setTreeInfo({
       treeData,
-      treeRootPath: formData.localPath,
+      treeRoot: {
+        key: formData.localPath,
+        title: window.api.pathBasename(formData.localPath),
+      },
     })
     open.value = downloadLoading.value
   }
@@ -122,12 +128,14 @@ function handleOk() {}
 
 function handleCancel() {
   open.value = false
+  formRef.value.clearValidate()
 }
 
 async function handleSelectedPath() {
   const selectedPath = await window.api.getSelectedPath()
   if (selectedPath) {
     setGithubInfo({ localPath: selectedPath })
+    formRef.value.clearValidate(['localPath'])
   }
 }
 </script>
