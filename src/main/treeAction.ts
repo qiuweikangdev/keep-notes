@@ -5,41 +5,48 @@ import { findNodeByKey, treeDataSort, updateFilePaths } from './utils'
 
 const fsPromises = fs.promises
 
-// 新建文件
-export async function createFile(path, title, treeData) {
+async function createItem(path, title, treeData, isFolder = false) {
   const result = await fsPromises.stat(path)
   const dealPath = result.isFile() ? dirname(path) : path
-  const newPath = `${dealPath}${sep}${title}.md`
+  const newPath = isFolder
+    ? `${dealPath}${sep}${title}`
+    : `${dealPath}${sep}${title}.md`
   const isExists = fs.existsSync(newPath)
   if (isExists) {
     return {
       code: 0,
-      message: '该文件已存在',
+      message: isFolder ? '该文件夹已存在' : '该文件已存在',
     }
   }
   try {
-    await fsPromises.writeFile(newPath, '', { encoding: 'utf-8' })
-    const targetNode = findNodeByKey(treeData, dealPath) as FileTreeNode
-    if (targetNode.children) {
-      targetNode.children.push({
-        title: `${title}.md`,
-        key: newPath,
-      })
-      treeDataSort(targetNode.children)
+    if (isFolder) {
+      await fsPromises.mkdir(newPath, { recursive: true })
     }
     else {
-      const targetNodeIndex = treeData.findIndex(
-        node => node.key === targetNode.key,
-      )
-      treeData.splice(targetNodeIndex + 1, 0, {
-        title: `${title}`,
-        key: newPath,
-      })
+      await fsPromises.writeFile(newPath, '', { encoding: 'utf-8' })
+    }
+    const targetNode = findNodeByKey(treeData, dealPath) as FileTreeNode
+    const newItem: FileTreeNode = {
+      title: isFolder ? title : `${title}.md`,
+      key: newPath,
+      color: genColor(title),
+    }
+    if (isFolder) {
+      newItem.children = []
+    }
+    if (targetNode) {
+      targetNode.children
+        ? targetNode.children.push(newItem)
+        : treeData.push(newItem)
+      treeDataSort(targetNode.children || treeData)
+    }
+    else {
+      treeData.push(newItem)
       treeDataSort(treeData)
     }
     return {
       code: 1,
-      message: '文件创建成功',
+      message: isFolder ? '文件夹创建成功' : '文件创建成功',
       treeData,
     }
   }
@@ -51,51 +58,14 @@ export async function createFile(path, title, treeData) {
   }
 }
 
+// 新建文件
+export async function createFile(path, title, treeData) {
+  return createItem(path, title, treeData, false)
+}
+
 // 新建文件夹
 export async function createFolder(path, title, treeData) {
-  const result = await fsPromises.stat(path)
-  const dealPath = result.isFile() ? dirname(path) : path
-  const newPath = `${dealPath}${sep}${title}`
-  const isExists = fs.existsSync(newPath)
-  if (isExists) {
-    return {
-      code: 0,
-      message: '该文件夹已存在',
-    }
-  }
-  try {
-    await fsPromises.mkdir(newPath, { recursive: true })
-    const targetNode = findNodeByKey(treeData, dealPath) as FileTreeNode
-    if (targetNode?.children) {
-      targetNode.children.push({
-        title,
-        key: newPath,
-        color: genColor(title),
-        children: [],
-      })
-      treeDataSort(targetNode.children)
-    }
-    if (!targetNode) {
-      treeData.push({
-        title: `${title}`,
-        key: newPath,
-        color: genColor(title),
-        children: [],
-      })
-      treeDataSort(treeData)
-    }
-    return {
-      code: 1,
-      message: '文件夹创建成功',
-      treeData,
-    }
-  }
-  catch (e) {
-    return {
-      code: 0,
-      message: e,
-    }
-  }
+  return createItem(path, title, treeData, true)
 }
 
 // 重命名文件或文件夹
