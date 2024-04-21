@@ -1,4 +1,9 @@
-import { createFile, createFolder, rename } from '../treeAction'
+import {
+  createFile,
+  createFolder,
+  deleteFileOrFolder,
+  rename,
+} from '../treeAction'
 
 export default {
   'handle:create-file': async (_, path, title, treeData) => {
@@ -9,5 +14,8 @@ export default {
   },
   'handle:rename': async (_, path, title, treeData) => {
     return await rename(path, title, treeData)
+  },
+  'handle:delete-fileOrFolder': async (_, path, title, treeData) => {
+    return await deleteFileOrFolder(path, title, treeData)
   },
 }

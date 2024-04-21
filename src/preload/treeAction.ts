@@ -16,3 +16,12 @@ export async function createFolder(path, title, treeData) {
 export async function rename(path, title, treeData) {
   return await ipcRenderer.invoke('handle:rename', path, title, treeData)
 }
+
+export async function deleteFileOrFolder(path, title, treeData) {
+  return await ipcRenderer.invoke(
+    'handle:delete-fileOrFolder',
+    path,
+    title,
+    treeData,
+  )
+}

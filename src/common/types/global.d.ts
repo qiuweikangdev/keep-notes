@@ -1,5 +1,11 @@
 import type { ElectronAPI } from '@electron-toolkit/preload'
 
+interface ApiResponse {
+  code: number
+  message: string
+  treeData: FileTreeNode[]
+}
+
 declare global {
   interface Window {
     electron: ElectronAPI
@@ -18,17 +24,22 @@ declare global {
         path: string,
         title: string,
         treeData: FileTreeNode[],
-      ) => { code: number, message: string, treeData: FileTreeNode[] }
+      ) => ApiResponse
       createFolder: (
         path: string,
         title: string,
         treeData: FileTreeNode[],
-      ) => { code: number, message: string, treeData: FileTreeNode[] }
+      ) => ApiResponse
       rename: (
         path: string,
         title: string,
         treeData: FileTreeNode[],
-      ) => { code: number, message: string, treeData: FileTree }
+      ) => ApiResponse
+      deleteFileOrFolder: (
+        path: string,
+        title: string,
+        treeData: FileTreeNode[],
+      ) => ApiResponse
     }
   }
 }

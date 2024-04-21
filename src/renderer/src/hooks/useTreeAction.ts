@@ -41,7 +41,7 @@ export default function useContextMenuAction() {
 
   const createFile = async (path, title, treeData) => {
     const result = await window.api.createFile(path, title, treeData)
-    if (result.code === 0) {
+    if (result.code === 0 && result.message) {
       message.error(result.message.toString())
       return
     }
@@ -59,7 +59,16 @@ export default function useContextMenuAction() {
 
   const rename = async (path, title, treeData) => {
     const result = await window.api.rename(path, title, treeData)
-    if (result.code === 0) {
+    if (result.code === 0 && result.message) {
+      message.error(result.message.toString())
+      return
+    }
+    setTreeInfo({ treeData: result.treeData })
+  }
+
+  const deleteFileOrFolder = async (path, title, treeData) => {
+    const result = await window.api.deleteFileOrFolder(path, title, treeData)
+    if (result.code === 0 && result.message) {
       message.error(result.message.toString())
       return
     }
@@ -71,5 +80,6 @@ export default function useContextMenuAction() {
     createFile,
     createFolder,
     rename,
+    deleteFileOrFolder,
   }
 }

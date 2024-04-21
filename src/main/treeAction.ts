@@ -1,6 +1,7 @@
 import fs from 'node:fs'
-import { dirname, sep } from 'node:path'
+import { dirname, normalize, sep } from 'node:path'
 import { genColor } from '@common/utils/color'
+import { dialog } from 'electron'
 import { findNodeByKey, treeDataSort, updateFilePaths } from './utils'
 
 const fsPromises = fs.promises
@@ -100,6 +101,62 @@ export async function rename(path, title, treeData) {
     return {
       code: 0,
       message: e,
+    }
+  }
+}
+
+// 删除文件或文件夹
+export async function deleteFileOrFolder(path, title, treeData) {
+  const result = await fsPromises.stat(path)
+  const { response } = await dialog.showMessageBox({
+    title: '警告',
+    message: `是否要删除 ${title}`,
+    type: 'warning',
+    buttons: ['确定', '取消'],
+  })
+  if (response === 0) {
+    try {
+      if (result.isFile()) {
+        await fsPromises.unlink(path)
+        const parentPath = dirname(path)
+        const targetNode = findNodeByKey(treeData, parentPath) as FileTreeNode
+        if (targetNode) {
+          targetNode.children = targetNode?.children?.filter(
+            node => normalize(node.key) !== normalize(path),
+          )
+        }
+        return {
+          code: 1,
+          message: '文件删除成功',
+          treeData,
+        }
+      }
+      else {
+        await fsPromises.rmdir(path, { recursive: true })
+        const parentPath = dirname(path)
+        const targetNode = findNodeByKey(treeData, parentPath) as FileTreeNode
+        if (targetNode) {
+          targetNode.children = targetNode?.children?.filter(
+            node => normalize(node.key) !== normalize(path),
+          )
+        }
+        return {
+          code: 1,
+          message: '文件夹删除成功',
+          treeData,
+        }
+      }
+    }
+    catch (e) {
+      return {
+        code: 0,
+        message: e,
+      }
+    }
+  }
+  else {
+    return {
+      code: 0,
     }
   }
 }

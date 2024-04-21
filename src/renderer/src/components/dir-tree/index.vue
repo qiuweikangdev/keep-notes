@@ -25,7 +25,12 @@
               <a-menu
                 @click="
                   ({ key: menuKey, item: { title: menuTitle } }) =>
-                    handleContextMenuClick(key, menuKey, menuTitle as string)
+                    handleContextMenuClick(
+                      key,
+                      title,
+                      menuKey as ContextMenuKey,
+                      menuTitle as string,
+                    )
                 "
               >
                 <a-menu-item
@@ -96,7 +101,13 @@ const modalInfo = reactive<{
   nodeKey: string
 }>({ open: false, title: '', type: ContextMenuKey.CreateFile, nodeKey: '' })
 
-const { contextMenuList, createFile, createFolder, rename } = useTreeAction()
+const {
+  contextMenuList,
+  createFile,
+  createFolder,
+  rename,
+  deleteFileOrFolder,
+} = useTreeAction()
 
 const { setContent, setContentFilePath } = useContent()
 
@@ -118,17 +129,23 @@ async function handleSelect(_, info) {
   }
 }
 
-function handleContextMenuClick(
+async function handleContextMenuClick(
   nodeKey: string,
-  menuKey: string | number,
+  nodeTitle: string,
+  menuKey: ContextMenuKey,
   menuTitle: string,
 ) {
-  Object.assign(modalInfo, {
-    open: true,
-    title: menuTitle,
-    type: menuKey,
-    nodeKey,
-  })
+  if (menuKey === ContextMenuKey.Delete) {
+    await deleteFileOrFolder(nodeKey, nodeTitle, toRaw(treeData.value))
+  }
+  else {
+    Object.assign(modalInfo, {
+      open: true,
+      title: menuTitle,
+      type: menuKey,
+      nodeKey,
+    })
+  }
 }
 
 function handleExpand(keys) {
@@ -149,6 +166,9 @@ function handleModalOk(value) {
       await rename(modalInfo.nodeKey, value, toRaw(treeData.value))
       modalInfo.open = false
     },
+    // delete: async () => {
+    //   await deleteFileOrFolder(modalInfo.nodeKey, value, toRaw(treeData.value))
+    // },
   }
   actionMap[modalInfo.type]()
 }
