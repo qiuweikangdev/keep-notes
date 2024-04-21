@@ -152,25 +152,17 @@ function handleExpand(keys) {
   expandedKeys.value = keys
 }
 
-function handleModalOk(value) {
+async function handleModalOk(value) {
   const actionMap = {
-    createFile: async () => {
-      await createFile(modalInfo.nodeKey, value, toRaw(treeData.value))
-      modalInfo.open = false
-    },
-    createFolder: async () => {
-      await createFolder(modalInfo.nodeKey, value, toRaw(treeData.value))
-      modalInfo.open = false
-    },
-    rename: async () => {
-      await rename(modalInfo.nodeKey, value, toRaw(treeData.value))
-      modalInfo.open = false
-    },
-    // delete: async () => {
-    //   await deleteFileOrFolder(modalInfo.nodeKey, value, toRaw(treeData.value))
-    // },
+    createFile,
+    createFolder,
+    rename,
   }
-  actionMap[modalInfo.type]()
+  const actionFunction = actionMap[modalInfo.type]
+  if (actionFunction) {
+    await actionFunction(modalInfo.nodeKey, value, toRaw(treeData.value))
+    modalInfo.open = false
+  }
 }
 </script>
 

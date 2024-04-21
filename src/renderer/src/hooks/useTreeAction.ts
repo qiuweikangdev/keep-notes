@@ -39,40 +39,34 @@ export default function useContextMenuAction() {
     },
   ]
 
-  const createFile = async (path, title, treeData) => {
-    const result = await window.api.createFile(path, title, treeData)
+  const handleActionResult = async (actionFn, path, title, treeData) => {
+    const result = await actionFn(path, title, treeData)
     if (result.code === 0 && result.message) {
       message.error(result.message.toString())
       return
     }
     setTreeInfo({ treeData: result.treeData })
+  }
+
+  const createFile = async (path, title, treeData) => {
+    await handleActionResult(window.api.createFile, path, title, treeData)
   }
 
   const createFolder = async (path, title, treeData) => {
-    const result = await window.api.createFolder(path, title, treeData)
-    if (result.code === 0) {
-      message.error(result.message.toString())
-      return
-    }
-    setTreeInfo({ treeData: result.treeData })
+    await handleActionResult(window.api.createFolder, path, title, treeData)
   }
 
   const rename = async (path, title, treeData) => {
-    const result = await window.api.rename(path, title, treeData)
-    if (result.code === 0 && result.message) {
-      message.error(result.message.toString())
-      return
-    }
-    setTreeInfo({ treeData: result.treeData })
+    await handleActionResult(window.api.rename, path, title, treeData)
   }
 
   const deleteFileOrFolder = async (path, title, treeData) => {
-    const result = await window.api.deleteFileOrFolder(path, title, treeData)
-    if (result.code === 0 && result.message) {
-      message.error(result.message.toString())
-      return
-    }
-    setTreeInfo({ treeData: result.treeData })
+    await handleActionResult(
+      window.api.deleteFileOrFolder,
+      path,
+      title,
+      treeData,
+    )
   }
 
   return {
