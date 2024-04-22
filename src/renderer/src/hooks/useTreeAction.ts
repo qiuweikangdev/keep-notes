@@ -14,30 +14,31 @@ export interface ContextMenu {
   key: ContextMenuKey
 }
 
+export const contextMenuList: ContextMenu[] = [
+  {
+    title: '新建文件',
+    key: ContextMenuKey.CreateFile,
+  },
+  {
+    title: '新建文件夹',
+    key: ContextMenuKey.CreateFolder,
+  },
+  {
+    title: '删除',
+    key: ContextMenuKey.Delete,
+  },
+  {
+    title: '重命名',
+    key: ContextMenuKey.Rename,
+  },
+  {
+    title: '移动',
+    key: ContextMenuKey.Move,
+  },
+]
+
 export default function useContextMenuAction() {
   const { setTreeInfo } = useStore()
-  const contextMenuList: ContextMenu[] = [
-    {
-      title: '新建文件',
-      key: ContextMenuKey.CreateFile,
-    },
-    {
-      title: '新建文件夹',
-      key: ContextMenuKey.CreateFolder,
-    },
-    {
-      title: '删除',
-      key: ContextMenuKey.Delete,
-    },
-    {
-      title: '重命名',
-      key: ContextMenuKey.Rename,
-    },
-    {
-      title: '移动',
-      key: ContextMenuKey.Move,
-    },
-  ]
 
   const handleActionResult = async (actionFn, path, title, treeData) => {
     const result = await actionFn(path, title, treeData)
@@ -70,7 +71,6 @@ export default function useContextMenuAction() {
   }
 
   return {
-    contextMenuList,
     createFile,
     createFolder,
     rename,

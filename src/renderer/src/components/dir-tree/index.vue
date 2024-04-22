@@ -1,13 +1,18 @@
 <template>
   <div ref="containerRef" class="relative tree-wrapper h-full w-full">
-    <template v-if="treeData?.length">
+    <template v-if="treeRoot.key">
       <div
-        class="absolute top-[6px] left-[4px] whitespace-nowrap px-[12px] my-[px] dark:text-color-primary"
+        class="flex w-full absolute top-[6px] left-[4px] whitespace-nowrap px-[12px] my-[px] dark:text-color-primary"
       >
         <folder-open-filled
           class="text-slate-500 dark:text-slate-400 text-[18px]"
         />
-        <span class="pl-[8px]">{{ treeRoot.title }}</span>
+        <context-menu
+          is-root-node
+          :title="treeRoot.title"
+          :node-key="treeRoot.key"
+          @menu="handleContextMenuClick"
+        />
       </div>
       <a-directory-tree
         v-model:selectedKeys="selectedKeys"
@@ -19,30 +24,11 @@
         @expand="handleExpand"
       >
         <template #title="{ title, key }">
-          <a-dropdown :trigger="['contextmenu']" class="inline-block w-full">
-            <span class="pl-[4px]">{{ title }}</span>
-            <template #overlay>
-              <a-menu
-                @click="
-                  ({ key: menuKey, item: { title: menuTitle } }) =>
-                    handleContextMenuClick(
-                      key,
-                      title,
-                      menuKey as ContextMenuKey,
-                      menuTitle as string,
-                    )
-                "
-              >
-                <a-menu-item
-                  v-for="item in contextMenuList"
-                  :key="item.key"
-                  :title="item.title"
-                >
-                  {{ item.title }}
-                </a-menu-item>
-              </a-menu>
-            </template>
-          </a-dropdown>
+          <context-menu
+            :title="title"
+            :node-key="key"
+            @menu="handleContextMenuClick"
+          />
         </template>
         <template #icon="{ title, color }">
           <file-text-filled
@@ -84,6 +70,7 @@ import useTreeAction, { ContextMenuKey } from '@renderer/hooks/useTreeAction'
 import { colorMd } from '@common/utils/color'
 import Upload from './components/upload.vue'
 import Modal from './components/modal.vue'
+import ContextMenu from './components/contextMenu.vue'
 
 withDefaults(defineProps<{ panelWidth?: number, panelHeight?: number }>(), {
   panelWidth: panelConfig.leftPanelSize,
@@ -101,13 +88,8 @@ const modalInfo = reactive<{
   nodeKey: string
 }>({ open: false, title: '', type: ContextMenuKey.CreateFile, nodeKey: '' })
 
-const {
-  contextMenuList,
-  createFile,
-  createFolder,
-  rename,
-  deleteFileOrFolder,
-} = useTreeAction()
+const { createFile, createFolder, rename, deleteFileOrFolder }
+  = useTreeAction()
 
 const { setContent, setContentFilePath } = useContent()
 
@@ -129,12 +111,12 @@ async function handleSelect(_, info) {
   }
 }
 
-async function handleContextMenuClick(
-  nodeKey: string,
-  nodeTitle: string,
-  menuKey: ContextMenuKey,
-  menuTitle: string,
-) {
+async function handleContextMenuClick({
+  nodeKey,
+  nodeTitle,
+  menuKey,
+  menuTitle,
+}) {
   if (menuKey === ContextMenuKey.Delete) {
     await deleteFileOrFolder(nodeKey, nodeTitle, toRaw(treeData.value))
   }
