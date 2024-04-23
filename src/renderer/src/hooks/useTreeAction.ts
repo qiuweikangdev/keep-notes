@@ -1,3 +1,4 @@
+import { CodeResult } from '@common/types/enum'
 import { useStore } from '@renderer/store'
 import { message } from 'ant-design-vue'
 
@@ -42,11 +43,11 @@ export default function useContextMenuAction() {
 
   const handleActionResult = async (actionFn, path, title, treeData) => {
     const result = await actionFn(path, title, treeData)
-    if (result.code === 0 && result.message) {
-      message.error(result.message.toString())
+    if (result.code === CodeResult.Fail && result.message) {
+      message.error(message.toString())
       return
     }
-    setTreeInfo({ treeData: result.treeData })
+    setTreeInfo({ treeData: result.data.treeData })
   }
 
   const createFile = async (path, title, treeData) => {

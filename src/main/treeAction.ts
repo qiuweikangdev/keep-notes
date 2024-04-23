@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import { dirname, normalize, sep } from 'node:path'
 import { genColor } from '@common/utils/color'
 import { dialog } from 'electron'
+import { CodeResult } from '@common/types/enum'
 import { findNodeByKey, treeDataSort, updateFilePaths } from './utils'
 
 const fsPromises = fs.promises
@@ -15,7 +16,7 @@ async function createItem(path, title, treeData, isFolder = false) {
   const isExists = fs.existsSync(newPath)
   if (isExists) {
     return {
-      code: 0,
+      code: CodeResult.Fail,
       message: isFolder ? '该文件夹已存在' : '该文件已存在',
     }
   }
@@ -46,14 +47,16 @@ async function createItem(path, title, treeData, isFolder = false) {
       treeDataSort(treeData)
     }
     return {
-      code: 1,
+      code: CodeResult.Success,
       message: isFolder ? '文件夹创建成功' : '文件创建成功',
-      treeData,
+      data: {
+        treeData,
+      },
     }
   }
   catch (e) {
     return {
-      code: 0,
+      code: CodeResult.Fail,
       message: e,
     }
   }
@@ -78,7 +81,7 @@ export async function rename(path, title, treeData) {
   const isExists = fs.existsSync(newPath)
   if (isExists) {
     return {
-      code: 0,
+      code: CodeResult.Fail,
       message: '已存在文件/文件夹',
     }
   }
@@ -92,14 +95,16 @@ export async function rename(path, title, treeData) {
       treeDataSort(treeData)
     }
     return {
-      code: 1,
+      code: CodeResult.Success,
       message: '重命名成功',
-      treeData,
+      data: {
+        treeData,
+      },
     }
   }
   catch (e) {
     return {
-      code: 0,
+      code: CodeResult.Fail,
       message: e,
     }
   }
@@ -128,14 +133,16 @@ async function deleteItem(path, treeData, isFile = false) {
     }
 
     return {
-      code: 1,
+      code: CodeResult.Success,
       message: isFile ? '文件删除成功' : '文件夹删除成功',
-      treeData,
+      data: {
+        treeData,
+      },
     }
   }
   catch (e) {
     return {
-      code: 0,
+      code: CodeResult.Fail,
       message: e,
     }
   }
@@ -155,6 +162,6 @@ export async function deleteFileOrFolder(path, title, treeData) {
     return await deleteItem(path, treeData, result.isFile())
   }
   else {
-    return { code: 0 }
+    return { code: CodeResult.Fail }
   }
 }

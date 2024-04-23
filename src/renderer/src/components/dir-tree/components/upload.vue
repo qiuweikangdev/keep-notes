@@ -15,6 +15,7 @@
 import { ref } from 'vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import Spinner from '@renderer/components/spinner/index.vue'
+import { CodeResult } from '@common/types/enum'
 
 const emits = defineEmits(['success'])
 
@@ -23,8 +24,11 @@ const loading = ref<boolean>(false)
 async function handleOpenDialog() {
   if (!loading.value) {
     loading.value = true
-    const { treeData, treeRoot } = await window.api.openDialog()
-    emits('success', { treeData, treeRoot })
+    const { code, data } = await window.api.openDialog()
+    if (code === CodeResult.Success) {
+      const { treeData, treeRoot } = data
+      emits('success', { treeData, treeRoot })
+    }
     loading.value = false
   }
 }

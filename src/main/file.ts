@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path, { basename } from 'node:path'
 import { dialog } from 'electron/main'
 import { genColor } from '@common/utils/color'
+import { CodeResult } from '@common/types/enum'
 
 // 过滤目录
 const ignoreDir = ['node_modules']
@@ -129,17 +130,24 @@ export async function openDialog(win) {
         key: selectedPath,
       }
       return {
-        treeData: directoryTree,
-        treeRoot,
+        code: CodeResult.Success,
+        data: {
+          treeData: directoryTree,
+          treeRoot,
+        },
       }
     }
     else {
-      return {}
+      return {
+        code: CodeResult.Fail,
+      }
     }
   }
   catch (error) {
     console.error('Error while opening dialog:', error)
-    return null
+    return {
+      code: CodeResult.Fail,
+    }
   }
 }
 
