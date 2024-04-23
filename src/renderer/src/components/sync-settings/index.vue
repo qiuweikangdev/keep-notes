@@ -64,6 +64,7 @@
         <a-button
           :icon="h(CloudUploadOutlined)"
           class="flex items-center"
+          :loading="btnLoading"
           @click="uploadGithub"
         >
           上传
@@ -71,7 +72,7 @@
         <a-button
           :icon="h(CloudDownloadOutlined)"
           class="text-color-primary-hover border-color-primary-hover/35 flex items-center"
-          :loading="downloadLoading"
+          :loading="btnLoading"
           @click="downloadGithub"
         >
           下载
@@ -96,9 +97,17 @@ const open = defineModel('open', { type: Boolean, default: false })
 
 const formRef = ref()
 
-const { githubInfo: formData, setTreeInfo, setGithubInfo } = useStore()
+const {
+  githubInfo: formData,
+  setTreeInfo,
+  setGithubInfo,
+  treeData,
+} = useStore()
 
-const { downloadFile, downloadLoading } = useGitub()
+const { downloadFile, downloadLoading, batchUploadFile, uploadLoading }
+  = useGitub()
+
+const btnLoading = computed(() => downloadLoading.value || uploadLoading.value)
 
 const rules = computed(() => {
   return Object.keys(formData).reduce((acc, key) => {
@@ -107,7 +116,9 @@ const rules = computed(() => {
   }, {})
 })
 
-function uploadGithub() {}
+async function uploadGithub() {
+  await batchUploadFile(treeData.value)
+}
 
 async function downloadGithub() {
   await formRef.value.validate()

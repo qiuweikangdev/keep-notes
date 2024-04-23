@@ -33,6 +33,23 @@ export function useStore() {
     Object.assign(githubInfo, data)
   }
 
+  function updateTreeNodeContent(
+    treeData: FileTreeNode[],
+    targetKey: string,
+    value: string,
+  ) {
+    for (const node of treeData) {
+      if (node.key === targetKey) {
+        node.content = value
+        break
+      }
+      if (node.children) {
+        updateTreeNodeContent(node.children, targetKey, value)
+      }
+    }
+    return treeData
+  }
+
   onMounted(() => {
     const githubInfoStorage = JSON.parse(
       localStorage.getItem('githubInfo') || '{}',
@@ -51,5 +68,6 @@ export function useStore() {
     ...toRefs(treeInfo),
     setTreeInfo,
     setGithubInfo,
+    updateTreeNodeContent,
   }
 }

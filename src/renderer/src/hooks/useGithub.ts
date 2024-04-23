@@ -10,7 +10,7 @@ export default function useGithub() {
   const { accessToken, username, localPath, repositoryName } = useStore()
 
   const MyOctokit = Octokit.plugin(createOrUpdateTextFile)
-  const uploadSyncLoading = ref(false)
+  const uploadLoading = ref(false)
   const downloadLoading = ref(false)
 
   const getRepoInfo = async () => {
@@ -30,10 +30,9 @@ export default function useGithub() {
   // 上传文件到github
   const uploadFile = async ({ filePath, content }) => {
     try {
-      uploadSyncLoading.value = true
+      uploadLoading.value = true
       const octokit = new MyOctokit({ auth: accessToken.value })
       const { defaultBranch } = await getRepoInfo()
-
       const { updated } = await octokit.createOrUpdateTextFile({
         owner: username.value,
         repo: repositoryName.value,
@@ -49,24 +48,28 @@ export default function useGithub() {
       return false
     }
     finally {
-      uploadSyncLoading.value = false
+      uploadLoading.value = false
     }
   }
 
   // 批量上传文件到github
-  const batchUploadFile = async (fileListContent: any[]) => {
+  const batchUploadFile = async (fileListContent: FileTreeNode[]) => {
     try {
       const fileUpdateList: boolean[] = [] // 文件是否有更新
       for (const fileItem of fileListContent) {
         const updatedStatus = await uploadFile({
-          filePath: fileItem.filePath,
+          filePath: window.api
+            .pathNormalize(fileItem.key.replace(localPath.value, ''))
+            .replace(/\\/g, '/'),
           content: fileItem.content,
         })
         fileUpdateList.push(updatedStatus)
       }
       if (fileUpdateList.includes(true))
         message.success('上传成功！')
-      else message.warning('文件内容没有发生修改！')
+      else {
+        message.warning('文件内容没有发生修改！')
+      }
     }
     catch (e: any) {
       message.warning(e.toString())
@@ -132,7 +135,7 @@ export default function useGithub() {
   return {
     uploadFile,
     batchUploadFile,
-    uploadSyncLoading,
+    uploadLoading,
     downloadFile,
     downloadLoading,
   }
