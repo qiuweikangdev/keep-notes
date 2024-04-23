@@ -17,6 +17,7 @@ declare global {
       getSelectedPath: () => string | null
       pathJoin: (...paths: string[]) => string
       pathBasename: (filePath: string) => string
+      pathNormalize: (filePath: string) => string
       createFile: (
         path: string,
         title: string,

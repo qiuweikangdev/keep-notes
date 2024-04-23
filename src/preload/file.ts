@@ -29,3 +29,7 @@ export function pathJoin(...paths: string[]) {
 export function pathBasename(filePath) {
   return path.basename(filePath)
 }
+
+export function pathNormalize(filePath) {
+  return path.normalize(filePath)
+}
