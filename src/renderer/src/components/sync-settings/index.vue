@@ -14,7 +14,7 @@
         ref="formRef"
         class="p-[20px]"
         :model="formData"
-        :label-col="{ style: { width: '120px', textAlign: 'left' } }"
+        :label-col="{ style: { width: '100px', textAlign: 'left' } }"
         :rules="rules"
       >
         <a-form-item label="用户名" name="username" required>
@@ -24,9 +24,9 @@
             allow-clear
           />
         </a-form-item>
-        <a-form-item label="仓库名" name="repositoryName" required>
+        <a-form-item label="邮箱" name="email" required>
           <a-input
-            v-model:value="formData.repositoryName"
+            v-model:value="formData.email"
             class="dark:bg-transparent"
             allow-clear
           />
@@ -48,14 +48,21 @@
             </template>
           </a-input>
         </a-form-item>
-        <a-form-item label="Access Token" name="accessToken" required>
+        <a-form-item label="仓库地址" name="repoUrl" required>
+          <a-input
+            v-model:value="formData.repoUrl"
+            class="dark:bg-transparent"
+            allow-clear
+          />
+        </a-form-item>
+        <!-- <a-form-item label="Access Token" name="accessToken" required>
           <a-input
             v-model:value="formData.accessToken"
             type="password"
             class="dark:bg-transparent"
             allow-clear
           />
-        </a-form-item>
+        </a-form-item> -->
       </a-form>
     </a-spin>
 
@@ -65,7 +72,7 @@
           :icon="h(CloudUploadOutlined)"
           class="flex items-center"
           :loading="btnLoading"
-          @click="uploadGithub"
+          @click="upload"
         >
           上传
         </a-button>
@@ -73,7 +80,7 @@
           :icon="h(CloudDownloadOutlined)"
           class="text-color-primary-hover border-color-primary-hover/35 flex items-center"
           :loading="btnLoading"
-          @click="downloadGithub"
+          @click="download"
         >
           下载
         </a-button>
@@ -97,15 +104,9 @@ const open = defineModel('open', { type: Boolean, default: false })
 
 const formRef = ref()
 
-const {
-  githubInfo: formData,
-  setTreeInfo,
-  setGithubInfo,
-  treeData,
-} = useStore()
+const { githubInfo: formData, setGithubInfo } = useStore()
 
-const { downloadFile, downloadLoading, batchUploadFile, uploadLoading }
-  = useGitub()
+const { download, downloadLoading, upload, uploadLoading } = useGitub()
 
 const btnLoading = computed(() => downloadLoading.value || uploadLoading.value)
 
@@ -115,25 +116,6 @@ const rules = computed(() => {
     return acc
   }, {})
 })
-
-async function uploadGithub() {
-  await batchUploadFile(treeData.value)
-}
-
-async function downloadGithub() {
-  await formRef.value.validate()
-  const treeData = await downloadFile()
-  if (treeData) {
-    setTreeInfo({
-      treeData,
-      treeRoot: {
-        key: formData.localPath,
-        title: window.api.pathBasename(formData.localPath),
-      },
-    })
-    open.value = downloadLoading.value
-  }
-}
 
 function handleOk() {}
 

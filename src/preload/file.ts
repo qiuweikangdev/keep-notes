@@ -22,6 +22,10 @@ export async function getSelectedPath() {
   return await ipcRenderer.invoke('handle:get-selected-path')
 }
 
+export async function genDirTreByPath(selectedPath: string) {
+  return await ipcRenderer.invoke('handle:gen-dir-tree-by-path', selectedPath)
+}
+
 export function pathJoin(...paths: string[]) {
   return path.join(...paths)
 }

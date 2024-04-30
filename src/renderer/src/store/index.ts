@@ -1,3 +1,4 @@
+import { CodeResult } from '@common/types/enum'
 import { onMounted, reactive, toRefs, watch } from 'vue'
 
 interface TreeInfo {
@@ -7,9 +8,10 @@ interface TreeInfo {
 
 interface GithubInfo {
   username: string
-  repositoryName: string
+  email: string
   accessToken: string
   localPath: string
+  repoUrl: string
 }
 
 const treeInfo = reactive<TreeInfo>({
@@ -19,9 +21,10 @@ const treeInfo = reactive<TreeInfo>({
 
 const githubInfo = reactive<GithubInfo>({
   username: '',
-  repositoryName: '',
+  email: '',
   accessToken: '',
   localPath: '',
+  repoUrl: '',
 })
 
 export function useStore() {
@@ -33,11 +36,11 @@ export function useStore() {
     Object.assign(githubInfo, data)
   }
 
-  function updateTreeNodeContent(
+  const updateTreeNodeContent = (
     treeData: FileTreeNode[],
     targetKey: string,
     value: string,
-  ) {
+  ) => {
     for (const node of treeData) {
       if (node.key === targetKey) {
         node.content = value
@@ -50,10 +53,22 @@ export function useStore() {
     return treeData
   }
 
+  const updateTreeInfo = async (localPath) => {
+    const { code, data } = await window.api.genDirTreByPath(localPath)
+    if (code === CodeResult.Success) {
+      const { treeData, treeRoot } = data || {}
+      setTreeInfo({
+        treeData,
+        treeRoot,
+      })
+    }
+  }
+
   onMounted(() => {
     const githubInfoStorage = JSON.parse(
       localStorage.getItem('githubInfo') || '{}',
     )
+    updateTreeInfo(githubInfo.localPath)
     setGithubInfo(githubInfoStorage)
   })
 
@@ -69,5 +84,6 @@ export function useStore() {
     setTreeInfo,
     setGithubInfo,
     updateTreeNodeContent,
+    updateTreeInfo,
   }
 }

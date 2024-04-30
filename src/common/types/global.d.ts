@@ -1,4 +1,5 @@
 import type { ElectronAPI } from '@electron-toolkit/preload'
+import type { ApiResponse } from './api'
 
 declare global {
   interface Window {
@@ -11,7 +12,7 @@ declare global {
         treeRoot: FileTreeNode
         treeData: FileTreeNode[]
       }>
-      readFileContent: (path: string) => void
+      readFileContent: (path: string) => string
       writeFileContent: (path: string, content: string) => void
       updateLocalDirectory: (treeData: FileTreeNode[], path: string) => void
       getSelectedPath: () => string | null
@@ -38,6 +39,13 @@ declare global {
         title: string,
         treeData: FileTreeNode[],
       ) => ApiResponse<{ treeData: FileTreeNode[] }>
+      genDirTreByPath: (
+        selectedPath: string,
+      ) => ApiResponse<{ treeData: FileTreeNode[], treeRoot: FileTreeNode }>
+    }
+    git: {
+      download: (gitConfig: GitConfig) => Promise<ApiResponse>
+      upload: (gitConfig: GitConfig) => Promise<ApiResponse>
     }
   }
 }

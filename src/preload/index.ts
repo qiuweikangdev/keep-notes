@@ -3,6 +3,7 @@ import { contextBridge } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import { onWinClose, onWinMaximize, onWinMinimize } from './menu'
 import {
+  genDirTreByPath,
   getSelectedPath,
   openDialog,
   pathBasename,
@@ -18,6 +19,7 @@ import {
   deleteFileOrFolder,
   rename,
 } from './treeAction'
+import * as git from './git'
 
 // Custom APIs for renderer
 const api = {
@@ -36,6 +38,7 @@ const api = {
   createFolder,
   rename,
   deleteFileOrFolder,
+  genDirTreByPath,
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
@@ -45,6 +48,7 @@ if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('api', api)
+    contextBridge.exposeInMainWorld('git', git)
   }
   catch (error) {
     console.error(error)
@@ -55,4 +59,5 @@ else {
   window.electron = electronAPI
   // @ts-expect-error (define in dts)
   window.api = api
+  window.git = { ...git }
 }

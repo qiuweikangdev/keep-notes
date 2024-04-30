@@ -1,5 +1,6 @@
 import { getBrowserWindow } from '../utils'
 import {
+  genDirTreByPath,
   getSelectedPath,
   openDialog,
   readFileContent,
@@ -26,5 +27,8 @@ export default {
     const win = getBrowserWindow(event)
     const selectedPath = await getSelectedPath(win)
     return selectedPath
+  },
+  'handle:gen-dir-tree-by-path': async (_, selectedPath) => {
+    return await genDirTreByPath(selectedPath)
   },
 }

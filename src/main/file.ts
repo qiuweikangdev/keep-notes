@@ -113,6 +113,22 @@ export async function updateLocalDirectory(treeData, basePath) {
   }
 }
 
+export async function genDirTreByPath(selectedPath: string) {
+  // 递归读取目录结构，生成目录树
+  const directoryTree = (await readDirectory(selectedPath)) as FileTreeNode[]
+  const treeRoot: FileTreeNode = {
+    title: basename(selectedPath),
+    key: selectedPath,
+  }
+  return {
+    code: CodeResult.Success,
+    data: {
+      treeData: directoryTree,
+      treeRoot,
+    },
+  }
+}
+
 export async function openDialog(win) {
   try {
     const result = await dialog.showOpenDialog(win, {
