@@ -40,10 +40,17 @@ export async function upload(gitConfig: GitConfig): Promise<ApiResponse> {
         .addConfig('user.email', gitConfig.email)
     }
     else {
-      await git.pull()
+      const status = await git.status()
+      if (status.files.length === 0) {
+        return {
+          code: CodeResult.Fail,
+          message: '没有文件发生变化',
+        }
+      }
     }
 
     await Promise.all([
+      git.pull(),
       git.addConfig('user.name', gitConfig.username),
       git.addConfig('user.email', gitConfig.email),
       git.add('.'),
