@@ -1,7 +1,7 @@
 <template>
   <div
     ref="divRef"
-    class="w-[18px] bg-slate-200 rounded hover:bg-slate-300 dark:bg-dark-color-icon cursor-grab"
+    class="w-[18px] bg-slate-200 rounded hover:bg-slate-300 dark:bg-dark-color-icon cursor-grab absolute"
   >
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -23,18 +23,16 @@
 <script setup lang="ts">
 import { BlockProvider } from '@milkdown/plugin-block'
 import { useInstance } from '@milkdown/vue'
-import { usePluginViewContext } from '@prosemirror-adapter/vue'
 import type { VNodeRef } from 'vue'
 import { onUnmounted, ref, watch } from 'vue'
 
-const { view } = usePluginViewContext()
 const [loading, get] = useInstance()
 
 const divRef = ref<VNodeRef>()
 
 let tooltipProvider: BlockProvider | undefined
 
-function initTooltipProvider() {
+watch([loading], () => {
   const editor = get()
   if (loading.value || !editor || tooltipProvider)
     return
@@ -44,16 +42,9 @@ function initTooltipProvider() {
       ctx,
       content: divRef.value as any,
     })
-    tooltipProvider.update(view.value)
+
+    tooltipProvider.update()
   })
-}
-
-watch([loading], () => {
-  initTooltipProvider()
-})
-
-watch([view], () => {
-  tooltipProvider?.update(view.value)
 })
 
 onUnmounted(() => {
