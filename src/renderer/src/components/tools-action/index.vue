@@ -65,7 +65,7 @@ import type { MenuActionOptions } from '@common/types/menu'
 import useLink from '@renderer/hooks/useLink'
 
 interface ToolbarPropsType {
-  editorInfo: UseEditorReturn
+  editorInfo?: UseEditorReturn
 }
 
 const props = withDefaults(defineProps<ToolbarPropsType>(), {})
@@ -132,6 +132,8 @@ const { editorInfo } = toRefs(props)
 
 function handleAction(item: MenuActionOptions) {
   item.handle?.()
-  item.command && editorInfo.value?.get()?.action(callCommand(item.command()))
+  if (item.command) {
+    editorInfo.value?.get()?.action(callCommand(item.command()))
+  }
 }
 </script>

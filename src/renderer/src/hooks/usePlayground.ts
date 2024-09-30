@@ -38,7 +38,7 @@ import {
   tableSelectorPlugin,
   tableTooltipCtx,
   useTableTooltip,
-} from '@renderer/components/md-editor/table-widget/plugins'
+} from '@renderer/components/md-editor1/table-widget/plugins'
 import {
   configureLinkTooltip,
   linkTooltipPlugin,

@@ -1,7 +1,6 @@
 <template>
   <div class="md-editor flex flex-col h-full">
-    <tools-action :editor-info="editorInfo" />
-    <milkdown class="flex-1 flex w-full" spellcheck="false" />
+    <div ref="editorRef" class="crepe flex-1 flex w-full" />
     <bottom-bar
       :total="total"
       :panel-size="panelSize"
@@ -11,12 +10,11 @@
 </template>
 
 <script setup lang="ts">
-import { Milkdown } from '@milkdown/vue'
-import { usePlayground } from '@renderer/hooks/usePlayground'
 import BottomBar from '@renderer/components/bottom-bar/index.vue'
 import panelConfig from '@renderer/config/panel'
 import useContent from '@renderer/hooks/useContent'
-import ToolsAction from '@renderer/components/tools-action/index.vue'
+import { useCrepe } from '@renderer/hooks/useCrepe'
+import { ref } from 'vue'
 
 withDefaults(defineProps<{ panelSize?: number }>(), {
   panelSize: panelConfig.leftPanelSize,
@@ -24,19 +22,21 @@ withDefaults(defineProps<{ panelSize?: number }>(), {
 
 const emits = defineEmits(['toggle-collapse'])
 
+const editorRef = ref()
+
 const { content, writeFileContent } = useContent()
 
 function contentChange(content) {
   writeFileContent(content)
 }
 
-const { editorInfo, total } = usePlayground(content, contentChange)
+const { total } = useCrepe(editorRef, content, contentChange)
 </script>
 
 <style scoped lang="less">
 .md-editor {
   :deep(.milkdown .editor) {
-    max-height: 200px;
+    min-height: 200px;
   }
 }
 </style>

@@ -12,6 +12,38 @@ export default {
         'color-icon': lightConfig.colorIcon,
         'color-primary-hover': lightConfig.colorPrimaryHover,
         'dark-color-icon': darkConfig.colorIcon,
+        'nord-neutral': {
+          DEFAULT: '#494E59',
+          dark: '#EFF1F5',
+        },
+        'nord-neutral-deep': {
+          DEFAULT: '#2E3440',
+          dark: '#ECEFF4',
+        },
+        'nord-dim': {
+          DEFAULT: '#ABAEB3',
+          dark: '#F7F9FB',
+        },
+        'nord-solid': {
+          DEFAULT: '#636C7D',
+          dark: '#D8DEE9',
+        },
+        'nord-primary': '#5E81AC',
+        'nord-secondary': '#CFDBE7',
+        'nord-secondary-deep': '#81A1C1',
+        'nord-secondary-dim': '#F0F4F8',
+        'nord-outline': {
+          DEFAULT: '#D8DEE9',
+          dark: '#434C5E',
+        },
+        'nord-background': {
+          DEFAULT: '#ECEFF4',
+          dark: '#2E3440',
+        },
+        'nord-foreground': {
+          DEFAULT: '#FFFFFF',
+          dark: '#252932',
+        },
       },
       backgroundColor: {
         'color-primary': lightConfig.colorPrimary,
