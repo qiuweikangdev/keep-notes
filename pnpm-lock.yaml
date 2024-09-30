@@ -98,6 +98,9 @@ importers:
       '@prosemirror-adapter/vue':
         specifier: ^0.2.6
         version: 0.2.6(vue@3.5.10(typescript@5.6.2))
+      '@uiw/codemirror-theme-eclipse':
+        specifier: ^4.23.3
+        version: 4.23.3(@codemirror/language@6.10.2)(@codemirror/state@6.4.1)(@codemirror/view@6.30.0)
       ant-design-vue:
         specifier: ^4.2.5
         version: 4.2.5(vue@3.5.10(typescript@5.6.2))
@@ -1618,6 +1621,16 @@ packages:
   '@typescript-eslint/visitor-keys@8.7.0':
     resolution: {integrity: sha512-b1tx0orFCCh/THWPQa2ZwWzvOeyzzp36vkJYOpVg0u8UVOIsfVrnuC9FqAw9gRKn+rG2VmWQ/zDJZzkxUnj/XQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@uiw/codemirror-theme-eclipse@4.23.3':
+    resolution: {integrity: sha512-tU8xy1vPeGvg7YxmsstZPJjHVZqoeWh9PKelZ1YWKMBv+A5WFAxcL6ROGEzqR6Ok5yv5aHe6XsJDWtiqudBGrQ==}
+
+  '@uiw/codemirror-themes@4.23.3':
+    resolution: {integrity: sha512-oUq2qoj+hMrR34Xhbp7S1P2elPtySWyzij97IwsZAdGZD/yS+c9+2yRSMYqtaWh7D9M4sJmwgU1lZibmwLZOfQ==}
+    peerDependencies:
+      '@codemirror/language': '>=6.0.0'
+      '@codemirror/state': '>=6.0.0'
+      '@codemirror/view': '>=6.0.0'
 
   '@ungap/structured-clone@1.2.0':
     resolution: {integrity: sha512-zuVdFrMJiuCDQUMCzQaD6KL28MjnqqN8XnAqiEq9PNm/hCPTSGfrXCOfwj1ow4LFb/tNymJPwsNbVePc1xFqrQ==}
@@ -6631,6 +6644,20 @@ snapshots:
     dependencies:
       '@typescript-eslint/types': 8.7.0
       eslint-visitor-keys: 3.4.3
+
+  '@uiw/codemirror-theme-eclipse@4.23.3(@codemirror/language@6.10.2)(@codemirror/state@6.4.1)(@codemirror/view@6.30.0)':
+    dependencies:
+      '@uiw/codemirror-themes': 4.23.3(@codemirror/language@6.10.2)(@codemirror/state@6.4.1)(@codemirror/view@6.30.0)
+    transitivePeerDependencies:
+      - '@codemirror/language'
+      - '@codemirror/state'
+      - '@codemirror/view'
+
+  '@uiw/codemirror-themes@4.23.3(@codemirror/language@6.10.2)(@codemirror/state@6.4.1)(@codemirror/view@6.30.0)':
+    dependencies:
+      '@codemirror/language': 6.10.2
+      '@codemirror/state': 6.4.1
+      '@codemirror/view': 6.30.0
 
   '@ungap/structured-clone@1.2.0': {}
 

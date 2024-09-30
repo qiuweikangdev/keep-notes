@@ -57,6 +57,7 @@
     "@octokit/plugin-create-or-update-text-file": "^5.1.0",
     "@octokit/rest": "^20.1.1",
     "@prosemirror-adapter/vue": "^0.2.6",
+    "@uiw/codemirror-theme-eclipse": "^4.23.3",
     "ant-design-vue": "^4.2.5",
     "dayjs": "^1.11.13",
     "electron-updater": "^6.3.4",
