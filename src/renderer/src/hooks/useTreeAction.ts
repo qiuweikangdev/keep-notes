@@ -38,7 +38,7 @@ export const contextMenuList: ContextMenu[] = [
   },
 ]
 
-export default function useContextMenuAction() {
+export default function useTreeAction() {
   const { setTreeInfo } = useStore()
 
   const handleActionResult = async (actionFn, path, title, treeData) => {

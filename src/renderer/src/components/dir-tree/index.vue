@@ -1,52 +1,61 @@
 <template>
   <div ref="containerRef" class="relative tree-wrapper h-full w-full">
-    <template v-if="treeRoot.key">
-      <div
-        class="flex w-full absolute top-[6px] left-[4px] whitespace-nowrap px-[12px] my-[px] dark:text-color-primary"
-      >
-        <folder-open-filled
-          class="text-slate-500 dark:text-slate-400 text-[18px]"
-        />
-        <context-menu
-          is-root-node
-          :title="treeRoot.title"
-          :node-key="treeRoot.key"
-          @menu="handleContextMenuClick"
-        />
-      </div>
-      <a-directory-tree
-        v-model:selectedKeys="selectedKeys"
-        :height="panelHeight - 10 - 34"
-        :tree-data="treeData"
-        block-node
-        class="pt-[42px] min-w-[50px] h-full bg-color-action-bar dark:bg-dark-color-action-bar"
-        @select="handleSelect"
-        @expand="handleExpand"
-      >
-        <template #title="{ title, key }">
+    <div class="flex flex-col" :style="{ height: 'calc(100vh - 40px)' }">
+      <template v-if="treeRoot.key">
+        <div
+          class="flex w-full absolute top-[6px] left-[4px] whitespace-nowrap px-[12px] my-[px] dark:text-color-primary"
+        >
+          <folder-open-filled
+            class="text-slate-500 dark:text-slate-400 text-[18px]"
+          />
           <context-menu
-            :title="title"
-            :node-key="key"
+            is-root-node
+            :title="treeRoot.title"
+            :node-key="treeRoot.key"
             @menu="handleContextMenuClick"
           />
-        </template>
-        <template #icon="{ title, color }">
-          <file-text-filled
-            v-if="title.endsWith('md')"
-            class="text-[18px]"
-            :style="{ color: colorMd }"
-          />
-          <folder-filled
-            v-else
-            class="text-slate-500 text-[18px]"
-            :style="{ color }"
-          />
-        </template>
-      </a-directory-tree>
-    </template>
-    <template v-else>
-      <upload v-show="panelWidth > 2" @success="handleUploadSuccess" />
-    </template>
+        </div>
+        <a-directory-tree
+          v-model:selected-keys="selectedKeys"
+          :height="panelHeight - 10 - 34 - 24"
+          :tree-data="treeData"
+          block-node
+          class="pt-[42px] min-w-[50px] h-full bg-color-action-bar dark:bg-dark-color-action-bar"
+          @select="handleSelect"
+          @expand="handleExpand"
+        >
+          <template #title="{ title, key }">
+            <context-menu
+              :title="title"
+              :node-key="key"
+              @menu="handleContextMenuClick"
+            />
+          </template>
+          <template #icon="{ title, color }">
+            <file-text-filled
+              v-if="title.endsWith('md')"
+              class="text-[18px]"
+              :style="{ color: colorMd }"
+            />
+            <folder-filled
+              v-else
+              class="text-slate-500 text-[18px]"
+              :style="{ color }"
+            />
+          </template>
+        </a-directory-tree>
+      </template>
+      <template v-else>
+        <upload v-show="panelWidth > 2" @success="handleUploadSuccess" />
+      </template>
+      <div
+        class="inline-block b-t-1px b-solid text-color-icon dark:text-dark-color-icon cursor-pointer bg-color-container dark:bg-dark-color-container text-center absolute bottom-0 w-full h-[24px]"
+        @click="handleSelectDir"
+      >
+        <plus-outlined />
+      </div>
+    </div>
+
     <modal
       v-model:open="modalInfo.open"
       :title="modalInfo.title"
@@ -62,6 +71,7 @@ import {
   FileTextFilled,
   FolderFilled,
   FolderOpenFilled,
+  PlusOutlined,
 } from '@ant-design/icons-vue'
 import panelConfig from '@renderer/config/panel'
 import useContent from '@renderer/hooks/useContent'
@@ -76,7 +86,8 @@ withDefaults(defineProps<{ panelWidth?: number, panelHeight?: number }>(), {
   panelWidth: panelConfig.leftPanelSize,
   panelHeight: window.innerHeight,
 })
-const { treeData, setTreeInfo, treeRoot } = useStore()
+const { treeData, setTreeInfo, treeRoot, setGithubInfo, updateTreeInfo }
+  = useStore()
 
 const containerRef = ref(HTMLElement)
 const selectedKeys = ref<string[]>([])
@@ -144,6 +155,14 @@ async function handleModalOk(value) {
   if (actionFunction) {
     await actionFunction(modalInfo.nodeKey, value, toRaw(treeData.value))
     modalInfo.open = false
+  }
+}
+
+async function handleSelectDir() {
+  const selectedPath = await window.api.getSelectedPath()
+  if (selectedPath) {
+    setGithubInfo({ localPath: selectedPath })
+    updateTreeInfo(selectedPath)
   }
 }
 </script>
