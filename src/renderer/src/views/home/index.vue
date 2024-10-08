@@ -93,10 +93,11 @@ async function getPanelWidth() {
 
 function handleWinResize() {
   if (leftPanelSizeRef.value?.$el) {
+    const leftWidth = leftPanelSizeRef.value.$el.clientWidth
     rightPanelStyle.value = {
-      width: `${window.innerWidth - leftWidth.value}px`,
+      width: `${window.innerWidth - leftWidth}px`,
     }
-    leftPanelStyle.value.width = `${leftWidth.value}px`
+    leftPanelStyle.value.width = `${leftWidth}px`
   }
   panelHeight.value = window.innerHeight - 40
 }
