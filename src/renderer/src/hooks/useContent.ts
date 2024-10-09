@@ -1,10 +1,13 @@
-import { useStore } from '@renderer/store'
+import { useTreeStore } from '@renderer/store/modules/tree'
+import { storeToRefs } from 'pinia'
 import { ref } from 'vue'
 
 const content = ref<string>('')
 const contentFilePath = ref<string>('')
 export default function useContent() {
-  const { treeData, setTreeInfo, updateTreeNodeContent } = useStore()
+  const { setTreeInfo, updateTreeNodeContent } = useTreeStore()
+  const treeStore = useTreeStore()
+  const { treeData } = storeToRefs(treeStore)
 
   const setContent = (c) => {
     content.value = c

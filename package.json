@@ -62,6 +62,8 @@
     "dayjs": "^1.11.13",
     "electron-updater": "^6.3.4",
     "lodash-es": "^4.17.21",
+    "pinia": "^2.2.4",
+    "pinia-plugin-persistedstate": "^4.1.1",
     "pinyin-pro": "^3.25.0",
     "prism-themes": "^1.9.0",
     "simple-git": "^3.27.0",

@@ -1,5 +1,5 @@
 import { CodeResult } from '@common/types/enum'
-import { useStore } from '@renderer/store'
+import { useTreeStore } from '@renderer/store/modules/tree'
 import { message } from 'ant-design-vue'
 
 export enum ContextMenuKey {
@@ -39,7 +39,7 @@ export const contextMenuList: ContextMenu[] = [
 ]
 
 export default function useTreeAction() {
-  const { setTreeInfo } = useStore()
+  const { setTreeInfo } = useTreeStore()
 
   const handleActionResult = async (actionFn, path, title, treeData) => {
     const result = await actionFn(path, title, treeData)

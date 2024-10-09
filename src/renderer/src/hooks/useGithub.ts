@@ -1,11 +1,16 @@
 import { CodeResult } from '@common/types/enum'
-import { useStore } from '@renderer/store'
 import { message } from 'ant-design-vue'
 import { ref } from 'vue'
+import { useTreeStore } from '@renderer/store/modules/tree'
+import { storeToRefs } from 'pinia'
+import { useUserStore } from '@renderer/store/modules/user'
 import useContent from './useContent'
 
 export default function useGithub() {
-  const { localPath, repoUrl, username, email, updateTreeInfo } = useStore()
+  const { updateTreeInfo } = useTreeStore()
+  const userStore = useUserStore()
+  const { localPath, repoUrl, username, email } = storeToRefs(userStore)
+
   const { contentFilePath, setContent } = useContent()
   const downloadLoading = ref(false)
   const uploadLoading = ref(false)

@@ -75,9 +75,11 @@ import {
 } from '@ant-design/icons-vue'
 import panelConfig from '@renderer/config/panel'
 import useContent from '@renderer/hooks/useContent'
-import { useStore } from '@renderer/store/index'
 import useTreeAction, { ContextMenuKey } from '@renderer/hooks/useTreeAction'
 import { colorMd, genColor } from '@common/utils/color'
+import { useTreeStore } from '@renderer/store/modules/tree'
+import { useUserStore } from '@renderer/store/modules/user'
+import { storeToRefs } from 'pinia'
 import Upload from './components/upload.vue'
 import Modal from './components/modal.vue'
 import ContextMenu from './components/contextMenu.vue'
@@ -86,8 +88,13 @@ withDefaults(defineProps<{ panelWidth?: number, panelHeight?: number }>(), {
   panelWidth: panelConfig.leftPanelSize,
   panelHeight: window.innerHeight,
 })
-const { treeData, setTreeInfo, treeRoot, setGithubInfo, updateTreeInfo }
-  = useStore()
+const treeStore = useTreeStore()
+
+const { setTreeInfo, updateTreeInfo } = useTreeStore()
+
+const { treeData, treeRoot } = storeToRefs(treeStore)
+
+const { setGithubInfo } = useUserStore()
 
 const containerRef = ref(HTMLElement)
 const selectedKeys = ref<string[]>([])

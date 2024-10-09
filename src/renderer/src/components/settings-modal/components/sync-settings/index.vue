@@ -85,11 +85,15 @@ import {
   GithubOutlined,
 } from '@ant-design/icons-vue'
 import useGitub from '@renderer/hooks/useGithub'
-import { useStore } from '@renderer/store/index'
+import { useUserStore } from '@renderer/store/modules/user'
+import { storeToRefs } from 'pinia'
 
 const formRef = ref()
 
-const { githubInfo: formData, setGithubInfo } = useStore()
+const { setGithubInfo } = useUserStore()
+const userStore = useUserStore()
+
+const { githubInfo: formData } = storeToRefs(userStore)
 
 const { download, downloadLoading, upload, uploadLoading } = useGitub()
 
