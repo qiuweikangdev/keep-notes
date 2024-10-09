@@ -1,6 +1,5 @@
 import fs from 'node:fs'
 import { dirname, normalize, sep } from 'node:path'
-import { genColor } from '@common/utils/color'
 import { dialog } from 'electron'
 import { CodeResult } from '@common/types/enum'
 import { findNodeByKey, treeDataSort, updateFilePaths } from './utils'
@@ -31,15 +30,17 @@ async function createItem(path, title, treeData, isFolder = false) {
     const newItem: FileTreeNode = {
       title: isFolder ? title : `${title}.md`,
       key: newPath,
-      color: genColor(title),
     }
     if (isFolder) {
       newItem.children = []
     }
     if (targetNode) {
-      targetNode.children
-        ? targetNode.children.push(newItem)
-        : treeData.push(newItem)
+      if (targetNode.children) {
+        targetNode.children.push(newItem)
+      }
+      else {
+        treeData.push(newItem)
+      }
       treeDataSort(targetNode.children || treeData)
     }
     else {

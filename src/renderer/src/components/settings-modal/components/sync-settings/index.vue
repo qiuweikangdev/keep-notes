@@ -1,11 +1,5 @@
 <template>
-  <a-modal
-    v-model:open="open"
-    class="!max-w-[500px] !min-w-[300px]"
-    width="65vw"
-    @ok="handleOk"
-    @cancel="handleCancel"
-  >
+  <div class="flex flex-col">
     <a-spin :spinning="downloadLoading">
       <github-outlined
         class="flex items-center justify-center text-[24px] cursor-pointer"
@@ -39,6 +33,7 @@
             placeholder="请选择文件夹"
             disabled
             allow-clear
+            :title="formData.localPath"
           >
             <template #addonAfter>
               <folder-open-filled
@@ -55,19 +50,11 @@
             allow-clear
           />
         </a-form-item>
-        <!-- <a-form-item label="Access Token" name="accessToken" required>
-          <a-input
-            v-model:value="formData.accessToken"
-            type="password"
-            class="dark:bg-transparent"
-            allow-clear
-          />
-        </a-form-item> -->
       </a-form>
     </a-spin>
 
-    <template #footer>
-      <div class="flex justify-end">
+    <div class="flex justify-end">
+      <a-space>
         <a-button
           :icon="h(CloudUploadOutlined)"
           class="flex items-center"
@@ -84,9 +71,9 @@
         >
           下载
         </a-button>
-      </div>
-    </template>
-  </a-modal>
+      </a-space>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -99,8 +86,6 @@ import {
 } from '@ant-design/icons-vue'
 import useGitub from '@renderer/hooks/useGithub'
 import { useStore } from '@renderer/store/index'
-
-const open = defineModel('open', { type: Boolean, default: false })
 
 const formRef = ref()
 
@@ -116,13 +101,6 @@ const rules = computed(() => {
     return acc
   }, {})
 })
-
-function handleOk() {}
-
-function handleCancel() {
-  open.value = false
-  formRef.value.clearValidate()
-}
 
 async function handleSelectedPath() {
   const selectedPath = await window.api.getSelectedPath()

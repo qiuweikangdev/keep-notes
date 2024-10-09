@@ -31,7 +31,7 @@
               @menu="handleContextMenuClick"
             />
           </template>
-          <template #icon="{ title, color }">
+          <template #icon="{ title }">
             <file-text-filled
               v-if="title.endsWith('md')"
               class="text-[18px]"
@@ -40,7 +40,7 @@
             <folder-filled
               v-else
               class="text-slate-500 text-[18px]"
-              :style="{ color }"
+              :style="{ color: genColor(title) }"
             />
           </template>
         </a-directory-tree>
@@ -77,7 +77,7 @@ import panelConfig from '@renderer/config/panel'
 import useContent from '@renderer/hooks/useContent'
 import { useStore } from '@renderer/store/index'
 import useTreeAction, { ContextMenuKey } from '@renderer/hooks/useTreeAction'
-import { colorMd } from '@common/utils/color'
+import { colorMd, genColor } from '@common/utils/color'
 import Upload from './components/upload.vue'
 import Modal from './components/modal.vue'
 import ContextMenu from './components/contextMenu.vue'

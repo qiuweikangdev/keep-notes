@@ -14,6 +14,9 @@ export const lightConfig = {
   // components
   tooltipColorText: '#ffffff',
   scrollbarColor: '#C9D3E1',
+  menuColorItemBgSelected: '#E9E9E9',
+  menuColorItemTextSelected: '#000000',
+  radioColorPrimary: '#C6AE9F',
 }
 
 export const darkConfig = {
@@ -33,6 +36,9 @@ export const darkConfig = {
   // components
   tooltipColorText: '#ffffff',
   scrollbarColor: '#3C434E',
+  menuColorItemBgSelected: '#2E333B',
+  menuColorItemTextSelected: '#ffffff',
+  radioColorPrimary: '#c0835d',
 }
 
 export const themeConfigType = {

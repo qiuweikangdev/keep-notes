@@ -1,6 +1,6 @@
 <template>
   <div :class="themeClass" class="h-full flex flex-col overflow-hidden">
-    <menu-bar @open-sync-settings="handleOpenSyncSettings" />
+    <menu-bar @open-settings="handleSettings" />
     <div class="flex flex-1">
       <splitpanes
         class="default-theme w-full"
@@ -35,7 +35,7 @@
         </pane>
       </splitpanes>
     </div>
-    <sync-settings v-model:open="openSyncSettings" />
+    <settings-modal v-model:open="settingsModalVisible" />
   </div>
 </template>
 
@@ -50,7 +50,7 @@ import useTheme from '@renderer/hooks/useTheme'
 import Milkdown from '@renderer/components/md-editor/index.vue'
 import MenuBar from '@renderer/components/menu-bar/index.vue'
 import panelConfig from '@renderer/config/panel'
-import SyncSettings from '@renderer/components/sync-settings/index.vue'
+import SettingsModal from '@renderer/components/settings-modal/index.vue'
 
 const { themeClass } = useTheme()
 
@@ -60,7 +60,7 @@ const leftWidth = ref<number>(0)
 const leftPanelStyle = ref<CSSProperties>({})
 const rightPanelStyle = ref<CSSProperties>({})
 const panelHeight = ref<number>(window.innerHeight - 40)
-const openSyncSettings = ref(false)
+const settingsModalVisible = ref(false)
 
 let preLeftPanelSize = 0
 
@@ -102,8 +102,8 @@ function handleWinResize() {
   panelHeight.value = window.innerHeight - 40
 }
 
-function handleOpenSyncSettings() {
-  openSyncSettings.value = true
+function handleSettings() {
+  settingsModalVisible.value = true
 }
 
 onMounted(() => {

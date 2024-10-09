@@ -23,6 +23,7 @@ export default function useTheme() {
     changeHtml(t)
   }
 
+  // eslint-disable-next-line ts/no-unsafe-function-type
   const animateTheme = (e: MouseEvent, themeCallback: Function) => {
     const x = e.clientX
     const y = e.clientY
@@ -31,7 +32,6 @@ export default function useTheme() {
       Math.max(y, innerHeight - y),
     )
 
-    // @ts-expect-error: Transition API
     const transition = document.startViewTransition(async () => {
       themeCallback?.()
       await nextTick()
@@ -74,8 +74,6 @@ export default function useTheme() {
     return {
       algorithm: getAlgorithm([theme.value]),
       token: {
-        // motionDurationSlow: '0',
-        // motionDurationMid: '0',
         colorBgContainer: themeConfigType[theme.value].colorBgContainer,
         colorPrimary: themeConfigType[theme.value].colorPrimary,
         colorTextLightSolid: themeConfigType[theme.value].colorText,
@@ -85,6 +83,24 @@ export default function useTheme() {
       components: {
         Tooltip: {
           colorTextLightSolid: themeConfigType[theme.value].tooltipColorText,
+        },
+        Tree: {
+          motionUnit: 0,
+          motionDurationSlow: '0s',
+          motionDurationFast: '0s',
+          motionDurationMid: '0s',
+        },
+        Menu: {
+          colorItemBgSelected:
+            themeConfigType[theme.value].menuColorItemBgSelected,
+          colorItemTextSelected:
+            themeConfigType[theme.value].menuColorItemTextSelected,
+          colorItemTextHover:
+            themeConfigType[theme.value].menuColorItemTextSelected,
+          colorItemText: themeConfigType[theme.value].menuColorItemTextSelected,
+        },
+        Radio: {
+          colorPrimary: themeConfigType[theme.value].radioColorPrimary,
         },
       },
     } as ThemeConfig

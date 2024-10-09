@@ -40,8 +40,8 @@
 import {
   CloseOutlined,
   ExpandOutlined,
-  GithubFilled,
   MinusOutlined,
+  SettingOutlined,
 } from '@ant-design/icons-vue'
 import LightSvg from '@renderer/icons/light.svg'
 import DarkSvg from '@renderer/icons/dark.svg'
@@ -49,7 +49,7 @@ import type { MenuActionOptions } from '@common/types/menu'
 import { computed, ref } from 'vue'
 import useTheme from '@renderer/hooks/useTheme'
 
-const emits = defineEmits(['openSyncSettings'])
+const emits = defineEmits(['openSettings'])
 
 const isMaximize = ref(false)
 
@@ -58,10 +58,16 @@ const { theme, changeTheme } = useTheme()
 const configMenu = computed(
   () =>
     [
+      // {
+      //   icon: GithubFilled,
+      //   handle: () => {
+      //     emits('openSyncSettings')
+      //   },
+      // },
       {
-        icon: GithubFilled,
+        icon: SettingOutlined,
         handle: () => {
-          emits('openSyncSettings')
+          emits('openSettings')
         },
       },
       {
