@@ -1,5 +1,5 @@
 <template>
-  <a-modal v-model:open="open" :footer="null">
+  <a-modal v-model:open="open" :footer="null" :width="550">
     <div class="flex">
       <a-menu
         v-model:selected-keys="selectedKeys"

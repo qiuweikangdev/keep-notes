@@ -9,6 +9,7 @@ export type TreeInfo = {
 
 export type DirSettings = {
   dirColor: DirColorEnum
+  showIcon: boolean
 }
 
 export enum DirColorEnum {
@@ -24,8 +25,9 @@ export const useTreeStore = defineStore(
       treeRoot: { title: '', key: '' },
     })
 
-    const dirSettings = reactive({
+    const dirSettings = reactive<DirSettings>({
       dirColor: DirColorEnum.MultiColor,
+      showIcon: true,
     })
 
     const setTreeInfo = (data: Partial<TreeInfo>) => {

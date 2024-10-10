@@ -6,6 +6,7 @@
           class="flex w-full absolute top-[6px] left-[4px] whitespace-nowrap px-[12px] my-[px] dark:text-color-primary"
         >
           <folder-open-filled
+            v-if="dirSettings.showIcon"
             class="text-slate-500 dark:text-slate-400 text-[18px]"
           />
           <context-menu
@@ -20,6 +21,7 @@
           :height="panelHeight - 10 - 34 - 24"
           :tree-data="treeData"
           block-node
+          :show-icon="dirSettings.showIcon"
           class="pt-[42px] min-w-[50px] h-full bg-color-action-bar dark:bg-dark-color-action-bar"
           @select="handleSelect"
           @expand="handleExpand"
