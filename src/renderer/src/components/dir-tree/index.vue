@@ -40,7 +40,7 @@
             <folder-filled
               v-else
               class="text-slate-500 text-[18px]"
-              :style="{ color: genColor(title) }"
+              :style="{ color: genDirColor(title) }"
             />
           </template>
         </a-directory-tree>
@@ -77,7 +77,7 @@ import panelConfig from '@renderer/config/panel'
 import useContent from '@renderer/hooks/useContent'
 import useTreeAction, { ContextMenuKey } from '@renderer/hooks/useTreeAction'
 import { colorMd, genColor } from '@common/utils/color'
-import { useTreeStore } from '@renderer/store/modules/tree'
+import { DirColorEnum, useTreeStore } from '@renderer/store/modules/tree'
 import { useUserStore } from '@renderer/store/modules/user'
 import { storeToRefs } from 'pinia'
 import Upload from './components/upload.vue'
@@ -92,7 +92,7 @@ const treeStore = useTreeStore()
 
 const { setTreeInfo, updateTreeInfo } = useTreeStore()
 
-const { treeData, treeRoot } = storeToRefs(treeStore)
+const { treeData, treeRoot, dirSettings } = storeToRefs(treeStore)
 
 const { setGithubInfo } = useUserStore()
 
@@ -110,6 +110,13 @@ const { createFile, createFolder, rename, deleteFileOrFolder }
   = useTreeAction()
 
 const { setContent, setContentFilePath } = useContent()
+
+function genDirColor(title) {
+  if (dirSettings.value.dirColor === DirColorEnum.MultiColor) {
+    return genColor(title)
+  }
+  return ''
+}
 
 function handleUploadSuccess({ treeData, treeRoot }) {
   setTreeInfo({

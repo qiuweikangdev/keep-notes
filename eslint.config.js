@@ -21,6 +21,7 @@ export default antfu({
     },
   },
   rules: {
-    curly: 'off',
+    'curly': 'off',
+    'ts/consistent-type-definitions': ['interface' | 'type'],
   },
 })

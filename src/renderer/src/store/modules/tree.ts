@@ -2,16 +2,30 @@ import { CodeResult } from '@common/types/enum'
 import { defineStore } from 'pinia'
 import { reactive, toRefs } from 'vue'
 
-interface TreeInfo {
+export type TreeInfo = {
   treeData: FileTreeNode[]
   treeRoot: FileTreeNode
 }
+
+export type DirSettings = {
+  dirColor: DirColorEnum
+}
+
+export enum DirColorEnum {
+  MultiColor = 'multiColor', // 色彩颜色
+  ThemeColor = 'themeColor', // 跟随主题
+}
+
 export const useTreeStore = defineStore(
   'tree',
   () => {
     const treeInfo = reactive<TreeInfo>({
       treeData: [],
       treeRoot: { title: '', key: '' },
+    })
+
+    const dirSettings = reactive({
+      dirColor: DirColorEnum.MultiColor,
     })
 
     const setTreeInfo = (data: Partial<TreeInfo>) => {
@@ -54,6 +68,7 @@ export const useTreeStore = defineStore(
       setTreeInfo,
       updateTreeNodeContent,
       updateTreeInfo,
+      dirSettings,
     }
   },
   {

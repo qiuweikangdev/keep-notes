@@ -2,7 +2,7 @@ import { pinyin } from 'pinyin-pro'
 
 export const colorMd = '#0288D1'
 
-const colorDirMap = {
+export const colorDirMap = {
   a: '#00668C',
   b: '#FF7043',
   c: '#F06292',
@@ -39,7 +39,7 @@ export function convertToPinyin(str) {
 }
 
 export function genColor(char) {
-  const isWord = /^[A-Za-z]$/.test(char)
+  const isWord = /^[A-Z]$/i.test(char)
   const str = isWord ? char[0] : convertToPinyin(char)[0]
   const strLowerCase = str.toLowerCase()
   return (
