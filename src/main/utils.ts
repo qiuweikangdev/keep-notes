@@ -1,5 +1,9 @@
 import { dirname, normalize } from 'node:path'
+import fs from 'node:fs'
 import { BrowserWindow } from 'electron/main'
+import { cloneDeep } from 'lodash-es'
+
+const fsPromises = fs.promises
 
 export function getBrowserWindow(event) {
   return BrowserWindow.fromWebContents(event.sender)
@@ -19,34 +23,42 @@ export function findNodeByKey(treeData, key) {
 }
 
 // 对文件和目录进行排序、对文件和目录按照字母顺序进行排序，忽略大小写
-export function treeDataSort(treeData, isHandlerChildren = true) {
-  const newTreeData = [...treeData]
-  newTreeData.sort((a, b) => {
-    const isDirA = !!a.children
-    const isDirB = !!b.children
+export async function treeDataSort(treeData, isHandlerChildren = true) {
+  const newTreeData = cloneDeep(treeData)
+
+  // 获取文件和目录的 stat 信息
+  const statsPromises = newTreeData.map(async (node) => {
+    const stat = await fsPromises.stat(node.key)
+    const isDirectory = stat.isDirectory()
+
+    // 递归处理子节点
+    if (isHandlerChildren && node.children) {
+      node.children = await treeDataSort(node.children)
+    }
+
+    return { ...node, isDirectory }
+  })
+
+  const nodesWithStats = await Promise.all(statsPromises)
+
+  // 进行排序
+  nodesWithStats.sort((a, b) => {
+    const isDirA = a.isDirectory
+    const isDirB = b.isDirectory
 
     if (isDirA && !isDirB) {
-      return -1
+      return -1 // 目录排在前
     }
     else if (!isDirA && isDirB) {
-      return 1
+      return 1 // 文件排在后
     }
     else {
       return a.title.toLowerCase().localeCompare(b.title.toLowerCase())
     }
   })
 
-  if (isHandlerChildren) {
-    newTreeData.forEach((node) => {
-      if (node.children) {
-        node.children = treeDataSort(node.children)
-      }
-    })
-  }
-
-  return newTreeData
+  return nodesWithStats
 }
-
 export function updateFilePaths(node, newPath) {
   if (node.children && node.children.length > 0) {
     node.children.forEach((child) => {

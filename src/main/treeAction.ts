@@ -51,11 +51,14 @@ async function createItem(path, title, treeData, isFolder = false) {
     else {
       treeData.push(newItem)
     }
+
+    const newTreeData = await treeDataSort(treeData)
+
     return {
       code: CodeResult.Success,
       message: isFolder ? '文件夹创建成功' : '文件创建成功',
       data: {
-        treeData: treeDataSort(treeData),
+        treeData: newTreeData,
       },
     }
   }
@@ -98,11 +101,13 @@ export async function rename(path, title, treeData) {
       targetNode.title = curTitle
       targetNode.key = newPath
     }
+
+    const newTreeData = await treeDataSort(treeData)
     return {
       code: CodeResult.Success,
       message: '重命名成功',
       data: {
-        treeData: treeDataSort(treeData),
+        treeData: newTreeData,
       },
     }
   }
@@ -210,9 +215,9 @@ export async function moveFileOrFolder(sourcePath, targetPath, treeData) {
     await fsPromises.rename(sourcePath, newPath)
 
     // 删除对应原节点
-    const newTreeData = deleteTreeNode(treeData, sourcePath)
+    const treeDataResult = deleteTreeNode(treeData, sourcePath)
     // 移动节点
-    const targetNode = findNodeByKey(newTreeData, newTargetPath)
+    const targetNode = findNodeByKey(treeDataResult, newTargetPath)
 
     if (targetNode) {
       targetNode.children.push({
@@ -221,10 +226,12 @@ export async function moveFileOrFolder(sourcePath, targetPath, treeData) {
       })
     }
 
+    const newTreeData = await treeDataSort(treeDataResult)
+
     return {
       code: CodeResult.Success,
       data: {
-        treeData: treeDataSort(newTreeData),
+        treeData: newTreeData,
       },
     }
   }
