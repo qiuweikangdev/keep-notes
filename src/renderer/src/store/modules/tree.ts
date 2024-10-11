@@ -1,6 +1,7 @@
 import { CodeResult } from '@common/types/enum'
-import { defineStore } from 'pinia'
-import { reactive, toRefs } from 'vue'
+import { defineStore, storeToRefs } from 'pinia'
+import { onBeforeMount, reactive, toRefs } from 'vue'
+import { useUserStore } from './user'
 
 export type TreeInfo = {
   treeData: FileTreeNode[]
@@ -20,14 +21,17 @@ export enum DirColorEnum {
 export const useTreeStore = defineStore(
   'tree',
   () => {
+    const userStore = useUserStore()
+    const { localPath } = storeToRefs(userStore)
+
     const treeInfo = reactive<TreeInfo>({
       treeData: [],
       treeRoot: { title: '', key: '' },
     })
 
     const dirSettings = reactive<DirSettings>({
-      dirColor: DirColorEnum.MultiColor,
-      showIcon: true,
+      dirColor: DirColorEnum.ThemeColor,
+      showIcon: false,
     })
 
     const setTreeInfo = (data: Partial<TreeInfo>) => {
@@ -63,6 +67,12 @@ export const useTreeStore = defineStore(
         })
       }
     }
+
+    onBeforeMount(() => {
+      if (localPath.value) {
+        updateTreeInfo(localPath.value)
+      }
+    })
 
     return {
       ...toRefs(treeInfo),

@@ -1,3 +1,4 @@
+import { dirname, normalize } from 'node:path'
 import { BrowserWindow } from 'electron/main'
 
 export function getBrowserWindow(event) {
@@ -18,8 +19,9 @@ export function findNodeByKey(treeData, key) {
 }
 
 // 对文件和目录进行排序、对文件和目录按照字母顺序进行排序，忽略大小写
-export function treeDataSort(treeData, isHandlerChildren = false) {
-  treeData.sort((a, b) => {
+export function treeDataSort(treeData, isHandlerChildren = true) {
+  const newTreeData = [...treeData]
+  newTreeData.sort((a, b) => {
     const isDirA = !!a.children
     const isDirB = !!b.children
 
@@ -35,12 +37,14 @@ export function treeDataSort(treeData, isHandlerChildren = false) {
   })
 
   if (isHandlerChildren) {
-    treeData.forEach((node) => {
+    newTreeData.forEach((node) => {
       if (node.children) {
         node.children = treeDataSort(node.children)
       }
     })
   }
+
+  return newTreeData
 }
 
 export function updateFilePaths(node, newPath) {
@@ -50,4 +54,23 @@ export function updateFilePaths(node, newPath) {
       updateFilePaths(child, newPath)
     })
   }
+}
+
+// 删除节点
+export function deleteTreeNode(treeData, deleteNodePath) {
+  let newTreeData = [...treeData]
+  const parentPath = dirname(deleteNodePath)
+  const targetNode = findNodeByKey(newTreeData, parentPath) as FileTreeNode
+  if (targetNode) {
+    targetNode.children = targetNode?.children?.filter(
+      node => normalize(node.key) !== normalize(deleteNodePath),
+    )
+  }
+  else {
+    // 根目录
+    newTreeData = newTreeData.filter(
+      node => normalize(node.key) !== normalize(deleteNodePath),
+    )
+  }
+  return newTreeData
 }

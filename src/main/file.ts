@@ -145,6 +145,7 @@ export async function openDialog(win) {
       return {
         code: CodeResult.Success,
         data: {
+          selectedPath,
           treeData: directoryTree,
           treeRoot,
         },

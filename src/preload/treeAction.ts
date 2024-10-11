@@ -25,3 +25,12 @@ export async function deleteFileOrFolder(path, title, treeData) {
     treeData,
   )
 }
+
+export async function moveFileOrFolder(sourcePath, targetPath, treeData) {
+  return await ipcRenderer.invoke(
+    'handle:move-fileOrFolder',
+    sourcePath,
+    targetPath,
+    treeData,
+  )
+}

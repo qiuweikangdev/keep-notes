@@ -43,11 +43,15 @@ export default function useTreeAction() {
 
   const handleActionResult = async (actionFn, path, title, treeData) => {
     const result = await actionFn(path, title, treeData)
-    if (result.code === CodeResult.Fail && result.message) {
-      message.error(message.toString())
-      return
+    if (result.code === CodeResult.Fail) {
+      if (result.message) {
+        message.error(result.message.toString())
+      }
     }
-    setTreeInfo({ treeData: result.data.treeData })
+    else {
+      setTreeInfo({ treeData: result.data.treeData })
+    }
+    return result
   }
 
   const createFile = async (path, title, treeData) => {
@@ -71,10 +75,20 @@ export default function useTreeAction() {
     )
   }
 
+  const moveFileOrFolder = async (sourcePath, targetPath, treeData) => {
+    return await handleActionResult(
+      window.api.moveFileOrFolder,
+      sourcePath,
+      targetPath,
+      treeData,
+    )
+  }
+
   return {
     createFile,
     createFolder,
     rename,
     deleteFileOrFolder,
+    moveFileOrFolder,
   }
 }

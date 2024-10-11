@@ -21,10 +21,13 @@
           :height="panelHeight - 10 - 34 - 24"
           :tree-data="treeData"
           block-node
+          draggable
           :show-icon="dirSettings.showIcon"
           class="pt-[42px] min-w-[50px] h-full bg-color-action-bar dark:bg-dark-color-action-bar"
           @select="handleSelect"
           @expand="handleExpand"
+          @dragenter="handleDragEnter"
+          @drop="handleDrop"
         >
           <template #title="{ title, key }">
             <context-menu
@@ -51,6 +54,7 @@
         <upload v-show="panelWidth > 2" @success="handleUploadSuccess" />
       </template>
       <div
+        v-if="treeRoot.key"
         class="inline-block b-t-1px b-solid text-color-icon dark:text-dark-color-icon cursor-pointer bg-color-container dark:bg-dark-color-container text-center absolute bottom-0 w-full h-[24px]"
         @click="handleSelectDir"
       >
@@ -82,6 +86,9 @@ import { colorMd, genColor } from '@common/utils/color'
 import { DirColorEnum, useTreeStore } from '@renderer/store/modules/tree'
 import { useUserStore } from '@renderer/store/modules/user'
 import { storeToRefs } from 'pinia'
+import type {
+  AntTreeNodeDropEvent,
+} from 'ant-design-vue/es/tree'
 import Upload from './components/upload.vue'
 import Modal from './components/modal.vue'
 import ContextMenu from './components/contextMenu.vue'
@@ -108,8 +115,13 @@ const modalInfo = reactive<{
   nodeKey: string
 }>({ open: false, title: '', type: ContextMenuKey.CreateFile, nodeKey: '' })
 
-const { createFile, createFolder, rename, deleteFileOrFolder }
-  = useTreeAction()
+const {
+  createFile,
+  createFolder,
+  rename,
+  deleteFileOrFolder,
+  moveFileOrFolder,
+} = useTreeAction()
 
 const { setContent, setContentFilePath } = useContent()
 
@@ -120,7 +132,8 @@ function genDirColor(title) {
   return ''
 }
 
-function handleUploadSuccess({ treeData, treeRoot }) {
+function handleUploadSuccess({ treeData, treeRoot, selectedPath }) {
+  setGithubInfo({ localPath: selectedPath })
   setTreeInfo({
     treeData,
     treeRoot,
@@ -180,6 +193,15 @@ async function handleSelectDir() {
     setGithubInfo({ localPath: selectedPath })
     updateTreeInfo(selectedPath)
   }
+}
+
+function handleDragEnter() {}
+
+async function handleDrop(info: AntTreeNodeDropEvent) {
+  const dropKey = info.node.key
+  const dragKey = info.dragNode.key
+
+  await moveFileOrFolder(dragKey, dropKey, toRaw(treeData.value))
 }
 </script>
 

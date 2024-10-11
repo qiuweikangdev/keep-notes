@@ -2,6 +2,7 @@ import {
   createFile,
   createFolder,
   deleteFileOrFolder,
+  moveFileOrFolder,
   rename,
 } from '../treeAction'
 
@@ -17,5 +18,8 @@ export default {
   },
   'handle:delete-fileOrFolder': async (_, path, title, treeData) => {
     return await deleteFileOrFolder(path, title, treeData)
+  },
+  'handle:move-fileOrFolder': async (_, sourcePath, targetPath, treeData) => {
+    return await moveFileOrFolder(sourcePath, targetPath, treeData)
   },
 }

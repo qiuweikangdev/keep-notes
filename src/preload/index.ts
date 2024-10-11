@@ -17,6 +17,7 @@ import {
   createFile,
   createFolder,
   deleteFileOrFolder,
+  moveFileOrFolder,
   rename,
 } from './treeAction'
 import * as git from './git'
@@ -39,6 +40,7 @@ const api = {
   rename,
   deleteFileOrFolder,
   genDirTreByPath,
+  moveFileOrFolder,
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

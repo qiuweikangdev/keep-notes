@@ -26,8 +26,8 @@ async function handleOpenDialog() {
     loading.value = true
     const { code, data } = await window.api.openDialog()
     if (code === CodeResult.Success && data) {
-      const { treeData, treeRoot } = data
-      emits('success', { treeData, treeRoot })
+      const { treeData, treeRoot, selectedPath } = data
+      emits('success', { treeData, treeRoot, selectedPath })
     }
     loading.value = false
   }

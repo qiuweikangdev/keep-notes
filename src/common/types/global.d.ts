@@ -11,6 +11,7 @@ declare global {
       openDialog: () => ApiResponse<{
         treeRoot: FileTreeNode
         treeData: FileTreeNode[]
+        selectedPath: string
       }>
       readFileContent: (path: string) => string
       writeFileContent: (path: string, content: string) => void
@@ -42,6 +43,11 @@ declare global {
       genDirTreByPath: (
         selectedPath: string,
       ) => ApiResponse<{ treeData: FileTreeNode[], treeRoot: FileTreeNode }>
+      moveFileOrFolder: (
+        sourcePath: string,
+        targetPath: string,
+        treeData: FileTreeNode[],
+      ) => ApiResponse<{ treeData: FileTreeNode[] }>
     }
     git: {
       download: (gitConfig: GitConfig) => Promise<ApiResponse>
