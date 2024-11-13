@@ -13,7 +13,8 @@
           class="min-w-[4px]"
           :style="leftPanelStyle"
         >
-          <dir-tree :panel-width="panelSize" :panel-height="panelHeight" />
+          <left-area />
+          <!-- <dir-tree :panel-width="panelSize" :panel-height="panelHeight" /> -->
         </pane>
         <pane
           :size="100 - panelSize"
@@ -45,12 +46,12 @@ import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { MilkdownProvider } from '@milkdown/vue'
 import { ProsemirrorAdapterProvider } from '@prosemirror-adapter/vue'
 import { Pane, Splitpanes } from 'splitpanes'
-import DirTree from '@renderer/components/dir-tree/index.vue'
 import useTheme from '@renderer/hooks/useTheme'
 import Milkdown from '@renderer/components/md-editor/index.vue'
 import MenuBar from '@renderer/components/menu-bar/index.vue'
 import panelConfig from '@renderer/config/panel'
 import SettingsModal from '@renderer/components/settings-modal/index.vue'
+import LeftArea from '@renderer/components/left-area/index.vue'
 
 const { themeClass } = useTheme()
 

@@ -102,6 +102,9 @@ export default function useTheme() {
         Radio: {
           colorPrimary: themeConfigType[theme.value].radioColorPrimary,
         },
+        Tabs: {
+          colorPrimary: themeConfigType[theme.value].tabsColorPrimary,
+        },
       },
     } as ThemeConfig
   })

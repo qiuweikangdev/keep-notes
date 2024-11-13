@@ -17,6 +17,7 @@ export const lightConfig = {
   menuColorItemBgSelected: '#E9E9E9',
   menuColorItemTextSelected: '#000000',
   radioColorPrimary: '#C6AE9F',
+  tabsColorPrimary: '#C6AE9F',
 }
 
 export const darkConfig = {
@@ -39,6 +40,7 @@ export const darkConfig = {
   menuColorItemBgSelected: '#2E333B',
   menuColorItemTextSelected: '#ffffff',
   radioColorPrimary: '#c0835d',
+  tabsColorPrimary: '#c0835d',
 }
 
 export const themeConfigType = {

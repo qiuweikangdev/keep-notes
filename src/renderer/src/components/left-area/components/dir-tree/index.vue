@@ -1,6 +1,6 @@
 <template>
   <div ref="containerRef" class="relative tree-wrapper h-full w-full">
-    <div class="flex flex-col" :style="{ height: 'calc(100vh - 40px)' }">
+    <div class="flex flex-col" :style="{ height: 'calc(100vh - 100px)' }">
       <template v-if="treeRoot.key">
         <div
           class="flex w-full absolute top-[6px] left-[4px] whitespace-nowrap px-[12px] my-[px] dark:text-color-primary"
@@ -86,9 +86,7 @@ import { colorMd, genColor } from '@common/utils/color'
 import { DirColorEnum, useTreeStore } from '@renderer/store/modules/tree'
 import { useUserStore } from '@renderer/store/modules/user'
 import { storeToRefs } from 'pinia'
-import type {
-  AntTreeNodeDropEvent,
-} from 'ant-design-vue/es/tree'
+import type { AntTreeNodeDropEvent } from 'ant-design-vue/es/tree'
 import Upload from './components/upload.vue'
 import Modal from './components/modal.vue'
 import ContextMenu from './components/contextMenu.vue'
