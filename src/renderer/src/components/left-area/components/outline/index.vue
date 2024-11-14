@@ -6,6 +6,7 @@
       :field-names="fieldNames"
       :show-icon="false"
       :height="treeHeight"
+      @select="handleSelect"
     />
   </div>
 </template>
@@ -15,6 +16,7 @@ import { ProvideStateEnum } from '@common/types/enum'
 import { useCrepe } from '@renderer/hooks/useCrepe'
 import type { PanelConfig } from '@renderer/views/home/hooks/useHome'
 import type { TreeProps } from 'ant-design-vue'
+import { head } from 'lodash-es'
 import { computed, inject } from 'vue'
 
 const { outlineTree } = useCrepe()
@@ -31,4 +33,11 @@ const treeHeight = computed(() => {
   }
   return window.innerHeight
 })
+
+function handleSelect(selectedKeys) {
+  const curNodeId = head(selectedKeys) as string
+  if (curNodeId) {
+    document.getElementById(curNodeId)?.scrollIntoView({ behavior: 'smooth' })
+  }
+}
 </script>
