@@ -14,7 +14,6 @@
           :style="leftPanelStyle"
         >
           <left-area />
-          <!-- <dir-tree :panel-width="panelSize" :panel-height="panelHeight" /> -->
         </pane>
         <pane
           :size="100 - panelSize"
@@ -41,71 +40,34 @@
 </template>
 
 <script setup lang="ts">
-import type { CSSProperties } from 'vue'
-import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, provide } from 'vue'
 import { MilkdownProvider } from '@milkdown/vue'
 import { ProsemirrorAdapterProvider } from '@prosemirror-adapter/vue'
 import { Pane, Splitpanes } from 'splitpanes'
 import useTheme from '@renderer/hooks/useTheme'
 import Milkdown from '@renderer/components/md-editor/index.vue'
 import MenuBar from '@renderer/components/menu-bar/index.vue'
-import panelConfig from '@renderer/config/panel'
 import SettingsModal from '@renderer/components/settings-modal/index.vue'
 import LeftArea from '@renderer/components/left-area/index.vue'
+import { ProvideStateEnum } from '@common/types/enum'
+import type { PanelConfig } from './hooks/useHome'
+import useHome from './hooks/useHome'
 
 const { themeClass } = useTheme()
 
-const panelSize = ref<number>(panelConfig.leftPanelSize)
-const leftPanelSizeRef = ref()
-const leftWidth = ref<number>(0)
-const leftPanelStyle = ref<CSSProperties>({})
-const rightPanelStyle = ref<CSSProperties>({})
-const panelHeight = ref<number>(window.innerHeight - 40)
-const settingsModalVisible = ref(false)
-
-let preLeftPanelSize = 0
-
-function handleToggleCollapse(collapsed) {
-  if (collapsed) {
-    preLeftPanelSize = panelSize.value
-    panelSize.value = 0
-  }
-  else {
-    panelSize.value
-      = preLeftPanelSize <= 10 ? panelConfig.leftPanelSize : preLeftPanelSize
-  }
-  leftPanelStyle.value = { transition: 'width .2s ease-out' }
-  rightPanelStyle.value = { transition: 'width .2s ease-out' }
-}
-
-function handlePanelResize(value: { size: number }[]) {
-  const [minValue] = value
-  leftPanelStyle.value = { width: `${minValue.size}%` }
-  rightPanelStyle.value = {}
-  panelSize.value = minValue.size
-  getPanelWidth()
-}
-
-async function getPanelWidth() {
-  await nextTick()
-  leftPanelStyle.value = { width: `${leftPanelSizeRef.value.$el.style.width}` }
-  leftWidth.value = leftPanelSizeRef.value.$el.clientWidth
-}
-
-function handleWinResize() {
-  if (leftPanelSizeRef.value?.$el) {
-    const leftWidth = leftPanelSizeRef.value.$el.clientWidth
-    rightPanelStyle.value = {
-      width: `${window.innerWidth - leftWidth}px`,
-    }
-    leftPanelStyle.value.width = `${leftWidth}px`
-  }
-  panelHeight.value = window.innerHeight - 40
-}
-
-function handleSettings() {
-  settingsModalVisible.value = true
-}
+const {
+  panelSize,
+  leftPanelSizeRef,
+  leftPanelStyle,
+  rightPanelStyle,
+  panelHeight,
+  settingsModalVisible,
+  handleToggleCollapse,
+  handlePanelResize,
+  handleWinResize,
+  handleSettings,
+  getPanelWidth,
+} = useHome()
 
 onMounted(() => {
   getPanelWidth()
@@ -114,5 +76,10 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleWinResize)
+})
+
+provide<PanelConfig>(ProvideStateEnum.PanelConfig, {
+  panelHeight,
+  panelSize,
 })
 </script>

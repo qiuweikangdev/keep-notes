@@ -7,3 +7,7 @@ export enum LeftAreaEnum {
   File = 'file',
   Outline = 'outline',
 }
+
+export enum ProvideStateEnum {
+  PanelConfig = 'panel-config',
+}
