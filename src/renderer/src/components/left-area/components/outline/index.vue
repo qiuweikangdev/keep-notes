@@ -8,7 +8,6 @@
       :field-names="fieldNames"
       :show-icon="false"
       :height="treeHeight"
-      auto-expand-parent
       @select="handleSelect"
     />
   </div>
