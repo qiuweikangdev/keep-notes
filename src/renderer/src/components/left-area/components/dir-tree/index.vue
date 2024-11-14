@@ -51,7 +51,7 @@
         </a-directory-tree>
       </template>
       <template v-else>
-        <upload v-show="panelWidth > 2" @success="handleUploadSuccess" />
+        <upload v-show="showUpload" @success="handleUploadSuccess" />
       </template>
       <div
         v-if="treeRoot.key"
@@ -129,6 +129,9 @@ const treeHeight = computed(() => {
   return window.innerHeight
 })
 
+const showUpload = computed(() => {
+  return (panelConfig?.panelSize.value || 0) > 2
+})
 function genDirColor(title) {
   if (dirSettings.value.dirColor === DirColorEnum.MultiColor) {
     return genColor(title)
