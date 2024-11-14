@@ -18,7 +18,7 @@
         </div>
         <a-directory-tree
           v-model:selected-keys="selectedKeys"
-          :height="panelHeight - 10 - 34 - 24"
+          :height="treeHeight"
           :tree-data="treeData"
           block-node
           draggable
@@ -72,14 +72,13 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, toRaw } from 'vue'
+import { computed, inject, reactive, ref, toRaw } from 'vue'
 import {
   FileTextFilled,
   FolderFilled,
   FolderOpenFilled,
   PlusOutlined,
 } from '@ant-design/icons-vue'
-import panelConfig from '@renderer/config/panel'
 import useContent from '@renderer/hooks/useContent'
 import useTreeAction, { ContextMenuKey } from '@renderer/hooks/useTreeAction'
 import { colorMd, genColor } from '@common/utils/color'
@@ -87,14 +86,14 @@ import { DirColorEnum, useTreeStore } from '@renderer/store/modules/tree'
 import { useUserStore } from '@renderer/store/modules/user'
 import { storeToRefs } from 'pinia'
 import type { AntTreeNodeDropEvent } from 'ant-design-vue/es/tree'
+import type { PanelConfig } from '@renderer/views/home/hooks/useHome'
+import { ProvideStateEnum } from '@common/types/enum'
 import Upload from './components/upload.vue'
 import Modal from './components/modal.vue'
 import ContextMenu from './components/contextMenu.vue'
 
-withDefaults(defineProps<{ panelWidth?: number, panelHeight?: number }>(), {
-  panelWidth: panelConfig.leftPanelSize,
-  panelHeight: window.innerHeight,
-})
+const panelConfig = inject<PanelConfig>(ProvideStateEnum.PanelConfig)
+
 const treeStore = useTreeStore()
 
 const { setTreeInfo, updateTreeInfo } = useTreeStore()
@@ -122,6 +121,13 @@ const {
 } = useTreeAction()
 
 const { setContent, setContentFilePath } = useContent()
+
+const treeHeight = computed(() => {
+  if (panelConfig?.panelHeight.value) {
+    return panelConfig?.panelHeight.value - 10 - 34 - 24 - 60
+  }
+  return window.innerHeight
+})
 
 function genDirColor(title) {
   if (dirSettings.value.dirColor === DirColorEnum.MultiColor) {

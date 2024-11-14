@@ -9,11 +9,13 @@ import { editorStateCtx, editorViewCtx, parserCtx } from '@milkdown/kit/core'
 import type { Ctx } from '@milkdown/kit/ctx'
 import { Slice } from '@milkdown/kit/prose/model'
 import { outline } from '@milkdown/kit/utils'
+import { type OutlineNode, genTreeByOutline } from '@renderer/utils/outline'
 
 const crepeRef = ref<Crepe>()
 const loading = ref(false)
 const total = ref(0)
-const outlines = ref<{ text: string, level: number, id: string }[]>([])
+const outlines = ref<OutlineNode[]>([])
+const outlineTree = ref<OutlineNode[]>([])
 let crepe: Crepe
 
 export function useCrepe(
@@ -21,39 +23,48 @@ export function useCrepe(
   content?: Ref<string>,
   onChange?: (markdown: string) => void,
 ) {
+  const getOutlineData = (ctx) => {
+    const outlineData = outline()(ctx) as OutlineNode[]
+    outlines.value = outlineData
+    outlineTree.value = genTreeByOutline(outlineData)
+  }
+
   onMounted(() => {
-    crepe = new Crepe({
-      root: divRef?.value,
-      defaultValue: content?.value,
-      featureConfigs: {},
-    })
-
-    crepe.editor
-      .config((ctx) => {
-        ctx
-          .get(listenerCtx)
-          .markdownUpdated(
-            throttle((_, markdown) => {
-              total.value = ctx.get(editorStateCtx).doc.textContent.length || 0
-              onChange?.(markdown)
-            }, 200),
-          )
-          .mounted((ctx) => {
-            outlines.value = outline()(ctx)
-          })
-          .markdownUpdated((ctx) => {
-            const view = ctx.get(editorViewCtx)
-            if (view.state?.doc) {
-              outlines.value = outline()(ctx)
-            }
-          })
+    if (!crepe) {
+      crepe = new Crepe({
+        root: divRef?.value,
+        defaultValue: content?.value,
+        featureConfigs: {},
       })
-      .use(listener)
 
-    crepe.create().then(() => {
-      crepeRef.value = crepe
-      loading.value = false
-    })
+      crepe.editor
+        .config((ctx) => {
+          ctx
+            .get(listenerCtx)
+            .markdownUpdated(
+              throttle((_, markdown) => {
+                total.value
+                  = ctx.get(editorStateCtx).doc.textContent.length || 0
+                onChange?.(markdown)
+              }, 200),
+            )
+            .mounted((ctx) => {
+              getOutlineData(ctx)
+            })
+            .markdownUpdated((ctx) => {
+              const view = ctx.get(editorViewCtx)
+              if (view.state?.doc) {
+                getOutlineData(ctx)
+              }
+            })
+        })
+        .use(listener)
+
+      crepe.create().then(() => {
+        crepeRef.value = crepe
+        loading.value = false
+      })
+    }
   })
 
   const updateContent = (content) => {
@@ -88,5 +99,6 @@ export function useCrepe(
     crepeRef,
     total,
     outlines,
+    outlineTree,
   }
 }

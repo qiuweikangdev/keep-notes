@@ -1,6 +1,11 @@
 <template>
   <div class="md-editor flex flex-col h-full">
-    <div ref="editorRef" class="crepe flex-1 flex w-full" spellcheck="false" />
+    <div
+      id="md-editor"
+      ref="editorRef"
+      class="crepe flex-1 flex w-full"
+      spellcheck="false"
+    />
     <bottom-bar
       :total="total"
       :panel-size="panelSize"
