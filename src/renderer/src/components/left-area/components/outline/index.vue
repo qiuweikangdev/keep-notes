@@ -1,11 +1,14 @@
 <template>
   <div class="tree-wrapper">
     <a-directory-tree
+      v-model:selected-keys="selectedKeys"
+      v-model:expanded-keys="expandedKeys"
       block-node
       :tree-data="outlineTree"
       :field-names="fieldNames"
       :show-icon="false"
       :height="treeHeight"
+      auto-expand-parent
       @select="handleSelect"
     />
   </div>
@@ -17,9 +20,12 @@ import { useCrepe } from '@renderer/hooks/useCrepe'
 import type { PanelConfig } from '@renderer/views/home/hooks/useHome'
 import type { TreeProps } from 'ant-design-vue'
 import { head } from 'lodash-es'
-import { computed, inject } from 'vue'
+import { computed, inject, ref } from 'vue'
 
 const { outlineTree } = useCrepe()
+
+const selectedKeys = ref<any[]>([])
+const expandedKeys = ref<any[]>([])
 
 const fieldNames: TreeProps['fieldNames'] = {
   title: 'text',

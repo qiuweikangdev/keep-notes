@@ -9,7 +9,7 @@
     <bottom-bar
       :total="total"
       :panel-size="panelSize"
-      @toggle-collapse="(collapsed) => emits('toggle-collapse', collapsed)"
+      @toggle-collapse="(collapsed) => emits('toggleCollapse', collapsed)"
     />
   </div>
 </template>
@@ -25,7 +25,7 @@ withDefaults(defineProps<{ panelSize?: number }>(), {
   panelSize: panelConfig.leftPanelSize,
 })
 
-const emits = defineEmits(['toggle-collapse'])
+const emits = defineEmits(['toggleCollapse'])
 
 const editorRef = ref()
 
