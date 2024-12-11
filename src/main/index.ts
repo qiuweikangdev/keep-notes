@@ -1,50 +1,10 @@
-import { join } from 'node:path'
 import process from 'node:process'
-import { BrowserWindow, app, session, shell } from 'electron'
-import { electronApp, is, optimizer } from '@electron-toolkit/utils'
-import icon from '../../resources/icon.png?asset'
+import { BrowserWindow, app, session } from 'electron'
+import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { ipcMenuAction } from './menu'
 import './event'
-
-function createWindow(): void {
-  // Create the browser window.
-  const mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
-    minWidth: 400,
-    minHeight: 400,
-    show: false,
-    frame: false,
-    autoHideMenuBar: false,
-    ...(process.platform === 'linux' ? { icon } : {}),
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.mjs'),
-      sandbox: false,
-    },
-  })
-
-  if (!app.isPackaged) {
-    mainWindow.webContents.openDevTools()
-  }
-
-  mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
-  })
-
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
-    return { action: 'deny' }
-  })
-
-  // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
-  if (is.dev && process.env.ELECTRON_RENDERER_URL) {
-    mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
-  }
-  else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
-  }
-}
+import { registerShortcut } from './globalShortcut'
+import { createWindow } from './window'
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
@@ -70,6 +30,7 @@ app.whenReady().then(() => {
 
   createWindow()
   ipcMenuAction()
+  registerShortcut()
 
   app.on('activate', () => {
     // On macOS it's common to re-create a window in the app when the
