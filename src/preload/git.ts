@@ -1,4 +1,4 @@
-import { ipcRenderer } from 'electron/renderer'
+import { ipcRenderer } from 'electron'
 
 export async function download(gitConfig: GitConfig) {
   return await ipcRenderer.invoke('handle:git-download', gitConfig)

@@ -13,6 +13,8 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "test:window-controls": "node scripts/check-window-controls.mjs",
+    "test:preload-runtime": "electron scripts/check-preload-runtime.mjs",
     "start": "electron-vite preview",
     "dev": "nodemon --exec electron-vite dev",
     "build": "npm run typecheck && electron-vite build",

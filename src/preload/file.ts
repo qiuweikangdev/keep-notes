@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { ipcRenderer } from 'electron/renderer'
+import { ipcRenderer } from 'electron'
 
 // 打开系统目录
 export async function openDialog() {
