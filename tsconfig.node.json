@@ -1,24 +1,23 @@
 {
-  "extends": "@electron-toolkit/tsconfig/tsconfig.node.json",
   "compilerOptions": {
     "composite": true,
-    "baseUrl": "./",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "outDir": "./out",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
     "paths": {
-      "@common/*": [
-        "src/common/*"
-      ]
-    },
-    "types": [
-      "electron-vite/node"
-    ]
+      "@shared/*": ["./src/shared/*"]
+    }
   },
   "include": [
-    "electron.vite.config.*",
+    "electron.vite.config.ts",
     "src/main/**/*",
-    "src/main/*",
-    "src/preload/*",
-    "src/common/types/*.d.ts",
-    "src/common/**/*",
-    "src/common/*"
+    "src/preload/**/*",
+    "src/shared/**/*",
+    "src/common/**/*"
   ]
 }

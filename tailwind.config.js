@@ -1,76 +1,50 @@
 /** @type {import('tailwindcss').Config} */
-import { darkConfig, lightConfig } from './src/renderer/src/config/theme'
-
 export default {
-  mode: 'jit',
-  content: ['./index.html', './src/**/*.{vue,js,ts,jsx,tsx}'],
-  darkMode: 'selector',
+  darkMode: "class",
+  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {
       colors: {
-        'color-primary': lightConfig.colorPrimary,
-        'color-icon': lightConfig.colorIcon,
-        'color-primary-hover': lightConfig.colorPrimaryHover,
-        'dark-color-icon': darkConfig.colorIcon,
-        'nord-neutral': {
-          DEFAULT: '#494E59',
-          dark: '#EFF1F5',
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        primary: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
         },
-        'nord-neutral-deep': {
-          DEFAULT: '#2E3440',
-          dark: '#ECEFF4',
+        secondary: {
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--secondary-foreground))",
         },
-        'nord-dim': {
-          DEFAULT: '#ABAEB3',
-          dark: '#F7F9FB',
+        destructive: {
+          DEFAULT: "hsl(var(--destructive))",
+          foreground: "hsl(var(--destructive-foreground))",
         },
-        'nord-solid': {
-          DEFAULT: '#636C7D',
-          dark: '#D8DEE9',
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
         },
-        'nord-primary': '#5E81AC',
-        'nord-secondary': '#CFDBE7',
-        'nord-secondary-deep': '#81A1C1',
-        'nord-secondary-dim': '#F0F4F8',
-        'nord-outline': {
-          DEFAULT: '#D8DEE9',
-          dark: '#434C5E',
+        accent: {
+          DEFAULT: "hsl(var(--accent))",
+          foreground: "hsl(var(--accent-foreground))",
         },
-        'nord-background': {
-          DEFAULT: '#ECEFF4',
-          dark: '#2E3440',
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
         },
-        'nord-foreground': {
-          DEFAULT: '#FFFFFF',
-          dark: '#252932',
+        card: {
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))",
         },
       },
-      backgroundColor: {
-        'color-primary': lightConfig.colorPrimary,
-        'color-secondary': lightConfig.colorSecondary,
-        'color-secondary-hover': lightConfig.colorSecondaryHover,
-        'color-container': lightConfig.colorBgContainer,
-        'color-action-bar': lightConfig.colorBgActionBar,
-        'color-icon': lightConfig.colorBgIcon,
-        'color-scrollbar': lightConfig.scrollbarColor,
-        'dark-color-secondary': darkConfig.colorSecondary,
-        'dark-color-container': darkConfig.colorBgContainer,
-        'dark-color-icon': darkConfig.colorBgIcon,
-        'dark-color-hover': darkConfig.colorPrimaryBgHover,
-        'dark-color-action-bar': darkConfig.colorBgActionBar,
-        'dark-color-scrollbar': darkConfig.scrollbarColor,
-      },
-      borderColor: {
-        'dark-color': darkConfig.colorBorder,
+      borderRadius: {
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
       },
     },
   },
-  plugins: [
-    require('@tailwindcss/typography'),
-    require('@tailwindcss/forms'),
-    require('tailwind-nord'),
-  ],
-  corePlugins: {
-    // preflight: false
-  },
-}
+  plugins: [require("@tailwindcss/typography"), require("@tailwindcss/forms")],
+};

@@ -1,26 +1,28 @@
 {
-  "extends": "@electron-toolkit/tsconfig/tsconfig.web.json",
   "compilerOptions": {
     "composite": true,
-    "baseUrl": ".",
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
     "paths": {
-      "@renderer/*": [
-        "src/renderer/src/*"
-      ],
-      "@common/*": [
-        "src/common/*"
-      ]
-    },
-    "types": [
-      "ant-design-vue/typings/global.d.ts"
-    ]
+      "@/*": ["./src/renderer/src/*"],
+      "@renderer/*": ["./src/renderer/src/*"],
+      "@common/*": ["./src/common/*"],
+      "@shared/*": ["./src/shared/*"]
+    }
   },
-  "include": [
-    "src/renderer/src/env.d.ts",
-    "src/renderer/src/**/*",
-    "src/renderer/src/**/*.vue",
-    "src/common/types/*.d.ts",
-    "src/common/**/*",
-    "src/common/*"
-  ]
+  "include": ["src/renderer/src/**/*", "src/shared/**/*", "src/common/**/*"],
+  "references": [{ "path": "./tsconfig.node.json" }]
 }

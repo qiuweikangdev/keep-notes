@@ -1,40 +1,31 @@
-import { resolve } from 'node:path'
-import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
-import vue from '@vitejs/plugin-vue'
-import Components from 'unplugin-vue-components/vite'
-import { AntDesignVueResolver } from 'unplugin-vue-components/resolvers'
-import svgLoader from 'vite-svg-loader'
+import { resolve } from "node:path";
+import { defineConfig, externalizeDepsPlugin } from "electron-vite";
+import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
     resolve: {
       alias: {
-        '@common': resolve('src/common'),
+        "@shared": resolve(__dirname, "src/shared"),
       },
     },
   },
   preload: {
     plugins: [externalizeDepsPlugin()],
+    resolve: {
+      alias: {
+        "@shared": resolve(__dirname, "src/shared"),
+      },
+    },
   },
   renderer: {
     resolve: {
       alias: {
-        '@renderer': resolve('src/renderer/src'),
-        '@common': resolve('src/common'),
+        "@": resolve(__dirname, "src/renderer/src"),
+        "@shared": resolve(__dirname, "src/shared"),
       },
     },
-    plugins: [
-      vue(),
-      svgLoader(),
-      Components({
-        resolvers: [
-          AntDesignVueResolver({
-            importStyle: false,
-          }),
-        ],
-      }),
-    ],
-    css: {},
+    plugins: [react()],
   },
-})
+});

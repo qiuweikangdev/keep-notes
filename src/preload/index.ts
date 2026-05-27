@@ -1,60 +1,26 @@
-import { contextBridge } from 'electron'
-import { onWinClose, onWinMaximize, onWinMinimize } from './menu'
-import {
-  genDirTreByPath,
-  getSelectedPath,
-  openDialog,
-  pathBasename,
-  pathJoin,
-  pathNormalize,
-  readFileContent,
-  updateLocalDirectory,
-  writeFileContent,
-} from './file'
-import {
-  createFile,
-  createFolder,
-  deleteFileOrFolder,
-  moveFileOrFolder,
-  rename,
-} from './treeAction'
-import * as git from './git'
+import { contextBridge } from "electron";
+import { windowApi } from "./api/window.api";
+import { fileApi } from "./api/file.api";
+import { treeApi } from "./api/tree.api";
+import { gitApi } from "./api/git.api";
 
-// Custom APIs for renderer
 const api = {
-  onWinClose,
-  onWinMaximize,
-  onWinMinimize,
-  openDialog,
-  readFileContent,
-  writeFileContent,
-  updateLocalDirectory,
-  getSelectedPath,
-  pathJoin,
-  pathBasename,
-  pathNormalize,
-  createFile,
-  createFolder,
-  rename,
-  deleteFileOrFolder,
-  genDirTreByPath,
-  moveFileOrFolder,
-}
+  ...windowApi,
+  ...fileApi,
+  ...treeApi,
+};
 
-// Use `contextBridge` APIs to expose Electron APIs to
-// renderer only if context isolation is enabled, otherwise
-// just add to the DOM global.
-// eslint-disable-next-line node/prefer-global/process -- Electron adds contextIsolated to the preload global process.
+const git = {
+  ...gitApi,
+};
+
 if (globalThis.process.contextIsolated) {
   try {
-    contextBridge.exposeInMainWorld('api', api)
-    contextBridge.exposeInMainWorld('git', git)
+    contextBridge.exposeInMainWorld("electronAPI", api);
+    contextBridge.exposeInMainWorld("gitAPI", git);
+  } catch (error) {
+    console.error(error);
   }
-  catch (error) {
-    console.error(error)
-  }
-}
-else {
-  window.api = api
-  window.git = { ...git }
+} else {
+  (window as any).electronAPI = api(window as any).gitAPI = git;
 }
