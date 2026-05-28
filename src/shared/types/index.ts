@@ -66,10 +66,11 @@ export interface OutlineNode {
   children?: OutlineNode[];
 }
 
-export type ThemeName = "light" | "dark";
+// 更新支持的主题
+export type ThemeName = "light" | "dark" | "nord" | "dracula" | "solarized";
 
 export interface MenuActionOptions {
-  icon: React.ComponentType<any>;
+  icon: React.ComponentType<Record<string, unknown>>;
   tooltip?: string;
   command?: string;
   handle: () => void;

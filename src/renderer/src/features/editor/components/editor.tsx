@@ -13,18 +13,48 @@ export function Editor() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-[#1a1a1a]">
+    <div
+      className="flex flex-col h-full overflow-hidden"
+      style={{ backgroundColor: "var(--bg-primary)" }}
+    >
       {/* 文件标签 */}
       {filePath && (
-        <div className="flex items-center h-[36px] px-2 bg-[#f5f5f5] dark:bg-[#222] border-b border-[#e5e5e5] dark:border-[#333]">
-          <div className="flex items-center gap-2 px-3 py-1 bg-white dark:bg-[#1a1a1a] rounded-md border border-[#e5e5e5] dark:border-[#333] text-xs group">
-            <FileText className="h-3.5 w-3.5 text-[#0066ff]" />
-            <span className="max-w-[150px] truncate text-[#333] dark:text-[#eee]">
+        <div
+          className="flex items-center h-[36px] px-2 flex-shrink-0"
+          style={{
+            backgroundColor: "var(--bg-secondary)",
+            borderBottom: "1px solid var(--border-color)",
+          }}
+        >
+          <div
+            className="flex items-center gap-2 px-3 py-1 rounded-md text-xs group"
+            style={{
+              backgroundColor: "var(--bg-primary)",
+              border: "1px solid var(--border-color)",
+            }}
+          >
+            <FileText
+              className="h-3.5 w-3.5"
+              style={{ color: "var(--accent-color)" }}
+            />
+            <span
+              className="max-w-[150px] truncate"
+              style={{ color: "var(--text-primary)" }}
+            >
               {fileName}
             </span>
             <button
               onClick={handleClose}
-              className="ml-1 p-0.5 rounded hover:bg-[#f0f0f0] dark:hover:bg-[#333] text-[#bbb] hover:text-[#666] dark:hover:text-[#aaa] opacity-0 group-hover:opacity-100 transition-all"
+              className="ml-1 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-all"
+              style={{ color: "var(--text-muted)" }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                e.currentTarget.style.color = "var(--text-primary)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.color = "var(--text-muted)";
+              }}
             >
               <X className="h-3 w-3" />
             </button>
@@ -32,7 +62,7 @@ export function Editor() {
         </div>
       )}
 
-      {/* 编辑器内容 */}
+      {/* 编辑器内容 - 支持滚动 */}
       <div className="flex-1 overflow-hidden">
         <MilkdownEditor />
       </div>

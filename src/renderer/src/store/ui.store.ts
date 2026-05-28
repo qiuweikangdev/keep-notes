@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { ThemeName } from "@/types";
+import type { ThemeName } from "@/config/themes";
 
 interface UIState {
   theme: ThemeName;
@@ -9,7 +9,6 @@ interface UIState {
   activeTab: string;
 
   setTheme: (theme: ThemeName) => void;
-  toggleTheme: () => void;
   setPanelSize: (size: number) => void;
   setSettingsOpen: (open: boolean) => void;
   setActiveTab: (tab: string) => void;
@@ -18,16 +17,12 @@ interface UIState {
 export const useUIStore = create<UIState>()(
   persist(
     (set) => ({
-      theme: "light",
+      theme: "light" as ThemeName,
       panelSize: 25,
       isSettingsOpen: false,
       activeTab: "file",
 
       setTheme: (theme) => set({ theme }),
-      toggleTheme: () =>
-        set((state) => ({
-          theme: state.theme === "light" ? "dark" : "light",
-        })),
       setPanelSize: (size) => set({ panelSize: size }),
       setSettingsOpen: (open) => set({ isSettingsOpen: open }),
       setActiveTab: (tab) => set({ activeTab: tab }),

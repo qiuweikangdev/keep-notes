@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useCallback } from "react";
 import {
   ChevronRight,
   ChevronDown,
@@ -9,8 +9,6 @@ import {
   FolderPlus,
   Pencil,
   Trash2,
-  MoreHorizontal,
-  Search,
 } from "lucide-react";
 import { useTreeStore } from "@/store/tree.store";
 import { useEditorStore } from "@/store/editor.store";
@@ -102,15 +100,24 @@ export function Sidebar() {
         <ContextMenu.Trigger>
           <div
             className={cn(
-              "group flex items-center h-[30px] px-3 cursor-pointer text-[13px] rounded-md mx-1",
-              "hover:bg-[#f0f0f0] dark:hover:bg-[#2a2a2a] transition-all",
-              isSelected &&
-                "bg-[#e8f0fe] dark:bg-[#1a3a5c] text-[#0066ff] dark:text-[#4d9fff]",
-              !isSelected &&
-                "text-[#555] dark:text-[#bbb] hover:text-[#1a1a1a] dark:hover:text-[#f0f0f0]",
+              "group flex items-center h-[28px] px-3 cursor-pointer text-[13px] rounded-md mx-1 transition-all",
             )}
-            style={{ paddingLeft: `${level * 14 + 8}px` }}
+            style={{
+              paddingLeft: `${level * 14 + 8}px`,
+              backgroundColor: isSelected ? "var(--active-bg)" : "transparent",
+              color: isSelected ? "var(--accent-color)" : "var(--text-primary)",
+            }}
             onClick={handleClick}
+            onMouseEnter={(e) => {
+              if (!isSelected) {
+                e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isSelected) {
+                e.currentTarget.style.backgroundColor = "transparent";
+              }
+            }}
           >
             {hasChildren ? (
               <button
@@ -121,9 +128,15 @@ export function Sidebar() {
                 className="flex items-center justify-center w-4 h-4 mr-1 flex-shrink-0"
               >
                 {isExpanded ? (
-                  <ChevronDown className="h-3 w-3 text-[#888]" />
+                  <ChevronDown
+                    className="h-3 w-3"
+                    style={{ color: "var(--text-muted)" }}
+                  />
                 ) : (
-                  <ChevronRight className="h-3 w-3 text-[#888]" />
+                  <ChevronRight
+                    className="h-3 w-3"
+                    style={{ color: "var(--text-muted)" }}
+                  />
                 )}
               </button>
             ) : (
@@ -132,12 +145,21 @@ export function Sidebar() {
 
             {isFolder ? (
               isExpanded ? (
-                <FolderOpen className="h-4 w-4 mr-2 text-[#f0a020] flex-shrink-0" />
+                <FolderOpen
+                  className="h-4 w-4 mr-2 flex-shrink-0"
+                  style={{ color: "#f0a020" }}
+                />
               ) : (
-                <Folder className="h-4 w-4 mr-2 text-[#f0a020] flex-shrink-0" />
+                <Folder
+                  className="h-4 w-4 mr-2 flex-shrink-0"
+                  style={{ color: "#f0a020" }}
+                />
               )
             ) : (
-              <File className="h-4 w-4 mr-2 text-[#0066ff] flex-shrink-0" />
+              <File
+                className="h-4 w-4 mr-2 flex-shrink-0"
+                style={{ color: "var(--accent-color)" }}
+              />
             )}
 
             <span className="truncate flex-1">{node.title}</span>
@@ -185,30 +207,66 @@ export function Sidebar() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#fafafa] dark:bg-[#1a1a1a]">
+    <div
+      className="flex flex-col h-full overflow-hidden"
+      style={{ backgroundColor: "var(--bg-secondary)" }}
+    >
       {/* 头部 */}
-      <div className="flex items-center justify-between h-[40px] px-3 border-b border-[#e5e5e5] dark:border-[#333]">
-        <span className="text-xs font-semibold text-[#888] dark:text-[#777] uppercase tracking-wider">
+      <div
+        className="flex items-center justify-between h-[40px] px-3 flex-shrink-0"
+        style={{ borderBottom: "1px solid var(--border-color)" }}
+      >
+        <span
+          className="text-xs font-semibold uppercase tracking-wider"
+          style={{ color: "var(--text-muted)" }}
+        >
           文件
         </span>
         <div className="flex items-center gap-0.5">
           <button
             onClick={handleCreateFile}
-            className="flex items-center justify-center w-6 h-6 rounded-md hover:bg-[#f0f0f0] dark:hover:bg-[#2a2a2a] text-[#888] hover:text-[#333] dark:hover:text-[#fff] transition-all"
+            className="flex items-center justify-center w-6 h-6 rounded-md transition-all"
+            style={{ color: "var(--text-muted)" }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+              e.currentTarget.style.color = "var(--text-primary)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "transparent";
+              e.currentTarget.style.color = "var(--text-muted)";
+            }}
             title="新建文件"
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
           <button
             onClick={handleCreateFolder}
-            className="flex items-center justify-center w-6 h-6 rounded-md hover:bg-[#f0f0f0] dark:hover:bg-[#2a2a2a] text-[#888] hover:text-[#333] dark:hover:text-[#fff] transition-all"
+            className="flex items-center justify-center w-6 h-6 rounded-md transition-all"
+            style={{ color: "var(--text-muted)" }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+              e.currentTarget.style.color = "var(--text-primary)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "transparent";
+              e.currentTarget.style.color = "var(--text-muted)";
+            }}
             title="新建文件夹"
           >
             <FolderPlus className="h-3.5 w-3.5" />
           </button>
           <button
             onClick={openFolder}
-            className="flex items-center justify-center w-6 h-6 rounded-md hover:bg-[#f0f0f0] dark:hover:bg-[#2a2a2a] text-[#888] hover:text-[#333] dark:hover:text-[#fff] transition-all"
+            className="flex items-center justify-center w-6 h-6 rounded-md transition-all"
+            style={{ color: "var(--text-muted)" }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+              e.currentTarget.style.color = "var(--text-primary)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "transparent";
+              e.currentTarget.style.color = "var(--text-muted)";
+            }}
             title="打开文件夹"
           >
             <Folder className="h-3.5 w-3.5" />
@@ -217,22 +275,38 @@ export function Sidebar() {
       </div>
 
       {/* 文件树 */}
-      <div className="flex-1 overflow-auto py-2">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden py-2">
         {!treeRoot ? (
-          <div className="flex flex-col items-center justify-center h-full gap-4 text-[#888] p-6">
-            <div className="w-12 h-12 rounded-xl bg-[#f0f0f0] dark:bg-[#2a2a2a] flex items-center justify-center">
-              <Folder className="h-6 w-6 text-[#bbb]" />
+          <div className="flex flex-col items-center justify-center h-full gap-4 p-6">
+            <div
+              className="w-12 h-12 rounded-xl flex items-center justify-center"
+              style={{ backgroundColor: "var(--hover-bg)" }}
+            >
+              <Folder
+                className="h-6 w-6"
+                style={{ color: "var(--text-muted)" }}
+              />
             </div>
             <div className="text-center space-y-2">
-              <p className="text-sm font-medium text-[#666] dark:text-[#aaa]">
+              <p
+                className="text-sm font-medium"
+                style={{ color: "var(--text-primary)" }}
+              >
                 尚未打开文件夹
               </p>
-              <p className="text-xs text-[#999]">
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                 打开一个文件夹开始管理你的笔记
               </p>
               <button
                 onClick={openFolder}
-                className="mt-2 px-4 py-1.5 text-xs font-medium text-white bg-[#0066ff] hover:bg-[#0052cc] rounded-lg transition-colors"
+                className="mt-2 px-4 py-1.5 text-xs font-medium text-white rounded-lg transition-colors"
+                style={{ backgroundColor: "var(--accent-color)" }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.opacity = "0.9";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.opacity = "1";
+                }}
               >
                 打开文件夹
               </button>
@@ -242,19 +316,35 @@ export function Sidebar() {
           <div>
             {/* 根目录 */}
             <div
-              className="flex items-center h-[30px] px-3 cursor-pointer text-[13px] font-medium text-[#333] dark:text-[#eee] hover:bg-[#f0f0f0] dark:hover:bg-[#2a2a2a] transition-all rounded-md mx-1"
+              className="flex items-center h-[30px] px-3 cursor-pointer text-[13px] font-medium rounded-md mx-1 transition-all"
+              style={{ color: "var(--text-primary)" }}
               onClick={() => {
                 if (treeRoot) {
                   toggleExpandedKey(treeRoot.key);
                 }
               }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+              }}
             >
               {expandedKeys.includes(treeRoot.key) ? (
-                <ChevronDown className="h-3 w-3 mr-1 text-[#888]" />
+                <ChevronDown
+                  className="h-3 w-3 mr-1"
+                  style={{ color: "var(--text-muted)" }}
+                />
               ) : (
-                <ChevronRight className="h-3 w-3 mr-1 text-[#888]" />
+                <ChevronRight
+                  className="h-3 w-3 mr-1"
+                  style={{ color: "var(--text-muted)" }}
+                />
               )}
-              <FolderOpen className="h-4 w-4 mr-2 text-[#f0a020]" />
+              <FolderOpen
+                className="h-4 w-4 mr-2"
+                style={{ color: "#f0a020" }}
+              />
               <span className="truncate">{treeRoot.title}</span>
             </div>
 

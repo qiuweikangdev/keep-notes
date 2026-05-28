@@ -1,21 +1,27 @@
 import { useEditorStore } from "@/store/editor.store";
-import { cn } from "@/lib/cn";
 
 export function StatusBar() {
   const { wordCount, filePath, isDirty } = useEditorStore();
 
   return (
-    <div className="flex items-center justify-between h-[28px] px-4 bg-white/80 dark:bg-[#1a1a1a]/80 backdrop-blur-sm border-t border-[#e5e5e5] dark:border-[#333] text-[11px] text-[#888] select-none">
+    <div
+      className="flex items-center justify-between h-[26px] px-4 text-[11px] select-none flex-shrink-0"
+      style={{
+        backgroundColor: "var(--bg-primary)",
+        borderTop: "1px solid var(--border-color)",
+        color: "var(--text-secondary)",
+      }}
+    >
       {/* 左侧 */}
       <div className="flex items-center gap-4">
         {filePath && (
           <>
             <span className="flex items-center gap-1.5">
               <span
-                className={cn(
-                  "w-2 h-2 rounded-full",
-                  isDirty ? "bg-[#f0a020]" : "bg-[#52c41a]",
-                )}
+                className="w-2 h-2 rounded-full"
+                style={{
+                  backgroundColor: isDirty ? "#fa8c16" : "#52c41a",
+                }}
               />
               {isDirty ? "未保存" : "已保存"}
             </span>
