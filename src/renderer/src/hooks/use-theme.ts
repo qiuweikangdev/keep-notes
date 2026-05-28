@@ -1,6 +1,11 @@
 import { useEffect, useCallback } from "react";
 import { useUIStore } from "@/store/ui.store";
-import { getThemeConfig, isDarkTheme, type ThemeName } from "@/config/themes";
+import {
+  getThemeConfig,
+  isDarkTheme,
+  themes,
+  type ThemeName,
+} from "@/config/themes";
 
 export function useTheme() {
   const { theme, setTheme } = useUIStore();
@@ -58,11 +63,18 @@ export function useTheme() {
     [setTheme],
   );
 
+  // 切换主题（在亮色和暗色之间切换）
+  const toggleTheme = useCallback(() => {
+    const newTheme = theme === "light" ? "dark" : "light";
+    setTheme(newTheme);
+  }, [theme, setTheme]);
+
   const config = getThemeConfig(theme);
 
   return {
     theme,
     setTheme: changeTheme,
+    toggleTheme,
     isDark: isDarkTheme(theme),
     config,
     milkdownTheme: config.milkdownTheme,
