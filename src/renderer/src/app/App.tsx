@@ -1,5 +1,6 @@
 import { Tooltip } from "@/components/ui/tooltip";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { useEditorStore } from "@/store/editor.store";
 import { SettingsModal } from "@/features/settings";
 import { SearchModal } from "@/features/search";
 import { HomePage } from "@/pages/home";
@@ -7,6 +8,7 @@ import { useEffect, useState, useCallback } from "react";
 
 export function App() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const { appearance } = useEditorStore();
 
   // 初始化键盘快捷键
   useKeyboardShortcuts();
@@ -35,15 +37,21 @@ export function App() {
     };
   }, [handleKeyDown]);
 
+  // 应用透明度到整个窗口
+  const windowStyle = {
+    backgroundColor: "var(--bg-primary)",
+    color: "var(--text-primary)",
+    opacity: appearance.opacity / 100,
+    height: "100vh",
+    display: "flex",
+    flexDirection: "column" as const,
+    overflow: "hidden",
+    borderRadius: "8px",
+  };
+
   return (
     <Tooltip.Provider delayDuration={300}>
-      <div
-        className="h-screen flex flex-col overflow-hidden"
-        style={{
-          backgroundColor: "var(--bg-primary)",
-          color: "var(--text-primary)",
-        }}
-      >
+      <div style={windowStyle}>
         <HomePage />
         <SettingsModal />
         <SearchModal

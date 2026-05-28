@@ -34,8 +34,86 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: var(--bg-primary);
+  background-color: transparent;
   color: var(--text-primary);
+}
+
+/* 窗口边缘拖拽调整大小 - Electron frameless window */
+.resize-handle {
+  position: fixed;
+  z-index: 9999;
+}
+
+.resize-handle-top {
+  top: 0;
+  left: 8px;
+  right: 8px;
+  height: 4px;
+  cursor: n-resize;
+  -webkit-app-region: no-drag;
+}
+
+.resize-handle-bottom {
+  bottom: 0;
+  left: 8px;
+  right: 8px;
+  height: 4px;
+  cursor: s-resize;
+  -webkit-app-region: no-drag;
+}
+
+.resize-handle-left {
+  top: 8px;
+  bottom: 8px;
+  left: 0;
+  width: 4px;
+  cursor: w-resize;
+  -webkit-app-region: no-drag;
+}
+
+.resize-handle-right {
+  top: 8px;
+  bottom: 8px;
+  right: 0;
+  width: 4px;
+  cursor: e-resize;
+  -webkit-app-region: no-drag;
+}
+
+.resize-handle-top-left {
+  top: 0;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  cursor: nw-resize;
+  -webkit-app-region: no-drag;
+}
+
+.resize-handle-top-right {
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 8px;
+  cursor: ne-resize;
+  -webkit-app-region: no-drag;
+}
+
+.resize-handle-bottom-left {
+  bottom: 0;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  cursor: sw-resize;
+  -webkit-app-region: no-drag;
+}
+
+.resize-handle-bottom-right {
+  bottom: 0;
+  right: 0;
+  width: 8px;
+  height: 8px;
+  cursor: se-resize;
+  -webkit-app-region: no-drag;
 }
 
 /* 自定义滚动条 */

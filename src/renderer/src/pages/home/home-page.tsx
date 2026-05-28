@@ -5,18 +5,39 @@ import { TitleBar } from "@/components/layout/title-bar";
 import { StatusBar } from "@/components/layout/status-bar";
 import { usePanel } from "@/hooks/use-panel";
 import { SettingsModal } from "@/features/settings";
+import { useEffect, useState } from "react";
 
 export function HomePage() {
   const { panelSize, collapsed, toggleCollapse, handleResize } = usePanel();
+  const [isMaximized, setIsMaximized] = useState(false);
+
+  // 监听窗口最大化状态
+  useEffect(() => {
+    const checkMaximized = async () => {
+      // 这里可以添加检查窗口是否最大化的逻辑
+    };
+    checkMaximized();
+  }, []);
 
   return (
     <div
-      className="flex flex-col h-screen overflow-hidden"
+      className="flex flex-col h-screen overflow-hidden relative"
       style={{
         backgroundColor: "var(--bg-primary)",
         color: "var(--text-primary)",
+        borderRadius: isMaximized ? "0" : "8px",
       }}
     >
+      {/* 窗口边缘拖拽区域 */}
+      <div className="resize-handle resize-handle-top" />
+      <div className="resize-handle resize-handle-bottom" />
+      <div className="resize-handle resize-handle-left" />
+      <div className="resize-handle resize-handle-right" />
+      <div className="resize-handle resize-handle-top-left" />
+      <div className="resize-handle resize-handle-top-right" />
+      <div className="resize-handle resize-handle-bottom-left" />
+      <div className="resize-handle resize-handle-bottom-right" />
+
       {/* 标题栏 */}
       <TitleBar collapsed={collapsed} onToggleCollapse={toggleCollapse} />
 

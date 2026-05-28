@@ -11,7 +11,9 @@ const windowConfig = {
   minHeight: 400,
   show: false,
   frame: false,
-  titleBarStyle: "hidden",
+  transparent: true,
+  resizable: true,
+  hasShadow: true,
   ...(process.platform === "linux" ? { icon } : {}),
   webPreferences: {
     preload: join(__dirname, "../preload/index.mjs"),
