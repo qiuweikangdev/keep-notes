@@ -10,29 +10,13 @@ import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Check, Palette, Github, Settings, ChevronRight } from "lucide-react";
+import { Check, Palette, Github, ChevronRight } from "lucide-react";
 
-type SettingsTab = "appearance" | "github" | "editor";
+type SettingsTab = "appearance" | "github";
 
 const settingsMenuItems = [
-  {
-    id: "appearance" as SettingsTab,
-    label: "外观",
-    icon: Palette,
-    description: "主题和界面样式",
-  },
-  {
-    id: "github" as SettingsTab,
-    label: "Github 同步",
-    icon: Github,
-    description: "Git 仓库配置",
-  },
-  {
-    id: "editor" as SettingsTab,
-    label: "编辑器",
-    icon: Settings,
-    description: "编辑器行为设置",
-  },
+  { id: "appearance" as SettingsTab, label: "外观", icon: Palette },
+  { id: "github" as SettingsTab, label: "Github 同步", icon: Github },
 ];
 
 export function SettingsModal() {
@@ -79,6 +63,7 @@ export function SettingsModal() {
       case "appearance":
         return (
           <div className="space-y-6">
+            {/* 主题选择 */}
             <div>
               <h3
                 className="text-sm font-medium mb-4"
@@ -103,7 +88,6 @@ export function SettingsModal() {
                         backgroundColor: "var(--bg-secondary)",
                       }}
                     >
-                      {/* 主题预览 */}
                       <div
                         className="w-full h-12 rounded-md overflow-hidden"
                         style={{
@@ -136,16 +120,12 @@ export function SettingsModal() {
                           </div>
                         </div>
                       </div>
-
-                      {/* 主题名称 */}
                       <span
                         className="text-xs font-medium"
                         style={{ color: "var(--text-primary)" }}
                       >
                         {themeConfig.label}
                       </span>
-
-                      {/* 选中指示器 */}
                       {isSelected && (
                         <div
                           className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center"
@@ -159,83 +139,17 @@ export function SettingsModal() {
                 })}
               </div>
             </div>
-          </div>
-        );
 
-      case "github":
-        return (
-          <form onSubmit={handleGithubSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">用户名</Label>
-              <Input
-                id="username"
-                name="username"
-                defaultValue={githubInfo.username}
-                placeholder="GitHub 用户名"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">邮箱</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                defaultValue={githubInfo.email}
-                placeholder="GitHub 邮箱"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="repoUrl">仓库地址</Label>
-              <Input
-                id="repoUrl"
-                name="repoUrl"
-                defaultValue={githubInfo.repoUrl}
-                placeholder="https://github.com/user/repo.git"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="localPath">本地路径</Label>
-              <Input
-                id="localPath"
-                name="localPath"
-                defaultValue={githubInfo.localPath}
-                placeholder="本地仓库路径"
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button type="submit" className="flex-1">
-                保存配置
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleDownload}
-                disabled={loading}
-              >
-                拉取
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleUpload}
-                disabled={loading}
-              >
-                推送
-              </Button>
-            </div>
-          </form>
-        );
-
-      case "editor":
-        return (
-          <div className="space-y-6">
             {/* 编辑器外观 */}
-            <div className="space-y-4">
+            <div
+              className="space-y-4 pt-4"
+              style={{ borderTop: "1px solid var(--border-color)" }}
+            >
               <h3
                 className="text-sm font-medium"
                 style={{ color: "var(--text-primary)" }}
               >
-                编辑器外观
+                编辑器
               </h3>
 
               {/* 字体大小 */}
@@ -342,6 +256,41 @@ export function SettingsModal() {
                   <span>120px</span>
                 </div>
               </div>
+
+              {/* 透明度 */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>透明度</Label>
+                  <span
+                    className="text-sm"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    {appearance.opacity}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="50"
+                  max="100"
+                  step="5"
+                  value={appearance.opacity}
+                  onChange={(e) =>
+                    setAppearance({ opacity: Number(e.target.value) })
+                  }
+                  className="w-full h-2 rounded-lg appearance-none cursor-pointer"
+                  style={{
+                    backgroundColor: "var(--bg-secondary)",
+                    accentColor: "var(--accent-color)",
+                  }}
+                />
+                <div
+                  className="flex justify-between text-xs"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  <span>50%</span>
+                  <span>100%</span>
+                </div>
+              </div>
             </div>
 
             {/* 目录设置 */}
@@ -353,7 +302,7 @@ export function SettingsModal() {
                 className="text-sm font-medium"
                 style={{ color: "var(--text-primary)" }}
               >
-                目录设置
+                目录
               </h3>
               <div className="flex items-center justify-between">
                 <Label>目录颜色</Label>
@@ -389,6 +338,70 @@ export function SettingsModal() {
               </div>
             </div>
           </div>
+        );
+
+      case "github":
+        return (
+          <form onSubmit={handleGithubSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="username">用户名</Label>
+              <Input
+                id="username"
+                name="username"
+                defaultValue={githubInfo.username}
+                placeholder="GitHub 用户名"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">邮箱</Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                defaultValue={githubInfo.email}
+                placeholder="GitHub 邮箱"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="repoUrl">仓库地址</Label>
+              <Input
+                id="repoUrl"
+                name="repoUrl"
+                defaultValue={githubInfo.repoUrl}
+                placeholder="https://github.com/user/repo.git"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="localPath">本地路径</Label>
+              <Input
+                id="localPath"
+                name="localPath"
+                defaultValue={githubInfo.localPath}
+                placeholder="本地仓库路径"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button type="submit" className="flex-1">
+                保存配置
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleDownload}
+                disabled={loading}
+              >
+                拉取
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleUpload}
+                disabled={loading}
+              >
+                推送
+              </Button>
+            </div>
+          </form>
         );
     }
   };
@@ -443,12 +456,10 @@ export function SettingsModal() {
                   }}
                 >
                   <Icon className="h-4 w-4 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium">{item.label}</div>
-                  </div>
+                  <span className="text-sm font-medium">{item.label}</span>
                   {isActive && (
                     <ChevronRight
-                      className="h-3 w-3 flex-shrink-0"
+                      className="h-3 w-3 flex-shrink-0 ml-auto"
                       style={{ color: "var(--accent-color)" }}
                     />
                   )}

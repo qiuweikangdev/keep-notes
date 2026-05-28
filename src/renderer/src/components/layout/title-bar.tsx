@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { useUIStore } from "@/store/ui.store";
 import { useTheme } from "@/hooks/use-theme";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { SearchModal } from "@/features/search";
 
 interface TitleBarProps {
@@ -23,6 +23,7 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
   const { setSettingsOpen } = useUIStore();
   const { theme, toggleTheme } = useTheme();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const titleBarRef = useRef<HTMLDivElement>(null);
 
   // 处理搜索快捷键
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -41,25 +42,30 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
     };
   }, [handleKeyDown]);
 
+  // 应用拖拽样式
+  useEffect(() => {
+    if (titleBarRef.current) {
+      titleBarRef.current.style.webkitAppRegion = "drag";
+      // 为所有按钮设置 no-drag
+      const buttons = titleBarRef.current.querySelectorAll("button");
+      buttons.forEach((btn) => {
+        btn.style.webkitAppRegion = "no-drag";
+      });
+    }
+  }, []);
+
   return (
     <>
       <div
+        ref={titleBarRef}
         className="flex items-center h-[44px] select-none"
         style={{
           backgroundColor: "var(--bg-primary)",
           borderBottom: "1px solid var(--border-color)",
-          // @ts-expect-error -webkit-app-region is valid CSS for Electron
-          WebkitAppRegion: "drag",
         }}
       >
         {/* 左侧：侧边栏切换 + Logo */}
-        <div
-          className="flex items-center gap-3 pl-4"
-          style={{
-            // @ts-expect-error -webkit-app-region is valid CSS for Electron
-            WebkitAppRegion: "no-drag",
-          }}
-        >
+        <div className="flex items-center gap-3 pl-4">
           <button
             onClick={onToggleCollapse}
             className="flex items-center justify-center w-7 h-7 rounded-lg transition-all"
@@ -99,13 +105,7 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
         </div>
 
         {/* 中间：搜索栏 */}
-        <div
-          className="flex-1 flex justify-center px-4"
-          style={{
-            // @ts-expect-error -webkit-app-region is valid CSS for Electron
-            WebkitAppRegion: "no-drag",
-          }}
-        >
+        <div className="flex-1 flex justify-center px-4">
           <button
             onClick={() => setIsSearchOpen(true)}
             className="flex items-center gap-2 h-[30px] w-[320px] max-w-[50%] px-3 rounded-lg text-xs transition-all"
@@ -138,13 +138,7 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
         </div>
 
         {/* 右侧：主题切换 + 窗口控制 */}
-        <div
-          className="flex items-center gap-1 pr-2"
-          style={{
-            // @ts-expect-error -webkit-app-region is valid CSS for Electron
-            WebkitAppRegion: "no-drag",
-          }}
-        >
+        <div className="flex items-center gap-1 pr-2">
           <button
             onClick={toggleTheme}
             className="flex items-center justify-center w-8 h-8 rounded-lg transition-all"

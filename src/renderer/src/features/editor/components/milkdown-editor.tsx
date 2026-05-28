@@ -111,6 +111,7 @@ function MilkdownEditorInner({ content, onChange }: MilkdownEditorProps) {
   // 应用编辑器外观设置
   const editorStyle = {
     backgroundColor: "var(--bg-primary)",
+    opacity: appearance.opacity / 100,
     "--editor-font-size": `${appearance.fontSize}px`,
     "--editor-line-height": appearance.lineHeight,
     "--editor-padding": `${appearance.padding}px`,
