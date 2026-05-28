@@ -14,6 +14,9 @@ import "@milkdown/crepe/theme/frame-dark.css";
 import "@milkdown/crepe/theme/nord.css";
 import "@milkdown/crepe/theme/nord-dark.css";
 
+// 覆盖 Crepe 主题 token 颜色（必须在主题 CSS 之后导入）
+import "@/styles/milkdown-overrides.css";
+
 interface MilkdownEditorProps {
   content: string;
   onChange?: (content: string) => void;

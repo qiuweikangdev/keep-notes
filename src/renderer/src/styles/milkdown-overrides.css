@@ -1,0 +1,138 @@
+/* Milkdown Crepe 语法高亮 token 覆盖 */
+/* 必须在 Crepe 主题 CSS 之后加载以确保优先级 */
+
+/* 代码块容器 */
+.milkdown .editor pre {
+  background-color: var(--bg-secondary) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+.milkdown .editor pre code {
+  background-color: transparent !important;
+  color: var(--text-primary) !important;
+}
+
+/* CodeMirror token 覆盖 */
+.milkdown .cm-keyword,
+.milkdown .cm-meta,
+.milkdown .cm-tag {
+  color: var(--accent-color) !important;
+}
+
+.milkdown .cm-string,
+.milkdown .cm-string-2 {
+  color: var(--text-secondary) !important;
+}
+
+.milkdown .cm-number {
+  color: var(--accent-color) !important;
+}
+
+.milkdown .cm-property {
+  color: var(--text-primary) !important;
+}
+
+.milkdown .cm-operator {
+  color: var(--text-secondary) !important;
+}
+
+.milkdown .cm-comment {
+  color: var(--text-muted) !important;
+}
+
+.milkdown .cm-variable,
+.milkdown .cm-variable-2,
+.milkdown .cm-variable-3 {
+  color: var(--text-primary) !important;
+}
+
+.milkdown .cm-type {
+  color: var(--accent-color) !important;
+}
+
+.milkdown .cm-builtin {
+  color: var(--accent-color) !important;
+}
+
+.milkdown .cm-atom {
+  color: var(--accent-color) !important;
+}
+
+.milkdown .cm-def {
+  color: var(--text-primary) !important;
+}
+
+.milkdown .cm-attribute {
+  color: var(--accent-color) !important;
+}
+
+.milkdown .cm-qualifier {
+  color: var(--text-secondary) !important;
+}
+
+.milkdown .cm-regexp {
+  color: var(--text-secondary) !important;
+}
+
+.milkdown .cm-link {
+  color: var(--accent-color) !important;
+}
+
+.milkdown .cm-invalidchar {
+  color: var(--text-muted) !important;
+}
+
+/* 代码块内嵌 span token */
+.milkdown .editor pre span[class*="cm-"] {
+  color: var(--text-primary) !important;
+}
+
+.milkdown .editor pre .cm-property {
+  color: var(--text-primary) !important;
+}
+
+.milkdown .editor pre .cm-string {
+  color: var(--text-secondary) !important;
+}
+
+.milkdown .editor pre .cm-number {
+  color: var(--accent-color) !important;
+}
+
+.milkdown .editor pre .cm-keyword {
+  color: var(--accent-color) !important;
+}
+
+.milkdown .editor pre .cm-punctuation {
+  color: var(--text-muted) !important;
+}
+
+/* 行号 */
+.milkdown .cm-lineNumbers .cm-gutterElement {
+  color: var(--text-muted) !important;
+}
+
+/* 活动行 */
+.milkdown .cm-activeLine {
+  background-color: var(--hover-bg) !important;
+}
+
+/* 选中 */
+.milkdown .cm-selectionBackground {
+  background-color: rgba(0, 102, 255, 0.15) !important;
+}
+
+.dark .milkdown .cm-selectionBackground,
+.nord .milkdown .cm-selectionBackground,
+.dracula .milkdown .cm-selectionBackground,
+.solarized .milkdown .cm-selectionBackground {
+  background-color: rgba(77, 159, 255, 0.25) !important;
+}
+
+/* 暗色模式代码块背景 */
+.dark .milkdown .editor pre,
+.nord .milkdown .editor pre,
+.dracula .milkdown .editor pre,
+.solarized .milkdown .editor pre {
+  background-color: var(--bg-tertiary) !important;
+}

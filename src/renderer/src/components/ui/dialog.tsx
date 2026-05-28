@@ -38,7 +38,7 @@ const DialogContent = React.forwardRef<
   <Dialog.Portal>
     <Dialog.Overlay
       className="fixed inset-0 z-50"
-      style={{ backgroundColor: "rgba(0, 0, 0, 0.8)" }}
+      style={{ backgroundColor: "rgba(0, 0, 0, 0.4)" }}
     />
     <Dialog.Content
       ref={ref}

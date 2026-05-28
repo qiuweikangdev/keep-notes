@@ -10,13 +10,61 @@ import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Check, Palette, Github, ChevronRight } from "lucide-react";
+import { ThemeSelector } from "@/components/ui/theme-selector";
+import { ColorPicker } from "@/components/ui/color-picker";
+import { SettingRow } from "@/components/ui/setting-row";
+import { FontSelector } from "@/components/ui/font-selector";
+import { Palette, Github, ChevronRight } from "lucide-react";
 
 type SettingsTab = "appearance" | "github";
 
 const settingsMenuItems = [
   { id: "appearance" as SettingsTab, label: "外观", icon: Palette },
   { id: "github" as SettingsTab, label: "Github 同步", icon: Github },
+];
+
+const fontFamilyOptions = [
+  {
+    label: "系统字体",
+    value: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  },
+  {
+    label: "SF Pro",
+    value: '"SF Pro Display", -apple-system, BlinkMacSystemFont, sans-serif',
+  },
+  {
+    label: "Inter",
+    value: '"Inter", -apple-system, BlinkMacSystemFont, sans-serif',
+  },
+  {
+    label: "Noto Sans",
+    value: '"Noto Sans SC", -apple-system, BlinkMacSystemFont, sans-serif',
+  },
+  {
+    label: "Source Han Sans",
+    value:
+      '"Source Han Sans SC", -apple-system, BlinkMacSystemFont, sans-serif',
+  },
+];
+
+const codeFontOptions = [
+  {
+    label: "SF Mono",
+    value: '"SF Mono", ui-monospace, "Cascadia Code", Consolas, monospace',
+  },
+  {
+    label: "JetBrains Mono",
+    value: '"JetBrains Mono", ui-monospace, Consolas, monospace',
+  },
+  {
+    label: "Fira Code",
+    value: '"Fira Code", "Cascadia Code", Consolas, monospace',
+  },
+  {
+    label: "Cascadia Code",
+    value: '"Cascadia Code", "Fira Code", Consolas, monospace',
+  },
+  { label: "Consolas", value: 'Consolas, "Courier New", monospace' },
 ];
 
 export function SettingsModal() {
@@ -58,275 +106,237 @@ export function SettingsModal() {
     }
   };
 
-  // 渲染滑块控件
-  const renderSlider = (
-    label: string,
-    value: number,
-    min: number,
-    max: number,
-    step: number,
-    unit: string,
-    onChange: (value: number) => void,
-  ) => (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <Label>{label}</Label>
-        <span
-          className="text-sm font-medium px-2 py-0.5 rounded"
-          style={{
-            backgroundColor: "var(--bg-tertiary)",
-            color: "var(--accent-color)",
-          }}
-        >
-          {value}
-          {unit}
-        </span>
-      </div>
-      <div className="relative">
-        <input
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
-          className="w-full h-2 rounded-lg appearance-none cursor-pointer"
-          style={{
-            background: `linear-gradient(to right, var(--accent-color) 0%, var(--accent-color) ${((value - min) / (max - min)) * 100}%, var(--bg-secondary) ${((value - min) / (max - min)) * 100}%, var(--bg-secondary) 100%)`,
-          }}
-        />
-      </div>
-      <div
-        className="flex justify-between text-xs"
-        style={{ color: "var(--text-muted)" }}
-      >
-        <span>
-          {min}
-          {unit}
-        </span>
-        <span>
-          {max}
-          {unit}
-        </span>
-      </div>
-    </div>
-  );
-
   const renderContent = () => {
     switch (activeTab) {
       case "appearance":
         return (
-          <div className="space-y-8">
+          <div className="space-y-0">
             {/* 主题选择 */}
-            <div>
-              <h3
-                className="text-sm font-semibold mb-4 flex items-center gap-2"
-                style={{ color: "var(--text-primary)" }}
-              >
-                <Palette
-                  className="h-4 w-4"
-                  style={{ color: "var(--accent-color)" }}
-                />
-                主题
-              </h3>
-              <div className="grid grid-cols-5 gap-3">
-                {(Object.keys(themes) as ThemeName[]).map((themeName) => {
-                  const themeConfig = themes[themeName];
-                  const isSelected = theme === themeName;
+            <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+              <div className="flex items-center justify-between py-3.5">
+                <span
+                  className="text-sm"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  主题
+                </span>
+                <div className="flex items-center gap-2">
+                  <ThemeSelector
+                    value={theme}
+                    onChange={(val) => setTheme(val)}
+                  />
+                </div>
+              </div>
+            </div>
 
-                  return (
-                    <button
-                      key={themeName}
-                      onClick={() => setTheme(themeName)}
-                      className="relative flex flex-col items-center gap-2 p-3 rounded-xl transition-all hover:scale-105"
+            {/* 颜色设置 */}
+            <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+              <div className="py-1">
+                <div className="flex items-center justify-between py-3.5">
+                  <span
+                    className="text-sm"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    强调色
+                  </span>
+                  <ColorPicker
+                    value={themes[theme].colors.accentColor}
+                    onChange={(color) => {
+                      // Update accent color in theme
+                    }}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between py-3.5">
+                  <span
+                    className="text-sm"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    背景
+                  </span>
+                  <ColorPicker
+                    value={themes[theme].colors.bgPrimary}
+                    onChange={(color) => {
+                      // Update background color in theme
+                    }}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between py-3.5">
+                  <span
+                    className="text-sm"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    前景
+                  </span>
+                  <ColorPicker
+                    value={themes[theme].colors.textPrimary}
+                    onChange={(color) => {
+                      // Update foreground color in theme
+                    }}
+                  />
+                </div>
+
+                <SettingRow label="UI 字体">
+                  <FontSelector
+                    value={appearance.uiFont || fontFamilyOptions[0].value}
+                    onChange={(val) => setAppearance({ uiFont: val } as any)}
+                    options={fontFamilyOptions}
+                  />
+                </SettingRow>
+
+                <SettingRow label="代码字体">
+                  <FontSelector
+                    value={appearance.codeFont || codeFontOptions[0].value}
+                    onChange={(val) => setAppearance({ codeFont: val } as any)}
+                    options={codeFontOptions}
+                  />
+                </SettingRow>
+              </div>
+            </div>
+
+            {/* UI 字号 */}
+            <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+              <div className="py-1">
+                <SettingRow
+                  label="UI 字号"
+                  description="调整界面使用的基准字号"
+                >
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min="10"
+                      max="20"
+                      value={appearance.uiFontSize || 13}
+                      onChange={(e) =>
+                        setAppearance({
+                          uiFontSize: Number(e.target.value),
+                        } as any)
+                      }
+                      className="w-14 h-9 px-3 text-sm rounded-lg text-center"
                       style={{
-                        border: isSelected
-                          ? "2px solid var(--accent-color)"
-                          : "2px solid var(--border-color)",
-                        backgroundColor: isSelected
-                          ? "var(--active-bg)"
-                          : "var(--bg-secondary)",
-                        boxShadow: isSelected
-                          ? "0 4px 12px rgba(0, 0, 0, 0.15)"
-                          : "none",
+                        backgroundColor: "var(--bg-tertiary)",
+                        border: "1px solid var(--border-color)",
+                        color: "var(--text-primary)",
+                        outline: "none",
                       }}
+                    />
+                    <span
+                      className="text-sm"
+                      style={{ color: "var(--text-muted)" }}
                     >
-                      <div
-                        className="w-full h-12 rounded-lg overflow-hidden"
-                        style={{
-                          backgroundColor: themeConfig.preview.bg,
-                          border: "1px solid rgba(0,0,0,0.1)",
-                        }}
-                      >
-                        <div className="flex h-full">
-                          <div
-                            className="w-1/3 h-full"
-                            style={{
-                              backgroundColor: themeConfig.preview.sidebar,
-                            }}
-                          />
-                          <div className="flex-1 p-1.5">
-                            <div
-                              className="w-3/4 h-1.5 rounded-full mb-1"
-                              style={{
-                                backgroundColor: themeConfig.preview.text,
-                                opacity: 0.6,
-                              }}
-                            />
-                            <div
-                              className="w-1/2 h-1.5 rounded-full"
-                              style={{
-                                backgroundColor: themeConfig.preview.text,
-                                opacity: 0.3,
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <span
-                        className="text-xs font-medium"
-                        style={{
-                          color: isSelected
-                            ? "var(--accent-color)"
-                            : "var(--text-primary)",
-                        }}
-                      >
-                        {themeConfig.label}
-                      </span>
-                      {isSelected && (
-                        <div
-                          className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center"
-                          style={{
-                            backgroundColor: "var(--accent-color)",
-                            boxShadow: "0 2px 4px rgba(0, 0, 0, 0.2)",
-                          }}
-                        >
-                          <Check className="w-3 h-3 text-white" />
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+                      px
+                    </span>
+                  </div>
+                </SettingRow>
 
-            {/* 编辑器外观 */}
-            <div className="space-y-5">
-              <h3
-                className="text-sm font-semibold flex items-center gap-2"
-                style={{ color: "var(--text-primary)" }}
-              >
-                <svg
-                  className="h-4 w-4"
-                  style={{ color: "var(--accent-color)" }}
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
+                <SettingRow
+                  label="代码字体大小"
+                  description="调整代码使用的基准字号"
                 >
-                  <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-                </svg>
-                编辑器
-              </h3>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min="10"
+                      max="20"
+                      value={appearance.fontSize}
+                      onChange={(e) =>
+                        setAppearance({ fontSize: Number(e.target.value) })
+                      }
+                      className="w-14 h-9 px-3 text-sm rounded-lg text-center"
+                      style={{
+                        backgroundColor: "var(--bg-tertiary)",
+                        border: "1px solid var(--border-color)",
+                        color: "var(--text-primary)",
+                        outline: "none",
+                      }}
+                    />
+                    <span
+                      className="text-sm"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      px
+                    </span>
+                  </div>
+                </SettingRow>
 
-              {renderSlider(
-                "字体大小",
-                appearance.fontSize,
-                12,
-                24,
-                1,
-                "px",
-                (val) => setAppearance({ fontSize: val }),
-              )}
+                <SettingRow label="行高" description="调整编辑器行高">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min="1.2"
+                      max="2.5"
+                      step="0.1"
+                      value={appearance.lineHeight}
+                      onChange={(e) =>
+                        setAppearance({ lineHeight: Number(e.target.value) })
+                      }
+                      className="w-32 h-1 rounded-full appearance-none cursor-pointer"
+                      style={{
+                        background: `linear-gradient(to right, var(--accent-color) 0%, var(--accent-color) ${((appearance.lineHeight - 1.2) / 1.3) * 100}%, var(--bg-tertiary) ${((appearance.lineHeight - 1.2) / 1.3) * 100}%, var(--bg-tertiary) 100%)`,
+                        accentColor: "var(--accent-color)",
+                      }}
+                    />
+                    <span
+                      className="text-sm w-8 text-right"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      {appearance.lineHeight}
+                    </span>
+                  </div>
+                </SettingRow>
 
-              {renderSlider(
-                "行高",
-                appearance.lineHeight,
-                1.2,
-                2.5,
-                0.1,
-                "",
-                (val) => setAppearance({ lineHeight: val }),
-              )}
+                <SettingRow label="编辑区内边距" description="调整内容左右边距">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min="20"
+                      max="120"
+                      step="10"
+                      value={appearance.padding}
+                      onChange={(e) =>
+                        setAppearance({ padding: Number(e.target.value) })
+                      }
+                      className="w-32 h-1 rounded-full appearance-none cursor-pointer"
+                      style={{
+                        background: `linear-gradient(to right, var(--accent-color) 0%, var(--accent-color) ${((appearance.padding - 20) / 100) * 100}%, var(--bg-tertiary) ${((appearance.padding - 20) / 100) * 100}%, var(--bg-tertiary) 100%)`,
+                        accentColor: "var(--accent-color)",
+                      }}
+                    />
+                    <span
+                      className="text-sm w-8 text-right"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      {appearance.padding}
+                    </span>
+                  </div>
+                </SettingRow>
 
-              {renderSlider(
-                "编辑区内边距",
-                appearance.padding,
-                20,
-                120,
-                10,
-                "px",
-                (val) => setAppearance({ padding: val }),
-              )}
-
-              {renderSlider(
-                "透明度",
-                appearance.opacity,
-                0,
-                100,
-                1,
-                "%",
-                (val) => setAppearance({ opacity: val }),
-              )}
-            </div>
-
-            {/* 目录设置 */}
-            <div className="space-y-4">
-              <h3
-                className="text-sm font-semibold flex items-center gap-2"
-                style={{ color: "var(--text-primary)" }}
-              >
-                <svg
-                  className="h-4 w-4"
-                  style={{ color: "var(--accent-color)" }}
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                </svg>
-                目录
-              </h3>
-
-              <div
-                className="flex items-center justify-between p-3 rounded-lg"
-                style={{ backgroundColor: "var(--bg-tertiary)" }}
-              >
-                <Label>目录颜色</Label>
-                <select
-                  className="p-2 rounded-md text-sm"
-                  style={{
-                    backgroundColor: "var(--bg-primary)",
-                    border: "1px solid var(--border-color)",
-                    color: "var(--text-primary)",
-                  }}
-                  value={dirSettings.dirColor}
-                  onChange={(e) =>
-                    setDirSettings({
-                      dirColor: e.target.value as "themeColor" | "multiColor",
-                    })
-                  }
-                >
-                  <option value="themeColor">跟随主题</option>
-                  <option value="multiColor">多彩颜色</option>
-                </select>
-              </div>
-
-              <div
-                className="flex items-center justify-between p-3 rounded-lg"
-                style={{ backgroundColor: "var(--bg-tertiary)" }}
-              >
-                <Label>显示图标</Label>
-                <input
-                  type="checkbox"
-                  checked={dirSettings.showIcon}
-                  onChange={(e) =>
-                    setDirSettings({ showIcon: e.target.checked })
-                  }
-                  className="h-4 w-4 rounded"
-                  style={{ accentColor: "var(--accent-color)" }}
-                />
+                <SettingRow label="透明度" description="调整编辑区透明度">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min="20"
+                      max="100"
+                      step="1"
+                      value={appearance.opacity}
+                      onChange={(e) =>
+                        setAppearance({ opacity: Number(e.target.value) })
+                      }
+                      className="w-32 h-1 rounded-full appearance-none cursor-pointer"
+                      style={{
+                        background: `linear-gradient(to right, var(--accent-color) 0%, var(--accent-color) ${((appearance.opacity - 20) / 80) * 100}%, var(--bg-tertiary) ${((appearance.opacity - 20) / 80) * 100}%, var(--bg-tertiary) 100%)`,
+                        accentColor: "var(--accent-color)",
+                      }}
+                    />
+                    <span
+                      className="text-sm w-10 text-right"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      {appearance.opacity}%
+                    </span>
+                  </div>
+                </SettingRow>
               </div>
             </div>
           </div>
@@ -400,34 +410,29 @@ export function SettingsModal() {
 
   return (
     <Dialog.Root open={isSettingsOpen} onOpenChange={setSettingsOpen}>
-      <DialogContent className="sm:max-w-[700px] sm:max-h-[550px] overflow-hidden">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[680px] sm:max-h-[640px] overflow-hidden p-0">
+        <DialogHeader className="px-8 pt-8 pb-0">
           <Dialog.Title style={{ color: "var(--text-primary)" }}>
             设置
           </Dialog.Title>
         </DialogHeader>
 
-        <div
-          className="flex gap-0 -mx-6 -mb-6 overflow-hidden"
-          style={{ height: "450px" }}
-        >
+        <div className="flex gap-0 overflow-hidden" style={{ height: "540px" }}>
           {/* 左侧导航 */}
           <div
-            className="w-[180px] flex-shrink-0 py-3 overflow-y-auto"
+            className="w-[220px] flex-shrink-0 py-4 px-2 overflow-y-auto"
             style={{
-              backgroundColor: "var(--bg-secondary)",
               borderRight: "1px solid var(--border-color)",
             }}
           >
             {settingsMenuItems.map((item) => {
               const isActive = activeTab === item.id;
               const Icon = item.icon;
-
               return (
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all mx-1 rounded-lg"
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all rounded-lg mx-1"
                   style={{
                     backgroundColor: isActive
                       ? "var(--active-bg)"
@@ -438,14 +443,12 @@ export function SettingsModal() {
                     width: "calc(100% - 8px)",
                   }}
                   onMouseEnter={(e) => {
-                    if (!isActive) {
+                    if (!isActive)
                       e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                    }
                   }}
                   onMouseLeave={(e) => {
-                    if (!isActive) {
+                    if (!isActive)
                       e.currentTarget.style.backgroundColor = "transparent";
-                    }
                   }}
                 >
                   <Icon className="h-4 w-4 flex-shrink-0" />
@@ -462,28 +465,7 @@ export function SettingsModal() {
           </div>
 
           {/* 右侧内容 */}
-          <div className="flex-1 p-6 overflow-y-auto">
-            {/* 面包屑 */}
-            <div
-              className="flex items-center gap-2 mb-6 pb-3"
-              style={{ borderBottom: "1px solid var(--border-color)" }}
-            >
-              <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                设置
-              </span>
-              <ChevronRight
-                className="h-3 w-3"
-                style={{ color: "var(--text-muted)" }}
-              />
-              <span
-                className="text-xs font-semibold"
-                style={{ color: "var(--text-primary)" }}
-              >
-                {settingsMenuItems.find((item) => item.id === activeTab)?.label}
-              </span>
-            </div>
-
-            {/* 内容区域 */}
+          <div className="flex-1 overflow-y-auto px-6 py-4">
             {renderContent()}
           </div>
         </div>
