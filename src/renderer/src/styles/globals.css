@@ -87,12 +87,12 @@ body {
 /* Milkdown 编辑器内容区域 */
 .milkdown .editor {
   min-height: calc(100vh - 200px);
-  padding: 40px 60px 120px;
+  padding: 40px var(--editor-padding, 60px) 120px;
   outline: none;
   max-width: 860px;
   margin: 0 auto;
-  font-size: 16px;
-  line-height: 1.8;
+  font-size: var(--editor-font-size, 16px);
+  line-height: var(--editor-line-height, 1.8);
   color: var(--text-primary) !important;
 }
 

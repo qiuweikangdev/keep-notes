@@ -48,11 +48,18 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
         style={{
           backgroundColor: "var(--bg-primary)",
           borderBottom: "1px solid var(--border-color)",
-          backdropFilter: "blur(8px)",
+          // @ts-expect-error -webkit-app-region is valid CSS for Electron
+          WebkitAppRegion: "drag",
         }}
       >
         {/* 左侧：侧边栏切换 + Logo */}
-        <div className="flex items-center gap-3 pl-4">
+        <div
+          className="flex items-center gap-3 pl-4"
+          style={{
+            // @ts-expect-error -webkit-app-region is valid CSS for Electron
+            WebkitAppRegion: "no-drag",
+          }}
+        >
           <button
             onClick={onToggleCollapse}
             className="flex items-center justify-center w-7 h-7 rounded-lg transition-all"
@@ -92,7 +99,13 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
         </div>
 
         {/* 中间：搜索栏 */}
-        <div className="flex-1 flex justify-center px-4">
+        <div
+          className="flex-1 flex justify-center px-4"
+          style={{
+            // @ts-expect-error -webkit-app-region is valid CSS for Electron
+            WebkitAppRegion: "no-drag",
+          }}
+        >
           <button
             onClick={() => setIsSearchOpen(true)}
             className="flex items-center gap-2 h-[30px] w-[320px] max-w-[50%] px-3 rounded-lg text-xs transition-all"
@@ -125,7 +138,13 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
         </div>
 
         {/* 右侧：主题切换 + 窗口控制 */}
-        <div className="flex items-center gap-1 pr-2">
+        <div
+          className="flex items-center gap-1 pr-2"
+          style={{
+            // @ts-expect-error -webkit-app-region is valid CSS for Electron
+            WebkitAppRegion: "no-drag",
+          }}
+        >
           <button
             onClick={toggleTheme}
             className="flex items-center justify-center w-8 h-8 rounded-lg transition-all"

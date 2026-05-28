@@ -20,7 +20,7 @@ interface MilkdownEditorProps {
 }
 
 function MilkdownEditorInner({ content, onChange }: MilkdownEditorProps) {
-  const { setWordCount, setDirty } = useEditorStore();
+  const { setWordCount, setDirty, appearance } = useEditorStore();
   const { milkdownTheme } = useTheme();
   const [loading, setLoading] = useState(true);
   const crepeRef = useRef<Crepe | null>(null);
@@ -108,10 +108,18 @@ function MilkdownEditorInner({ content, onChange }: MilkdownEditorProps) {
     }
   };
 
+  // 应用编辑器外观设置
+  const editorStyle = {
+    backgroundColor: "var(--bg-primary)",
+    "--editor-font-size": `${appearance.fontSize}px`,
+    "--editor-line-height": appearance.lineHeight,
+    "--editor-padding": `${appearance.padding}px`,
+  } as React.CSSProperties;
+
   return (
     <div
       className={`h-full overflow-y-auto overflow-x-hidden ${getThemeClass()}`}
-      style={{ backgroundColor: "var(--bg-primary)" }}
+      style={editorStyle}
     >
       {loading && (
         <div className="flex items-center justify-center h-32">
