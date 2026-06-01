@@ -146,13 +146,21 @@ export const TreeNode = memo(function TreeNode({
   }, [isMarkdown, node.key, openFile, setSelectedKey]);
 
   const handleStartCreateFile = useCallback(() => {
-    if (!isFolder) return;
-    onCreateInFolder?.(node.key, "file", level + 1);
+    if (isFolder) {
+      onCreateInFolder?.(node.key, "file", level + 1);
+    } else {
+      const parentKey = node.key.substring(0, node.key.lastIndexOf("/"));
+      onCreateInFolder?.(parentKey, "file", level);
+    }
   }, [isFolder, node.key, level, onCreateInFolder]);
 
   const handleStartCreateFolder = useCallback(() => {
-    if (!isFolder) return;
-    onCreateInFolder?.(node.key, "folder", level + 1);
+    if (isFolder) {
+      onCreateInFolder?.(node.key, "folder", level + 1);
+    } else {
+      const parentKey = node.key.substring(0, node.key.lastIndexOf("/"));
+      onCreateInFolder?.(parentKey, "folder", level);
+    }
   }, [isFolder, node.key, level, onCreateInFolder]);
 
   const doCreate = useCallback(async () => {
@@ -508,55 +516,6 @@ export const TreeNode = memo(function TreeNode({
                   {node.title}
                 </span>
               )}
-
-              {isHovered && !isRenaming && !isCreatingHere ? (
-                <div className="absolute right-[4px] top-0 bottom-0 z-10 flex items-center gap-[2px]">
-                  {isFolder ? (
-                    <button
-                      type="button"
-                      className="flex h-[18px] w-[18px] items-center justify-center rounded-[3px] hover:bg-[var(--bg-tertiary)]"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleStartCreateFile();
-                      }}
-                      title="新建文件"
-                    >
-                      <Plus
-                        className="h-3 w-3"
-                        style={{ color: "var(--text-muted)" }}
-                      />
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="flex h-[18px] w-[18px] items-center justify-center rounded-[3px] hover:bg-[var(--bg-tertiary)]"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleStartRename();
-                    }}
-                    title="重命名"
-                  >
-                    <Pencil
-                      className="h-3 w-3"
-                      style={{ color: "var(--text-muted)" }}
-                    />
-                  </button>
-                  <button
-                    type="button"
-                    className="flex h-[18px] w-[18px] items-center justify-center rounded-[3px] hover:bg-[var(--bg-tertiary)]"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete();
-                    }}
-                    title="删除"
-                  >
-                    <Trash2
-                      className="h-3 w-3"
-                      style={{ color: "var(--text-muted)" }}
-                    />
-                  </button>
-                </div>
-              ) : null}
             </div>
           </div>
         </ContextMenu.Trigger>
@@ -572,23 +531,19 @@ export const TreeNode = memo(function TreeNode({
               </ContextMenu.Item>
             ) : null}
 
-            {isFolder ? (
-              <>
-                <ContextMenu.Item
-                  className={MENU_ITEM_CLASS}
-                  onClick={handleStartCreateFile}
-                >
-                  <Plus className="h-4 w-4" /> 新建文件
-                </ContextMenu.Item>
-                <ContextMenu.Item
-                  className={MENU_ITEM_CLASS}
-                  onClick={handleStartCreateFolder}
-                >
-                  <FolderPlus className="h-4 w-4" /> 新建文件夹
-                </ContextMenu.Item>
-                <ContextMenu.Separator className={MENU_SEPARATOR_CLASS} />
-              </>
-            ) : null}
+            <ContextMenu.Item
+              className={MENU_ITEM_CLASS}
+              onClick={handleStartCreateFile}
+            >
+              <Plus className="h-4 w-4" /> 新建文件
+            </ContextMenu.Item>
+            <ContextMenu.Item
+              className={MENU_ITEM_CLASS}
+              onClick={handleStartCreateFolder}
+            >
+              <FolderPlus className="h-4 w-4" /> 新建文件夹
+            </ContextMenu.Item>
+            <ContextMenu.Separator className={MENU_SEPARATOR_CLASS} />
 
             <ContextMenu.Item
               className={MENU_ITEM_CLASS}
