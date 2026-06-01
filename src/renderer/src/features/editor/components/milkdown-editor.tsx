@@ -40,15 +40,12 @@ function MilkdownEditorInner({ content, onChange }: MilkdownEditorProps) {
         [Crepe.Feature.Table]: true,
         [Crepe.Feature.Toolbar]: true,
         [Crepe.Feature.Cursor]: true,
-        [Crepe.Feature.Placeholder]: true,
+        [Crepe.Feature.Placeholder]: false,
         [Crepe.Feature.Latex]: false,
         [Crepe.Feature.TopBar]: false,
       },
       featureConfigs: {
-        [Crepe.Feature.Placeholder]: {
-          text: "开始书写...",
-          mode: "doc",
-        },
+        [Crepe.Feature.Placeholder]: false,
         [Crepe.Feature.LinkTooltip]: {
           inputPlaceholder: "粘贴链接...",
         },
