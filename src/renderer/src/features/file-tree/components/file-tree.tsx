@@ -1,19 +1,10 @@
-import {
-  useState,
-  useCallback,
-  useMemo,
-  useRef,
-  useEffect,
-  type KeyboardEvent,
-} from "react";
+import { useState, useCallback, useMemo, type KeyboardEvent } from "react";
 import {
   FolderOpen,
   Plus,
   FolderPlus,
   Search,
   X,
-  File,
-  Folder,
   ExternalLink,
 } from "lucide-react";
 import { useTreeStore } from "@/store/tree.store";
@@ -22,7 +13,6 @@ import { TreeNode } from "./tree-node";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ContextMenu } from "@/components/ui/context-menu";
-import { CodeResult } from "@/types";
 import type { TreeNode as TreeNodeType } from "@/types";
 
 const MENU_CONTENT_CLASS =
@@ -31,79 +21,33 @@ const MENU_ITEM_CLASS =
   "flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-[13px] outline-none data-[highlighted]:bg-[var(--hover-bg)]";
 const MENU_SEPARATOR_CLASS = "my-1 h-px bg-[var(--border-color)]";
 
+interface CreatingInfo {
+  type: "file" | "folder";
+  parentKey: string;
+  level: number;
+}
+
 export function FileTree() {
-  const { treeData, treeRoot, setTreeData } = useTreeStore();
-  const { openFolder, createFile, createFolder, openInExplorer } =
-    useElectron();
+  const { treeData, treeRoot } = useTreeStore();
+  const { openFolder, openInExplorer } = useElectron();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
-  const [isCreating, setIsCreating] = useState<"file" | "folder" | null>(null);
-  const [createValue, setCreateValue] = useState("");
-  const createInputRef = useRef<HTMLInputElement>(null);
+  const [creatingInfo, setCreatingInfo] = useState<CreatingInfo | null>(null);
 
   const handleSelectDir = useCallback(async () => {
     await openFolder();
   }, [openFolder]);
 
   const handleStartCreateFile = useCallback(() => {
-    setIsCreating("file");
-    setCreateValue("");
-  }, []);
+    if (!treeRoot) return;
+    setCreatingInfo({ type: "file", parentKey: treeRoot.key, level: 0 });
+  }, [treeRoot]);
 
   const handleStartCreateFolder = useCallback(() => {
-    setIsCreating("folder");
-    setCreateValue("");
-  }, []);
-
-  useEffect(() => {
-    if (isCreating && createInputRef.current) {
-      createInputRef.current.focus();
-    }
-  }, [isCreating]);
-
-  const handleCreateConfirm = useCallback(async () => {
-    if (!treeRoot || !isCreating) {
-      setIsCreating(null);
-      return;
-    }
-
-    const title = createValue.trim();
-    if (!title) {
-      setIsCreating(null);
-      return;
-    }
-
-    const fn = isCreating === "file" ? createFile : createFolder;
-    const result = await fn(treeRoot.key, title, treeData);
-    if (result.code === CodeResult.Success && result.data) {
-      setTreeData(result.data.treeData);
-    }
-
-    setIsCreating(null);
-    setCreateValue("");
-  }, [
-    createValue,
-    isCreating,
-    treeRoot,
-    treeData,
-    createFile,
-    createFolder,
-    setTreeData,
-  ]);
-
-  const handleCreateKeyDown = useCallback(
-    (e: KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Enter") {
-        void handleCreateConfirm();
-      }
-      if (e.key === "Escape") {
-        setIsCreating(null);
-        setCreateValue("");
-      }
-    },
-    [handleCreateConfirm],
-  );
+    if (!treeRoot) return;
+    setCreatingInfo({ type: "folder", parentKey: treeRoot.key, level: 0 });
+  }, [treeRoot]);
 
   const filteredTreeData = useMemo(() => {
     if (!searchQuery.trim()) return treeData;
@@ -166,83 +110,65 @@ export function FileTree() {
     <ContextMenu.Root>
       <ContextMenu.Trigger asChild>
         <div className="flex h-full flex-col">
-          <div
-            className="flex h-[35px] flex-shrink-0 items-center justify-between px-3"
-            style={{ borderBottom: "1px solid var(--border-color)" }}
-          >
-            <span
-              className="text-[11px] font-semibold uppercase tracking-wider"
-              style={{ color: "var(--text-muted)" }}
-            >
-              资源管理器
-            </span>
-            <div className="flex items-center gap-[2px]">
-              <button
-                className="flex h-[22px] w-[22px] items-center justify-center rounded-[3px] hover:bg-[var(--hover-bg)]"
-                onClick={() => setShowSearch((prev) => !prev)}
-                title="搜索"
-              >
-                <Search
-                  className="h-3.5 w-3.5"
-                  style={{ color: "var(--text-muted)" }}
+          <div className="flex-1 overflow-auto pt-[6px]">
+            <div className="flex h-[26px] items-center px-[12px]">
+              <div className="flex flex-1 items-center gap-[6px]">
+                <FolderOpen
+                  className="h-[14px] w-[14px] flex-shrink-0"
+                  style={{ color: "#c9a227" }}
                 />
-              </button>
-            </div>
-          </div>
-
-          <div
-            className="flex h-[22px] items-center px-[4px]"
-            style={{ backgroundColor: "var(--bg-secondary)" }}
-          >
-            <div className="flex flex-1 items-center gap-[2px] px-[4px]">
-              <FolderOpen
-                className="h-[18px] w-[18px] flex-shrink-0"
-                style={{ color: "#dcb67a" }}
-              />
-              <span
-                className="truncate text-[13px] font-semibold"
-                style={{ color: "var(--text-primary)" }}
-              >
-                {treeRoot.title}
-              </span>
-            </div>
-          </div>
-
-          {showSearch ? (
-            <div
-              className="px-2 py-1.5"
-              style={{ borderBottom: "1px solid var(--border-color)" }}
-            >
-              <div className="relative">
-                <Search
-                  className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
-                  style={{ color: "var(--text-muted)" }}
-                />
-                <Input
-                  placeholder="搜索文件..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-7 pl-7 pr-7 text-[12px]"
-                  autoFocus
-                />
-                {searchQuery ? (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-1 top-1/2 h-5 w-5 -translate-y-1/2"
-                    onClick={() => setSearchQuery("")}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                ) : null}
+                <span
+                  className="truncate text-[13px] font-medium"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  {treeRoot.title}
+                </span>
               </div>
             </div>
-          ) : null}
 
-          <div className="flex-1 overflow-auto">
+            {showSearch ? (
+              <div className="px-3 py-2">
+                <div className="relative">
+                  <Search
+                    className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
+                    style={{ color: "var(--text-muted)" }}
+                  />
+                  <Input
+                    placeholder="搜索文件..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="h-7 pl-7 pr-7 text-[12px]"
+                    autoFocus
+                  />
+                  {searchQuery ? (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-1 top-1/2 h-5 w-5 -translate-y-1/2"
+                      onClick={() => setSearchQuery("")}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+
             {filteredTreeData.length > 0 ? (
               filteredTreeData.map((node) => (
-                <TreeNode key={node.key} node={node} level={0} />
+                <TreeNode
+                  key={node.key}
+                  node={node}
+                  level={0}
+                  creatingInfo={creatingInfo}
+                  onCreateInFolder={(parentKey, type, lvl) => {
+                    if (!parentKey) {
+                      setCreatingInfo(null);
+                    } else {
+                      setCreatingInfo({ type, parentKey, level: lvl });
+                    }
+                  }}
+                />
               ))
             ) : (
               <div
@@ -252,44 +178,6 @@ export function FileTree() {
                 {searchQuery ? "没有匹配的文件" : "文件夹为空"}
               </div>
             )}
-
-            {isCreating ? (
-              <div
-                className="flex h-[22px] items-center"
-                style={{ paddingLeft: "20px", paddingRight: "4px" }}
-              >
-                <div className="h-[22px] w-[16px] flex-shrink-0" />
-                <div className="mr-[4px] flex h-[22px] w-[18px] flex-shrink-0 items-center justify-center">
-                  {isCreating === "file" ? (
-                    <File
-                      className="h-[18px] w-[18px]"
-                      style={{ color: "#519aba" }}
-                    />
-                  ) : (
-                    <Folder
-                      className="h-[18px] w-[18px]"
-                      style={{ color: "#dcb67a" }}
-                    />
-                  )}
-                </div>
-                <input
-                  ref={createInputRef}
-                  value={createValue}
-                  onChange={(e) => setCreateValue(e.target.value)}
-                  onKeyDown={handleCreateKeyDown}
-                  onBlur={() => void handleCreateConfirm()}
-                  placeholder={
-                    isCreating === "file" ? "新建文件" : "新建文件夹"
-                  }
-                  className="h-[20px] flex-1 rounded-[3px] px-[3px] text-[13px] outline-none"
-                  style={{
-                    backgroundColor: "var(--bg-primary)",
-                    border: "1px solid var(--accent-color)",
-                    color: "var(--text-primary)",
-                  }}
-                />
-              </div>
-            ) : null}
           </div>
         </div>
       </ContextMenu.Trigger>

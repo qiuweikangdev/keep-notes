@@ -18,7 +18,6 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { useTreeStore } from "@/store/tree.store";
-import { useEditorStore } from "@/store/editor.store";
 import { useElectron } from "@/hooks/use-electron";
 import { cn } from "@/lib/cn";
 import type { TreeNode as TreeNodeType } from "@/types";
@@ -26,9 +25,21 @@ import { ContextMenu } from "@/components/ui/context-menu";
 import { CodeResult } from "@/types";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
+interface CreatingInfo {
+  type: "file" | "folder";
+  parentKey: string;
+  level: number;
+}
+
 interface TreeNodeProps {
   node: TreeNodeType;
   level: number;
+  creatingInfo?: CreatingInfo | null;
+  onCreateInFolder?: (
+    parentKey: string,
+    type: "file" | "folder",
+    level: number,
+  ) => void;
 }
 
 const MENU_CONTENT_CLASS =
@@ -40,7 +51,12 @@ const MENU_SEPARATOR_CLASS = "my-1 h-px bg-[var(--border-color)]";
 const normalizePath = (path: string) =>
   path.replace(/\\/g, "/").replace(/\/+$/, "");
 
-export const TreeNode = memo(function TreeNode({ node, level }: TreeNodeProps) {
+export const TreeNode = memo(function TreeNode({
+  node,
+  level,
+  creatingInfo,
+  onCreateInFolder,
+}: TreeNodeProps) {
   const {
     selectedKey,
     setSelectedKey,
@@ -49,7 +65,6 @@ export const TreeNode = memo(function TreeNode({ node, level }: TreeNodeProps) {
     setTreeData,
     treeData,
   } = useTreeStore();
-  const { filePath } = useEditorStore();
   const {
     openFile,
     createFile,
@@ -63,9 +78,10 @@ export const TreeNode = memo(function TreeNode({ node, level }: TreeNodeProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
-  const [isCreating, setIsCreating] = useState<"file" | "folder" | null>(null);
   const [createValue, setCreateValue] = useState("");
   const [isDropTarget, setIsDropTarget] = useState(false);
+  const [dragCounter, setDragCounter] = useState(0);
+  const confirmedRef = useRef(false);
   const [confirmState, setConfirmState] = useState<{
     type: "delete" | "move";
     open: boolean;
@@ -82,10 +98,12 @@ export const TreeNode = memo(function TreeNode({ node, level }: TreeNodeProps) {
   const rowRef = useRef<HTMLDivElement>(null);
 
   const isExpanded = expandedKeys.includes(node.key);
-  const isSelected = selectedKey === node.key || filePath === node.key;
+  const isSelected = selectedKey === node.key;
   const isFolder = Array.isArray(node.children);
   const hasChildren = Boolean(node.children?.length);
   const isMarkdown = node.title.endsWith(".md");
+
+  const isCreatingHere = creatingInfo?.parentKey === node.key;
 
   useEffect(() => {
     if (isRenaming && renameInputRef.current) {
@@ -95,10 +113,12 @@ export const TreeNode = memo(function TreeNode({ node, level }: TreeNodeProps) {
   }, [isRenaming]);
 
   useEffect(() => {
-    if (isCreating && createInputRef.current) {
-      createInputRef.current.focus();
+    if (isCreatingHere && createInputRef.current) {
+      requestAnimationFrame(() => {
+        createInputRef.current?.focus();
+      });
     }
-  }, [isCreating]);
+  }, [isCreatingHere]);
 
   const handleClick = useCallback(() => {
     setSelectedKey(node.key);
@@ -127,63 +147,66 @@ export const TreeNode = memo(function TreeNode({ node, level }: TreeNodeProps) {
 
   const handleStartCreateFile = useCallback(() => {
     if (!isFolder) return;
-    setIsCreating("file");
-    setCreateValue("");
-  }, [isFolder]);
+    onCreateInFolder?.(node.key, "file", level + 1);
+  }, [isFolder, node.key, level, onCreateInFolder]);
 
   const handleStartCreateFolder = useCallback(() => {
     if (!isFolder) return;
-    setIsCreating("folder");
-    setCreateValue("");
-  }, [isFolder]);
+    onCreateInFolder?.(node.key, "folder", level + 1);
+  }, [isFolder, node.key, level, onCreateInFolder]);
 
-  const handleCreateConfirm = useCallback(async () => {
-    if (!isFolder || !isCreating) {
-      setIsCreating(null);
-      return;
-    }
-
+  const doCreate = useCallback(async () => {
     const title = createValue.trim();
-    if (!title) {
-      setIsCreating(null);
+    if (!title || !creatingInfo) {
+      setCreateValue("");
+      onCreateInFolder?.("", "file", 0);
       return;
     }
 
-    const fn = isCreating === "file" ? createFile : createFolder;
+    const fn = creatingInfo.type === "file" ? createFile : createFolder;
     const result = await fn(node.key, title, treeData);
     if (result.code === CodeResult.Success && result.data) {
       setTreeData(result.data.treeData);
       if (!isExpanded) {
         toggleExpandedKey(node.key);
       }
+      const newKey =
+        creatingInfo.type === "file"
+          ? `${node.key}/${title}.md`
+          : `${node.key}/${title}`;
+      setSelectedKey(newKey);
     }
 
-    setIsCreating(null);
     setCreateValue("");
+    onCreateInFolder?.("", creatingInfo.type, creatingInfo.level);
   }, [
-    isFolder,
-    isCreating,
     createValue,
+    creatingInfo,
     createFile,
     createFolder,
     node.key,
     treeData,
     setTreeData,
+    setSelectedKey,
     isExpanded,
     toggleExpandedKey,
+    onCreateInFolder,
   ]);
 
   const handleCreateKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "Enter") {
-        void handleCreateConfirm();
+        e.preventDefault();
+        confirmedRef.current = true;
+        void doCreate();
       }
       if (e.key === "Escape") {
-        setIsCreating(null);
+        confirmedRef.current = true;
         setCreateValue("");
+        onCreateInFolder?.("", "file", 0);
       }
     },
-    [handleCreateConfirm],
+    [doCreate, onCreateInFolder],
   );
 
   const handleStartRename = useCallback(() => {
@@ -257,6 +280,45 @@ export const TreeNode = memo(function TreeNode({ node, level }: TreeNodeProps) {
   const handleDragOver = useCallback(
     (e: React.DragEvent) => {
       if (!isFolder) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      setIsDropTarget(true);
+    },
+    [isFolder],
+  );
+
+  const handleDragEnter = useCallback(
+    (e: React.DragEvent) => {
+      if (!isFolder) return;
+      e.preventDefault();
+      setDragCounter((c) => c + 1);
+      setIsDropTarget(true);
+    },
+    [isFolder],
+  );
+
+  const handleDragLeave = useCallback(
+    (e: React.DragEvent) => {
+      if (!isFolder) return;
+      e.preventDefault();
+      setDragCounter((c) => {
+        const next = c - 1;
+        if (next === 0) {
+          setIsDropTarget(false);
+        }
+        return next;
+      });
+    },
+    [isFolder],
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      if (!isFolder) return;
+      e.preventDefault();
+      setDragCounter(0);
+      setIsDropTarget(false);
+
       const sourcePath = e.dataTransfer.getData("text/plain");
       if (!sourcePath) return;
 
@@ -270,39 +332,6 @@ export const TreeNode = memo(function TreeNode({ node, level }: TreeNodeProps) {
         return;
       }
 
-      e.preventDefault();
-      e.dataTransfer.dropEffect = "move";
-      setIsDropTarget(true);
-    },
-    [isFolder, node.key],
-  );
-
-  const handleDragLeave = useCallback(() => {
-    setIsDropTarget(false);
-  }, []);
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      if (!isFolder) return;
-      e.preventDefault();
-
-      const sourcePath = e.dataTransfer.getData("text/plain");
-      if (!sourcePath) {
-        setIsDropTarget(false);
-        return;
-      }
-
-      const normalizedSource = normalizePath(sourcePath);
-      const normalizedTarget = normalizePath(node.key);
-
-      if (
-        normalizedSource === normalizedTarget ||
-        normalizedTarget.startsWith(`${normalizedSource}/`)
-      ) {
-        setIsDropTarget(false);
-        return;
-      }
-
       setConfirmState({
         type: "move",
         open: true,
@@ -313,7 +342,6 @@ export const TreeNode = memo(function TreeNode({ node, level }: TreeNodeProps) {
           title: sourcePath.split(/[\\/]/).pop() || sourcePath,
         },
       });
-      setIsDropTarget(false);
     },
     [isFolder, node.key],
   );
@@ -345,13 +373,56 @@ export const TreeNode = memo(function TreeNode({ node, level }: TreeNodeProps) {
 
   const icon = isFolder ? (
     isExpanded ? (
-      <FolderOpen className="h-[18px] w-[18px]" style={{ color: "#dcb67a" }} />
+      <FolderOpen className="h-[14px] w-[14px]" style={{ color: "#c9a227" }} />
     ) : (
-      <Folder className="h-[18px] w-[18px]" style={{ color: "#dcb67a" }} />
+      <Folder className="h-[14px] w-[14px]" style={{ color: "#c9a227" }} />
     )
   ) : (
-    <File className="h-[18px] w-[18px]" style={{ color: "#519aba" }} />
+    <File className="h-[14px] w-[14px]" style={{ color: "#519aba" }} />
   );
+
+  const createInputRow = isCreatingHere ? (
+    <div
+      className="flex h-[26px] items-center animate-fade-in"
+      style={{
+        paddingLeft: `${creatingInfo!.level * 16 + 12}px`,
+        paddingRight: "12px",
+      }}
+    >
+      <div className="flex h-[26px] w-[12px] flex-shrink-0 items-center justify-center" />
+      <div className="mr-[6px] flex h-[26px] w-[16px] flex-shrink-0 items-center justify-center">
+        {creatingInfo!.type === "file" ? (
+          <File className="h-[14px] w-[14px]" style={{ color: "#519aba" }} />
+        ) : (
+          <Folder className="h-[14px] w-[14px]" style={{ color: "#c9a227" }} />
+        )}
+      </div>
+      <input
+        ref={createInputRef}
+        autoFocus
+        value={createValue}
+        onChange={(e) => setCreateValue(e.target.value)}
+        onKeyDown={handleCreateKeyDown}
+        onBlur={() => {
+          if (confirmedRef.current) {
+            confirmedRef.current = false;
+            return;
+          }
+          setTimeout(() => void doCreate(), 100);
+        }}
+        onClick={(e) => e.stopPropagation()}
+        placeholder={
+          creatingInfo!.type === "file" ? "输入文件名称" : "输入文件夹名称"
+        }
+        className="h-[22px] flex-1 rounded-[3px] px-[6px] text-[13px] outline-none"
+        style={{
+          backgroundColor: "var(--bg-tertiary)",
+          border: "1px solid var(--accent-color)",
+          color: "var(--text-primary)",
+        }}
+      />
+    </div>
+  ) : null;
 
   return (
     <>
@@ -360,39 +431,34 @@ export const TreeNode = memo(function TreeNode({ node, level }: TreeNodeProps) {
           <div ref={rowRef}>
             <div
               className={cn(
-                "relative flex h-[22px] cursor-pointer select-none items-center transition-colors duration-75",
-                isSelected
-                  ? "bg-[var(--active-bg)]"
-                  : isHovered
-                    ? "bg-[var(--hover-bg)]"
-                    : "bg-transparent",
-                isDropTarget && "bg-[var(--hover-bg)]",
+                "relative flex h-[26px] cursor-pointer select-none items-center transition-colors duration-75",
+                isDropTarget &&
+                  isFolder &&
+                  "outline outline-1 outline-[var(--accent-color)]/40",
               )}
               style={{
-                paddingLeft: `${level * 16 + 4}px`,
-                paddingRight: "4px",
+                paddingLeft: `${level * 16 + 12}px`,
+                paddingRight: "12px",
+                backgroundColor: isSelected
+                  ? "var(--active-bg)"
+                  : isHovered
+                    ? "var(--hover-bg)"
+                    : "transparent",
               }}
               onClick={handleClick}
               onMouseEnter={() => setIsHovered(true)}
               onMouseLeave={() => {
                 setIsHovered(false);
-                setIsDropTarget(false);
               }}
-              draggable={!isRenaming && !isCreating}
+              draggable={!isRenaming && !isCreatingHere}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
               onDragOver={handleDragOver}
+              onDragEnter={handleDragEnter}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
             >
-              {isSelected ? (
-                <div
-                  className="absolute left-0 top-0 bottom-0 w-[2px]"
-                  style={{ backgroundColor: "var(--accent-color)" }}
-                />
-              ) : null}
-
-              <div className="flex h-[22px] w-[16px] flex-shrink-0 items-center justify-center">
+              <div className="flex h-[26px] w-[12px] flex-shrink-0 items-center justify-center">
                 {isFolder ? (
                   <button
                     type="button"
@@ -400,11 +466,11 @@ export const TreeNode = memo(function TreeNode({ node, level }: TreeNodeProps) {
                       e.stopPropagation();
                       toggleExpandedKey(node.key);
                     }}
-                    className="flex h-[16px] w-[16px] items-center justify-center rounded-sm hover:bg-[var(--hover-bg)]"
+                    className="flex h-[14px] w-[14px] items-center justify-center rounded-sm hover:bg-[var(--hover-bg)]"
                   >
                     <ChevronRight
                       className={cn(
-                        "h-3.5 w-3.5 transition-transform duration-100",
+                        "h-3 w-3 transition-transform duration-100",
                         isExpanded && "rotate-90",
                       )}
                       style={{ color: "var(--text-muted)" }}
@@ -413,7 +479,7 @@ export const TreeNode = memo(function TreeNode({ node, level }: TreeNodeProps) {
                 ) : null}
               </div>
 
-              <div className="mr-[4px] flex h-[22px] w-[18px] flex-shrink-0 items-center justify-center">
+              <div className="mr-[6px] flex h-[26px] w-[16px] flex-shrink-0 items-center justify-center">
                 {icon}
               </div>
 
@@ -423,48 +489,32 @@ export const TreeNode = memo(function TreeNode({ node, level }: TreeNodeProps) {
                   value={renameValue}
                   onChange={(e) => setRenameValue(e.target.value)}
                   onKeyDown={handleRenameKeyDown}
-                  onBlur={() => void handleRenameConfirm()}
-                  onClick={(e) => e.stopPropagation()}
-                  className="h-[20px] flex-1 rounded-[3px] px-[3px] text-[13px] outline-none"
-                  style={{
-                    backgroundColor: "var(--bg-primary)",
-                    border: "1px solid var(--accent-color)",
-                    color: "var(--text-primary)",
-                  }}
-                />
-              ) : isCreating ? (
-                <input
-                  ref={createInputRef}
-                  value={createValue}
-                  onChange={(e) => setCreateValue(e.target.value)}
-                  onKeyDown={handleCreateKeyDown}
-                  onBlur={() => void handleCreateConfirm()}
-                  onClick={(e) => e.stopPropagation()}
-                  placeholder={
-                    isCreating === "file" ? "新建文件" : "新建文件夹"
+                  onBlur={() =>
+                    setTimeout(() => void handleRenameConfirm(), 100)
                   }
-                  className="h-[20px] flex-1 rounded-[3px] px-[3px] text-[13px] outline-none"
+                  onClick={(e) => e.stopPropagation()}
+                  className="h-[22px] flex-1 rounded-[3px] px-[6px] text-[13px] outline-none"
                   style={{
-                    backgroundColor: "var(--bg-primary)",
+                    backgroundColor: "var(--bg-tertiary)",
                     border: "1px solid var(--accent-color)",
                     color: "var(--text-primary)",
                   }}
                 />
               ) : (
                 <span
-                  className="flex-1 truncate text-[13px] leading-[22px]"
+                  className="flex-1 truncate text-[13px] leading-[26px]"
                   style={{ color: "var(--text-primary)" }}
                 >
                   {node.title}
                 </span>
               )}
 
-              {isHovered && !isRenaming && !isCreating ? (
-                <div className="absolute right-[4px] top-0 bottom-0 z-10 flex items-center gap-[1px]">
+              {isHovered && !isRenaming && !isCreatingHere ? (
+                <div className="absolute right-[4px] top-0 bottom-0 z-10 flex items-center gap-[2px]">
                   {isFolder ? (
                     <button
                       type="button"
-                      className="flex h-[20px] w-[20px] items-center justify-center rounded-[3px] hover:bg-[var(--bg-tertiary)]"
+                      className="flex h-[18px] w-[18px] items-center justify-center rounded-[3px] hover:bg-[var(--bg-tertiary)]"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleStartCreateFile();
@@ -479,7 +529,7 @@ export const TreeNode = memo(function TreeNode({ node, level }: TreeNodeProps) {
                   ) : null}
                   <button
                     type="button"
-                    className="flex h-[20px] w-[20px] items-center justify-center rounded-[3px] hover:bg-[var(--bg-tertiary)]"
+                    className="flex h-[18px] w-[18px] items-center justify-center rounded-[3px] hover:bg-[var(--bg-tertiary)]"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleStartRename();
@@ -493,7 +543,7 @@ export const TreeNode = memo(function TreeNode({ node, level }: TreeNodeProps) {
                   </button>
                   <button
                     type="button"
-                    className="flex h-[20px] w-[20px] items-center justify-center rounded-[3px] hover:bg-[var(--bg-tertiary)]"
+                    className="flex h-[18px] w-[18px] items-center justify-center rounded-[3px] hover:bg-[var(--bg-tertiary)]"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleDelete();
@@ -565,10 +615,18 @@ export const TreeNode = memo(function TreeNode({ node, level }: TreeNodeProps) {
         {isExpanded && hasChildren ? (
           <div>
             {node.children!.map((child) => (
-              <TreeNode key={child.key} node={child} level={level + 1} />
+              <TreeNode
+                key={child.key}
+                node={child}
+                level={level + 1}
+                creatingInfo={creatingInfo}
+                onCreateInFolder={onCreateInFolder}
+              />
             ))}
           </div>
         ) : null}
+
+        {isCreatingHere ? createInputRow : null}
       </ContextMenu.Root>
 
       <ConfirmDialog
@@ -577,12 +635,14 @@ export const TreeNode = memo(function TreeNode({ node, level }: TreeNodeProps) {
         title={confirmState.type === "delete" ? "确认删除" : "确认移动"}
         description={
           confirmState.type === "delete"
-            ? "确定要删除「" + (confirmState.data?.title ?? "") + "」吗？"
+            ? "确定要删除「" +
+              (confirmState.data?.title ?? "") +
+              "」吗？此操作不可撤销。"
             : "确定要将「" +
               (confirmState.data?.title ?? "") +
               "」移动到「" +
               node.title +
-              "」吗？"
+              "」文件夹中吗？"
         }
         confirmText={confirmState.type === "delete" ? "删除" : "移动"}
         variant={confirmState.type === "delete" ? "danger" : "default"}
