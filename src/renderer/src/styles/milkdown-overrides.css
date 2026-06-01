@@ -1,138 +1,94 @@
-/* Milkdown Crepe 语法高亮 token 覆盖 */
-/* 必须在 Crepe 主题 CSS 之后加载以确保优先级 */
+/* Keep code blocks aligned with app theme while preserving Milkdown syntax token colors. */
 
-/* 代码块容器 */
-.milkdown .editor pre {
+.milkdown-light-theme .milkdown {
+  --crepe-color-surface: var(--bg-secondary);
+  --crepe-color-surface-low: #ededed;
+  --crepe-color-on-surface: var(--text-primary);
+  --crepe-color-on-surface-variant: var(--text-secondary);
+  --crepe-color-outline: #a8a8a8;
+  --crepe-color-secondary: #cfcfcf;
+  --crepe-color-hover: #e0e0e0;
+}
+
+.milkdown-dark-theme .milkdown {
+  --crepe-color-surface: var(--bg-tertiary);
+  --crepe-color-surface-low: #1f2430;
+  --crepe-color-on-surface: #d8dde7;
+  --crepe-color-on-surface-variant: #a6b0c3;
+  --crepe-color-outline: #5f6b83;
+  --crepe-color-secondary: #2e3442;
+  --crepe-color-hover: #2a3040;
+}
+
+.milkdown .editor code {
+  font-family: "SF Mono", "Fira Code", Consolas, "Courier New", monospace;
+}
+
+.milkdown .editor code:not(pre code) {
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
   background-color: var(--bg-secondary) !important;
+  color: var(--accent-color) !important;
+}
+
+.milkdown-light-theme .milkdown .editor pre {
+  background-color: var(--bg-secondary) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+.milkdown-dark-theme .milkdown .editor pre {
+  background-color: var(--bg-tertiary) !important;
   border: 1px solid var(--border-color) !important;
 }
 
 .milkdown .editor pre code {
   background-color: transparent !important;
-  color: var(--text-primary) !important;
 }
 
-/* CodeMirror token 覆盖 */
-.milkdown .cm-keyword,
-.milkdown .cm-meta,
-.milkdown .cm-tag {
-  color: var(--accent-color) !important;
+.milkdown .editor pre .cm-editor,
+.milkdown .editor pre .cm-scroller,
+.milkdown .editor pre .cm-content,
+.milkdown .editor pre .cm-gutters {
+  background-color: transparent !important;
 }
 
-.milkdown .cm-string,
-.milkdown .cm-string-2 {
-  color: var(--text-secondary) !important;
+.milkdown .editor pre .cm-gutters {
+  border: none !important;
 }
 
-.milkdown .cm-number {
-  color: var(--accent-color) !important;
+.milkdown-light-theme .milkdown .milkdown-code-block .cm-editor,
+.milkdown-light-theme .milkdown .milkdown-code-block .cm-scroller,
+.milkdown-light-theme .milkdown .milkdown-code-block .cm-content {
+  color: #1f2937 !important;
 }
 
-.milkdown .cm-property {
-  color: var(--text-primary) !important;
+.milkdown-light-theme .milkdown .milkdown-code-block .cm-gutters {
+  color: #64748b !important;
+  background: #f1f5f9 !important;
+  border-right: 1px solid #dbe2ea !important;
 }
 
-.milkdown .cm-operator {
-  color: var(--text-secondary) !important;
+.milkdown-light-theme .milkdown .milkdown-code-block {
+  background: #f8fafc !important;
+  border: 1px solid #dbe2ea !important;
+  border-radius: 8px !important;
 }
 
-.milkdown .cm-comment {
-  color: var(--text-muted) !important;
+.milkdown-light-theme .milkdown .milkdown-code-block .tools .language-button {
+  background: #e2e8f0 !important;
+  color: #334155 !important;
 }
 
-.milkdown .cm-variable,
-.milkdown .cm-variable-2,
-.milkdown .cm-variable-3 {
-  color: var(--text-primary) !important;
+.milkdown-light-theme .milkdown .milkdown-code-block .tools .tools-button-group button {
+  background: #334155 !important;
+  color: #f8fafc !important;
 }
 
-.milkdown .cm-type {
-  color: var(--accent-color) !important;
+.milkdown-light-theme .milkdown .milkdown-code-block .tools .tools-button-group button svg {
+  fill: #f8fafc !important;
 }
 
-.milkdown .cm-builtin {
-  color: var(--accent-color) !important;
-}
-
-.milkdown .cm-atom {
-  color: var(--accent-color) !important;
-}
-
-.milkdown .cm-def {
-  color: var(--text-primary) !important;
-}
-
-.milkdown .cm-attribute {
-  color: var(--accent-color) !important;
-}
-
-.milkdown .cm-qualifier {
-  color: var(--text-secondary) !important;
-}
-
-.milkdown .cm-regexp {
-  color: var(--text-secondary) !important;
-}
-
-.milkdown .cm-link {
-  color: var(--accent-color) !important;
-}
-
-.milkdown .cm-invalidchar {
-  color: var(--text-muted) !important;
-}
-
-/* 代码块内嵌 span token */
-.milkdown .editor pre span[class*="cm-"] {
-  color: var(--text-primary) !important;
-}
-
-.milkdown .editor pre .cm-property {
-  color: var(--text-primary) !important;
-}
-
-.milkdown .editor pre .cm-string {
-  color: var(--text-secondary) !important;
-}
-
-.milkdown .editor pre .cm-number {
-  color: var(--accent-color) !important;
-}
-
-.milkdown .editor pre .cm-keyword {
-  color: var(--accent-color) !important;
-}
-
-.milkdown .editor pre .cm-punctuation {
-  color: var(--text-muted) !important;
-}
-
-/* 行号 */
-.milkdown .cm-lineNumbers .cm-gutterElement {
-  color: var(--text-muted) !important;
-}
-
-/* 活动行 */
-.milkdown .cm-activeLine {
-  background-color: var(--hover-bg) !important;
-}
-
-/* 选中 */
-.milkdown .cm-selectionBackground {
-  background-color: rgba(0, 102, 255, 0.15) !important;
-}
-
-.dark .milkdown .cm-selectionBackground,
-.nord .milkdown .cm-selectionBackground,
-.dracula .milkdown .cm-selectionBackground,
-.solarized .milkdown .cm-selectionBackground {
-  background-color: rgba(77, 159, 255, 0.25) !important;
-}
-
-/* 暗色模式代码块背景 */
-.dark .milkdown .editor pre,
-.nord .milkdown .editor pre,
-.dracula .milkdown .editor pre,
-.solarized .milkdown .editor pre {
-  background-color: var(--bg-tertiary) !important;
+.milkdown-light-theme .milkdown .milkdown-code-block .cm-activeLine,
+.milkdown-light-theme .milkdown .milkdown-code-block .cm-activeLineGutter {
+  background: rgba(15, 23, 42, 0.06) !important;
 }

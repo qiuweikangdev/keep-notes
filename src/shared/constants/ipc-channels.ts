@@ -10,6 +10,7 @@ export const IPC_CHANNELS = {
     OPEN_DIALOG: "file:open-dialog",
     GET_SELECTED_PATH: "file:get-selected-path",
     GENERATE_TREE: "file:generate-tree",
+    OPEN_IN_EXPLORER: "file:open-in-explorer",
   },
   TREE: {
     CREATE_FILE: "tree:create-file",

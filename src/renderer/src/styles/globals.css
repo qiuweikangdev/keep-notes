@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* 默认主题变量 - 会被 JavaScript 动态覆盖 */
+/* 榛樿涓婚鍙橀噺 - 浼氳 JavaScript 鍔ㄦ€佽鐩?*/
 :root {
   --bg-primary: #ffffff;
   --bg-secondary: #f5f5f5;
@@ -38,7 +38,7 @@ body {
   color: var(--text-primary);
 }
 
-/* 窗口边缘拖拽调整大小 - Electron frameless window */
+/* 绐楀彛杈圭紭鎷栨嫿璋冩暣澶у皬 - Electron frameless window */
 .resize-handle {
   position: fixed;
   z-index: 9999;
@@ -116,7 +116,7 @@ body {
   -webkit-app-region: no-drag;
 }
 
-/* 自定义滚动条 */
+/* 鑷畾涔夋粴鍔ㄦ潯 */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -153,7 +153,7 @@ body {
   background: transparent;
 }
 
-/* Milkdown 编辑器容器 */
+/* Milkdown 缂栬緫鍣ㄥ鍣?*/
 .milkdown {
   width: 100%;
   height: 100%;
@@ -162,7 +162,7 @@ body {
   overflow-x: hidden !important;
 }
 
-/* Milkdown 编辑器内容区域 */
+/* Milkdown 缂栬緫鍣ㄥ唴瀹瑰尯鍩?*/
 .milkdown .editor {
   min-height: calc(100vh - 200px);
   padding: 40px var(--editor-padding, 60px) 120px;
@@ -174,7 +174,7 @@ body {
   color: var(--text-primary) !important;
 }
 
-/* 标题样式 */
+/* 鏍囬鏍峰紡 */
 .milkdown .editor h1,
 .milkdown .editor h2,
 .milkdown .editor h3,
@@ -208,13 +208,13 @@ body {
   line-height: 1.4;
 }
 
-/* 段落 */
+/* 娈佃惤 */
 .milkdown .editor p {
   margin-bottom: 0.75em;
   color: var(--text-primary) !important;
 }
 
-/* 代码块 - 行内代码 */
+/* 浠ｇ爜鍧?- 琛屽唴浠ｇ爜 */
 .milkdown .editor code {
   padding: 0.15em 0.4em;
   border-radius: 4px;
@@ -224,7 +224,7 @@ body {
   color: var(--accent-color) !important;
 }
 
-/* 代码块 - 带背景的代码块容器 */
+/* 浠ｇ爜鍧?- 甯﹁儗鏅殑浠ｇ爜鍧楀鍣?*/
 .milkdown .editor pre {
   padding: 16px 20px;
   border-radius: 8px;
@@ -234,7 +234,7 @@ body {
   border: 1px solid var(--border-color);
 }
 
-/* 代码块内部代码文本 */
+/* 浠ｇ爜鍧楀唴閮ㄤ唬鐮佹枃鏈?*/
 .milkdown .editor pre code {
   background-color: transparent !important;
   padding: 0;
@@ -244,7 +244,7 @@ body {
   font-family: 'SF Mono', 'Fira Code', Consolas, 'Courier New', monospace;
 }
 
-/* Milkdown Crepe 代码块容器覆盖 */
+/* Milkdown Crepe 浠ｇ爜鍧楀鍣ㄨ鐩?*/
 .milkdown .editor .code-block,
 .milkdown .editor [data-language],
 .milkdown .editor div[class*="code"] {
@@ -260,7 +260,7 @@ body {
   color: var(--text-primary) !important;
 }
 
-/* 亮色模式下强制代码块背景 */
+/* 浜壊妯″紡涓嬪己鍒朵唬鐮佸潡鑳屾櫙 */
 .milkdown .editor pre,
 .milkdown .editor .code-block,
 .milkdown .editor [data-language] {
@@ -268,7 +268,7 @@ body {
   color: var(--text-primary) !important;
 }
 
-/* 暗色模式下代码块样式覆盖 */
+/* 鏆楄壊妯″紡涓嬩唬鐮佸潡鏍峰紡瑕嗙洊 */
 .dark .milkdown .editor pre,
 .nord .milkdown .editor pre,
 .dracula .milkdown .editor pre,
@@ -283,172 +283,9 @@ body {
   color: var(--text-primary) !important;
 }
 
-/* ===== CodeMirror / Crepe 语法高亮 token 覆盖 ===== */
-/* 重置所有 token 颜色，使用 CSS 变量 */
-.milkdown .ProseMirror .cm-keyword,
-.milkdown .ProseMirror .cm-meta,
-.milkdown .ProseMirror .cm-tag,
-.milkdown .editor .cm-keyword,
-.milkdown .editor .cm-meta,
-.milkdown .editor .cm-tag {
-  color: var(--accent-color) !important;
-}
 
-.milkdown .ProseMirror .cm-string,
-.milkdown .ProseMirror .cm-string-2,
-.milkdown .editor .cm-string,
-.milkdown .editor .cm-string-2 {
-  color: var(--text-secondary) !important;
-}
-
-.milkdown .ProseMirror .cm-number,
-.milkdown .editor .cm-number {
-  color: var(--accent-color) !important;
-}
-
-.milkdown .ProseMirror .cm-property,
-.milkdown .editor .cm-property {
-  color: var(--text-primary) !important;
-}
-
-.milkdown .ProseMirror .cm-operator,
-.milkdown .editor .cm-operator {
-  color: var(--text-secondary) !important;
-}
-
-.milkdown .ProseMirror .cm-comment,
-.milkdown .editor .cm-comment {
-  color: var(--text-muted) !important;
-  font-style: italic;
-}
-
-.milkdown .ProseMirror .cm-variable,
-.milkdown .ProseMirror .cm-variable-2,
-.milkdown .ProseMirror .cm-variable-3,
-.milkdown .editor .cm-variable,
-.milkdown .editor .cm-variable-2,
-.milkdown .editor .cm-variable-3 {
-  color: var(--text-primary) !important;
-}
-
-.milkdown .ProseMirror .cm-type,
-.milkdown .editor .cm-type {
-  color: var(--accent-color) !important;
-}
-
-.milkdown .ProseMirror .cm-builtin,
-.milkdown .editor .cm-builtin {
-  color: var(--accent-color) !important;
-}
-
-.milkdown .ProseMirror .cm-atom,
-.milkdown .editor .cm-atom {
-  color: var(--accent-color) !important;
-}
-
-.milkdown .ProseMirror .cm-def,
-.milkdown .editor .cm-def {
-  color: var(--text-primary) !important;
-}
-
-.milkdown .ProseMirror .cm-attribute,
-.milkdown .editor .cm-attribute {
-  color: var(--accent-color) !important;
-}
-
-.milkdown .ProseMirror .cm-qualifier,
-.milkdown .editor .cm-qualifier {
-  color: var(--text-secondary) !important;
-}
-
-.milkdown .ProseMirror .cm-regexp,
-.milkdown .editor .cm-regexp {
-  color: var(--text-secondary) !important;
-}
-
-.milkdown .ProseMirror .cm-link,
-.milkdown .editor .cm-link {
-  color: var(--accent-color) !important;
-  text-decoration: underline;
-}
-
-.milkdown .ProseMirror .cm-invalidchar,
-.milkdown .editor .cm-invalidchar {
-  color: var(--text-muted) !important;
-}
-
-/* 代码块行号颜色 */
-.milkdown .ProseMirror .cm-lineNumbers .cm-gutterElement,
-.milkdown .editor .cm-lineNumbers .cm-gutterElement {
-  color: var(--text-muted) !important;
-}
-
-/* 代码块活动行背景 */
-.milkdown .ProseMirror .cm-activeLine,
-.milkdown .editor .cm-activeLine {
-  background-color: var(--hover-bg) !important;
-}
-
-/* 代码块选中背景 */
-.milkdown .ProseMirror .cm-selectionBackground,
-.milkdown .editor .cm-selectionBackground {
-  background-color: rgba(0, 102, 255, 0.15) !important;
-}
-
-.dark .milkdown .ProseMirror .cm-selectionBackground,
-.dark .milkdown .editor .cm-selectionBackground,
-.nord .milkdown .ProseMirror .cm-selectionBackground,
-.nord .milkdown .editor .cm-selectionBackground,
-.dracula .milkdown .ProseMirror .cm-selectionBackground,
-.dracula .milkdown .editor .cm-selectionBackground,
-.solarized .milkdown .ProseMirror .cm-selectionBackground,
-.solarized .milkdown .editor .cm-selectionBackground {
-  background-color: rgba(77, 159, 255, 0.25) !important;
-}
-
-/* Crepe 代码块内部 token 强制覆盖 */
-.milkdown .editor pre .cm-content,
-.milkdown .ProseMirror pre .cm-content {
-  font-family: 'SF Mono', 'Fira Code', Consolas, 'Courier New', monospace !important;
-}
-
-/* 覆盖 Crepe 主题的 token 颜色 - 使用最高优先级 */
-.milkdown .editor pre span[class*="cm-"],
-.milkdown .ProseMirror pre span[class*="cm-"] {
-  color: var(--text-primary) !important;
-}
-
-/* JSON 键名颜色 */
-.milkdown .editor pre .cm-property,
-.milkdown .ProseMirror pre .cm-property {
-  color: var(--text-primary) !important;
-}
-
-/* JSON 字符串值颜色 */
-.milkdown .editor pre .cm-string,
-.milkdown .ProseMirror pre .cm-string {
-  color: var(--text-secondary) !important;
-}
-
-/* JSON 数字颜色 */
-.milkdown .editor pre .cm-number,
-.milkdown .ProseMirror pre .cm-number {
-  color: var(--accent-color) !important;
-}
-
-/* JSON 关键字颜色 (null, true, false) */
-.milkdown .editor pre .cm-keyword,
-.milkdown .ProseMirror pre .cm-keyword {
-  color: var(--accent-color) !important;
-}
-
-/* JSON 标点符号颜色 */
-.milkdown .editor pre .cm-punctuation,
-.milkdown .ProseMirror pre .cm-punctuation {
-  color: var(--text-muted) !important;
-}
-
-/* 引用块 */
+/* Keep syntax tokens from the active Milkdown theme (handled in milkdown-overrides.css). */
+/* 寮曠敤鍧?*/
 .milkdown .editor blockquote {
   padding: 12px 16px;
   margin: 0 0 1em 0;
@@ -459,7 +296,7 @@ body {
   background-color: var(--bg-tertiary);
 }
 
-/* 列表 */
+/* 鍒楄〃 */
 .milkdown .editor ul,
 .milkdown .editor ol {
   padding-left: 1.5em;
@@ -479,7 +316,7 @@ body {
   list-style-type: decimal;
 }
 
-/* 链接 */
+/* 閾炬帴 */
 .milkdown .editor a {
   color: var(--accent-color) !important;
   text-decoration: none;
@@ -491,7 +328,7 @@ body {
   border-bottom-color: var(--accent-color);
 }
 
-/* 图片 */
+/* 鍥剧墖 */
 .milkdown .editor img {
   max-width: 100%;
   border-radius: 8px;
@@ -499,7 +336,7 @@ body {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-/* 表格 */
+/* 琛ㄦ牸 */
 .milkdown .editor table {
   width: 100%;
   border-collapse: collapse;
@@ -529,14 +366,14 @@ body {
   background-color: var(--hover-bg);
 }
 
-/* 分割线 */
+/* 鍒嗗壊绾?*/
 .milkdown .editor hr {
   border: none;
   border-top: 1px solid var(--border-color);
   margin: 2em 0;
 }
 
-/* 强调 */
+/* 寮鸿皟 */
 .milkdown .editor strong {
   font-weight: 600;
   color: var(--text-primary) !important;
@@ -547,13 +384,13 @@ body {
   color: var(--text-primary) !important;
 }
 
-/* 删除线 */
+/* 鍒犻櫎绾?*/
 .milkdown .editor del {
   text-decoration: line-through;
   color: var(--text-muted) !important;
 }
 
-/* 选择高亮 */
+/* 閫夋嫨楂樹寒 */
 .milkdown .editor ::selection {
   background-color: rgba(0, 102, 255, 0.2);
 }
@@ -565,14 +402,14 @@ body {
   background-color: rgba(77, 159, 255, 0.3);
 }
 
-/* 光标 */
+/* 鍏夋爣 */
 .milkdown .ProseMirror {
   outline: none;
   min-height: 100%;
   color: var(--text-primary) !important;
 }
 
-/* 占位符 */
+/* 鍗犱綅绗?*/
 .milkdown .ProseMirror .is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   float: left;
@@ -582,7 +419,7 @@ body {
   font-style: italic;
 }
 
-/* 工具栏 */
+/* 宸ュ叿鏍?*/
 .milkdown .toolbar {
   background: var(--bg-primary) !important;
   border: 1px solid var(--border-color) !important;
@@ -619,7 +456,7 @@ body {
   color: var(--accent-color) !important;
 }
 
-/* 斜杠命令菜单 */
+/* 鏂滄潬鍛戒护鑿滃崟 */
 .milkdown .slash-menu {
   background: var(--bg-primary) !important;
   border: 1px solid var(--border-color) !important;
@@ -649,7 +486,7 @@ body {
   background-color: var(--active-bg) !important;
 }
 
-/* 链接提示 */
+/* 閾炬帴鎻愮ず */
 .milkdown .link-tooltip {
   background: var(--bg-primary) !important;
   border: 1px solid var(--border-color) !important;
@@ -666,18 +503,18 @@ body {
   text-decoration: none;
 }
 
-/* 拖拽光标 */
+/* 鎷栨嫿鍏夋爣 */
 .milkdown .ProseMirror-dropcursor {
   color: var(--accent-color) !important;
   width: 2px !important;
 }
 
-/* 间隙光标 */
+/* 闂撮殭鍏夋爣 */
 .milkdown .ProseMirror-gapcursor {
   color: var(--accent-color);
 }
 
-/* 面板调整手柄 */
+/* 闈㈡澘璋冩暣鎵嬫焺 */
 [data-panel-resize-handle-id] {
   position: relative;
   background-color: var(--border-color) !important;
@@ -688,7 +525,7 @@ body {
   background-color: var(--accent-color) !important;
 }
 
-/* 动画 */
+/* 鍔ㄧ敾 */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
@@ -700,14 +537,24 @@ body {
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.2s ease-out;
+  animation: fadeIn 0.15s ease-out;
 }
 
 .animate-spin {
   animation: spin 1s linear infinite;
 }
 
-/* 自定义滑块样式 */
+/* 鍙抽敭鑿滃崟楂樹寒 */
+[data-radix-context-menu-content] [data-highlighted] {
+  background-color: var(--hover-bg) !important;
+}
+
+/* 涓嬫媺鑿滃崟楂樹寒 */
+[data-radix-dropdown-menu-content] [data-highlighted] {
+  background-color: var(--hover-bg) !important;
+}
+
+/* 鑷畾涔夋粦鍧楁牱寮?*/
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;

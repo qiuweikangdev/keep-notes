@@ -82,6 +82,10 @@ export function useElectron() {
     [],
   );
 
+  const openInExplorer = useCallback(async (targetPath: string) => {
+    return window.electronAPI.openInExplorer(targetPath);
+  }, []);
+
   const gitDownload = useCallback(async () => {
     const config: GitConfig = {
       username: githubInfo.username,
@@ -112,6 +116,7 @@ export function useElectron() {
     renameItem,
     deleteItem,
     moveItem,
+    openInExplorer,
     gitDownload,
     gitUpload,
   };

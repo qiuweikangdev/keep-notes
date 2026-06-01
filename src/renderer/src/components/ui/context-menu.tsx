@@ -1,5 +1,4 @@
 import * as React from "react";
-import { Check, ChevronRight, Circle } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { ContextMenu } from "@/lib/radix";
 

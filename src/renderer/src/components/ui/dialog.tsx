@@ -59,7 +59,7 @@ const DialogContent = React.forwardRef<
         style={{ color: "var(--text-muted)" }}
       >
         <X className="h-4 w-4" />
-        <span className="sr-only">Close</span>
+        <span className="sr-only">关闭</span>
       </Dialog.Close>
     </Dialog.Content>
   </Dialog.Portal>

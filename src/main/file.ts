@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path, { basename } from "node:path";
-import { dialog } from "electron/main";
+import { dialog, shell } from "electron/main";
 import { CodeResult } from "../shared/types";
 
 const ignoreDir = ["node_modules"];
@@ -146,5 +146,15 @@ export async function getSelectedPath(win: Electron.BrowserWindow) {
   } catch (error) {
     console.error("Error while opening dialog:", error);
     return null;
+  }
+}
+
+export function revealInSystemExplorer(targetPath: string) {
+  try {
+    shell.showItemInFolder(targetPath);
+    return true;
+  } catch (error) {
+    console.error("Error while opening in explorer:", error);
+    return false;
   }
 }

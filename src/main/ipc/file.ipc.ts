@@ -7,6 +7,7 @@ import {
   openDialog,
   getSelectedPath,
   genDirTreByPath,
+  revealInSystemExplorer,
 } from "../file";
 
 export function registerFileIpc(): void {
@@ -35,6 +36,13 @@ export function registerFileIpc(): void {
     IPC_CHANNELS.FILE.GENERATE_TREE,
     async (_, selectedPath: string) => {
       return genDirTreByPath(selectedPath);
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.FILE.OPEN_IN_EXPLORER,
+    async (_, path: string) => {
+      return revealInSystemExplorer(path);
     },
   );
 }

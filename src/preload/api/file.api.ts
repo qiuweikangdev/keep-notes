@@ -28,4 +28,8 @@ export const fileApi = {
   generateTree: (selectedPath: string): Promise<ApiResponse<TreeInfo>> => {
     return ipcRenderer.invoke(IPC_CHANNELS.FILE.GENERATE_TREE, selectedPath);
   },
+
+  openInExplorer: (targetPath: string): Promise<boolean> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.FILE.OPEN_IN_EXPLORER, targetPath);
+  },
 };

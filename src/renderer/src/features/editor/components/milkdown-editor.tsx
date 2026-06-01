@@ -1,4 +1,10 @@
-import { useEffect, useRef, useCallback, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useCallback,
+  useState,
+  type CSSProperties,
+} from "react";
 import { Crepe } from "@milkdown/crepe";
 import { Milkdown, MilkdownProvider, useEditor } from "@milkdown/react";
 import { useEditorStore } from "@/store/editor.store";
@@ -7,14 +13,8 @@ import { useElectron } from "@/hooks/use-electron";
 import { useTheme } from "@/hooks/use-theme";
 import { Loader2, FileText } from "lucide-react";
 
-// 导入所有 Milkdown 主题
 import "@milkdown/crepe/theme/common/style.css";
 import "@milkdown/crepe/theme/frame.css";
-import "@milkdown/crepe/theme/frame-dark.css";
-import "@milkdown/crepe/theme/nord.css";
-import "@milkdown/crepe/theme/nord-dark.css";
-
-// 覆盖 Crepe 主题 token 颜色（必须在主题 CSS 之后导入）
 import "@/styles/milkdown-overrides.css";
 
 interface MilkdownEditorProps {
@@ -26,9 +26,8 @@ function MilkdownEditorInner({ content, onChange }: MilkdownEditorProps) {
   const { setWordCount, setDirty, appearance } = useEditorStore();
   const { milkdownTheme } = useTheme();
   const [loading, setLoading] = useState(true);
-  const crepeRef = useRef<Crepe | null>(null);
 
-  const { get } = useEditor((root) => {
+  useEditor((root) => {
     const crepe = new Crepe({
       root,
       defaultValue: content,
@@ -47,19 +46,24 @@ function MilkdownEditorInner({ content, onChange }: MilkdownEditorProps) {
       },
       featureConfigs: {
         [Crepe.Feature.Placeholder]: {
-          text: "开始写作...",
+          text: "开始书写...",
           mode: "doc",
         },
         [Crepe.Feature.LinkTooltip]: {
-          inputPlaceholder: "输入链接地址...",
+          inputPlaceholder: "粘贴链接...",
+        },
+        [Crepe.Feature.CodeMirror]: {
+          copyText: "复制",
+          searchPlaceholder: "搜索语言",
+          noResultText: "无结果",
+          previewToggleText: (previewOnlyMode: boolean) =>
+            previewOnlyMode ? "编辑" : "隐藏",
         },
         [Crepe.Feature.ImageBlock]: {
           onUpload: async (file: File) => {
             return new Promise((resolve) => {
               const reader = new FileReader();
-              reader.onload = () => {
-                resolve(reader.result as string);
-              };
+              reader.onload = () => resolve(reader.result as string);
               reader.readAsDataURL(file);
             });
           },
@@ -67,9 +71,8 @@ function MilkdownEditorInner({ content, onChange }: MilkdownEditorProps) {
       },
     });
 
-    // 监听内容变化
     crepe.on((listener) => {
-      listener.markdownUpdated((ctx, markdown, prevMarkdown) => {
+      listener.markdownUpdated((_, markdown, prevMarkdown) => {
         if (markdown !== prevMarkdown) {
           setWordCount(markdown.length);
           setDirty(true);
@@ -82,25 +85,9 @@ function MilkdownEditorInner({ content, onChange }: MilkdownEditorProps) {
       });
     });
 
-    crepeRef.current = crepe;
     return crepe.editor;
   });
 
-  // 更新内容
-  useEffect(() => {
-    if (crepeRef.current && content !== undefined && !loading) {
-      try {
-        const editor = get();
-        if (editor && editor.status === "Created") {
-          crepeRef.current.setMarkdown(content);
-        }
-      } catch (e) {
-        console.warn("Failed to set markdown:", e);
-      }
-    }
-  }, [content, loading, get]);
-
-  // 根据主题选择类名
   const getThemeClass = () => {
     switch (milkdownTheme) {
       case "frame-dark":
@@ -111,28 +98,27 @@ function MilkdownEditorInner({ content, onChange }: MilkdownEditorProps) {
     }
   };
 
-  // 应用编辑器外观设置
   const editorStyle = {
     backgroundColor: "var(--bg-primary)",
     opacity: appearance.opacity / 100,
     "--editor-font-size": `${appearance.fontSize}px`,
     "--editor-line-height": appearance.lineHeight,
     "--editor-padding": `${appearance.padding}px`,
-  } as React.CSSProperties;
+  } as CSSProperties;
 
   return (
     <div
       className={`h-full overflow-y-auto overflow-x-hidden ${getThemeClass()}`}
       style={editorStyle}
     >
-      {loading && (
-        <div className="flex items-center justify-center h-32">
+      {loading ? (
+        <div className="flex h-32 items-center justify-center">
           <Loader2
             className="h-6 w-6 animate-spin"
             style={{ color: "var(--text-muted)" }}
           />
         </div>
-      )}
+      ) : null}
       <Milkdown />
     </div>
   );
@@ -151,11 +137,10 @@ export function MilkdownEditor() {
       }
 
       saveTimeoutRef.current = setTimeout(async () => {
-        if (filePath) {
-          await saveFile(newContent);
-          updateNodeContent(filePath, newContent);
-          setDirty(false);
-        }
+        if (!filePath) return;
+        await saveFile(newContent);
+        updateNodeContent(filePath, newContent);
+        setDirty(false);
       }, 500);
     },
     [filePath, saveFile, updateNodeContent, setDirty],
@@ -172,12 +157,12 @@ export function MilkdownEditor() {
   if (!filePath) {
     return (
       <div
-        className="flex items-center justify-center h-full"
+        className="flex h-full items-center justify-center"
         style={{ backgroundColor: "var(--bg-primary)" }}
       >
-        <div className="text-center space-y-4">
+        <div className="space-y-4 text-center">
           <div
-            className="w-20 h-20 mx-auto rounded-2xl flex items-center justify-center"
+            className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl"
             style={{ backgroundColor: "var(--bg-secondary)" }}
           >
             <FileText
@@ -193,52 +178,11 @@ export function MilkdownEditor() {
               欢迎使用 Keep Notes
             </p>
             <p
-              className="text-sm max-w-[280px]"
+              className="max-w-[280px] text-sm"
               style={{ color: "var(--text-muted)" }}
             >
-              从左侧文件树选择一个 Markdown 文件开始编辑，或创建一个新文件
+              从资源管理器选择一个 Markdown 文件，或新建一个文件开始编辑。
             </p>
-          </div>
-          <div
-            className="flex flex-col items-center gap-2 text-xs"
-            style={{ color: "var(--text-muted)" }}
-          >
-            <div className="flex items-center gap-2">
-              <kbd
-                className="px-2 py-0.5 rounded"
-                style={{
-                  backgroundColor: "var(--bg-secondary)",
-                  color: "var(--text-muted)",
-                }}
-              >
-                ⌘ N
-              </kbd>
-              <span>新建文件</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <kbd
-                className="px-2 py-0.5 rounded"
-                style={{
-                  backgroundColor: "var(--bg-secondary)",
-                  color: "var(--text-muted)",
-                }}
-              >
-                ⌘ O
-              </kbd>
-              <span>打开文件夹</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <kbd
-                className="px-2 py-0.5 rounded"
-                style={{
-                  backgroundColor: "var(--bg-secondary)",
-                  color: "var(--text-muted)",
-                }}
-              >
-                /
-              </kbd>
-              <span>斜杠命令</span>
-            </div>
           </div>
         </div>
       </div>

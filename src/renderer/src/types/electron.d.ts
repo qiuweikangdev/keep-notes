@@ -15,6 +15,7 @@ export interface ElectronAPI {
   >;
   getSelectedPath: () => Promise<string | null>;
   generateTree: (selectedPath: string) => Promise<ApiResponse<TreeInfo>>;
+  openInExplorer: (targetPath: string) => Promise<boolean>;
   createFile: (
     path: string,
     title: string,
