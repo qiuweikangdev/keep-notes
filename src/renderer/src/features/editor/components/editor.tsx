@@ -3,9 +3,8 @@ import { useEditorStore } from "@/store/editor.store";
 import { FileText, X } from "lucide-react";
 
 export function Editor() {
-  const { filePath, setFilePath, resetEditor } = useEditorStore();
-  const fileName =
-    filePath?.split("/").pop() || filePath?.split("\\").pop() || "";
+  const { filePath, isDirty, setFilePath, resetEditor } = useEditorStore();
+  const fileName = filePath?.split(/[\\/]/).pop() || "";
 
   const handleClose = () => {
     setFilePath(null);
@@ -20,32 +19,39 @@ export function Editor() {
       {/* 文件标签 */}
       {filePath && (
         <div
-          className="flex items-center h-[36px] px-2 flex-shrink-0"
+          className="flex h-10 flex-shrink-0 items-center px-2"
           style={{
             backgroundColor: "var(--bg-secondary)",
             borderBottom: "1px solid var(--border-color)",
           }}
         >
           <div
-            className="flex items-center gap-2 px-3 py-1 rounded-md text-xs group"
+            className="group flex h-7 items-center gap-2 rounded-md px-2.5 text-xs"
             style={{
-              backgroundColor: "var(--bg-primary)",
+              backgroundColor: "var(--bg-tertiary)",
               border: "1px solid var(--border-color)",
             }}
+            title={filePath}
           >
             <FileText
               className="h-3.5 w-3.5"
-              style={{ color: "var(--accent-color)" }}
+              style={{ color: "var(--text-muted)" }}
             />
             <span
-              className="max-w-[150px] truncate"
+              className="max-w-[220px] truncate"
               style={{ color: "var(--text-primary)" }}
             >
               {fileName}
             </span>
+            {isDirty ? (
+              <span
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ backgroundColor: "var(--accent-color)" }}
+              />
+            ) : null}
             <button
               onClick={handleClose}
-              className="ml-1 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-all"
+              className="ml-1 rounded p-0.5 opacity-0 transition-all group-hover:opacity-100"
               style={{ color: "var(--text-muted)" }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.backgroundColor = "var(--hover-bg)";
