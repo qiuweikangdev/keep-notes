@@ -12,6 +12,8 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  ExternalLink,
+  RotateCcw,
 } from "lucide-react";
 
 interface GitPanelProps {
@@ -36,6 +38,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     commitChanges,
     pushToRemote,
     pullFromRemote,
+    discardChanges,
+    openGitFile,
   } = useElectron();
   const { treeRoot } = useTreeStore();
 
@@ -282,6 +286,48 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 3000);
   };
+
+  // 打开文件
+  const handleOpenFile = useCallback(
+    async (filePath: string) => {
+      const dir = getCurrentDir();
+      if (!dir) return;
+
+      try {
+        const result = await openGitFile(dir, filePath);
+        if (result.code === CodeResult.Success && result.data) {
+          // 使用 Electron 的 shell.openPath 打开文件
+          await window.electronAPI.openInExplorer(result.data);
+        } else {
+          showMessage("error", result.message || "打开文件失败");
+        }
+      } catch (error) {
+        showMessage("error", "打开文件失败");
+      }
+    },
+    [getCurrentDir, openGitFile],
+  );
+
+  // 放弃更改
+  const handleDiscardChanges = useCallback(
+    async (filePath: string) => {
+      const dir = getCurrentDir();
+      if (!dir) return;
+
+      try {
+        const result = await discardChanges(dir, filePath);
+        if (result.code === CodeResult.Success) {
+          showMessage("success", "已放弃更改");
+          await loadGitInfo();
+        } else {
+          showMessage("error", result.message || "放弃更改失败");
+        }
+      } catch (error) {
+        showMessage("error", "放弃更改失败");
+      }
+    },
+    [getCurrentDir, discardChanges, loadGitInfo],
+  );
 
   if (!isOpen) return null;
 
@@ -619,7 +665,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                 {allFiles.map((file) => (
                   <div
                     key={file.path}
-                    className="flex items-center justify-between px-3 py-2 text-sm"
+                    className="flex items-center justify-between px-3 py-2 text-sm group"
                     style={{ borderBottom: "1px solid var(--border-color)" }}
                   >
                     <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -636,6 +682,42 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                       >
                         {file.path}
                       </span>
+                    </div>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => handleOpenFile(file.path)}
+                        className="p-1 rounded transition-colors"
+                        style={{ color: "var(--text-muted)" }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor =
+                            "var(--hover-bg)";
+                          e.currentTarget.style.color = "var(--text-primary)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = "transparent";
+                          e.currentTarget.style.color = "var(--text-muted)";
+                        }}
+                        title="打开文件"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDiscardChanges(file.path)}
+                        className="p-1 rounded transition-colors"
+                        style={{ color: "var(--text-muted)" }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor =
+                            "var(--hover-bg)";
+                          e.currentTarget.style.color = "#f14c4c";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = "transparent";
+                          e.currentTarget.style.color = "var(--text-muted)";
+                        }}
+                        title="放弃更改"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                   </div>
                 ))}

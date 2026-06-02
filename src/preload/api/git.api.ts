@@ -98,4 +98,21 @@ export const gitApi = {
       filePath,
     );
   },
+
+  // 放弃更改
+  discardChanges: (dirPath: string, filePath: string): Promise<ApiResponse> => {
+    return ipcRenderer.invoke(
+      IPC_CHANNELS.GIT.DISCARD_CHANGES,
+      dirPath,
+      filePath,
+    );
+  },
+
+  // 打开文件
+  openFile: (
+    dirPath: string,
+    filePath: string,
+  ): Promise<ApiResponse<string>> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.GIT.OPEN_FILE, dirPath, filePath);
+  },
 };

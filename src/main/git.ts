@@ -301,6 +301,58 @@ export async function getFileDiff(
   }
 }
 
+// 放弃更改
+export async function discardChanges(
+  dirPath: string,
+  filePath: string,
+): Promise<ApiResponse> {
+  try {
+    const git = getGitInstance(dirPath);
+    // 检查文件是否在暂存区
+    const status = await git.status();
+    const isStaged = status.staged.includes(filePath);
+
+    if (isStaged) {
+      // 如果在暂存区，使用 git reset HEAD <file> 然后 git checkout -- <file>
+      await git.reset(["HEAD", filePath]);
+      await git.checkout([filePath]);
+    } else {
+      // 如果不在暂存区，直接使用 git checkout -- <file>
+      await git.checkout([filePath]);
+    }
+
+    return {
+      code: CodeResult.Success,
+      message: "已放弃更改",
+    };
+  } catch (e: any) {
+    return {
+      code: CodeResult.Fail,
+      message: e.toString(),
+    };
+  }
+}
+
+// 打开文件
+export async function openFile(
+  dirPath: string,
+  filePath: string,
+): Promise<ApiResponse<string>> {
+  try {
+    const path = require("path");
+    const fullPath = path.join(dirPath, filePath);
+    return {
+      code: CodeResult.Success,
+      data: fullPath,
+    };
+  } catch (e: any) {
+    return {
+      code: CodeResult.Fail,
+      message: e.toString(),
+    };
+  }
+}
+
 // 保留原有的 download 和 upload 函数以保持向后兼容
 export async function download(gitConfig: GitConfig): Promise<ApiResponse> {
   const git = getGitInstance(gitConfig.dir);

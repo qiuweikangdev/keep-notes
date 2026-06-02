@@ -15,6 +15,8 @@ import {
   push,
   pull,
   getFileDiff,
+  discardChanges,
+  openFile,
 } from "../git";
 import type { GitConfig, GitCommitOptions } from "../../shared/types";
 
@@ -108,6 +110,22 @@ export function registerGitIpc(): void {
     IPC_CHANNELS.GIT.GET_FILE_DIFF,
     async (_, dirPath: string, filePath: string) => {
       return getFileDiff(dirPath, filePath);
+    },
+  );
+
+  // 放弃更改
+  ipcMain.handle(
+    IPC_CHANNELS.GIT.DISCARD_CHANGES,
+    async (_, dirPath: string, filePath: string) => {
+      return discardChanges(dirPath, filePath);
+    },
+  );
+
+  // 打开文件
+  ipcMain.handle(
+    IPC_CHANNELS.GIT.OPEN_FILE,
+    async (_, dirPath: string, filePath: string) => {
+      return openFile(dirPath, filePath);
     },
   );
 }
