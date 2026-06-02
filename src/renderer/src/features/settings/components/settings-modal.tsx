@@ -5,13 +5,12 @@ import { useTreeStore } from "@/store/tree.store";
 import { useEditorStore } from "@/store/editor.store";
 import { useElectron } from "@/hooks/use-electron";
 import { useTheme } from "@/hooks/use-theme";
-import { themes, type ThemeName } from "@/config/themes";
+import { type ThemeName } from "@/config/themes";
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { ThemeSelector } from "@/components/ui/theme-selector";
-import { ColorPicker } from "@/components/ui/color-picker";
 import { SettingRow } from "@/components/ui/setting-row";
 import { FontSelector } from "@/components/ui/font-selector";
 import { Palette, Github, ChevronRight } from "lucide-react";
@@ -129,54 +128,9 @@ export function SettingsModal() {
               </div>
             </div>
 
-            {/* 颜色设置 */}
+            {/* 字体设置 */}
             <div style={{ borderBottom: "1px solid var(--border-color)" }}>
               <div className="py-1">
-                <div className="flex items-center justify-between py-3.5">
-                  <span
-                    className="text-sm"
-                    style={{ color: "var(--text-primary)" }}
-                  >
-                    强调色
-                  </span>
-                  <ColorPicker
-                    value={themes[theme].colors.accentColor}
-                    onChange={(color) => {
-                      // Update accent color in theme
-                    }}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between py-3.5">
-                  <span
-                    className="text-sm"
-                    style={{ color: "var(--text-primary)" }}
-                  >
-                    背景
-                  </span>
-                  <ColorPicker
-                    value={themes[theme].colors.bgPrimary}
-                    onChange={(color) => {
-                      // Update background color in theme
-                    }}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between py-3.5">
-                  <span
-                    className="text-sm"
-                    style={{ color: "var(--text-primary)" }}
-                  >
-                    前景
-                  </span>
-                  <ColorPicker
-                    value={themes[theme].colors.textPrimary}
-                    onChange={(color) => {
-                      // Update foreground color in theme
-                    }}
-                  />
-                </div>
-
                 <SettingRow label="UI 字体">
                   <FontSelector
                     value={appearance.uiFont || fontFamilyOptions[0].value}
@@ -437,9 +391,7 @@ export function SettingsModal() {
                     backgroundColor: isActive
                       ? "var(--active-bg)"
                       : "transparent",
-                    color: isActive
-                      ? "var(--accent-color)"
-                      : "var(--text-secondary)",
+                    color: "white",
                     width: "calc(100% - 8px)",
                   }}
                   onMouseEnter={(e) => {
@@ -456,7 +408,7 @@ export function SettingsModal() {
                   {isActive && (
                     <ChevronRight
                       className="h-3 w-3 flex-shrink-0 ml-auto"
-                      style={{ color: "var(--accent-color)" }}
+                      style={{ color: "white" }}
                     />
                   )}
                 </button>
