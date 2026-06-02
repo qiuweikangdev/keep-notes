@@ -2,7 +2,6 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Editor } from "@/features/editor";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TitleBar } from "@/components/layout/title-bar";
-import { StatusBar } from "@/components/layout/status-bar";
 import { usePanel } from "@/hooks/use-panel";
 import { SettingsModal } from "@/features/settings";
 import { useEffect, useState } from "react";
@@ -76,9 +75,6 @@ export function HomePage() {
           </Panel>
         </PanelGroup>
       </div>
-
-      {/* 状态栏 */}
-      <StatusBar />
 
       {/* 设置弹窗 */}
       <SettingsModal />
