@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useTreeStore } from "@/store/tree.store";
 import { useElectron } from "@/hooks/use-electron";
+import { Tooltip } from "@/components/ui/tooltip";
 
 interface QuickActionsPanelProps {
   onToggleSearch: () => void;
@@ -236,26 +237,41 @@ export function QuickActionsPanel({
           />
         </div>
         {hasRecentContent && (
-          <button
-            type="button"
-            className="flex h-6 w-6 items-center justify-center rounded transition-colors"
-            style={{ color: "var(--text-muted)" }}
-            onClick={handleToggleExpand}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-              e.currentTarget.style.color = "var(--text-primary)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
-              e.currentTarget.style.color = "var(--text-muted)";
-            }}
-          >
-            {isExpanded ? (
-              <ChevronDown className="h-3.5 w-3.5" />
-            ) : (
-              <ChevronUp className="h-3.5 w-3.5" />
-            )}
-          </button>
+          <Tooltip.Provider>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <button
+                  type="button"
+                  className="flex h-6 w-6 items-center justify-center rounded transition-colors"
+                  style={{ color: "var(--text-muted)" }}
+                  onClick={handleToggleExpand}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                    e.currentTarget.style.color = "var(--text-primary)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                    e.currentTarget.style.color = "var(--text-muted)";
+                  }}
+                >
+                  {isExpanded ? (
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  ) : (
+                    <ChevronUp className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              </Tooltip.Trigger>
+              <Tooltip.Portal>
+                <Tooltip.Content
+                  className="z-50 rounded-md bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md"
+                  sideOffset={5}
+                >
+                  {isExpanded ? "收起最近列表" : "展开最近列表"}
+                  <Tooltip.Arrow className="fill-popover" />
+                </Tooltip.Content>
+              </Tooltip.Portal>
+            </Tooltip.Root>
+          </Tooltip.Provider>
         )}
       </div>
 
@@ -291,23 +307,37 @@ function ToolButton({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      className="flex h-6 w-6 items-center justify-center rounded transition-colors"
-      style={{ color: "var(--text-muted)" }}
-      title={tooltip}
-      onClick={onClick}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-        e.currentTarget.style.color = "var(--text-primary)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = "transparent";
-        e.currentTarget.style.color = "var(--text-muted)";
-      }}
-    >
-      {icon}
-    </button>
+    <Tooltip.Provider>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <button
+            type="button"
+            className="flex h-6 w-6 items-center justify-center rounded transition-colors"
+            style={{ color: "var(--text-muted)" }}
+            onClick={onClick}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+              e.currentTarget.style.color = "var(--text-primary)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "transparent";
+              e.currentTarget.style.color = "var(--text-muted)";
+            }}
+          >
+            {icon}
+          </button>
+        </Tooltip.Trigger>
+        <Tooltip.Portal>
+          <Tooltip.Content
+            className="z-50 rounded-md bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md"
+            sideOffset={5}
+          >
+            {tooltip}
+            <Tooltip.Arrow className="fill-popover" />
+          </Tooltip.Content>
+        </Tooltip.Portal>
+      </Tooltip.Root>
+    </Tooltip.Provider>
   );
 }
 

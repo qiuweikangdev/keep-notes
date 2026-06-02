@@ -468,8 +468,11 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           </div>
         )}
 
-        {/* 内容区域 */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* 固定区域：当前分支、文件状态标题、提交信息 */}
+        <div
+          className="px-4 py-3 space-y-3"
+          style={{ borderBottom: "1px solid var(--border-color)" }}
+        >
           {/* 当前分支 */}
           <div className="flex items-center justify-between">
             <span className="text-sm" style={{ color: "var(--text-muted)" }}>
@@ -605,91 +608,24 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             </div>
           )}
 
-          {/* 文件状态 */}
+          {/* 文件状态标题 */}
           {allFiles.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span
-                  className="text-sm"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  文件状态
-                </span>
-                <div className="flex items-center gap-3 text-xs">
-                  {modifiedCount > 0 && (
-                    <span style={{ color: "#e2c08d" }}>
-                      ~{modifiedCount} 已修改
-                    </span>
-                  )}
-                  {untrackedCount > 0 && (
-                    <span style={{ color: "#73c991" }}>
-                      +{untrackedCount} 未跟踪
-                    </span>
-                  )}
-                </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm" style={{ color: "var(--text-muted)" }}>
+                文件状态
+              </span>
+              <div className="flex items-center gap-3 text-xs">
+                {modifiedCount > 0 && (
+                  <span style={{ color: "#e2c08d" }}>
+                    ~{modifiedCount} 已修改
+                  </span>
+                )}
+                {untrackedCount > 0 && (
+                  <span style={{ color: "#73c991" }}>
+                    +{untrackedCount} 未跟踪
+                  </span>
+                )}
               </div>
-
-              {/* 文件列表 */}
-              <div
-                className="rounded-lg overflow-hidden"
-                style={{
-                  backgroundColor: "var(--bg-primary)",
-                  border: "1px solid var(--border-color)",
-                }}
-              >
-                {allFiles.map((file) => (
-                  <div
-                    key={file.path}
-                    className="flex items-center justify-between px-3 py-2 text-sm group"
-                    style={{ borderBottom: "1px solid var(--border-color)" }}
-                  >
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <input
-                        type="checkbox"
-                        checked={stagedFiles.has(file.path)}
-                        onChange={() => toggleFileStaging(file.path)}
-                        className="rounded w-3.5 h-3.5 cursor-pointer"
-                        style={{ accentColor: "var(--accent-color)" }}
-                      />
-                      <span
-                        className="truncate"
-                        style={{ color: "var(--text-primary)" }}
-                      >
-                        {file.path}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => handleOpenFile(file.path)}
-                        className="p-1 rounded transition-colors hover:bg-accent hover:text-foreground"
-                        style={{ color: "var(--text-muted)" }}
-                        title="打开文件"
-                      >
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDiscardChanges(file.path)}
-                        className="p-1 rounded transition-colors hover:bg-accent hover:text-[#f14c4c]"
-                        style={{ color: "var(--text-muted)" }}
-                        title="放弃更改"
-                      >
-                        <RotateCcw className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 无更改提示 */}
-          {allFiles.length === 0 && (
-            <div
-              className="text-center py-6"
-              style={{ color: "var(--text-muted)" }}
-            >
-              <GitCommit className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">无更改</p>
             </div>
           )}
 
@@ -699,8 +635,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
               value={commitMessage}
               onChange={(e) => setCommitMessage(e.target.value)}
               placeholder="提交信息（留空将自动生成）..."
-              rows={3}
-              className="w-full px-3 py-2 text-sm rounded-lg resize-none outline-none"
+              rows={2}
+              className="w-full px-3 py-1.5 text-sm rounded-lg resize-none outline-none"
               style={{
                 backgroundColor: "var(--bg-primary)",
                 border: "1px solid var(--border-color)",
@@ -713,7 +649,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                 e.currentTarget.style.borderColor = "var(--border-color)";
               }}
             />
-            <div className="flex items-center gap-2 mt-2">
+            <div className="flex items-center gap-2 mt-1.5">
               <input
                 type="checkbox"
                 id="includeUntracked"
@@ -732,6 +668,69 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             </div>
           </div>
         </div>
+
+        {/* 文件列表 - 可滚动区域 */}
+        {allFiles.length > 0 && (
+          <div
+            className="flex-1 overflow-y-auto"
+            style={{ backgroundColor: "var(--bg-primary)" }}
+          >
+            {allFiles.map((file) => (
+              <div
+                key={file.path}
+                className="flex items-center justify-between px-4 py-2 text-sm group"
+                style={{ borderBottom: "1px solid var(--border-color)" }}
+              >
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <input
+                    type="checkbox"
+                    checked={stagedFiles.has(file.path)}
+                    onChange={() => toggleFileStaging(file.path)}
+                    className="rounded w-3.5 h-3.5 cursor-pointer"
+                    style={{ accentColor: "var(--accent-color)" }}
+                  />
+                  <span
+                    className="truncate"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    {file.path}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => handleOpenFile(file.path)}
+                    className="p-1 rounded transition-colors hover:bg-accent hover:text-foreground"
+                    style={{ color: "var(--text-muted)" }}
+                    title="打开文件"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => handleDiscardChanges(file.path)}
+                    className="p-1 rounded transition-colors hover:bg-accent hover:text-[#f14c4c]"
+                    style={{ color: "var(--text-muted)" }}
+                    title="放弃更改"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* 无更改提示 */}
+        {allFiles.length === 0 && (
+          <div
+            className="flex-1 flex items-center justify-center py-6"
+            style={{ color: "var(--text-muted)" }}
+          >
+            <div className="text-center">
+              <GitCommit className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">无更改</p>
+            </div>
+          </div>
+        )}
 
         {/* 底部按钮 */}
         <div
