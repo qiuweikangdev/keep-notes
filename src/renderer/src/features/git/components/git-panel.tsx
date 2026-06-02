@@ -131,8 +131,16 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       }
     });
 
-    return Array.from(fileMap.values());
-  }, [gitStatus]);
+    // 使用 stagedFiles 状态来更新文件的暂存状态
+    return Array.from(fileMap.values()).map((file) => ({
+      ...file,
+      status: stagedFiles.has(file.path)
+        ? "S"
+        : file.status === "S"
+          ? "M"
+          : file.status,
+    }));
+  }, [gitStatus, stagedFiles]);
 
   // 切换文件暂存状态
   const toggleFileStaging = useCallback(
