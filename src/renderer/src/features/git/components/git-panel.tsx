@@ -122,7 +122,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       const isCurrentlyStaged = stagedFiles.has(filePath);
 
       try {
-        setLoading(true);
         if (isCurrentlyStaged) {
           // 取消暂存
           const result = await unstageFiles(dir, [filePath]);
@@ -142,8 +141,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         }
       } catch (error) {
         showMessage("error", "操作失败");
-      } finally {
-        setLoading(false);
       }
     },
     [getCurrentDir, stagedFiles, addFilesToStaging, unstageFiles],
