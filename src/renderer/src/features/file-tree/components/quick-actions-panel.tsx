@@ -321,12 +321,12 @@ function RecentContentPanel({
   showOpenFolder = false,
 }: RecentContentPanelProps) {
   return (
-    <div className="pt-2 pb-0.5">
+    <div className="py-1">
       {/* 最近目录标题 */}
       {recentFolders.length > 0 && (
-        <div className="mb-1">
+        <div className="mb-0.5">
           <div
-            className="px-2 py-1 text-[11px] font-medium"
+            className="px-2 py-0.5 text-[11px] font-medium"
             style={{ color: "var(--text-muted)" }}
           >
             最近使用的目录
@@ -335,7 +335,7 @@ function RecentContentPanel({
             {recentFolders.map((folder) => (
               <div
                 key={folder.path}
-                className="group flex cursor-default items-center gap-2 px-4 py-1 text-[13px] transition-colors"
+                className="group flex cursor-default items-center gap-2 px-4 py-0.5 text-[13px] transition-colors"
                 style={{ color: "var(--text-secondary)" }}
                 onClick={() => onOpenRecentFolder(folder.path)}
                 onMouseEnter={(e) => {
@@ -375,9 +375,9 @@ function RecentContentPanel({
 
       {/* 最近文件标题 */}
       {recentFiles.length > 0 && (
-        <div className="mb-1">
+        <div className="mb-0.5">
           <div
-            className="px-2 py-1 text-[11px] font-medium"
+            className="px-2 py-0.5 text-[11px] font-medium"
             style={{ color: "var(--text-muted)" }}
           >
             最近使用的文件
@@ -386,7 +386,7 @@ function RecentContentPanel({
             {recentFiles.map((file) => (
               <div
                 key={file.path}
-                className="group flex cursor-default items-center gap-2 px-4 py-1 text-[13px] transition-colors"
+                className="group flex cursor-default items-center gap-2 px-4 py-0.5 text-[13px] transition-colors"
                 style={{ color: "var(--text-secondary)" }}
                 onClick={() => onOpenRecentFile(file.path)}
                 onMouseEnter={(e) => {
@@ -427,17 +427,17 @@ function RecentContentPanel({
       {/* 分隔线和打开文件夹 - 仅在未打开目录时显示 */}
       {showOpenFolder && (
         <div
-          className="mt-1"
+          className="mt-0.5"
           style={{ borderTop: "1px solid var(--border-color)" }}
         >
           <div
-            className="px-2 py-1 text-[11px] font-medium"
+            className="px-2 py-0.5 text-[11px] font-medium"
             style={{ color: "var(--text-muted)" }}
           >
             目录
           </div>
           <div
-            className="flex cursor-default items-center gap-2 px-4 py-1 text-[13px] transition-colors"
+            className="flex cursor-default items-center gap-2 px-4 py-0.5 text-[13px] transition-colors"
             style={{ color: "var(--text-secondary)" }}
             onClick={onOpenFolder}
             onMouseEnter={(e) => {
