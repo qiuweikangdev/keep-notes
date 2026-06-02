@@ -209,9 +209,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
 
       try {
         setLoading(true);
-        if (includeUntracked) {
-          await addFilesToStaging(dir, []);
-        }
         const options: GitCommitOptions = {
           message,
           push: pushAfterCommit,
@@ -233,14 +230,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         setLoading(false);
       }
     },
-    [
-      getCurrentDir,
-      commitMessage,
-      includeUntracked,
-      commitChanges,
-      addFilesToStaging,
-      loadGitInfo,
-    ],
+    [getCurrentDir, commitMessage, commitChanges, loadGitInfo],
   );
 
   const handlePush = useCallback(async () => {
@@ -296,6 +286,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       try {
         const result = await openGitFile(dir, filePath);
         if (result.code === CodeResult.Success && result.data) {
+          // 关闭弹窗
+          onClose();
           // 使用 Electron 的 shell.openPath 打开文件
           await window.electronAPI.openInExplorer(result.data);
         } else {
@@ -305,7 +297,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         showMessage("error", "打开文件失败");
       }
     },
-    [getCurrentDir, openGitFile],
+    [getCurrentDir, openGitFile, onClose],
   );
 
   // 放弃更改
