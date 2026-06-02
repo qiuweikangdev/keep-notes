@@ -1,4 +1,4 @@
-import {
+﻿import {
   useEffect,
   useRef,
   useCallback,
@@ -187,12 +187,8 @@ export function MilkdownEditor() {
   }
 
   return (
-    <MilkdownProvider>
-      <MilkdownEditorInner
-        key={filePath}
-        content={content}
-        onChange={handleChange}
-      />
+    <MilkdownProvider key={filePath}>
+      <MilkdownEditorInner content={content} onChange={handleChange} />
     </MilkdownProvider>
   );
 }

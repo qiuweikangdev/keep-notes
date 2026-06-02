@@ -149,7 +149,11 @@ export const TreeNode = memo(function TreeNode({
     if (isFolder) {
       onCreateInFolder?.(node.key, "file", level + 1);
     } else {
-      const parentKey = node.key.substring(0, node.key.lastIndexOf("/"));
+      const lastSep = Math.max(
+        node.key.lastIndexOf("/"),
+        node.key.lastIndexOf("\\"),
+      );
+      const parentKey = lastSep > 0 ? node.key.substring(0, lastSep) : node.key;
       onCreateInFolder?.(parentKey, "file", level);
     }
   }, [isFolder, node.key, level, onCreateInFolder]);
@@ -158,7 +162,11 @@ export const TreeNode = memo(function TreeNode({
     if (isFolder) {
       onCreateInFolder?.(node.key, "folder", level + 1);
     } else {
-      const parentKey = node.key.substring(0, node.key.lastIndexOf("/"));
+      const lastSep = Math.max(
+        node.key.lastIndexOf("/"),
+        node.key.lastIndexOf("\\"),
+      );
+      const parentKey = lastSep > 0 ? node.key.substring(0, lastSep) : node.key;
       onCreateInFolder?.(parentKey, "folder", level);
     }
   }, [isFolder, node.key, level, onCreateInFolder]);
@@ -178,10 +186,11 @@ export const TreeNode = memo(function TreeNode({
       if (!isExpanded) {
         toggleExpandedKey(node.key);
       }
+      const sep = node.key.includes("\\") ? "\\" : "/";
       const newKey =
         creatingInfo.type === "file"
-          ? `${node.key}/${title}.md`
-          : `${node.key}/${title}`;
+          ? `${node.key}${sep}${title}.md`
+          : `${node.key}${sep}${title}`;
       setSelectedKey(newKey);
     }
 

@@ -1,5 +1,14 @@
-import { useState, useCallback, useMemo, type KeyboardEvent } from "react";
 import {
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+  useEffect,
+  type KeyboardEvent,
+} from "react";
+import {
+  File,
+  Folder,
   FolderOpen,
   Plus,
   FolderPlus,
@@ -14,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ContextMenu } from "@/components/ui/context-menu";
 import type { TreeNode as TreeNodeType } from "@/types";
+import { CodeResult } from "@/types";
 
 const MENU_CONTENT_CLASS =
   "z-[9999] min-w-[180px] rounded-md border p-1 shadow-lg bg-[var(--bg-primary)] border-[var(--border-color)] text-[var(--text-primary)]";
@@ -28,12 +38,63 @@ interface CreatingInfo {
 }
 
 export function FileTree() {
-  const { treeData, treeRoot } = useTreeStore();
-  const { openFolder, openInExplorer } = useElectron();
+  const { treeData, treeRoot, setTreeData } = useTreeStore();
+  const { openFolder, openInExplorer, createFile, createFolder } =
+    useElectron();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [creatingInfo, setCreatingInfo] = useState<CreatingInfo | null>(null);
+  const [createValue, setCreateValue] = useState("");
+  const createInputRef = useRef<HTMLInputElement>(null);
+  const confirmedRef = useRef(false);
+  const isRootCreating = creatingInfo?.parentKey === treeRoot?.key;
+
+  useEffect(() => {
+    if (isRootCreating && createInputRef.current) {
+      requestAnimationFrame(() => createInputRef.current?.focus());
+    }
+  }, [isRootCreating]);
+
+  const doRootCreate = useCallback(async () => {
+    const title = createValue.trim();
+    if (!title || !creatingInfo || !treeRoot) {
+      setCreateValue("");
+      setCreatingInfo(null);
+      return;
+    }
+    const fn = creatingInfo.type === "file" ? createFile : createFolder;
+    const r = await fn(treeRoot.key, title, treeData);
+    if (r.code === CodeResult.Success && r.data) {
+      setTreeData(r.data.treeData);
+    }
+    setCreateValue("");
+    setCreatingInfo(null);
+  }, [
+    createValue,
+    creatingInfo,
+    treeRoot,
+    treeData,
+    createFile,
+    createFolder,
+    setTreeData,
+  ]);
+
+  const handleRootCreateKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        confirmedRef.current = true;
+        void doRootCreate();
+      }
+      if (e.key === "Escape") {
+        confirmedRef.current = true;
+        setCreateValue("");
+        setCreatingInfo(null);
+      }
+    },
+    [doRootCreate],
+  );
 
   const handleSelectDir = useCallback(async () => {
     await openFolder();
@@ -151,6 +212,54 @@ export function FileTree() {
                     </Button>
                   ) : null}
                 </div>
+              </div>
+            ) : null}
+
+            {isRootCreating ? (
+              <div
+                className="flex h-[26px] items-center"
+                style={{ paddingLeft: "12px", paddingRight: "12px" }}
+              >
+                <div className="flex h-[26px] w-[12px] flex-shrink-0 items-center justify-center" />
+                <div className="mr-[6px] flex h-[26px] w-[16px] flex-shrink-0 items-center justify-center">
+                  {creatingInfo.type === "file" ? (
+                    <File
+                      className="h-[14px] w-[14px]"
+                      style={{ color: "#519aba" }}
+                    />
+                  ) : (
+                    <Folder
+                      className="h-[14px] w-[14px]"
+                      style={{ color: "#c9a227" }}
+                    />
+                  )}
+                </div>
+                <input
+                  ref={createInputRef}
+                  autoFocus
+                  value={createValue}
+                  onChange={(e) => setCreateValue(e.target.value)}
+                  onKeyDown={handleRootCreateKeyDown}
+                  onBlur={() => {
+                    if (confirmedRef.current) {
+                      confirmedRef.current = false;
+                      return;
+                    }
+                    setTimeout(() => void doRootCreate(), 100);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  placeholder={
+                    creatingInfo.type === "file"
+                      ? "输入文件名称"
+                      : "输入文件夹名称"
+                  }
+                  className="h-[22px] flex-1 rounded-[3px] px-[6px] text-[13px] outline-none"
+                  style={{
+                    backgroundColor: "var(--bg-tertiary)",
+                    border: "1px solid var(--accent-color)",
+                    color: "var(--text-primary)",
+                  }}
+                />
               </div>
             ) : null}
 
