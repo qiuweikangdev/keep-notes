@@ -747,7 +747,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
               disabled={loading}
               className="px-4 py-1.5 text-sm rounded-lg transition-colors"
               style={{
-                backgroundColor: "var(--bg-tertiary)",
+                backgroundColor: "transparent",
                 color: "var(--text-primary)",
               }}
               onMouseEnter={(e) => {
@@ -755,7 +755,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                   e.currentTarget.style.backgroundColor = "var(--hover-bg)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--bg-tertiary)";
+                e.currentTarget.style.backgroundColor = "transparent";
               }}
             >
               提交
@@ -767,17 +767,15 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
               style={{
                 backgroundColor: loading
                   ? "var(--bg-tertiary)"
-                  : "var(--accent-color)",
-                color: "#ffffff",
+                  : "var(--bg-tertiary)",
+                color: "var(--text-primary)",
               }}
               onMouseEnter={(e) => {
                 if (!loading)
-                  e.currentTarget.style.backgroundColor = "var(--accent-hover)";
+                  e.currentTarget.style.backgroundColor = "var(--hover-bg)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = loading
-                  ? "var(--bg-tertiary)"
-                  : "var(--accent-color)";
+                e.currentTarget.style.backgroundColor = "var(--bg-tertiary)";
               }}
             >
               提交并推送
