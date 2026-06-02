@@ -12,8 +12,16 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
   ExternalLink,
   RotateCcw,
+  List,
+  FolderTree,
+  File,
+  Folder,
+  FolderOpen,
+  MinusSquare,
+  PlusSquare,
 } from "lucide-react";
 
 interface GitPanelProps {
@@ -64,6 +72,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     open: boolean;
     filePath: string;
   }>({ open: false, filePath: "" });
+  const [treeView, setTreeView] = useState(false);
+  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
 
   const getCurrentDir = useCallback(() => {
     return treeRoot?.key || "";
@@ -122,6 +132,63 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
 
     return Array.from(fileSet).map((path) => ({ path }));
   }, [gitStatus]);
+
+  // 树节点类型
+  interface TreeNode {
+    name: string;
+    path: string;
+    isFile: boolean;
+    children: TreeNode[];
+  }
+
+  // 将扁平文件路径转换为树形结构
+  const buildFileTree = useCallback((files: FileItem[]): TreeNode[] => {
+    const root: TreeNode[] = [];
+
+    files.forEach(({ path }) => {
+      const parts = path.split(/[/\\]/);
+      let current = root;
+
+      parts.forEach((part, index) => {
+        const isFile = index === parts.length - 1;
+        const existing = current.find((n) => n.name === part);
+
+        if (existing) {
+          if (!isFile) {
+            current = existing.children;
+          }
+        } else {
+          // 使用原始路径中的分隔符
+          const sep = path.includes("\\") ? "\\" : "/";
+          const node: TreeNode = {
+            name: part,
+            path: isFile ? path : parts.slice(0, index + 1).join(sep),
+            isFile,
+            children: [],
+          };
+          current.push(node);
+          if (!isFile) {
+            current = node.children;
+          }
+        }
+      });
+    });
+
+    return root;
+  }, []);
+
+  // 切换目录展开状态
+  const toggleDir = useCallback((dirPath: string) => {
+    setExpandedDirs((prev) => {
+      const next = new Set(prev);
+      if (next.has(dirPath)) {
+        next.delete(dirPath);
+      } else {
+        next.add(dirPath);
+      }
+      return next;
+    });
+  }, []);
 
   // 切换文件暂存状态
   const toggleFileStaging = useCallback(
@@ -328,6 +395,99 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     setConfirmDialog({ open: true, filePath });
   }, []);
 
+  const allFiles = getAllFiles();
+  const modifiedCount = gitStatus?.modified.length || 0;
+  const untrackedCount = gitStatus?.not_added.length || 0;
+
+  // 获取目录下所有文件路径
+  const getFilesInDir = useCallback(
+    (dirPath: string): string[] => {
+      return allFiles
+        .filter(
+          (f) =>
+            f.path.startsWith(dirPath + "/") ||
+            f.path.startsWith(dirPath + "\\"),
+        )
+        .map((f) => f.path);
+    },
+    [allFiles],
+  );
+
+  // 检查目录下所有文件是否都已暂存
+  const isDirFullyStaged = useCallback(
+    (dirPath: string): boolean => {
+      const files = getFilesInDir(dirPath);
+      return files.length > 0 && files.every((f) => stagedFiles.has(f));
+    },
+    [getFilesInDir, stagedFiles],
+  );
+
+  // 检查目录下是否有部分文件已暂存
+  const isDirPartiallyStaged = useCallback(
+    (dirPath: string): boolean => {
+      const files = getFilesInDir(dirPath);
+      const stagedCount = files.filter((f) => stagedFiles.has(f)).length;
+      return stagedCount > 0 && stagedCount < files.length;
+    },
+    [getFilesInDir, stagedFiles],
+  );
+
+  // 切换目录下所有文件的暂存状态
+  const toggleDirStaging = useCallback(
+    async (dirPath: string) => {
+      const dir = getCurrentDir();
+      if (!dir) return;
+
+      const files = getFilesInDir(dirPath);
+      if (files.length === 0) return;
+
+      const allStaged = isDirFullyStaged(dirPath);
+
+      try {
+        if (allStaged) {
+          // 取消暂存所有文件
+          const result = await unstageFiles(dir, files);
+          if (result.code === CodeResult.Success) {
+            setStagedFiles((prev) => {
+              const next = new Set(prev);
+              files.forEach((f) => next.delete(f));
+              return next;
+            });
+          }
+        } else {
+          // 暂存所有文件
+          const result = await addFilesToStaging(dir, files);
+          if (result.code === CodeResult.Success) {
+            setStagedFiles((prev) => {
+              const next = new Set(prev);
+              files.forEach((f) => next.add(f));
+              return next;
+            });
+          }
+        }
+      } catch (error) {
+        showMessage("error", "操作失败");
+      }
+    },
+    [
+      getCurrentDir,
+      getFilesInDir,
+      isDirFullyStaged,
+      addFilesToStaging,
+      unstageFiles,
+    ],
+  );
+
+  // 放弃目录下所有文件的更改
+  const handleDiscardDirChanges = useCallback(
+    (dirPath: string) => {
+      const files = getFilesInDir(dirPath);
+      if (files.length === 0) return;
+      setConfirmDialog({ open: true, filePath: dirPath + "/*" });
+    },
+    [getFilesInDir],
+  );
+
   // 确认放弃更改
   const confirmDiscardChanges = useCallback(async () => {
     const filePath = confirmDialog.filePath;
@@ -337,18 +497,50 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     setConfirmDialog({ open: false, filePath: "" });
 
     try {
-      const result = await discardChanges(dir, filePath);
-      if (result.code === CodeResult.Success) {
-        showMessage("success", "已放弃更改");
-        await loadGitInfo();
-        await loadTree(dir);
+      // 处理目录级别的放弃更改
+      if (filePath.endsWith("/*")) {
+        const dirPath = filePath.slice(0, -2);
+        const files = getFilesInDir(dirPath);
+        let successCount = 0;
+
+        for (const file of files) {
+          const result = await discardChanges(dir, file);
+          if (result.code === CodeResult.Success) {
+            successCount++;
+          }
+        }
+
+        if (successCount === files.length) {
+          showMessage("success", "已放弃目录下所有更改");
+        } else {
+          showMessage(
+            "success",
+            `已放弃 ${successCount}/${files.length} 个文件的更改`,
+          );
+        }
       } else {
-        showMessage("error", result.message || "放弃更改失败");
+        const result = await discardChanges(dir, filePath);
+        if (result.code === CodeResult.Success) {
+          showMessage("success", "已放弃更改");
+        } else {
+          showMessage("error", result.message || "放弃更改失败");
+          return;
+        }
       }
+
+      await loadGitInfo();
+      await loadTree(dir);
     } catch (error) {
       showMessage("error", "放弃更改失败");
     }
-  }, [confirmDialog, getCurrentDir, discardChanges, loadGitInfo, loadTree]);
+  }, [
+    confirmDialog,
+    getCurrentDir,
+    discardChanges,
+    loadGitInfo,
+    loadTree,
+    getFilesInDir,
+  ]);
 
   if (!isOpen) return null;
 
@@ -404,10 +596,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       </div>
     );
   }
-
-  const allFiles = getAllFiles();
-  const modifiedCount = gitStatus?.modified.length || 0;
-  const untrackedCount = gitStatus?.not_added.length || 0;
 
   return (
     <div
@@ -664,6 +852,18 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                     +{untrackedCount} 未跟踪
                   </span>
                 )}
+                <button
+                  onClick={() => setTreeView(!treeView)}
+                  className="p-1 rounded transition-colors hover:bg-[var(--hover-bg)]"
+                  style={{ color: "var(--text-muted)" }}
+                  title={treeView ? "列表视图" : "树形视图"}
+                >
+                  {treeView ? (
+                    <List className="h-3.5 w-3.5" />
+                  ) : (
+                    <FolderTree className="h-3.5 w-3.5" />
+                  )}
+                </button>
               </div>
             </div>
           )}
@@ -675,47 +875,171 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             className="flex-1 overflow-y-auto"
             style={{ backgroundColor: "var(--bg-primary)" }}
           >
-            {allFiles.map((file) => (
-              <div
-                key={file.path}
-                className="flex items-center justify-between px-4 py-2 text-sm group"
-                style={{ borderBottom: "1px solid var(--border-color)" }}
-              >
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <input
-                    type="checkbox"
-                    checked={stagedFiles.has(file.path)}
-                    onChange={() => toggleFileStaging(file.path)}
-                    className="rounded w-3.5 h-3.5 cursor-pointer"
-                    style={{ accentColor: "var(--accent-color)" }}
-                  />
-                  <span
-                    className="truncate"
-                    style={{ color: "var(--text-primary)" }}
+            {treeView
+              ? // 树形视图 - 基于路径深度计算缩进
+                (() => {
+                  const tree = buildFileTree(allFiles);
+                  const renderNode = (node: TreeNode, depth: number = 0) => {
+                    // 根据路径中的分隔符数量计算真实深度
+                    const realDepth = node.path.split(/[/\\]/).length - 1;
+
+                    if (node.isFile) {
+                      return (
+                        <div
+                          key={node.path}
+                          className="flex items-center justify-between px-4 py-2 text-sm group"
+                          style={{
+                            borderBottom: "1px solid var(--border-color)",
+                            paddingLeft: `${16 + realDepth * 20}px`,
+                          }}
+                        >
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={stagedFiles.has(node.path)}
+                              onChange={() => toggleFileStaging(node.path)}
+                              className="rounded w-3.5 h-3.5 cursor-pointer"
+                              style={{
+                                accentColor: "var(--accent-color)",
+                                outline: "none",
+                              }}
+                            />
+                            <span
+                              className="truncate"
+                              style={{ color: "var(--text-primary)" }}
+                            >
+                              {node.name}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => handleOpenFile(node.path)}
+                              className="p-1 rounded transition-colors hover:bg-accent hover:text-foreground"
+                              style={{ color: "var(--text-muted)" }}
+                              title="打开文件"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDiscardChanges(node.path)}
+                              className="p-1 rounded transition-colors hover:bg-accent hover:text-[#f14c4c]"
+                              style={{ color: "var(--text-muted)" }}
+                              title="放弃更改"
+                            >
+                              <RotateCcw className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    const isExpanded = expandedDirs.has(node.path);
+                    const allStaged = isDirFullyStaged(node.path);
+                    const partialStaged = isDirPartiallyStaged(node.path);
+
+                    return (
+                      <div key={node.path}>
+                        <div
+                          className="flex items-center justify-between px-4 py-2 text-sm group"
+                          style={{
+                            borderBottom: "1px solid var(--border-color)",
+                            paddingLeft: `${16 + realDepth * 20}px`,
+                          }}
+                        >
+                          <div
+                            className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer"
+                            onClick={() => toggleDir(node.path)}
+                          >
+                            <ChevronRight
+                              className="h-3.5 w-3.5 transition-transform"
+                              style={{
+                                color: "var(--text-muted)",
+                                transform: isExpanded
+                                  ? "rotate(90deg)"
+                                  : "rotate(0deg)",
+                              }}
+                            />
+                            <input
+                              type="checkbox"
+                              checked={allStaged}
+                              ref={(el) => {
+                                if (el) el.indeterminate = partialStaged;
+                              }}
+                              onChange={() => toggleDirStaging(node.path)}
+                              className="rounded w-3.5 h-3.5 cursor-pointer"
+                              style={{
+                                accentColor: "var(--accent-color)",
+                                outline: "none",
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <span style={{ color: "var(--text-primary)" }}>
+                              {node.name}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => handleDiscardDirChanges(node.path)}
+                              className="p-1 rounded transition-colors hover:bg-accent hover:text-[#f14c4c]"
+                              style={{ color: "var(--text-muted)" }}
+                              title="放弃目录更改"
+                            >
+                              <RotateCcw className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                        {isExpanded &&
+                          node.children.map((child) =>
+                            renderNode(child, depth + 1),
+                          )}
+                      </div>
+                    );
+                  };
+
+                  return tree.map((node) => renderNode(node));
+                })()
+              : // 列表视图
+                allFiles.map((file) => (
+                  <div
+                    key={file.path}
+                    className="flex items-center justify-between px-4 py-2 text-sm group"
+                    style={{ borderBottom: "1px solid var(--border-color)" }}
                   >
-                    {file.path}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => handleOpenFile(file.path)}
-                    className="p-1 rounded transition-colors hover:bg-accent hover:text-foreground"
-                    style={{ color: "var(--text-muted)" }}
-                    title="打开文件"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    onClick={() => handleDiscardChanges(file.path)}
-                    className="p-1 rounded transition-colors hover:bg-accent hover:text-[#f14c4c]"
-                    style={{ color: "var(--text-muted)" }}
-                    title="放弃更改"
-                  >
-                    <RotateCcw className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))}
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={stagedFiles.has(file.path)}
+                        onChange={() => toggleFileStaging(file.path)}
+                        className="rounded w-3.5 h-3.5 cursor-pointer"
+                        style={{ accentColor: "var(--accent-color)" }}
+                      />
+                      <span
+                        className="truncate"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        {file.path}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => handleOpenFile(file.path)}
+                        className="p-1 rounded transition-colors hover:bg-accent hover:text-foreground"
+                        style={{ color: "var(--text-muted)" }}
+                        title="打开文件"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDiscardChanges(file.path)}
+                        className="p-1 rounded transition-colors hover:bg-accent hover:text-[#f14c4c]"
+                        style={{ color: "var(--text-muted)" }}
+                        title="放弃更改"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
           </div>
         )}
 
@@ -809,9 +1133,11 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
               <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
                 确定要放弃{" "}
                 <span style={{ color: "var(--text-primary)", fontWeight: 500 }}>
-                  "{confirmDialog.filePath}"
-                </span>{" "}
-                的更改吗？
+                  {confirmDialog.filePath.endsWith("/*")
+                    ? `目录 "${confirmDialog.filePath.slice(0, -2)}" 下的所有更改`
+                    : `"${confirmDialog.filePath}" 的更改`}
+                </span>
+                吗？
               </p>
               <p
                 className="text-xs mt-2"
