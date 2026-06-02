@@ -39,9 +39,10 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     pushToRemote,
     pullFromRemote,
     discardChanges,
-    openGitFile,
+    openFile: openFileInEditor,
   } = useElectron();
-  const { treeRoot } = useTreeStore();
+  const { treeRoot, setSelectedKey, expandedKeys, setExpandedKeys } =
+    useTreeStore();
 
   const [isGitRepo, setIsGitRepo] = useState(false);
   const [currentBranch, setCurrentBranch] = useState("");
@@ -283,21 +284,36 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       const dir = getCurrentDir();
       if (!dir) return;
 
-      try {
-        const result = await openGitFile(dir, filePath);
-        if (result.code === CodeResult.Success && result.data) {
-          // 关闭弹窗
-          onClose();
-          // 使用 Electron 的 shell.openPath 打开文件
-          await window.electronAPI.openInExplorer(result.data);
-        } else {
-          showMessage("error", result.message || "打开文件失败");
-        }
-      } catch (error) {
-        showMessage("error", "打开文件失败");
+      // 关闭弹窗
+      onClose();
+
+      // 构造完整路径，使用与 treeRoot.key 相同的分隔符
+      const sep = dir.includes("\\") ? "\\" : "/";
+      const normalizedFile = filePath.replace(/[/\\]/g, sep);
+      const fullPath = dir + sep + normalizedFile;
+
+      // 展开所有父目录，使文件在树中可见
+      const parts = fullPath.split(/[/\\]/);
+      const newExpanded = new Set(expandedKeys);
+      let current = parts[0];
+      for (let i = 1; i < parts.length - 1; i++) {
+        current += sep + parts[i];
+        newExpanded.add(current);
       }
+      setExpandedKeys(Array.from(newExpanded));
+
+      // 高亮并打开文件
+      setSelectedKey(fullPath);
+      await openFileInEditor(fullPath);
     },
-    [getCurrentDir, openGitFile, onClose],
+    [
+      getCurrentDir,
+      onClose,
+      setSelectedKey,
+      openFileInEditor,
+      expandedKeys,
+      setExpandedKeys,
+    ],
   );
 
   // 放弃更改
