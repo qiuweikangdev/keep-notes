@@ -10,7 +10,7 @@ import { Milkdown, MilkdownProvider, useEditor } from "@milkdown/react";
 import { useEditorStore } from "@/store/editor.store";
 import { useTreeStore } from "@/store/tree.store";
 import { useTheme } from "@/hooks/use-theme";
-import { Loader2, FileText } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 import "@milkdown/crepe/theme/common/style.css";
 import "@milkdown/crepe/theme/frame.css";
@@ -266,7 +266,13 @@ export function MilkdownEditor() {
         clearTimeout(saveTimeoutRef.current);
       }
 
-      if (!filePath) return;
+      // 无文件时保存到 store 作为草稿
+      if (!filePath) {
+        useEditorStore.getState().setContent(newContent);
+        useEditorStore.getState().setDirty(true);
+        return;
+      }
+
       pendingSaveRef.current = { filePath, content: newContent };
       saveTimeoutRef.current = setTimeout(async () => {
         const pending = pendingSaveRef.current;
@@ -289,43 +295,8 @@ export function MilkdownEditor() {
     };
   }, [saveContent]);
 
-  if (!filePath) {
-    return (
-      <div
-        className="flex h-full items-center justify-center"
-        style={{ backgroundColor: "var(--bg-primary)" }}
-      >
-        <div className="space-y-4 text-center">
-          <div
-            className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl"
-            style={{ backgroundColor: "var(--bg-secondary)" }}
-          >
-            <FileText
-              className="h-10 w-10"
-              style={{ color: "var(--text-muted)" }}
-            />
-          </div>
-          <div className="space-y-2">
-            <p
-              className="text-base font-medium"
-              style={{ color: "var(--text-primary)" }}
-            >
-              欢迎使用 Keep Notes
-            </p>
-            <p
-              className="max-w-[280px] text-sm"
-              style={{ color: "var(--text-muted)" }}
-            >
-              从资源管理器选择一个 Markdown 文件，或新建一个文件开始编辑。
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <MilkdownProvider key={filePath}>
+    <MilkdownProvider>
       <MilkdownEditorInner content={content} onChange={handleChange} />
     </MilkdownProvider>
   );

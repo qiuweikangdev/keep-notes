@@ -4,9 +4,14 @@ export const IPC_CHANNELS = {
     MAXIMIZE: "window:maximize",
     CLOSE: "window:close",
   },
+  EDITOR: {
+    UPDATE_DIRTY_STATE: "editor:update-dirty-state",
+    SAVE_DRAFT: "editor:save-draft",
+  },
   FILE: {
     READ: "file:read",
     WRITE: "file:write",
+    SAVE_AS: "file:save-as",
     OPEN_DIALOG: "file:open-dialog",
     GET_SELECTED_PATH: "file:get-selected-path",
     GENERATE_TREE: "file:generate-tree",

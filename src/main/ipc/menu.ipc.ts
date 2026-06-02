@@ -17,6 +17,8 @@ export function registerMenuIpc(): void {
     }
   });
 
+  // 窗口关闭由 window.ts 中的 close 事件处理
+  // 这里保留兼容性，但实际由 close 事件拦截
   ipcMain.on(IPC_CHANNELS.WINDOW.CLOSE, (event) => {
     const win = getBrowserWindow(event);
     win?.close();

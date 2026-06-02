@@ -13,4 +13,8 @@ export const windowApi = {
   closeWindow: (): void => {
     ipcRenderer.send(IPC_CHANNELS.WINDOW.CLOSE);
   },
+
+  updateDirtyState: (isDirty: boolean): void => {
+    ipcRenderer.send(IPC_CHANNELS.EDITOR.UPDATE_DIRTY_STATE, isDirty);
+  },
 };

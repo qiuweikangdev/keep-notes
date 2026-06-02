@@ -13,8 +13,10 @@ export interface ElectronAPI {
   minimizeWindow: () => void;
   maximizeWindow: () => void;
   closeWindow: () => void;
+  updateDirtyState: (isDirty: boolean) => void;
   readFile: (filePath: string) => Promise<string>;
   writeFile: (filePath: string, content: string) => Promise<void>;
+  saveAs: (content: string) => Promise<ApiResponse<{ filePath: string }>>;
   openDialog: () => Promise<
     ApiResponse<{
       treeData: TreeNode[];

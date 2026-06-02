@@ -1,5 +1,6 @@
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Editor } from "@/features/editor";
+import { EditorBridge } from "@/features/editor/components/editor-bridge";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TitleBar } from "@/components/layout/title-bar";
 import { usePanel } from "@/hooks/use-panel";
@@ -27,6 +28,9 @@ export function HomePage() {
         borderRadius: isMaximized ? "0" : "8px",
       }}
     >
+      {/* 编辑器桥接组件，用于与主进程通信 */}
+      <EditorBridge />
+
       {/* 窗口边缘拖拽区域 */}
       <div className="resize-handle resize-handle-top" />
       <div className="resize-handle resize-handle-bottom" />

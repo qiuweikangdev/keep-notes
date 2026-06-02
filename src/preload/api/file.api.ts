@@ -11,6 +11,12 @@ export const fileApi = {
     return ipcRenderer.invoke(IPC_CHANNELS.FILE.WRITE, filePath, content);
   },
 
+  saveAs: (
+    content: string,
+  ): Promise<{ code: number; data?: { filePath: string } }> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.FILE.SAVE_AS, content);
+  },
+
   openDialog: (): Promise<
     ApiResponse<{
       treeData: TreeNode[];

@@ -10,7 +10,7 @@ export function useKeyboardShortcuts() {
   const { toggleCollapse } = usePanel();
   const { toggleTheme } = useUIStore();
   const { treeRoot, treeData } = useTreeStore();
-  const { filePath, setFilePath, resetEditor } = useEditorStore();
+  const { filePath, setFilePath, resetEditor, content } = useEditorStore();
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -61,12 +61,17 @@ export function useKeyboardShortcuts() {
         toggleTheme();
       }
 
-      // Cmd/Ctrl + S: 保存（虽然有自动保存，但提供手动保存的反馈）
+      // Cmd/Ctrl + S: 保存文件（弹出系统保存对话框）
       if (isMeta && e.key === "s") {
         e.preventDefault();
-        // 触发保存反馈
-        const event = new CustomEvent("app:save");
-        window.dispatchEvent(event);
+        // 弹出系统保存对话框
+        window.electronAPI.saveAs(content).then((result) => {
+          if (result.code === 0 && result.data) {
+            // 保存成功，更新 filePath
+            useEditorStore.getState().setFilePath(result.data.filePath);
+            useEditorStore.getState().setDirty(false);
+          }
+        });
       }
     },
     [
@@ -74,6 +79,7 @@ export function useKeyboardShortcuts() {
       treeRoot,
       treeData,
       filePath,
+      content,
       setFilePath,
       resetEditor,
       toggleCollapse,

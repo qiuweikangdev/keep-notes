@@ -103,6 +103,34 @@ export async function genDirTreByPath(selectedPath: string) {
   };
 }
 
+export async function saveAsDialog(
+  win: Electron.BrowserWindow,
+  content: string,
+) {
+  try {
+    const result = await dialog.showSaveDialog(win, {
+      title: "保存文件",
+      defaultPath: "未命名.md",
+      filters: [
+        { name: "Markdown", extensions: ["md"] },
+        { name: "所有文件", extensions: ["*"] },
+      ],
+    });
+
+    if (!result.canceled && result.filePath) {
+      await fs.promises.writeFile(result.filePath, content, "utf-8");
+      return {
+        code: CodeResult.Success,
+        data: { filePath: result.filePath },
+      };
+    }
+    return { code: CodeResult.Fail };
+  } catch (error) {
+    console.error("Error while saving file:", error);
+    return { code: CodeResult.Fail };
+  }
+}
+
 export async function openDialog(win: Electron.BrowserWindow) {
   try {
     const result = await dialog.showOpenDialog(win, {
