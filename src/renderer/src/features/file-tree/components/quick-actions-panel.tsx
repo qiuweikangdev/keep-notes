@@ -126,6 +126,7 @@ export function QuickActionsPanel({
               onRemoveRecentFolder={handleRemoveRecentFolder}
               onRemoveRecentFile={handleRemoveRecentFile}
               onOpenFolder={handleOpenFolder}
+              showOpenFolder={!treeRoot}
             />
           </div>
         ) : (
@@ -260,6 +261,7 @@ export function QuickActionsPanel({
             onRemoveRecentFolder={handleRemoveRecentFolder}
             onRemoveRecentFile={handleRemoveRecentFile}
             onOpenFolder={handleOpenFolder}
+            showOpenFolder={!treeRoot}
           />
         </div>
       )}
@@ -305,6 +307,7 @@ interface RecentContentPanelProps {
   onRemoveRecentFolder: (e: React.MouseEvent, path: string) => void;
   onRemoveRecentFile: (e: React.MouseEvent, path: string) => void;
   onOpenFolder: () => void;
+  showOpenFolder?: boolean;
 }
 
 function RecentContentPanel({
@@ -315,6 +318,7 @@ function RecentContentPanel({
   onRemoveRecentFolder,
   onRemoveRecentFile,
   onOpenFolder,
+  showOpenFolder = false,
 }: RecentContentPanelProps) {
   return (
     <div className="py-2">
@@ -420,37 +424,39 @@ function RecentContentPanel({
         </div>
       )}
 
-      {/* 分隔线和打开文件夹 */}
-      <div
-        className="mt-1"
-        style={{ borderTop: "1px solid var(--border-color)" }}
-      >
+      {/* 分隔线和打开文件夹 - 仅在未打开目录时显示 */}
+      {showOpenFolder && (
         <div
-          className="px-2 py-1 text-[11px] font-medium"
-          style={{ color: "var(--text-muted)" }}
+          className="mt-1"
+          style={{ borderTop: "1px solid var(--border-color)" }}
         >
-          目录
-        </div>
-        <div
-          className="flex cursor-default items-center gap-2 px-4 py-1 text-[13px] transition-colors"
-          style={{ color: "var(--text-secondary)" }}
-          onClick={onOpenFolder}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-            e.currentTarget.style.color = "var(--text-primary)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = "transparent";
-            e.currentTarget.style.color = "var(--text-secondary)";
-          }}
-        >
-          <FolderOpen
-            className="h-3.5 w-3.5 flex-shrink-0"
+          <div
+            className="px-2 py-1 text-[11px] font-medium"
             style={{ color: "var(--text-muted)" }}
-          />
-          <span>打开文件夹...</span>
+          >
+            目录
+          </div>
+          <div
+            className="flex cursor-default items-center gap-2 px-4 py-1 text-[13px] transition-colors"
+            style={{ color: "var(--text-secondary)" }}
+            onClick={onOpenFolder}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+              e.currentTarget.style.color = "var(--text-primary)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "transparent";
+              e.currentTarget.style.color = "var(--text-secondary)";
+            }}
+          >
+            <FolderOpen
+              className="h-3.5 w-3.5 flex-shrink-0"
+              style={{ color: "var(--text-muted)" }}
+            />
+            <span>打开文件夹...</span>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
