@@ -137,7 +137,7 @@ export function QuickActionsPanel({
           >
             <button
               type="button"
-              className="flex flex-1 items-center justify-center gap-2 py-2 text-[13px] transition-colors"
+              className="flex flex-1 items-center justify-center gap-2 py-2.5 text-[13px] transition-colors"
               style={{ color: "var(--text-muted)" }}
               onClick={handleOpenFolder}
               onMouseEnter={(e) => {
@@ -427,7 +427,7 @@ function RecentContentPanel({
       {/* 分隔线和打开文件夹 - 仅在未打开目录时显示 */}
       {showOpenFolder && (
         <div
-          className="mt-0"
+          className="mt-0.5 pb-1"
           style={{ borderTop: "1px solid var(--border-color)" }}
         >
           <div
@@ -437,7 +437,7 @@ function RecentContentPanel({
             目录
           </div>
           <div
-            className="flex cursor-default items-center gap-2 px-3 py-0 text-[13px] transition-colors"
+            className="flex cursor-default items-center gap-2 px-3 py-0.5 text-[13px] transition-colors"
             style={{ color: "var(--text-secondary)" }}
             onClick={onOpenFolder}
             onMouseEnter={(e) => {
