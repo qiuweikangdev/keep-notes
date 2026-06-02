@@ -41,6 +41,8 @@ export const IPC_CHANNELS = {
     CREATE_BRANCH: "git:create-branch", // 创建新分支
     GET_CURRENT_BRANCH: "git:get-current-branch", // 获取当前分支
     GET_FILE_DIFF: "git:get-file-diff", // 获取文件差异
+    DISCARD_CHANGES: "git:discard-changes", // 放弃更改
+    OPEN_FILE: "git:open-file", // 打开文件
   },
 } as const;
 

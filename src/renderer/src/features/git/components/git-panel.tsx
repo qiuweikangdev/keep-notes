@@ -12,6 +12,8 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  ExternalLink,
+  RotateCcw,
 } from "lucide-react";
 
 interface GitPanelProps {
@@ -36,8 +38,12 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     commitChanges,
     pushToRemote,
     pullFromRemote,
+    discardChanges,
+    openFile: openFileInEditor,
+    loadTree,
   } = useElectron();
-  const { treeRoot } = useTreeStore();
+  const { treeRoot, setSelectedKey, expandedKeys, setExpandedKeys } =
+    useTreeStore();
 
   const [isGitRepo, setIsGitRepo] = useState(false);
   const [currentBranch, setCurrentBranch] = useState("");
@@ -54,6 +60,10 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     text: string;
   } | null>(null);
   const [stagedFiles, setStagedFiles] = useState<Set<string>>(new Set());
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    filePath: string;
+  }>({ open: false, filePath: "" });
 
   const getCurrentDir = useCallback(() => {
     return treeRoot?.key || "";
@@ -205,9 +215,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
 
       try {
         setLoading(true);
-        if (includeUntracked) {
-          await addFilesToStaging(dir, []);
-        }
         const options: GitCommitOptions = {
           message,
           push: pushAfterCommit,
@@ -216,6 +223,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         if (result.code === CodeResult.Success) {
           setCommitMessage("");
           await loadGitInfo();
+          await loadTree(dir);
           showMessage(
             "success",
             pushAfterCommit ? "提交并推送成功" : "提交成功",
@@ -229,14 +237,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         setLoading(false);
       }
     },
-    [
-      getCurrentDir,
-      commitMessage,
-      includeUntracked,
-      commitChanges,
-      addFilesToStaging,
-      loadGitInfo,
-    ],
+    [getCurrentDir, commitMessage, commitChanges, loadGitInfo, loadTree],
   );
 
   const handlePush = useCallback(async () => {
@@ -268,6 +269,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       if (result.code === CodeResult.Success) {
         showMessage("success", "拉取成功");
         await loadGitInfo();
+        await loadTree(dir);
       } else {
         showMessage("error", result.message || "拉取失败");
       }
@@ -276,12 +278,77 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     } finally {
       setLoading(false);
     }
-  }, [getCurrentDir, pullFromRemote, loadGitInfo]);
+  }, [getCurrentDir, pullFromRemote, loadGitInfo, loadTree]);
 
   const showMessage = (type: "success" | "error", text: string) => {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 3000);
   };
+
+  // 打开文件
+  const handleOpenFile = useCallback(
+    async (filePath: string) => {
+      const dir = getCurrentDir();
+      if (!dir) return;
+
+      // 关闭弹窗
+      onClose();
+
+      // 构造完整路径，使用与 treeRoot.key 相同的分隔符
+      const sep = dir.includes("\\") ? "\\" : "/";
+      const normalizedFile = filePath.replace(/[/\\]/g, sep);
+      const fullPath = dir + sep + normalizedFile;
+
+      // 展开所有父目录，使文件在树中可见
+      const parts = fullPath.split(/[/\\]/);
+      const newExpanded = new Set(expandedKeys);
+      let current = parts[0];
+      for (let i = 1; i < parts.length - 1; i++) {
+        current += sep + parts[i];
+        newExpanded.add(current);
+      }
+      setExpandedKeys(Array.from(newExpanded));
+
+      // 高亮并打开文件
+      setSelectedKey(fullPath);
+      await openFileInEditor(fullPath);
+    },
+    [
+      getCurrentDir,
+      onClose,
+      setSelectedKey,
+      openFileInEditor,
+      expandedKeys,
+      setExpandedKeys,
+    ],
+  );
+
+  // 放弃更改 - 打开确认弹窗
+  const handleDiscardChanges = useCallback((filePath: string) => {
+    setConfirmDialog({ open: true, filePath });
+  }, []);
+
+  // 确认放弃更改
+  const confirmDiscardChanges = useCallback(async () => {
+    const filePath = confirmDialog.filePath;
+    const dir = getCurrentDir();
+    if (!dir) return;
+
+    setConfirmDialog({ open: false, filePath: "" });
+
+    try {
+      const result = await discardChanges(dir, filePath);
+      if (result.code === CodeResult.Success) {
+        showMessage("success", "已放弃更改");
+        await loadGitInfo();
+        await loadTree(dir);
+      } else {
+        showMessage("error", result.message || "放弃更改失败");
+      }
+    } catch (error) {
+      showMessage("error", "放弃更改失败");
+    }
+  }, [confirmDialog, getCurrentDir, discardChanges, loadGitInfo, loadTree]);
 
   if (!isOpen) return null;
 
@@ -315,14 +382,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             </div>
             <button
               onClick={onClose}
-              className="p-1 rounded-lg transition-colors"
+              className="p-1 rounded-lg transition-colors hover:bg-accent"
               style={{ color: "var(--text-muted)" }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "transparent";
-              }}
             >
               <X className="h-4 w-4" />
             </button>
@@ -378,14 +439,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg transition-colors"
+            className="p-1 rounded-lg transition-colors hover:bg-accent"
             style={{ color: "var(--text-muted)" }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
-            }}
           >
             <X className="h-4 w-4" />
           </button>
@@ -423,11 +478,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowBranchList(!showBranchList)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors"
-                style={{
-                  backgroundColor: "var(--bg-tertiary)",
-                  color: "var(--text-primary)",
-                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors hover:bg-[var(--hover-bg)]"
                 disabled={loading}
               >
                 <GitBranchIcon className="h-3.5 w-3.5" />
@@ -440,16 +491,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
               </button>
               <button
                 onClick={() => setShowCreateBranch(!showCreateBranch)}
-                className="p-1.5 rounded-lg transition-colors"
+                className="p-1.5 rounded-lg transition-colors hover:bg-accent hover:text-foreground"
                 style={{ color: "var(--text-muted)" }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                  e.currentTarget.style.color = "var(--text-primary)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "transparent";
-                  e.currentTarget.style.color = "var(--text-muted)";
-                }}
                 title="创建新分支"
               >
                 <Plus className="h-4 w-4" />
@@ -470,7 +513,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                 <button
                   key={branch.name}
                   onClick={() => handleSwitchBranch(branch.name)}
-                  className="w-full flex items-center justify-between px-3 py-2 text-sm transition-colors"
+                  className="w-full flex items-center justify-between px-3 py-2 text-sm transition-colors hover:bg-accent"
                   style={{
                     backgroundColor: branch.current
                       ? "var(--active-bg)"
@@ -478,16 +521,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                     color: branch.current
                       ? "var(--accent-color)"
                       : "var(--text-primary)",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!branch.current) {
-                      e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!branch.current) {
-                      e.currentTarget.style.backgroundColor = "transparent";
-                    }
                   }}
                 >
                   <div className="flex items-center gap-2">
@@ -505,16 +538,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                   setShowBranchList(false);
                   setShowCreateBranch(true);
                 }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-accent hover:text-foreground"
                 style={{ color: "var(--text-muted)" }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                  e.currentTarget.style.color = "var(--text-primary)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "transparent";
-                  e.currentTarget.style.color = "var(--text-muted)";
-                }}
               >
                 <Plus className="h-3.5 w-3.5" />
                 创建并检出新分支...
@@ -573,11 +598,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                   setShowCreateBranch(false);
                   setNewBranchName("");
                 }}
-                className="px-3 py-1.5 text-sm rounded-lg transition-colors"
-                style={{
-                  backgroundColor: "var(--bg-tertiary)",
-                  color: "var(--text-primary)",
-                }}
+                className="px-3 py-1.5 text-sm rounded-lg bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors hover:bg-[var(--hover-bg)]"
               >
                 取消
               </button>
@@ -619,7 +640,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                 {allFiles.map((file) => (
                   <div
                     key={file.path}
-                    className="flex items-center justify-between px-3 py-2 text-sm"
+                    className="flex items-center justify-between px-3 py-2 text-sm group"
                     style={{ borderBottom: "1px solid var(--border-color)" }}
                   >
                     <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -636,6 +657,24 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                       >
                         {file.path}
                       </span>
+                    </div>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => handleOpenFile(file.path)}
+                        className="p-1 rounded transition-colors hover:bg-accent hover:text-foreground"
+                        style={{ color: "var(--text-muted)" }}
+                        title="打开文件"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDiscardChanges(file.path)}
+                        className="p-1 rounded transition-colors hover:bg-accent hover:text-[#f14c4c]"
+                        style={{ color: "var(--text-muted)" }}
+                        title="放弃更改"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -703,18 +742,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             <button
               onClick={handlePull}
               disabled={loading}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors"
-              style={{
-                backgroundColor: "var(--bg-tertiary)",
-                color: "var(--text-primary)",
-              }}
-              onMouseEnter={(e) => {
-                if (!loading)
-                  e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--bg-tertiary)";
-              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors disabled:opacity-50 hover:bg-[var(--hover-bg)]"
             >
               <RefreshCw
                 className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
@@ -724,18 +752,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             <button
               onClick={handlePush}
               disabled={loading}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors"
-              style={{
-                backgroundColor: "var(--bg-tertiary)",
-                color: "var(--text-primary)",
-              }}
-              onMouseEnter={(e) => {
-                if (!loading)
-                  e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--bg-tertiary)";
-              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors disabled:opacity-50 hover:bg-[var(--hover-bg)]"
             >
               <GitCommit className="h-3.5 w-3.5" />
               推送
@@ -745,44 +762,85 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             <button
               onClick={() => handleCommit(false)}
               disabled={loading}
-              className="px-4 py-1.5 text-sm rounded-lg transition-colors"
-              style={{
-                backgroundColor: "transparent",
-                color: "var(--text-primary)",
-              }}
-              onMouseEnter={(e) => {
-                if (!loading)
-                  e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "transparent";
-              }}
+              className="px-4 py-1.5 text-sm rounded-md bg-transparent text-[var(--text-primary)] border border-[var(--border-color)] transition-colors disabled:opacity-50 hover:bg-[var(--hover-bg)]"
             >
               提交
             </button>
             <button
               onClick={() => handleCommit(true)}
               disabled={loading}
-              className="px-4 py-1.5 text-sm rounded-lg transition-colors"
-              style={{
-                backgroundColor: loading
-                  ? "var(--bg-tertiary)"
-                  : "var(--bg-tertiary)",
-                color: "var(--text-primary)",
-              }}
-              onMouseEnter={(e) => {
-                if (!loading)
-                  e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--bg-tertiary)";
-              }}
+              className="px-4 py-1.5 text-sm rounded-md bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors disabled:opacity-50 hover:bg-[var(--hover-bg)]"
             >
               提交并推送
             </button>
           </div>
         </div>
       </div>
+
+      {/* 确认放弃更改弹窗 */}
+      {confirmDialog.open && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center"
+          style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
+          onClick={() => setConfirmDialog({ open: false, filePath: "" })}
+        >
+          <div
+            className="w-[400px] rounded-xl shadow-2xl overflow-hidden"
+            style={{ backgroundColor: "var(--bg-secondary)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="flex items-center justify-between p-4"
+              style={{ borderBottom: "1px solid var(--border-color)" }}
+            >
+              <span
+                className="font-medium"
+                style={{ color: "var(--text-primary)" }}
+              >
+                确认放弃更改
+              </span>
+              <button
+                onClick={() => setConfirmDialog({ open: false, filePath: "" })}
+                className="p-1 rounded-lg transition-colors hover:bg-[var(--hover-bg)]"
+              >
+                <X className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
+              </button>
+            </div>
+            <div className="p-4">
+              <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                确定要放弃{" "}
+                <span style={{ color: "var(--text-primary)", fontWeight: 500 }}>
+                  "{confirmDialog.filePath}"
+                </span>{" "}
+                的更改吗？
+              </p>
+              <p
+                className="text-xs mt-2"
+                style={{ color: "var(--text-muted)" }}
+              >
+                此操作不可撤销。
+              </p>
+            </div>
+            <div
+              className="flex items-center justify-end gap-2 p-4"
+              style={{ borderTop: "1px solid var(--border-color)" }}
+            >
+              <button
+                onClick={() => setConfirmDialog({ open: false, filePath: "" })}
+                className="px-4 py-1.5 text-sm rounded-md bg-transparent text-[var(--text-primary)] border border-[var(--border-color)] transition-colors hover:bg-[var(--hover-bg)]"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmDiscardChanges}
+                className="px-4 py-1.5 text-sm rounded-md bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors hover:bg-[var(--hover-bg)]"
+              >
+                确定
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

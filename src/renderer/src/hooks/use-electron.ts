@@ -205,6 +205,19 @@ export function useElectron() {
     return window.gitAPI.getFileDiff(dirPath, filePath);
   }, []);
 
+  // 放弃更改
+  const discardChanges = useCallback(
+    async (dirPath: string, filePath: string) => {
+      return window.gitAPI.discardChanges(dirPath, filePath);
+    },
+    [],
+  );
+
+  // 打开文件
+  const openGitFile = useCallback(async (dirPath: string, filePath: string) => {
+    return window.gitAPI.openFile(dirPath, filePath);
+  }, []);
+
   return {
     openFolder,
     loadTree,
@@ -231,5 +244,7 @@ export function useElectron() {
     pushToRemote,
     pullFromRemote,
     getFileDiff,
+    discardChanges,
+    openGitFile,
   };
 }

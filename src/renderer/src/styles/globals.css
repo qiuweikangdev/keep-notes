@@ -13,6 +13,8 @@
   --hover-bg: #f6f8fa;
   --active-bg: #e8f0fe;
   --accent-color: #0366d6;
+  --button-hover-bg: #eef2f7;
+  --button-active-bg: #e8f0fe;
 }
 
 * {
@@ -39,6 +41,44 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background-color: transparent;
   color: var(--text-primary);
+}
+
+button {
+  transition: none !important;
+}
+
+button:not(:disabled):not([aria-disabled="true"]):hover {
+  background-color: var(--button-hover-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+button:not(:disabled):not([aria-disabled="true"]):active {
+  background-color: var(--button-active-bg) !important;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+.dark {
+  --button-hover-bg: #2d2d32;
+  --button-active-bg: #34343a;
+}
+
+.nord {
+  --button-hover-bg: #4c566a;
+  --button-active-bg: #5e81ac;
+}
+
+.dracula {
+  --button-hover-bg: #515468;
+  --button-active-bg: #6272a4;
+}
+
+.solarized {
+  --button-hover-bg: #657b83;
+  --button-active-bg: #2aa198;
 }
 
 /* 绐楀彛杈圭紭鎷栨嫿璋冩暣澶у皬 - Electron frameless window */

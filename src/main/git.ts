@@ -301,6 +301,67 @@ export async function getFileDiff(
   }
 }
 
+// 放弃更改
+export async function discardChanges(
+  dirPath: string,
+  filePath: string,
+): Promise<ApiResponse> {
+  try {
+    const git = getGitInstance(dirPath);
+    const status = await git.status();
+
+    // 判断文件属于哪种状态
+    const isUntracked =
+      status.not_added.includes(filePath) || status.created.includes(filePath);
+    const isStaged = status.staged.includes(filePath);
+
+    if (isUntracked) {
+      // 未跟踪的文件直接删除
+      const path = require("path") as typeof import("path");
+      const fullPath = path.join(dirPath, filePath);
+      const fs = require("fs") as typeof import("fs");
+      await fs.promises.unlink(fullPath);
+    } else if (isStaged) {
+      // 已暂存：先取消暂存，再放弃更改
+      await git.reset(["HEAD", filePath]);
+      await git.checkout(["--", filePath]);
+    } else {
+      // 已修改但未暂存
+      await git.checkout(["--", filePath]);
+    }
+
+    return {
+      code: CodeResult.Success,
+      message: "已放弃更改",
+    };
+  } catch (e: any) {
+    return {
+      code: CodeResult.Fail,
+      message: e.toString(),
+    };
+  }
+}
+
+// 打开文件
+export async function openFile(
+  dirPath: string,
+  filePath: string,
+): Promise<ApiResponse<string>> {
+  try {
+    const path = require("path");
+    const fullPath = path.join(dirPath, filePath);
+    return {
+      code: CodeResult.Success,
+      data: fullPath,
+    };
+  } catch (e: any) {
+    return {
+      code: CodeResult.Fail,
+      message: e.toString(),
+    };
+  }
+}
+
 // 保留原有的 download 和 upload 函数以保持向后兼容
 export async function download(gitConfig: GitConfig): Promise<ApiResponse> {
   const git = getGitInstance(gitConfig.dir);
