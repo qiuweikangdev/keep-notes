@@ -6,7 +6,7 @@ import { useEditorStore } from "@/store/editor.store";
 import { useUserStore } from "@/store/user.store";
 
 export function useElectron() {
-  const { setTreeData, setTreeRoot } = useTreeStore();
+  const { setTreeData, setTreeRoot, addRecentFolder } = useTreeStore();
   const { setContent, setFilePath } = useEditorStore();
   const { githubInfo } = useUserStore();
 
@@ -15,10 +15,15 @@ export function useElectron() {
     if (result.code === CodeResult.Success && result.data) {
       setTreeData(result.data.treeData);
       setTreeRoot(result.data.treeRoot);
+      // 记录到最近使用的目录
+      addRecentFolder({
+        title: result.data.treeRoot.title,
+        path: result.data.treeRoot.key,
+      });
       return result.data.selectedPath;
     }
     return null;
-  }, [setTreeData, setTreeRoot]);
+  }, [setTreeData, setTreeRoot, addRecentFolder]);
 
   const loadTree = useCallback(
     async (path: string) => {
@@ -26,9 +31,14 @@ export function useElectron() {
       if (result.code === CodeResult.Success && result.data) {
         setTreeData(result.data.treeData);
         setTreeRoot(result.data.treeRoot);
+        // 记录到最近使用的目录
+        addRecentFolder({
+          title: result.data.treeRoot.title,
+          path: result.data.treeRoot.key,
+        });
       }
     },
-    [setTreeData, setTreeRoot],
+    [setTreeData, setTreeRoot, addRecentFolder],
   );
 
   const openFile = useCallback(

@@ -2,12 +2,18 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { TreeNode, TreeRoot, DirSettings, DirColorEnum } from "@/types";
 
+interface RecentFolder {
+  title: string;
+  path: string;
+}
+
 interface TreeState {
   treeData: TreeNode[];
   treeRoot: TreeRoot | null;
   selectedKey: string | null;
   expandedKeys: string[];
   dirSettings: DirSettings;
+  recentFolders: RecentFolder[];
 
   setTreeData: (data: TreeNode[]) => void;
   setTreeRoot: (root: TreeRoot) => void;
@@ -16,6 +22,8 @@ interface TreeState {
   setExpandedKeys: (keys: string[]) => void;
   updateNodeContent: (key: string, content: string) => void;
   setDirSettings: (settings: Partial<DirSettings>) => void;
+  addRecentFolder: (folder: RecentFolder) => void;
+  removeRecentFolder: (path: string) => void;
   resetTree: () => void;
 }
 
@@ -30,6 +38,7 @@ export const useTreeStore = create<TreeState>()(
         dirColor: "themeColor" as DirColorEnum,
         showIcon: false,
       },
+      recentFolders: [],
 
       setTreeData: (data) => set({ treeData: data }),
       setTreeRoot: (root) => set({ treeRoot: root }),
@@ -56,6 +65,20 @@ export const useTreeStore = create<TreeState>()(
         set((state) => ({
           dirSettings: { ...state.dirSettings, ...settings },
         })),
+      addRecentFolder: (folder) =>
+        set((state) => {
+          // 去重：移除已存在的同路径目录，然后添加到最前面
+          const filtered = state.recentFolders.filter(
+            (f) => f.path !== folder.path,
+          );
+          return {
+            recentFolders: [folder, ...filtered].slice(0, 10), // 最多保留10个
+          };
+        }),
+      removeRecentFolder: (path) =>
+        set((state) => ({
+          recentFolders: state.recentFolders.filter((f) => f.path !== path),
+        })),
       resetTree: () =>
         set({
           treeData: [],
@@ -68,6 +91,7 @@ export const useTreeStore = create<TreeState>()(
       name: "tree-storage",
       partialize: (state) => ({
         dirSettings: state.dirSettings,
+        recentFolders: state.recentFolders,
       }),
     },
   ),

@@ -19,6 +19,7 @@ import {
 import { useTreeStore } from "@/store/tree.store";
 import { useElectron } from "@/hooks/use-electron";
 import { TreeNode } from "./tree-node";
+import { QuickActionsPanel } from "./quick-actions-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ContextMenu } from "@/components/ui/context-menu";
@@ -368,6 +369,12 @@ export function FileTree() {
               </div>
             )}
           </div>
+
+          <QuickActionsPanel
+            onToggleSearch={handleToggleSearch}
+            onStartCreateFile={handleStartCreateFile}
+            onStartCreateFolder={handleStartCreateFolder}
+          />
         </div>
       </ContextMenu.Trigger>
 

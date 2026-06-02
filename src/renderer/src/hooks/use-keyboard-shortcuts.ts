@@ -16,6 +16,12 @@ export function useKeyboardShortcuts() {
     (e: KeyboardEvent) => {
       const isMeta = e.metaKey || e.ctrlKey;
 
+      // Cmd/Ctrl + R: 禁止页面刷新
+      if (isMeta && e.key === "r") {
+        e.preventDefault();
+        return;
+      }
+
       // Cmd/Ctrl + N: 新建文件
       if (isMeta && e.key === "n") {
         e.preventDefault();
