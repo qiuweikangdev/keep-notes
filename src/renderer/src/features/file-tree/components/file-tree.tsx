@@ -148,31 +148,39 @@ export function FileTree() {
 
   if (!treeRoot) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 p-4">
-        <div
-          className="flex h-14 w-14 items-center justify-center rounded-xl"
-          style={{ backgroundColor: "var(--bg-secondary)" }}
-        >
-          <FolderOpen
-            className="h-7 w-7"
-            style={{ color: "var(--text-muted)" }}
-          />
-        </div>
-        <div className="space-y-1 text-center">
-          <p
-            className="text-[13px] font-medium"
-            style={{ color: "var(--text-primary)" }}
+      <div className="flex h-full flex-col">
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-4">
+          <div
+            className="flex h-14 w-14 items-center justify-center rounded-xl"
+            style={{ backgroundColor: "var(--bg-secondary)" }}
           >
-            未打开文件夹
-          </p>
-          <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-            打开一个文件夹开始管理你的笔记
-          </p>
+            <FolderOpen
+              className="h-7 w-7"
+              style={{ color: "var(--text-muted)" }}
+            />
+          </div>
+          <div className="space-y-1 text-center">
+            <p
+              className="text-[13px] font-medium"
+              style={{ color: "var(--text-primary)" }}
+            >
+              未打开文件夹
+            </p>
+            <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+              打开一个文件夹开始管理你的笔记
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleSelectDir}>
+            <FolderOpen className="mr-2 h-4 w-4" />
+            打开文件夹
+          </Button>
         </div>
-        <Button variant="outline" size="sm" onClick={handleSelectDir}>
-          <FolderOpen className="mr-2 h-4 w-4" />
-          打开文件夹
-        </Button>
+
+        <QuickActionsPanel
+          onToggleSearch={handleToggleSearch}
+          onStartCreateFile={handleStartCreateFile}
+          onStartCreateFolder={handleStartCreateFolder}
+        />
       </div>
     );
   }

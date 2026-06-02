@@ -13,7 +13,8 @@ import { useEditorStore } from "@/store/editor.store";
 import { useUserStore } from "@/store/user.store";
 
 export function useElectron() {
-  const { setTreeData, setTreeRoot, addRecentFolder } = useTreeStore();
+  const { setTreeData, setTreeRoot, addRecentFolder, addRecentFile } =
+    useTreeStore();
   const { setContent, setFilePath } = useEditorStore();
   const { githubInfo } = useUserStore();
 
@@ -53,8 +54,14 @@ export function useElectron() {
       const content = await window.electronAPI.readFile(filePath);
       setContent(content);
       setFilePath(filePath);
+      // 记录到最近使用的文件
+      const fileName = filePath.split(/[\\/]/).pop() || filePath;
+      addRecentFile({
+        title: fileName,
+        path: filePath,
+      });
     },
-    [setContent, setFilePath],
+    [setContent, setFilePath, addRecentFile],
   );
 
   const saveFile = useCallback(async (content: string) => {
