@@ -321,7 +321,7 @@ function RecentContentPanel({
   showOpenFolder = false,
 }: RecentContentPanelProps) {
   return (
-    <div className="py-0.5">
+    <div className="pt-0.5 pb-1">
       {/* 最近目录标题 */}
       {recentFolders.length > 0 && (
         <div className="mb-0">
