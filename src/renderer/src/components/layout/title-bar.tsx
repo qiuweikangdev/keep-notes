@@ -8,11 +8,17 @@ import {
   Sun,
   Moon,
   Search,
+  GitBranch,
 } from "lucide-react";
 import { useUIStore } from "@/store/ui.store";
 import { useTheme } from "@/hooks/use-theme";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { SearchModal } from "@/features/search";
+import { GitPanel } from "@/features/git";
+import { useElectron } from "@/hooks/use-electron";
+import { useTreeStore } from "@/store/tree.store";
+import { useUserStore } from "@/store/user.store";
+import { CodeResult } from "@/types";
 
 interface TitleBarProps {
   collapsed: boolean;
@@ -23,7 +29,12 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
   const { setSettingsOpen } = useUIStore();
   const { theme, toggleTheme } = useTheme();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isGitOpen, setIsGitOpen] = useState(false);
+  const [isGitRepo, setIsGitRepo] = useState(false);
   const titleBarRef = useRef<HTMLDivElement>(null);
+  const { detectGitRepo } = useElectron();
+  const { treeRoot } = useTreeStore();
+  const { githubInfo } = useUserStore();
 
   // 处理搜索快捷键
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -53,6 +64,28 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
       });
     }
   }, []);
+
+  // 检测 Git 仓库
+  useEffect(() => {
+    const checkGitRepo = async () => {
+      const dir = treeRoot?.key || githubInfo.localPath;
+      if (!dir) {
+        setIsGitRepo(false);
+        return;
+      }
+
+      try {
+        const result = await detectGitRepo(dir);
+        setIsGitRepo(
+          result.code === CodeResult.Success && result.data?.isGitRepo === true,
+        );
+      } catch {
+        setIsGitRepo(false);
+      }
+    };
+
+    checkGitRepo();
+  }, [treeRoot, githubInfo.localPath, detectGitRepo]);
 
   return (
     <>
@@ -137,8 +170,28 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
           </button>
         </div>
 
-        {/* 右侧：主题切换 + 窗口控制 */}
+        {/* 右侧：Git 图标 + 主题切换 + 窗口控制 */}
         <div className="flex items-center gap-1 pr-2">
+          {/* Git 图标 - 仅在 Git 仓库中显示 */}
+          {isGitRepo && (
+            <button
+              onClick={() => setIsGitOpen(true)}
+              className="flex items-center justify-center w-8 h-8 rounded-lg transition-all"
+              style={{ color: "var(--text-muted)" }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                e.currentTarget.style.color = "var(--text-primary)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.color = "var(--text-muted)";
+              }}
+              title="Git 操作"
+            >
+              <GitBranch className="h-4 w-4" />
+            </button>
+          )}
+
           <button
             onClick={toggleTheme}
             className="flex items-center justify-center w-8 h-8 rounded-lg transition-all"
@@ -234,6 +287,9 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
       />
+
+      {/* Git 面板 */}
+      <GitPanel isOpen={isGitOpen} onClose={() => setIsGitOpen(false)} />
     </>
   );
 }

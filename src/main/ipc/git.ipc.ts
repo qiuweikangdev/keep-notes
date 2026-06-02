@@ -1,9 +1,24 @@
 import { ipcMain } from "electron";
 import { IPC_CHANNELS } from "../../shared/constants";
-import { download, upload } from "../git";
-import type { GitConfig } from "../../shared/types";
+import {
+  download,
+  upload,
+  detectGitRepo,
+  getCurrentBranch,
+  getBranches,
+  switchBranch,
+  createBranch,
+  getStatus,
+  addFiles,
+  commit,
+  push,
+  pull,
+  getFileDiff,
+} from "../git";
+import type { GitConfig, GitCommitOptions } from "../../shared/types";
 
 export function registerGitIpc(): void {
+  // 原有的下载和上传通道
   ipcMain.handle(IPC_CHANNELS.GIT.DOWNLOAD, async (_, gitConfig: GitConfig) => {
     return download(gitConfig);
   });
@@ -11,4 +26,79 @@ export function registerGitIpc(): void {
   ipcMain.handle(IPC_CHANNELS.GIT.UPLOAD, async (_, gitConfig: GitConfig) => {
     return upload(gitConfig);
   });
+
+  // 新增的 Git 操作通道
+
+  // 检测是否为 Git 仓库
+  ipcMain.handle(IPC_CHANNELS.GIT.DETECT, async (_, dirPath: string) => {
+    return detectGitRepo(dirPath);
+  });
+
+  // 获取当前分支
+  ipcMain.handle(
+    IPC_CHANNELS.GIT.GET_CURRENT_BRANCH,
+    async (_, dirPath: string) => {
+      return getCurrentBranch(dirPath);
+    },
+  );
+
+  // 获取所有分支
+  ipcMain.handle(IPC_CHANNELS.GIT.GET_BRANCHES, async (_, dirPath: string) => {
+    return getBranches(dirPath);
+  });
+
+  // 切换分支
+  ipcMain.handle(
+    IPC_CHANNELS.GIT.SWITCH_BRANCH,
+    async (_, dirPath: string, branchName: string) => {
+      return switchBranch(dirPath, branchName);
+    },
+  );
+
+  // 创建新分支
+  ipcMain.handle(
+    IPC_CHANNELS.GIT.CREATE_BRANCH,
+    async (_, dirPath: string, branchName: string) => {
+      return createBranch(dirPath, branchName);
+    },
+  );
+
+  // 获取 Git 状态
+  ipcMain.handle(IPC_CHANNELS.GIT.GET_STATUS, async (_, dirPath: string) => {
+    return getStatus(dirPath);
+  });
+
+  // 添加文件到暂存区
+  ipcMain.handle(
+    IPC_CHANNELS.GIT.ADD_FILES,
+    async (_, dirPath: string, files: string[]) => {
+      return addFiles(dirPath, files);
+    },
+  );
+
+  // 提交更改
+  ipcMain.handle(
+    IPC_CHANNELS.GIT.COMMIT,
+    async (_, dirPath: string, options: GitCommitOptions) => {
+      return commit(dirPath, options);
+    },
+  );
+
+  // 推送到远程
+  ipcMain.handle(IPC_CHANNELS.GIT.PUSH, async (_, dirPath: string) => {
+    return push(dirPath);
+  });
+
+  // 从远程拉取
+  ipcMain.handle(IPC_CHANNELS.GIT.PULL, async (_, dirPath: string) => {
+    return pull(dirPath);
+  });
+
+  // 获取文件差异
+  ipcMain.handle(
+    IPC_CHANNELS.GIT.GET_FILE_DIFF,
+    async (_, dirPath: string, filePath: string) => {
+      return getFileDiff(dirPath, filePath);
+    },
+  );
 }

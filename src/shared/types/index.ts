@@ -26,6 +26,49 @@ export interface GitConfig {
   repoUrl: string;
 }
 
+// Git 文件状态
+export interface GitFileStatus {
+  path: string;
+  index: string; // 暂存区状态
+  working_dir: string; // 工作区状态
+}
+
+// Git 状态信息
+export interface GitStatus {
+  current: string; // 当前分支
+  tracking: string; // 追踪的远程分支
+  files: GitFileStatus[]; // 修改的文件列表
+  ahead: number; // 领先远程的提交数
+  behind: number; // 落后远程的提交数
+  created: string[];
+  not_added: string[];
+  modified: string[];
+  deleted: string[];
+  renamed: Array<{ from: string; to: string }>;
+  staged: string[];
+  conflicted: string[];
+}
+
+// Git 分支信息
+export interface GitBranch {
+  name: string;
+  current: boolean;
+  remote?: string;
+}
+
+// Git 提交选项
+export interface GitCommitOptions {
+  message: string;
+  files?: string[]; // 指定要提交的文件，空则提交所有暂存文件
+  push?: boolean; // 提交后是否推送
+}
+
+// Git 检测结果
+export interface GitDetectResult {
+  isGitRepo: boolean;
+  currentPath: string;
+}
+
 export interface TreeRoot {
   title: string;
   key: string;

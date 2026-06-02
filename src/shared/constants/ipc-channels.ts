@@ -20,8 +20,21 @@ export const IPC_CHANNELS = {
     MOVE: "tree:move",
   },
   GIT: {
+    // 原有通道
     DOWNLOAD: "git:download",
     UPLOAD: "git:upload",
+    // 新增通道
+    DETECT: "git:detect", // 检测是否为 Git 仓库
+    GET_STATUS: "git:get-status", // 获取 Git 状态
+    GET_BRANCHES: "git:get-branches", // 获取分支列表
+    SWITCH_BRANCH: "git:switch-branch", // 切换分支
+    ADD_FILES: "git:add-files", // 添加文件到暂存区
+    COMMIT: "git:commit", // 提交更改
+    PUSH: "git:push", // 推送到远程
+    PULL: "git:pull", // 从远程拉取
+    CREATE_BRANCH: "git:create-branch", // 创建新分支
+    GET_CURRENT_BRANCH: "git:get-current-branch", // 获取当前分支
+    GET_FILE_DIFF: "git:get-file-diff", // 获取文件差异
   },
 } as const;
 

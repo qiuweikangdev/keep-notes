@@ -1,4 +1,13 @@
-import type { ApiResponse, GitConfig, TreeInfo, TreeNode } from "@shared/types";
+import type {
+  ApiResponse,
+  GitConfig,
+  TreeInfo,
+  TreeNode,
+  GitStatus,
+  GitBranch,
+  GitCommitOptions,
+  GitDetectResult,
+} from "@shared/types";
 
 export interface ElectronAPI {
   minimizeWindow: () => void;
@@ -44,8 +53,25 @@ export interface ElectronAPI {
 }
 
 export interface GitAPI {
+  // 原有的下载和上传方法
   download: (gitConfig: GitConfig) => Promise<ApiResponse>;
   upload: (gitConfig: GitConfig) => Promise<ApiResponse>;
+
+  // 新增的 Git 操作方法
+  detect: (dirPath: string) => Promise<ApiResponse<GitDetectResult>>;
+  getCurrentBranch: (dirPath: string) => Promise<ApiResponse<string>>;
+  getBranches: (dirPath: string) => Promise<ApiResponse<GitBranch[]>>;
+  switchBranch: (dirPath: string, branchName: string) => Promise<ApiResponse>;
+  createBranch: (dirPath: string, branchName: string) => Promise<ApiResponse>;
+  getStatus: (dirPath: string) => Promise<ApiResponse<GitStatus>>;
+  addFiles: (dirPath: string, files: string[]) => Promise<ApiResponse>;
+  commit: (dirPath: string, options: GitCommitOptions) => Promise<ApiResponse>;
+  push: (dirPath: string) => Promise<ApiResponse>;
+  pull: (dirPath: string) => Promise<ApiResponse>;
+  getFileDiff: (
+    dirPath: string,
+    filePath: string,
+  ) => Promise<ApiResponse<string>>;
 }
 
 declare global {

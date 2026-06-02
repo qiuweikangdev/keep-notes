@@ -9,6 +9,11 @@ export type {
   OutlineNode,
   ThemeName,
   MenuActionOptions,
+  GitFileStatus,
+  GitStatus,
+  GitBranch,
+  GitCommitOptions,
+  GitDetectResult,
 } from "@shared/types";
 
 export { CodeResult, LeftAreaEnum, DirColorEnum } from "@shared/types";
