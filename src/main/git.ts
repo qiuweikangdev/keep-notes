@@ -308,17 +308,26 @@ export async function discardChanges(
 ): Promise<ApiResponse> {
   try {
     const git = getGitInstance(dirPath);
-    // 检查文件是否在暂存区
     const status = await git.status();
+
+    // 判断文件属于哪种状态
+    const isUntracked =
+      status.not_added.includes(filePath) || status.created.includes(filePath);
     const isStaged = status.staged.includes(filePath);
 
-    if (isStaged) {
-      // 如果在暂存区，使用 git reset HEAD <file> 然后 git checkout -- <file>
+    if (isUntracked) {
+      // 未跟踪的文件直接删除
+      const path = require("path") as typeof import("path");
+      const fullPath = path.join(dirPath, filePath);
+      const fs = require("fs") as typeof import("fs");
+      await fs.promises.unlink(fullPath);
+    } else if (isStaged) {
+      // 已暂存：先取消暂存，再放弃更改
       await git.reset(["HEAD", filePath]);
-      await git.checkout([filePath]);
+      await git.checkout(["--", filePath]);
     } else {
-      // 如果不在暂存区，直接使用 git checkout -- <file>
-      await git.checkout([filePath]);
+      // 已修改但未暂存
+      await git.checkout(["--", filePath]);
     }
 
     return {
