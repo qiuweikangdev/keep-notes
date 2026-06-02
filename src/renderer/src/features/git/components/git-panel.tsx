@@ -22,7 +22,6 @@ interface GitPanelProps {
 // 所有需要展示的文件（去重后）
 interface FileItem {
   path: string;
-  status: "M" | "U" | "D" | "S"; // 修改/未跟踪/已删除/已暂存
 }
 
 export function GitPanel({ isOpen, onClose }: GitPanelProps) {
@@ -99,48 +98,20 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     }
   }, [isOpen, loadGitInfo]);
 
-  // 合并所有文件，去重，确定最终状态
+  // 合并所有文件，去重
   const getAllFiles = useCallback((): FileItem[] => {
     if (!gitStatus) return [];
 
-    const fileMap = new Map<string, FileItem>();
+    const fileSet = new Set<string>();
 
-    // 先添加已暂存的文件
-    gitStatus.staged.forEach((filePath) => {
-      fileMap.set(filePath, { path: filePath, status: "S" });
-    });
+    // 添加所有文件到集合中去重
+    gitStatus.staged.forEach((filePath) => fileSet.add(filePath));
+    gitStatus.modified.forEach((filePath) => fileSet.add(filePath));
+    gitStatus.not_added.forEach((filePath) => fileSet.add(filePath));
+    gitStatus.deleted.forEach((filePath) => fileSet.add(filePath));
 
-    // 添加修改的文件（如果不在暂存区）
-    gitStatus.modified.forEach((filePath) => {
-      if (!fileMap.has(filePath)) {
-        fileMap.set(filePath, { path: filePath, status: "M" });
-      }
-    });
-
-    // 添加未跟踪的文件（如果不在暂存区）
-    gitStatus.not_added.forEach((filePath) => {
-      if (!fileMap.has(filePath)) {
-        fileMap.set(filePath, { path: filePath, status: "U" });
-      }
-    });
-
-    // 添加删除的文件（如果不在暂存区）
-    gitStatus.deleted.forEach((filePath) => {
-      if (!fileMap.has(filePath)) {
-        fileMap.set(filePath, { path: filePath, status: "D" });
-      }
-    });
-
-    // 使用 stagedFiles 状态来更新文件的暂存状态
-    return Array.from(fileMap.values()).map((file) => ({
-      ...file,
-      status: stagedFiles.has(file.path)
-        ? "S"
-        : file.status === "S"
-          ? "M"
-          : file.status,
-    }));
-  }, [gitStatus, stagedFiles]);
+    return Array.from(fileSet).map((path) => ({ path }));
+  }, [gitStatus]);
 
   // 切换文件暂存状态
   const toggleFileStaging = useCallback(
@@ -669,17 +640,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                         {file.path}
                       </span>
                     </div>
-                    {file.status === "S" && (
-                      <span
-                        className="ml-2 px-1.5 py-0.5 rounded text-xs font-medium"
-                        style={{
-                          backgroundColor: "rgba(34, 197, 94, 0.2)",
-                          color: "#22c55e",
-                        }}
-                      >
-                        S
-                      </span>
-                    )}
                   </div>
                 ))}
               </div>
