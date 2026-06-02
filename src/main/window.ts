@@ -3,6 +3,7 @@ import process from "node:process";
 import { BrowserWindow, app, shell } from "electron";
 import { is } from "@electron-toolkit/utils";
 import icon from "../../resources/icon.png?asset";
+import { registerWindowShortcuts } from "./shortcuts";
 
 const windowConfig = {
   width: 900,
@@ -25,6 +26,8 @@ const windowConfig = {
 
 export function createWindow(): BrowserWindow {
   const win = new BrowserWindow(windowConfig);
+
+  registerWindowShortcuts(win);
 
   if (!app.isPackaged) {
     win.webContents.openDevTools();

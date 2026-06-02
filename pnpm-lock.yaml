@@ -50,6 +50,9 @@ importers:
       dayjs:
         specifier: ^1.11.20
         version: 1.11.20
+      electron-localshortcut:
+        specifier: ^3.2.1
+        version: 3.2.1
       electron-updater:
         specifier: ^6.8.3
         version: 6.8.3
@@ -99,6 +102,9 @@ importers:
       '@tailwindcss/typography':
         specifier: ^0.5.19
         version: 0.5.19(tailwindcss@3.4.19(yaml@2.9.0))
+      '@types/electron-localshortcut':
+        specifier: ^3.1.3
+        version: 3.1.3
       '@types/lodash-es':
         specifier: ^4.17.12
         version: 4.17.12
@@ -1684,6 +1690,9 @@ packages:
   '@types/debug@4.1.13':
     resolution: {integrity: sha512-KSVgmQmzMwPlmtljOomayoR89W4FynCAi3E8PPs7vmDVPe84hT+vGPKkJfThkmXs0x0jAaa9U8uW8bbfyS2fWw==}
 
+  '@types/electron-localshortcut@3.1.3':
+    resolution: {integrity: sha512-D+CRdDTRZ4/9UmcSaZ5qvW4uq2VyyVmqsH9cdNReB4CL6MSIgyhr9w2PKeNEb0J/ZS7db7irJM/+ZiA5uSQsLw==}
+
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
 
@@ -2416,6 +2425,12 @@ packages:
     engines: {node: '>=14.0.0'}
     hasBin: true
 
+  electron-is-accelerator@0.1.2:
+    resolution: {integrity: sha512-fLGSAjXZtdn1sbtZxx52+krefmtNuVwnJCV2gNiVt735/ARUboMl8jnNC9fZEqQdlAv2ZrETfmBUsoQci5evJA==}
+
+  electron-localshortcut@3.2.1:
+    resolution: {integrity: sha512-DWvhKv36GsdXKnaFFhEiK8kZZA+24/yFLgtTwJJHc7AFgDjNRIBJZ/jq62Y/dWv9E4ypYwrVWN2bVrCYw1uv7Q==}
+
   electron-publish@24.13.1:
     resolution: {integrity: sha512-2ZgdEqJ8e9D17Hwp5LEq5mLQPjqU3lv/IALvgp+4W8VeNhryfGhYEQC/PgDPMrnWUp+l60Ou5SJLsu+k4mhQ8A==}
 
@@ -3033,6 +3048,12 @@ packages:
   katex@0.16.47:
     resolution: {integrity: sha512-Eeo8Ys1doU1z+x8AZsPpQu+p/QcZBI5PeOo7QGQdy2x2m0MU/hYagBbGOmXwr5KVbEfVuWv9LpnQWeehogurjg==}
     hasBin: true
+
+  keyboardevent-from-electron-accelerator@2.0.0:
+    resolution: {integrity: sha512-iQcmNA0M4ETMNi0kG/q0h/43wZk7rMeKYrXP7sqKIJbHkTU8Koowgzv+ieR/vWJbOwxx5nDC3UnudZ0aLSu4VA==}
+
+  keyboardevents-areequal@0.2.2:
+    resolution: {integrity: sha512-Nv+Kr33T0mEjxR500q+I6IWisOQ0lK1GGOncV0kWE6n4KFmpcu7RUX5/2B0EUtX51Cb0HjZ9VJsSY3u4cBa0kw==}
 
   keyv@4.5.4:
     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
@@ -6371,6 +6392,12 @@ snapshots:
     dependencies:
       '@types/ms': 2.1.0
 
+  '@types/electron-localshortcut@3.1.3':
+    dependencies:
+      electron: 28.3.3
+    transitivePeerDependencies:
+      - supports-color
+
   '@types/estree@1.0.8': {}
 
   '@types/fs-extra@9.0.13':
@@ -7264,6 +7291,17 @@ snapshots:
       - electron-builder-squirrel-windows
       - supports-color
 
+  electron-is-accelerator@0.1.2: {}
+
+  electron-localshortcut@3.2.1:
+    dependencies:
+      debug: 4.4.3(supports-color@5.5.0)
+      electron-is-accelerator: 0.1.2
+      keyboardevent-from-electron-accelerator: 2.0.0
+      keyboardevents-areequal: 0.2.2
+    transitivePeerDependencies:
+      - supports-color
+
   electron-publish@24.13.1:
     dependencies:
       '@types/fs-extra': 9.0.13
@@ -7972,6 +8010,10 @@ snapshots:
   katex@0.16.47:
     dependencies:
       commander: 8.3.0
+
+  keyboardevent-from-electron-accelerator@2.0.0: {}
+
+  keyboardevents-areequal@0.2.2: {}
 
   keyv@4.5.4:
     dependencies:

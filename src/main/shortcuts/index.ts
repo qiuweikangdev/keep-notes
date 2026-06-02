@@ -1,8 +1,9 @@
-import { globalShortcut } from "electron";
+import localShortcut from "electron-localshortcut";
+import { BrowserWindow } from "electron";
 import { createWindow } from "../window";
 
-export function registerShortcuts(): void {
-  globalShortcut.register("CommandOrControl+Shift+N", () => {
+export function registerWindowShortcuts(win: BrowserWindow): void {
+  localShortcut.register(win, "CommandOrControl+Shift+N", () => {
     createWindow();
   });
 }
