@@ -608,27 +608,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             </div>
           )}
 
-          {/* 文件状态标题 */}
-          {allFiles.length > 0 && (
-            <div className="flex items-center justify-between">
-              <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-                文件状态
-              </span>
-              <div className="flex items-center gap-3 text-xs">
-                {modifiedCount > 0 && (
-                  <span style={{ color: "#e2c08d" }}>
-                    ~{modifiedCount} 已修改
-                  </span>
-                )}
-                {untrackedCount > 0 && (
-                  <span style={{ color: "#73c991" }}>
-                    +{untrackedCount} 未跟踪
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-
           {/* 提交信息 */}
           <div>
             <textarea
@@ -667,6 +646,27 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
               </label>
             </div>
           </div>
+
+          {/* 文件状态标题 */}
+          {allFiles.length > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm" style={{ color: "var(--text-muted)" }}>
+                文件状态
+              </span>
+              <div className="flex items-center gap-3 text-xs">
+                {modifiedCount > 0 && (
+                  <span style={{ color: "#e2c08d" }}>
+                    ~{modifiedCount} 已修改
+                  </span>
+                )}
+                {untrackedCount > 0 && (
+                  <span style={{ color: "#73c991" }}>
+                    +{untrackedCount} 未跟踪
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 文件列表 - 可滚动区域 */}
