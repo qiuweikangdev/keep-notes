@@ -21,12 +21,14 @@ interface QuickActionsPanelProps {
   onToggleSearch: () => void;
   onStartCreateFile: () => void;
   onStartCreateFolder: () => void;
+  onExpandedChange?: (expanded: boolean) => void;
 }
 
 export function QuickActionsPanel({
   onToggleSearch,
   onStartCreateFile,
   onStartCreateFolder,
+  onExpandedChange,
 }: QuickActionsPanelProps) {
   const {
     treeRoot,
@@ -49,6 +51,7 @@ export function QuickActionsPanel({
         !panelRef.current.contains(event.target as Node)
       ) {
         setIsExpanded(false);
+        onExpandedChange?.(false);
       }
     };
 
@@ -56,7 +59,13 @@ export function QuickActionsPanel({
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [isExpanded]);
+  }, [isExpanded, onExpandedChange]);
+
+  const handleToggleExpand = useCallback(() => {
+    const newState = !isExpanded;
+    setIsExpanded(newState);
+    onExpandedChange?.(newState);
+  }, [isExpanded, onExpandedChange]);
 
   const handleOpenFolder = useCallback(async () => {
     await openFolder();
@@ -159,7 +168,10 @@ export function QuickActionsPanel({
                 type="button"
                 className="flex h-8 w-8 flex-shrink-0 items-center justify-center transition-colors"
                 style={{ color: "var(--text-muted)" }}
-                onClick={() => setIsExpanded(true)}
+                onClick={() => {
+                  setIsExpanded(true);
+                  onExpandedChange?.(true);
+                }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.color = "var(--text-primary)";
                 }}
@@ -228,7 +240,7 @@ export function QuickActionsPanel({
             type="button"
             className="flex h-6 w-6 items-center justify-center rounded transition-colors"
             style={{ color: "var(--text-muted)" }}
-            onClick={() => setIsExpanded(!isExpanded)}
+            onClick={handleToggleExpand}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = "var(--hover-bg)";
               e.currentTarget.style.color = "var(--text-primary)";
@@ -250,7 +262,7 @@ export function QuickActionsPanel({
       {/* 最近使用面板 */}
       {isExpanded && hasRecentContent && (
         <div
-          className="px-2 pb-2"
+          className="px-1 pb-0.5"
           style={{ borderTop: "1px solid var(--border-color)" }}
         >
           <RecentContentPanel

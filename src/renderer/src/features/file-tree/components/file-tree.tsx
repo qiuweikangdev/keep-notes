@@ -49,6 +49,7 @@ export function FileTree() {
   const [showSearch, setShowSearch] = useState(false);
   const [creatingInfo, setCreatingInfo] = useState<CreatingInfo | null>(null);
   const [createValue, setCreateValue] = useState("");
+  const [isPanelExpanded, setIsPanelExpanded] = useState(false);
   const createInputRef = useRef<HTMLInputElement>(null);
   const confirmedRef = useRef(false);
   const isRootCreating = creatingInfo?.parentKey === treeRoot?.key;
@@ -148,18 +149,27 @@ export function FileTree() {
 
   if (!treeRoot) {
     return (
-      <div className="flex h-full flex-col">
-        <div className="flex flex-1 items-center justify-center p-4">
+      <div className="relative h-full flex-col">
+        <div
+          className="absolute inset-0 flex items-center justify-center p-4 transition-opacity duration-150"
+          style={{
+            opacity: isPanelExpanded ? 0 : 1,
+            pointerEvents: isPanelExpanded ? "none" : "auto",
+          }}
+        >
           <p className="text-[13px]" style={{ color: "var(--text-muted)" }}>
             没有打开的文件夹
           </p>
         </div>
 
-        <QuickActionsPanel
-          onToggleSearch={handleToggleSearch}
-          onStartCreateFile={handleStartCreateFile}
-          onStartCreateFolder={handleStartCreateFolder}
-        />
+        <div className="absolute bottom-0 left-0 right-0">
+          <QuickActionsPanel
+            onToggleSearch={handleToggleSearch}
+            onStartCreateFile={handleStartCreateFile}
+            onStartCreateFolder={handleStartCreateFolder}
+            onExpandedChange={setIsPanelExpanded}
+          />
+        </div>
       </div>
     );
   }
