@@ -30,6 +30,8 @@ There is no dedicated test script or first-party test folder. Before submitting 
 
 Recent history uses short imperative subjects, sometimes with Conventional Commit prefixes, for example `fix editor slash menu interactions` and `feat: unify right-click menu for files and folders`. Keep commits focused and use `pnpm commit` for the configured Commitizen flow. Pull requests should include a concise summary, verification commands, linked issues when applicable, and screenshots or recordings for renderer UI changes.
 
+All commit messages must be written in English.
+
 ## Security & Configuration Tips
 
 Keep filesystem and Git operations in the main process, then expose narrow APIs through `src/preload/api`. Do not pass raw Node capabilities into renderer code. Keep packaging configuration in `electron-builder.yml` and Vite behavior in `electron.vite.config.ts`.
