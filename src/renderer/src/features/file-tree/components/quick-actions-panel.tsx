@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import {
   Plus,
   Search,
@@ -12,6 +12,7 @@ import {
   FolderPlus,
   File,
   X,
+  MoreVertical,
 } from "lucide-react";
 import { useTreeStore } from "@/store/tree.store";
 import { useElectron } from "@/hooks/use-electron";
@@ -36,7 +37,26 @@ export function QuickActionsPanel({
   } = useTreeStore();
   const { openFolder, loadTree, openInExplorer, openFile } = useElectron();
   const [isExpanded, setIsExpanded] = useState(false);
-  const [activeTab, setActiveTab] = useState<"folders" | "files">("folders");
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // 点击外部区域关闭面板
+  useEffect(() => {
+    if (!isExpanded) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        panelRef.current &&
+        !panelRef.current.contains(event.target as Node)
+      ) {
+        setIsExpanded(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isExpanded]);
 
   const handleOpenFolder = useCallback(async () => {
     await openFolder();
@@ -87,8 +107,77 @@ export function QuickActionsPanel({
   // 是否有最近内容可显示
   const hasRecentContent = recentFolders.length > 0 || recentFiles.length > 0;
 
+  // 无文件夹时显示简洁的打开按钮
+  if (!treeRoot) {
+    return (
+      <div
+        ref={panelRef}
+        className="flex-shrink-0"
+        style={{ backgroundColor: "var(--bg-secondary)" }}
+      >
+        {/* 展开最近目录面板时，只显示面板 */}
+        {isExpanded && hasRecentContent ? (
+          <div style={{ borderTop: "1px solid var(--border-color)" }}>
+            <RecentContentPanel
+              recentFolders={recentFolders}
+              recentFiles={recentFiles}
+              onOpenRecentFolder={handleOpenRecentFolder}
+              onOpenRecentFile={handleOpenRecentFile}
+              onRemoveRecentFolder={handleRemoveRecentFolder}
+              onRemoveRecentFile={handleRemoveRecentFile}
+              onOpenFolder={handleOpenFolder}
+            />
+          </div>
+        ) : (
+          /* 正常状态：显示打开文件夹按钮 */
+          <div
+            className="flex items-center"
+            style={{ borderTop: "1px solid var(--border-color)" }}
+          >
+            <button
+              type="button"
+              className="flex flex-1 items-center justify-center gap-2 py-2 text-[13px] transition-colors"
+              style={{ color: "var(--text-muted)" }}
+              onClick={handleOpenFolder}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                e.currentTarget.style.color = "var(--text-primary)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.color = "var(--text-muted)";
+              }}
+            >
+              <FolderOpen className="h-4 w-4" />
+              打开文件夹...
+            </button>
+
+            {/* 右侧更多按钮 */}
+            {hasRecentContent && (
+              <button
+                type="button"
+                className="flex h-8 w-8 flex-shrink-0 items-center justify-center transition-colors"
+                style={{ color: "var(--text-muted)" }}
+                onClick={() => setIsExpanded(true)}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = "var(--text-primary)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = "var(--text-muted)";
+                }}
+              >
+                <MoreVertical className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div
+      ref={panelRef}
       className="flex-shrink-0"
       style={{ backgroundColor: "var(--bg-secondary)" }}
     >
@@ -98,48 +187,40 @@ export function QuickActionsPanel({
         style={{ borderTop: "1px solid var(--border-color)" }}
       >
         <div className="flex items-center gap-0.5">
-          {treeRoot && (
-            <>
-              <ToolButton
-                icon={<FileText className="h-3.5 w-3.5" />}
-                tooltip="新建文件"
-                onClick={onStartCreateFile}
-              />
-              <ToolButton
-                icon={<FolderPlus className="h-3.5 w-3.5" />}
-                tooltip="新建文件夹"
-                onClick={onStartCreateFolder}
-              />
-              <ToolButton
-                icon={<Search className="h-3.5 w-3.5" />}
-                tooltip="搜索"
-                onClick={onToggleSearch}
-              />
-              <div
-                className="mx-1 h-3.5 w-px"
-                style={{ backgroundColor: "var(--border-color)" }}
-              />
-            </>
-          )}
+          <ToolButton
+            icon={<FileText className="h-3.5 w-3.5" />}
+            tooltip="新建文件"
+            onClick={onStartCreateFile}
+          />
+          <ToolButton
+            icon={<FolderPlus className="h-3.5 w-3.5" />}
+            tooltip="新建文件夹"
+            onClick={onStartCreateFolder}
+          />
+          <ToolButton
+            icon={<Search className="h-3.5 w-3.5" />}
+            tooltip="搜索"
+            onClick={onToggleSearch}
+          />
+          <div
+            className="mx-1 h-3.5 w-px"
+            style={{ backgroundColor: "var(--border-color)" }}
+          />
           <ToolButton
             icon={<FolderOpen className="h-3.5 w-3.5" />}
             tooltip="打开文件夹"
             onClick={handleOpenFolder}
           />
-          {treeRoot && (
-            <>
-              <ToolButton
-                icon={<ExternalLink className="h-3.5 w-3.5" />}
-                tooltip="在资源管理器中显示"
-                onClick={handleOpenInExplorer}
-              />
-              <ToolButton
-                icon={<RefreshCw className="h-3.5 w-3.5" />}
-                tooltip="刷新"
-                onClick={handleRefresh}
-              />
-            </>
-          )}
+          <ToolButton
+            icon={<ExternalLink className="h-3.5 w-3.5" />}
+            tooltip="在资源管理器中显示"
+            onClick={handleOpenInExplorer}
+          />
+          <ToolButton
+            icon={<RefreshCw className="h-3.5 w-3.5" />}
+            tooltip="刷新"
+            onClick={handleRefresh}
+          />
         </div>
         {hasRecentContent && (
           <button
@@ -171,139 +252,15 @@ export function QuickActionsPanel({
           className="px-2 pb-2"
           style={{ borderTop: "1px solid var(--border-color)" }}
         >
-          <div className="pt-2">
-            {/* 标签切换 */}
-            <div className="mb-2 flex gap-1">
-              {recentFolders.length > 0 && (
-                <button
-                  type="button"
-                  className="rounded px-2 py-0.5 text-[11px] font-medium transition-colors"
-                  style={{
-                    backgroundColor:
-                      activeTab === "folders"
-                        ? "var(--bg-tertiary)"
-                        : "transparent",
-                    color:
-                      activeTab === "folders"
-                        ? "var(--text-primary)"
-                        : "var(--text-muted)",
-                  }}
-                  onClick={() => setActiveTab("folders")}
-                >
-                  最近目录 ({recentFolders.length})
-                </button>
-              )}
-              {recentFiles.length > 0 && (
-                <button
-                  type="button"
-                  className="rounded px-2 py-0.5 text-[11px] font-medium transition-colors"
-                  style={{
-                    backgroundColor:
-                      activeTab === "files"
-                        ? "var(--bg-tertiary)"
-                        : "transparent",
-                    color:
-                      activeTab === "files"
-                        ? "var(--text-primary)"
-                        : "var(--text-muted)",
-                  }}
-                  onClick={() => setActiveTab("files")}
-                >
-                  最近文件 ({recentFiles.length})
-                </button>
-              )}
-            </div>
-
-            {/* 最近目录列表 */}
-            {activeTab === "folders" && recentFolders.length > 0 && (
-              <div className="space-y-px">
-                {recentFolders.map((folder) => (
-                  <div
-                    key={folder.path}
-                    className="group flex cursor-default items-center gap-2 rounded px-2 py-1 text-[12px] transition-colors"
-                    style={{ color: "var(--text-secondary)" }}
-                    onClick={() => handleOpenRecentFolder(folder.path)}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                      e.currentTarget.style.color = "var(--text-primary)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "transparent";
-                      e.currentTarget.style.color = "var(--text-secondary)";
-                    }}
-                  >
-                    <FolderOpen
-                      className="h-3.5 w-3.5 flex-shrink-0"
-                      style={{ color: "var(--text-muted)" }}
-                    />
-                    <span className="min-w-0 flex-1 truncate">
-                      {folder.title}
-                    </span>
-                    <button
-                      type="button"
-                      className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100"
-                      style={{ color: "var(--text-muted)" }}
-                      onClick={(e) => handleRemoveRecentFolder(e, folder.path)}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.color = "var(--text-primary)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.color = "var(--text-muted)";
-                      }}
-                      title="移除"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* 最近文件列表 */}
-            {activeTab === "files" && recentFiles.length > 0 && (
-              <div className="space-y-px">
-                {recentFiles.map((file) => (
-                  <div
-                    key={file.path}
-                    className="group flex cursor-default items-center gap-2 rounded px-2 py-1 text-[12px] transition-colors"
-                    style={{ color: "var(--text-secondary)" }}
-                    onClick={() => handleOpenRecentFile(file.path)}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                      e.currentTarget.style.color = "var(--text-primary)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "transparent";
-                      e.currentTarget.style.color = "var(--text-secondary)";
-                    }}
-                  >
-                    <File
-                      className="h-3.5 w-3.5 flex-shrink-0"
-                      style={{ color: "var(--text-muted)" }}
-                    />
-                    <span className="min-w-0 flex-1 truncate">
-                      {file.title}
-                    </span>
-                    <button
-                      type="button"
-                      className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100"
-                      style={{ color: "var(--text-muted)" }}
-                      onClick={(e) => handleRemoveRecentFile(e, file.path)}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.color = "var(--text-primary)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.color = "var(--text-muted)";
-                      }}
-                      title="移除"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <RecentContentPanel
+            recentFolders={recentFolders}
+            recentFiles={recentFiles}
+            onOpenRecentFolder={handleOpenRecentFolder}
+            onOpenRecentFile={handleOpenRecentFile}
+            onRemoveRecentFolder={handleRemoveRecentFolder}
+            onRemoveRecentFile={handleRemoveRecentFile}
+            onOpenFolder={handleOpenFolder}
+          />
         </div>
       )}
     </div>
@@ -337,5 +294,163 @@ function ToolButton({
     >
       {icon}
     </button>
+  );
+}
+
+interface RecentContentPanelProps {
+  recentFolders: Array<{ title: string; path: string }>;
+  recentFiles: Array<{ title: string; path: string }>;
+  onOpenRecentFolder: (path: string) => void;
+  onOpenRecentFile: (path: string) => void;
+  onRemoveRecentFolder: (e: React.MouseEvent, path: string) => void;
+  onRemoveRecentFile: (e: React.MouseEvent, path: string) => void;
+  onOpenFolder: () => void;
+}
+
+function RecentContentPanel({
+  recentFolders,
+  recentFiles,
+  onOpenRecentFolder,
+  onOpenRecentFile,
+  onRemoveRecentFolder,
+  onRemoveRecentFile,
+  onOpenFolder,
+}: RecentContentPanelProps) {
+  return (
+    <div className="py-2">
+      {/* 最近目录标题 */}
+      {recentFolders.length > 0 && (
+        <div className="mb-1">
+          <div
+            className="px-2 py-1 text-[11px] font-medium"
+            style={{ color: "var(--text-muted)" }}
+          >
+            最近使用的目录
+          </div>
+          <div className="space-y-px">
+            {recentFolders.map((folder) => (
+              <div
+                key={folder.path}
+                className="group flex cursor-default items-center gap-2 px-4 py-1 text-[13px] transition-colors"
+                style={{ color: "var(--text-secondary)" }}
+                onClick={() => onOpenRecentFolder(folder.path)}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                  e.currentTarget.style.color = "var(--text-primary)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = "var(--text-secondary)";
+                }}
+              >
+                <FolderOpen
+                  className="h-3.5 w-3.5 flex-shrink-0"
+                  style={{ color: "var(--text-muted)" }}
+                />
+                <span className="min-w-0 flex-1 truncate">{folder.title}</span>
+                <button
+                  type="button"
+                  className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100"
+                  style={{ color: "var(--text-muted)" }}
+                  onClick={(e) => onRemoveRecentFolder(e, folder.path)}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = "var(--text-primary)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = "var(--text-muted)";
+                  }}
+                  title="移除"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 最近文件标题 */}
+      {recentFiles.length > 0 && (
+        <div className="mb-1">
+          <div
+            className="px-2 py-1 text-[11px] font-medium"
+            style={{ color: "var(--text-muted)" }}
+          >
+            最近使用的文件
+          </div>
+          <div className="space-y-px">
+            {recentFiles.map((file) => (
+              <div
+                key={file.path}
+                className="group flex cursor-default items-center gap-2 px-4 py-1 text-[13px] transition-colors"
+                style={{ color: "var(--text-secondary)" }}
+                onClick={() => onOpenRecentFile(file.path)}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                  e.currentTarget.style.color = "var(--text-primary)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = "var(--text-secondary)";
+                }}
+              >
+                <File
+                  className="h-3.5 w-3.5 flex-shrink-0"
+                  style={{ color: "var(--text-muted)" }}
+                />
+                <span className="min-w-0 flex-1 truncate">{file.title}</span>
+                <button
+                  type="button"
+                  className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100"
+                  style={{ color: "var(--text-muted)" }}
+                  onClick={(e) => onRemoveRecentFile(e, file.path)}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = "var(--text-primary)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = "var(--text-muted)";
+                  }}
+                  title="移除"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 分隔线和打开文件夹 */}
+      <div
+        className="mt-1"
+        style={{ borderTop: "1px solid var(--border-color)" }}
+      >
+        <div
+          className="px-2 py-1 text-[11px] font-medium"
+          style={{ color: "var(--text-muted)" }}
+        >
+          目录
+        </div>
+        <div
+          className="flex cursor-default items-center gap-2 px-4 py-1 text-[13px] transition-colors"
+          style={{ color: "var(--text-secondary)" }}
+          onClick={onOpenFolder}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+            e.currentTarget.style.color = "var(--text-primary)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "transparent";
+            e.currentTarget.style.color = "var(--text-secondary)";
+          }}
+        >
+          <FolderOpen
+            className="h-3.5 w-3.5 flex-shrink-0"
+            style={{ color: "var(--text-muted)" }}
+          />
+          <span>打开文件夹...</span>
+        </div>
+      </div>
+    </div>
   );
 }
