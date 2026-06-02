@@ -297,7 +297,11 @@ export function MilkdownEditor() {
 
   return (
     <MilkdownProvider>
-      <MilkdownEditorInner content={content} onChange={handleChange} />
+      <MilkdownEditorInner
+        key={filePath}
+        content={content}
+        onChange={handleChange}
+      />
     </MilkdownProvider>
   );
 }
