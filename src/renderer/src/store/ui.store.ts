@@ -17,7 +17,7 @@ interface UIState {
 export const useUIStore = create<UIState>()(
   persist(
     (set) => ({
-      theme: "light" as ThemeName,
+      theme: "dark" as ThemeName,
       panelSize: 25,
       isSettingsOpen: false,
       activeTab: "file",

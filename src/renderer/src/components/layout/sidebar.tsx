@@ -4,7 +4,10 @@ export function Sidebar() {
   return (
     <div
       className="flex h-full flex-col"
-      style={{ backgroundColor: "var(--bg-primary)" }}
+      style={{
+        backgroundColor: "var(--bg-secondary)",
+        borderRight: "1px solid var(--border-color)",
+      }}
     >
       <FileTree />
     </div>

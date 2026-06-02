@@ -30,6 +30,8 @@ const MENU_CONTENT_CLASS =
 const MENU_ITEM_CLASS =
   "flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-[13px] outline-none data-[highlighted]:bg-[var(--hover-bg)]";
 const MENU_SEPARATOR_CLASS = "my-1 h-px bg-[var(--border-color)]";
+const TOOL_BUTTON_CLASS =
+  "flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md transition-colors";
 
 interface CreatingInfo {
   type: "file" | "folder";
@@ -110,6 +112,13 @@ export function FileTree() {
     setCreatingInfo({ type: "folder", parentKey: treeRoot.key, level: 0 });
   }, [treeRoot]);
 
+  const handleToggleSearch = useCallback(() => {
+    setShowSearch((value) => !value);
+    if (showSearch) {
+      setSearchQuery("");
+    }
+  }, [showSearch]);
+
   const filteredTreeData = useMemo(() => {
     if (!searchQuery.trim()) return treeData;
 
@@ -171,24 +180,90 @@ export function FileTree() {
     <ContextMenu.Root>
       <ContextMenu.Trigger asChild>
         <div className="flex h-full flex-col">
-          <div className="flex-1 overflow-auto pt-[6px]">
-            <div className="flex h-[26px] items-center px-[12px]">
-              <div className="flex flex-1 items-center gap-[6px]">
+          <div
+            className="flex h-[42px] flex-shrink-0 items-center gap-1 px-2"
+            style={{
+              borderBottom: "1px solid var(--border-color)",
+              backgroundColor: "var(--bg-secondary)",
+            }}
+          >
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <div
+                className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md"
+                style={{ backgroundColor: "var(--bg-tertiary)" }}
+              >
                 <FolderOpen
                   className="h-[14px] w-[14px] flex-shrink-0"
-                  style={{ color: "#c9a227" }}
+                  style={{ color: "var(--text-secondary)" }}
                 />
-                <span
-                  className="truncate text-[13px] font-medium"
-                  style={{ color: "var(--text-primary)" }}
-                >
-                  {treeRoot.title}
-                </span>
               </div>
+              <span
+                className="truncate text-[13px] font-medium"
+                style={{ color: "var(--text-primary)" }}
+              >
+                {treeRoot.title}
+              </span>
             </div>
+            <button
+              type="button"
+              className={TOOL_BUTTON_CLASS}
+              style={{ color: "var(--text-muted)" }}
+              title={showSearch ? "关闭搜索" : "搜索文件"}
+              onClick={handleToggleSearch}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                e.currentTarget.style.color = "var(--text-primary)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.color = "var(--text-muted)";
+              }}
+            >
+              {showSearch ? (
+                <X className="h-3.5 w-3.5" />
+              ) : (
+                <Search className="h-3.5 w-3.5" />
+              )}
+            </button>
+            <button
+              type="button"
+              className={TOOL_BUTTON_CLASS}
+              style={{ color: "var(--text-muted)" }}
+              title="新建文件"
+              onClick={handleStartCreateFile}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                e.currentTarget.style.color = "var(--text-primary)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.color = "var(--text-muted)";
+              }}
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              className={TOOL_BUTTON_CLASS}
+              style={{ color: "var(--text-muted)" }}
+              title="新建文件夹"
+              onClick={handleStartCreateFolder}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                e.currentTarget.style.color = "var(--text-primary)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.color = "var(--text-muted)";
+              }}
+            >
+              <FolderPlus className="h-3.5 w-3.5" />
+            </button>
+          </div>
 
+          <div className="flex-1 overflow-auto py-2">
             {showSearch ? (
-              <div className="px-3 py-2">
+              <div className="px-2 pb-2">
                 <div className="relative">
                   <Search
                     className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
@@ -198,7 +273,7 @@ export function FileTree() {
                     placeholder="搜索文件..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="h-7 pl-7 pr-7 text-[12px]"
+                    className="h-8 rounded-md pl-7 pr-7 text-[12px]"
                     autoFocus
                   />
                   {searchQuery ? (
@@ -217,20 +292,25 @@ export function FileTree() {
 
             {isRootCreating ? (
               <div
-                className="flex h-[26px] items-center"
-                style={{ paddingLeft: "12px", paddingRight: "12px" }}
+                className="mx-2 mb-1 flex h-7 items-center rounded-md"
+                style={{
+                  paddingLeft: "8px",
+                  paddingRight: "8px",
+                  backgroundColor: "var(--bg-tertiary)",
+                  border: "1px solid var(--border-color)",
+                }}
               >
                 <div className="flex h-[26px] w-[12px] flex-shrink-0 items-center justify-center" />
                 <div className="mr-[6px] flex h-[26px] w-[16px] flex-shrink-0 items-center justify-center">
                   {creatingInfo.type === "file" ? (
                     <File
                       className="h-[14px] w-[14px]"
-                      style={{ color: "#519aba" }}
+                      style={{ color: "var(--text-muted)" }}
                     />
                   ) : (
                     <Folder
                       className="h-[14px] w-[14px]"
-                      style={{ color: "#c9a227" }}
+                      style={{ color: "var(--text-secondary)" }}
                     />
                   )}
                 </div>
@@ -255,8 +335,8 @@ export function FileTree() {
                   }
                   className="h-[22px] flex-1 rounded-[3px] px-[6px] text-[13px] outline-none"
                   style={{
-                    backgroundColor: "var(--bg-tertiary)",
-                    border: "1px solid var(--accent-color)",
+                    backgroundColor: "transparent",
+                    border: "1px solid transparent",
                     color: "var(--text-primary)",
                   }}
                 />

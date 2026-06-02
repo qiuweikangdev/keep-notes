@@ -80,7 +80,7 @@ export const TreeNode = memo(function TreeNode({
   const [renameValue, setRenameValue] = useState("");
   const [createValue, setCreateValue] = useState("");
   const [isDropTarget, setIsDropTarget] = useState(false);
-  const [dragCounter, setDragCounter] = useState(0);
+  const [, setDragCounter] = useState(0);
   const confirmedRef = useRef(false);
   const [confirmState, setConfirmState] = useState<{
     type: "delete" | "move";
@@ -390,28 +390,45 @@ export const TreeNode = memo(function TreeNode({
 
   const icon = isFolder ? (
     isExpanded ? (
-      <FolderOpen className="h-[14px] w-[14px]" style={{ color: "#c9a227" }} />
+      <FolderOpen
+        className="h-[14px] w-[14px]"
+        style={{ color: "var(--text-secondary)" }}
+      />
     ) : (
-      <Folder className="h-[14px] w-[14px]" style={{ color: "#c9a227" }} />
+      <Folder
+        className="h-[14px] w-[14px]"
+        style={{ color: "var(--text-secondary)" }}
+      />
     )
   ) : (
-    <File className="h-[14px] w-[14px]" style={{ color: "#519aba" }} />
+    <File
+      className="h-[14px] w-[14px]"
+      style={{ color: "var(--text-muted)" }}
+    />
   );
 
   const createInputRow = isCreatingHere ? (
     <div
-      className="flex h-[26px] items-center animate-fade-in"
+      className="mx-2 mb-1 flex h-7 animate-fade-in items-center rounded-md"
       style={{
-        paddingLeft: `${creatingInfo!.level * 16 + 12}px`,
-        paddingRight: "12px",
+        paddingLeft: `${creatingInfo!.level * 14 + 8}px`,
+        paddingRight: "8px",
+        backgroundColor: "var(--bg-tertiary)",
+        border: "1px solid var(--border-color)",
       }}
     >
       <div className="flex h-[26px] w-[12px] flex-shrink-0 items-center justify-center" />
       <div className="mr-[6px] flex h-[26px] w-[16px] flex-shrink-0 items-center justify-center">
         {creatingInfo!.type === "file" ? (
-          <File className="h-[14px] w-[14px]" style={{ color: "#519aba" }} />
+          <File
+            className="h-[14px] w-[14px]"
+            style={{ color: "var(--text-muted)" }}
+          />
         ) : (
-          <Folder className="h-[14px] w-[14px]" style={{ color: "#c9a227" }} />
+          <Folder
+            className="h-[14px] w-[14px]"
+            style={{ color: "var(--text-secondary)" }}
+          />
         )}
       </div>
       <input
@@ -433,8 +450,8 @@ export const TreeNode = memo(function TreeNode({
         }
         className="h-[22px] flex-1 rounded-[3px] px-[6px] text-[13px] outline-none"
         style={{
-          backgroundColor: "var(--bg-tertiary)",
-          border: "1px solid var(--accent-color)",
+          backgroundColor: "transparent",
+          border: "1px solid transparent",
           color: "var(--text-primary)",
         }}
       />
@@ -445,22 +462,25 @@ export const TreeNode = memo(function TreeNode({
     <>
       <ContextMenu.Root>
         <ContextMenu.Trigger asChild>
-          <div ref={rowRef}>
+          <div ref={rowRef} className="px-2">
             <div
               className={cn(
-                "relative flex h-[26px] cursor-pointer select-none items-center transition-colors duration-75",
+                "relative flex h-7 cursor-pointer select-none items-center rounded-md transition-colors duration-75",
                 isDropTarget &&
                   isFolder &&
                   "outline outline-1 outline-[var(--accent-color)]/40",
               )}
               style={{
-                paddingLeft: `${level * 16 + 12}px`,
-                paddingRight: "12px",
+                paddingLeft: `${level * 14 + 8}px`,
+                paddingRight: "8px",
                 backgroundColor: isSelected
                   ? "var(--active-bg)"
                   : isHovered
                     ? "var(--hover-bg)"
                     : "transparent",
+                boxShadow: isSelected
+                  ? "inset 0 0 0 1px var(--border-color)"
+                  : "none",
               }}
               onClick={handleClick}
               onMouseEnter={() => setIsHovered(true)}
@@ -483,7 +503,7 @@ export const TreeNode = memo(function TreeNode({
                       e.stopPropagation();
                       toggleExpandedKey(node.key);
                     }}
-                    className="flex h-[14px] w-[14px] items-center justify-center rounded-sm hover:bg-[var(--hover-bg)]"
+                    className="flex h-[16px] w-[16px] items-center justify-center rounded-sm hover:bg-[var(--hover-bg)]"
                   >
                     <ChevronRight
                       className={cn(
@@ -513,14 +533,18 @@ export const TreeNode = memo(function TreeNode({
                   className="h-[22px] flex-1 rounded-[3px] px-[6px] text-[13px] outline-none"
                   style={{
                     backgroundColor: "var(--bg-tertiary)",
-                    border: "1px solid var(--accent-color)",
+                    border: "1px solid var(--border-color)",
                     color: "var(--text-primary)",
                   }}
                 />
               ) : (
                 <span
-                  className="flex-1 truncate text-[13px] leading-[26px]"
-                  style={{ color: "var(--text-primary)" }}
+                  className="flex-1 truncate text-[13px] leading-7"
+                  style={{
+                    color: isSelected
+                      ? "var(--text-primary)"
+                      : "var(--text-secondary)",
+                  }}
                 >
                   {node.title}
                 </span>
