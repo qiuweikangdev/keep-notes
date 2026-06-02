@@ -64,6 +64,11 @@ export const gitApi = {
     return ipcRenderer.invoke(IPC_CHANNELS.GIT.ADD_FILES, dirPath, files);
   },
 
+  // 取消文件暂存
+  unstageFiles: (dirPath: string, files: string[]): Promise<ApiResponse> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.GIT.UNSTAGE_FILES, dirPath, files);
+  },
+
   // 提交更改
   commit: (
     dirPath: string,

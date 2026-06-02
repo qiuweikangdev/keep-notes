@@ -10,6 +10,7 @@ import {
   createBranch,
   getStatus,
   addFiles,
+  unstageFiles,
   commit,
   push,
   pull,
@@ -73,6 +74,14 @@ export function registerGitIpc(): void {
     IPC_CHANNELS.GIT.ADD_FILES,
     async (_, dirPath: string, files: string[]) => {
       return addFiles(dirPath, files);
+    },
+  );
+
+  // 取消文件暂存
+  ipcMain.handle(
+    IPC_CHANNELS.GIT.UNSTAGE_FILES,
+    async (_, dirPath: string, files: string[]) => {
+      return unstageFiles(dirPath, files);
     },
   );
 

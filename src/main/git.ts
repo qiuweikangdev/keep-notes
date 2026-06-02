@@ -186,6 +186,26 @@ export async function addFiles(
   }
 }
 
+// 取消文件暂存
+export async function unstageFiles(
+  dirPath: string,
+  files: string[],
+): Promise<ApiResponse> {
+  try {
+    const git = getGitInstance(dirPath);
+    await git.reset(["HEAD", ...files]);
+    return {
+      code: CodeResult.Success,
+      message: "已取消暂存",
+    };
+  } catch (e: any) {
+    return {
+      code: CodeResult.Fail,
+      message: e.toString(),
+    };
+  }
+}
+
 // 提交更改
 export async function commit(
   dirPath: string,

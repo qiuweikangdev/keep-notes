@@ -65,6 +65,7 @@ export interface GitAPI {
   createBranch: (dirPath: string, branchName: string) => Promise<ApiResponse>;
   getStatus: (dirPath: string) => Promise<ApiResponse<GitStatus>>;
   addFiles: (dirPath: string, files: string[]) => Promise<ApiResponse>;
+  unstageFiles: (dirPath: string, files: string[]) => Promise<ApiResponse>;
   commit: (dirPath: string, options: GitCommitOptions) => Promise<ApiResponse>;
   push: (dirPath: string) => Promise<ApiResponse>;
   pull: (dirPath: string) => Promise<ApiResponse>;

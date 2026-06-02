@@ -29,6 +29,7 @@ export const IPC_CHANNELS = {
     GET_BRANCHES: "git:get-branches", // 获取分支列表
     SWITCH_BRANCH: "git:switch-branch", // 切换分支
     ADD_FILES: "git:add-files", // 添加文件到暂存区
+    UNSTAGE_FILES: "git:unstage-files", // 取消文件暂存
     COMMIT: "git:commit", // 提交更改
     PUSH: "git:push", // 推送到远程
     PULL: "git:pull", // 从远程拉取

@@ -176,7 +176,11 @@ function MilkdownEditorInner({ content, onChange }: MilkdownEditorProps) {
 
     const stopMenuItemHover = (event: Event) => {
       const target = event.target as HTMLElement | null;
-      if (target?.closest(".milkdown-slash-menu .menu-groups li")) {
+      if (
+        target &&
+        typeof target.closest === "function" &&
+        target.closest(".milkdown-slash-menu .menu-groups li")
+      ) {
         event.stopImmediatePropagation();
       }
     };

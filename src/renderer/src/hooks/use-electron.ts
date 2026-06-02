@@ -170,6 +170,11 @@ export function useElectron() {
     [],
   );
 
+  // 取消文件暂存
+  const unstageFiles = useCallback(async (dirPath: string, files: string[]) => {
+    return window.gitAPI.unstageFiles(dirPath, files);
+  }, []);
+
   // 提交更改
   const commitChanges = useCallback(
     async (dirPath: string, options: GitCommitOptions) => {
@@ -214,6 +219,7 @@ export function useElectron() {
     createBranch,
     getGitStatus,
     addFilesToStaging,
+    unstageFiles,
     commitChanges,
     pushToRemote,
     pullFromRemote,

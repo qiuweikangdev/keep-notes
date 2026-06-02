@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useElectron } from "@/hooks/use-electron";
 import { useTreeStore } from "@/store/tree.store";
-import { useUserStore } from "@/store/user.store";
 import { CodeResult } from "@/types";
 import type { GitStatus, GitBranch, GitCommitOptions } from "@/types";
 import {
@@ -20,20 +19,26 @@ interface GitPanelProps {
   onClose: () => void;
 }
 
+// 所有需要展示的文件（去重后）
+interface FileItem {
+  path: string;
+  status: "M" | "U" | "D" | "S"; // 修改/未跟踪/已删除/已暂存
+}
+
 export function GitPanel({ isOpen, onClose }: GitPanelProps) {
   const {
     detectGitRepo,
-    getCurrentBranch,
     getBranches,
     switchBranch,
     createBranch,
     getGitStatus,
+    addFilesToStaging,
+    unstageFiles,
     commitChanges,
     pushToRemote,
     pullFromRemote,
   } = useElectron();
   const { treeRoot } = useTreeStore();
-  const { githubInfo } = useUserStore();
 
   const [isGitRepo, setIsGitRepo] = useState(false);
   const [currentBranch, setCurrentBranch] = useState("");
@@ -49,13 +54,12 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     type: "success" | "error";
     text: string;
   } | null>(null);
+  const [stagedFiles, setStagedFiles] = useState<Set<string>>(new Set());
 
-  // 获取当前工作目录
   const getCurrentDir = useCallback(() => {
-    return treeRoot?.key || githubInfo.localPath || "";
-  }, [treeRoot, githubInfo.localPath]);
+    return treeRoot?.key || "";
+  }, [treeRoot]);
 
-  // 检测 Git 仓库并加载状态
   const loadGitInfo = useCallback(async () => {
     const dir = getCurrentDir();
     if (!dir) return;
@@ -66,7 +70,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       if (detectResult.code === CodeResult.Success && detectResult.data) {
         setIsGitRepo(detectResult.data.isGitRepo);
         if (detectResult.data.isGitRepo) {
-          // 加载分支信息
           const branchResult = await getBranches(dir);
           if (branchResult.code === CodeResult.Success && branchResult.data) {
             setBranches(branchResult.data);
@@ -76,10 +79,10 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             }
           }
 
-          // 加载 Git 状态
           const statusResult = await getGitStatus(dir);
           if (statusResult.code === CodeResult.Success && statusResult.data) {
             setGitStatus(statusResult.data);
+            setStagedFiles(new Set(statusResult.data.staged));
           }
         }
       }
@@ -90,14 +93,83 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     }
   }, [getCurrentDir, detectGitRepo, getBranches, getGitStatus]);
 
-  // 组件挂载时加载 Git 信息
   useEffect(() => {
     if (isOpen) {
       loadGitInfo();
     }
   }, [isOpen, loadGitInfo]);
 
-  // 切换分支
+  // 合并所有文件，去重，确定最终状态
+  const getAllFiles = useCallback((): FileItem[] => {
+    if (!gitStatus) return [];
+
+    const fileMap = new Map<string, FileItem>();
+
+    // 先添加已暂存的文件
+    gitStatus.staged.forEach((filePath) => {
+      fileMap.set(filePath, { path: filePath, status: "S" });
+    });
+
+    // 添加修改的文件（如果不在暂存区）
+    gitStatus.modified.forEach((filePath) => {
+      if (!fileMap.has(filePath)) {
+        fileMap.set(filePath, { path: filePath, status: "M" });
+      }
+    });
+
+    // 添加未跟踪的文件（如果不在暂存区）
+    gitStatus.not_added.forEach((filePath) => {
+      if (!fileMap.has(filePath)) {
+        fileMap.set(filePath, { path: filePath, status: "U" });
+      }
+    });
+
+    // 添加删除的文件（如果不在暂存区）
+    gitStatus.deleted.forEach((filePath) => {
+      if (!fileMap.has(filePath)) {
+        fileMap.set(filePath, { path: filePath, status: "D" });
+      }
+    });
+
+    return Array.from(fileMap.values());
+  }, [gitStatus]);
+
+  // 切换文件暂存状态
+  const toggleFileStaging = useCallback(
+    async (filePath: string) => {
+      const dir = getCurrentDir();
+      if (!dir) return;
+
+      const isCurrentlyStaged = stagedFiles.has(filePath);
+
+      try {
+        setLoading(true);
+        if (isCurrentlyStaged) {
+          // 取消暂存
+          const result = await unstageFiles(dir, [filePath]);
+          if (result.code === CodeResult.Success) {
+            setStagedFiles((prev) => {
+              const next = new Set(prev);
+              next.delete(filePath);
+              return next;
+            });
+          }
+        } else {
+          // 添加到暂存区
+          const result = await addFilesToStaging(dir, [filePath]);
+          if (result.code === CodeResult.Success) {
+            setStagedFiles((prev) => new Set(prev).add(filePath));
+          }
+        }
+      } catch (error) {
+        showMessage("error", "操作失败");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [getCurrentDir, stagedFiles, addFilesToStaging, unstageFiles],
+  );
+
   const handleSwitchBranch = useCallback(
     async (branchName: string) => {
       const dir = getCurrentDir();
@@ -109,7 +181,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         if (result.code === CodeResult.Success) {
           setCurrentBranch(branchName);
           setShowBranchList(false);
-          // 重新加载状态
           await loadGitInfo();
           showMessage("success", `已切换到分支: ${branchName}`);
         } else {
@@ -124,7 +195,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     [getCurrentDir, switchBranch, loadGitInfo],
   );
 
-  // 创建新分支
   const handleCreateBranch = useCallback(async () => {
     if (!newBranchName.trim()) return;
     const dir = getCurrentDir();
@@ -137,7 +207,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         setCurrentBranch(newBranchName.trim());
         setNewBranchName("");
         setShowCreateBranch(false);
-        // 重新加载状态
         await loadGitInfo();
         showMessage("success", `已创建并切换到分支: ${newBranchName.trim()}`);
       } else {
@@ -150,22 +219,26 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     }
   }, [getCurrentDir, createBranch, loadGitInfo, newBranchName]);
 
-  // 提交更改
   const handleCommit = useCallback(
     async (pushAfterCommit: boolean = false) => {
       const dir = getCurrentDir();
-      if (!dir || !commitMessage.trim()) return;
+      if (!dir) return;
+
+      const message =
+        commitMessage.trim() || new Date().toLocaleString("zh-CN");
 
       try {
         setLoading(true);
+        if (includeUntracked) {
+          await addFilesToStaging(dir, []);
+        }
         const options: GitCommitOptions = {
-          message: commitMessage.trim(),
+          message,
           push: pushAfterCommit,
         };
         const result = await commitChanges(dir, options);
         if (result.code === CodeResult.Success) {
           setCommitMessage("");
-          // 重新加载状态
           await loadGitInfo();
           showMessage(
             "success",
@@ -180,10 +253,16 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         setLoading(false);
       }
     },
-    [getCurrentDir, commitMessage, commitChanges, loadGitInfo],
+    [
+      getCurrentDir,
+      commitMessage,
+      includeUntracked,
+      commitChanges,
+      addFilesToStaging,
+      loadGitInfo,
+    ],
   );
 
-  // 推送到远程
   const handlePush = useCallback(async () => {
     const dir = getCurrentDir();
     if (!dir) return;
@@ -203,7 +282,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     }
   }, [getCurrentDir, pushToRemote]);
 
-  // 从远程拉取
   const handlePull = useCallback(async () => {
     const dir = getCurrentDir();
     if (!dir) return;
@@ -224,7 +302,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     }
   }, [getCurrentDir, pullFromRemote, loadGitInfo]);
 
-  // 显示消息
   const showMessage = (type: "success" | "error", text: string) => {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 3000);
@@ -232,7 +309,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
 
   if (!isOpen) return null;
 
-  // 如果不是 Git 仓库，显示提示信息
   if (!isGitRepo) {
     return (
       <div
@@ -241,7 +317,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         onClick={onClose}
       >
         <div
-          className="w-[400px] rounded-lg shadow-xl"
+          className="w-[400px] rounded-xl shadow-2xl"
           style={{ backgroundColor: "var(--bg-secondary)" }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -292,6 +368,10 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     );
   }
 
+  const allFiles = getAllFiles();
+  const modifiedCount = gitStatus?.modified.length || 0;
+  const untrackedCount = gitStatus?.not_added.length || 0;
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
@@ -299,7 +379,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       onClick={onClose}
     >
       <div
-        className="w-[500px] max-h-[80vh] rounded-lg shadow-xl overflow-hidden"
+        className="w-[480px] max-h-[80vh] rounded-xl shadow-2xl overflow-hidden flex flex-col"
         style={{ backgroundColor: "var(--bg-secondary)" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -338,264 +418,295 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         {/* 消息提示 */}
         {message && (
           <div
-            className="px-4 py-2 text-sm"
+            className="px-4 py-2 text-sm flex items-center gap-2"
             style={{
               backgroundColor:
                 message.type === "success"
-                  ? "rgba(34, 197, 94, 0.1)"
-                  : "rgba(239, 68, 68, 0.1)",
+                  ? "rgba(34, 197, 94, 0.15)"
+                  : "rgba(239, 68, 68, 0.15)",
               color: message.type === "success" ? "#22c55e" : "#ef4444",
               borderBottom: "1px solid var(--border-color)",
             }}
           >
+            {message.type === "success" ? (
+              <Check className="h-4 w-4" />
+            ) : (
+              <X className="h-4 w-4" />
+            )}
             {message.text}
           </div>
         )}
 
         {/* 内容区域 */}
-        <div className="p-4 space-y-4">
-          {/* 分支信息 */}
-          <div
-            className="p-3 rounded-lg"
-            style={{ backgroundColor: "var(--bg-tertiary)" }}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                当前分支
-              </span>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setShowBranchList(!showBranchList)}
-                  className="flex items-center gap-1 px-2 py-1 rounded text-sm transition-colors"
-                  style={{
-                    backgroundColor: "var(--bg-primary)",
-                    color: "var(--text-primary)",
-                  }}
-                  disabled={loading}
-                >
-                  {currentBranch || "未选择"}
-                  {showBranchList ? (
-                    <ChevronUp className="h-3 w-3" />
-                  ) : (
-                    <ChevronDown className="h-3 w-3" />
-                  )}
-                </button>
-                <button
-                  onClick={() => setShowCreateBranch(!showCreateBranch)}
-                  className="p-1 rounded transition-colors"
-                  style={{ color: "var(--text-muted)" }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "transparent";
-                  }}
-                  title="创建新分支"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* 分支列表下拉 */}
-            {showBranchList && (
-              <div
-                className="mt-2 rounded-lg overflow-hidden"
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {/* 当前分支 */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm" style={{ color: "var(--text-muted)" }}>
+              当前分支
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowBranchList(!showBranchList)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors"
                 style={{
-                  backgroundColor: "var(--bg-primary)",
-                  border: "1px solid var(--border-color)",
+                  backgroundColor: "var(--bg-tertiary)",
+                  color: "var(--text-primary)",
                 }}
+                disabled={loading}
               >
-                {branches.map((branch) => (
-                  <button
-                    key={branch.name}
-                    onClick={() => handleSwitchBranch(branch.name)}
-                    className="w-full flex items-center justify-between px-3 py-2 text-sm transition-colors"
-                    style={{
-                      backgroundColor: branch.current
-                        ? "var(--active-bg)"
-                        : "transparent",
-                      color: branch.current
-                        ? "var(--accent-color)"
-                        : "var(--text-primary)",
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!branch.current) {
-                        e.currentTarget.style.backgroundColor =
-                          "var(--hover-bg)";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!branch.current) {
-                        e.currentTarget.style.backgroundColor = "transparent";
-                      }
-                    }}
-                  >
-                    <span>{branch.name}</span>
-                    {branch.current && <Check className="h-4 w-4" />}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* 创建新分支输入框 */}
-            {showCreateBranch && (
-              <div className="mt-2 flex items-center gap-2">
-                <input
-                  type="text"
-                  value={newBranchName}
-                  onChange={(e) => setNewBranchName(e.target.value)}
-                  placeholder="新分支名称"
-                  className="flex-1 px-3 py-1.5 text-sm rounded-lg"
-                  style={{
-                    backgroundColor: "var(--bg-primary)",
-                    border: "1px solid var(--border-color)",
-                    color: "var(--text-primary)",
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      handleCreateBranch();
-                    }
-                  }}
-                />
-                <button
-                  onClick={handleCreateBranch}
-                  disabled={!newBranchName.trim() || loading}
-                  className="px-3 py-1.5 text-sm rounded-lg transition-colors"
-                  style={{
-                    backgroundColor: "var(--accent-color)",
-                    color: "white",
-                    opacity: !newBranchName.trim() || loading ? 0.5 : 1,
-                  }}
-                >
-                  创建
-                </button>
-              </div>
-            )}
+                <GitBranchIcon className="h-3.5 w-3.5" />
+                {currentBranch || "未选择"}
+                {showBranchList ? (
+                  <ChevronUp className="h-3 w-3" />
+                ) : (
+                  <ChevronDown className="h-3 w-3" />
+                )}
+              </button>
+              <button
+                onClick={() => setShowCreateBranch(!showCreateBranch)}
+                className="p-1.5 rounded-lg transition-colors"
+                style={{ color: "var(--text-muted)" }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                  e.currentTarget.style.color = "var(--text-primary)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = "var(--text-muted)";
+                }}
+                title="创建新分支"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
-          {/* 状态信息 */}
-          {gitStatus && (
+          {/* 分支列表下拉 */}
+          {showBranchList && (
             <div
-              className="p-3 rounded-lg"
-              style={{ backgroundColor: "var(--bg-tertiary)" }}
+              className="rounded-lg overflow-hidden"
+              style={{
+                backgroundColor: "var(--bg-primary)",
+                border: "1px solid var(--border-color)",
+              }}
             >
+              {branches.map((branch) => (
+                <button
+                  key={branch.name}
+                  onClick={() => handleSwitchBranch(branch.name)}
+                  className="w-full flex items-center justify-between px-3 py-2 text-sm transition-colors"
+                  style={{
+                    backgroundColor: branch.current
+                      ? "var(--active-bg)"
+                      : "transparent",
+                    color: branch.current
+                      ? "var(--accent-color)"
+                      : "var(--text-primary)",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!branch.current) {
+                      e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!branch.current) {
+                      e.currentTarget.style.backgroundColor = "transparent";
+                    }
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <GitBranchIcon
+                      className="h-3.5 w-3.5"
+                      style={{ color: "var(--text-muted)" }}
+                    />
+                    <span>{branch.name}</span>
+                  </div>
+                  {branch.current && <Check className="h-4 w-4" />}
+                </button>
+              ))}
+              <button
+                onClick={() => {
+                  setShowBranchList(false);
+                  setShowCreateBranch(true);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors"
+                style={{ color: "var(--text-muted)" }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                  e.currentTarget.style.color = "var(--text-primary)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = "var(--text-muted)";
+                }}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                创建并检出新分支...
+              </button>
+            </div>
+          )}
+
+          {/* 创建新分支输入框 */}
+          {showCreateBranch && (
+            <div
+              className="flex items-center gap-2 p-3 rounded-lg"
+              style={{
+                backgroundColor: "var(--bg-tertiary)",
+                border: "1px solid var(--border-color)",
+              }}
+            >
+              <input
+                type="text"
+                value={newBranchName}
+                onChange={(e) => setNewBranchName(e.target.value)}
+                placeholder="新分支名称"
+                className="flex-1 px-3 py-1.5 text-sm rounded-lg outline-none"
+                style={{
+                  backgroundColor: "var(--bg-primary)",
+                  color: "var(--text-primary)",
+                  border: "1px solid var(--border-color)",
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleCreateBranch();
+                  } else if (e.key === "Escape") {
+                    setShowCreateBranch(false);
+                  }
+                }}
+                autoFocus
+              />
+              <button
+                onClick={handleCreateBranch}
+                disabled={!newBranchName.trim() || loading}
+                className="px-3 py-1.5 text-sm rounded-lg transition-colors"
+                style={{
+                  backgroundColor:
+                    newBranchName.trim() && !loading
+                      ? "var(--accent-color)"
+                      : "var(--bg-tertiary)",
+                  color:
+                    newBranchName.trim() && !loading
+                      ? "#ffffff"
+                      : "var(--text-muted)",
+                }}
+              >
+                创建
+              </button>
+              <button
+                onClick={() => {
+                  setShowCreateBranch(false);
+                  setNewBranchName("");
+                }}
+                className="px-3 py-1.5 text-sm rounded-lg transition-colors"
+                style={{
+                  backgroundColor: "var(--bg-tertiary)",
+                  color: "var(--text-primary)",
+                }}
+              >
+                取消
+              </button>
+            </div>
+          )}
+
+          {/* 文件状态 */}
+          {allFiles.length > 0 && (
+            <div>
               <div className="flex items-center justify-between mb-2">
                 <span
-                  className="text-xs"
+                  className="text-sm"
                   style={{ color: "var(--text-muted)" }}
                 >
                   文件状态
                 </span>
-                <div className="flex items-center gap-2 text-xs">
-                  {gitStatus.staged.length > 0 && (
-                    <span style={{ color: "#22c55e" }}>
-                      +{gitStatus.staged.length} 已暂存
+                <div className="flex items-center gap-3 text-xs">
+                  {modifiedCount > 0 && (
+                    <span style={{ color: "#e2c08d" }}>
+                      ~{modifiedCount} 已修改
                     </span>
                   )}
-                  {gitStatus.modified.length > 0 && (
-                    <span style={{ color: "#f59e0b" }}>
-                      ~{gitStatus.modified.length} 已修改
-                    </span>
-                  )}
-                  {gitStatus.not_added.length > 0 && (
-                    <span style={{ color: "#3b82f6" }}>
-                      +{gitStatus.not_added.length} 未跟踪
-                    </span>
-                  )}
-                  {gitStatus.deleted.length > 0 && (
-                    <span style={{ color: "#ef4444" }}>
-                      -{gitStatus.deleted.length} 已删除
+                  {untrackedCount > 0 && (
+                    <span style={{ color: "#73c991" }}>
+                      +{untrackedCount} 未跟踪
                     </span>
                   )}
                 </div>
               </div>
 
               {/* 文件列表 */}
-              {gitStatus.files.length > 0 ? (
-                <div
-                  className="max-h-[120px] overflow-y-auto rounded-lg"
-                  style={{
-                    backgroundColor: "var(--bg-primary)",
-                    border: "1px solid var(--border-color)",
-                  }}
-                >
-                  {gitStatus.files.slice(0, 10).map((file) => (
-                    <div
-                      key={file.path}
-                      className="flex items-center justify-between px-3 py-1.5 text-xs"
-                      style={{ borderBottom: "1px solid var(--border-color)" }}
-                    >
+              <div
+                className="rounded-lg overflow-hidden"
+                style={{
+                  backgroundColor: "var(--bg-primary)",
+                  border: "1px solid var(--border-color)",
+                }}
+              >
+                {allFiles.map((file) => (
+                  <div
+                    key={file.path}
+                    className="flex items-center justify-between px-3 py-2 text-sm"
+                    style={{ borderBottom: "1px solid var(--border-color)" }}
+                  >
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={stagedFiles.has(file.path)}
+                        onChange={() => toggleFileStaging(file.path)}
+                        className="rounded w-3.5 h-3.5 cursor-pointer"
+                        style={{ accentColor: "var(--accent-color)" }}
+                      />
                       <span
                         className="truncate"
                         style={{ color: "var(--text-primary)" }}
                       >
                         {file.path}
                       </span>
-                      <div className="flex items-center gap-1">
-                        {file.index && file.index !== " " && (
-                          <span
-                            className="px-1 rounded"
-                            style={{
-                              backgroundColor: "rgba(34, 197, 94, 0.1)",
-                              color: "#22c55e",
-                            }}
-                          >
-                            {file.index}
-                          </span>
-                        )}
-                        {file.working_dir && file.working_dir !== " " && (
-                          <span
-                            className="px-1 rounded"
-                            style={{
-                              backgroundColor: "rgba(245, 158, 11, 0.1)",
-                              color: "#f59e0b",
-                            }}
-                          >
-                            {file.working_dir}
-                          </span>
-                        )}
-                      </div>
                     </div>
-                  ))}
-                  {gitStatus.files.length > 10 && (
-                    <div
-                      className="px-3 py-1.5 text-xs text-center"
-                      style={{ color: "var(--text-muted)" }}
-                    >
-                      还有 {gitStatus.files.length - 10} 个文件...
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div
-                  className="text-xs text-center py-2"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  没有修改的文件
-                </div>
-              )}
+                    {file.status === "S" && (
+                      <span
+                        className="ml-2 px-1.5 py-0.5 rounded text-xs font-medium"
+                        style={{
+                          backgroundColor: "rgba(34, 197, 94, 0.2)",
+                          color: "#22c55e",
+                        }}
+                      >
+                        S
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 无更改提示 */}
+          {allFiles.length === 0 && (
+            <div
+              className="text-center py-6"
+              style={{ color: "var(--text-muted)" }}
+            >
+              <GitCommit className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">无更改</p>
             </div>
           )}
 
           {/* 提交信息 */}
           <div>
-            <label
-              className="block text-xs mb-1"
-              style={{ color: "var(--text-muted)" }}
-            >
-              提交信息
-            </label>
             <textarea
               value={commitMessage}
               onChange={(e) => setCommitMessage(e.target.value)}
-              placeholder="输入提交信息..."
+              placeholder="提交信息（留空将自动生成）..."
               rows={3}
-              className="w-full px-3 py-2 text-sm rounded-lg resize-none"
+              className="w-full px-3 py-2 text-sm rounded-lg resize-none outline-none"
               style={{
-                backgroundColor: "var(--bg-tertiary)",
+                backgroundColor: "var(--bg-primary)",
                 border: "1px solid var(--border-color)",
                 color: "var(--text-primary)",
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = "var(--accent-color)";
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = "var(--border-color)";
               }}
             />
             <div className="flex items-center gap-2 mt-2">
@@ -604,14 +715,15 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                 id="includeUntracked"
                 checked={includeUntracked}
                 onChange={(e) => setIncludeUntracked(e.target.checked)}
-                className="rounded"
+                className="rounded w-3.5 h-3.5 cursor-pointer"
+                style={{ accentColor: "var(--accent-color)" }}
               />
               <label
                 htmlFor="includeUntracked"
-                className="text-xs"
-                style={{ color: "var(--text-secondary)" }}
+                className="text-sm cursor-pointer"
+                style={{ color: "var(--text-muted)" }}
               >
-                包含未跟踪的文件
+                包含未暂存的更改
               </label>
             </div>
           </div>
@@ -626,61 +738,81 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             <button
               onClick={handlePull}
               disabled={loading}
-              className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors"
               style={{
                 backgroundColor: "var(--bg-tertiary)",
                 color: "var(--text-primary)",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                if (!loading)
+                  e.currentTarget.style.backgroundColor = "var(--hover-bg)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.backgroundColor = "var(--bg-tertiary)";
               }}
             >
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw
+                className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
+              />
               拉取
             </button>
             <button
               onClick={handlePush}
               disabled={loading}
-              className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors"
               style={{
                 backgroundColor: "var(--bg-tertiary)",
                 color: "var(--text-primary)",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                if (!loading)
+                  e.currentTarget.style.backgroundColor = "var(--hover-bg)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.backgroundColor = "var(--bg-tertiary)";
               }}
             >
-              <GitCommit className="h-4 w-4" />
+              <GitCommit className="h-3.5 w-3.5" />
               推送
             </button>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => handleCommit(false)}
-              disabled={loading || !commitMessage.trim()}
+              disabled={loading}
               className="px-4 py-1.5 text-sm rounded-lg transition-colors"
               style={{
-                backgroundColor: "var(--accent-color)",
-                color: "white",
-                opacity: loading || !commitMessage.trim() ? 0.5 : 1,
+                backgroundColor: "var(--bg-tertiary)",
+                color: "var(--text-primary)",
+              }}
+              onMouseEnter={(e) => {
+                if (!loading)
+                  e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--bg-tertiary)";
               }}
             >
               提交
             </button>
             <button
               onClick={() => handleCommit(true)}
-              disabled={loading || !commitMessage.trim()}
+              disabled={loading}
               className="px-4 py-1.5 text-sm rounded-lg transition-colors"
               style={{
-                backgroundColor: "var(--accent-hover)",
-                color: "white",
-                opacity: loading || !commitMessage.trim() ? 0.5 : 1,
+                backgroundColor: loading
+                  ? "var(--bg-tertiary)"
+                  : "var(--accent-color)",
+                color: "#ffffff",
+              }}
+              onMouseEnter={(e) => {
+                if (!loading)
+                  e.currentTarget.style.backgroundColor = "var(--accent-hover)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = loading
+                  ? "var(--bg-tertiary)"
+                  : "var(--accent-color)";
               }}
             >
               提交并推送

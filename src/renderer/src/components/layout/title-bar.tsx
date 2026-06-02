@@ -17,7 +17,6 @@ import { SearchModal } from "@/features/search";
 import { GitPanel } from "@/features/git";
 import { useElectron } from "@/hooks/use-electron";
 import { useTreeStore } from "@/store/tree.store";
-import { useUserStore } from "@/store/user.store";
 import { CodeResult } from "@/types";
 
 interface TitleBarProps {
@@ -34,7 +33,6 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
   const titleBarRef = useRef<HTMLDivElement>(null);
   const { detectGitRepo } = useElectron();
   const { treeRoot } = useTreeStore();
-  const { githubInfo } = useUserStore();
 
   // 处理搜索快捷键
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -63,12 +61,12 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
         btn.style.webkitAppRegion = "no-drag";
       });
     }
-  }, []);
+  }, [isGitRepo]);
 
   // 检测 Git 仓库
   useEffect(() => {
     const checkGitRepo = async () => {
-      const dir = treeRoot?.key || githubInfo.localPath;
+      const dir = treeRoot?.key;
       if (!dir) {
         setIsGitRepo(false);
         return;
@@ -79,13 +77,14 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
         setIsGitRepo(
           result.code === CodeResult.Success && result.data?.isGitRepo === true,
         );
-      } catch {
+      } catch (error) {
+        console.error("Git detect error:", error);
         setIsGitRepo(false);
       }
     };
 
     checkGitRepo();
-  }, [treeRoot, githubInfo.localPath, detectGitRepo]);
+  }, [treeRoot, detectGitRepo]);
 
   return (
     <>

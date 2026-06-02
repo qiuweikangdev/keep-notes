@@ -1,25 +1,19 @@
 import { useState } from "react";
 import { useUIStore } from "@/store/ui.store";
-import { useUserStore } from "@/store/user.store";
 import { useTreeStore } from "@/store/tree.store";
 import { useEditorStore } from "@/store/editor.store";
-import { useElectron } from "@/hooks/use-electron";
 import { useTheme } from "@/hooks/use-theme";
 import { type ThemeName } from "@/config/themes";
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 import { ThemeSelector } from "@/components/ui/theme-selector";
 import { SettingRow } from "@/components/ui/setting-row";
 import { FontSelector } from "@/components/ui/font-selector";
-import { Palette, Github, ChevronRight } from "lucide-react";
+import { Palette, ChevronRight } from "lucide-react";
 
-type SettingsTab = "appearance" | "github";
+type SettingsTab = "appearance";
 
 const settingsMenuItems = [
   { id: "appearance" as SettingsTab, label: "外观", icon: Palette },
-  { id: "github" as SettingsTab, label: "Github 同步", icon: Github },
 ];
 
 const fontFamilyOptions = [
@@ -68,42 +62,10 @@ const codeFontOptions = [
 
 export function SettingsModal() {
   const { isSettingsOpen, setSettingsOpen } = useUIStore();
-  const { githubInfo, setGithubInfo } = useUserStore();
   const { dirSettings, setDirSettings } = useTreeStore();
   const { appearance, setAppearance } = useEditorStore();
-  const { gitDownload, gitUpload } = useElectron();
   const { theme, setTheme } = useTheme();
-  const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>("appearance");
-
-  const handleGithubSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const formData = new FormData(e.target as HTMLFormElement);
-    setGithubInfo({
-      username: formData.get("username") as string,
-      email: formData.get("email") as string,
-      repoUrl: formData.get("repoUrl") as string,
-      localPath: formData.get("localPath") as string,
-    });
-  };
-
-  const handleDownload = async () => {
-    setLoading(true);
-    try {
-      await gitDownload();
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleUpload = async () => {
-    setLoading(true);
-    try {
-      await gitUpload();
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const renderContent = () => {
     switch (activeTab) {
@@ -294,70 +256,6 @@ export function SettingsModal() {
               </div>
             </div>
           </div>
-        );
-
-      case "github":
-        return (
-          <form onSubmit={handleGithubSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">用户名</Label>
-              <Input
-                id="username"
-                name="username"
-                defaultValue={githubInfo.username}
-                placeholder="GitHub 用户名"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">邮箱</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                defaultValue={githubInfo.email}
-                placeholder="GitHub 邮箱"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="repoUrl">仓库地址</Label>
-              <Input
-                id="repoUrl"
-                name="repoUrl"
-                defaultValue={githubInfo.repoUrl}
-                placeholder="https://github.com/user/repo.git"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="localPath">本地路径</Label>
-              <Input
-                id="localPath"
-                name="localPath"
-                defaultValue={githubInfo.localPath}
-                placeholder="本地仓库路径"
-              />
-            </div>
-            <div className="flex gap-2 pt-2">
-              <Button type="submit" className="flex-1">
-                保存配置
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleDownload}
-                disabled={loading}
-              >
-                拉取
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleUpload}
-                disabled={loading}
-              >
-                推送
-              </Button>
-            </div>
-          </form>
         );
     }
   };
