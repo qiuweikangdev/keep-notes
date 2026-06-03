@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useElectron } from "@/hooks/use-electron";
 import { useTreeStore } from "@/store/tree.store";
+import { useEditorStore } from "@/store/editor.store";
 import { CodeResult } from "@/types";
 import type { GitStatus, GitBranch, GitCommitOptions } from "@/types";
 import {
@@ -496,13 +497,27 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
 
     setConfirmDialog({ open: false, filePath: "" });
 
+    // 获取当前编辑器中打开的文件路径，用于后续刷新
+    const { filePath: editorFilePath } = useEditorStore.getState();
+
     try {
       // 处理目录级别的放弃更改
       if (filePath.endsWith("/*")) {
         const dirPath = filePath.slice(0, -2);
         const files = getFilesInDir(dirPath);
-        let successCount = 0;
 
+        // 先取消暂存目录下的所有已暂存文件
+        const stagedInDir = files.filter((f) => stagedFiles.has(f));
+        if (stagedInDir.length > 0) {
+          await unstageFiles(dir, stagedInDir);
+          setStagedFiles((prev) => {
+            const next = new Set(prev);
+            stagedInDir.forEach((f) => next.delete(f));
+            return next;
+          });
+        }
+
+        let successCount = 0;
         for (const file of files) {
           const result = await discardChanges(dir, file);
           if (result.code === CodeResult.Success) {
@@ -518,13 +533,54 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             `已放弃 ${successCount}/${files.length} 个文件的更改`,
           );
         }
+
+        // 如果编辑器中打开的文件在该目录下，重新读取内容
+        if (
+          editorFilePath &&
+          files.some((f) => {
+            const normalizedEditor = editorFilePath.replace(/[/\\]/g, "/");
+            const normalizedFile = f.replace(/[/\\]/g, "/");
+            const fullFile = (dir + "/" + f).replace(/[/\\]/g, "/");
+            return (
+              normalizedEditor === normalizedFile ||
+              normalizedEditor === fullFile
+            );
+          })
+        ) {
+          const sep = dir.includes("\\") ? "\\" : "/";
+          const normalizedFile = editorFilePath.replace(/[/\\]/g, sep);
+          await openFileInEditor(normalizedFile);
+        }
       } else {
+        // 单文件：先取消暂存（如果已暂存），再放弃更改
+        if (stagedFiles.has(filePath)) {
+          await unstageFiles(dir, [filePath]);
+          setStagedFiles((prev) => {
+            const next = new Set(prev);
+            next.delete(filePath);
+            return next;
+          });
+        }
+
         const result = await discardChanges(dir, filePath);
         if (result.code === CodeResult.Success) {
           showMessage("success", "已放弃更改");
         } else {
           showMessage("error", result.message || "放弃更改失败");
           return;
+        }
+
+        // 如果编辑器中打开的正是该文件，重新读取最新内容
+        if (editorFilePath) {
+          const sep = dir.includes("\\") ? "\\" : "/";
+          const normalizedEditor = editorFilePath.replace(/[/\\]/g, sep);
+          const normalizedTarget = (dir + sep + filePath).replace(
+            /[/\\]/g,
+            sep,
+          );
+          if (normalizedEditor === normalizedTarget) {
+            await openFileInEditor(normalizedEditor);
+          }
         }
       }
 
@@ -540,6 +596,9 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     loadGitInfo,
     loadTree,
     getFilesInDir,
+    stagedFiles,
+    unstageFiles,
+    openFileInEditor,
   ]);
 
   if (!isOpen) return null;

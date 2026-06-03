@@ -7,6 +7,7 @@
 } from "react";
 import { Crepe } from "@milkdown/crepe";
 import { Milkdown, MilkdownProvider, useEditor } from "@milkdown/react";
+import { replaceAll } from "@milkdown/utils";
 import { useEditorStore } from "@/store/editor.store";
 import { useTreeStore } from "@/store/tree.store";
 import { useTheme } from "@/hooks/use-theme";
@@ -18,6 +19,7 @@ import "@/styles/milkdown-overrides.css";
 
 interface MilkdownEditorProps {
   content: string;
+  reloadKey: number;
   onChange?: (content: string) => void;
 }
 
@@ -74,13 +76,17 @@ function preventSlashMenuItemHoverSync() {
   });
 }
 
-function MilkdownEditorInner({ content, onChange }: MilkdownEditorProps) {
+function MilkdownEditorInner({
+  content,
+  reloadKey,
+  onChange,
+}: MilkdownEditorProps) {
   const { setWordCount, setDirty, appearance } = useEditorStore();
   const { milkdownTheme } = useTheme();
   const [loading, setLoading] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  useEditor((root) => {
+  const { get } = useEditor((root) => {
     const crepe = new Crepe({
       root,
       defaultValue: content,
@@ -213,6 +219,13 @@ function MilkdownEditorInner({ content, onChange }: MilkdownEditorProps) {
     };
   }, []);
 
+  // 外部内容变化时（如放弃更改后重新读取文件），无感同步到编辑器
+  useEffect(() => {
+    const editor = get();
+    if (!editor || loading) return;
+    editor.action(replaceAll(content));
+  }, [reloadKey]);
+
   return (
     <div
       ref={containerRef}
@@ -233,7 +246,7 @@ function MilkdownEditorInner({ content, onChange }: MilkdownEditorProps) {
 }
 
 export function MilkdownEditor() {
-  const { content, filePath, setDirty } = useEditorStore();
+  const { content, filePath, setDirty, reloadKey } = useEditorStore();
   const { updateNodeContent } = useTreeStore();
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pendingSaveRef = useRef<{ filePath: string; content: string } | null>(
@@ -300,6 +313,7 @@ export function MilkdownEditor() {
       <MilkdownEditorInner
         key={filePath}
         content={content}
+        reloadKey={reloadKey}
         onChange={handleChange}
       />
     </MilkdownProvider>

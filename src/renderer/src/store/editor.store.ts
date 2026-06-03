@@ -14,12 +14,14 @@ interface EditorState {
   wordCount: number;
   isDirty: boolean;
   appearance: EditorAppearance;
+  reloadKey: number;
 
   setContent: (content: string) => void;
   setFilePath: (path: string | null) => void;
   setWordCount: (count: number) => void;
   setDirty: (dirty: boolean) => void;
   setAppearance: (appearance: Partial<EditorAppearance>) => void;
+  incrementReloadKey: () => void;
   resetEditor: () => void;
 }
 
@@ -38,6 +40,7 @@ export const useEditorStore = create<EditorState>()(
       wordCount: 0,
       isDirty: false,
       appearance: defaultAppearance,
+      reloadKey: 0,
 
       setContent: (content) => set({ content, isDirty: true }),
       setFilePath: (path) => set({ filePath: path, isDirty: false }),
@@ -47,6 +50,8 @@ export const useEditorStore = create<EditorState>()(
         set((state) => ({
           appearance: { ...state.appearance, ...appearance },
         })),
+      incrementReloadKey: () =>
+        set((state) => ({ reloadKey: state.reloadKey + 1 })),
       resetEditor: () =>
         set({
           content: "",
