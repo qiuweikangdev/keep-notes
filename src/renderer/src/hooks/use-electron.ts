@@ -64,36 +64,15 @@ export function useElectron() {
           (t) => t.id === activeGroup.activeTabId,
         );
 
-        // 如果文件已经在当前激活的标签页中打开，不重新读取
+        // 如果当前聚焦标签页已经是目标文件，不更新
         if (activeTab && activeTab.filePath === filePath) {
-          // 记录到最近使用的文件
           const fileName = filePath.split(/[\\/]/).pop() || filePath;
-          addRecentFile({
-            title: fileName,
-            path: filePath,
-          });
+          addRecentFile({ title: fileName, path: filePath });
           return;
         }
 
-        // 检查文件是否在其他标签页中打开，如果是则切换到该标签页
-        for (const group of state.panelGroups) {
-          for (const tab of group.tabs) {
-            if (tab.filePath === filePath) {
-              state.setActiveTab(group.id, tab.id);
-              // 记录到最近使用的文件
-              const fileName = filePath.split(/[\\/]/).pop() || filePath;
-              addRecentFile({
-                title: fileName,
-                path: filePath,
-              });
-              return;
-            }
-          }
-        }
-
-        // 文件未打开，从磁盘读取并打开到当前标签页
+        // 在当前聚焦标签页中打开文件
         const content = await window.electronAPI.readFile(filePath);
-        // 检查是否还是当前正在打开的文件，防止快速切换时旧文件内容覆盖新文件
         if (openingFileRef.current !== filePath) return;
 
         state.setTabContent(activeGroup.id, activeGroup.activeTabId, content);
@@ -111,10 +90,7 @@ export function useElectron() {
 
       // 记录到最近使用的文件
       const fileName = filePath.split(/[\\/]/).pop() || filePath;
-      addRecentFile({
-        title: fileName,
-        path: filePath,
-      });
+      addRecentFile({ title: fileName, path: filePath });
     },
     [setContent, setFilePath, incrementReloadKey, addRecentFile],
   );
