@@ -398,13 +398,13 @@ function RecentContentPanel({
       {recentFolders.length > 0 && (
         <div className="mb-0">
           <div
-            className="flex items-center justify-between px-2 py-0.5 text-[11px] font-medium"
+            className="flex items-center justify-between px-1 py-0.5 text-[11px] font-medium"
             style={{ color: "var(--text-muted)" }}
           >
             <span>最近使用的目录</span>
             <button
               type="button"
-              className="flex h-4 w-4 items-center justify-center rounded transition-colors"
+              className="flex h-6 w-6 items-center justify-center rounded transition-colors"
               style={{ color: "var(--text-muted)" }}
               onClick={() => setFoldersCollapsed(!foldersCollapsed)}
               onMouseEnter={(e) => {
@@ -415,9 +415,9 @@ function RecentContentPanel({
               }}
             >
               {foldersCollapsed ? (
-                <ChevronDown className="h-3 w-3" />
+                <ChevronDown className="h-3.5 w-3.5" />
               ) : (
-                <ChevronUp className="h-3 w-3" />
+                <ChevronUp className="h-3.5 w-3.5" />
               )}
             </button>
           </div>
@@ -471,13 +471,13 @@ function RecentContentPanel({
       {recentFiles.length > 0 && (
         <div className="mb-0">
           <div
-            className="flex items-center justify-between px-2 py-0.5 text-[11px] font-medium"
+            className="flex items-center justify-between px-1 py-0.5 text-[11px] font-medium"
             style={{ color: "var(--text-muted)" }}
           >
             <span>最近使用的文件</span>
             <button
               type="button"
-              className="flex h-4 w-4 items-center justify-center rounded transition-colors"
+              className="flex h-6 w-6 items-center justify-center rounded transition-colors"
               style={{ color: "var(--text-muted)" }}
               onClick={() => setFilesCollapsed(!filesCollapsed)}
               onMouseEnter={(e) => {
@@ -488,9 +488,9 @@ function RecentContentPanel({
               }}
             >
               {filesCollapsed ? (
-                <ChevronDown className="h-3 w-3" />
+                <ChevronDown className="h-3.5 w-3.5" />
               ) : (
-                <ChevronUp className="h-3 w-3" />
+                <ChevronUp className="h-3.5 w-3.5" />
               )}
             </button>
           </div>
