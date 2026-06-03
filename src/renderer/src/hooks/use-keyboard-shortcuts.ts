@@ -10,7 +10,15 @@ export function useKeyboardShortcuts() {
   const { toggleCollapse } = usePanel();
   const { toggleTheme } = useUIStore();
   const { treeRoot, treeData } = useTreeStore();
-  const { filePath, setFilePath, resetEditor, content } = useEditorStore();
+  const {
+    filePath,
+    setFilePath,
+    resetEditor,
+    content,
+    panelGroups,
+    activeGroupId,
+    removeTab,
+  } = useEditorStore();
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -40,10 +48,14 @@ export function useKeyboardShortcuts() {
         openFolder();
       }
 
-      // Cmd/Ctrl + W: 关闭当前文件
+      // Cmd/Ctrl + W: 关闭当前聚焦面板的标签页
       if (isMeta && e.key === "w") {
         e.preventDefault();
-        if (filePath) {
+        const activeGroup = panelGroups.find((g) => g.id === activeGroupId);
+        if (activeGroup) {
+          removeTab(activeGroup.id, activeGroup.activeTabId);
+        } else if (filePath) {
+          // 兼容旧模式
           setFilePath(null);
           resetEditor();
         }
@@ -84,6 +96,9 @@ export function useKeyboardShortcuts() {
       resetEditor,
       toggleCollapse,
       toggleTheme,
+      panelGroups,
+      activeGroupId,
+      removeTab,
     ],
   );
 

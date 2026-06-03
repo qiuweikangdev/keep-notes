@@ -1,4 +1,4 @@
-﻿import {
+import {
   useEffect,
   useRef,
   useCallback,
@@ -85,6 +85,8 @@ function MilkdownEditorInner({
   const { milkdownTheme } = useTheme();
   const [loading, setLoading] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
+  const replaceSeqRef = useRef(0);
+  const lastExternalContentRef = useRef<string | null>(null);
 
   const { get } = useEditor((root) => {
     const crepe = new Crepe({
@@ -145,8 +147,15 @@ function MilkdownEditorInner({
       listener.markdownUpdated((_, markdown, prevMarkdown) => {
         if (markdown !== prevMarkdown) {
           setWordCount(markdown.length);
-          setDirty(true);
-          onChange?.(markdown);
+          // 区分用户输入和外部 replaceAll 触发的变化
+          // 如果内容与最近的外部内容相同，则忽略
+          const isExternalUpdate = markdown === lastExternalContentRef.current;
+          if (!isExternalUpdate) {
+            setDirty(true);
+            onChange?.(markdown);
+          }
+          // 重置外部内容标记
+          lastExternalContentRef.current = null;
         }
       });
 
@@ -219,12 +228,25 @@ function MilkdownEditorInner({
     };
   }, []);
 
-  // 外部内容变化时（如放弃更改后重新读取文件），无感同步到编辑器
+  // 外部内容变化时（如切换文件或放弃更改后重新读取文件），无感同步到编辑器
   useEffect(() => {
     const editor = get();
     if (!editor || loading) return;
-    editor.action(replaceAll(content));
-  }, [reloadKey]);
+
+    const seq = ++replaceSeqRef.current;
+
+    // 使用 requestAnimationFrame 延迟到下一帧执行，确保只应用最新的内容
+    const rafId = requestAnimationFrame(() => {
+      // 检查 seq 是否仍是最新的，防止过期更新
+      if (seq === replaceSeqRef.current) {
+        // 记录外部内容，用于在 markdownUpdated 事件中区分用户输入和外部更新
+        lastExternalContentRef.current = content;
+        editor.action(replaceAll(content));
+      }
+    });
+
+    return () => cancelAnimationFrame(rafId);
+  }, [reloadKey, content, loading]);
 
   return (
     <div
@@ -245,12 +267,50 @@ function MilkdownEditorInner({
   );
 }
 
-export function MilkdownEditor() {
-  const { content, filePath, setDirty, reloadKey } = useEditorStore();
+export function MilkdownEditor({
+  groupId,
+  tabId,
+}: {
+  groupId?: string;
+  tabId?: string;
+}) {
+  const {
+    content,
+    filePath,
+    setDirty,
+    reloadKey,
+    panelGroups = [],
+    setTabContent,
+    setTabDirty,
+  } = useEditorStore();
   const { updateNodeContent } = useTreeStore();
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const pendingSaveRef = useRef<{ filePath: string; content: string } | null>(
-    null,
+
+  // 获取当前标签页数据
+  const group = groupId ? panelGroups.find((g) => g.id === groupId) : null;
+  const tab = group && tabId ? group.tabs.find((t) => t.id === tabId) : null;
+  const currentContent = tab ? tab.content : content;
+  const currentFilePath = tab ? tab.filePath : filePath;
+  const currentReloadKey = tab ? tab.reloadKey : reloadKey;
+
+  // 同步更新所有打开相同文件的其他标签页
+  const syncOtherTabs = useCallback(
+    (newContent: string, path: string | null) => {
+      if (!path) return;
+
+      const state = useEditorStore.getState();
+      for (const group of state.panelGroups) {
+        for (const tab of group.tabs) {
+          // 跳过当前标签页
+          if (group.id === groupId && tab.id === tabId) continue;
+
+          // 如果有相同文件路径，同步内容
+          if (tab.filePath === path) {
+            state.setTabContent(group.id, tab.id, newContent);
+          }
+        }
+      }
+    },
+    [groupId, tabId],
   );
 
   const saveContent = useCallback(
@@ -258,61 +318,57 @@ export function MilkdownEditor() {
       try {
         await window.electronAPI.writeFile(path, nextContent);
         updateNodeContent(path, nextContent);
-        const pending = pendingSaveRef.current;
-        if (
-          !pending ||
-          (pending.filePath === path && pending.content === nextContent)
-        ) {
-          pendingSaveRef.current = null;
+        if (groupId && tabId) {
+          setTabDirty(groupId, tabId, false);
+        } else {
           setDirty(false);
         }
       } catch (error) {
         console.error("Failed to save markdown file", error);
       }
     },
-    [updateNodeContent, setDirty],
+    [updateNodeContent, setDirty, groupId, tabId, setTabDirty],
   );
 
   const handleChange = useCallback(
     async (newContent: string) => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-
       // 无文件时保存到 store 作为草稿
-      if (!filePath) {
-        useEditorStore.getState().setContent(newContent);
-        useEditorStore.getState().setDirty(true);
+      if (!currentFilePath) {
+        if (groupId && tabId) {
+          setTabContent(groupId, tabId, newContent);
+        } else {
+          useEditorStore.getState().setContent(newContent);
+          useEditorStore.getState().setDirty(true);
+        }
         return;
       }
 
-      pendingSaveRef.current = { filePath, content: newContent };
-      saveTimeoutRef.current = setTimeout(async () => {
-        const pending = pendingSaveRef.current;
-        if (!pending) return;
-        await saveContent(pending.filePath, pending.content);
-      }, 500);
-    },
-    [filePath, saveContent],
-  );
+      // 更新当前标签页内容
+      if (groupId && tabId) {
+        setTabContent(groupId, tabId, newContent);
+      }
 
-  useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-      const pending = pendingSaveRef.current;
-      if (pending) {
-        void saveContent(pending.filePath, pending.content);
-      }
-    };
-  }, [saveContent]);
+      // 同步更新其他打开相同文件的标签页
+      syncOtherTabs(newContent, currentFilePath);
+
+      // 立即保存到文件
+      await saveContent(currentFilePath, newContent);
+    },
+    [
+      currentFilePath,
+      saveContent,
+      groupId,
+      tabId,
+      setTabContent,
+      syncOtherTabs,
+    ],
+  );
 
   return (
     <MilkdownProvider>
       <MilkdownEditorInner
-        content={content}
-        reloadKey={reloadKey}
+        content={currentContent}
+        reloadKey={currentReloadKey}
         onChange={handleChange}
       />
     </MilkdownProvider>

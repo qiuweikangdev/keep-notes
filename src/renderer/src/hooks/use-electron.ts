@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { CodeResult } from "@/types";
 import type {
   TreeNode,
@@ -17,6 +17,7 @@ export function useElectron() {
     useTreeStore();
   const { setContent, setFilePath, incrementReloadKey } = useEditorStore();
   const { githubInfo } = useUserStore();
+  const openingFileRef = useRef<string | null>(null);
 
   const openFolder = useCallback(async () => {
     const result = await window.electronAPI.openDialog();
@@ -51,10 +52,28 @@ export function useElectron() {
 
   const openFile = useCallback(
     async (filePath: string) => {
+      openingFileRef.current = filePath;
       const content = await window.electronAPI.readFile(filePath);
-      setContent(content);
-      setFilePath(filePath);
-      incrementReloadKey();
+      // 检查是否还是当前正在打开的文件，防止快速切换时旧文件内容覆盖新文件
+      if (openingFileRef.current !== filePath) return;
+
+      const state = useEditorStore.getState();
+      const activeGroup = state.panelGroups.find(
+        (g) => g.id === state.activeGroupId,
+      );
+
+      if (activeGroup) {
+        // 面板模式：设置当前激活标签页的文件
+        state.setTabContent(activeGroup.id, activeGroup.activeTabId, content);
+        state.setTabFilePath(activeGroup.id, activeGroup.activeTabId, filePath);
+        state.incrementTabReloadKey(activeGroup.id, activeGroup.activeTabId);
+      } else {
+        // 兼容模式：设置全局文件
+        setContent(content);
+        setFilePath(filePath);
+        incrementReloadKey();
+      }
+
       // 记录到最近使用的文件
       const fileName = filePath.split(/[\\/]/).pop() || filePath;
       addRecentFile({
