@@ -389,56 +389,81 @@ function RecentContentPanel({
   onOpenFolder,
   showOpenFolder = false,
 }: RecentContentPanelProps) {
+  const [foldersCollapsed, setFoldersCollapsed] = useState(false);
+  const [filesCollapsed, setFilesCollapsed] = useState(false);
+
   return (
     <div className="pt-0.5 pb-1">
       {/* 最近目录标题 */}
       {recentFolders.length > 0 && (
         <div className="mb-0">
           <div
-            className="px-2 py-0.5 text-[11px] font-medium"
+            className="flex items-center justify-between px-2 py-0.5 text-[11px] font-medium"
             style={{ color: "var(--text-muted)" }}
           >
-            最近使用的目录
+            <span>最近使用的目录</span>
+            <button
+              type="button"
+              className="flex h-4 w-4 items-center justify-center rounded transition-colors"
+              style={{ color: "var(--text-muted)" }}
+              onClick={() => setFoldersCollapsed(!foldersCollapsed)}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = "var(--text-primary)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = "var(--text-muted)";
+              }}
+            >
+              {foldersCollapsed ? (
+                <ChevronDown className="h-3 w-3" />
+              ) : (
+                <ChevronUp className="h-3 w-3" />
+              )}
+            </button>
           </div>
-          <div className="space-y-0">
-            {recentFolders.map((folder) => (
-              <div
-                key={folder.path}
-                className="group flex cursor-default items-center gap-2 px-3 py-0 text-[13px] transition-colors"
-                style={{ color: "var(--text-secondary)" }}
-                onClick={() => onOpenRecentFolder(folder.path)}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                  e.currentTarget.style.color = "var(--text-primary)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "transparent";
-                  e.currentTarget.style.color = "var(--text-secondary)";
-                }}
-              >
-                <FolderOpen
-                  className="h-3.5 w-3.5 flex-shrink-0"
-                  style={{ color: "var(--text-muted)" }}
-                />
-                <span className="min-w-0 flex-1 truncate">{folder.title}</span>
-                <button
-                  type="button"
-                  className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100"
-                  style={{ color: "var(--text-muted)" }}
-                  onClick={(e) => onRemoveRecentFolder(e, folder.path)}
+          {!foldersCollapsed && (
+            <div className="space-y-0">
+              {recentFolders.map((folder) => (
+                <div
+                  key={folder.path}
+                  className="group flex cursor-default items-center gap-2 px-3 py-0 text-[13px] transition-colors"
+                  style={{ color: "var(--text-secondary)" }}
+                  onClick={() => onOpenRecentFolder(folder.path)}
                   onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "var(--hover-bg)";
                     e.currentTarget.style.color = "var(--text-primary)";
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.color = "var(--text-muted)";
+                    e.currentTarget.style.backgroundColor = "transparent";
+                    e.currentTarget.style.color = "var(--text-secondary)";
                   }}
-                  title="移除"
                 >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            ))}
-          </div>
+                  <FolderOpen
+                    className="h-3.5 w-3.5 flex-shrink-0"
+                    style={{ color: "var(--text-muted)" }}
+                  />
+                  <span className="min-w-0 flex-1 truncate">
+                    {folder.title}
+                  </span>
+                  <button
+                    type="button"
+                    className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100"
+                    style={{ color: "var(--text-muted)" }}
+                    onClick={(e) => onRemoveRecentFolder(e, folder.path)}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = "var(--text-primary)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = "var(--text-muted)";
+                    }}
+                    title="移除"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -446,50 +471,70 @@ function RecentContentPanel({
       {recentFiles.length > 0 && (
         <div className="mb-0">
           <div
-            className="px-2 py-0.5 text-[11px] font-medium"
+            className="flex items-center justify-between px-2 py-0.5 text-[11px] font-medium"
             style={{ color: "var(--text-muted)" }}
           >
-            最近使用的文件
+            <span>最近使用的文件</span>
+            <button
+              type="button"
+              className="flex h-4 w-4 items-center justify-center rounded transition-colors"
+              style={{ color: "var(--text-muted)" }}
+              onClick={() => setFilesCollapsed(!filesCollapsed)}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = "var(--text-primary)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = "var(--text-muted)";
+              }}
+            >
+              {filesCollapsed ? (
+                <ChevronDown className="h-3 w-3" />
+              ) : (
+                <ChevronUp className="h-3 w-3" />
+              )}
+            </button>
           </div>
-          <div className="space-y-0">
-            {recentFiles.map((file) => (
-              <div
-                key={file.path}
-                className="group flex cursor-default items-center gap-2 px-3 py-0 text-[13px] transition-colors"
-                style={{ color: "var(--text-secondary)" }}
-                onClick={() => onOpenRecentFile(file.path)}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                  e.currentTarget.style.color = "var(--text-primary)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "transparent";
-                  e.currentTarget.style.color = "var(--text-secondary)";
-                }}
-              >
-                <File
-                  className="h-3.5 w-3.5 flex-shrink-0"
-                  style={{ color: "var(--text-muted)" }}
-                />
-                <span className="min-w-0 flex-1 truncate">{file.title}</span>
-                <button
-                  type="button"
-                  className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100"
-                  style={{ color: "var(--text-muted)" }}
-                  onClick={(e) => onRemoveRecentFile(e, file.path)}
+          {!filesCollapsed && (
+            <div className="space-y-0">
+              {recentFiles.map((file) => (
+                <div
+                  key={file.path}
+                  className="group flex cursor-default items-center gap-2 px-3 py-0 text-[13px] transition-colors"
+                  style={{ color: "var(--text-secondary)" }}
+                  onClick={() => onOpenRecentFile(file.path)}
                   onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "var(--hover-bg)";
                     e.currentTarget.style.color = "var(--text-primary)";
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.color = "var(--text-muted)";
+                    e.currentTarget.style.backgroundColor = "transparent";
+                    e.currentTarget.style.color = "var(--text-secondary)";
                   }}
-                  title="移除"
                 >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            ))}
-          </div>
+                  <File
+                    className="h-3.5 w-3.5 flex-shrink-0"
+                    style={{ color: "var(--text-muted)" }}
+                  />
+                  <span className="min-w-0 flex-1 truncate">{file.title}</span>
+                  <button
+                    type="button"
+                    className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100"
+                    style={{ color: "var(--text-muted)" }}
+                    onClick={(e) => onRemoveRecentFile(e, file.path)}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = "var(--text-primary)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = "var(--text-muted)";
+                    }}
+                    title="移除"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
