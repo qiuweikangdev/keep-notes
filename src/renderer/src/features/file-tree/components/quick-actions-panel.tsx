@@ -35,6 +35,9 @@ export function QuickActionsPanel({
     treeRoot,
     recentFolders,
     recentFiles,
+    expandedKeys,
+    setExpandedKeys,
+    setSelectedKey,
     removeRecentFolder,
     removeRecentFile,
   } = useTreeStore();
@@ -93,9 +96,33 @@ export function QuickActionsPanel({
 
   const handleOpenRecentFile = useCallback(
     (path: string) => {
+      // 如果文件在当前目录树下，展开父目录并定位到该文件
+      if (treeRoot) {
+        const rootKey = treeRoot.key;
+        const sep = rootKey.includes("\\") ? "\\" : "/";
+        const normalizedPath = path.replace(/[/\\]/g, sep);
+        const normalizedRoot = rootKey.replace(/[/\\]/g, sep);
+
+        if (
+          normalizedPath.startsWith(normalizedRoot + sep) ||
+          normalizedPath === normalizedRoot
+        ) {
+          // 展开所有父目录
+          const parts = normalizedPath.split(sep);
+          const newExpanded = new Set(expandedKeys);
+          let current = parts[0];
+          for (let i = 1; i < parts.length - 1; i++) {
+            current += sep + parts[i];
+            newExpanded.add(current);
+          }
+          setExpandedKeys(Array.from(newExpanded));
+          // 选中该文件节点
+          setSelectedKey(normalizedPath);
+        }
+      }
       void openFile(path);
     },
-    [openFile],
+    [treeRoot, expandedKeys, setExpandedKeys, setSelectedKey, openFile],
   );
 
   const handleRemoveRecentFolder = useCallback(
