@@ -53,9 +53,6 @@ export function useElectron() {
   const openFile = useCallback(
     async (filePath: string) => {
       openingFileRef.current = filePath;
-      const content = await window.electronAPI.readFile(filePath);
-      // 检查是否还是当前正在打开的文件，防止快速切换时旧文件内容覆盖新文件
-      if (openingFileRef.current !== filePath) return;
 
       const state = useEditorStore.getState();
       const activeGroup = state.panelGroups.find(
@@ -63,12 +60,50 @@ export function useElectron() {
       );
 
       if (activeGroup) {
-        // 面板模式：设置当前激活标签页的文件
+        const activeTab = activeGroup.tabs.find(
+          (t) => t.id === activeGroup.activeTabId,
+        );
+
+        // 如果文件已经在当前激活的标签页中打开，不重新读取
+        if (activeTab && activeTab.filePath === filePath) {
+          // 记录到最近使用的文件
+          const fileName = filePath.split(/[\\/]/).pop() || filePath;
+          addRecentFile({
+            title: fileName,
+            path: filePath,
+          });
+          return;
+        }
+
+        // 检查文件是否在其他标签页中打开，如果是则切换到该标签页
+        for (const group of state.panelGroups) {
+          for (const tab of group.tabs) {
+            if (tab.filePath === filePath) {
+              state.setActiveTab(group.id, tab.id);
+              // 记录到最近使用的文件
+              const fileName = filePath.split(/[\\/]/).pop() || filePath;
+              addRecentFile({
+                title: fileName,
+                path: filePath,
+              });
+              return;
+            }
+          }
+        }
+
+        // 文件未打开，从磁盘读取并打开到当前标签页
+        const content = await window.electronAPI.readFile(filePath);
+        // 检查是否还是当前正在打开的文件，防止快速切换时旧文件内容覆盖新文件
+        if (openingFileRef.current !== filePath) return;
+
         state.setTabContent(activeGroup.id, activeGroup.activeTabId, content);
         state.setTabFilePath(activeGroup.id, activeGroup.activeTabId, filePath);
         state.incrementTabReloadKey(activeGroup.id, activeGroup.activeTabId);
       } else {
         // 兼容模式：设置全局文件
+        const content = await window.electronAPI.readFile(filePath);
+        if (openingFileRef.current !== filePath) return;
+
         setContent(content);
         setFilePath(filePath);
         incrementReloadKey();
