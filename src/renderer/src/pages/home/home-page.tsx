@@ -5,11 +5,16 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { TitleBar } from "@/components/layout/title-bar";
 import { usePanel } from "@/hooks/use-panel";
 import { SettingsModal } from "@/features/settings";
+import { DiffViewer } from "@/features/diff";
+import { useDiffStore } from "@/store/diff.store";
 import { useEffect, useState } from "react";
+import { X } from "lucide-react";
 
 export function HomePage() {
   const { panelSize, collapsed, toggleCollapse, handleResize } = usePanel();
   const [isMaximized, setIsMaximized] = useState(false);
+  const { isOpen, oldContent, newContent, filePath, closeDiff } =
+    useDiffStore();
 
   // 监听窗口最大化状态
   useEffect(() => {
@@ -18,6 +23,9 @@ export function HomePage() {
     };
     checkMaximized();
   }, []);
+
+  // 获取文件名
+  const fileName = filePath?.split(/[\\/]/).pop() || "";
 
   return (
     <div
@@ -77,6 +85,50 @@ export function HomePage() {
               <Editor />
             </div>
           </Panel>
+
+          {/* Diff 面板 */}
+          {isOpen && (
+            <>
+              <PanelResizeHandle
+                className="w-[1px]"
+                style={{
+                  backgroundColor: "var(--border-color)",
+                }}
+              />
+              <Panel defaultSize={40} minSize={20}>
+                <div className="h-full relative">
+                  {/* 关闭按钮 */}
+                  <button
+                    onClick={closeDiff}
+                    className="absolute top-2 right-2 z-10 flex items-center justify-center w-6 h-6 rounded-lg transition-all"
+                    style={{
+                      backgroundColor: "var(--bg-secondary)",
+                      color: "var(--text-muted)",
+                      border: "1px solid var(--border-color)",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                      e.currentTarget.style.color = "var(--text-primary)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor =
+                        "var(--bg-secondary)";
+                      e.currentTarget.style.color = "var(--text-muted)";
+                    }}
+                    title="关闭差异比较"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                  <DiffViewer
+                    oldContent={oldContent}
+                    newContent={newContent}
+                    oldTitle={`${fileName} (磁盘)`}
+                    newTitle={`${fileName} (编辑器)`}
+                  />
+                </div>
+              </Panel>
+            </>
+          )}
         </PanelGroup>
       </div>
 

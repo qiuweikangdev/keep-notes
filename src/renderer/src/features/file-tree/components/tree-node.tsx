@@ -1,4 +1,4 @@
-﻿import {
+import {
   useState,
   useCallback,
   useRef,
@@ -16,6 +16,7 @@ import {
   Pencil,
   Trash2,
   ExternalLink,
+  GitCompare,
 } from "lucide-react";
 import { useTreeStore } from "@/store/tree.store";
 import { useElectron } from "@/hooks/use-electron";
@@ -24,6 +25,8 @@ import type { TreeNode as TreeNodeType } from "@/types";
 import { ContextMenu } from "@/components/ui/context-menu";
 import { CodeResult } from "@/types";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useDiffStore } from "@/store/diff.store";
+import { useEditorStore } from "@/store/editor.store";
 
 interface CreatingInfo {
   type: "file" | "folder";
@@ -74,6 +77,8 @@ export const TreeNode = memo(function TreeNode({
     moveItem,
     openInExplorer,
   } = useElectron();
+  const { openDiff } = useDiffStore();
+  const { panelGroups, activeGroupId } = useEditorStore();
 
   const [isHovered, setIsHovered] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
@@ -388,6 +393,31 @@ export const TreeNode = memo(function TreeNode({
     node.key,
   ]);
 
+  // 处理 diff 比较
+  const handleDiff = useCallback(async () => {
+    try {
+      // 读取磁盘上的文件内容
+      const diskContent = await window.electronAPI.readFile(node.key);
+
+      // 获取编辑器中当前文件的内容
+      let editorContent = diskContent;
+      const activeGroup = panelGroups.find((g) => g.id === activeGroupId);
+      if (activeGroup) {
+        const activeTab = activeGroup.tabs.find(
+          (t) => t.id === activeGroup.activeTabId,
+        );
+        if (activeTab && activeTab.filePath === node.key) {
+          editorContent = activeTab.content;
+        }
+      }
+
+      // 打开 diff 面板
+      openDiff(node.key, diskContent, editorContent);
+    } catch (error) {
+      console.error("Failed to read file for diff:", error);
+    }
+  }, [node.key, panelGroups, activeGroupId, openDiff]);
+
   const icon = isFolder ? (
     isExpanded ? (
       <FolderOpen
@@ -561,6 +591,15 @@ export const TreeNode = memo(function TreeNode({
                 onClick={handleOpen}
               >
                 <File className="h-4 w-4" /> 打开
+              </ContextMenu.Item>
+            ) : null}
+
+            {isMarkdown ? (
+              <ContextMenu.Item
+                className={MENU_ITEM_CLASS}
+                onClick={handleDiff}
+              >
+                <GitCompare className="h-4 w-4" /> 比较差异
               </ContextMenu.Item>
             ) : null}
 

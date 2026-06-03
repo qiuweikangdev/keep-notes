@@ -38,6 +38,7 @@
     "@milkdown/react": "^7.5.0",
     "@milkdown/theme-nord": "^7.5.0",
     "@milkdown/utils": "^7.5.0",
+    "@pierre/diffs": "^1.0.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "dayjs": "^1.11.20",

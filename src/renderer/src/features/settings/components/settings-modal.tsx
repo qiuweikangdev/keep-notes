@@ -8,12 +8,14 @@ import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
 import { ThemeSelector } from "@/components/ui/theme-selector";
 import { SettingRow } from "@/components/ui/setting-row";
 import { FontSelector } from "@/components/ui/font-selector";
-import { Palette, ChevronRight } from "lucide-react";
+import { Palette, ChevronRight, Keyboard } from "lucide-react";
+import { ShortcutsSettings } from "./shortcuts-settings";
 
-type SettingsTab = "appearance";
+type SettingsTab = "appearance" | "shortcuts";
 
 const settingsMenuItems = [
   { id: "appearance" as SettingsTab, label: "外观", icon: Palette },
+  { id: "shortcuts" as SettingsTab, label: "键盘快捷键", icon: Keyboard },
 ];
 
 const fontFamilyOptions = [
@@ -257,6 +259,8 @@ export function SettingsModal() {
             </div>
           </div>
         );
+      case "shortcuts":
+        return <ShortcutsSettings />;
     }
   };
 

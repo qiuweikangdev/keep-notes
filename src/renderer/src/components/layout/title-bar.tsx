@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { useUIStore } from "@/store/ui.store";
 import { useTheme } from "@/hooks/use-theme";
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { SearchModal } from "@/features/search";
 import { GitPanel } from "@/features/git";
 import { useElectron } from "@/hooks/use-electron";
@@ -33,23 +33,6 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
   const titleBarRef = useRef<HTMLDivElement>(null);
   const { detectGitRepo } = useElectron();
   const { treeRoot } = useTreeStore();
-
-  // 处理搜索快捷键
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    const isMeta = e.metaKey || e.ctrlKey;
-
-    if (isMeta && e.key === "p") {
-      e.preventDefault();
-      setIsSearchOpen(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [handleKeyDown]);
 
   // 应用拖拽样式
   useEffect(() => {
