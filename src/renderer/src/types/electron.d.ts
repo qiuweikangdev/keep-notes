@@ -52,6 +52,12 @@ export interface ElectronAPI {
     targetPath: string,
     treeData: TreeNode[],
   ) => Promise<ApiResponse<{ treeData: TreeNode[] }>>;
+  // 文件监听
+  watchFile: (filePath: string) => Promise<void>;
+  unwatchFile: (filePath: string) => Promise<void>;
+  onFileChanged: (
+    callback: (filePath: string, content: string) => void,
+  ) => () => void;
 }
 
 export interface GitAPI {

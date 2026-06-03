@@ -21,6 +21,7 @@ interface MilkdownEditorProps {
   content: string;
   reloadKey: number;
   onChange?: (content: string) => void;
+  onFocus?: () => void;
 }
 
 function keepSlashMenuUsable(container: HTMLElement) {
@@ -80,6 +81,7 @@ function MilkdownEditorInner({
   content,
   reloadKey,
   onChange,
+  onFocus,
 }: MilkdownEditorProps) {
   const { setWordCount, setDirty, appearance } = useEditorStore();
   const { milkdownTheme } = useTheme();
@@ -253,6 +255,8 @@ function MilkdownEditorInner({
       ref={containerRef}
       className={`h-full overflow-y-auto overflow-x-hidden ${getThemeClass()}`}
       style={editorStyle}
+      onFocus={onFocus}
+      onClick={onFocus}
     >
       {loading ? (
         <div className="flex h-32 items-center justify-center">
@@ -282,6 +286,7 @@ export function MilkdownEditor({
     panelGroups = [],
     setTabContent,
     setTabDirty,
+    setActiveGroupId,
   } = useEditorStore();
   const { updateNodeContent } = useTreeStore();
 
@@ -291,6 +296,13 @@ export function MilkdownEditor({
   const currentContent = tab ? tab.content : content;
   const currentFilePath = tab ? tab.filePath : filePath;
   const currentReloadKey = tab ? tab.reloadKey : reloadKey;
+
+  // 当编辑器获得焦点时，更新 activeGroupId
+  const handleFocus = useCallback(() => {
+    if (groupId) {
+      setActiveGroupId(groupId);
+    }
+  }, [groupId, setActiveGroupId]);
 
   // 同步更新所有打开相同文件的其他标签页
   const syncOtherTabs = useCallback(
@@ -312,6 +324,37 @@ export function MilkdownEditor({
     },
     [groupId, tabId],
   );
+
+  // 监听文件外部变化
+  useEffect(() => {
+    if (!currentFilePath) return;
+
+    // 注册文件监听
+    window.electronAPI.watchFile(currentFilePath);
+
+    // 注册文件变化回调
+    const unsubscribe = window.electronAPI.onFileChanged(
+      (changedPath: string, newContent: string) => {
+        if (changedPath === currentFilePath) {
+          // 更新当前标签页内容
+          if (groupId && tabId) {
+            setTabContent(groupId, tabId, newContent);
+            // 增加 reloadKey 触发编辑器重新加载
+            const state = useEditorStore.getState();
+            state.incrementTabReloadKey(groupId, tabId);
+          }
+          // 同步更新其他打开相同文件的标签页
+          syncOtherTabs(newContent, currentFilePath);
+        }
+      },
+    );
+
+    return () => {
+      // 取消文件监听
+      window.electronAPI.unwatchFile(currentFilePath);
+      unsubscribe();
+    };
+  }, [currentFilePath, groupId, tabId, setTabContent, syncOtherTabs]);
 
   const saveContent = useCallback(
     async (path: string, nextContent: string) => {
@@ -370,6 +413,7 @@ export function MilkdownEditor({
         content={currentContent}
         reloadKey={currentReloadKey}
         onChange={handleChange}
+        onFocus={handleFocus}
       />
     </MilkdownProvider>
   );

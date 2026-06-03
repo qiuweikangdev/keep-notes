@@ -38,4 +38,25 @@ export const fileApi = {
   openInExplorer: (targetPath: string): Promise<boolean> => {
     return ipcRenderer.invoke(IPC_CHANNELS.FILE.OPEN_IN_EXPLORER, targetPath);
   },
+
+  // 监听文件变化
+  watchFile: (filePath: string): Promise<void> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.FILE.WATCH, filePath);
+  },
+
+  // 取消监听文件变化
+  unwatchFile: (filePath: string): Promise<void> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.FILE.UNWATCH, filePath);
+  },
+
+  // 注册文件变化回调
+  onFileChanged: (callback: (filePath: string, content: string) => void) => {
+    const handler = (_event: any, filePath: string, content: string) => {
+      callback(filePath, content);
+    };
+    ipcRenderer.on(IPC_CHANNELS.FILE.ON_FILE_CHANGED, handler);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.FILE.ON_FILE_CHANGED, handler);
+    };
+  },
 };

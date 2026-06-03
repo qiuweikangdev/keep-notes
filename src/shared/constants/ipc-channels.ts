@@ -16,6 +16,9 @@ export const IPC_CHANNELS = {
     GET_SELECTED_PATH: "file:get-selected-path",
     GENERATE_TREE: "file:generate-tree",
     OPEN_IN_EXPLORER: "file:open-in-explorer",
+    WATCH: "file:watch", // 监听文件变化
+    UNWATCH: "file:unwatch", // 取消监听文件变化
+    ON_FILE_CHANGED: "file:on-changed", // 文件变化通知
   },
   TREE: {
     CREATE_FILE: "tree:create-file",
