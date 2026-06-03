@@ -398,7 +398,7 @@ function RecentContentPanel({
       {recentFolders.length > 0 && (
         <div className="mb-0">
           <div
-            className="flex items-center justify-between px-1 py-0.5 text-[11px] font-medium"
+            className="flex items-center justify-between px-0 py-0.5 text-[11px] font-medium"
             style={{ color: "var(--text-muted)" }}
           >
             <span>最近使用的目录</span>
@@ -471,7 +471,7 @@ function RecentContentPanel({
       {recentFiles.length > 0 && (
         <div className="mb-0">
           <div
-            className="flex items-center justify-between px-1 py-0.5 text-[11px] font-medium"
+            className="flex items-center justify-between px-0 py-0.5 text-[11px] font-medium"
             style={{ color: "var(--text-muted)" }}
           >
             <span>最近使用的文件</span>

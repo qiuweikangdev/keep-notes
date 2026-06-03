@@ -311,7 +311,6 @@ export function MilkdownEditor() {
   return (
     <MilkdownProvider>
       <MilkdownEditorInner
-        key={filePath}
         content={content}
         reloadKey={reloadKey}
         onChange={handleChange}
