@@ -52,32 +52,10 @@ function NestedPanelGroups({
 }: {
   groups: Array<{ id: string; direction: "horizontal" | "vertical" }>;
 }) {
-  const { removePanelGroup } = useEditorStore();
-
   if (groups.length === 1) {
     return (
       <div className="h-full relative">
         <EditorPanelGroup groupId={groups[0].id} />
-        <button
-          onClick={() => removePanelGroup(groups[0].id)}
-          className="absolute top-2 right-2 flex items-center justify-center w-6 h-6 rounded-lg transition-all opacity-0 hover:opacity-100 z-10"
-          style={{
-            backgroundColor: "var(--bg-secondary)",
-            color: "var(--text-muted)",
-            border: "1px solid var(--border-color)",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-            e.currentTarget.style.color = "var(--text-primary)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = "var(--bg-secondary)";
-            e.currentTarget.style.color = "var(--text-muted)";
-          }}
-          title="关闭面板组"
-        >
-          <span className="text-xs">×</span>
-        </button>
       </div>
     );
   }
@@ -96,26 +74,6 @@ function NestedPanelGroups({
       <Panel minSize={20}>
         <div className="h-full relative">
           <EditorPanelGroup groupId={firstGroup.id} />
-          <button
-            onClick={() => removePanelGroup(firstGroup.id)}
-            className="absolute top-2 right-2 flex items-center justify-center w-6 h-6 rounded-lg transition-all opacity-0 hover:opacity-100 z-10"
-            style={{
-              backgroundColor: "var(--bg-secondary)",
-              color: "var(--text-muted)",
-              border: "1px solid var(--border-color)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-              e.currentTarget.style.color = "var(--text-primary)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--bg-secondary)";
-              e.currentTarget.style.color = "var(--text-muted)";
-            }}
-            title="关闭面板组"
-          >
-            <span className="text-xs">×</span>
-          </button>
         </div>
       </Panel>
       <PanelResizeHandle
