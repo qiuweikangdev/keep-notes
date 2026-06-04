@@ -266,7 +266,7 @@ export function SettingsModal() {
 
   return (
     <Dialog.Root open={isSettingsOpen} onOpenChange={setSettingsOpen}>
-      <DialogContent className="sm:max-w-[680px] sm:max-h-[640px] overflow-hidden p-0">
+      <DialogContent className="sm:max-w-[780px] sm:max-h-[640px] overflow-hidden p-0">
         <DialogHeader className="px-8 pt-8 pb-0">
           <Dialog.Title style={{ color: "var(--text-primary)" }}>
             设置

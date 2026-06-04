@@ -77,6 +77,8 @@ const defaultShortcuts: ShortcutConfig[] = [
 
 interface ShortcutsState {
   shortcuts: ShortcutConfig[];
+  /** 默认快捷键配置（只读快照），用于检测是否被自定义 */
+  defaultShortcuts: ShortcutConfig[];
   /** 更新指定快捷键的按键绑定 */
   updateShortcutKeys: (id: ShortcutAction, keys: string[]) => void;
   /** 重置指定快捷键为默认值 */
@@ -91,6 +93,7 @@ export const useShortcutsStore = create<ShortcutsState>()(
   persist(
     (set, get) => ({
       shortcuts: defaultShortcuts,
+      defaultShortcuts,
 
       updateShortcutKeys: (id, keys) =>
         set((state) => ({
