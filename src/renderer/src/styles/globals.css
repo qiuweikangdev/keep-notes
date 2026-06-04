@@ -599,6 +599,74 @@ button:focus-visible {
   background-color: var(--hover-bg) !important;
 }
 
+/* Git diff 面板主题适配 */
+.diff-viewer {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.diff-viewer__toolbar {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.diff-viewer__body {
+  background: var(--bg-primary);
+}
+
+.diff-viewer__stat {
+  min-width: 2.5rem;
+  border-radius: 4px;
+  padding: 1px 8px;
+  text-align: center;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.diff-viewer__stat--added {
+  background: color-mix(in srgb, #2da44e 18%, var(--bg-secondary));
+  color: #2da44e;
+}
+
+.diff-viewer__stat--removed {
+  background: color-mix(in srgb, #cf222e 18%, var(--bg-secondary));
+  color: #cf222e;
+}
+
+.dark .diff-viewer__stat--added,
+.nord .diff-viewer__stat--added,
+.dracula .diff-viewer__stat--added,
+.solarized .diff-viewer__stat--added {
+  background: color-mix(in srgb, #4ade80 16%, var(--bg-secondary));
+  color: #4ade80;
+}
+
+.dark .diff-viewer__stat--removed,
+.nord .diff-viewer__stat--removed,
+.dracula .diff-viewer__stat--removed,
+.solarized .diff-viewer__stat--removed {
+  background: color-mix(in srgb, #f87171 16%, var(--bg-secondary));
+  color: #f87171;
+}
+
+.diff-viewer__pierre {
+  --diffs-light-bg: var(--bg-primary);
+  --diffs-dark-bg: var(--bg-primary);
+  --diffs-light: var(--text-primary);
+  --diffs-dark: var(--text-primary);
+  --diffs-bg-context-override: var(--bg-primary);
+  --diffs-bg-context-gutter-override: var(--bg-secondary);
+  --diffs-bg-buffer-override: var(--bg-primary);
+  --diffs-bg-separator-override: var(--bg-secondary);
+  --diffs-bg-hover-override: var(--hover-bg);
+  --diffs-fg-number-override: var(--text-muted);
+  --diffs-header-font-family: inherit;
+  --diffs-font-size: 12px;
+  --diffs-line-height: 20px;
+  display: block;
+  height: 100%;
+}
+
 /* 鑷畾涔夋粦鍧楁牱寮?*/
 input[type="range"] {
   -webkit-appearance: none;

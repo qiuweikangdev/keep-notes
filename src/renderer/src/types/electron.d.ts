@@ -81,6 +81,10 @@ export interface GitAPI {
     dirPath: string,
     filePath: string,
   ) => Promise<ApiResponse<string>>;
+  getFileHeadContent: (
+    dirPath: string,
+    filePath: string,
+  ) => Promise<ApiResponse<string>>;
   discardChanges: (dirPath: string, filePath: string) => Promise<ApiResponse>;
   openFile: (dirPath: string, filePath: string) => Promise<ApiResponse<string>>;
 }

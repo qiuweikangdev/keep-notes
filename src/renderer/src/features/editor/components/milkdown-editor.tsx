@@ -9,6 +9,7 @@ import { Crepe } from "@milkdown/crepe";
 import { Milkdown, MilkdownProvider, useEditor } from "@milkdown/react";
 import { replaceAll } from "@milkdown/utils";
 import { useEditorStore } from "@/store/editor.store";
+import { useDiffStore } from "@/store/diff.store";
 import { useTreeStore } from "@/store/tree.store";
 import { useTheme } from "@/hooks/use-theme";
 import { Loader2 } from "lucide-react";
@@ -19,6 +20,7 @@ import "@/styles/milkdown-overrides.css";
 
 interface MilkdownEditorProps {
   content: string;
+  documentKey: string;
   reloadKey: number;
   onChange?: (content: string) => void;
   onFocus?: () => void;
@@ -79,6 +81,7 @@ function preventSlashMenuItemHoverSync() {
 
 function MilkdownEditorInner({
   content,
+  documentKey,
   reloadKey,
   onChange,
   onFocus,
@@ -89,6 +92,12 @@ function MilkdownEditorInner({
   const containerRef = useRef<HTMLDivElement>(null);
   const replaceSeqRef = useRef(0);
   const lastExternalContentRef = useRef<string | null>(null);
+  const latestContentRef = useRef(content);
+  const getEditorRef = useRef<ReturnType<typeof useEditor>["get"] | null>(null);
+
+  useEffect(() => {
+    latestContentRef.current = content;
+  }, [content]);
 
   const { get } = useEditor((root) => {
     const crepe = new Crepe({
@@ -169,6 +178,10 @@ function MilkdownEditorInner({
     return crepe.editor;
   });
 
+  useEffect(() => {
+    getEditorRef.current = get;
+  }, [get]);
+
   const getThemeClass = () => {
     switch (milkdownTheme) {
       case "frame-dark":
@@ -232,23 +245,22 @@ function MilkdownEditorInner({
 
   // 外部内容变化时（如切换文件或放弃更改后重新读取文件），无感同步到编辑器
   useEffect(() => {
-    const editor = get();
+    const editor = getEditorRef.current?.();
     if (!editor || loading) return;
 
     const seq = ++replaceSeqRef.current;
+    const nextContent = latestContentRef.current;
 
-    // 使用 requestAnimationFrame 延迟到下一帧执行，确保只应用最新的内容
+    // 只在文档切换或显式 reload 时替换内容，避免用户输入时重置光标和滚动位置。
     const rafId = requestAnimationFrame(() => {
-      // 检查 seq 是否仍是最新的，防止过期更新
       if (seq === replaceSeqRef.current) {
-        // 记录外部内容，用于在 markdownUpdated 事件中区分用户输入和外部更新
-        lastExternalContentRef.current = content;
-        editor.action(replaceAll(content));
+        lastExternalContentRef.current = nextContent;
+        editor.action(replaceAll(nextContent));
       }
     });
 
     return () => cancelAnimationFrame(rafId);
-  }, [reloadKey, content, loading]);
+  }, [documentKey, reloadKey, loading]);
 
   return (
     <div
@@ -296,6 +308,14 @@ export function MilkdownEditor({
   const currentContent = tab ? tab.content : content;
   const currentFilePath = tab ? tab.filePath : filePath;
   const currentReloadKey = tab ? tab.reloadKey : reloadKey;
+  const currentDocumentKey = `${groupId ?? "legacy"}:${tabId ?? "legacy"}:${
+    currentFilePath ?? "untitled"
+  }`;
+  const saveStateRef = useRef<{
+    running: boolean;
+    pending: { path: string; content: string } | null;
+  }>({ running: false, pending: null });
+  const ownWriteContentsRef = useRef<Set<string>>(new Set());
 
   // 当编辑器获得焦点时，更新 activeGroupId
   const handleFocus = useCallback(() => {
@@ -336,6 +356,27 @@ export function MilkdownEditor({
     const unsubscribe = window.electronAPI.onFileChanged(
       (changedPath: string, newContent: string) => {
         if (changedPath === currentFilePath) {
+          const state = useEditorStore.getState();
+          const activeGroup = groupId
+            ? state.panelGroups.find((group) => group.id === groupId)
+            : null;
+          const activeTab =
+            activeGroup && tabId
+              ? activeGroup.tabs.find((item) => item.id === tabId)
+              : null;
+          const currentEditorContent = activeTab
+            ? activeTab.content
+            : state.content;
+
+          // 忽略自己写盘触发的事件，避免快速输入时被旧写入内容回滚。
+          if (
+            currentEditorContent === newContent ||
+            ownWriteContentsRef.current.has(newContent)
+          ) {
+            ownWriteContentsRef.current.delete(newContent);
+            return;
+          }
+
           // 更新当前标签页内容
           if (groupId && tabId) {
             setTabContent(groupId, tabId, newContent);
@@ -356,25 +397,62 @@ export function MilkdownEditor({
     };
   }, [currentFilePath, groupId, tabId, setTabContent, syncOtherTabs]);
 
-  const saveContent = useCallback(
+  const writeContentToDisk = useCallback(
     async (path: string, nextContent: string) => {
-      try {
-        await window.electronAPI.writeFile(path, nextContent);
-        updateNodeContent(path, nextContent);
+      ownWriteContentsRef.current.add(nextContent);
+      await window.electronAPI.writeFile(path, nextContent);
+      updateNodeContent(path, nextContent);
+      window.setTimeout(() => {
+        ownWriteContentsRef.current.delete(nextContent);
+      }, 5000);
+    },
+    [updateNodeContent],
+  );
+
+  const flushSaveQueue = useCallback(async () => {
+    const saveState = saveStateRef.current;
+    if (saveState.running) return;
+
+    saveState.running = true;
+    let hasError = false;
+
+    try {
+      while (saveState.pending) {
+        const pending = saveState.pending;
+        saveState.pending = null;
+        try {
+          await writeContentToDisk(pending.path, pending.content);
+        } catch (error) {
+          hasError = true;
+          console.error("Failed to save markdown file", error);
+        }
+      }
+
+      if (!hasError) {
         if (groupId && tabId) {
           setTabDirty(groupId, tabId, false);
         } else {
           setDirty(false);
         }
-      } catch (error) {
-        console.error("Failed to save markdown file", error);
       }
+    } finally {
+      saveState.running = false;
+      if (saveState.pending) {
+        void flushSaveQueue();
+      }
+    }
+  }, [groupId, setDirty, setTabDirty, tabId, writeContentToDisk]);
+
+  const queueSaveContent = useCallback(
+    (path: string, nextContent: string) => {
+      saveStateRef.current.pending = { path, content: nextContent };
+      void flushSaveQueue();
     },
-    [updateNodeContent, setDirty, groupId, tabId, setTabDirty],
+    [flushSaveQueue],
   );
 
   const handleChange = useCallback(
-    async (newContent: string) => {
+    (newContent: string) => {
       // 无文件时保存到 store 作为草稿
       if (!currentFilePath) {
         if (groupId && tabId) {
@@ -394,16 +472,21 @@ export function MilkdownEditor({
       // 同步更新其他打开相同文件的标签页
       syncOtherTabs(newContent, currentFilePath);
 
-      // 立即保存到文件
-      await saveContent(currentFilePath, newContent);
+      const diffState = useDiffStore.getState();
+      if (diffState.isOpen && diffState.filePath === currentFilePath) {
+        diffState.updateContent(diffState.oldContent, newContent);
+      }
+
+      // 串行写入最新内容，避免快速输入时旧写入覆盖新写入。
+      queueSaveContent(currentFilePath, newContent);
     },
     [
       currentFilePath,
-      saveContent,
       groupId,
       tabId,
       setTabContent,
       syncOtherTabs,
+      queueSaveContent,
     ],
   );
 
@@ -411,6 +494,7 @@ export function MilkdownEditor({
     <MilkdownProvider>
       <MilkdownEditorInner
         content={currentContent}
+        documentKey={currentDocumentKey}
         reloadKey={currentReloadKey}
         onChange={handleChange}
         onFocus={handleFocus}

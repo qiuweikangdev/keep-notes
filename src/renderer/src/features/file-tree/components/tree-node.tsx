@@ -54,6 +54,16 @@ const MENU_SEPARATOR_CLASS = "my-1 h-px bg-[var(--border-color)]";
 const normalizePath = (path: string) =>
   path.replace(/\\/g, "/").replace(/\/+$/, "");
 
+const toGitRelativePath = (rootPath: string, filePath: string) => {
+  const normalizedRoot = normalizePath(rootPath);
+  const normalizedFile = normalizePath(filePath);
+  if (normalizedFile === normalizedRoot) return "";
+  if (normalizedFile.startsWith(`${normalizedRoot}/`)) {
+    return normalizedFile.slice(normalizedRoot.length + 1);
+  }
+  return normalizedFile;
+};
+
 export const TreeNode = memo(function TreeNode({
   node,
   level,
@@ -67,6 +77,7 @@ export const TreeNode = memo(function TreeNode({
     toggleExpandedKey,
     setTreeData,
     treeData,
+    treeRoot,
   } = useTreeStore();
   const {
     openFile,
@@ -76,6 +87,7 @@ export const TreeNode = memo(function TreeNode({
     deleteItem,
     moveItem,
     openInExplorer,
+    getFileHeadContent,
   } = useElectron();
   const { openDiff } = useDiffStore();
   const { panelGroups, activeGroupId } = useEditorStore();
@@ -396,11 +408,8 @@ export const TreeNode = memo(function TreeNode({
   // 处理 diff 比较
   const handleDiff = useCallback(async () => {
     try {
-      // 读取磁盘上的文件内容
-      const diskContent = await window.electronAPI.readFile(node.key);
-
       // 获取编辑器中当前文件的内容
-      let editorContent = diskContent;
+      let editorContent = await window.electronAPI.readFile(node.key);
       const activeGroup = panelGroups.find((g) => g.id === activeGroupId);
       if (activeGroup) {
         const activeTab = activeGroup.tabs.find(
@@ -411,12 +420,30 @@ export const TreeNode = memo(function TreeNode({
         }
       }
 
+      let baseContent = "";
+      if (treeRoot?.key) {
+        const relativePath = toGitRelativePath(treeRoot.key, node.key);
+        const headResult = await getFileHeadContent(treeRoot.key, relativePath);
+        if (headResult.code === CodeResult.Success) {
+          baseContent = headResult.data ?? "";
+        }
+      } else {
+        baseContent = await window.electronAPI.readFile(node.key);
+      }
+
       // 打开 diff 面板
-      openDiff(node.key, diskContent, editorContent);
+      openDiff(node.key, baseContent, editorContent);
     } catch (error) {
       console.error("Failed to read file for diff:", error);
     }
-  }, [node.key, panelGroups, activeGroupId, openDiff]);
+  }, [
+    node.key,
+    panelGroups,
+    activeGroupId,
+    treeRoot?.key,
+    getFileHeadContent,
+    openDiff,
+  ]);
 
   const icon = isFolder ? (
     isExpanded ? (

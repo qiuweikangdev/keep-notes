@@ -15,6 +15,7 @@ import {
   push,
   pull,
   getFileDiff,
+  getFileHeadContent,
   discardChanges,
   openFile,
 } from "../git";
@@ -110,6 +111,14 @@ export function registerGitIpc(): void {
     IPC_CHANNELS.GIT.GET_FILE_DIFF,
     async (_, dirPath: string, filePath: string) => {
       return getFileDiff(dirPath, filePath);
+    },
+  );
+
+  // 获取文件在 HEAD 中的内容
+  ipcMain.handle(
+    IPC_CHANNELS.GIT.GET_FILE_HEAD_CONTENT,
+    async (_, dirPath: string, filePath: string) => {
+      return getFileHeadContent(dirPath, filePath);
     },
   );
 

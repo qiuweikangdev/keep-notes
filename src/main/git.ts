@@ -1,5 +1,6 @@
 import { simpleGit, SimpleGit, StatusResult, BranchSummary } from "simple-git";
 import dayjs from "dayjs";
+import path from "node:path";
 import { CodeResult } from "../shared/types";
 import type {
   ApiResponse,
@@ -292,6 +293,31 @@ export async function getFileDiff(
     return {
       code: CodeResult.Success,
       data: diff,
+    };
+  } catch (e: any) {
+    return {
+      code: CodeResult.Fail,
+      message: e.toString(),
+    };
+  }
+}
+
+// 获取文件在 HEAD 中的内容
+export async function getFileHeadContent(
+  dirPath: string,
+  filePath: string,
+): Promise<ApiResponse<string>> {
+  try {
+    const git = getGitInstance(dirPath);
+    const relativePath = path.isAbsolute(filePath)
+      ? path.relative(dirPath, filePath)
+      : filePath;
+    const gitPath = relativePath.replace(/\\/g, "/");
+    const content = await git.raw(["show", `HEAD:${gitPath}`]);
+
+    return {
+      code: CodeResult.Success,
+      data: content,
     };
   } catch (e: any) {
     return {

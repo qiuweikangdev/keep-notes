@@ -99,6 +99,18 @@ export const gitApi = {
     );
   },
 
+  // 获取文件在 HEAD 中的内容
+  getFileHeadContent: (
+    dirPath: string,
+    filePath: string,
+  ): Promise<ApiResponse<string>> => {
+    return ipcRenderer.invoke(
+      IPC_CHANNELS.GIT.GET_FILE_HEAD_CONTENT,
+      dirPath,
+      filePath,
+    );
+  },
+
   // 放弃更改
   discardChanges: (dirPath: string, filePath: string): Promise<ApiResponse> => {
     return ipcRenderer.invoke(

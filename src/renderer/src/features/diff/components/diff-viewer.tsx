@@ -1,12 +1,53 @@
-import { useEffect, useState, useMemo } from "react";
-import { diffLines, type Change } from "@pierre/diffs";
+import { useMemo } from "react";
+import { FileDiff, type FileDiffOptions } from "@pierre/diffs/react";
+import {
+  parseDiffFromFile,
+  type DiffsThemeNames,
+  type FileContents,
+  type FileDiffMetadata,
+} from "@pierre/diffs";
+import { useTheme } from "@/hooks/use-theme";
 
 interface DiffViewerProps {
   oldContent: string;
   newContent: string;
   oldTitle?: string;
   newTitle?: string;
+  fileName?: string;
   className?: string;
+}
+
+interface DiffStats {
+  added: number;
+  removed: number;
+}
+
+const DIFF_THEME_MAP: Record<string, DiffsThemeNames> = {
+  light: "pierre-light",
+  dark: "pierre-dark",
+  nord: "nord",
+  dracula: "dracula",
+  solarized: "solarized-dark",
+};
+
+function getDiffStats(fileDiff: FileDiffMetadata | null): DiffStats {
+  if (!fileDiff) return { added: 0, removed: 0 };
+
+  return fileDiff.hunks.reduce(
+    (stats, hunk) => ({
+      added: stats.added + hunk.additionLines,
+      removed: stats.removed + hunk.deletionLines,
+    }),
+    { added: 0, removed: 0 },
+  );
+}
+
+function createCacheKey(fileName: string, content: string, side: string) {
+  let hash = 0;
+  for (let index = 0; index < content.length; index += 1) {
+    hash = (hash * 31 + content.charCodeAt(index)) | 0;
+  }
+  return `${fileName}:${side}:${content.length}:${hash}`;
 }
 
 export function DiffViewer({
@@ -14,200 +55,95 @@ export function DiffViewer({
   newContent,
   oldTitle = "原始内容",
   newTitle = "修改内容",
+  fileName = "diff.txt",
   className = "",
 }: DiffViewerProps) {
-  const [changes, setChanges] = useState<Change[]>([]);
+  const { theme, isDark } = useTheme();
 
-  useEffect(() => {
+  const oldFile = useMemo<FileContents>(
+    () => ({
+      name: fileName,
+      contents: oldContent,
+      header: "磁盘",
+      cacheKey: createCacheKey(fileName, oldContent, "old"),
+    }),
+    [fileName, oldContent],
+  );
+
+  const newFile = useMemo<FileContents>(
+    () => ({
+      name: fileName,
+      contents: newContent,
+      header: "编辑器",
+      cacheKey: createCacheKey(fileName, newContent, "new"),
+    }),
+    [fileName, newContent],
+  );
+
+  const fileDiff = useMemo(() => {
     try {
-      const result = diffLines(oldContent, newContent);
-      setChanges(result);
+      // 使用 @pierre/diffs 官方解析器生成渲染元数据，避免依赖不存在的 diffLines 导出。
+      return parseDiffFromFile(oldFile, newFile, undefined, true);
     } catch (error) {
-      console.error("Failed to compute diff:", error);
-      setChanges([]);
-    }
-  }, [oldContent, newContent]);
-
-  // 计算行号
-  const lines = useMemo(() => {
-    let oldLineNum = 1;
-    let newLineNum = 1;
-    const result: Array<{
-      type: "added" | "removed" | "unchanged";
-      content: string;
-      oldLineNum: number | null;
-      newLineNum: number | null;
-    }> = [];
-
-    for (const change of changes) {
-      const lines = change.value.split("\n");
-      // 移除最后一个空行（如果存在）
-      if (lines[lines.length - 1] === "") {
-        lines.pop();
+      if (oldContent !== newContent) {
+        console.error("Failed to compute diff:", error);
       }
-
-      for (const line of lines) {
-        if (change.added) {
-          result.push({
-            type: "added",
-            content: line,
-            oldLineNum: null,
-            newLineNum: newLineNum++,
-          });
-        } else if (change.removed) {
-          result.push({
-            type: "removed",
-            content: line,
-            oldLineNum: oldLineNum++,
-            newLineNum: null,
-          });
-        } else {
-          result.push({
-            type: "unchanged",
-            content: line,
-            oldLineNum: oldLineNum++,
-            newLineNum: newLineNum++,
-          });
-        }
-      }
+      return null;
     }
+  }, [newFile, newContent, oldFile, oldContent]);
 
-    return result;
-  }, [changes]);
+  const stats = useMemo(() => getDiffStats(fileDiff), [fileDiff]);
 
-  // 统计信息
-  const stats = useMemo(() => {
-    let added = 0;
-    let removed = 0;
-    for (const change of changes) {
-      if (change.added) added++;
-      if (change.removed) removed++;
-    }
-    return { added, removed };
-  }, [changes]);
+  const diffOptions = useMemo<FileDiffOptions<undefined>>(
+    () => ({
+      theme: DIFF_THEME_MAP[theme] ?? (isDark ? "pierre-dark" : "pierre-light"),
+      themeType: isDark ? "dark" : "light",
+      diffStyle: "split",
+      diffIndicators: "classic",
+      hunkSeparators: "line-info-basic",
+      lineDiffType: "word",
+      overflow: "wrap",
+      stickyHeader: true,
+      disableFileHeader: true,
+      tokenizeMaxLineLength: 1200,
+      disableVirtualizationBuffers: true,
+    }),
+    [isDark, theme],
+  );
 
   return (
     <div
-      className={`flex flex-col h-full overflow-hidden ${className}`}
-      style={{ backgroundColor: "var(--bg-primary)" }}
+      className={`diff-viewer flex h-full flex-col overflow-hidden ${className}`}
     >
-      {/* 头部 */}
-      <div
-        className="flex items-center justify-between px-4 py-2 flex-shrink-0"
-        style={{
-          backgroundColor: "var(--bg-secondary)",
-          borderBottom: "1px solid var(--border-color)",
-        }}
-      >
-        <div className="flex items-center gap-4">
-          <span
-            className="text-sm font-medium"
-            style={{ color: "var(--text-primary)" }}
-          >
-            {oldTitle}
-          </span>
-          <span style={{ color: "var(--text-muted)" }}>→</span>
-          <span
-            className="text-sm font-medium"
-            style={{ color: "var(--text-primary)" }}
-          >
-            {newTitle}
-          </span>
+      <div className="diff-viewer__toolbar flex flex-shrink-0 items-center justify-between gap-3 px-4 py-2">
+        <div className="min-w-0 flex-1 truncate text-sm font-medium">
+          <span>{oldTitle}</span>
+          <span className="mx-2 text-[var(--text-muted)]">→</span>
+          <span>{newTitle}</span>
         </div>
-        <div className="flex items-center gap-3">
-          <span
-            className="text-xs px-2 py-0.5 rounded"
-            style={{
-              backgroundColor: "var(--diff-added-bg, #1a3a1a)",
-              color: "var(--diff-added-text, #4ade80)",
-            }}
-          >
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <span className="diff-viewer__stat diff-viewer__stat--added">
             +{stats.added}
           </span>
-          <span
-            className="text-xs px-2 py-0.5 rounded"
-            style={{
-              backgroundColor: "var(--diff-removed-bg, #3a1a1a)",
-              color: "var(--diff-removed-text, #f87171)",
-            }}
-          >
+          <span className="diff-viewer__stat diff-viewer__stat--removed">
             -{stats.removed}
           </span>
         </div>
       </div>
 
-      {/* Diff 内容 */}
-      <div className="flex-1 overflow-auto">
-        <table className="w-full border-collapse" style={{ fontSize: "13px" }}>
-          <tbody>
-            {lines.map((line, index) => (
-              <tr
-                key={index}
-                style={{
-                  backgroundColor:
-                    line.type === "added"
-                      ? "var(--diff-added-bg, #1a3a1a)"
-                      : line.type === "removed"
-                        ? "var(--diff-removed-bg, #3a1a1a)"
-                        : "transparent",
-                }}
-              >
-                {/* 旧文件行号 */}
-                <td
-                  className="w-10 px-2 text-right select-none"
-                  style={{
-                    color: "var(--text-muted)",
-                    borderRight: "1px solid var(--border-color)",
-                  }}
-                >
-                  {line.oldLineNum}
-                </td>
-                {/* 新文件行号 */}
-                <td
-                  className="w-10 px-2 text-right select-none"
-                  style={{
-                    color: "var(--text-muted)",
-                    borderRight: "1px solid var(--border-color)",
-                  }}
-                >
-                  {line.newLineNum}
-                </td>
-                {/* 符号 */}
-                <td
-                  className="w-6 px-1 text-center select-none"
-                  style={{
-                    color:
-                      line.type === "added"
-                        ? "var(--diff-added-text, #4ade80)"
-                        : line.type === "removed"
-                          ? "var(--diff-removed-text, #f87171)"
-                          : "var(--text-muted)",
-                  }}
-                >
-                  {line.type === "added"
-                    ? "+"
-                    : line.type === "removed"
-                      ? "-"
-                      : " "}
-                </td>
-                {/* 内容 */}
-                <td
-                  className="px-2 whitespace-pre"
-                  style={{
-                    color:
-                      line.type === "added"
-                        ? "var(--diff-added-text, #4ade80)"
-                        : line.type === "removed"
-                          ? "var(--diff-removed-text, #f87171)"
-                          : "var(--text-primary)",
-                  }}
-                >
-                  {line.content}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="diff-viewer__body min-h-0 flex-1 overflow-auto">
+        {fileDiff ? (
+          <FileDiff
+            fileDiff={fileDiff}
+            options={diffOptions}
+            className="diff-viewer__pierre"
+            disableWorkerPool
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center text-sm text-[var(--text-muted)]">
+            没有可显示的差异
+          </div>
+        )}
       </div>
     </div>
   );

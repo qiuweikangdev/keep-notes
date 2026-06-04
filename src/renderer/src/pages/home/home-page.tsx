@@ -24,6 +24,24 @@ export function HomePage() {
     checkMaximized();
   }, []);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Diff 面板打开时优先消费关闭快捷键，避免同时关闭编辑器标签页。
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "w") {
+        event.preventDefault();
+        event.stopPropagation();
+        closeDiff();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown, { capture: true });
+    };
+  }, [closeDiff, isOpen]);
+
   // 获取文件名
   const fileName = filePath?.split(/[\\/]/).pop() || "";
 
@@ -122,7 +140,8 @@ export function HomePage() {
                   <DiffViewer
                     oldContent={oldContent}
                     newContent={newContent}
-                    oldTitle={`${fileName} (磁盘)`}
+                    fileName={fileName}
+                    oldTitle={`${fileName} (HEAD)`}
                     newTitle={`${fileName} (编辑器)`}
                   />
                 </div>

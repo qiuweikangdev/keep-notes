@@ -236,6 +236,14 @@ export function useElectron() {
     return window.gitAPI.getFileDiff(dirPath, filePath);
   }, []);
 
+  // 获取文件在 HEAD 中的内容
+  const getFileHeadContent = useCallback(
+    async (dirPath: string, filePath: string) => {
+      return window.gitAPI.getFileHeadContent(dirPath, filePath);
+    },
+    [],
+  );
+
   // 放弃更改
   const discardChanges = useCallback(
     async (dirPath: string, filePath: string) => {
@@ -275,6 +283,7 @@ export function useElectron() {
     pushToRemote,
     pullFromRemote,
     getFileDiff,
+    getFileHeadContent,
     discardChanges,
     openGitFile,
   };
