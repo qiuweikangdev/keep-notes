@@ -94,10 +94,15 @@ function MilkdownEditorInner({
   const lastExternalContentRef = useRef<string | null>(null);
   const latestContentRef = useRef(content);
   const getEditorRef = useRef<ReturnType<typeof useEditor>["get"] | null>(null);
+  const onChangeRef = useRef(onChange);
 
   useEffect(() => {
     latestContentRef.current = content;
   }, [content]);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   const { get } = useEditor((root) => {
     const crepe = new Crepe({
@@ -163,7 +168,9 @@ function MilkdownEditorInner({
           const isExternalUpdate = markdown === lastExternalContentRef.current;
           if (!isExternalUpdate) {
             setDirty(true);
-            onChange?.(markdown);
+            // 通过 ref 调用最新的 onChange，避免 useEditor 工厂闭包
+            // 捕获首渲染时的过期 filePath 导致保存失效。
+            onChangeRef.current?.(markdown);
           }
           // 重置外部内容标记
           lastExternalContentRef.current = null;

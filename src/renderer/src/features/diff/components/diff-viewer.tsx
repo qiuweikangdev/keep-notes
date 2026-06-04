@@ -30,6 +30,32 @@ const DIFF_THEME_MAP: Record<string, DiffsThemeNames> = {
   solarized: "solarized-dark",
 };
 
+// 通过 unsafeCSS 注入到 Shadow DOM 内的 @layer unsafe（pierre 默认最高优先级层）。
+// 库内默认 8x% mix 比例让红/绿颜色被强烈稀释，这里降低 mix 直接让删除/添加行
+// 的整行背景呈现明显对比度，对应 pierre 文档示例的视觉效果。
+const DIFF_VISUAL_BOOST_CSS = `
+  :where([data-background]) [data-line-type="change-addition"][data-line],
+  :where([data-background]) [data-line-type="change-addition"][data-no-newline],
+  :where([data-background]) [data-line-type="change-deletion"][data-line],
+  :where([data-background]) [data-line-type="change-deletion"][data-no-newline] {
+    --mix-light: 60% !important;
+    --mix-dark: 50% !important;
+  }
+  :where([data-background]) [data-line-type="change-addition"][data-gutter-buffer],
+  :where([data-background]) [data-line-type="change-addition"][data-column-number],
+  :where([data-background]) [data-line-type="change-deletion"][data-gutter-buffer],
+  :where([data-background]) [data-line-type="change-deletion"][data-column-number] {
+    --mix-light: 75% !important;
+    --mix-dark: 65% !important;
+  }
+  [data-line-type="change-addition"] [data-diff-span] {
+    background-color: rgba(46, 160, 67, 0.45) !important;
+  }
+  [data-line-type="change-deletion"] [data-diff-span] {
+    background-color: rgba(248, 81, 73, 0.45) !important;
+  }
+`;
+
 function getDiffStats(fileDiff: FileDiffMetadata | null): DiffStats {
   if (!fileDiff) return { added: 0, removed: 0 };
 
@@ -107,6 +133,7 @@ export function DiffViewer({
       disableFileHeader: true,
       tokenizeMaxLineLength: 1200,
       disableVirtualizationBuffers: true,
+      unsafeCSS: DIFF_VISUAL_BOOST_CSS,
     }),
     [isDark, theme],
   );

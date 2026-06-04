@@ -663,8 +663,27 @@ button:focus-visible {
   --diffs-header-font-family: inherit;
   --diffs-font-size: 12px;
   --diffs-line-height: 20px;
+  /* 注入饱和的红绿色作为增/删行的 mix 目标；
+   * unsafeCSS 把行区域 mix 比例从默认 8x% 降到 60%/50%，
+   * 配合下方纯色 override，最终呈现接近 VSCode diff 风格的对比度。 */
+  --diffs-bg-addition-override: rgb(46, 160, 67);
+  --diffs-bg-deletion-override: rgb(248, 81, 73);
+  --diffs-bg-addition-emphasis-override: rgba(46, 160, 67, 0.45);
+  --diffs-bg-deletion-emphasis-override: rgba(248, 81, 73, 0.45);
+  --diffs-bg-addition-number-override: rgba(46, 160, 67, 0.55);
+  --diffs-bg-deletion-number-override: rgba(248, 81, 73, 0.55);
+  --diffs-fg-number-addition-override: #1a7f37;
+  --diffs-fg-number-deletion-override: #cf222e;
   display: block;
   height: 100%;
+}
+
+.dark .diff-viewer__pierre,
+.nord .diff-viewer__pierre,
+.dracula .diff-viewer__pierre,
+.solarized .diff-viewer__pierre {
+  --diffs-fg-number-addition-override: #4ade80;
+  --diffs-fg-number-deletion-override: #f87171;
 }
 
 /* 鑷畾涔夋粦鍧楁牱寮?*/
