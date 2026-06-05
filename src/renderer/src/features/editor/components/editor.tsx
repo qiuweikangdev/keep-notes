@@ -77,7 +77,7 @@ function NestedPanelGroups({
         </div>
       </Panel>
       <PanelResizeHandle
-        className="w-[1px]"
+        className="w-[4px] hover:w-[6px] transition-all cursor-col-resize"
         style={{ backgroundColor: "var(--border-color)" }}
       />
       <Panel minSize={20}>

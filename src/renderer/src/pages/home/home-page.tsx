@@ -86,7 +86,7 @@ export function HomePage() {
                 <Sidebar />
               </Panel>
               <PanelResizeHandle
-                className="w-[1px]"
+                className="w-[4px] hover:w-[6px] transition-all cursor-col-resize"
                 style={{
                   backgroundColor: "var(--border-color)",
                 }}
@@ -108,7 +108,7 @@ export function HomePage() {
           {isOpen && (
             <>
               <PanelResizeHandle
-                className="w-[1px]"
+                className="w-[4px] hover:w-[6px] transition-all cursor-col-resize"
                 style={{
                   backgroundColor: "var(--border-color)",
                 }}

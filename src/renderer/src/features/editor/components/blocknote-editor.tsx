@@ -197,9 +197,10 @@ export function BlockNoteEditor({
           // 跳过当前标签页
           if (group.id === groupId && tab.id === tabId) continue;
 
-          // 如果有相同文件路径，同步内容
+          // 如果有相同文件路径，同步内容并触发重新加载
           if (tab.filePath === path) {
             state.setTabContent(group.id, tab.id, newContent);
+            state.incrementTabReloadKey(group.id, tab.id);
           }
         }
       }
