@@ -90,6 +90,7 @@ export function HomePage() {
                 style={{
                   backgroundColor: "var(--border-color)",
                 }}
+                hitAreaMargins={{ coarse: 20, fine: 10 }}
               />
             </>
           )}
@@ -112,6 +113,7 @@ export function HomePage() {
                 style={{
                   backgroundColor: "var(--border-color)",
                 }}
+                hitAreaMargins={{ coarse: 20, fine: 10 }}
               />
               <Panel defaultSize={40} minSize={20}>
                 <div className="h-full relative">
