@@ -16,6 +16,21 @@ import { Loader2 } from "lucide-react";
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 
+/**
+ * 将BlockNote输出的Markdown列表标记从 * 转换为 -
+ * 只处理行首的无序列表标记，不影响其他地方的 *
+ */
+function normalizeMarkdownListMarkers(markdown: string): string {
+  return markdown
+    .split("\n")
+    .map((line) => {
+      // 匹配行首的 * 后跟空格的情况（无序列表标记）
+      // 支持缩进的列表项
+      return line.replace(/^(\s*)\* /g, "$1- ");
+    })
+    .join("\n");
+}
+
 interface BlockNoteEditorProps {
   content: string;
   documentKey: string;
@@ -47,7 +62,10 @@ function BlockNoteEditorInner({
     if (!onChange || isLoadingContentRef.current) return;
 
     // 将编辑器内容转换为Markdown
-    const markdown = await editor.blocksToMarkdownLossy(editor.document);
+    const rawMarkdown = await editor.blocksToMarkdownLossy(editor.document);
+
+    // 标准化列表标记（将 * 转换为 -）
+    const markdown = normalizeMarkdownListMarkers(rawMarkdown);
 
     // 如果内容没有变化，不触发onChange
     if (markdown === lastSavedContentRef.current) return;
