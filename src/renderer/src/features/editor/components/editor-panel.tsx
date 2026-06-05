@@ -1,4 +1,4 @@
-import { MilkdownEditor } from "./milkdown-editor";
+import { BlockNoteEditor } from "./blocknote-editor";
 import { useEditorStore } from "@/store/editor.store";
 import { FileText, X } from "lucide-react";
 
@@ -91,7 +91,7 @@ export function EditorPanel({ groupId, tabId }: EditorPanelProps) {
 
       {/* 编辑器内容 */}
       <div className="flex-1 overflow-hidden">
-        <MilkdownEditor groupId={groupId} tabId={tabId} />
+        <BlockNoteEditor groupId={groupId} tabId={tabId} />
       </div>
     </div>
   );

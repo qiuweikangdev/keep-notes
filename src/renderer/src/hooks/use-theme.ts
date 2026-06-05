@@ -77,6 +77,5 @@ export function useTheme() {
     toggleTheme,
     isDark: isDarkTheme(theme),
     config,
-    milkdownTheme: config.milkdownTheme,
   };
 }

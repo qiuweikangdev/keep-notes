@@ -1,5 +1,5 @@
 import { EditorTabBar } from "./editor-tab-bar";
-import { MilkdownEditor } from "./milkdown-editor";
+import { BlockNoteEditor } from "./blocknote-editor";
 import { useEditorStore } from "@/store/editor.store";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
@@ -13,7 +13,7 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
     <div className="flex flex-col h-full overflow-hidden">
       <EditorTabBar groupId={groupId} />
       <div className="flex-1 overflow-hidden">
-        <MilkdownEditor groupId={groupId} tabId={group.activeTabId} />
+        <BlockNoteEditor groupId={groupId} tabId={group.activeTabId} />
       </div>
     </div>
   );

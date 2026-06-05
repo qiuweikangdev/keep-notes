@@ -21,7 +21,6 @@ export interface ThemeConfig {
     activeBg: string;
     accentColor: string;
   };
-  milkdownTheme: "frame" | "frame-dark" | "nord" | "nord-dark";
 }
 
 export const themes: Record<ThemeName, ThemeConfig> = {
@@ -46,7 +45,6 @@ export const themes: Record<ThemeName, ThemeConfig> = {
       activeBg: "#e8f0fe",
       accentColor: "#0366d6",
     },
-    milkdownTheme: "frame",
   },
   dark: {
     name: "dark",
@@ -69,7 +67,6 @@ export const themes: Record<ThemeName, ThemeConfig> = {
       activeBg: "#2d2d32",
       accentColor: "#8f8f99",
     },
-    milkdownTheme: "frame-dark",
   },
   nord: {
     name: "nord",
@@ -92,7 +89,6 @@ export const themes: Record<ThemeName, ThemeConfig> = {
       activeBg: "#5e81ac",
       accentColor: "#88c0d0",
     },
-    milkdownTheme: "nord-dark",
   },
   dracula: {
     name: "dracula",
@@ -115,7 +111,6 @@ export const themes: Record<ThemeName, ThemeConfig> = {
       activeBg: "#6272a4",
       accentColor: "#bd93f9",
     },
-    milkdownTheme: "frame-dark",
   },
   solarized: {
     name: "solarized",
@@ -138,7 +133,6 @@ export const themes: Record<ThemeName, ThemeConfig> = {
       activeBg: "#2aa198",
       accentColor: "#2aa198",
     },
-    milkdownTheme: "frame-dark",
   },
 };
 
