@@ -1,0 +1,151 @@
+/* BlockNote 主题样式覆盖 */
+
+/* 亮色主题 */
+.bn-root[data-color-scheme="light"] {
+  --bn-colors-editor-text: var(--text-primary);
+  --bn-colors-editor-background: var(--bg-primary);
+  --bn-colors-menu-text: var(--text-primary);
+  --bn-colors-menu-background: var(--bg-secondary);
+  --bn-colors-tooltip-text: var(--text-primary);
+  --bn-colors-tooltip-background: var(--bg-tertiary);
+  --bn-colors-hovered-text: var(--text-primary);
+  --bn-colors-hovered-background: var(--hover-bg);
+  --bn-colors-selected-text: #ffffff;
+  --bn-colors-selected-background: var(--accent-color);
+  --bn-colors-disabled-text: var(--text-muted);
+  --bn-colors-disabled-background: var(--bg-tertiary);
+  --bn-colors-shadow: var(--border-color);
+  --bn-colors-border: var(--border-color);
+  --bn-colors-side-menu: var(--text-muted);
+}
+
+/* 暗色主题 */
+.bn-root[data-color-scheme="dark"] {
+  --bn-colors-editor-text: var(--text-primary);
+  --bn-colors-editor-background: var(--bg-primary);
+  --bn-colors-menu-text: var(--text-primary);
+  --bn-colors-menu-background: var(--bg-secondary);
+  --bn-colors-tooltip-text: var(--text-primary);
+  --bn-colors-tooltip-background: var(--bg-tertiary);
+  --bn-colors-hovered-text: var(--text-primary);
+  --bn-colors-hovered-background: var(--hover-bg);
+  --bn-colors-selected-text: #ffffff;
+  --bn-colors-selected-background: var(--accent-color);
+  --bn-colors-disabled-text: var(--text-muted);
+  --bn-colors-disabled-background: var(--bg-tertiary);
+  --bn-colors-shadow: var(--border-color);
+  --bn-colors-border: var(--border-color);
+  --bn-colors-side-menu: var(--text-muted);
+}
+
+/* 编辑器背景色覆盖 */
+.bn-editor {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+/* 代码块主题适配 */
+.bn-block-content[data-content-type="codeBlock"] {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+.bn-block-content[data-content-type="codeBlock"] > div > select {
+  color: var(--text-primary) !important;
+}
+
+.bn-block-content[data-content-type="codeBlock"] > div > select > option {
+  color: var(--text-primary) !important;
+  background-color: var(--bg-secondary) !important;
+}
+
+/* 内联代码样式 */
+.bn-inline-content code {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--accent-color) !important;
+  padding: 0.15em 0.4em !important;
+  border-radius: 4px !important;
+  font-family: "SF Mono", "Fira Code", Consolas, "Courier New", monospace !important;
+}
+
+/* 菜单和工具栏背景 */
+.bn-mantine .mantine-Menu-dropdown,
+.bn-mantine .bn-menu-dropdown {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.bn-mantine .mantine-Menu-item {
+  background-color: transparent !important;
+  color: var(--text-primary) !important;
+}
+
+.bn-mantine .mantine-Menu-item[aria-selected="true"],
+.bn-mantine .mantine-Menu-item:hover {
+  background-color: var(--hover-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+/* 侧边栏菜单 */
+.bn-side-menu {
+  color: var(--text-muted) !important;
+}
+
+/* 工具栏 */
+.bn-toolbar {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.bn-toolbar button {
+  color: var(--text-primary) !important;
+}
+
+.bn-toolbar button:hover {
+  background-color: var(--hover-bg) !important;
+}
+
+/* 链接预览 */
+.bn-link-toolbar {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+/* 建议菜单 */
+.bn-suggestion-menu {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.bn-suggestion-menu-item {
+  color: var(--text-primary) !important;
+}
+
+.bn-suggestion-menu-item:hover,
+.bn-suggestion-menu-item-selected {
+  background-color: var(--hover-bg) !important;
+}
+
+/* 表格样式 */
+.bn-table-handle {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.bn-table-handle:hover {
+  background-color: var(--hover-bg) !important;
+}
+
+/* 占位符文字 */
+.bn-inline-content [data-placeholder]::before {
+  color: var(--text-muted) !important;
+  opacity: 0.6 !important;
+}
+
+/* 选中文本高亮 */
+::selection {
+  background-color: var(--accent-color) !important;
+  color: #ffffff !important;
+}

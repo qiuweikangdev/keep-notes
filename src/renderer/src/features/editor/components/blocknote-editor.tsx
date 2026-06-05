@@ -15,6 +15,7 @@ import { Loader2 } from "lucide-react";
 
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
+import "@/styles/blocknote-overrides.css";
 
 /**
  * 将BlockNote输出的Markdown列表标记从 * 转换为 -
