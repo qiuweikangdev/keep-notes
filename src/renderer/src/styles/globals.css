@@ -81,10 +81,11 @@ button:focus-visible {
   --button-active-bg: #2aa198;
 }
 
-/* 绐楀彛杈圭紭鎷栨嫿璋冩暣澶у皬 - Electron frameless window */
+/* 窗口边缘拖拽调整大小 - Electron frameless window */
 .resize-handle {
   position: fixed;
   z-index: 9999;
+  pointer-events: auto;
 }
 
 .resize-handle-top {
@@ -112,6 +113,8 @@ button:focus-visible {
   width: 4px;
   cursor: w-resize;
   -webkit-app-region: no-drag;
+  /* 不拦截侧边栏区域的事件 */
+  pointer-events: none;
 }
 
 .resize-handle-right {
@@ -549,15 +552,27 @@ button:focus-visible {
   color: var(--accent-color);
 }
 
-/* 闈㈡澘璋冩暣鎵嬫焺 */
+/* 面板调整手柄 */
 [data-panel-resize-handle-id] {
   position: relative;
   background-color: var(--border-color) !important;
   transition: background-color 0.2s;
+  z-index: 10;
 }
 
 [data-panel-resize-handle-id]:hover {
   background-color: var(--accent-color) !important;
+}
+
+/* 确保面板调整手柄有足够的拖动区域 */
+[data-panel-resize-handle-id]::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  right: -4px;
+  z-index: 11;
 }
 
 /* 鍔ㄧ敾 */
