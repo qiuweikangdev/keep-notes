@@ -11,7 +11,6 @@ import { useEditorStore } from "@/store/editor.store";
 import { useDiffStore } from "@/store/diff.store";
 import { useTreeStore } from "@/store/tree.store";
 import { useTheme } from "@/hooks/use-theme";
-import { getBlockNoteTheme } from "@/styles/blocknote-theme";
 import { Loader2 } from "lucide-react";
 
 import "@blocknote/core/fonts/inter.css";
@@ -33,9 +32,10 @@ function BlockNoteEditorInner({
   onFocus,
 }: BlockNoteEditorProps) {
   const { setWordCount, setDirty, appearance } = useEditorStore();
-  const { theme } = useTheme();
+  const { isDark } = useTheme();
   const [loading, setLoading] = useState(true);
-  const blockNoteTheme = getBlockNoteTheme(theme);
+  const lastSavedContentRef = useRef<string>("");
+  const isLoadingContentRef = useRef(false);
 
   // 创建编辑器实例
   const editor = useCreateBlockNote({
@@ -44,10 +44,13 @@ function BlockNoteEditorInner({
 
   // 监听内容变化
   useEditorChange(async (editor) => {
-    if (!onChange) return;
+    if (!onChange || isLoadingContentRef.current) return;
 
     // 将编辑器内容转换为Markdown
     const markdown = await editor.blocksToMarkdownLossy(editor.document);
+
+    // 如果内容没有变化，不触发onChange
+    if (markdown === lastSavedContentRef.current) return;
 
     // 更新字数统计
     setWordCount(markdown.length);
@@ -56,6 +59,7 @@ function BlockNoteEditorInner({
     setDirty(true);
 
     // 调用onChange回调
+    lastSavedContentRef.current = markdown;
     onChange(markdown);
   }, editor);
 
@@ -66,16 +70,19 @@ function BlockNoteEditorInner({
     const loadContent = async () => {
       try {
         setLoading(true);
+        isLoadingContentRef.current = true;
 
         if (content) {
           // 将Markdown内容解析为BlockNote块
           const blocks = await editor.tryParseMarkdownToBlocks(content);
           editor.replaceBlocks(editor.document, blocks);
+          lastSavedContentRef.current = content;
         }
       } catch (error) {
         console.error("加载Markdown内容失败:", error);
       } finally {
         setLoading(false);
+        isLoadingContentRef.current = false;
       }
     };
 
@@ -108,7 +115,7 @@ function BlockNoteEditorInner({
       ) : null}
       <BlockNoteView
         editor={editor}
-        theme={blockNoteTheme}
+        theme={isDark ? "dark" : "light"}
         style={{
           fontSize: `${appearance.fontSize}px`,
           lineHeight: appearance.lineHeight,
