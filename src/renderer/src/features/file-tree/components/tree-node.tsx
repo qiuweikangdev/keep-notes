@@ -295,8 +295,10 @@ export const TreeNode = memo(function TreeNode({
 
   const handleDragStart = useCallback(
     (e: React.DragEvent) => {
+      // 设置自定义数据类型，用于识别文件拖拽
+      e.dataTransfer.setData("application/x-keep-notes-file", node.key);
       e.dataTransfer.setData("text/plain", node.key);
-      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.effectAllowed = "copyMove";
       if (rowRef.current) {
         rowRef.current.style.opacity = "0.5";
       }
