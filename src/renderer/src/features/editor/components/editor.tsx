@@ -34,6 +34,7 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
   const handleDrop = useCallback(
     async (e: React.DragEvent) => {
       e.preventDefault();
+      e.stopPropagation();
       setIsDragOver(false);
 
       // 获取拖拽的文件路径

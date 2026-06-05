@@ -122,18 +122,21 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
   // 拖拽事件处理
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     e.dataTransfer.dropEffect = "copy";
     setIsDragOver(true);
   }, []);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsDragOver(false);
   }, []);
 
   const handleDrop = useCallback(
     async (e: React.DragEvent) => {
       e.preventDefault();
+      e.stopPropagation();
       setIsDragOver(false);
 
       // 获取拖拽的文件路径
@@ -216,11 +219,14 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
               </span>
               <button
                 onClick={(e) => handleCloseTab(e, tab.id)}
-                className="flex-shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                disabled={group.tabs.length <= 1}
+                className="flex-shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
                 style={{ color: "var(--text-muted)" }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                  e.currentTarget.style.color = "var(--text-primary)";
+                  if (group.tabs.length > 1) {
+                    e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                    e.currentTarget.style.color = "var(--text-primary)";
+                  }
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.backgroundColor = "transparent";
