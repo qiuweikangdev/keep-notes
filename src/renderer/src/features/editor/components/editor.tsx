@@ -77,9 +77,14 @@ function NestedPanelGroups({
         </div>
       </Panel>
       <PanelResizeHandle
-        className="w-[4px] hover:w-[6px] transition-all cursor-col-resize"
-        style={{ backgroundColor: "var(--border-color)" }}
-        hitAreaMargins={{ coarse: 20, fine: 10 }}
+        style={{
+          width: "6px",
+          minWidth: "6px",
+          backgroundColor: "var(--border-color)",
+          cursor: "col-resize",
+          position: "relative",
+        }}
+        hitAreaMargins={{ coarse: 30, fine: 20 }}
       />
       <Panel minSize={20}>
         <NestedPanelGroups groups={restGroups} />

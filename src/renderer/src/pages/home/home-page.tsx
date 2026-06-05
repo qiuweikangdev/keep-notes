@@ -81,16 +81,18 @@ export function HomePage() {
                 minSize={15}
                 maxSize={40}
                 onResize={handleResize}
-                className="min-w-[220px]"
               >
                 <Sidebar />
               </Panel>
               <PanelResizeHandle
-                className="w-[4px] hover:w-[6px] transition-all cursor-col-resize"
                 style={{
+                  width: "6px",
+                  minWidth: "6px",
                   backgroundColor: "var(--border-color)",
+                  cursor: "col-resize",
+                  position: "relative",
                 }}
-                hitAreaMargins={{ coarse: 20, fine: 10 }}
+                hitAreaMargins={{ coarse: 30, fine: 20 }}
               />
             </>
           )}
@@ -109,11 +111,14 @@ export function HomePage() {
           {isOpen && (
             <>
               <PanelResizeHandle
-                className="w-[4px] hover:w-[6px] transition-all cursor-col-resize"
                 style={{
+                  width: "6px",
+                  minWidth: "6px",
                   backgroundColor: "var(--border-color)",
+                  cursor: "col-resize",
+                  position: "relative",
                 }}
-                hitAreaMargins={{ coarse: 20, fine: 10 }}
+                hitAreaMargins={{ coarse: 30, fine: 20 }}
               />
               <Panel defaultSize={40} minSize={20}>
                 <div className="h-full relative">
