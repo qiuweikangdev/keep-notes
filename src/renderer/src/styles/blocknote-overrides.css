@@ -149,3 +149,24 @@
   background-color: var(--accent-color) !important;
   color: #ffffff !important;
 }
+
+/* 列表项圆点标记 */
+.bn-block-content[data-content-type="bulletListItem"]::before {
+  content: "•" !important;
+  display: flex !important;
+  justify-content: center !important;
+  min-width: 24px !important;
+  padding-right: 4px !important;
+}
+
+/* 嵌套列表圆点标记（第二级） */
+[data-content-type="bulletListItem"] ~ .bn-block-group > .bn-block-outer[data-prev-type="bulletListItem"] > .bn-block > .bn-block-content::before,
+[data-content-type="bulletListItem"] ~ .bn-block-group > .bn-block-outer:not([data-prev-type]) > .bn-block > .bn-block-content[data-content-type="bulletListItem"]::before {
+  content: "◦" !important;
+}
+
+/* 嵌套列表圆点标记（第三级） */
+[data-content-type="bulletListItem"] ~ .bn-block-group [data-content-type="bulletListItem"] ~ .bn-block-group > .bn-block-outer[data-prev-type="bulletListItem"] > .bn-block > .bn-block-content::before,
+[data-content-type="bulletListItem"] ~ .bn-block-group [data-content-type="bulletListItem"] ~ .bn-block-group > .bn-block-outer:not([data-prev-type]) > .bn-block > .bn-block-content[data-content-type="bulletListItem"]::before {
+  content: "▪︎" !important;
+}

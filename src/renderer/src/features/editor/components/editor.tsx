@@ -21,18 +21,30 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
   const [isDragOver, setIsDragOver] = useState(false);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
+    // 允许BlockNote内部拖拽
+    if (e.dataTransfer.types.includes("blocknote/html")) {
+      return;
+    }
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
     setIsDragOver(true);
   }, []);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
+    // 允许BlockNote内部拖拽
+    if (e.dataTransfer.types.includes("blocknote/html")) {
+      return;
+    }
     e.preventDefault();
     setIsDragOver(false);
   }, []);
 
   const handleDrop = useCallback(
     async (e: React.DragEvent) => {
+      // 允许BlockNote内部拖拽
+      if (e.dataTransfer.types.includes("blocknote/html")) {
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       setIsDragOver(false);

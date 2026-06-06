@@ -12,6 +12,7 @@ import { useDiffStore } from "@/store/diff.store";
 import { useTreeStore } from "@/store/tree.store";
 import { useTheme } from "@/hooks/use-theme";
 import { Loader2 } from "lucide-react";
+import { debounce } from "lodash-es";
 
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
@@ -58,28 +59,36 @@ function BlockNoteEditorInner({
     initialContent: undefined,
   });
 
+  // 防抖处理内容变化，避免频繁转换导致光标错乱和闪烁
+  const debouncedContentChange = useCallback(
+    debounce(async (editor: any) => {
+      if (!onChange || isLoadingContentRef.current) return;
+
+      // 将编辑器内容转换为Markdown
+      const rawMarkdown = await editor.blocksToMarkdownLossy(editor.document);
+
+      // 标准化列表标记（将 * 转换为 -）
+      const markdown = normalizeMarkdownListMarkers(rawMarkdown);
+
+      // 如果内容没有变化，不触发onChange
+      if (markdown === lastSavedContentRef.current) return;
+
+      // 更新字数统计
+      setWordCount(markdown.length);
+
+      // 标记为已修改
+      setDirty(true);
+
+      // 调用onChange回调
+      lastSavedContentRef.current = markdown;
+      onChange(markdown);
+    }, 300),
+    [onChange, setWordCount, setDirty],
+  );
+
   // 监听内容变化
-  useEditorChange(async (editor) => {
-    if (!onChange || isLoadingContentRef.current) return;
-
-    // 将编辑器内容转换为Markdown
-    const rawMarkdown = await editor.blocksToMarkdownLossy(editor.document);
-
-    // 标准化列表标记（将 * 转换为 -）
-    const markdown = normalizeMarkdownListMarkers(rawMarkdown);
-
-    // 如果内容没有变化，不触发onChange
-    if (markdown === lastSavedContentRef.current) return;
-
-    // 更新字数统计
-    setWordCount(markdown.length);
-
-    // 标记为已修改
-    setDirty(true);
-
-    // 调用onChange回调
-    lastSavedContentRef.current = markdown;
-    onChange(markdown);
+  useEditorChange((editor) => {
+    debouncedContentChange(editor);
   }, editor);
 
   // 加载初始内容
@@ -117,14 +126,37 @@ function BlockNoteEditorInner({
     "--editor-padding": `${appearance.padding}px`,
   } as CSSProperties;
 
-  // 在捕获阶段拦截拖拽事件的默认行为，防止文件路径被插入到编辑器
+  // 在捕获阶段拦截文件拖拽事件的默认行为，防止文件路径被插入到编辑器
+  // 允许BlockNote内部拖拽（blocknote/html）通过，只阻止外部文件拖拽
   // 注意：不调用 stopPropagation，让事件继续冒泡以便父组件处理文件打开
   const handleDragOverCapture = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
+    const types = e.dataTransfer.types;
+    // 允许BlockNote内部拖拽
+    if (types.includes("blocknote/html")) {
+      return;
+    }
+    // 阻止外部文件拖拽
+    if (
+      types.includes("application/x-keep-notes-file") ||
+      types.includes("Files")
+    ) {
+      e.preventDefault();
+    }
   }, []);
 
   const handleDropCapture = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
+    const types = e.dataTransfer.types;
+    // 允许BlockNote内部拖拽
+    if (types.includes("blocknote/html")) {
+      return;
+    }
+    // 阻止外部文件拖拽
+    if (
+      types.includes("application/x-keep-notes-file") ||
+      types.includes("Files")
+    ) {
+      e.preventDefault();
+    }
   }, []);
 
   return (
