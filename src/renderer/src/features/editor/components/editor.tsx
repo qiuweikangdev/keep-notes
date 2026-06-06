@@ -66,7 +66,6 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
   if (!group.activeTabId || group.tabs.length === 0) {
     return (
       <div className="flex flex-col h-full overflow-hidden relative">
-        <EditorTabBar groupId={groupId} />
         <div
           className="flex-1 flex items-center justify-center relative"
           style={{ backgroundColor: "var(--bg-primary)" }}
