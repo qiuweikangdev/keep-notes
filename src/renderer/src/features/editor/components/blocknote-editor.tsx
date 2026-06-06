@@ -173,6 +173,7 @@ export function BlockNoteEditor({
     setTabContent,
     setTabDirty,
     setActiveGroupId,
+    setActiveTab,
   } = useEditorStore();
   const { updateNodeContent } = useTreeStore();
 
@@ -191,12 +192,13 @@ export function BlockNoteEditor({
   }>({ running: false, pending: null });
   const ownWriteContentsRef = useRef<Set<string>>(new Set());
 
-  // 当编辑器获得焦点时，更新 activeGroupId
+  // 当编辑器获得焦点时，更新 activeGroupId 和 activeTabId
   const handleFocus = useCallback(() => {
-    if (groupId) {
+    if (groupId && tabId) {
       setActiveGroupId(groupId);
+      setActiveTab(groupId, tabId);
     }
-  }, [groupId, setActiveGroupId]);
+  }, [groupId, tabId, setActiveGroupId, setActiveTab]);
 
   // 同步更新所有打开相同文件的其他标签页
   const syncOtherTabs = useCallback(
