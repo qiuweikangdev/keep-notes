@@ -68,13 +68,27 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
       <div className="flex flex-col h-full overflow-hidden relative">
         <EditorTabBar groupId={groupId} />
         <div
-          className="flex-1 flex items-center justify-center"
+          className="flex-1 flex items-center justify-center relative"
           style={{ backgroundColor: "var(--bg-primary)" }}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
         >
           <div className="text-center" style={{ color: "var(--text-muted)" }}>
             <p className="text-sm">没有打开的文件</p>
-            <p className="text-xs mt-1">从文件树拖拽文件到此处打开</p>
+            <p className="text-xs mt-1">从文件树点击或拖拽文件到此处打开</p>
           </div>
+          {/* 拖拽高亮边框 */}
+          {isDragOver && (
+            <div
+              className="absolute inset-0 pointer-events-none z-50"
+              style={{
+                border: "2px solid var(--accent-color)",
+                backgroundColor: "var(--accent-color)",
+                opacity: 0.1,
+              }}
+            />
+          )}
         </div>
       </div>
     );
