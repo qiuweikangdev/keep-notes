@@ -39,6 +39,11 @@ export function App() {
   // 初始化键盘快捷键
   useKeyboardShortcuts();
 
+  // 平台判断
+  const isMac = useMemo(() => {
+    return window.electronAPI?.getPlatform() === "darwin";
+  }, []);
+
   // 构建搜索快捷键集合
   const searchKeyStrings = useMemo(() => {
     const keys = new Set<string>();
@@ -73,7 +78,18 @@ export function App() {
     };
   }, [handleKeyDown]);
 
+  // 监听来自菜单的搜索事件
+  useEffect(() => {
+    const handleOpenSearch = () => setIsSearchOpen(true);
+    window.addEventListener("open-search", handleOpenSearch);
+    return () => {
+      window.removeEventListener("open-search", handleOpenSearch);
+    };
+  }, []);
+
   // 应用透明度到整个窗口
+  // macOS 原生窗口自带圆角，不需要设置 borderRadius
+  // Windows/Linux 无边框窗口需要 borderRadius 来实现圆角效果
   const windowStyle = {
     backgroundColor: "var(--bg-primary)",
     color: "var(--text-primary)",
@@ -82,7 +98,7 @@ export function App() {
     display: "flex",
     flexDirection: "column" as const,
     overflow: "hidden",
-    borderRadius: "8px",
+    borderRadius: isMac ? "0" : "8px",
   };
 
   return (

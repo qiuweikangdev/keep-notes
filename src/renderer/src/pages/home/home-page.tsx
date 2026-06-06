@@ -7,7 +7,7 @@ import { usePanel } from "@/hooks/use-panel";
 import { SettingsModal } from "@/features/settings";
 import { DiffViewer } from "@/features/diff";
 import { useDiffStore } from "@/store/diff.store";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { X } from "lucide-react";
 
 export function HomePage() {
@@ -15,6 +15,11 @@ export function HomePage() {
   const [isMaximized, setIsMaximized] = useState(false);
   const { isOpen, oldContent, newContent, filePath, closeDiff } =
     useDiffStore();
+
+  // 平台判断
+  const isMac = useMemo(() => {
+    return window.electronAPI?.getPlatform() === "darwin";
+  }, []);
 
   // 监听窗口最大化状态
   useEffect(() => {
@@ -33,19 +38,21 @@ export function HomePage() {
       style={{
         backgroundColor: "var(--bg-primary)",
         color: "var(--text-primary)",
-        borderRadius: isMaximized ? "0" : "8px",
+        // macOS 原生窗口自带圆角，不需要设置 borderRadius
+        // Windows/Linux 无边框窗口需要 borderRadius 来实现圆角效果
+        borderRadius: isMac ? "0" : isMaximized ? "0" : "8px",
       }}
     >
       {/* 编辑器桥接组件，用于与主进程通信 */}
       <EditorBridge />
 
-      {/* 窗口边缘拖拽区域 */}
-      <div className="resize-handle resize-handle-top" />
+      {/* 窗口边缘拖拽区域 - macOS 原生处理顶部拖拽，仅 Windows 需要 */}
+      {!isMac && <div className="resize-handle resize-handle-top" />}
       <div className="resize-handle resize-handle-bottom" />
       <div className="resize-handle resize-handle-left" />
       <div className="resize-handle resize-handle-right" />
-      <div className="resize-handle resize-handle-top-left" />
-      <div className="resize-handle resize-handle-top-right" />
+      {!isMac && <div className="resize-handle resize-handle-top-left" />}
+      {!isMac && <div className="resize-handle resize-handle-top-right" />}
       <div className="resize-handle resize-handle-bottom-left" />
       <div className="resize-handle resize-handle-bottom-right" />
 

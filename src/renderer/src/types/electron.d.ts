@@ -14,6 +14,10 @@ export interface ElectronAPI {
   maximizeWindow: () => void;
   closeWindow: () => void;
   updateDirtyState: (isDirty: boolean) => void;
+  // 获取当前运行平台
+  getPlatform: () => string;
+  // 监听菜单动作（macOS 应用菜单触发）
+  onMenuAction: (callback: (action: string) => void) => () => void;
   readFile: (filePath: string) => Promise<string>;
   writeFile: (filePath: string, content: string) => Promise<void>;
   saveAs: (content: string) => Promise<ApiResponse<{ filePath: string }>>;

@@ -48,6 +48,10 @@ export const IPC_CHANNELS = {
     DISCARD_CHANGES: "git:discard-changes", // 放弃更改
     OPEN_FILE: "git:open-file", // 打开文件
   },
+  // 菜单动作通道
+  MENU: {
+    ACTION: "menu:action",
+  },
 } as const;
 
 export type IpcChannel =

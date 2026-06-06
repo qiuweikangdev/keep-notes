@@ -3,6 +3,7 @@ import { BrowserWindow, app, session } from "electron";
 import { electronApp, optimizer } from "@electron-toolkit/utils";
 import { createWindow } from "./window";
 import { registerAllIpc } from "./ipc";
+import { registerAppMenu } from "./menu";
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId("com.keep-notes");
@@ -18,6 +19,9 @@ app.whenReady().then(() => {
       },
     });
   });
+
+  // 注册 macOS 应用菜单
+  registerAppMenu();
 
   createWindow();
   registerAllIpc();

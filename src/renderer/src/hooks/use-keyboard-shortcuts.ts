@@ -72,7 +72,7 @@ export function useKeyboardShortcuts() {
     activeGroupId,
     removeTab,
   } = useEditorStore();
-  const { isSettingsOpen } = useUIStore();
+  const { isSettingsOpen, setSettingsOpen } = useUIStore();
   const shortcutMap = useShortcutMap();
 
   const handleKeyDown = useCallback(
@@ -159,10 +159,78 @@ export function useKeyboardShortcuts() {
     ],
   );
 
+  // 监听键盘快捷键
   useEffect(() => {
     window.addEventListener("keydown", handleKeyDown);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [handleKeyDown]);
+
+  // 监听 macOS 应用菜单动作
+  useEffect(() => {
+    if (!window.electronAPI?.onMenuAction) return;
+
+    const unsubscribe = window.electronAPI.onMenuAction((action) => {
+      switch (action) {
+        case "newFile":
+          if (treeRoot) {
+            const title = prompt("请输入文件名:");
+            if (title) {
+              window.electronAPI.createFile(treeRoot.key, title, treeData);
+            }
+          }
+          break;
+
+        case "openFolder":
+          openFolder();
+          break;
+
+        case "saveFile":
+          window.electronAPI.saveAs(content).then((result) => {
+            if (result.code === 0 && result.data) {
+              useEditorStore.getState().setFilePath(result.data.filePath);
+              useEditorStore.getState().setDirty(false);
+            }
+          });
+          break;
+
+        case "saveAs":
+          window.electronAPI.saveAs(content).then((result) => {
+            if (result.code === 0 && result.data) {
+              useEditorStore.getState().setFilePath(result.data.filePath);
+              useEditorStore.getState().setDirty(false);
+            }
+          });
+          break;
+
+        case "toggleSidebar":
+          toggleCollapse();
+          break;
+
+        case "openSearch":
+          // 触发搜索弹窗 - 通过自定义事件
+          window.dispatchEvent(new CustomEvent("open-search"));
+          break;
+
+        case "toggleTheme":
+          toggleTheme();
+          break;
+
+        case "openSettings":
+          setSettingsOpen(true);
+          break;
+      }
+    });
+
+    return unsubscribe;
+  }, [
+    treeRoot,
+    treeData,
+    content,
+    openFolder,
+    toggleCollapse,
+    toggleTheme,
+    setSettingsOpen,
+  ]);
 }

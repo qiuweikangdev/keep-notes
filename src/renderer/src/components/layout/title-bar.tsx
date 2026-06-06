@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { useUIStore } from "@/store/ui.store";
 import { useTheme } from "@/hooks/use-theme";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { SearchModal } from "@/features/search";
 import { GitPanel } from "@/features/git";
 import { useElectron } from "@/hooks/use-electron";
@@ -33,6 +33,11 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
   const titleBarRef = useRef<HTMLDivElement>(null);
   const { detectGitRepo } = useElectron();
   const { treeRoot } = useTreeStore();
+
+  // 平台判断
+  const isMac = useMemo(() => {
+    return window.electronAPI?.getPlatform() === "darwin";
+  }, []);
 
   // 应用拖拽样式
   useEffect(() => {
@@ -73,12 +78,17 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
     <>
       <div
         ref={titleBarRef}
-        className="flex items-center h-[44px] select-none"
+        className="flex items-center select-none"
         style={{
+          // macOS: 38px 高度，参考 VSCode；Windows: 44px
+          height: isMac ? "38px" : "44px",
           backgroundColor: "var(--bg-primary)",
           borderBottom: "1px solid var(--border-color)",
         }}
       >
+        {/* macOS: 红绿灯按钮区域预留空间（78px），Windows: 无 */}
+        {isMac && <div className="w-[78px] flex-shrink-0" />}
+
         {/* 左侧：侧边栏切换 + Logo */}
         <div className="flex items-center gap-3 pl-4">
           <button
@@ -211,56 +221,61 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
             <Settings className="h-4 w-4" />
           </button>
 
-          <div
-            className="w-[1px] h-5 mx-1"
-            style={{ backgroundColor: "var(--border-color)" }}
-          />
+          {/* Windows: 显示自定义窗口控制按钮 */}
+          {!isMac && (
+            <>
+              <div
+                className="w-[1px] h-5 mx-1"
+                style={{ backgroundColor: "var(--border-color)" }}
+              />
 
-          <button
-            className="flex items-center justify-center w-8 h-8 rounded-lg transition-all"
-            style={{ color: "var(--text-muted)" }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-              e.currentTarget.style.color = "var(--text-primary)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
-              e.currentTarget.style.color = "var(--text-muted)";
-            }}
-            onClick={() => window.electronAPI.minimizeWindow()}
-          >
-            <Minus className="h-4 w-4" />
-          </button>
-          <button
-            className="flex items-center justify-center w-8 h-8 rounded-lg transition-all"
-            style={{ color: "var(--text-muted)" }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-              e.currentTarget.style.color = "var(--text-primary)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
-              e.currentTarget.style.color = "var(--text-muted)";
-            }}
-            onClick={() => window.electronAPI.maximizeWindow()}
-          >
-            <Square className="h-3.5 w-3.5" />
-          </button>
-          <button
-            className="flex items-center justify-center w-8 h-8 rounded-lg transition-all"
-            style={{ color: "var(--text-muted)" }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#ff4d4f";
-              e.currentTarget.style.color = "#ffffff";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
-              e.currentTarget.style.color = "var(--text-muted)";
-            }}
-            onClick={() => window.electronAPI.closeWindow()}
-          >
-            <X className="h-4 w-4" />
-          </button>
+              <button
+                className="flex items-center justify-center w-8 h-8 rounded-lg transition-all"
+                style={{ color: "var(--text-muted)" }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                  e.currentTarget.style.color = "var(--text-primary)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = "var(--text-muted)";
+                }}
+                onClick={() => window.electronAPI.minimizeWindow()}
+              >
+                <Minus className="h-4 w-4" />
+              </button>
+              <button
+                className="flex items-center justify-center w-8 h-8 rounded-lg transition-all"
+                style={{ color: "var(--text-muted)" }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                  e.currentTarget.style.color = "var(--text-primary)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = "var(--text-muted)";
+                }}
+                onClick={() => window.electronAPI.maximizeWindow()}
+              >
+                <Square className="h-3.5 w-3.5" />
+              </button>
+              <button
+                className="flex items-center justify-center w-8 h-8 rounded-lg transition-all"
+                style={{ color: "var(--text-muted)" }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "#ff4d4f";
+                  e.currentTarget.style.color = "#ffffff";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = "var(--text-muted)";
+                }}
+                onClick={() => window.electronAPI.closeWindow()}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </>
+          )}
         </div>
       </div>
 

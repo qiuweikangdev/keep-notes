@@ -7,16 +7,30 @@ import icon from "../../resources/icon.png?asset";
 import { registerWindowShortcuts } from "./shortcuts";
 import { getCachedDirtyState } from "./ipc/editor.ipc";
 
-const windowConfig = {
+// 平台判断
+const isMac = process.platform === "darwin";
+
+// macOS: 使用原生标题栏隐藏模式，显示红绿灯按钮
+// Windows/Linux: 使用无边框透明窗口，自定义标题栏
+const windowConfig: Electron.BrowserWindowConstructorOptions = {
   width: 900,
   height: 670,
   minWidth: 400,
   minHeight: 400,
   show: false,
-  frame: false,
-  transparent: true,
   resizable: true,
   hasShadow: true,
+  ...(isMac
+    ? {
+        // macOS: 隐藏标题栏但保留原生红绿灯按钮
+        titleBarStyle: "hidden",
+        trafficLightPosition: { x: 14, y: 14 },
+      }
+    : {
+        // Windows/Linux: 无边框透明窗口
+        frame: false,
+        transparent: true,
+      }),
   ...(process.platform === "linux" ? { icon } : {}),
   webPreferences: {
     preload: join(__dirname, "../preload/index.mjs"),
