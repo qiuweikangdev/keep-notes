@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Search, X, File, Folder, ChevronRight } from "lucide-react";
+import { Search, X, File, ChevronRight } from "lucide-react";
 import { useTreeStore } from "@/store/tree.store";
 import { useElectron } from "@/hooks/use-electron";
 import type { TreeNode } from "@/types";
@@ -17,18 +17,29 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const { treeData } = useTreeStore();
   const { openFile } = useElectron();
 
-  // 搜索文件
+  // 搜索文件（只搜索 md 和 txt 文件，不包含文件夹）
   const searchFiles = useCallback(
     (nodes: TreeNode[], query: string): TreeNode[] => {
       const results: TreeNode[] = [];
+      const allowedExtensions = [".md", ".txt"];
 
       const search = (nodes: TreeNode[]) => {
         for (const node of nodes) {
-          if (node.title.toLowerCase().includes(query.toLowerCase())) {
-            results.push(node);
-          }
+          // 跳过文件夹（有 children 的节点）
           if (node.children) {
             search(node.children);
+            continue;
+          }
+
+          // 检查文件扩展名是否为 md 或 txt
+          const ext = node.title
+            .toLowerCase()
+            .slice(node.title.lastIndexOf("."));
+          if (
+            allowedExtensions.includes(ext) &&
+            node.title.toLowerCase().includes(query.toLowerCase())
+          ) {
+            results.push(node);
           }
         }
       };
@@ -64,10 +75,8 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
       } else if (e.key === "Enter" && results[selectedIndex]) {
         e.preventDefault();
         const selected = results[selectedIndex];
-        if (selected.title.endsWith(".md")) {
-          openFile(selected.key);
-          onClose();
-        }
+        openFile(selected.key);
+        onClose();
       }
     },
     [results, selectedIndex, openFile, onClose],
@@ -149,10 +158,8 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
               <button
                 key={result.key}
                 onClick={() => {
-                  if (result.title.endsWith(".md")) {
-                    openFile(result.key);
-                    onClose();
-                  }
+                  openFile(result.key);
+                  onClose();
                 }}
                 className="w-full flex items-center gap-3 px-4 py-2 text-left transition-colors"
                 style={{
@@ -172,17 +179,10 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                   }
                 }}
               >
-                {result.title.endsWith(".md") ? (
-                  <File
-                    className="h-4 w-4 flex-shrink-0"
-                    style={{ color: "var(--accent-color)" }}
-                  />
-                ) : (
-                  <Folder
-                    className="h-4 w-4 flex-shrink-0"
-                    style={{ color: "#f0a020" }}
-                  />
-                )}
+                <File
+                  className="h-4 w-4 flex-shrink-0"
+                  style={{ color: "var(--accent-color)" }}
+                />
                 <div className="flex-1 min-w-0">
                   <p
                     className="text-sm font-medium truncate"
@@ -197,12 +197,10 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                     {result.key}
                   </p>
                 </div>
-                {result.title.endsWith(".md") && (
-                  <ChevronRight
-                    className="h-4 w-4 flex-shrink-0"
-                    style={{ color: "var(--text-muted)" }}
-                  />
-                )}
+                <ChevronRight
+                  className="h-4 w-4 flex-shrink-0"
+                  style={{ color: "var(--text-muted)" }}
+                />
               </button>
             ))}
           </div>
