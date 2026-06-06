@@ -51,17 +51,28 @@ export function useElectron() {
   );
 
   const openFile = useCallback(
-    async (filePath: string) => {
+    async (filePath: string, targetGroupId?: string) => {
       openingFileRef.current = filePath;
 
       const state = useEditorStore.getState();
-      const activeGroup = state.panelGroups.find(
-        (g) => g.id === state.activeGroupId,
-      );
+      // 支持指定目标面板组，否则使用当前活动面板组
+      let targetGroup = targetGroupId
+        ? state.panelGroups.find((g) => g.id === targetGroupId)
+        : state.panelGroups.find((g) => g.id === state.activeGroupId);
 
-      if (activeGroup) {
-        const activeTab = activeGroup.tabs.find(
-          (t) => t.id === activeGroup.activeTabId,
+      // 如果目标面板组没有标签页，先创建一个新标签页
+      if (targetGroup && targetGroup.tabs.length === 0) {
+        const newTabId = state.addTab(targetGroup.id);
+        // 重新获取更新后的面板组
+        const updatedState = useEditorStore.getState();
+        targetGroup = updatedState.panelGroups.find(
+          (g) => g.id === targetGroup!.id,
+        );
+      }
+
+      if (targetGroup) {
+        const activeTab = targetGroup.tabs.find(
+          (t) => t.id === targetGroup!.activeTabId,
         );
 
         // 如果当前聚焦标签页已经是目标文件，不更新
@@ -71,13 +82,13 @@ export function useElectron() {
           return;
         }
 
-        // 在当前聚焦标签页中打开文件
+        // 在目标面板的聚焦标签页中打开文件
         const content = await window.electronAPI.readFile(filePath);
         if (openingFileRef.current !== filePath) return;
 
-        state.setTabContent(activeGroup.id, activeGroup.activeTabId, content);
-        state.setTabFilePath(activeGroup.id, activeGroup.activeTabId, filePath);
-        state.incrementTabReloadKey(activeGroup.id, activeGroup.activeTabId);
+        state.setTabContent(targetGroup.id, targetGroup.activeTabId, content);
+        state.setTabFilePath(targetGroup.id, targetGroup.activeTabId, filePath);
+        state.incrementTabReloadKey(targetGroup.id, targetGroup.activeTabId);
       } else {
         // 兼容模式：设置全局文件
         const content = await window.electronAPI.readFile(filePath);

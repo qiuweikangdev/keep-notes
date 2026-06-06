@@ -12,8 +12,7 @@ export function EditorPanel({ groupId, tabId }: EditorPanelProps) {
     panelGroups = [],
     activeGroupId,
     setActiveTab,
-    setTabFilePath,
-    resetTab,
+    removeTab,
   } = useEditorStore();
 
   const group = panelGroups.find((g) => g.id === groupId);
@@ -24,8 +23,7 @@ export function EditorPanel({ groupId, tabId }: EditorPanelProps) {
   const isActive = activeGroupId === groupId && group?.activeTabId === tabId;
 
   const handleClose = () => {
-    setTabFilePath(groupId, tabId, null);
-    resetTab(groupId, tabId);
+    removeTab(groupId, tabId);
   };
 
   return (

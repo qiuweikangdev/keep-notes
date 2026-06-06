@@ -156,8 +156,8 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
         }
       }
 
-      // 打开文件
-      await openFile(filePath);
+      // 打开文件，指定目标面板组
+      await openFile(filePath, groupId);
     },
     [groupId, openFile],
   );
@@ -219,14 +219,11 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
               </span>
               <button
                 onClick={(e) => handleCloseTab(e, tab.id)}
-                disabled={group.tabs.length <= 1}
-                className="flex-shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
+                className="flex-shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
                 style={{ color: "var(--text-muted)" }}
                 onMouseEnter={(e) => {
-                  if (group.tabs.length > 1) {
-                    e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                    e.currentTarget.style.color = "var(--text-primary)";
-                  }
+                  e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                  e.currentTarget.style.color = "var(--text-primary)";
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.backgroundColor = "transparent";
@@ -240,69 +237,71 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
         })}
       </div>
 
-      {/* 操作按钮区域 */}
-      <div
-        className="flex items-center h-full flex-shrink-0"
-        style={{ borderLeft: "1px solid var(--border-color)" }}
-      >
-        {/* 下拉菜单按钮 - VSCode 风格的 "+" 和下拉箭头 */}
-        <div className="relative h-full" ref={menuRef}>
-          <button
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="flex items-center gap-0.5 h-full px-2 transition-all"
-            style={{ color: "var(--text-muted)" }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-              e.currentTarget.style.color = "var(--text-primary)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
-              e.currentTarget.style.color = "var(--text-muted)";
-            }}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <ChevronDown
-              className="h-3 w-3 transition-transform"
-              style={{
-                transform: isMenuOpen ? "rotate(180deg)" : "rotate(0deg)",
+      {/* 操作按钮区域 - 仅在有标签页时显示 */}
+      {group.tabs.length > 0 && (
+        <div
+          className="flex items-center h-full flex-shrink-0"
+          style={{ borderLeft: "1px solid var(--border-color)" }}
+        >
+          {/* 下拉菜单按钮 - VSCode 风格的 "+" 和下拉箭头 */}
+          <div className="relative h-full" ref={menuRef}>
+            <button
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="flex items-center gap-0.5 h-full px-2 transition-all"
+              style={{ color: "var(--text-muted)" }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                e.currentTarget.style.color = "var(--text-primary)";
               }}
-            />
-          </button>
-
-          {/* 下拉菜单 */}
-          {isMenuOpen && (
-            <div
-              className="absolute right-0 top-full z-50 py-1 min-w-[200px]"
-              style={{
-                backgroundColor: "var(--bg-secondary)",
-                border: "1px solid var(--border-color)",
-                borderRadius: "6px",
-                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.color = "var(--text-muted)";
               }}
             >
-              <MenuButton
-                icon={<Plus className="h-3.5 w-3.5" />}
-                onClick={handleNewTab}
+              <Plus className="h-3.5 w-3.5" />
+              <ChevronDown
+                className="h-3 w-3 transition-transform"
+                style={{
+                  transform: isMenuOpen ? "rotate(180deg)" : "rotate(0deg)",
+                }}
+              />
+            </button>
+
+            {/* 下拉菜单 */}
+            {isMenuOpen && (
+              <div
+                className="absolute right-0 top-full z-50 py-1 min-w-[200px]"
+                style={{
+                  backgroundColor: "var(--bg-secondary)",
+                  border: "1px solid var(--border-color)",
+                  borderRadius: "6px",
+                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+                }}
               >
-                新建标签页
-              </MenuButton>
-              <MenuDivider />
-              <MenuButton
-                icon={<SplitSquareVertical className="h-3.5 w-3.5" />}
-                onClick={handleSplitRight}
-              >
-                向右拆分
-              </MenuButton>
-              <MenuButton
-                icon={<SplitSquareHorizontal className="h-3.5 w-3.5" />}
-                onClick={handleSplitDown}
-              >
-                向下拆分
-              </MenuButton>
-            </div>
-          )}
+                <MenuButton
+                  icon={<Plus className="h-3.5 w-3.5" />}
+                  onClick={handleNewTab}
+                >
+                  新建标签页
+                </MenuButton>
+                <MenuDivider />
+                <MenuButton
+                  icon={<SplitSquareVertical className="h-3.5 w-3.5" />}
+                  onClick={handleSplitRight}
+                >
+                  向右拆分
+                </MenuButton>
+                <MenuButton
+                  icon={<SplitSquareHorizontal className="h-3.5 w-3.5" />}
+                  onClick={handleSplitDown}
+                >
+                  向下拆分
+                </MenuButton>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 右键菜单 */}
       {contextMenu && (

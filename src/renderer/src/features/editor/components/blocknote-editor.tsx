@@ -117,12 +117,24 @@ function BlockNoteEditorInner({
     "--editor-padding": `${appearance.padding}px`,
   } as CSSProperties;
 
+  // 在捕获阶段拦截拖拽事件的默认行为，防止文件路径被插入到编辑器
+  // 注意：不调用 stopPropagation，让事件继续冒泡以便父组件处理文件打开
+  const handleDragOverCapture = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+  }, []);
+
+  const handleDropCapture = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+  }, []);
+
   return (
     <div
       className="h-full overflow-y-auto overflow-x-hidden"
       style={editorStyle}
       onFocus={onFocus}
       onClick={onFocus}
+      onDragOverCapture={handleDragOverCapture}
+      onDropCapture={handleDropCapture}
     >
       {loading ? (
         <div className="flex h-32 items-center justify-center">

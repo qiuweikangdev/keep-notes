@@ -200,24 +200,18 @@ export const useEditorStore = create<EditorState>()(
 
             const newTabs = group.tabs.filter((t) => t.id !== tabId);
 
-            // 如果没有标签页了，移除整个面板组
+            // 如果没有标签页了，清空标签页数组，让编辑器显示空白
             if (newTabs.length === 0) {
-              const newGroups = state.panelGroups.filter(
-                (g) => g.id !== groupId,
-              );
-              if (newGroups.length === 0) {
-                const defaultGroup = createDefaultPanelGroup();
-                return {
-                  panelGroups: [defaultGroup],
-                  activeGroupId: defaultGroup.id,
-                };
-              }
               return {
-                panelGroups: newGroups,
-                activeGroupId:
-                  state.activeGroupId === groupId
-                    ? newGroups[0].id
-                    : state.activeGroupId,
+                panelGroups: state.panelGroups.map((g) =>
+                  g.id === groupId
+                    ? {
+                        ...g,
+                        tabs: [],
+                        activeTabId: "",
+                      }
+                    : g,
+                ),
               };
             }
 

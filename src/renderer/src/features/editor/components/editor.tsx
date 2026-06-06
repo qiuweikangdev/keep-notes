@@ -54,23 +54,42 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
         }
       }
 
-      // 打开文件
-      await openFile(filePath);
+      // 打开文件，指定目标面板组
+      await openFile(filePath, groupId);
     },
     [groupId, openFile],
   );
 
   if (!group) return null;
 
+  // 没有标签页时显示空白状态
+  if (!group.activeTabId || group.tabs.length === 0) {
+    return (
+      <div className="flex flex-col h-full overflow-hidden relative">
+        <EditorTabBar groupId={groupId} />
+        <div
+          className="flex-1 flex items-center justify-center"
+          style={{ backgroundColor: "var(--bg-primary)" }}
+        >
+          <div className="text-center" style={{ color: "var(--text-muted)" }}>
+            <p className="text-sm">没有打开的文件</p>
+            <p className="text-xs mt-1">从文件树拖拽文件到此处打开</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div
-      className="flex flex-col h-full overflow-hidden relative"
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
+    <div className="flex flex-col h-full overflow-hidden relative">
       <EditorTabBar groupId={groupId} />
-      <div className="flex-1 overflow-hidden relative">
+      <div
+        className="flex-1 overflow-hidden relative"
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {/* 渲染编辑器 */}
         <BlockNoteEditor groupId={groupId} tabId={group.activeTabId} />
         {/* 拖拽高亮边框 */}
         {isDragOver && (
