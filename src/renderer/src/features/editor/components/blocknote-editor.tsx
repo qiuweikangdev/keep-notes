@@ -33,6 +33,19 @@ function normalizeMarkdownListMarkers(markdown: string): string {
     .join("\n");
 }
 
+/**
+ * 规范化Markdown内容用于比较
+ * 去除尾部空格、规范化换行符，但保留缩进空格
+ * 用于判断内容是否真正发生了变化（忽略格式差异）
+ */
+function normalizeForComparison(markdown: string): string {
+  return markdown
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .join("\n")
+    .replace(/\n+$/, "\n");
+}
+
 interface BlockNoteEditorProps {
   content: string;
   documentKey: string;
@@ -53,6 +66,8 @@ function BlockNoteEditorInner({
   const [loading, setLoading] = useState(true);
   const lastSavedContentRef = useRef<string>("");
   const isLoadingContentRef = useRef(false);
+  // 记录加载时的原始内容，用于比较避免不必要的格式变更
+  const originalContentRef = useRef<string>("");
 
   // 创建编辑器实例
   const editor = useCreateBlockNote({
@@ -72,6 +87,18 @@ function BlockNoteEditorInner({
 
       // 如果内容没有变化，不触发onChange
       if (markdown === lastSavedContentRef.current) return;
+
+      // 检查是否只是格式差异（如尾部空格），如果是则保留原始内容
+      // 避免往返转换导致不必要的文件差异
+      const normalizedNew = normalizeForComparison(markdown);
+      const normalizedOriginal = normalizeForComparison(
+        originalContentRef.current,
+      );
+      if (normalizedNew === normalizedOriginal && originalContentRef.current) {
+        // 内容实质未变化，只是格式差异，保留原始内容
+        lastSavedContentRef.current = originalContentRef.current;
+        return;
+      }
 
       // 更新字数统计
       setWordCount(markdown.length);
@@ -99,6 +126,9 @@ function BlockNoteEditorInner({
       try {
         setLoading(true);
         isLoadingContentRef.current = true;
+
+        // 记录原始内容用于后续比较
+        originalContentRef.current = content;
 
         // 无论内容是否为空，都需要更新编辑器
         if (content) {
