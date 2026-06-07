@@ -100,11 +100,16 @@ function BlockNoteEditorInner({
         setLoading(true);
         isLoadingContentRef.current = true;
 
+        // 无论内容是否为空，都需要更新编辑器
         if (content) {
           // 将Markdown内容解析为BlockNote块
           const blocks = await editor.tryParseMarkdownToBlocks(content);
           editor.replaceBlocks(editor.document, blocks);
           lastSavedContentRef.current = content;
+        } else {
+          // 内容为空时，清空编辑器
+          editor.replaceBlocks(editor.document, []);
+          lastSavedContentRef.current = "";
         }
       } catch (error) {
         console.error("加载Markdown内容失败:", error);
