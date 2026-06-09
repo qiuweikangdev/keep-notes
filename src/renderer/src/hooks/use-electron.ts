@@ -81,8 +81,9 @@ export function useElectron() {
         const activeTab = targetGroup.tabs.find((tab) => tab.id === tabId);
 
         if (
-          activeTab?.filePath === filePath &&
-          activeTab.loadStatus === "ready"
+          (activeTab?.filePath === filePath &&
+            activeTab.loadStatus === "ready") ||
+          activeTab?.pendingFilePath === filePath
         ) {
           state.setActiveTab(targetGroup.id, tabId);
           useTreeStore.getState().setSelectedKey(filePath);
@@ -110,9 +111,20 @@ export function useElectron() {
               .completeTabLoad(targetGroup!.id, tabId, filePath, content);
           },
           onError: (error) => {
-            useEditorStore
+            const editorState = useEditorStore.getState();
+            editorState.failTabLoad(
+              targetGroup!.id,
+              tabId,
+              filePath,
+              error.message,
+            );
+            const retainedTab = useEditorStore
               .getState()
-              .failTabLoad(targetGroup!.id, tabId, filePath, error.message);
+              .panelGroups.find((group) => group.id === targetGroup!.id)
+              ?.tabs.find((tab) => tab.id === tabId);
+            useTreeStore
+              .getState()
+              .setSelectedKey(retainedTab?.filePath ?? null);
           },
         });
       } else {

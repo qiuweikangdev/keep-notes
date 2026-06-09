@@ -199,7 +199,8 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
       {/* 标签页列表 */}
       <div className="flex flex-1 overflow-x-auto scrollbar-none h-full">
         {group.tabs.map((tab) => {
-          const fileName = tab.filePath?.split(/[\\/]/).pop() || "未命名";
+          const displayPath = tab.pendingFilePath ?? tab.filePath;
+          const fileName = displayPath?.split(/[\\/]/).pop() || "未命名";
           const isActive = group.activeTabId === tab.id;
 
           return (

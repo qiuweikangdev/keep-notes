@@ -50,6 +50,7 @@ function createState(content: string): EditorState {
           {
             id: "tab-1",
             filePath: "a.md",
+            pendingFilePath: null,
             content,
             wordCount: content.length,
             isDirty: false,
@@ -64,6 +65,7 @@ function createState(content: string): EditorState {
           {
             id: "tab-2",
             filePath: "b.md",
+            pendingFilePath: null,
             content: "",
             wordCount: 0,
             isDirty: false,

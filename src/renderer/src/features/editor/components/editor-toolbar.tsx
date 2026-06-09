@@ -149,7 +149,7 @@ export function EditorToolbar({ groupId }: EditorToolbarProps) {
           </ModeButton>
         </div>
       ) : null}
-      {isGitRepo && tab.filePath ? (
+      {isGitRepo && tab.filePath && !tab.pendingFilePath ? (
         <div className="ml-1 flex items-center">
           <ToolbarIconButton
             label="比较当前文件差异"

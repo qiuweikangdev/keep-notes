@@ -5,6 +5,11 @@ import {
   normalizePersistedAppearance,
   normalizePersistedPanelGroups,
 } from "@/features/editor/lib/editor-state-migration";
+import {
+  beginFileTransition,
+  completeFileTransition,
+  failFileTransition,
+} from "@/features/editor/lib/editor-file-transition";
 
 export interface EditorAppearance {
   fontSize: number;
@@ -21,6 +26,7 @@ export type EditorSaveStatus = "clean" | "dirty" | "saving" | "error";
 export interface EditorTab {
   id: string;
   filePath: string | null;
+  pendingFilePath: string | null;
   content: string;
   wordCount: number;
   isDirty: boolean;
@@ -133,6 +139,7 @@ const generateId = () => `id-${++idCounter}`;
 const createDefaultTab = (filePath?: string | null): EditorTab => ({
   id: generateId(),
   filePath: filePath ?? null,
+  pendingFilePath: null,
   content: "",
   wordCount: 0,
   isDirty: false,
@@ -394,7 +401,12 @@ export const useEditorStore = create<EditorState>()(
                     ...g,
                     tabs: g.tabs.map((t) =>
                       t.id === tabId
-                        ? { ...t, filePath: path, isDirty: false }
+                        ? {
+                            ...t,
+                            filePath: path,
+                            pendingFilePath: null,
+                            isDirty: false,
+                          }
                         : t,
                     ),
                   }
@@ -458,17 +470,7 @@ export const useEditorStore = create<EditorState>()(
                 ? {
                     ...group,
                     tabs: group.tabs.map((tab) =>
-                      tab.id === tabId
-                        ? {
-                            ...tab,
-                            filePath: path,
-                            loadStatus: "loading",
-                            saveStatus: "clean",
-                            isDirty: false,
-                            errorMessage: null,
-                            parseErrorMessage: null,
-                          }
-                        : tab,
+                      tab.id === tabId ? beginFileTransition(tab, path) : tab,
                     ),
                   }
                 : group,
@@ -483,19 +485,9 @@ export const useEditorStore = create<EditorState>()(
                 ? {
                     ...group,
                     tabs: group.tabs.map((tab) => {
-                      // 双重校验目标路径，防止过期异步结果绕过控制器覆盖新文件。
-                      if (tab.id !== tabId || tab.filePath !== path) return tab;
-                      return {
-                        ...tab,
-                        content,
-                        wordCount: content.length,
-                        loadStatus: "ready",
-                        saveStatus: "clean",
-                        isDirty: false,
-                        errorMessage: null,
-                        parseErrorMessage: null,
-                        reloadKey: tab.reloadKey + 1,
-                      };
+                      if (tab.id !== tabId) return tab;
+                      // 目标路径与当前或待切换路径匹配时才原子替换文档。
+                      return completeFileTransition(tab, path, content);
                     }),
                   }
                 : group,
@@ -510,12 +502,8 @@ export const useEditorStore = create<EditorState>()(
                 ? {
                     ...group,
                     tabs: group.tabs.map((tab) =>
-                      tab.id === tabId && tab.filePath === path
-                        ? {
-                            ...tab,
-                            loadStatus: "error",
-                            errorMessage: message,
-                          }
+                      tab.id === tabId
+                        ? failFileTransition(tab, path, message)
                         : tab,
                     ),
                   }
@@ -630,6 +618,7 @@ export const useEditorStore = create<EditorState>()(
                             ...t,
                             content: "",
                             filePath: null,
+                            pendingFilePath: null,
                             wordCount: 0,
                             isDirty: false,
                             mode: "rich",

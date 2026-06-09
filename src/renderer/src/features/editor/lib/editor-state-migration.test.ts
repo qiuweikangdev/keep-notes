@@ -26,6 +26,7 @@ describe("normalizePersistedPanelGroups", () => {
     ]);
 
     expect(groups[0].tabs[0]).toMatchObject({
+      pendingFilePath: null,
       mode: "rich",
       loadStatus: "ready",
       saveStatus: "dirty",

@@ -55,9 +55,6 @@ export function EditorWorkspace({
   }
 
   const fileName = tab.filePath?.split(/[\\/]/).pop() || "未命名";
-  if (tab.loadStatus === "loading") {
-    return <EditorStateView status="loading" fileName={fileName} />;
-  }
   if (tab.loadStatus === "error") {
     return (
       <EditorStateView
