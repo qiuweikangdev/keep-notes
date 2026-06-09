@@ -163,13 +163,24 @@ function BlockNoteEditorInner({
 
   useEffect(
     () =>
-      registerEditorChangeFlusher(groupId, tabId, async () => {
-        if (serializationTimerRef.current) {
-          clearTimeout(serializationTimerRef.current);
-          serializationTimerRef.current = null;
-        }
-        await serializeChange();
-      }),
+      registerEditorChangeFlusher(
+        groupId,
+        tabId,
+        async () => {
+          if (serializationTimerRef.current) {
+            clearTimeout(serializationTimerRef.current);
+            serializationTimerRef.current = null;
+          }
+          await serializeChange();
+        },
+        () => {
+          // 放弃文件更改时取消尚未执行的序列化，避免旧内容稍后再次进入保存队列。
+          if (serializationTimerRef.current) {
+            clearTimeout(serializationTimerRef.current);
+            serializationTimerRef.current = null;
+          }
+        },
+      ),
     [groupId, serializeChange, tabId],
   );
 

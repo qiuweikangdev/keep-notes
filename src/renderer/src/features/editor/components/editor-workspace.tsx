@@ -1,16 +1,14 @@
 import { useCallback, useEffect } from "react";
 
 import { useElectron } from "@/hooks/use-electron";
-import { useEditorStore, type EditorMode } from "@/store/editor.store";
+import { useEditorStore } from "@/store/editor.store";
 import {
   editorCache,
   editorSaveCoordinator,
-  flushEditorChange,
   subscribeToEditorFile,
 } from "../lib/editor-runtime";
 import { BlockNoteEditor } from "./blocknote-editor";
 import { EditorStateView } from "./editor-state-view";
-import { EditorToolbar } from "./editor-toolbar";
 import { MarkdownSourceEditor } from "./markdown-source-editor";
 
 export function EditorWorkspace({
@@ -25,8 +23,6 @@ export function EditorWorkspace({
       .find((group) => group.id === groupId)
       ?.tabs.find((item) => item.id === tabId),
   );
-  const setTabMode = useEditorStore((state) => state.setTabMode);
-  const setTabParseError = useEditorStore((state) => state.setTabParseError);
   const setTabContent = useEditorStore((state) => state.setTabContent);
   const setTabScrollTop = useEditorStore((state) => state.setTabScrollTop);
   const syncFileContent = useEditorStore((state) => state.syncFileContent);
@@ -54,22 +50,6 @@ export function EditorWorkspace({
     [groupId, setTabContent, syncFileContent, tab, tabId],
   );
 
-  const handleModeChange = useCallback(
-    (mode: EditorMode) => {
-      const changeMode = async () => {
-        if (tab?.mode === "rich" && mode === "source") {
-          await flushEditorChange(groupId, tabId);
-        }
-        if (mode === "rich") {
-          setTabParseError(groupId, tabId, null);
-        }
-        setTabMode(groupId, tabId, mode);
-      };
-      void changeMode();
-    },
-    [groupId, setTabMode, setTabParseError, tab?.mode, tabId],
-  );
-
   if (!tab) {
     return <EditorStateView status="empty" />;
   }
@@ -91,15 +71,6 @@ export function EditorWorkspace({
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[var(--bg-primary)]">
-      <EditorToolbar
-        fileName={fileName}
-        mode={tab.mode}
-        saveStatus={tab.saveStatus}
-        onModeChange={handleModeChange}
-        onRetrySave={() => {
-          if (tab.filePath) void editorSaveCoordinator.flush(tab.filePath);
-        }}
-      />
       <div className="min-h-0 flex-1 overflow-hidden">
         {tab.mode === "source" ? (
           <div className="flex h-full min-h-0 flex-col">

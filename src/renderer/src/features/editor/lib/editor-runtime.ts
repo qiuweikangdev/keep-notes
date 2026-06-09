@@ -47,6 +47,7 @@ export const editorSaveCoordinator = createEditorSaveCoordinator({
 
 type EditorChangeFlusher = () => Promise<void>;
 const editorChangeFlushers = new Map<string, EditorChangeFlusher>();
+const editorChangeCancellers = new Map<string, () => void>();
 const fileWatchRegistry = new FileWatchRegistry({
   watch: (path) => {
     void window.electronAPI.watchFile(path);
@@ -67,12 +68,19 @@ export function registerEditorChangeFlusher(
   groupId: string,
   tabId: string,
   flush: EditorChangeFlusher,
+  cancel?: () => void,
 ): () => void {
   const key = editorInstanceKey(groupId, tabId);
   editorChangeFlushers.set(key, flush);
+  if (cancel) {
+    editorChangeCancellers.set(key, cancel);
+  }
   return () => {
     if (editorChangeFlushers.get(key) === flush) {
       editorChangeFlushers.delete(key);
+    }
+    if (cancel && editorChangeCancellers.get(key) === cancel) {
+      editorChangeCancellers.delete(key);
     }
   };
 }
@@ -82,6 +90,10 @@ export async function flushEditorChange(
   tabId: string,
 ): Promise<void> {
   await editorChangeFlushers.get(editorInstanceKey(groupId, tabId))?.();
+}
+
+export function cancelEditorChange(groupId: string, tabId: string): void {
+  editorChangeCancellers.get(editorInstanceKey(groupId, tabId))?.();
 }
 
 export function subscribeToEditorFile(

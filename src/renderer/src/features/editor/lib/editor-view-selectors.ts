@@ -21,7 +21,7 @@ export function selectTabBarSignature(groupId: string) {
     const tabs = group.tabs
       .map(
         (tab) =>
-          `${tab.id}\u001f${tab.filePath ?? ""}\u001f${tab.isDirty}\u001f${tab.saveStatus}`,
+          `${tab.id}\u001f${tab.filePath ?? ""}\u001f${tab.isDirty}\u001f${tab.saveStatus}\u001f${tab.mode}`,
       )
       .join("\u001e");
     return `${group.activeTabId}\u001d${tabs}`;

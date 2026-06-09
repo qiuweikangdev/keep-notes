@@ -14,6 +14,7 @@ import {
   flushEditorChange,
 } from "../lib/editor-runtime";
 import { selectTabBarSignature } from "../lib/editor-view-selectors";
+import { EditorToolbar } from "./editor-toolbar";
 
 // 支持的文件扩展名
 const SUPPORTED_EXTENSIONS = [".md", ".txt"];
@@ -261,9 +262,10 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
       {/* 操作按钮区域 - 仅在有标签页时显示 */}
       {group.tabs.length > 0 && (
         <div
-          className="flex items-center h-full flex-shrink-0"
+          className="flex h-full flex-shrink-0 items-center gap-1 px-1"
           style={{ borderLeft: "1px solid var(--border-color)" }}
         >
+          <EditorToolbar groupId={groupId} />
           {/* 下拉菜单按钮 - VSCode 风格的 "+" 和下拉箭头 */}
           <div className="relative h-full" ref={menuRef}>
             <button
