@@ -9,6 +9,11 @@ import {
   Plus,
 } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
+import {
+  editorSaveCoordinator,
+  flushEditorChange,
+} from "../lib/editor-runtime";
+import { selectTabBarSignature } from "../lib/editor-view-selectors";
 
 // 支持的文件扩展名
 const SUPPORTED_EXTENSIONS = [".md", ".txt"];
@@ -23,16 +28,16 @@ interface EditorTabBarProps {
 }
 
 export function EditorTabBar({ groupId }: EditorTabBarProps) {
-  const {
-    panelGroups = [],
-    setActiveTab,
-    removeTab,
-    addTab,
-    addPanelGroup,
-  } = useEditorStore();
+  useEditorStore(selectTabBarSignature(groupId));
+  const setActiveTab = useEditorStore((state) => state.setActiveTab);
+  const removeTab = useEditorStore((state) => state.removeTab);
+  const addTab = useEditorStore((state) => state.addTab);
+  const addPanelGroup = useEditorStore((state) => state.addPanelGroup);
   const { openFile } = useElectron();
 
-  const group = panelGroups.find((g) => g.id === groupId);
+  const group = useEditorStore
+    .getState()
+    .panelGroups.find((item) => item.id === groupId);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -72,9 +77,25 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
     setActiveTab(groupId, tabId);
   };
 
+  const closeTab = useCallback(
+    async (tabId: string) => {
+      const state = useEditorStore.getState();
+      const tab = state.panelGroups
+        .find((item) => item.id === groupId)
+        ?.tabs.find((item) => item.id === tabId);
+      // 关闭标签前按路径冲刷，避免最后一段输入仍停留在自动保存等待期。
+      if (tab?.filePath) {
+        await flushEditorChange(groupId, tabId);
+        await editorSaveCoordinator.flush(tab.filePath);
+      }
+      removeTab(groupId, tabId);
+    },
+    [groupId, removeTab],
+  );
+
   const handleCloseTab = (e: React.MouseEvent, tabId: string) => {
     e.stopPropagation();
-    removeTab(groupId, tabId);
+    void closeTab(tabId);
   };
 
   const handleNewTab = () => {
@@ -101,7 +122,7 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
 
   const handleCloseTabFromMenu = () => {
     if (contextMenu) {
-      removeTab(groupId, contextMenu.tabId);
+      void closeTab(contextMenu.tabId);
       setContextMenu(null);
     }
   };
@@ -109,13 +130,13 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
   const handleCloseOtherTabs = () => {
     if (contextMenu) {
       const tabsToClose = group.tabs.filter((t) => t.id !== contextMenu.tabId);
-      tabsToClose.forEach((t) => removeTab(groupId, t.id));
+      tabsToClose.forEach((tab) => void closeTab(tab.id));
       setContextMenu(null);
     }
   };
 
   const handleCloseAllTabs = () => {
-    group.tabs.forEach((t) => removeTab(groupId, t.id));
+    group.tabs.forEach((tab) => void closeTab(tab.id));
     setContextMenu(null);
   };
 

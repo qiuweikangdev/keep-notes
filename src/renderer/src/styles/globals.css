@@ -15,6 +15,28 @@
   --accent-color: #0366d6;
   --button-hover-bg: #eef2f7;
   --button-active-bg: #e8f0fe;
+  --danger-color: #dc2626;
+}
+
+.editor-rich-scroll {
+  scroll-behavior: smooth;
+  scrollbar-gutter: stable;
+}
+
+textarea[aria-label="Markdown 源码"] {
+  tab-size: 2;
+  caret-color: var(--accent-color);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editor-rich-scroll {
+    scroll-behavior: auto;
+  }
+
+  .animate-spin,
+  .animate-fade-in {
+    animation: none !important;
+  }
 }
 
 * {

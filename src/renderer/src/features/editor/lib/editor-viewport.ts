@@ -1,0 +1,30 @@
+interface EditorScrollHost {
+  scrollTop: number;
+}
+
+type FrameScheduler = (callback: () => void) => void;
+
+export function readEditorScrollTop(element: EditorScrollHost | null): number {
+  if (!element || !Number.isFinite(element.scrollTop)) return 0;
+  return Math.max(0, element.scrollTop);
+}
+
+export function restoreEditorScrollTop(
+  element: EditorScrollHost | null,
+  scrollTop: number,
+  schedule: FrameScheduler = scheduleNextFrame,
+): void {
+  if (!element) return;
+  const nextScrollTop = Number.isFinite(scrollTop) ? Math.max(0, scrollTop) : 0;
+  schedule(() => {
+    element.scrollTop = nextScrollTop;
+  });
+}
+
+function scheduleNextFrame(callback: () => void): void {
+  if (typeof requestAnimationFrame === "function") {
+    requestAnimationFrame(callback);
+    return;
+  }
+  setTimeout(callback, 0);
+}

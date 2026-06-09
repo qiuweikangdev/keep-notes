@@ -27,4 +27,15 @@ describe("EditorCache", () => {
     expect(cache.getContent("b.md")).toBeNull();
     expect(cache.getContent("c.md")).toBe("c");
   });
+
+  it("updates scroll position without affecting another file", () => {
+    const cache = new EditorCache<string>({ maxEntries: 2 });
+    cache.setBlocks("a.md", "a", "blocks-a", 12);
+    cache.setBlocks("b.md", "b", "blocks-b", 24);
+
+    cache.setScrollTop("a.md", 96);
+
+    expect(cache.getBlocks("a.md", "a")?.scrollTop).toBe(96);
+    expect(cache.getBlocks("b.md", "b")?.scrollTop).toBe(24);
+  });
 });

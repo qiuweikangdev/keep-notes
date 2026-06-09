@@ -84,6 +84,7 @@ export class EditorCache<TBlocks> {
       return null;
     }
 
+    // Map 保留插入顺序，重新插入即可把本次读取提升为最近使用项。
     this.entries.delete(path);
     this.entries.set(path, entry);
     return entry;
@@ -93,6 +94,7 @@ export class EditorCache<TBlocks> {
     this.entries.delete(path);
     this.entries.set(path, entry);
 
+    // 只淘汰最久未使用的完整文件条目，避免内容与解析块分属不同生命周期。
     while (this.entries.size > this.options.maxEntries) {
       const oldestPath = this.entries.keys().next().value;
       if (oldestPath === undefined) {

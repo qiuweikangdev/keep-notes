@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ensureEditableBlocks,
   markdownEquals,
   normalizeMarkdown,
   normalizeMarkdownListMarkers,
@@ -28,5 +29,17 @@ describe("normalizeMarkdown", () => {
 describe("markdownEquals", () => {
   it("compares semantically normalized Markdown", () => {
     expect(markdownEquals("* item\r\n", "- item\n")).toBe(true);
+  });
+});
+
+describe("ensureEditableBlocks", () => {
+  it("creates one editable block for an empty document", () => {
+    expect(ensureEditableBlocks([], () => "paragraph")).toEqual(["paragraph"]);
+  });
+
+  it("preserves parsed blocks when content exists", () => {
+    expect(ensureEditableBlocks(["heading"], () => "paragraph")).toEqual([
+      "heading",
+    ]);
   });
 });

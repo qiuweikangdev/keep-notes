@@ -1,23 +1,34 @@
-import { useCallback, useRef } from "react";
+import { useCallback } from "react";
 import { CodeResult } from "@/types";
-import type {
-  TreeNode,
-  GitConfig,
-  GitStatus,
-  GitBranch,
-  GitCommitOptions,
-  GitDetectResult,
-} from "@/types";
+import type { TreeNode, GitConfig, GitCommitOptions } from "@/types";
 import { useTreeStore } from "@/store/tree.store";
 import { useEditorStore } from "@/store/editor.store";
 import { useUserStore } from "@/store/user.store";
+import {
+  editorSaveCoordinator,
+  fileOpenController,
+  flushEditorChange,
+} from "@/features/editor/lib/editor-runtime";
+import {
+  selectAddRecentFile,
+  selectAddRecentFolder,
+  selectIncrementReloadKey,
+  selectSetContent,
+  selectSetFilePath,
+  selectSetTreeData,
+  selectSetTreeRoot,
+} from "./electron-store-selectors";
 
 export function useElectron() {
-  const { setTreeData, setTreeRoot, addRecentFolder, addRecentFile } =
-    useTreeStore();
-  const { setContent, setFilePath, incrementReloadKey } = useEditorStore();
-  const { githubInfo } = useUserStore();
-  const openingFileRef = useRef<string | null>(null);
+  // 公共 hook 只订阅稳定 action，避免调用方随完整 store 的每次变化重渲染。
+  const setTreeData = useTreeStore(selectSetTreeData);
+  const setTreeRoot = useTreeStore(selectSetTreeRoot);
+  const addRecentFolder = useTreeStore(selectAddRecentFolder);
+  const addRecentFile = useTreeStore(selectAddRecentFile);
+  const setContent = useEditorStore(selectSetContent);
+  const setFilePath = useEditorStore(selectSetFilePath);
+  const incrementReloadKey = useEditorStore(selectIncrementReloadKey);
+  const githubInfo = useUserStore((state) => state.githubInfo);
 
   const openFolder = useCallback(async () => {
     const result = await window.electronAPI.openDialog();
@@ -52,54 +63,65 @@ export function useElectron() {
 
   const openFile = useCallback(
     async (filePath: string, targetGroupId?: string) => {
-      openingFileRef.current = filePath;
-
-      const state = useEditorStore.getState();
-      // 支持指定目标面板组，否则使用当前活动面板组
+      let state = useEditorStore.getState();
       let targetGroup = targetGroupId
-        ? state.panelGroups.find((g) => g.id === targetGroupId)
-        : state.panelGroups.find((g) => g.id === state.activeGroupId);
+        ? state.panelGroups.find((group) => group.id === targetGroupId)
+        : state.panelGroups.find((group) => group.id === state.activeGroupId);
 
-      // 如果目标面板组没有标签页，先创建一个新标签页
       if (targetGroup && targetGroup.tabs.length === 0) {
-        const newTabId = state.addTab(targetGroup.id);
-        // 重新获取更新后的面板组
-        const updatedState = useEditorStore.getState();
-        targetGroup = updatedState.panelGroups.find(
-          (g) => g.id === targetGroup!.id,
+        state.addTab(targetGroup.id);
+        state = useEditorStore.getState();
+        targetGroup = state.panelGroups.find(
+          (group) => group.id === targetGroup!.id,
         );
       }
 
       if (targetGroup) {
-        const activeTab = targetGroup.tabs.find(
-          (t) => t.id === targetGroup!.activeTabId,
-        );
+        const tabId = targetGroup.activeTabId;
+        const activeTab = targetGroup.tabs.find((tab) => tab.id === tabId);
 
-        // 如果当前聚焦标签页已经是目标文件，不更新
-        if (activeTab && activeTab.filePath === filePath) {
-          const fileName = filePath.split(/[\\/]/).pop() || filePath;
-          addRecentFile({ title: fileName, path: filePath });
+        if (
+          activeTab?.filePath === filePath &&
+          activeTab.loadStatus === "ready"
+        ) {
+          state.setActiveTab(targetGroup.id, tabId);
+          useTreeStore.getState().setSelectedKey(filePath);
           return;
         }
 
-        // 在目标面板的聚焦标签页中打开文件
-        const content = await window.electronAPI.readFile(filePath);
-        if (openingFileRef.current !== filePath) return;
+        // 复用标签前先冲刷旧文件，避免尚未到期的自动保存丢失。
+        if (activeTab?.filePath) {
+          await flushEditorChange(targetGroup.id, tabId);
+          await editorSaveCoordinator.flush(activeTab.filePath);
+        }
 
-        state.setTabContent(targetGroup.id, targetGroup.activeTabId, content);
-        state.setTabFilePath(targetGroup.id, targetGroup.activeTabId, filePath);
-        state.incrementTabReloadKey(targetGroup.id, targetGroup.activeTabId);
+        state = useEditorStore.getState();
+        state.setActiveTab(targetGroup.id, tabId);
+        state.beginTabLoad(targetGroup.id, tabId, filePath);
+        useTreeStore.getState().setSelectedKey(filePath);
+
+        await fileOpenController.open({
+          groupId: targetGroup.id,
+          tabId,
+          path: filePath,
+          onSuccess: (content) => {
+            useEditorStore
+              .getState()
+              .completeTabLoad(targetGroup!.id, tabId, filePath, content);
+          },
+          onError: (error) => {
+            useEditorStore
+              .getState()
+              .failTabLoad(targetGroup!.id, tabId, filePath, error.message);
+          },
+        });
       } else {
-        // 兼容模式：设置全局文件
         const content = await window.electronAPI.readFile(filePath);
-        if (openingFileRef.current !== filePath) return;
-
         setContent(content);
         setFilePath(filePath);
         incrementReloadKey();
       }
 
-      // 记录到最近使用的文件
       const fileName = filePath.split(/[\\/]/).pop() || filePath;
       addRecentFile({ title: fileName, path: filePath });
     },

@@ -16,7 +16,7 @@ interface TreeState {
   treeData: TreeNode[];
   treeRoot: TreeRoot | null;
   selectedKey: string | null;
-  expandedKeys: string[];
+  expandedKeys: Set<string>;
   dirSettings: DirSettings;
   recentFolders: RecentFolder[];
   recentFiles: RecentFile[];
@@ -25,7 +25,7 @@ interface TreeState {
   setTreeRoot: (root: TreeRoot) => void;
   setSelectedKey: (key: string | null) => void;
   toggleExpandedKey: (key: string) => void;
-  setExpandedKeys: (keys: string[]) => void;
+  setExpandedKeys: (keys: Iterable<string>) => void;
   updateNodeContent: (key: string, content: string) => void;
   setDirSettings: (settings: Partial<DirSettings>) => void;
   addRecentFolder: (folder: RecentFolder) => void;
@@ -41,7 +41,7 @@ export const useTreeStore = create<TreeState>()(
       treeData: [],
       treeRoot: null,
       selectedKey: null,
-      expandedKeys: [],
+      expandedKeys: new Set(),
       dirSettings: {
         dirColor: "themeColor" as DirColorEnum,
         showIcon: false,
@@ -53,12 +53,14 @@ export const useTreeStore = create<TreeState>()(
       setTreeRoot: (root) => set({ treeRoot: root }),
       setSelectedKey: (key) => set({ selectedKey: key }),
       toggleExpandedKey: (key) =>
-        set((state) => ({
-          expandedKeys: state.expandedKeys.includes(key)
-            ? state.expandedKeys.filter((k) => k !== key)
-            : [...state.expandedKeys, key],
-        })),
-      setExpandedKeys: (keys) => set({ expandedKeys: keys }),
+        set((state) => {
+          // Set 查询为常数时间，每次克隆确保 Zustand 能识别引用变化。
+          const expandedKeys = new Set(state.expandedKeys);
+          if (expandedKeys.has(key)) expandedKeys.delete(key);
+          else expandedKeys.add(key);
+          return { expandedKeys };
+        }),
+      setExpandedKeys: (keys) => set({ expandedKeys: new Set(keys) }),
       updateNodeContent: (key, content) =>
         set((state) => {
           const updateNode = (nodes: TreeNode[]): TreeNode[] =>
@@ -107,7 +109,7 @@ export const useTreeStore = create<TreeState>()(
           treeData: [],
           treeRoot: null,
           selectedKey: null,
-          expandedKeys: [],
+          expandedKeys: new Set(),
         }),
     }),
     {

@@ -70,15 +70,11 @@ export const TreeNode = memo(function TreeNode({
   creatingInfo,
   onCreateInFolder,
 }: TreeNodeProps) {
-  const {
-    selectedKey,
-    setSelectedKey,
-    expandedKeys,
-    toggleExpandedKey,
-    setTreeData,
-    treeData,
-    treeRoot,
-  } = useTreeStore();
+  const isSelected = useTreeStore((state) => state.selectedKey === node.key);
+  const isExpanded = useTreeStore((state) => state.expandedKeys.has(node.key));
+  const setSelectedKey = useTreeStore((state) => state.setSelectedKey);
+  const toggleExpandedKey = useTreeStore((state) => state.toggleExpandedKey);
+  const setTreeData = useTreeStore((state) => state.setTreeData);
   const {
     openFile,
     createFile,
@@ -90,7 +86,6 @@ export const TreeNode = memo(function TreeNode({
     getFileHeadContent,
   } = useElectron();
   const { openDiff } = useDiffStore();
-  const { panelGroups, activeGroupId } = useEditorStore();
 
   const [isHovered, setIsHovered] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
@@ -114,8 +109,6 @@ export const TreeNode = memo(function TreeNode({
   const createInputRef = useRef<HTMLInputElement>(null);
   const rowRef = useRef<HTMLDivElement>(null);
 
-  const isExpanded = expandedKeys.includes(node.key);
-  const isSelected = selectedKey === node.key;
   const isFolder = Array.isArray(node.children);
   const hasChildren = Boolean(node.children?.length);
   const isMarkdown = node.title.endsWith(".md");
@@ -197,6 +190,7 @@ export const TreeNode = memo(function TreeNode({
     }
 
     const fn = creatingInfo.type === "file" ? createFile : createFolder;
+    const treeData = useTreeStore.getState().treeData;
     const result = await fn(node.key, title, treeData);
     if (result.code === CodeResult.Success && result.data) {
       setTreeData(result.data.treeData);
@@ -219,7 +213,6 @@ export const TreeNode = memo(function TreeNode({
     createFile,
     createFolder,
     node.key,
-    treeData,
     setTreeData,
     setSelectedKey,
     isExpanded,
@@ -256,12 +249,13 @@ export const TreeNode = memo(function TreeNode({
       return;
     }
 
+    const treeData = useTreeStore.getState().treeData;
     const result = await renameItem(node.key, title, treeData);
     if (result.code === CodeResult.Success && result.data) {
       setTreeData(result.data.treeData);
     }
     setIsRenaming(false);
-  }, [renameValue, node.title, node.key, renameItem, treeData, setTreeData]);
+  }, [renameValue, node.title, node.key, renameItem, setTreeData]);
 
   const handleRenameKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
@@ -287,11 +281,12 @@ export const TreeNode = memo(function TreeNode({
     if (!confirmState.data) return;
 
     const { key, title } = confirmState.data;
+    const treeData = useTreeStore.getState().treeData;
     const result = await deleteItem(key, title, treeData);
     if (result.code === CodeResult.Success && result.data) {
       setTreeData(result.data.treeData);
     }
-  }, [confirmState.data, deleteItem, treeData, setTreeData]);
+  }, [confirmState.data, deleteItem, setTreeData]);
 
   const handleDragStart = useCallback(
     (e: React.DragEvent) => {
@@ -386,6 +381,7 @@ export const TreeNode = memo(function TreeNode({
     if (!confirmState.data?.sourcePath || !confirmState.data?.targetPath)
       return;
 
+    const treeData = useTreeStore.getState().treeData;
     const result = await moveItem(
       confirmState.data.sourcePath,
       confirmState.data.targetPath,
@@ -400,7 +396,6 @@ export const TreeNode = memo(function TreeNode({
   }, [
     confirmState.data,
     moveItem,
-    treeData,
     setTreeData,
     isExpanded,
     toggleExpandedKey,
@@ -412,7 +407,10 @@ export const TreeNode = memo(function TreeNode({
     try {
       // 获取编辑器中当前文件的内容
       let editorContent = await window.electronAPI.readFile(node.key);
-      const activeGroup = panelGroups.find((g) => g.id === activeGroupId);
+      const editorState = useEditorStore.getState();
+      const activeGroup = editorState.panelGroups.find(
+        (group) => group.id === editorState.activeGroupId,
+      );
       if (activeGroup) {
         const activeTab = activeGroup.tabs.find(
           (t) => t.id === activeGroup.activeTabId,
@@ -423,6 +421,7 @@ export const TreeNode = memo(function TreeNode({
       }
 
       let baseContent = "";
+      const treeRoot = useTreeStore.getState().treeRoot;
       if (treeRoot?.key) {
         const relativePath = toGitRelativePath(treeRoot.key, node.key);
         const headResult = await getFileHeadContent(treeRoot.key, relativePath);
@@ -438,14 +437,7 @@ export const TreeNode = memo(function TreeNode({
     } catch (error) {
       console.error("Failed to read file for diff:", error);
     }
-  }, [
-    node.key,
-    panelGroups,
-    activeGroupId,
-    treeRoot?.key,
-    getFileHeadContent,
-    openDiff,
-  ]);
+  }, [node.key, getFileHeadContent, openDiff]);
 
   const icon = isFolder ? (
     isExpanded ? (

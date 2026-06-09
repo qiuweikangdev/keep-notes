@@ -1,9 +1,13 @@
 import { useState, useCallback } from "react";
 import { EditorTabBar } from "./editor-tab-bar";
-import { BlockNoteEditor } from "./blocknote-editor";
+import { EditorWorkspace } from "./editor-workspace";
 import { useEditorStore } from "@/store/editor.store";
 import { useElectron } from "@/hooks/use-electron";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import {
+  selectEditorLayoutSignature,
+  selectPanelGroupSignature,
+} from "../lib/editor-view-selectors";
 
 // 支持的文件扩展名
 const SUPPORTED_EXTENSIONS = [".md", ".txt"];
@@ -15,9 +19,11 @@ function isSupportedFile(filePath: string): boolean {
 
 // 单个面板组：标签栏 + 编辑器
 function EditorPanelGroup({ groupId }: { groupId: string }) {
-  const { panelGroups = [] } = useEditorStore();
+  useEditorStore(selectPanelGroupSignature(groupId));
   const { openFile } = useElectron();
-  const group = panelGroups.find((g) => g.id === groupId);
+  const group = useEditorStore
+    .getState()
+    .panelGroups.find((item) => item.id === groupId);
   const [isDragOver, setIsDragOver] = useState(false);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -115,7 +121,7 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
         onDrop={handleDrop}
       >
         {/* 渲染编辑器 */}
-        <BlockNoteEditor groupId={groupId} tabId={group.activeTabId} />
+        <EditorWorkspace groupId={groupId} tabId={group.activeTabId} />
         {/* 拖拽高亮边框 */}
         {isDragOver && (
           <div
@@ -133,7 +139,10 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
 }
 
 export function Editor() {
-  const { panelGroups = [] } = useEditorStore();
+  useEditorStore(selectEditorLayoutSignature);
+  const panelGroups = useEditorStore
+    .getState()
+    .panelGroups.map(({ id, direction }) => ({ id, direction }));
 
   // 单面板组：直接渲染
   if (panelGroups.length === 1) {

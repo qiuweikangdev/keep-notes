@@ -25,6 +25,13 @@ export function markdownEquals(left: string, right: string): boolean {
   return normalizeMarkdown(left) === normalizeMarkdown(right);
 }
 
+export function ensureEditableBlocks<TBlock>(
+  blocks: TBlock[],
+  createBlankBlock: () => TBlock,
+): TBlock[] {
+  return blocks.length > 0 ? blocks : [createBlankBlock()];
+}
+
 export async function parseMarkdown<TBlock>(
   parser: MarkdownParser<TBlock>,
   markdown: string,

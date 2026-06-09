@@ -60,11 +60,11 @@ export async function readDirectory(directoryPath: string) {
 
 export async function readFileContent(filePath: string) {
   try {
-    const fileContent = await fs.promises.readFile(filePath, "utf-8");
-    return fileContent;
+    return await fs.promises.readFile(filePath, "utf-8");
   } catch (error) {
     console.error("Error while reading file:", error);
-    return "";
+    // IPC 需要把真实读取失败传给渲染进程，不能与合法空文件混为一谈。
+    throw error;
   }
 }
 
@@ -73,6 +73,8 @@ export async function writeFileContent(filePath: string, content: string) {
     await fs.promises.writeFile(filePath, content, "utf-8");
   } catch (error) {
     console.error("Error while writing file:", error);
+    // 保存状态由渲染进程统一管理，因此写盘异常必须继续向上抛出。
+    throw error;
   }
 }
 

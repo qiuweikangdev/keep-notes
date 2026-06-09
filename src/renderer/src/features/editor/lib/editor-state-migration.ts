@@ -1,0 +1,40 @@
+import type {
+  EditorLoadStatus,
+  EditorMode,
+  EditorPanelGroup,
+  EditorSaveStatus,
+  EditorTab,
+} from "@/store/editor.store";
+
+type AddedEditorTabFields = {
+  mode: EditorMode;
+  loadStatus: EditorLoadStatus;
+  saveStatus: EditorSaveStatus;
+  errorMessage: string | null;
+  parseErrorMessage: string | null;
+  scrollTop: number;
+};
+
+type LegacyEditorTab = Omit<EditorTab, keyof AddedEditorTabFields> &
+  Partial<AddedEditorTabFields>;
+type LegacyEditorPanelGroup = Omit<EditorPanelGroup, "tabs"> & {
+  tabs: LegacyEditorTab[];
+};
+
+export function normalizePersistedPanelGroups(
+  groups: LegacyEditorPanelGroup[],
+): EditorPanelGroup[] {
+  return groups.map((group) => ({
+    ...group,
+    tabs: group.tabs.map((tab) => ({
+      ...tab,
+      mode: tab.mode ?? "rich",
+      // 旧标签页已经携带内容，恢复后应直接可编辑，不能停在 loading。
+      loadStatus: tab.loadStatus ?? (tab.filePath ? "ready" : "idle"),
+      saveStatus: tab.saveStatus ?? (tab.isDirty ? "dirty" : "clean"),
+      errorMessage: tab.errorMessage ?? null,
+      parseErrorMessage: tab.parseErrorMessage ?? null,
+      scrollTop: tab.scrollTop ?? 0,
+    })),
+  }));
+}

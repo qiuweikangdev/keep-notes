@@ -1,30 +1,42 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-interface EditorAppearance {
+import { normalizePersistedPanelGroups } from "@/features/editor/lib/editor-state-migration";
+
+export interface EditorAppearance {
   fontSize: number;
   lineHeight: number;
   opacity: number;
   padding: number;
 }
 
-interface EditorTab {
+export type EditorMode = "rich" | "source";
+export type EditorLoadStatus = "idle" | "loading" | "ready" | "error";
+export type EditorSaveStatus = "clean" | "dirty" | "saving" | "error";
+
+export interface EditorTab {
   id: string;
   filePath: string | null;
   content: string;
   wordCount: number;
   isDirty: boolean;
   reloadKey: number;
+  mode: EditorMode;
+  loadStatus: EditorLoadStatus;
+  saveStatus: EditorSaveStatus;
+  errorMessage: string | null;
+  parseErrorMessage: string | null;
+  scrollTop: number;
 }
 
-interface EditorPanelGroup {
+export interface EditorPanelGroup {
   id: string;
   tabs: EditorTab[];
   activeTabId: string;
   direction: "horizontal" | "vertical";
 }
 
-interface EditorState {
+export interface EditorState {
   // 多面板组状态
   panelGroups: EditorPanelGroup[];
   activeGroupId: string;
@@ -59,6 +71,36 @@ interface EditorState {
   setTabDirty: (groupId: string, tabId: string, dirty: boolean) => void;
   setTabWordCount: (groupId: string, tabId: string, count: number) => void;
   incrementTabReloadKey: (groupId: string, tabId: string) => void;
+  beginTabLoad: (groupId: string, tabId: string, path: string) => void;
+  completeTabLoad: (
+    groupId: string,
+    tabId: string,
+    path: string,
+    content: string,
+  ) => void;
+  failTabLoad: (
+    groupId: string,
+    tabId: string,
+    path: string,
+    message: string,
+  ) => void;
+  setTabMode: (groupId: string, tabId: string, mode: EditorMode) => void;
+  setTabParseError: (
+    groupId: string,
+    tabId: string,
+    message: string | null,
+  ) => void;
+  setTabScrollTop: (groupId: string, tabId: string, scrollTop: number) => void;
+  setFileSaveState: (
+    path: string,
+    status: EditorSaveStatus,
+    message: string | null,
+  ) => void;
+  syncFileContent: (
+    path: string,
+    content: string,
+    sourceTabId?: string,
+  ) => void;
 
   // 保持向后兼容
   setContent: (content: string) => void;
@@ -90,6 +132,12 @@ const createDefaultTab = (filePath?: string | null): EditorTab => ({
   wordCount: 0,
   isDirty: false,
   reloadKey: 0,
+  mode: "rich",
+  loadStatus: filePath ? "loading" : "idle",
+  saveStatus: "clean",
+  errorMessage: null,
+  parseErrorMessage: null,
+  scrollTop: 0,
 });
 
 // 创建默认面板组
@@ -311,7 +359,16 @@ export const useEditorStore = create<EditorState>()(
                 ? {
                     ...g,
                     tabs: g.tabs.map((t) =>
-                      t.id === tabId ? { ...t, content, isDirty: true } : t,
+                      t.id === tabId
+                        ? {
+                            ...t,
+                            content,
+                            wordCount: content.length,
+                            isDirty: true,
+                            saveStatus: "dirty",
+                            errorMessage: null,
+                          }
+                        : t,
                     ),
                   }
                 : g,
@@ -389,6 +446,172 @@ export const useEditorStore = create<EditorState>()(
           }));
         },
 
+        beginTabLoad: (groupId, tabId, path) => {
+          set((state) => ({
+            panelGroups: state.panelGroups.map((group) =>
+              group.id === groupId
+                ? {
+                    ...group,
+                    tabs: group.tabs.map((tab) =>
+                      tab.id === tabId
+                        ? {
+                            ...tab,
+                            filePath: path,
+                            loadStatus: "loading",
+                            saveStatus: "clean",
+                            isDirty: false,
+                            errorMessage: null,
+                            parseErrorMessage: null,
+                          }
+                        : tab,
+                    ),
+                  }
+                : group,
+            ),
+          }));
+        },
+
+        completeTabLoad: (groupId, tabId, path, content) => {
+          set((state) => ({
+            panelGroups: state.panelGroups.map((group) =>
+              group.id === groupId
+                ? {
+                    ...group,
+                    tabs: group.tabs.map((tab) => {
+                      // 双重校验目标路径，防止过期异步结果绕过控制器覆盖新文件。
+                      if (tab.id !== tabId || tab.filePath !== path) return tab;
+                      return {
+                        ...tab,
+                        content,
+                        wordCount: content.length,
+                        loadStatus: "ready",
+                        saveStatus: "clean",
+                        isDirty: false,
+                        errorMessage: null,
+                        parseErrorMessage: null,
+                        reloadKey: tab.reloadKey + 1,
+                      };
+                    }),
+                  }
+                : group,
+            ),
+          }));
+        },
+
+        failTabLoad: (groupId, tabId, path, message) => {
+          set((state) => ({
+            panelGroups: state.panelGroups.map((group) =>
+              group.id === groupId
+                ? {
+                    ...group,
+                    tabs: group.tabs.map((tab) =>
+                      tab.id === tabId && tab.filePath === path
+                        ? {
+                            ...tab,
+                            loadStatus: "error",
+                            errorMessage: message,
+                          }
+                        : tab,
+                    ),
+                  }
+                : group,
+            ),
+          }));
+        },
+
+        setTabMode: (groupId, tabId, mode) => {
+          set((state) => ({
+            panelGroups: state.panelGroups.map((group) =>
+              group.id === groupId
+                ? {
+                    ...group,
+                    tabs: group.tabs.map((tab) =>
+                      tab.id === tabId ? { ...tab, mode } : tab,
+                    ),
+                  }
+                : group,
+            ),
+          }));
+        },
+
+        setTabParseError: (groupId, tabId, message) => {
+          set((state) => ({
+            panelGroups: state.panelGroups.map((group) =>
+              group.id === groupId
+                ? {
+                    ...group,
+                    tabs: group.tabs.map((tab) => {
+                      if (tab.id !== tabId) return tab;
+                      const nextMode = message ? "source" : tab.mode;
+                      if (
+                        tab.mode === nextMode &&
+                        tab.parseErrorMessage === message
+                      ) {
+                        return tab;
+                      }
+                      return {
+                        ...tab,
+                        mode: nextMode,
+                        parseErrorMessage: message,
+                      };
+                    }),
+                  }
+                : group,
+            ),
+          }));
+        },
+
+        setTabScrollTop: (groupId, tabId, scrollTop) => {
+          set((state) => ({
+            panelGroups: state.panelGroups.map((group) =>
+              group.id === groupId
+                ? {
+                    ...group,
+                    tabs: group.tabs.map((tab) =>
+                      tab.id === tabId ? { ...tab, scrollTop } : tab,
+                    ),
+                  }
+                : group,
+            ),
+          }));
+        },
+
+        setFileSaveState: (path, status, message) => {
+          set((state) => ({
+            panelGroups: state.panelGroups.map((group) => ({
+              ...group,
+              tabs: group.tabs.map((tab) =>
+                tab.filePath === path
+                  ? {
+                      ...tab,
+                      saveStatus: status,
+                      isDirty: status !== "clean",
+                      errorMessage: message,
+                    }
+                  : tab,
+              ),
+            })),
+          }));
+        },
+
+        syncFileContent: (path, content, sourceTabId) => {
+          set((state) => ({
+            panelGroups: state.panelGroups.map((group) => ({
+              ...group,
+              tabs: group.tabs.map((tab) =>
+                tab.filePath === path && tab.id !== sourceTabId
+                  ? {
+                      ...tab,
+                      content,
+                      wordCount: content.length,
+                      reloadKey: tab.reloadKey + 1,
+                    }
+                  : tab,
+              ),
+            })),
+          }));
+        },
+
         // 重置标签页
         resetTab: (groupId: string, tabId: string) => {
           set((state) => ({
@@ -404,6 +627,12 @@ export const useEditorStore = create<EditorState>()(
                             filePath: null,
                             wordCount: 0,
                             isDirty: false,
+                            mode: "rich",
+                            loadStatus: "idle",
+                            saveStatus: "clean",
+                            errorMessage: null,
+                            parseErrorMessage: null,
+                            scrollTop: 0,
                           }
                         : t,
                     ),
@@ -453,7 +682,7 @@ export const useEditorStore = create<EditorState>()(
           ...(persistedState as object),
           panelGroups:
             persistedPanelGroups && persistedPanelGroups.length > 0
-              ? persistedPanelGroups
+              ? normalizePersistedPanelGroups(persistedPanelGroups)
               : currentState.panelGroups,
           activeGroupId: persistedActiveGroupId || currentState.activeGroupId,
         };
