@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizePersistedPanelGroups } from "./editor-state-migration";
+import {
+  normalizePersistedAppearance,
+  normalizePersistedPanelGroups,
+} from "./editor-state-migration";
 
 describe("normalizePersistedPanelGroups", () => {
   it("fills editor fields missing from legacy persisted tabs", () => {
@@ -30,5 +33,34 @@ describe("normalizePersistedPanelGroups", () => {
       parseErrorMessage: null,
       scrollTop: 0,
     });
+  });
+});
+
+describe("normalizePersistedAppearance", () => {
+  const defaults = {
+    fontSize: 16,
+    lineHeight: 1.8,
+    opacity: 100,
+    padding: 60,
+    showModeSwitcher: true,
+  };
+
+  it("uses the new default for legacy appearance settings", () => {
+    expect(
+      normalizePersistedAppearance(defaults, {
+        fontSize: 18,
+      }),
+    ).toEqual({
+      ...defaults,
+      fontSize: 18,
+    });
+  });
+
+  it("preserves an explicit hidden mode switcher setting", () => {
+    expect(
+      normalizePersistedAppearance(defaults, {
+        showModeSwitcher: false,
+      }).showModeSwitcher,
+    ).toBe(false);
   });
 });

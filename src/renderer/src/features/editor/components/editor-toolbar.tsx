@@ -25,6 +25,9 @@ export function EditorToolbar({ groupId }: EditorToolbarProps) {
     return group?.tabs.find((item) => item.id === group.activeTabId);
   });
   const repositoryRoot = useTreeStore((state) => state.treeRoot?.key ?? null);
+  const showModeSwitcher = useEditorStore(
+    (state) => state.appearance.showModeSwitcher,
+  );
   const setTabMode = useEditorStore((state) => state.setTabMode);
   const setTabParseError = useEditorStore((state) => state.setTabParseError);
   const openDiff = useDiffStore((state) => state.openDiff);
@@ -128,22 +131,24 @@ export function EditorToolbar({ groupId }: EditorToolbarProps) {
 
   return (
     <>
-      <div className="flex rounded-md bg-[var(--bg-tertiary)] p-0.5">
-        <ModeButton
-          active={tab.mode === "rich"}
-          icon={<FileText className="h-3.5 w-3.5" />}
-          onClick={() => void handleModeChange("rich")}
-        >
-          富文本
-        </ModeButton>
-        <ModeButton
-          active={tab.mode === "source"}
-          icon={<Code2 className="h-3.5 w-3.5" />}
-          onClick={() => void handleModeChange("source")}
-        >
-          源码
-        </ModeButton>
-      </div>
+      {showModeSwitcher ? (
+        <div className="flex rounded-md bg-[var(--bg-tertiary)] p-0.5">
+          <ModeButton
+            active={tab.mode === "rich"}
+            icon={<FileText className="h-3.5 w-3.5" />}
+            onClick={() => void handleModeChange("rich")}
+          >
+            富文本
+          </ModeButton>
+          <ModeButton
+            active={tab.mode === "source"}
+            icon={<Code2 className="h-3.5 w-3.5" />}
+            onClick={() => void handleModeChange("source")}
+          >
+            源码
+          </ModeButton>
+        </div>
+      ) : null}
       {isGitRepo && tab.filePath ? (
         <div className="ml-1 flex items-center">
           <ToolbarIconButton

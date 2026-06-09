@@ -1,13 +1,17 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-import { normalizePersistedPanelGroups } from "@/features/editor/lib/editor-state-migration";
+import {
+  normalizePersistedAppearance,
+  normalizePersistedPanelGroups,
+} from "@/features/editor/lib/editor-state-migration";
 
 export interface EditorAppearance {
   fontSize: number;
   lineHeight: number;
   opacity: number;
   padding: number;
+  showModeSwitcher: boolean;
 }
 
 export type EditorMode = "rich" | "source";
@@ -118,6 +122,7 @@ const defaultAppearance: EditorAppearance = {
   lineHeight: 1.8,
   opacity: 100,
   padding: 60,
+  showModeSwitcher: true,
 };
 
 // 生成唯一ID
@@ -676,10 +681,18 @@ export const useEditorStore = create<EditorState>()(
         const persistedActiveGroupId = persisted?.activeGroupId as
           | string
           | undefined;
+        const persistedAppearance = persisted?.appearance as
+          | Partial<EditorAppearance>
+          | undefined;
 
         return {
           ...currentState,
           ...(persistedState as object),
+          // 新增外观选项时保留默认值，兼容旧版本本地存储。
+          appearance: normalizePersistedAppearance(
+            currentState.appearance,
+            persistedAppearance,
+          ),
           panelGroups:
             persistedPanelGroups && persistedPanelGroups.length > 0
               ? normalizePersistedPanelGroups(persistedPanelGroups)

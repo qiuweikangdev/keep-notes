@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
 import { ThemeSelector } from "@/components/ui/theme-selector";
 import { SettingRow } from "@/components/ui/setting-row";
 import { FontSelector } from "@/components/ui/font-selector";
+import { Switch } from "@/components/ui/switch";
 import { Palette, ChevronRight, Keyboard } from "lucide-react";
 import { ShortcutsSettings } from "./shortcuts-settings";
 
@@ -95,6 +96,18 @@ export function SettingsModal() {
             {/* 字体设置 */}
             <div style={{ borderBottom: "1px solid var(--border-color)" }}>
               <div className="py-1">
+                <SettingRow
+                  label="编辑模式切换"
+                  description="在编辑器标签栏显示富文本与 Markdown 源码切换按钮"
+                >
+                  <Switch
+                    checked={appearance.showModeSwitcher}
+                    onCheckedChange={(checked) =>
+                      setAppearance({ showModeSwitcher: checked })
+                    }
+                  />
+                </SettingRow>
+
                 <SettingRow label="UI 字体">
                   <FontSelector
                     value={appearance.uiFont || fontFamilyOptions[0].value}

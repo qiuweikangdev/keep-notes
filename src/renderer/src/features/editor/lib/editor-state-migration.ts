@@ -21,6 +21,16 @@ type LegacyEditorPanelGroup = Omit<EditorPanelGroup, "tabs"> & {
   tabs: LegacyEditorTab[];
 };
 
+export function normalizePersistedAppearance<TAppearance extends object>(
+  defaults: TAppearance,
+  persisted: Partial<TAppearance> | null | undefined,
+): TAppearance {
+  return {
+    ...defaults,
+    ...persisted,
+  };
+}
+
 export function normalizePersistedPanelGroups(
   groups: LegacyEditorPanelGroup[],
 ): EditorPanelGroup[] {
