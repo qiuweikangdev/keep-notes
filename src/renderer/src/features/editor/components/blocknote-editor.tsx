@@ -17,6 +17,7 @@ import {
   parseMarkdown,
   serializeMarkdown,
 } from "../lib/markdown";
+import { EditorChangeGate } from "../lib/editor-change-gate";
 import {
   readEditorScrollTop,
   restoreEditorScrollTop,
@@ -53,6 +54,7 @@ function BlockNoteEditorInner({
   const appearance = useEditorStore((state) => state.appearance);
   const { isDark } = useTheme();
   const suppressChangeRef = useRef(false);
+  const changeGateRef = useRef(new EditorChangeGate());
   const contentRef = useRef(content);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const appliedPathRef = useRef<string | null>(null);
@@ -82,8 +84,14 @@ function BlockNoteEditorInner({
 
   const serializeChange = useCallback(async () => {
     if (suppressChangeRef.current) return;
+    const pendingRevision = changeGateRef.current.capturePendingRevision();
+    if (pendingRevision === null) return;
+
     const markdown = await serializeMarkdown(editor, editor.document);
-    if (markdownEquals(markdown, contentRef.current)) return;
+    if (markdownEquals(markdown, contentRef.current)) {
+      changeGateRef.current.markSerialized(pendingRevision);
+      return;
+    }
 
     // 只有当前文档真正序列化成功后，才推进解析缓存对应的源码快照。
     contentRef.current = markdown;
@@ -99,9 +107,11 @@ function BlockNoteEditorInner({
     }
     onWordCountChange(markdown.length);
     onChange(markdown);
+    changeGateRef.current.markSerialized(pendingRevision);
   }, [editor, onChange, onWordCountChange, path]);
 
   useEditorChange(() => {
+    if (changeGateRef.current.capturePendingRevision() === null) return;
     if (serializationTimerRef.current) {
       clearTimeout(serializationTimerRef.current);
     }
@@ -115,6 +125,7 @@ function BlockNoteEditorInner({
     const applyToken = ++applyTokenRef.current;
     cacheAppliedDocument();
     suppressChangeRef.current = true;
+    changeGateRef.current.resetAfterProgrammaticChange();
 
     const applyContent = async () => {
       try {
@@ -213,6 +224,10 @@ function BlockNoteEditorInner({
     }
   }, []);
 
+  const markUserIntent = useCallback(() => {
+    changeGateRef.current.markUserIntent();
+  }, []);
+
   return (
     <div
       ref={scrollContainerRef}
@@ -220,8 +235,17 @@ function BlockNoteEditorInner({
       style={editorStyle}
       onFocus={onFocus}
       onClick={onFocus}
+      onBeforeInputCapture={markUserIntent}
+      onKeyDownCapture={markUserIntent}
+      onPointerDownCapture={markUserIntent}
+      onPasteCapture={markUserIntent}
+      onCutCapture={markUserIntent}
+      onCompositionStartCapture={markUserIntent}
       onDragOverCapture={blockExternalFileDrop}
-      onDropCapture={blockExternalFileDrop}
+      onDropCapture={(event) => {
+        markUserIntent();
+        blockExternalFileDrop(event);
+      }}
       onScroll={(event) => {
         const appliedPath = appliedPathRef.current;
         if (appliedPath) {

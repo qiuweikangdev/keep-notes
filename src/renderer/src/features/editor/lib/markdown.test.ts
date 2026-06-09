@@ -3,32 +3,47 @@ import { describe, expect, it } from "vitest";
 import {
   ensureEditableBlocks,
   markdownEquals,
-  normalizeMarkdown,
-  normalizeMarkdownListMarkers,
+  parseMarkdown,
+  serializeMarkdown,
 } from "./markdown";
 
-describe("normalizeMarkdownListMarkers", () => {
-  it("normalizes unordered list markers without changing inline asterisks", () => {
-    expect(
-      normalizeMarkdownListMarkers("* one\n  * nested\ntext * value"),
-    ).toBe("- one\n  - nested\ntext * value");
-  });
-});
+describe("Markdown source preservation", () => {
+  it("passes the original source to the parser without normalization", async () => {
+    const source = "# Title  \r\n\r\n* item\t \r\n\r\n";
+    let received = "";
 
-describe("normalizeMarkdown", () => {
-  it("normalizes line endings and trailing whitespace", () => {
-    expect(normalizeMarkdown("  code  \r\ntext\t \r\n")).toBe("  code\ntext\n");
+    await parseMarkdown(
+      {
+        tryParseMarkdownToBlocks: (markdown) => {
+          received = markdown;
+          return [];
+        },
+      },
+      source,
+    );
+
+    expect(received).toBe(source);
   });
 
-  it("keeps a single final newline for non-empty content", () => {
-    expect(normalizeMarkdown("hello\n\n\n")).toBe("hello\n");
-    expect(normalizeMarkdown("")).toBe("");
+  it("returns the serializer output without rewriting whitespace", async () => {
+    const serialized = "# Title  \r\n\r\n* item\t \r\n";
+
+    await expect(
+      serializeMarkdown(
+        {
+          blocksToMarkdownLossy: () => serialized,
+        },
+        [],
+      ),
+    ).resolves.toBe(serialized);
   });
 });
 
 describe("markdownEquals", () => {
-  it("compares semantically normalized Markdown", () => {
-    expect(markdownEquals("* item\r\n", "- item\n")).toBe(true);
+  it("does not hide source formatting differences", () => {
+    expect(markdownEquals("* item\r\n", "- item\n")).toBe(false);
+    expect(markdownEquals("# Title  \n", "# Title\n")).toBe(false);
+    expect(markdownEquals("# Title\n", "# Title\n")).toBe(true);
   });
 });
 
