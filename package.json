@@ -8,8 +8,10 @@
   "main": "./out/main/index.js",
   "scripts": {
     "format": "prettier --write .",
-    "lint": "eslint . --ext .ts,.tsx",
-    "lint:fix": "eslint . --ext .ts,.tsx --fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
@@ -58,6 +60,9 @@
     "@electron-toolkit/tsconfig": "^1.0.1",
     "@tailwindcss/forms": "^0.5.11",
     "@tailwindcss/typography": "^0.5.19",
+    "@testing-library/jest-dom": "6.6.3",
+    "@testing-library/react": "16.1.0",
+    "@testing-library/user-event": "14.5.2",
     "@types/electron-localshortcut": "^3.1.3",
     "@types/lodash-es": "^4.17.12",
     "@types/node": "^18.19.130",
@@ -72,13 +77,15 @@
     "electron-vite": "^2.3.0",
     "eslint": "^8.57.1",
     "husky": "^9.1.7",
+    "jsdom": "25.0.1",
     "lint-staged": "^15.5.2",
     "nodemon": "^3.1.14",
     "postcss": "^8.4.38",
     "prettier": "^3.8.3",
     "tailwindcss": "^3.4.19",
     "typescript": "^5.9.3",
-    "vite": "^5.4.21"
+    "vite": "^5.4.21",
+    "vitest": "2.1.9"
   },
   "lint-staged": {
     "*.{js,ts,jsx,tsx}": [
