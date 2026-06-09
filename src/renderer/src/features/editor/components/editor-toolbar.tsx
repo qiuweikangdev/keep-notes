@@ -7,7 +7,7 @@ import { useDiffStore } from "@/store/diff.store";
 import { useEditorStore, type EditorMode } from "@/store/editor.store";
 import { useTreeStore } from "@/store/tree.store";
 import { CodeResult } from "@/types";
-import { toGitRelativePath } from "../lib/editor-git-actions";
+import { hasNoHeadVersion, toGitRelativePath } from "../lib/editor-git-actions";
 import {
   cancelEditorChange,
   editorCache,
@@ -31,8 +31,13 @@ export function EditorToolbar({ groupId }: EditorToolbarProps) {
   const setTabMode = useEditorStore((state) => state.setTabMode);
   const setTabParseError = useEditorStore((state) => state.setTabParseError);
   const openDiff = useDiffStore((state) => state.openDiff);
-  const { detectGitRepo, discardChanges, getFileHeadContent, loadTree } =
-    useElectron();
+  const {
+    detectGitRepo,
+    discardChanges,
+    getFileHeadContent,
+    getGitStatus,
+    loadTree,
+  } = useElectron();
   const [isGitRepo, setIsGitRepo] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
 
@@ -79,14 +84,30 @@ export function EditorToolbar({ groupId }: EditorToolbarProps) {
       ?.tabs.find((item) => item.id === tab.id);
     const relativePath = toGitRelativePath(repositoryRoot, tab.filePath);
     const result = await getFileHeadContent(repositoryRoot, relativePath);
-    if (result.code !== CodeResult.Success) return;
+    let headContent = result.data ?? "";
 
-    openDiff(
-      tab.filePath,
-      result.data ?? "",
-      currentTab?.content ?? tab.content,
-    );
-  }, [getFileHeadContent, groupId, openDiff, repositoryRoot, tab]);
+    if (result.code !== CodeResult.Success) {
+      const statusResult = await getGitStatus(repositoryRoot);
+      if (
+        statusResult.code !== CodeResult.Success ||
+        !statusResult.data ||
+        !hasNoHeadVersion(statusResult.data, relativePath)
+      ) {
+        return;
+      }
+      // 未跟踪或首次新增的文件在 HEAD 中没有内容，以空文件作为差异基线。
+      headContent = "";
+    }
+
+    openDiff(tab.filePath, headContent, currentTab?.content ?? tab.content);
+  }, [
+    getFileHeadContent,
+    getGitStatus,
+    groupId,
+    openDiff,
+    repositoryRoot,
+    tab,
+  ]);
 
   const handleDiscard = useCallback(async () => {
     if (!tab?.filePath || !repositoryRoot) return;

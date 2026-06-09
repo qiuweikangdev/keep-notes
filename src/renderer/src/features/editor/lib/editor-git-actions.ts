@@ -17,6 +17,17 @@ export function toGitRelativePath(
   return normalizedFile.replace(/^\/+/, "");
 }
 
+export function hasNoHeadVersion(
+  status: { created: string[]; not_added: string[] },
+  filePath: string,
+): boolean {
+  const normalizedPath = normalizePath(filePath).toLocaleLowerCase();
+  return [...status.created, ...status.not_added].some(
+    (candidate) =>
+      normalizePath(candidate).toLocaleLowerCase() === normalizedPath,
+  );
+}
+
 function normalizePath(path: string): string {
   return path.replace(/\\/g, "/");
 }

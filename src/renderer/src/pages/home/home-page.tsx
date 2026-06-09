@@ -1,4 +1,5 @@
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
 import { Editor } from "@/features/editor";
 import { EditorBridge } from "@/features/editor/components/editor-bridge";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -8,7 +9,6 @@ import { SettingsModal } from "@/features/settings";
 import { DiffViewer } from "@/features/diff";
 import { useDiffStore } from "@/store/diff.store";
 import { useEffect, useState, useMemo } from "react";
-import { X } from "lucide-react";
 
 export function HomePage() {
   const { panelSize, collapsed, toggleCollapse, handleResize } = usePanel();
@@ -95,57 +95,32 @@ export function HomePage() {
               <Editor />
             </div>
           </Panel>
-
-          {/* Diff 面板 */}
-          {isOpen && (
-            <>
-              <PanelResizeHandle
-                style={{
-                  width: "6px",
-                  minWidth: "6px",
-                  backgroundColor: "var(--border-color)",
-                  cursor: "col-resize",
-                  position: "relative",
-                }}
-                hitAreaMargins={{ coarse: 30, fine: 20 }}
-              />
-              <Panel defaultSize={40} minSize={20}>
-                <div className="h-full relative">
-                  {/* 关闭按钮 */}
-                  <button
-                    onClick={closeDiff}
-                    className="absolute top-2 right-2 z-10 flex items-center justify-center w-6 h-6 rounded-lg transition-all"
-                    style={{
-                      backgroundColor: "var(--bg-secondary)",
-                      color: "var(--text-muted)",
-                      border: "1px solid var(--border-color)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                      e.currentTarget.style.color = "var(--text-primary)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor =
-                        "var(--bg-secondary)";
-                      e.currentTarget.style.color = "var(--text-muted)";
-                    }}
-                    title="关闭差异比较"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                  <DiffViewer
-                    oldContent={oldContent}
-                    newContent={newContent}
-                    fileName={fileName}
-                    oldTitle={`${fileName} (HEAD)`}
-                    newTitle={`${fileName} (编辑器)`}
-                  />
-                </div>
-              </Panel>
-            </>
-          )}
         </PanelGroup>
       </div>
+
+      <Dialog
+        open={isOpen}
+        onOpenChange={(open) => {
+          if (!open) closeDiff();
+        }}
+      >
+        <DialogContent className="flex h-[82vh] w-[92vw] max-w-[1200px] flex-col overflow-hidden p-0 sm:max-w-[1200px]">
+          <DialogHeader className="flex-shrink-0 border-b border-[var(--border-color)] px-4 py-3 pr-12">
+            <Dialog.Title className="truncate text-sm font-semibold">
+              {fileName || "文件"}差异
+            </Dialog.Title>
+          </DialogHeader>
+          <div className="min-h-0 flex-1">
+            <DiffViewer
+              oldContent={oldContent}
+              newContent={newContent}
+              fileName={fileName}
+              oldTitle={`${fileName} (HEAD)`}
+              newTitle={`${fileName} (编辑器)`}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* 设置弹窗 */}
       <SettingsModal />

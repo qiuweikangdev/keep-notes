@@ -228,6 +228,42 @@ function BlockNoteEditorInner({
     changeGateRef.current.markUserIntent();
   }, []);
 
+  useEffect(() => {
+    const handleFloatingControlPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (
+        !target.closest(
+          ".bn-toolbar, .bn-menu-dropdown, .bn-side-menu, .bn-suggestion-menu, .bn-popover-content, .bn-table-handle-menu",
+        )
+      ) {
+        return;
+      }
+
+      const selectionAnchor = document.getSelection()?.anchorNode;
+      if (
+        selectionAnchor &&
+        scrollContainerRef.current?.contains(selectionAnchor)
+      ) {
+        // BlockNote 浮层通过 Portal 渲染在编辑器外，需要单独记录其格式化操作。
+        markUserIntent();
+      }
+    };
+
+    document.addEventListener(
+      "pointerdown",
+      handleFloatingControlPointerDown,
+      true,
+    );
+    return () => {
+      document.removeEventListener(
+        "pointerdown",
+        handleFloatingControlPointerDown,
+        true,
+      );
+    };
+  }, [markUserIntent]);
+
   return (
     <div
       ref={scrollContainerRef}
