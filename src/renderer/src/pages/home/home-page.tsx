@@ -1,5 +1,13 @@
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { PanelRightOpen, Undo2, X } from "lucide-react";
+import {
+  DndContext,
+  PointerSensor,
+  useDraggable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Editor } from "@/features/editor";
@@ -8,7 +16,6 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { TitleBar } from "@/components/layout/title-bar";
 import { usePanel } from "@/hooks/use-panel";
 import { useElectron } from "@/hooks/use-electron";
-import { useDraggableDialog } from "@/hooks/use-draggable-dialog";
 import { useResizableDialog } from "@/hooks/use-resizable-dialog";
 import { SettingsModal } from "@/features/settings";
 import { DiffViewer, DiffPanel } from "@/features/diff";
@@ -16,7 +23,12 @@ import { useDiffStore } from "@/store/diff.store";
 import { useDiffPanelStore } from "@/features/diff/store/diff-panel.store";
 import { useTreeStore } from "@/store/tree.store";
 import { discardFileChanges } from "@/features/editor/lib/discard-file-changes";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
+
+interface DialogOffset {
+  x: number;
+  y: number;
+}
 
 export function HomePage() {
   const { panelSize, collapsed, toggleCollapse, handleResize } = usePanel();
@@ -24,11 +36,12 @@ export function HomePage() {
   const { isOpen, isLoading, oldContent, newContent, filePath, closeDiff } =
     useDiffStore();
   const diffPanel = useDiffPanelStore();
-  const { contentRef, dragHandleProps, resetPosition } = useDraggableDialog();
-  const { resizeHandleProps, resetSize } = useResizableDialog();
+  const { contentRef, resizeHandleProps, resetSize } = useResizableDialog();
   const electron = useElectron();
   const repositoryRoot = useTreeStore((state) => state.treeRoot?.key ?? null);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
+  // dnd-kit 拖拽结束后落盘的偏移量，渲染时以 transform 形式应用到 DialogContent。
+  const [dialogOffset, setDialogOffset] = useState<DialogOffset>({ x: 0, y: 0 });
 
   // 平台判断
   const isMac = useMemo(() => {
@@ -45,10 +58,10 @@ export function HomePage() {
 
   useEffect(() => {
     if (isOpen) {
-      resetPosition();
+      setDialogOffset({ x: 0, y: 0 });
       resetSize();
     }
-  }, [isOpen, resetPosition, resetSize]);
+  }, [isOpen, resetSize]);
 
   // 获取文件名
   const fileName = filePath?.split(/[\\/]/).pop() || "";
@@ -168,45 +181,26 @@ export function HomePage() {
             backgroundColor: "var(--bg-primary)",
             border: "1px solid var(--border-color)",
             color: "var(--text-primary)",
+            // 拖拽落盘偏移以 transform 形式渲染，避免与 resize inline left/top 冲突。
+            transform: `translate3d(${dialogOffset.x}px, ${dialogOffset.y}px, 0)`,
           }}
         >
-          <div
-            className="relative z-10 flex flex-shrink-0 select-none items-center justify-between border-b border-[var(--border-color)] px-4 py-3 pr-32"
-          >
-            <Dialog.Title
-              className="min-w-0 flex-1 cursor-move touch-none select-none truncate text-left text-sm font-semibold"
-              {...dragHandleProps}
-            >
-              {fileName || "文件"}差异
-            </Dialog.Title>
-            <div
-              className="flex flex-shrink-0 items-center gap-1"
-              onPointerDown={(event) => event.stopPropagation()}
-            >
-              <button
-                type="button"
-                aria-label="放弃当前文件更改"
-                title="放弃当前文件更改"
-                onClick={() => setConfirmDiscardOpen(true)}
-                disabled={!filePath || !repositoryRoot}
-                className="rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 disabled:opacity-40"
-                style={{ color: "var(--danger-color, #dc2626)" }}
-              >
-                <Undo2 className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                aria-label="将差异移到右侧面板"
-                title="将差异移到右侧面板"
-                onClick={handleMoveToPanel}
-                disabled={!filePath}
-                className="rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 disabled:opacity-40"
-                style={{ color: "var(--text-muted)" }}
-              >
-                <PanelRightOpen className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
+          <DndContext>
+            <DraggableHeader
+              fileName={fileName}
+              onDiscard={() => setConfirmDiscardOpen(true)}
+              onMoveToPanel={handleMoveToPanel}
+              canDiscard={Boolean(filePath && repositoryRoot)}
+              canMove={Boolean(filePath)}
+              onDragEnd={(offset) => {
+                // 拖拽结束，把 dnd-kit 累加的位移写入 state；resize 期间 transform 会被它清空
+                setDialogOffset({
+                  x: dialogOffset.x + offset.x,
+                  y: dialogOffset.y + offset.y,
+                });
+              }}
+            />
+          </DndContext>
           <button
             type="button"
             aria-label="关闭"
@@ -214,7 +208,6 @@ export function HomePage() {
             onClick={closeDiff}
             className="absolute right-3 top-3 z-30 rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100"
             style={{ color: "var(--text-muted)" }}
-            onPointerDown={(event) => event.stopPropagation()}
           >
             <X className="h-4 w-4" />
           </button>
@@ -285,6 +278,105 @@ export function HomePage() {
         variant="danger"
         onConfirm={handleConfirmDiscard}
       />
+    </div>
+  );
+}
+
+interface DraggableHeaderProps {
+  fileName: string;
+  canDiscard: boolean;
+  canMove: boolean;
+  onDiscard: () => void;
+  onMoveToPanel: () => void;
+  onDragEnd: (offset: DialogOffset) => void;
+}
+
+function DraggableHeader({
+  fileName,
+  canDiscard,
+  canMove,
+  onDiscard,
+  onMoveToPanel,
+  onDragEnd,
+}: DraggableHeaderProps) {
+  // 5px 激活阈值：用户点击按钮不会误触 drag，需移动 5px 才激活。
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+  );
+  // 保存 dnd-kit transform 的引用，避免 React render 时引用变化。
+  const lastTransformRef = useRef<DialogOffset>({ x: 0, y: 0 });
+
+  const { attributes, listeners, setNodeRef, transform } = useDraggable({
+    id: "diff-dialog-header",
+  });
+
+  // 每次 transform 变化时缓存最后一次位移，drag 结束后一次性提交。
+  if (transform) {
+    lastTransformRef.current = { x: transform.x, y: transform.y };
+  }
+
+  const handleDragEnd = (_event: DragEndEvent) => {
+    const final = lastTransformRef.current;
+    if (final.x !== 0 || final.y !== 0) {
+      onDragEnd(final);
+      lastTransformRef.current = { x: 0, y: 0 };
+    }
+  };
+
+  // 拖拽中：把 dnd-kit 的 transform 叠加到 inline transform 之外不能直接合并
+  // （dnd-kit 会通过 setNodeRef 设置元素 transform，需要由我们与外层 dialogOffset 配合）。
+  // 这里仅渲染 dnd-kit 的实时 transform，落盘到 state 后由外层 dialogOffset 接管。
+  const dragStyle: React.CSSProperties | undefined = transform
+    ? {
+        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+        cursor: "default",
+      }
+    : { cursor: "default" };
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      onDragEnd={handleDragEnd}
+      className="relative z-10 flex flex-shrink-0 select-none items-center justify-between border-b border-[var(--border-color)] px-4 py-3 pr-12"
+      style={dragStyle}
+    >
+      <Dialog.Title className="min-w-0 flex-1 truncate text-left text-sm font-semibold">
+        {fileName || "文件"}差异
+      </Dialog.Title>
+      <div className="flex flex-shrink-0 items-center gap-1">
+        <button
+          type="button"
+          aria-label="放弃当前文件更改"
+          title="放弃当前文件更改"
+          onClick={(event) => {
+            event.stopPropagation();
+            onDiscard();
+          }}
+          onPointerDown={(event) => event.stopPropagation()}
+          disabled={!canDiscard}
+          className="rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 disabled:opacity-40"
+          style={{ color: "var(--danger-color, #dc2626)" }}
+        >
+          <Undo2 className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          aria-label="将差异移到右侧面板"
+          title="将差异移到右侧面板"
+          onClick={(event) => {
+            event.stopPropagation();
+            onMoveToPanel();
+          }}
+          onPointerDown={(event) => event.stopPropagation()}
+          disabled={!canMove}
+          className="rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 disabled:opacity-40"
+          style={{ color: "var(--text-muted)" }}
+        >
+          <PanelRightOpen className="h-4 w-4" />
+        </button>
+      </div>
     </div>
   );
 }
