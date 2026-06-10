@@ -11,7 +11,7 @@ export type ResizeDirection = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
 interface ResizeSize {
   width: number;
   height: number;
-  // 调整左上/右上/左上/左下角时，记录相对视口的偏移，避免 resize 后位置漂移。
+  // 调整左上/右上/左下角时，记录相对视口的偏移，避免 resize 后位置漂移。
   left: number;
   top: number;
 }
@@ -38,19 +38,13 @@ interface ResizableDialogResult {
   resetSize: () => void;
 }
 
-const MIN_WIDTH = 400;
-const MIN_HEIGHT = 240;
-const VIEWPORT_MARGIN = 20;
+const MIN_WIDTH = 480;
+const MIN_HEIGHT = 280;
+const VIEWPORT_MARGIN = 16;
 
 function clamp(value: number, minimum: number, maximum: number): number {
+  if (maximum < minimum) return minimum;
   return Math.min(Math.max(value, minimum), maximum);
-}
-
-function getViewportLimits(): { maxWidth: number; maxHeight: number } {
-  return {
-    maxWidth: Math.max(MIN_WIDTH, window.innerWidth - VIEWPORT_MARGIN * 2),
-    maxHeight: Math.max(MIN_HEIGHT, window.innerHeight - VIEWPORT_MARGIN * 2),
-  };
 }
 
 function captureStartSize(rect: DOMRect): ResizeSize {
@@ -67,7 +61,6 @@ function applySize(target: HTMLDivElement, next: ResizeSize) {
   target.style.height = `${next.height}px`;
   target.style.left = `${next.left}px`;
   target.style.top = `${next.top}px`;
-  // 取消居中位移，改为由 left/top 定位，避免与 transform: translate 冲突。
   target.style.transform = "none";
 }
 
@@ -77,7 +70,11 @@ function computeNext(
   deltaX: number,
   deltaY: number,
 ): ResizeSize {
-  const { maxWidth, maxHeight } = getViewportLimits();
+  const maxWidth = Math.max(MIN_WIDTH, window.innerWidth - VIEWPORT_MARGIN * 2);
+  const maxHeight = Math.max(
+    MIN_HEIGHT,
+    window.innerHeight - VIEWPORT_MARGIN * 2,
+  );
 
   let width = start.width;
   let height = start.height;
@@ -91,21 +88,21 @@ function computeNext(
     height = clamp(start.height + deltaY, MIN_HEIGHT, maxHeight);
   }
   if (direction.includes("w")) {
-    const maxDeltaW = start.width - MIN_WIDTH;
-    const minDeltaW = start.width - maxWidth;
-    const clampedDelta = clamp(deltaX, minDeltaW, maxDeltaW);
-    width = start.width - clampedDelta;
-    left = start.left + clampedDelta;
+    const minDeltaW = start.width - maxWidth; // 负数或 0
+    const maxDeltaW = start.width - MIN_WIDTH; // 正数
+    const dx = clamp(deltaX, minDeltaW, maxDeltaW);
+    width = start.width - dx;
+    left = start.left + dx;
   }
   if (direction.includes("n")) {
-    const maxDeltaH = start.height - MIN_HEIGHT;
     const minDeltaH = start.height - maxHeight;
-    const clampedDelta = clamp(deltaY, minDeltaH, maxDeltaH);
-    height = start.height - clampedDelta;
-    top = start.top + clampedDelta;
+    const maxDeltaH = start.height - MIN_HEIGHT;
+    const dy = clamp(deltaY, minDeltaH, maxDeltaH);
+    height = start.height - dy;
+    top = start.top + dy;
   }
 
-  // 视口边界保护：左上角不能被推出视口。
+  // 视口边界保护。
   left = clamp(
     left,
     VIEWPORT_MARGIN,
@@ -123,14 +120,11 @@ function computeNext(
 export function useResizableDialog(): ResizableDialogResult {
   const contentRef = useRef<HTMLDivElement | null>(null);
   const sessionRef = useRef<ResizeSession | null>(null);
-  const handlersRef = useRef<
-    Record<
-      ResizeDirection,
-      ResizableDialogResult["resizeHandleProps"][ResizeDirection]
-    >
-  >({} as never);
+  const handlersRef = useRef<ResizableDialogResult["resizeHandleProps"]>(
+    {} as never,
+  );
 
-  const ensureHandlers = useCallback((direction: ResizeDirection) => {
+  const getHandlers = (direction: ResizeDirection) => {
     if (handlersRef.current[direction]) {
       return handlersRef.current[direction];
     }
@@ -139,6 +133,7 @@ export function useResizableDialog(): ResizableDialogResult {
       if (event.button !== 0 || !contentRef.current) return;
       event.preventDefault();
       event.stopPropagation();
+      // 仅在该 handle 上捕获 pointer 事件，跨 handle 不会互相影响。
       event.currentTarget.setPointerCapture?.(event.pointerId);
       sessionRef.current = {
         pointerId: event.pointerId,
@@ -162,7 +157,7 @@ export function useResizableDialog(): ResizableDialogResult {
       applySize(contentRef.current, next);
     };
 
-    const finishResize: PointerEventHandler<HTMLElement> = (event) => {
+    const finish: PointerEventHandler<HTMLElement> = (event) => {
       const session = sessionRef.current;
       if (!session || session.pointerId !== event.pointerId) return;
       event.currentTarget.releasePointerCapture?.(event.pointerId);
@@ -172,34 +167,34 @@ export function useResizableDialog(): ResizableDialogResult {
     const handlers = {
       onPointerDown,
       onPointerMove,
-      onPointerUp: finishResize,
-      onPointerCancel: finishResize,
+      onPointerUp: finish,
+      onPointerCancel: finish,
     };
     handlersRef.current[direction] = handlers;
     return handlers;
-  }, []);
-
-  const resizeHandleProps: ResizableDialogResult["resizeHandleProps"] = {
-    n: ensureHandlers("n"),
-    s: ensureHandlers("s"),
-    e: ensureHandlers("e"),
-    w: ensureHandlers("w"),
-    ne: ensureHandlers("ne"),
-    nw: ensureHandlers("nw"),
-    se: ensureHandlers("se"),
-    sw: ensureHandlers("sw"),
   };
 
   const resetSize = useCallback(() => {
     sessionRef.current = null;
-    if (!contentRef.current) return;
-    // 清空内联尺寸，恢复为父组件传入的类样式（h-[82vh] w-[92vw] 等）。
-    contentRef.current.style.width = "";
-    contentRef.current.style.height = "";
-    contentRef.current.style.left = "";
-    contentRef.current.style.top = "";
-    contentRef.current.style.transform = "";
+    const target = contentRef.current;
+    if (!target) return;
+    target.style.width = "";
+    target.style.height = "";
+    target.style.left = "";
+    target.style.top = "";
+    target.style.transform = "";
   }, []);
+
+  const resizeHandleProps: ResizableDialogResult["resizeHandleProps"] = {
+    n: getHandlers("n"),
+    s: getHandlers("s"),
+    e: getHandlers("e"),
+    w: getHandlers("w"),
+    ne: getHandlers("ne"),
+    nw: getHandlers("nw"),
+    se: getHandlers("se"),
+    sw: getHandlers("sw"),
+  };
 
   return { contentRef, resizeHandleProps, resetSize };
 }

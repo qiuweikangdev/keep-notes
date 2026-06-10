@@ -8,12 +8,8 @@ import { useEditorStore, type EditorMode } from "@/store/editor.store";
 import { useTreeStore } from "@/store/tree.store";
 import { CodeResult } from "@/types";
 import { hasNoHeadVersion, toGitRelativePath } from "../lib/editor-git-actions";
-import {
-  cancelEditorChange,
-  editorCache,
-  editorSaveCoordinator,
-  flushEditorChange,
-} from "../lib/editor-runtime";
+import { flushEditorChange } from "../lib/editor-runtime";
+import { discardFileChanges } from "../lib/discard-file-changes";
 
 interface EditorToolbarProps {
   groupId: string;
@@ -111,42 +107,22 @@ export function EditorToolbar({ groupId }: EditorToolbarProps) {
 
   const handleDiscard = useCallback(async () => {
     if (!tab?.filePath || !repositoryRoot) return;
-    const path = tab.filePath;
-    const relativePath = toGitRelativePath(repositoryRoot, path);
-
-    // 放弃更改必须先停止编辑器序列化与自动保存，防止恢复后的文件再次被旧内容覆盖。
-    cancelEditorChange(groupId, tab.id);
-    editorSaveCoordinator.cancel(path);
-    const result = await discardChanges(repositoryRoot, relativePath);
-    if (result.code !== CodeResult.Success) return;
-
-    editorSaveCoordinator.cancel(path);
-    editorCache.delete(path);
-    try {
-      const content = await window.electronAPI.readFile(path);
-      editorCache.setContent(path, content);
-      const state = useEditorStore.getState();
-      state.panelGroups.forEach((group) => {
-        group.tabs.forEach((item) => {
-          if (item.filePath === path) {
-            state.completeTabLoad(group.id, item.id, path, content);
-          }
-        });
-      });
-      useTreeStore.getState().updateNodeContent(path, content);
-    } catch {
-      // 未跟踪文件会被 Git 操作删除，此时将相关标签恢复为空白状态。
-      const state = useEditorStore.getState();
-      state.panelGroups.forEach((group) => {
-        group.tabs.forEach((item) => {
-          if (item.filePath === path) {
-            state.resetTab(group.id, item.id);
-          }
-        });
-      });
-    }
-    await loadTree(repositoryRoot);
-  }, [discardChanges, groupId, loadTree, repositoryRoot, tab]);
+    await discardFileChanges(repositoryRoot, tab.filePath, {
+      detectGitRepo,
+      discardChanges,
+      getFileHeadContent,
+      getGitStatus,
+      loadTree,
+    });
+  }, [
+    detectGitRepo,
+    discardChanges,
+    getFileHeadContent,
+    getGitStatus,
+    loadTree,
+    repositoryRoot,
+    tab,
+  ]);
 
   if (!tab) return null;
 

@@ -5,16 +5,18 @@ import {
   type RefObject,
 } from "react";
 
-interface DialogOffset {
-  x: number;
-  y: number;
+interface DialogPosition {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
 }
 
 interface DragSession {
   pointerId: number;
   startX: number;
   startY: number;
-  startOffset: DialogOffset;
+  startPosition: DialogPosition;
   rect: DOMRect;
 }
 
@@ -30,42 +32,68 @@ interface DraggableDialogResult {
 }
 
 function clamp(value: number, minimum: number, maximum: number): number {
+  if (maximum < minimum) return minimum;
   return Math.min(Math.max(value, minimum), maximum);
 }
 
-function createTransform(offset: DialogOffset): string {
-  return `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`;
+function applyPosition(target: HTMLElement, position: DialogPosition) {
+  target.style.left = `${position.left}px`;
+  target.style.top = `${position.top}px`;
+  target.style.width = `${position.width}px`;
+  target.style.height = `${position.height}px`;
+  target.style.transform = "none";
+}
+
+function captureCurrent(target: HTMLElement): DialogPosition {
+  const rect = target.getBoundingClientRect();
+  return {
+    left: rect.left,
+    top: rect.top,
+    width: rect.width,
+    height: rect.height,
+  };
 }
 
 export function useDraggableDialog(): DraggableDialogResult {
-  const contentRef = useRef<HTMLDivElement>(null);
-  const offsetRef = useRef<DialogOffset>({ x: 0, y: 0 });
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const positionRef = useRef<DialogPosition | null>(null);
   const dragSessionRef = useRef<DragSession | null>(null);
-
-  const applyOffset = useCallback((offset: DialogOffset) => {
-    offsetRef.current = offset;
-    if (contentRef.current) {
-      contentRef.current.style.transform = createTransform(offset);
-    }
-  }, []);
 
   const resetPosition = useCallback(() => {
     dragSessionRef.current = null;
-    applyOffset({ x: 0, y: 0 });
-  }, [applyOffset]);
+    positionRef.current = null;
+    const target = contentRef.current;
+    if (!target) return;
+    // 清空所有内联位置/尺寸，让 dialog 回到 CSS class 居中（left-[50%] top-[50%] translate(-50%,-50%)）。
+    target.style.width = "";
+    target.style.height = "";
+    target.style.left = "";
+    target.style.top = "";
+    target.style.transform = "";
+  }, []);
 
   const handlePointerDown = useCallback<PointerEventHandler<HTMLElement>>(
     (event) => {
       if (event.button !== 0 || !contentRef.current) return;
-
       event.preventDefault();
       event.currentTarget.setPointerCapture?.(event.pointerId);
+      const target = contentRef.current;
+      // 首次拖动时把 CSS 居中"固化"为 inline 坐标，后续仅修改 inline 值。
+      if (!positionRef.current) {
+        positionRef.current = captureCurrent(target);
+        applyPosition(target, positionRef.current);
+      }
+      const rect = target.getBoundingClientRect();
       dragSessionRef.current = {
         pointerId: event.pointerId,
         startX: event.clientX,
         startY: event.clientY,
-        startOffset: offsetRef.current,
-        rect: contentRef.current.getBoundingClientRect(),
+        startPosition: {
+          ...positionRef.current,
+          width: rect.width,
+          height: rect.height,
+        },
+        rect,
       };
     },
     [],
@@ -75,30 +103,35 @@ export function useDraggableDialog(): DraggableDialogResult {
     (event) => {
       const session = dragSessionRef.current;
       if (!session || session.pointerId !== event.pointerId) return;
-
-      // 以拖动开始时的实际边界计算偏移，保证弹窗始终留在当前视口内。
-      const deltaX = clamp(
-        event.clientX - session.startX,
-        -session.rect.left,
-        window.innerWidth - session.rect.right,
+      if (!contentRef.current || !positionRef.current) return;
+      const deltaX = event.clientX - session.startX;
+      const deltaY = event.clientY - session.startY;
+      const width = session.startPosition.width;
+      const height = session.startPosition.height;
+      const nextLeft = clamp(
+        session.startPosition.left + deltaX,
+        8,
+        window.innerWidth - width - 8,
       );
-      const deltaY = clamp(
-        event.clientY - session.startY,
-        -session.rect.top,
-        window.innerHeight - session.rect.bottom,
+      const nextTop = clamp(
+        session.startPosition.top + deltaY,
+        8,
+        window.innerHeight - height - 8,
       );
-      applyOffset({
-        x: session.startOffset.x + deltaX,
-        y: session.startOffset.y + deltaY,
-      });
+      positionRef.current = {
+        left: nextLeft,
+        top: nextTop,
+        width,
+        height,
+      };
+      applyPosition(contentRef.current, positionRef.current);
     },
-    [applyOffset],
+    [],
   );
 
   const finishDrag = useCallback<PointerEventHandler<HTMLElement>>((event) => {
     const session = dragSessionRef.current;
     if (!session || session.pointerId !== event.pointerId) return;
-
     event.currentTarget.releasePointerCapture?.(event.pointerId);
     dragSessionRef.current = null;
   }, []);

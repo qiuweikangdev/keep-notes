@@ -1,17 +1,21 @@
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { PanelRightOpen } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
+import { PanelRightOpen, Undo2 } from "lucide-react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Editor } from "@/features/editor";
 import { EditorBridge } from "@/features/editor/components/editor-bridge";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TitleBar } from "@/components/layout/title-bar";
 import { usePanel } from "@/hooks/use-panel";
+import { useElectron } from "@/hooks/use-electron";
 import { useDraggableDialog } from "@/hooks/use-draggable-dialog";
 import { useResizableDialog } from "@/hooks/use-resizable-dialog";
 import { SettingsModal } from "@/features/settings";
 import { DiffViewer, DiffPanel } from "@/features/diff";
 import { useDiffStore } from "@/store/diff.store";
 import { useDiffPanelStore } from "@/features/diff/store/diff-panel.store";
+import { useTreeStore } from "@/store/tree.store";
+import { discardFileChanges } from "@/features/editor/lib/discard-file-changes";
 import { useEffect, useState, useMemo } from "react";
 
 export function HomePage() {
@@ -22,6 +26,9 @@ export function HomePage() {
   const diffPanel = useDiffPanelStore();
   const { contentRef, dragHandleProps, resetPosition } = useDraggableDialog();
   const { resizeHandleProps, resetSize } = useResizableDialog();
+  const electron = useElectron();
+  const repositoryRoot = useTreeStore((state) => state.treeRoot?.key ?? null);
+  const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
 
   // 平台判断
   const isMac = useMemo(() => {
@@ -50,6 +57,14 @@ export function HomePage() {
     if (!filePath) return;
     diffPanel.open({ filePath, oldContent, newContent });
     closeDiff();
+  };
+
+  const handleConfirmDiscard = async () => {
+    if (!filePath || !repositoryRoot) return;
+    const result = await discardFileChanges(repositoryRoot, filePath, electron);
+    if (result.success) {
+      closeDiff();
+    }
   };
 
   return (
@@ -147,26 +162,40 @@ export function HomePage() {
           ref={contentRef}
           className="flex h-[82vh] w-[92vw] max-w-[1200px] flex-col overflow-hidden p-0 sm:max-w-[1200px]"
         >
-          <DialogHeader
-            className="flex flex-shrink-0 cursor-move select-none touch-none items-center justify-between border-b border-[var(--border-color)] px-4 py-3 pr-12"
+          <div
+            className="relative z-10 flex flex-shrink-0 cursor-move select-none touch-none items-center justify-between border-b border-[var(--border-color)] px-4 py-3 pr-12"
             {...dragHandleProps}
           >
-            <Dialog.Title className="min-w-0 flex-1 truncate text-sm font-semibold">
+            <Dialog.Title className="min-w-0 flex-1 truncate text-left text-sm font-semibold">
               {fileName || "文件"}差异
             </Dialog.Title>
-            <button
-              type="button"
-              aria-label="将差异移到右侧面板"
-              title="将差异移到右侧面板"
-              onClick={handleMoveToPanel}
-              onPointerDown={(event) => event.stopPropagation()}
-              disabled={!filePath}
-              className="ml-2 rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 disabled:opacity-40"
-              style={{ color: "var(--text-muted)" }}
-            >
-              <PanelRightOpen className="h-4 w-4" />
-            </button>
-          </DialogHeader>
+            <div className="flex flex-shrink-0 items-center gap-1">
+              <button
+                type="button"
+                aria-label="放弃当前文件更改"
+                title="放弃当前文件更改"
+                onClick={() => setConfirmDiscardOpen(true)}
+                onPointerDown={(event) => event.stopPropagation()}
+                disabled={!filePath || !repositoryRoot}
+                className="rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 disabled:opacity-40"
+                style={{ color: "var(--danger-color, #dc2626)" }}
+              >
+                <Undo2 className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                aria-label="将差异移到右侧面板"
+                title="将差异移到右侧面板"
+                onClick={handleMoveToPanel}
+                onPointerDown={(event) => event.stopPropagation()}
+                disabled={!filePath}
+                className="rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 disabled:opacity-40"
+                style={{ color: "var(--text-muted)" }}
+              >
+                <PanelRightOpen className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
           <div className="min-h-0 flex-1">
             <DiffViewer
               oldContent={oldContent}
@@ -176,37 +205,40 @@ export function HomePage() {
               newTitle={`${fileName} (编辑器)`}
             />
           </div>
-          <div aria-hidden className="pointer-events-none absolute inset-0">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 z-20"
+          >
             <div
-              className="pointer-events-auto absolute left-0 top-0 h-2 w-full cursor-n-resize"
+              className="pointer-events-auto absolute left-0 top-0 h-2 w-full cursor-n-resize hover:bg-[var(--accent-color)]/10"
               {...resizeHandleProps.n}
             />
             <div
-              className="pointer-events-auto absolute bottom-0 left-0 h-2 w-full cursor-s-resize"
+              className="pointer-events-auto absolute bottom-0 left-0 h-2 w-full cursor-s-resize hover:bg-[var(--accent-color)]/10"
               {...resizeHandleProps.s}
             />
             <div
-              className="pointer-events-auto absolute right-0 top-0 h-full w-2 cursor-e-resize"
+              className="pointer-events-auto absolute right-0 top-0 h-full w-2 cursor-e-resize hover:bg-[var(--accent-color)]/10"
               {...resizeHandleProps.e}
             />
             <div
-              className="pointer-events-auto absolute left-0 top-0 h-full w-2 cursor-w-resize"
+              className="pointer-events-auto absolute left-0 top-0 h-full w-2 cursor-w-resize hover:bg-[var(--accent-color)]/10"
               {...resizeHandleProps.w}
             />
             <div
-              className="pointer-events-auto absolute right-0 top-0 h-2 w-2 cursor-ne-resize"
+              className="pointer-events-auto absolute right-0 top-0 h-2 w-2 cursor-ne-resize hover:bg-[var(--accent-color)]/20"
               {...resizeHandleProps.ne}
             />
             <div
-              className="pointer-events-auto absolute left-0 top-0 h-2 w-2 cursor-nw-resize"
+              className="pointer-events-auto absolute left-0 top-0 h-2 w-2 cursor-nw-resize hover:bg-[var(--accent-color)]/20"
               {...resizeHandleProps.nw}
             />
             <div
-              className="pointer-events-auto absolute bottom-0 right-0 h-2 w-2 cursor-se-resize"
+              className="pointer-events-auto absolute bottom-0 right-0 h-2 w-2 cursor-se-resize hover:bg-[var(--accent-color)]/20"
               {...resizeHandleProps.se}
             />
             <div
-              className="pointer-events-auto absolute bottom-0 left-0 h-2 w-2 cursor-sw-resize"
+              className="pointer-events-auto absolute bottom-0 left-0 h-2 w-2 cursor-sw-resize hover:bg-[var(--accent-color)]/20"
               {...resizeHandleProps.sw}
             />
           </div>
@@ -215,6 +247,16 @@ export function HomePage() {
 
       {/* 设置弹窗 */}
       <SettingsModal />
+
+      <ConfirmDialog
+        open={confirmDiscardOpen}
+        onOpenChange={setConfirmDiscardOpen}
+        title="放弃文件更改"
+        description={`将恢复“${fileName || "当前文件"}”到 Git 中的版本，此操作无法撤销。`}
+        confirmText="放弃更改"
+        variant="danger"
+        onConfirm={handleConfirmDiscard}
+      />
     </div>
   );
 }
