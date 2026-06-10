@@ -262,8 +262,9 @@ export async function parseMarkdown<TBlock>(
   parser: MarkdownParser<TBlock>,
   markdown: string,
 ): Promise<TBlock[]> {
-  // 解析器只读取源码，不能在打开文件时改写换行、空格或列表标记。
-  return parser.tryParseMarkdownToBlocks(markdown);
+  // 仅规范化传给 BlockNote 的解析副本；原始源码仍用于编辑、比较和保存。
+  const parseInput = markdown.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
+  return parser.tryParseMarkdownToBlocks(parseInput);
 }
 
 export async function serializeMarkdown<TBlock>(

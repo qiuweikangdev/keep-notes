@@ -41,6 +41,8 @@ interface BlockNoteEditorInnerProps {
   onParseStateChange: (message: string | null) => void;
 }
 
+const MARKDOWN_PARSER_VERSION = "blocknote-v2";
+
 function BlockNoteEditorInner({
   groupId,
   tabId,
@@ -81,6 +83,7 @@ function BlockNoteEditorInner({
       appliedSourceRef.current,
       editor.document,
       readEditorScrollTop(scrollContainerRef.current),
+      MARKDOWN_PARSER_VERSION,
     );
   }, [editor]);
 
@@ -121,6 +124,7 @@ function BlockNoteEditorInner({
         markdown,
         editor.document,
         readEditorScrollTop(scrollContainerRef.current),
+        MARKDOWN_PARSER_VERSION,
       );
     }
     onWordCountChange(markdown.length);
@@ -148,7 +152,10 @@ function BlockNoteEditorInner({
     const applyContent = async () => {
       try {
         const source = contentRef.current;
-        const cached = path ? editorCache.getBlocks(path, source) : null;
+        // 解析规则升级后不能复用旧块缓存，否则会继续显示错误的列表或代码块结构。
+        const cached = path
+          ? editorCache.getBlocks(path, source, MARKDOWN_PARSER_VERSION)
+          : null;
         const parsedBlocks =
           cached?.blocks ?? (await parseMarkdown(editor, source || ""));
         const blocks = ensureEditableBlocks(parsedBlocks, () => {
@@ -165,7 +172,13 @@ function BlockNoteEditorInner({
         serializedBaselineRef.current = serializedBaseline;
         if (path) {
           editorCache.setContent(path, source);
-          editorCache.setBlocks(path, source, blocks, cached?.scrollTop ?? 0);
+          editorCache.setBlocks(
+            path,
+            source,
+            blocks,
+            cached?.scrollTop ?? 0,
+            MARKDOWN_PARSER_VERSION,
+          );
         }
         restoreEditorScrollTop(
           scrollContainerRef.current,

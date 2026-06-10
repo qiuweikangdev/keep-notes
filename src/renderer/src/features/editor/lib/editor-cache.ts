@@ -6,6 +6,7 @@ interface CachedEditorEntry<TBlocks> {
   content: string | null;
   parsed: {
     source: string;
+    parserVersion?: string;
     blocks: TBlocks;
     scrollTop: number;
   } | null;
@@ -33,9 +34,14 @@ export class EditorCache<TBlocks> {
   getBlocks(
     path: string,
     source: string,
+    parserVersion?: string,
   ): { blocks: TBlocks; scrollTop: number } | null {
     const entry = this.touch(path);
-    if (!entry?.parsed || entry.parsed.source !== source) {
+    if (
+      !entry?.parsed ||
+      entry.parsed.source !== source ||
+      entry.parsed.parserVersion !== parserVersion
+    ) {
       return null;
     }
 
@@ -50,11 +56,12 @@ export class EditorCache<TBlocks> {
     source: string,
     blocks: TBlocks,
     scrollTop: number,
+    parserVersion?: string,
   ): void {
     const entry = this.entries.get(path);
     this.write(path, {
       content: entry?.content ?? source,
-      parsed: { source, blocks, scrollTop },
+      parsed: { source, parserVersion, blocks, scrollTop },
     });
   }
 

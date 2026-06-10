@@ -53,24 +53,43 @@
 .bn-editor h2,
 .bn-editor h3 {
   color: var(--text-primary);
+  font-size: inherit;
   letter-spacing: -0.02em;
   text-wrap: balance;
 }
 
+.bn-editor [data-content-type="heading"] {
+  --level: 1.8em;
+}
+
+.bn-editor [data-content-type="heading"][data-level="2"] {
+  --level: 1.45em;
+}
+
+.bn-editor [data-content-type="heading"][data-level="3"] {
+  --level: 1.2em;
+}
+
+.bn-editor [data-content-type="heading"][data-level="4"] {
+  --level: 1.05em;
+}
+
+.bn-editor [data-content-type="heading"][data-level="5"],
+.bn-editor [data-content-type="heading"][data-level="6"] {
+  --level: 1em;
+}
+
 .bn-editor h1 {
-  font-size: 2em;
   line-height: 1.2;
   margin-top: 1.2em;
 }
 
 .bn-editor h2 {
-  font-size: 1.5em;
   line-height: 1.3;
   margin-top: 1.4em;
 }
 
 .bn-editor h3 {
-  font-size: 1.22em;
   line-height: 1.4;
   margin-top: 1.2em;
 }
@@ -257,45 +276,4 @@
 .bn-editor ::selection {
   background-color: var(--accent-color) !important;
   color: #ffffff !important;
-}
-
-/* 列表项圆点标记 */
-.bn-block-content[data-content-type="bulletListItem"]::before {
-  content: "•" !important;
-  display: flex !important;
-  justify-content: center !important;
-  min-width: 24px !important;
-  padding-right: 4px !important;
-}
-
-/* 嵌套列表圆点标记（第二级） */
-[data-content-type="bulletListItem"]
-  ~ .bn-block-group
-  > .bn-block-outer[data-prev-type="bulletListItem"]
-  > .bn-block
-  > .bn-block-content::before,
-[data-content-type="bulletListItem"]
-  ~ .bn-block-group
-  > .bn-block-outer:not([data-prev-type])
-  > .bn-block
-  > .bn-block-content[data-content-type="bulletListItem"]::before {
-  content: "◦" !important;
-}
-
-/* 嵌套列表圆点标记（第三级） */
-[data-content-type="bulletListItem"]
-  ~ .bn-block-group
-  [data-content-type="bulletListItem"]
-  ~ .bn-block-group
-  > .bn-block-outer[data-prev-type="bulletListItem"]
-  > .bn-block
-  > .bn-block-content::before,
-[data-content-type="bulletListItem"]
-  ~ .bn-block-group
-  [data-content-type="bulletListItem"]
-  ~ .bn-block-group
-  > .bn-block-outer:not([data-prev-type])
-  > .bn-block
-  > .bn-block-content[data-content-type="bulletListItem"]::before {
-  content: "▪︎" !important;
 }

@@ -9,8 +9,8 @@ import {
 } from "./markdown";
 
 describe("Markdown source preservation", () => {
-  it("passes the original source to the parser without normalization", async () => {
-    const source = "# Title  \r\n\r\n* item\t \r\n\r\n";
+  it("normalizes only the parser input while retaining source whitespace", async () => {
+    const source = "\uFEFF# Title  \r\n\r\n* item\t \r\n\r\n";
     let received = "";
 
     await parseMarkdown(
@@ -23,7 +23,8 @@ describe("Markdown source preservation", () => {
       source,
     );
 
-    expect(received).toBe(source);
+    expect(received).toBe("# Title  \n\n* item\t \n\n");
+    expect(source).toBe("\uFEFF# Title  \r\n\r\n* item\t \r\n\r\n");
   });
 
   it("returns the serializer output without rewriting whitespace", async () => {
