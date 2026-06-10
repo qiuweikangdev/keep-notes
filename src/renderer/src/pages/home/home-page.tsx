@@ -1,4 +1,5 @@
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { PanelRightOpen } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
 import { Editor } from "@/features/editor";
 import { EditorBridge } from "@/features/editor/components/editor-bridge";
@@ -8,8 +9,9 @@ import { usePanel } from "@/hooks/use-panel";
 import { useDraggableDialog } from "@/hooks/use-draggable-dialog";
 import { useResizableDialog } from "@/hooks/use-resizable-dialog";
 import { SettingsModal } from "@/features/settings";
-import { DiffViewer } from "@/features/diff";
+import { DiffViewer, DiffPanel } from "@/features/diff";
 import { useDiffStore } from "@/store/diff.store";
+import { useDiffPanelStore } from "@/features/diff/store/diff-panel.store";
 import { useEffect, useState, useMemo } from "react";
 
 export function HomePage() {
@@ -17,6 +19,7 @@ export function HomePage() {
   const [isMaximized, setIsMaximized] = useState(false);
   const { isOpen, oldContent, newContent, filePath, closeDiff } =
     useDiffStore();
+  const diffPanel = useDiffPanelStore();
   const { contentRef, dragHandleProps, resetPosition } = useDraggableDialog();
   const { resizeHandleProps, resetSize } = useResizableDialog();
 
@@ -42,6 +45,12 @@ export function HomePage() {
 
   // 获取文件名
   const fileName = filePath?.split(/[\\/]/).pop() || "";
+
+  const handleMoveToPanel = () => {
+    if (!filePath) return;
+    diffPanel.open({ filePath, oldContent, newContent });
+    closeDiff();
+  };
 
   return (
     <div
@@ -106,6 +115,25 @@ export function HomePage() {
               <Editor />
             </div>
           </Panel>
+
+          {/* 差异面板 */}
+          {diffPanel.isOpen && (
+            <>
+              <PanelResizeHandle
+                style={{
+                  width: "6px",
+                  minWidth: "6px",
+                  backgroundColor: "var(--border-color)",
+                  cursor: "col-resize",
+                  position: "relative",
+                }}
+                hitAreaMargins={{ coarse: 30, fine: 20 }}
+              />
+              <Panel defaultSize={28} minSize={18} maxSize={50}>
+                <DiffPanel />
+              </Panel>
+            </>
+          )}
         </PanelGroup>
       </div>
 
@@ -120,12 +148,24 @@ export function HomePage() {
           className="flex h-[82vh] w-[92vw] max-w-[1200px] flex-col overflow-hidden p-0 sm:max-w-[1200px]"
         >
           <DialogHeader
-            className="flex-shrink-0 cursor-move select-none touch-none border-b border-[var(--border-color)] px-4 py-3 pr-12"
+            className="flex flex-shrink-0 cursor-move select-none touch-none items-center justify-between border-b border-[var(--border-color)] px-4 py-3 pr-12"
             {...dragHandleProps}
           >
-            <Dialog.Title className="truncate text-sm font-semibold">
+            <Dialog.Title className="min-w-0 flex-1 truncate text-sm font-semibold">
               {fileName || "文件"}差异
             </Dialog.Title>
+            <button
+              type="button"
+              aria-label="将差异移到右侧面板"
+              title="将差异移到右侧面板"
+              onClick={handleMoveToPanel}
+              onPointerDown={(event) => event.stopPropagation()}
+              disabled={!filePath}
+              className="ml-2 rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 disabled:opacity-40"
+              style={{ color: "var(--text-muted)" }}
+            >
+              <PanelRightOpen className="h-4 w-4" />
+            </button>
           </DialogHeader>
           <div className="min-h-0 flex-1">
             <DiffViewer
