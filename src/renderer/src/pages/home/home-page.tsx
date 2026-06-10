@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { TitleBar } from "@/components/layout/title-bar";
 import { usePanel } from "@/hooks/use-panel";
 import { useDraggableDialog } from "@/hooks/use-draggable-dialog";
+import { useResizableDialog } from "@/hooks/use-resizable-dialog";
 import { SettingsModal } from "@/features/settings";
 import { DiffViewer } from "@/features/diff";
 import { useDiffStore } from "@/store/diff.store";
@@ -17,6 +18,7 @@ export function HomePage() {
   const { isOpen, oldContent, newContent, filePath, closeDiff } =
     useDiffStore();
   const { contentRef, dragHandleProps, resetPosition } = useDraggableDialog();
+  const { resizeHandleProps, resetSize } = useResizableDialog();
 
   // 平台判断
   const isMac = useMemo(() => {
@@ -34,8 +36,9 @@ export function HomePage() {
   useEffect(() => {
     if (isOpen) {
       resetPosition();
+      resetSize();
     }
-  }, [isOpen, resetPosition]);
+  }, [isOpen, resetPosition, resetSize]);
 
   // 获取文件名
   const fileName = filePath?.split(/[\\/]/).pop() || "";
@@ -131,6 +134,40 @@ export function HomePage() {
               fileName={fileName}
               oldTitle={`${fileName} (HEAD)`}
               newTitle={`${fileName} (编辑器)`}
+            />
+          </div>
+          <div aria-hidden className="pointer-events-none absolute inset-0">
+            <div
+              className="pointer-events-auto absolute left-0 top-0 h-2 w-full cursor-n-resize"
+              {...resizeHandleProps.n}
+            />
+            <div
+              className="pointer-events-auto absolute bottom-0 left-0 h-2 w-full cursor-s-resize"
+              {...resizeHandleProps.s}
+            />
+            <div
+              className="pointer-events-auto absolute right-0 top-0 h-full w-2 cursor-e-resize"
+              {...resizeHandleProps.e}
+            />
+            <div
+              className="pointer-events-auto absolute left-0 top-0 h-full w-2 cursor-w-resize"
+              {...resizeHandleProps.w}
+            />
+            <div
+              className="pointer-events-auto absolute right-0 top-0 h-2 w-2 cursor-ne-resize"
+              {...resizeHandleProps.ne}
+            />
+            <div
+              className="pointer-events-auto absolute left-0 top-0 h-2 w-2 cursor-nw-resize"
+              {...resizeHandleProps.nw}
+            />
+            <div
+              className="pointer-events-auto absolute bottom-0 right-0 h-2 w-2 cursor-se-resize"
+              {...resizeHandleProps.se}
+            />
+            <div
+              className="pointer-events-auto absolute bottom-0 left-0 h-2 w-2 cursor-sw-resize"
+              {...resizeHandleProps.sw}
             />
           </div>
         </DialogContent>
