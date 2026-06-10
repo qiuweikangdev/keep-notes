@@ -15,6 +15,7 @@ import {
   ensureEditableBlocks,
   markdownEquals,
   parseMarkdown,
+  preserveMarkdownSource,
   serializeMarkdown,
 } from "../lib/markdown";
 import { EditorChangeGate } from "../lib/editor-change-gate";
@@ -59,6 +60,7 @@ function BlockNoteEditorInner({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const appliedPathRef = useRef<string | null>(null);
   const appliedSourceRef = useRef(content);
+  const serializedBaselineRef = useRef<string | null>(null);
   const serializationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -87,7 +89,23 @@ function BlockNoteEditorInner({
     const pendingRevision = changeGateRef.current.capturePendingRevision();
     if (pendingRevision === null) return;
 
-    const markdown = await serializeMarkdown(editor, editor.document);
+    const serialized = await serializeMarkdown(editor, editor.document);
+    const baseline = serializedBaselineRef.current;
+    if (baseline === null) {
+      serializedBaselineRef.current = serialized;
+      changeGateRef.current.markSerialized(pendingRevision);
+      return;
+    }
+    if (markdownEquals(serialized, baseline)) {
+      changeGateRef.current.markSerialized(pendingRevision);
+      return;
+    }
+    const markdown = preserveMarkdownSource(
+      contentRef.current,
+      baseline,
+      serialized,
+    );
+    serializedBaselineRef.current = serialized;
     if (markdownEquals(markdown, contentRef.current)) {
       changeGateRef.current.markSerialized(pendingRevision);
       return;
@@ -136,6 +154,7 @@ function BlockNoteEditorInner({
         const blocks = ensureEditableBlocks(parsedBlocks, () => {
           return { type: "paragraph", content: [] } as Block;
         });
+        const serializedBaseline = await serializeMarkdown(editor, blocks);
 
         // Markdown 解析可能晚于下一次切换完成，旧结果不得再写入编辑器。
         if (applyToken !== applyTokenRef.current) return;
@@ -143,6 +162,7 @@ function BlockNoteEditorInner({
         editor.replaceBlocks(editor.document, blocks);
         appliedPathRef.current = path;
         appliedSourceRef.current = source;
+        serializedBaselineRef.current = serializedBaseline;
         if (path) {
           editorCache.setContent(path, source);
           editorCache.setBlocks(path, source, blocks, cached?.scrollTop ?? 0);

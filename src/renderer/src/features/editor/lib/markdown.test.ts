@@ -4,6 +4,7 @@ import {
   ensureEditableBlocks,
   markdownEquals,
   parseMarkdown,
+  preserveMarkdownSource,
   serializeMarkdown,
 } from "./markdown";
 
@@ -44,6 +45,81 @@ describe("markdownEquals", () => {
     expect(markdownEquals("* item\r\n", "- item\n")).toBe(false);
     expect(markdownEquals("# Title  \n", "# Title\n")).toBe(false);
     expect(markdownEquals("# Title\n", "# Title\n")).toBe(true);
+  });
+});
+
+describe("preserveMarkdownSource", () => {
+  it("transfers a small rich-text edit without adopting serializer spacing", () => {
+    const source = [
+      "# AI SDK Core",
+      "",
+      "- 文本生成",
+      "- 结构化数据生成",
+      "- 工具调用",
+      "",
+    ].join("\n");
+    const baseline = [
+      "# AI SDK Core",
+      "",
+      "- 文本生成",
+      "",
+      "- 结构化数据生成",
+      "",
+      "- 工具调用",
+      "",
+    ].join("\n");
+    const edited = baseline.replace("文本生成", "文本生成1");
+
+    expect(preserveMarkdownSource(source, baseline, edited)).toBe(
+      source.replace("文本生成", "文本生成1"),
+    );
+  });
+
+  it("preserves line endings, list markers, and trailing spaces", () => {
+    const source = "# Title  \r\n\r\n* alpha  \r\n* beta\r\n";
+    const baseline = "# Title\n\n- alpha\n\n- beta\n";
+    const edited = "# Title\n\n- alpha1\n\n- beta\n";
+
+    expect(preserveMarkdownSource(source, baseline, edited)).toBe(
+      "# Title  \r\n\r\n* alpha1  \r\n* beta\r\n",
+    );
+  });
+
+  it("returns the exact source when the rich document did not change", () => {
+    const source = "* item\r\n";
+    const baseline = "- item\n";
+
+    expect(preserveMarkdownSource(source, baseline, baseline)).toBe(source);
+  });
+
+  it("maps an edit to the correct repeated line", () => {
+    const source = "- item\n- item\n";
+    const baseline = "- item\n\n- item\n";
+    const edited = "- item\n\n- item2\n";
+
+    expect(preserveMarkdownSource(source, baseline, edited)).toBe(
+      "- item\n- item2\n",
+    );
+  });
+
+  it("preserves formatting across consecutive rich-text edits", () => {
+    const source = "* alpha\r\n* beta\r\n";
+    const baseline = "- alpha\n\n- beta\n";
+    const firstEdited = "- alpha1\n\n- beta\n";
+    const firstSource = preserveMarkdownSource(source, baseline, firstEdited);
+    const secondEdited = "- alpha1\n\n- beta2\n";
+
+    expect(preserveMarkdownSource(firstSource, firstEdited, secondEdited)).toBe(
+      "* alpha1\r\n* beta2\r\n",
+    );
+  });
+
+  it("removes a rich-text block without rewriting neighboring spacing", () => {
+    const source = "- alpha\n- beta\n";
+    const baseline = "- alpha\n\n- beta\n";
+    const edited = "- alpha\n";
+
+    expect(preserveMarkdownSource(source, baseline, edited)).toBe("- alpha\n");
   });
 });
 

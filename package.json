@@ -41,6 +41,7 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "dayjs": "^1.11.20",
+    "diff": "8.0.3",
     "electron-localshortcut": "^3.2.1",
     "electron-updater": "^6.8.3",
     "lodash-es": "^4.17.21",
