@@ -7,11 +7,7 @@ function DraggableDialogHarness() {
   const { contentRef, dragHandleProps } = useDraggableDialog();
 
   return (
-    <div
-      ref={contentRef}
-      data-testid="dialog"
-      style={{ transform: "translate(-50%, -50%)" }}
-    >
+    <div ref={contentRef} data-testid="dialog">
       <div data-testid="handle" {...dragHandleProps}>
         标题
       </div>
@@ -58,9 +54,9 @@ describe("useDraggableDialog", () => {
       pointerId: 1,
     });
 
-    expect(dialog.style.transform).toBe(
-      "translate(calc(-50% + 60px), calc(-50% + 40px))",
-    );
+    expect(dialog.style.left).toBe("260px");
+    expect(dialog.style.top).toBe("140px");
+    expect(dialog.style.transform).toBe("none");
   });
 
   it("keeps the dialog inside the viewport", () => {
@@ -101,8 +97,8 @@ describe("useDraggableDialog", () => {
       pointerId: 2,
     });
 
-    expect(dialog.style.transform).toBe(
-      "translate(calc(-50% + 200px), calc(-50% + 100px))",
-    );
+    expect(dialog.style.left).toBe("392px");
+    expect(dialog.style.top).toBe("192px");
+    expect(dialog.style.transform).toBe("none");
   });
 });
