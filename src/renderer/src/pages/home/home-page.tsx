@@ -159,9 +159,7 @@ export function HomePage() {
           ref={contentRef}
           className="flex h-[82vh] w-[92vw] max-w-[1200px] flex-col overflow-hidden p-0 sm:max-w-[1200px]"
         >
-          <div
-            className="relative z-10 flex flex-shrink-0 select-none items-center justify-between border-b border-[var(--border-color)] px-4 py-3 pr-12"
-          >
+          <div className="relative z-10 flex flex-shrink-0 select-none items-center justify-between border-b border-[var(--border-color)] px-4 py-3 pr-12">
             <Dialog.Title className="min-w-0 flex-1 truncate text-left text-sm font-semibold">
               {fileName || "文件"}差异
             </Dialog.Title>
