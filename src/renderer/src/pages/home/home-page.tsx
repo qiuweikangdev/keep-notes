@@ -98,7 +98,7 @@ export function HomePage() {
         </PanelGroup>
       </div>
 
-      <Dialog
+      <Dialog.Root
         open={isOpen}
         onOpenChange={(open) => {
           if (!open) closeDiff();
@@ -120,7 +120,7 @@ export function HomePage() {
             />
           </div>
         </DialogContent>
-      </Dialog>
+      </Dialog.Root>
 
       {/* 设置弹窗 */}
       <SettingsModal />
