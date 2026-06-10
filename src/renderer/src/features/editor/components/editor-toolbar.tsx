@@ -80,12 +80,23 @@ export function EditorToolbar({ groupId }: EditorToolbarProps) {
 
     // 等待 BlockNote 组件注册的 flusher 把未落盘编辑同步到 store。
     await flushEditorChange(groupId, tab.id);
-    // 再等一个微任务，确保 setTabContent 在 store 中可见。
-    await Promise.resolve();
 
-    // 在所有 panel group 中找匹配 filePath 的 tab，取最新内存内容（可能用户在非激活 group 编辑过该文件）。
-    const allTabs = useEditorStore.getState().panelGroups.flatMap((g) => g.tabs);
-    const matchedTab = allTabs.find((t) => t.filePath === filePath);
+    // 条件等待：编辑器首次打开时，parseMarkdown 异步完成后才会通过 serializeChange
+    // 把内容写回 store。这里轮询直到所有 group 中匹配 filePath 的 tab.content 非空为止。
+    const startTime = Date.now();
+    const MAX_WAIT_MS = 2000;
+    let matchedTab = useEditorStore
+      .getState()
+      .panelGroups.flatMap((g) => g.tabs)
+      .find((t) => t.filePath === filePath);
+    while (Date.now() - startTime < MAX_WAIT_MS) {
+      if (matchedTab && matchedTab.content !== "") break;
+      await new Promise((r) => setTimeout(r, 50));
+      matchedTab = useEditorStore
+        .getState()
+        .panelGroups.flatMap((g) => g.tabs)
+        .find((t) => t.filePath === filePath);
+    }
     const editorContent = matchedTab?.content ?? "";
 
     const relativePath = toGitRelativePath(repositoryRoot, filePath);

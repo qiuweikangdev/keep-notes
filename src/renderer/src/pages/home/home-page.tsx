@@ -8,6 +8,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { TitleBar } from "@/components/layout/title-bar";
 import { usePanel } from "@/hooks/use-panel";
 import { useElectron } from "@/hooks/use-electron";
+import { useDraggableDialog } from "@/hooks/use-draggable-dialog";
 import { useResizableDialog } from "@/hooks/use-resizable-dialog";
 import { SettingsModal } from "@/features/settings";
 import { DiffViewer, DiffPanel } from "@/features/diff";
@@ -23,7 +24,8 @@ export function HomePage() {
   const { isOpen, isLoading, oldContent, newContent, filePath, closeDiff } =
     useDiffStore();
   const diffPanel = useDiffPanelStore();
-  const { contentRef, resizeHandleProps, resetSize } = useResizableDialog();
+  const { contentRef, dragHandleProps, resetPosition } = useDraggableDialog();
+  const { resizeHandleProps, resetSize } = useResizableDialog();
   const electron = useElectron();
   const repositoryRoot = useTreeStore((state) => state.treeRoot?.key ?? null);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
@@ -43,9 +45,10 @@ export function HomePage() {
 
   useEffect(() => {
     if (isOpen) {
+      resetPosition();
       resetSize();
     }
-  }, [isOpen, resetSize]);
+  }, [isOpen, resetPosition, resetSize]);
 
   // 获取文件名
   const fileName = filePath?.split(/[\\/]/).pop() || "";
@@ -157,9 +160,12 @@ export function HomePage() {
       >
         <DialogContent
           ref={contentRef}
-          className="flex h-[82vh] w-[92vw] max-w-[1200px] flex-col overflow-hidden p-0 sm:max-w-[1200px]"
+          className="!flex h-[82vh] w-[92vw] max-w-[1200px] flex-col gap-0 overflow-hidden !p-0 sm:max-w-[1200px]"
         >
-          <div className="relative z-10 flex flex-shrink-0 select-none items-center justify-between border-b border-[var(--border-color)] px-4 py-3 pr-12">
+          <div
+            className="relative z-10 flex flex-shrink-0 cursor-move select-none touch-none items-center justify-between border-b border-[var(--border-color)] px-4 py-3 pr-12"
+            {...dragHandleProps}
+          >
             <Dialog.Title className="min-w-0 flex-1 truncate text-left text-sm font-semibold">
               {fileName || "文件"}差异
             </Dialog.Title>
@@ -205,7 +211,7 @@ export function HomePage() {
           </div>
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-0 z-20"
+            className="pointer-events-none absolute inset-0"
           >
             <div
               className="pointer-events-auto absolute left-0 top-0 h-2 w-full cursor-n-resize hover:bg-[var(--accent-color)]/10"

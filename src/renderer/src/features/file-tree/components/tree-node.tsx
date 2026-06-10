@@ -409,11 +409,21 @@ export const TreeNode = memo(function TreeNode({
     openDiff(filePath, "", "");
 
     try {
-      // 在所有 panel group 中查找 filePath 匹配的 tab，优先取内存中的最新内容。
-      const allTabs = useEditorStore
+      // 条件等待：编辑器首次打开时，parseMarkdown 异步完成后才把内容写回 store。
+      const startTime = Date.now();
+      const MAX_WAIT_MS = 2000;
+      let matchedTab = useEditorStore
         .getState()
-        .panelGroups.flatMap((g) => g.tabs);
-      const matchedTab = allTabs.find((t) => t.filePath === filePath);
+        .panelGroups.flatMap((g) => g.tabs)
+        .find((t) => t.filePath === filePath);
+      while (Date.now() - startTime < MAX_WAIT_MS) {
+        if (matchedTab && matchedTab.content !== "") break;
+        await new Promise((r) => setTimeout(r, 50));
+        matchedTab = useEditorStore
+          .getState()
+          .panelGroups.flatMap((g) => g.tabs)
+          .find((t) => t.filePath === filePath);
+      }
       let editorContent = matchedTab?.content ?? "";
       // 内存中不存在时回退到磁盘内容（已落盘版本）。
       if (!editorContent) {
