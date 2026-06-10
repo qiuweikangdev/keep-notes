@@ -27,6 +27,8 @@ export function EditorToolbar({ groupId }: EditorToolbarProps) {
   const setTabMode = useEditorStore((state) => state.setTabMode);
   const setTabParseError = useEditorStore((state) => state.setTabParseError);
   const openDiff = useDiffStore((state) => state.openDiff);
+  const closeDiff = useDiffStore((state) => state.closeDiff);
+  const updateContent = useDiffStore((state) => state.updateContent);
   const {
     detectGitRepo,
     discardChanges,
@@ -72,13 +74,21 @@ export function EditorToolbar({ groupId }: EditorToolbarProps) {
 
   const handleDiff = useCallback(async () => {
     if (!tab?.filePath || !repositoryRoot) return;
-    await flushEditorChange(groupId, tab.id);
+    const filePath = tab.filePath;
+    // 立即打开弹窗并标记为加载中，避免空内容闪烁成"无差异"。
+    openDiff(filePath, "", "");
 
-    const currentTab = useEditorStore
-      .getState()
-      .panelGroups.find((group) => group.id === groupId)
-      ?.tabs.find((item) => item.id === tab.id);
-    const relativePath = toGitRelativePath(repositoryRoot, tab.filePath);
+    // 等待 BlockNote 组件注册的 flusher 把未落盘编辑同步到 store。
+    await flushEditorChange(groupId, tab.id);
+    // 再等一个微任务，确保 setTabContent 在 store 中可见。
+    await Promise.resolve();
+
+    // 在所有 panel group 中找匹配 filePath 的 tab，取最新内存内容（可能用户在非激活 group 编辑过该文件）。
+    const allTabs = useEditorStore.getState().panelGroups.flatMap((g) => g.tabs);
+    const matchedTab = allTabs.find((t) => t.filePath === filePath);
+    const editorContent = matchedTab?.content ?? "";
+
+    const relativePath = toGitRelativePath(repositoryRoot, filePath);
     const result = await getFileHeadContent(repositoryRoot, relativePath);
     let headContent = result.data ?? "";
 
@@ -89,20 +99,23 @@ export function EditorToolbar({ groupId }: EditorToolbarProps) {
         !statusResult.data ||
         !hasNoHeadVersion(statusResult.data, relativePath)
       ) {
+        closeDiff();
         return;
       }
       // 未跟踪或首次新增的文件在 HEAD 中没有内容，以空文件作为差异基线。
       headContent = "";
     }
 
-    openDiff(tab.filePath, headContent, currentTab?.content ?? tab.content);
+    updateContent(headContent, editorContent);
   }, [
+    closeDiff,
     getFileHeadContent,
     getGitStatus,
     groupId,
     openDiff,
     repositoryRoot,
     tab,
+    updateContent,
   ]);
 
   const handleDiscard = useCallback(async () => {

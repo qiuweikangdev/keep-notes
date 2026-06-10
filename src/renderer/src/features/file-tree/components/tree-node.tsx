@@ -85,7 +85,7 @@ export const TreeNode = memo(function TreeNode({
     openInExplorer,
     getFileHeadContent,
   } = useElectron();
-  const { openDiff } = useDiffStore();
+  const { openDiff, closeDiff, updateContent } = useDiffStore();
 
   const [isHovered, setIsHovered] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
@@ -404,40 +404,46 @@ export const TreeNode = memo(function TreeNode({
 
   // 处理 diff 比较
   const handleDiff = useCallback(async () => {
+    const filePath = node.key;
+    // 先打开弹窗占位并标记加载中，避免空内容闪烁为"无差异"。
+    openDiff(filePath, "", "");
+
     try {
-      // 获取编辑器中当前文件的内容
-      let editorContent = await window.electronAPI.readFile(node.key);
-      const editorState = useEditorStore.getState();
-      const activeGroup = editorState.panelGroups.find(
-        (group) => group.id === editorState.activeGroupId,
-      );
-      if (activeGroup) {
-        const activeTab = activeGroup.tabs.find(
-          (t) => t.id === activeGroup.activeTabId,
-        );
-        if (activeTab && activeTab.filePath === node.key) {
-          editorContent = activeTab.content;
-        }
+      // 在所有 panel group 中查找 filePath 匹配的 tab，优先取内存中的最新内容。
+      const allTabs = useEditorStore
+        .getState()
+        .panelGroups.flatMap((g) => g.tabs);
+      const matchedTab = allTabs.find((t) => t.filePath === filePath);
+      let editorContent = matchedTab?.content ?? "";
+      // 内存中不存在时回退到磁盘内容（已落盘版本）。
+      if (!editorContent) {
+        editorContent = await window.electronAPI.readFile(filePath);
       }
 
       let baseContent = "";
       const treeRoot = useTreeStore.getState().treeRoot;
       if (treeRoot?.key) {
-        const relativePath = toGitRelativePath(treeRoot.key, node.key);
+        const relativePath = toGitRelativePath(treeRoot.key, filePath);
         const headResult = await getFileHeadContent(treeRoot.key, relativePath);
         if (headResult.code === CodeResult.Success) {
           baseContent = headResult.data ?? "";
         }
       } else {
-        baseContent = await window.electronAPI.readFile(node.key);
+        baseContent = await window.electronAPI.readFile(filePath);
       }
 
-      // 打开 diff 面板
-      openDiff(node.key, baseContent, editorContent);
+      updateContent(baseContent, editorContent);
     } catch (error) {
       console.error("Failed to read file for diff:", error);
+      closeDiff();
     }
-  }, [node.key, getFileHeadContent, openDiff]);
+  }, [
+    closeDiff,
+    getFileHeadContent,
+    node.key,
+    openDiff,
+    updateContent,
+  ]);
 
   const icon = isFolder ? (
     isExpanded ? (

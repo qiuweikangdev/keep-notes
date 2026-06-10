@@ -20,7 +20,7 @@ import { useEffect, useState, useMemo } from "react";
 export function HomePage() {
   const { panelSize, collapsed, toggleCollapse, handleResize } = usePanel();
   const [isMaximized, setIsMaximized] = useState(false);
-  const { isOpen, oldContent, newContent, filePath, closeDiff } =
+  const { isOpen, isLoading, oldContent, newContent, filePath, closeDiff } =
     useDiffStore();
   const diffPanel = useDiffPanelStore();
   const { contentRef, resizeHandleProps, resetSize } = useResizableDialog();
@@ -189,13 +189,19 @@ export function HomePage() {
             </div>
           </div>
           <div className="min-h-0 flex-1">
-            <DiffViewer
-              oldContent={oldContent}
-              newContent={newContent}
-              fileName={fileName}
-              oldTitle={`${fileName} (HEAD)`}
-              newTitle={`${fileName} (编辑器)`}
-            />
+            {isLoading ? (
+              <div className="flex h-full items-center justify-center text-sm text-[var(--text-muted)]">
+                正在加载差异…
+              </div>
+            ) : (
+              <DiffViewer
+                oldContent={oldContent}
+                newContent={newContent}
+                fileName={fileName}
+                oldTitle={`${fileName} (HEAD)`}
+                newTitle={`${fileName} (编辑器)`}
+              />
+            )}
           </div>
           <div
             aria-hidden
