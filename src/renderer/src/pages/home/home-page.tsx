@@ -8,7 +8,6 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { TitleBar } from "@/components/layout/title-bar";
 import { usePanel } from "@/hooks/use-panel";
 import { useElectron } from "@/hooks/use-electron";
-import { useDraggableDialog } from "@/hooks/use-draggable-dialog";
 import { useResizableDialog } from "@/hooks/use-resizable-dialog";
 import { SettingsModal } from "@/features/settings";
 import { DiffViewer, DiffPanel } from "@/features/diff";
@@ -24,8 +23,7 @@ export function HomePage() {
   const { isOpen, oldContent, newContent, filePath, closeDiff } =
     useDiffStore();
   const diffPanel = useDiffPanelStore();
-  const { contentRef, dragHandleProps, resetPosition } = useDraggableDialog();
-  const { resizeHandleProps, resetSize } = useResizableDialog();
+  const { contentRef, resizeHandleProps, resetSize } = useResizableDialog();
   const electron = useElectron();
   const repositoryRoot = useTreeStore((state) => state.treeRoot?.key ?? null);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
@@ -45,10 +43,9 @@ export function HomePage() {
 
   useEffect(() => {
     if (isOpen) {
-      resetPosition();
       resetSize();
     }
-  }, [isOpen, resetPosition, resetSize]);
+  }, [isOpen, resetSize]);
 
   // 获取文件名
   const fileName = filePath?.split(/[\\/]/).pop() || "";
@@ -163,8 +160,7 @@ export function HomePage() {
           className="flex h-[82vh] w-[92vw] max-w-[1200px] flex-col overflow-hidden p-0 sm:max-w-[1200px]"
         >
           <div
-            className="relative z-10 flex flex-shrink-0 cursor-move select-none touch-none items-center justify-between border-b border-[var(--border-color)] px-4 py-3 pr-12"
-            {...dragHandleProps}
+            className="relative z-10 flex flex-shrink-0 select-none items-center justify-between border-b border-[var(--border-color)] px-4 py-3 pr-12"
           >
             <Dialog.Title className="min-w-0 flex-1 truncate text-left text-sm font-semibold">
               {fileName || "文件"}差异
@@ -175,7 +171,6 @@ export function HomePage() {
                 aria-label="放弃当前文件更改"
                 title="放弃当前文件更改"
                 onClick={() => setConfirmDiscardOpen(true)}
-                onPointerDown={(event) => event.stopPropagation()}
                 disabled={!filePath || !repositoryRoot}
                 className="rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 disabled:opacity-40"
                 style={{ color: "var(--danger-color, #dc2626)" }}
@@ -187,7 +182,6 @@ export function HomePage() {
                 aria-label="将差异移到右侧面板"
                 title="将差异移到右侧面板"
                 onClick={handleMoveToPanel}
-                onPointerDown={(event) => event.stopPropagation()}
                 disabled={!filePath}
                 className="rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 disabled:opacity-40"
                 style={{ color: "var(--text-muted)" }}
