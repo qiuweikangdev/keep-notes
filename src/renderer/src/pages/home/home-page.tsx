@@ -5,6 +5,7 @@ import { EditorBridge } from "@/features/editor/components/editor-bridge";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TitleBar } from "@/components/layout/title-bar";
 import { usePanel } from "@/hooks/use-panel";
+import { useDraggableDialog } from "@/hooks/use-draggable-dialog";
 import { SettingsModal } from "@/features/settings";
 import { DiffViewer } from "@/features/diff";
 import { useDiffStore } from "@/store/diff.store";
@@ -15,6 +16,7 @@ export function HomePage() {
   const [isMaximized, setIsMaximized] = useState(false);
   const { isOpen, oldContent, newContent, filePath, closeDiff } =
     useDiffStore();
+  const { contentRef, dragHandleProps, resetPosition } = useDraggableDialog();
 
   // 平台判断
   const isMac = useMemo(() => {
@@ -28,6 +30,12 @@ export function HomePage() {
     };
     checkMaximized();
   }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      resetPosition();
+    }
+  }, [isOpen, resetPosition]);
 
   // 获取文件名
   const fileName = filePath?.split(/[\\/]/).pop() || "";
@@ -104,8 +112,14 @@ export function HomePage() {
           if (!open) closeDiff();
         }}
       >
-        <DialogContent className="flex h-[82vh] w-[92vw] max-w-[1200px] flex-col overflow-hidden p-0 sm:max-w-[1200px]">
-          <DialogHeader className="flex-shrink-0 border-b border-[var(--border-color)] px-4 py-3 pr-12">
+        <DialogContent
+          ref={contentRef}
+          className="flex h-[82vh] w-[92vw] max-w-[1200px] flex-col overflow-hidden p-0 sm:max-w-[1200px]"
+        >
+          <DialogHeader
+            className="flex-shrink-0 cursor-move select-none touch-none border-b border-[var(--border-color)] px-4 py-3 pr-12"
+            {...dragHandleProps}
+          >
             <Dialog.Title className="truncate text-sm font-semibold">
               {fileName || "文件"}差异
             </Dialog.Title>
