@@ -31,10 +31,15 @@ const DialogFooter = ({
 );
 DialogFooter.displayName = "DialogFooter";
 
+interface DialogContentProps
+  extends React.ComponentPropsWithoutRef<typeof Dialog.Content> {
+  showCloseButton?: boolean;
+}
+
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof Dialog.Content>,
-  React.ComponentPropsWithoutRef<typeof Dialog.Content>
->(({ className, children, ...props }, ref) => (
+  DialogContentProps
+>(({ className, children, showCloseButton = true, ...props }, ref) => (
   <Dialog.Portal>
     <Dialog.Overlay
       className="fixed inset-0 z-50"
@@ -54,13 +59,15 @@ const DialogContent = React.forwardRef<
       {...props}
     >
       {children}
-      <Dialog.Close
-        className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none"
-        style={{ color: "var(--text-muted)" }}
-      >
-        <X className="h-4 w-4" />
-        <span className="sr-only">关闭</span>
-      </Dialog.Close>
+      {showCloseButton ? (
+        <Dialog.Close
+          className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none"
+          style={{ color: "var(--text-muted)" }}
+        >
+          <X className="h-4 w-4" />
+          <span className="sr-only">关闭</span>
+        </Dialog.Close>
+      ) : null}
     </Dialog.Content>
   </Dialog.Portal>
 ));

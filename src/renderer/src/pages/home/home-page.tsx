@@ -1,5 +1,5 @@
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { PanelRightOpen, Undo2 } from "lucide-react";
+import { PanelRightOpen, Undo2, X } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Editor } from "@/features/editor";
@@ -160,16 +160,29 @@ export function HomePage() {
       >
         <DialogContent
           ref={contentRef}
-          className="!flex h-[82vh] w-[92vw] max-w-[1200px] flex-col gap-0 overflow-hidden !p-0 sm:max-w-[1200px]"
+          showCloseButton={false}
+          className="h-[82vh] w-[92vw] max-w-[1200px] flex-col gap-0 overflow-hidden sm:max-w-[1200px]"
+          style={{
+            display: "flex",
+            padding: 0,
+            backgroundColor: "var(--bg-primary)",
+            border: "1px solid var(--border-color)",
+            color: "var(--text-primary)",
+          }}
         >
           <div
-            className="relative z-10 flex flex-shrink-0 cursor-move select-none touch-none items-center justify-between border-b border-[var(--border-color)] px-4 py-3 pr-12"
-            {...dragHandleProps}
+            className="relative z-10 flex flex-shrink-0 select-none items-center justify-between border-b border-[var(--border-color)] px-4 py-3 pr-32"
           >
-            <Dialog.Title className="min-w-0 flex-1 truncate text-left text-sm font-semibold">
+            <Dialog.Title
+              className="min-w-0 flex-1 cursor-move touch-none select-none truncate text-left text-sm font-semibold"
+              {...dragHandleProps}
+            >
               {fileName || "文件"}差异
             </Dialog.Title>
-            <div className="flex flex-shrink-0 items-center gap-1">
+            <div
+              className="flex flex-shrink-0 items-center gap-1"
+              onPointerDown={(event) => event.stopPropagation()}
+            >
               <button
                 type="button"
                 aria-label="放弃当前文件更改"
@@ -194,6 +207,17 @@ export function HomePage() {
               </button>
             </div>
           </div>
+          <button
+            type="button"
+            aria-label="关闭"
+            title="关闭"
+            onClick={closeDiff}
+            className="absolute right-3 top-3 z-30 rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100"
+            style={{ color: "var(--text-muted)" }}
+            onPointerDown={(event) => event.stopPropagation()}
+          >
+            <X className="h-4 w-4" />
+          </button>
           <div className="min-h-0 flex-1">
             {isLoading ? (
               <div className="flex h-full items-center justify-center text-sm text-[var(--text-muted)]">
