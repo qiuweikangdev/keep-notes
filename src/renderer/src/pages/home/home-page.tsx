@@ -238,35 +238,35 @@ export function HomePage() {
             className="pointer-events-none absolute inset-0"
           >
             <div
-              className="pointer-events-auto absolute left-0 top-0 h-2 w-full cursor-n-resize hover:bg-[var(--accent-color)]/10"
+              className="pointer-events-auto absolute left-0 top-0 h-3 w-full cursor-n-resize"
               {...resizeHandleProps.n}
             />
             <div
-              className="pointer-events-auto absolute bottom-0 left-0 h-2 w-full cursor-s-resize hover:bg-[var(--accent-color)]/10"
+              className="pointer-events-auto absolute bottom-0 left-0 h-3 w-full cursor-s-resize"
               {...resizeHandleProps.s}
             />
             <div
-              className="pointer-events-auto absolute right-0 top-0 h-full w-2 cursor-e-resize hover:bg-[var(--accent-color)]/10"
+              className="pointer-events-auto absolute right-0 top-0 h-full w-3 cursor-e-resize"
               {...resizeHandleProps.e}
             />
             <div
-              className="pointer-events-auto absolute left-0 top-0 h-full w-2 cursor-w-resize hover:bg-[var(--accent-color)]/10"
+              className="pointer-events-auto absolute left-0 top-0 h-full w-3 cursor-w-resize"
               {...resizeHandleProps.w}
             />
             <div
-              className="pointer-events-auto absolute right-0 top-0 h-2 w-2 cursor-ne-resize hover:bg-[var(--accent-color)]/20"
+              className="pointer-events-auto absolute right-0 top-0 h-3 w-3 cursor-ne-resize"
               {...resizeHandleProps.ne}
             />
             <div
-              className="pointer-events-auto absolute left-0 top-0 h-2 w-2 cursor-nw-resize hover:bg-[var(--accent-color)]/20"
+              className="pointer-events-auto absolute left-0 top-0 h-3 w-3 cursor-nw-resize"
               {...resizeHandleProps.nw}
             />
             <div
-              className="pointer-events-auto absolute bottom-0 right-0 h-2 w-2 cursor-se-resize hover:bg-[var(--accent-color)]/20"
+              className="pointer-events-auto absolute bottom-0 right-0 h-3 w-3 cursor-se-resize"
               {...resizeHandleProps.se}
             />
             <div
-              className="pointer-events-auto absolute bottom-0 left-0 h-2 w-2 cursor-sw-resize hover:bg-[var(--accent-color)]/20"
+              className="pointer-events-auto absolute bottom-0 left-0 h-3 w-3 cursor-sw-resize"
               {...resizeHandleProps.sw}
             />
           </div>
