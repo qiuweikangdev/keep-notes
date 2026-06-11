@@ -1,13 +1,5 @@
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { PanelRightOpen, Undo2, X } from "lucide-react";
-import {
-  DndContext,
-  PointerSensor,
-  useDraggable,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Editor } from "@/features/editor";
@@ -27,12 +19,16 @@ import { useDiffStore } from "@/store/diff.store";
 import { useDiffPanelStore } from "@/features/diff/store/diff-panel.store";
 import { useTreeStore } from "@/store/tree.store";
 import { discardFileChanges } from "@/features/editor/lib/discard-file-changes";
-import { useEffect, useRef, useState, useMemo } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useMemo,
+  type PointerEventHandler,
+  type RefObject,
+} from "react";
 
-interface DialogOffset {
-  x: number;
-  y: number;
-}
+const DRAG_ACTIVATION_DISTANCE = 5;
 
 export function HomePage() {
   return (
@@ -50,40 +46,21 @@ function HomePageContent() {
   const diffPanel = useDiffPanelStore();
   const { contentRef, resizeHandleProps, resetSize } = useResizableDialog();
 
-  // dnd-kit sensors: 5px 激活阈值防止按钮点击误触拖拽
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-  );
   const electron = useElectron();
   const repositoryRoot = useTreeStore((state) => state.treeRoot?.key ?? null);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
-  // dnd-kit 拖拽结束后落盘的偏移量，渲染时以 transform 形式应用到 DialogContent。
-  const [dialogOffset, setDialogOffset] = useState<DialogOffset>({
-    x: 0,
-    y: 0,
-  });
 
-  // 平台判断
   const isMac = useMemo(() => {
     return window.electronAPI?.getPlatform() === "darwin";
   }, []);
 
-  // 监听窗口最大化状态
-  useEffect(() => {
-    const checkMaximized = async () => {
-      // 这里可以添加检查窗口是否最大化的逻辑
-    };
-    checkMaximized();
-  }, []);
-
+  // 对话框打开时重置尺寸，居中由 CSS 类处理
   useEffect(() => {
     if (isOpen) {
-      setDialogOffset({ x: 0, y: 0 });
       resetSize();
     }
   }, [isOpen, resetSize]);
 
-  // 获取文件名
   const fileName = filePath?.split(/[\\/]/).pop() || "";
 
   const handleMoveToPanel = () => {
@@ -106,15 +83,11 @@ function HomePageContent() {
       style={{
         backgroundColor: "var(--bg-primary)",
         color: "var(--text-primary)",
-        // macOS 原生窗口自带圆角，不需要设置 borderRadius
-        // Windows/Linux 无边框窗口需要 borderRadius 来实现圆角效果
         borderRadius: isMac ? "0" : isMaximized ? "0" : "8px",
       }}
     >
-      {/* 编辑器桥接组件，用于与主进程通信 */}
       <EditorBridge />
 
-      {/* 窗口边缘拖拽区域 - macOS 原生处理顶部拖拽，仅 Windows 需要 */}
       {!isMac && <div className="resize-handle resize-handle-top" />}
       <div className="resize-handle resize-handle-bottom" />
       <div className="resize-handle resize-handle-left" />
@@ -124,13 +97,10 @@ function HomePageContent() {
       <div className="resize-handle resize-handle-bottom-left" />
       <div className="resize-handle resize-handle-bottom-right" />
 
-      {/* 标题栏 */}
       <TitleBar collapsed={collapsed} onToggleCollapse={toggleCollapse} />
 
-      {/* 主内容区域 */}
       <div className="flex-1 overflow-hidden">
         <PanelGroup direction="horizontal" autoSaveId="main-layout">
-          {/* 侧边栏 */}
           {!collapsed && (
             <>
               <Panel
@@ -154,7 +124,6 @@ function HomePageContent() {
             </>
           )}
 
-          {/* 编辑器 */}
           <Panel minSize={30}>
             <div
               className="h-full overflow-hidden"
@@ -164,7 +133,6 @@ function HomePageContent() {
             </div>
           </Panel>
 
-          {/* 差异面板 */}
           {diffPanel.isOpen && (
             <>
               <PanelResizeHandle
@@ -185,105 +153,21 @@ function HomePageContent() {
         </PanelGroup>
       </div>
 
-      <Dialog.Root
-        open={isOpen}
-        onOpenChange={(open) => {
-          if (!open) closeDiff();
-        }}
-      >
-        <DialogContent
-          ref={contentRef}
-          showCloseButton={false}
-          className="h-[82vh] w-[92vw] max-w-[1200px] flex-col gap-0 overflow-hidden sm:max-w-[1200px]"
-          style={{
-            display: "flex",
-            padding: 0,
-            backgroundColor: "var(--bg-primary)",
-            border: "1px solid var(--border-color)",
-            color: "var(--text-primary)",
-            // 拖拽落盘偏移以 transform 形式渲染，避免与 resize inline left/top 冲突。
-            transform: `translate3d(${dialogOffset.x}px, ${dialogOffset.y}px, 0)`,
-          }}
-        >
-          <DndContext sensors={sensors}>
-            <DraggableHeader
-              fileName={fileName}
-              onDiscard={() => setConfirmDiscardOpen(true)}
-              onMoveToPanel={handleMoveToPanel}
-              canDiscard={Boolean(filePath && repositoryRoot)}
-              canMove={Boolean(filePath)}
-              onDragEnd={(offset) => {
-                // 拖拽结束，把 dnd-kit 累加的位移写入 state；resize 期间 transform 会被它清空
-                setDialogOffset({
-                  x: dialogOffset.x + offset.x,
-                  y: dialogOffset.y + offset.y,
-                });
-              }}
-            />
-          </DndContext>
-          <button
-            type="button"
-            aria-label="关闭"
-            title="关闭"
-            onClick={closeDiff}
-            className="absolute right-3 top-3 z-30 rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100"
-            style={{ color: "var(--text-muted)" }}
-          >
-            <X className="h-4 w-4" />
-          </button>
-          <div className="min-h-0 flex-1">
-            {isLoading ? (
-              <div className="flex h-full items-center justify-center text-sm text-[var(--text-muted)]">
-                正在加载差异…
-              </div>
-            ) : (
-              <DiffViewer
-                oldContent={oldContent}
-                newContent={newContent}
-                fileName={fileName}
-                oldTitle={`${fileName} (HEAD)`}
-                newTitle={`${fileName} (编辑器)`}
-              />
-            )}
-          </div>
-          <div aria-hidden className="pointer-events-none absolute inset-0">
-            <div
-              className="pointer-events-auto absolute left-0 top-0 h-3 w-full cursor-n-resize"
-              {...resizeHandleProps.n}
-            />
-            <div
-              className="pointer-events-auto absolute bottom-0 left-0 h-3 w-full cursor-s-resize"
-              {...resizeHandleProps.s}
-            />
-            <div
-              className="pointer-events-auto absolute right-0 top-0 h-full w-3 cursor-e-resize"
-              {...resizeHandleProps.e}
-            />
-            <div
-              className="pointer-events-auto absolute left-0 top-0 h-full w-3 cursor-w-resize"
-              {...resizeHandleProps.w}
-            />
-            <div
-              className="pointer-events-auto absolute right-0 top-0 h-3 w-3 cursor-ne-resize"
-              {...resizeHandleProps.ne}
-            />
-            <div
-              className="pointer-events-auto absolute left-0 top-0 h-3 w-3 cursor-nw-resize"
-              {...resizeHandleProps.nw}
-            />
-            <div
-              className="pointer-events-auto absolute bottom-0 right-0 h-3 w-3 cursor-se-resize"
-              {...resizeHandleProps.se}
-            />
-            <div
-              className="pointer-events-auto absolute bottom-0 left-0 h-3 w-3 cursor-sw-resize"
-              {...resizeHandleProps.sw}
-            />
-          </div>
-        </DialogContent>
-      </Dialog.Root>
+      <DiffDialog
+        isOpen={isOpen}
+        onClose={closeDiff}
+        contentRef={contentRef}
+        resizeHandleProps={resizeHandleProps}
+        fileName={fileName}
+        isLoading={isLoading}
+        oldContent={oldContent}
+        newContent={newContent}
+        filePath={filePath}
+        repositoryRoot={repositoryRoot}
+        onDiscard={() => setConfirmDiscardOpen(true)}
+        onMoveToPanel={handleMoveToPanel}
+      />
 
-      {/* 设置弹窗 */}
       <SettingsModal />
 
       <ConfirmDialog
@@ -299,105 +183,252 @@ function HomePageContent() {
   );
 }
 
-interface DraggableHeaderProps {
-  fileName: string;
-  canDiscard: boolean;
-  canMove: boolean;
-  onDiscard: () => void;
-  onMoveToPanel: () => void;
-  onDragEnd: (offset: DialogOffset) => void;
-}
-
-function DraggableHeader({
+// DiffDialog 封装弹窗，使用指针事件实现头部拖拽整个窗口。
+function DiffDialog({
+  isOpen,
+  onClose,
+  contentRef,
+  resizeHandleProps,
   fileName,
-  canDiscard,
-  canMove,
+  isLoading,
+  oldContent,
+  newContent,
+  filePath,
+  repositoryRoot,
   onDiscard,
   onMoveToPanel,
-  onDragEnd,
-}: DraggableHeaderProps) {
-  // 保存 dnd-kit transform 的引用，避免 React render 时引用变化。
-  const lastTransformRef = useRef<DialogOffset>({ x: 0, y: 0 });
-
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  contentRef: RefObject<HTMLDivElement | null>;
+  resizeHandleProps: ReturnType<typeof useResizableDialog>["resizeHandleProps"];
+  fileName: string;
+  isLoading: boolean;
+  oldContent: string;
+  newContent: string;
+  filePath: string | null;
+  repositoryRoot: string | null;
+  onDiscard: () => void;
+  onMoveToPanel: () => void;
+}) {
   const { startDrag, endDrag } = useDragResize();
 
-  const { attributes, listeners, setNodeRef, transform } = useDraggable({
-    id: "diff-dialog-header",
-  });
+  // 拖拽会话：记录起始鼠标位置和对话框起始 rect。
+  const dragSessionRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    startLeft: number;
+    startTop: number;
+  } | null>(null);
 
-  // 每次 transform 变化时缓存最后一次位移，drag 结束后一次性提交。
-  if (transform) {
-    lastTransformRef.current = { x: transform.x, y: transform.y };
-  }
+  // 拖拽是否已激活（超过激活距离）
+  const dragActivatedRef = useRef(false);
 
-  const handleDragStart = () => {
-    startDrag();
+  const handleHeaderPointerDown: PointerEventHandler<HTMLElement> = (e) => {
+    // 只响应主键
+    if (e.button !== 0 || !contentRef.current) return;
+    // 防止选中文本
+    e.preventDefault();
+
+    const rect = contentRef.current.getBoundingClientRect();
+    dragSessionRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      startLeft: rect.left,
+      startTop: rect.top,
+    };
+    dragActivatedRef.current = false;
+    e.currentTarget.setPointerCapture(e.pointerId);
   };
 
-  const handleDragEnd = (_event: DragEndEvent) => {
-    const final = lastTransformRef.current;
-    if (final.x !== 0 || final.y !== 0) {
-      onDragEnd(final);
-      lastTransformRef.current = { x: 0, y: 0 };
-    }
-    endDrag();
-  };
+  const handleHeaderPointerMove: PointerEventHandler<HTMLElement> = (e) => {
+    const session = dragSessionRef.current;
+    if (!session || session.pointerId !== e.pointerId) return;
+    if (!contentRef.current) return;
 
-  // 拖拽中：把 dnd-kit 的 transform 叠加到 inline transform 之外不能直接合并
-  // （dnd-kit 会通过 setNodeRef 设置元素 transform，需要由我们与外层 dialogOffset 配合）。
-  // 这里仅渲染 dnd-kit 的实时 transform，落盘到 state 后由外层 dialogOffset 接管。
-  const dragStyle: React.CSSProperties | undefined = transform
-    ? {
-        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-        cursor: "default",
+    const dx = e.clientX - session.startX;
+    const dy = e.clientY - session.startY;
+
+    // 激活距离检查：移动超过阈值才开始拖拽
+    if (!dragActivatedRef.current) {
+      if (
+        Math.abs(dx) < DRAG_ACTIVATION_DISTANCE &&
+        Math.abs(dy) < DRAG_ACTIVATION_DISTANCE
+      ) {
+        return;
       }
-    : { cursor: "default" };
+      dragActivatedRef.current = true;
+      startDrag();
+
+      // 激活时将对话框从 CSS 居中切换为绝对定位
+      const target = contentRef.current;
+      const rect = target.getBoundingClientRect();
+      target.style.setProperty("left", `${rect.left}px`, "important");
+      target.style.setProperty("top", `${rect.top}px`, "important");
+      target.style.setProperty("transform", "none", "important");
+    }
+
+    // 更新对话框位置
+    const target = contentRef.current;
+    const newLeft = session.startLeft + dx;
+    const newTop = session.startTop + dy;
+    target.style.setProperty("left", `${newLeft}px`, "important");
+    target.style.setProperty("top", `${newTop}px`, "important");
+  };
+
+  const handleHeaderPointerUp: PointerEventHandler<HTMLElement> = (e) => {
+    const session = dragSessionRef.current;
+    if (!session || session.pointerId !== e.pointerId) return;
+
+    dragSessionRef.current = null;
+    if (dragActivatedRef.current) {
+      dragActivatedRef.current = false;
+      endDrag();
+    }
+    e.currentTarget.releasePointerCapture(e.pointerId);
+  };
+
+  const handleHeaderPointerCancel: PointerEventHandler<HTMLElement> = (_e) => {
+    dragSessionRef.current = null;
+    if (dragActivatedRef.current) {
+      dragActivatedRef.current = false;
+      endDrag();
+    }
+  };
+
+  // 按钮阻止事件冒泡，避免触发拖拽
+  const stopPropagation: PointerEventHandler = (_e) => _e.stopPropagation();
 
   return (
-    <div
-      ref={setNodeRef}
-      {...attributes}
-      {...listeners}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      className="relative z-10 flex flex-shrink-0 select-none items-center justify-between border-b border-[var(--border-color)] px-4 py-3 pr-12"
-      style={dragStyle}
+    <Dialog.Root
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
     >
-      <Dialog.Title className="min-w-0 flex-1 truncate text-left text-sm font-semibold">
-        {fileName || "文件"}差异
-      </Dialog.Title>
-      <div className="flex flex-shrink-0 items-center gap-1">
-        <button
-          type="button"
-          aria-label="放弃当前文件更改"
-          title="放弃当前文件更改"
-          onClick={(event) => {
-            event.stopPropagation();
-            onDiscard();
-          }}
-          onPointerDown={(event) => event.stopPropagation()}
-          disabled={!canDiscard}
-          className="rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 disabled:opacity-40"
-          style={{ color: "var(--danger-color, #dc2626)" }}
+      <DialogContent
+        ref={contentRef}
+        showCloseButton={false}
+        className="h-[82vh] w-[92vw] max-w-[1200px] flex-col gap-0 overflow-hidden sm:max-w-[1200px]"
+        style={{
+          display: "flex",
+          padding: 0,
+          backgroundColor: "var(--bg-primary)",
+          border: "1px solid var(--border-color)",
+          color: "var(--text-primary)",
+        }}
+      >
+        {/* 头部拖拽区域：使用指针事件直接操作对话框元素的 left/top */}
+        <div
+          onPointerDown={handleHeaderPointerDown}
+          onPointerMove={handleHeaderPointerMove}
+          onPointerUp={handleHeaderPointerUp}
+          onPointerCancel={handleHeaderPointerCancel}
+          className="relative z-10 flex flex-shrink-0 select-none items-center justify-between border-b border-[var(--border-color)] px-4 py-3 pr-12"
+          style={{ cursor: "default" }}
         >
-          <Undo2 className="h-4 w-4" />
-        </button>
+          <Dialog.Title className="min-w-0 flex-1 truncate text-left text-sm font-semibold">
+            {fileName || "文件"}差异
+          </Dialog.Title>
+          <div className="flex flex-shrink-0 items-center gap-1">
+            <button
+              type="button"
+              aria-label="放弃当前文件更改"
+              title="放弃当前文件更改"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDiscard();
+              }}
+              onPointerDown={stopPropagation}
+              disabled={!Boolean(filePath && repositoryRoot)}
+              className="rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 disabled:opacity-40"
+              style={{ color: "var(--danger-color, #dc2626)" }}
+            >
+              <Undo2 className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              aria-label="将差异移到右侧面板"
+              title="将差异移到右侧面板"
+              onClick={(e) => {
+                e.stopPropagation();
+                onMoveToPanel();
+              }}
+              onPointerDown={stopPropagation}
+              disabled={!Boolean(filePath)}
+              className="rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 disabled:opacity-40"
+              style={{ color: "var(--text-muted)" }}
+            >
+              <PanelRightOpen className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
         <button
           type="button"
-          aria-label="将差异移到右侧面板"
-          title="将差异移到右侧面板"
-          onClick={(event) => {
-            event.stopPropagation();
-            onMoveToPanel();
-          }}
-          onPointerDown={(event) => event.stopPropagation()}
-          disabled={!canMove}
-          className="rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 disabled:opacity-40"
+          aria-label="关闭"
+          title="关闭"
+          onClick={onClose}
+          className="absolute right-3 top-3 z-30 rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100"
           style={{ color: "var(--text-muted)" }}
         >
-          <PanelRightOpen className="h-4 w-4" />
+          <X className="h-4 w-4" />
         </button>
-      </div>
-    </div>
+
+        <div className="min-h-0 flex-1">
+          {isLoading ? (
+            <div className="flex h-full items-center justify-center text-sm text-[var(--text-muted)]">
+              正在加载差异…
+            </div>
+          ) : (
+            <DiffViewer
+              oldContent={oldContent}
+              newContent={newContent}
+              fileName={fileName}
+              oldTitle={`${fileName} (HEAD)`}
+              newTitle={`${fileName} (编辑器)`}
+            />
+          )}
+        </div>
+
+        {/* 8 个方向的 resize 拖拽句柄 */}
+        <div aria-hidden className="pointer-events-none absolute inset-0">
+          <div
+            className="pointer-events-auto absolute left-0 top-0 h-3 w-full cursor-n-resize"
+            {...resizeHandleProps.n}
+          />
+          <div
+            className="pointer-events-auto absolute bottom-0 left-0 h-3 w-full cursor-s-resize"
+            {...resizeHandleProps.s}
+          />
+          <div
+            className="pointer-events-auto absolute right-0 top-0 h-full w-3 cursor-e-resize"
+            {...resizeHandleProps.e}
+          />
+          <div
+            className="pointer-events-auto absolute left-0 top-0 h-full w-3 cursor-w-resize"
+            {...resizeHandleProps.w}
+          />
+          <div
+            className="pointer-events-auto absolute right-0 top-0 h-3 w-3 cursor-ne-resize"
+            {...resizeHandleProps.ne}
+          />
+          <div
+            className="pointer-events-auto absolute left-0 top-0 h-3 w-3 cursor-nw-resize"
+            {...resizeHandleProps.nw}
+          />
+          <div
+            className="pointer-events-auto absolute bottom-0 right-0 h-3 w-3 cursor-se-resize"
+            {...resizeHandleProps.se}
+          />
+          <div
+            className="pointer-events-auto absolute bottom-0 left-0 h-3 w-3 cursor-sw-resize"
+            {...resizeHandleProps.sw}
+          />
+        </div>
+      </DialogContent>
+    </Dialog.Root>
   );
 }
