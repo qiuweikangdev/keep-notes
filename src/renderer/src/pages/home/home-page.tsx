@@ -28,7 +28,8 @@ import {
   type RefObject,
 } from "react";
 
-const DRAG_ACTIVATION_DISTANCE = 5;
+const DRAG_ACTIVATION_DISTANCE = 8;
+const VIEWPORT_MARGIN = 16;
 
 export function HomePage() {
   return (
@@ -270,10 +271,19 @@ function DiffDialog({
       target.style.setProperty("transform", "none", "important");
     }
 
-    // 更新对话框位置
+    // 计算新位置并限制在视口边界内
     const target = contentRef.current;
-    const newLeft = session.startLeft + dx;
-    const newTop = session.startTop + dy;
+    const rect = target.getBoundingClientRect();
+    const maxLeft = window.innerWidth - rect.width - VIEWPORT_MARGIN;
+    const maxTop = window.innerHeight - rect.height - VIEWPORT_MARGIN;
+    const newLeft = Math.max(
+      VIEWPORT_MARGIN,
+      Math.min(session.startLeft + dx, maxLeft),
+    );
+    const newTop = Math.max(
+      VIEWPORT_MARGIN,
+      Math.min(session.startTop + dy, maxTop),
+    );
     target.style.setProperty("left", `${newLeft}px`, "important");
     target.style.setProperty("top", `${newTop}px`, "important");
   };
