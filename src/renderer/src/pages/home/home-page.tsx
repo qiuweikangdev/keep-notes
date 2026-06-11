@@ -17,6 +17,7 @@ import { TitleBar } from "@/components/layout/title-bar";
 import { usePanel } from "@/hooks/use-panel";
 import { useElectron } from "@/hooks/use-electron";
 import { useResizableDialog } from "@/hooks/use-resizable-dialog";
+import { useDragResize } from "@/components/drag-resize-provider";
 import { SettingsModal } from "@/features/settings";
 import { DiffViewer, DiffPanel } from "@/features/diff";
 import { useDiffStore } from "@/store/diff.store";
@@ -41,7 +42,10 @@ export function HomePage() {
   const repositoryRoot = useTreeStore((state) => state.treeRoot?.key ?? null);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
   // dnd-kit 拖拽结束后落盘的偏移量，渲染时以 transform 形式应用到 DialogContent。
-  const [dialogOffset, setDialogOffset] = useState<DialogOffset>({ x: 0, y: 0 });
+  const [dialogOffset, setDialogOffset] = useState<DialogOffset>({
+    x: 0,
+    y: 0,
+  });
 
   // 平台判断
   const isMac = useMemo(() => {
@@ -226,10 +230,7 @@ export function HomePage() {
               />
             )}
           </div>
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0"
-          >
+          <div aria-hidden className="pointer-events-none absolute inset-0">
             <div
               className="pointer-events-auto absolute left-0 top-0 h-3 w-full cursor-n-resize"
               {...resizeHandleProps.n}
@@ -306,6 +307,8 @@ function DraggableHeader({
   // 保存 dnd-kit transform 的引用，避免 React render 时引用变化。
   const lastTransformRef = useRef<DialogOffset>({ x: 0, y: 0 });
 
+  const { startDrag, endDrag } = useDragResize();
+
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: "diff-dialog-header",
   });
@@ -315,12 +318,17 @@ function DraggableHeader({
     lastTransformRef.current = { x: transform.x, y: transform.y };
   }
 
+  const handleDragStart = () => {
+    startDrag();
+  };
+
   const handleDragEnd = (_event: DragEndEvent) => {
     const final = lastTransformRef.current;
     if (final.x !== 0 || final.y !== 0) {
       onDragEnd(final);
       lastTransformRef.current = { x: 0, y: 0 };
     }
+    endDrag();
   };
 
   // 拖拽中：把 dnd-kit 的 transform 叠加到 inline transform 之外不能直接合并
@@ -338,6 +346,7 @@ function DraggableHeader({
       ref={setNodeRef}
       {...attributes}
       {...listeners}
+      onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       className="relative z-10 flex flex-shrink-0 select-none items-center justify-between border-b border-[var(--border-color)] px-4 py-3 pr-12"
       style={dragStyle}
