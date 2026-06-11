@@ -54,6 +54,10 @@ vi.mock("@/features/diff", () => ({
   DiffViewer: () => <div>DiffViewer</div>,
 }));
 
+vi.mock("@/components/ui/confirm-dialog", () => ({
+  ConfirmDialog: () => null,
+}));
+
 vi.mock("@/store/diff.store", () => ({
   useDiffStore: () => ({
     isOpen: true,
