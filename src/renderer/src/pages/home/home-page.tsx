@@ -36,11 +36,16 @@ interface DialogOffset {
 
 export function HomePage() {
   const { panelSize, collapsed, toggleCollapse, handleResize } = usePanel();
-  const [isMaximized, setIsMaximized] = useState(false);
+  const [isMaximized] = useState(false);
   const { isOpen, isLoading, oldContent, newContent, filePath, closeDiff } =
     useDiffStore();
   const diffPanel = useDiffPanelStore();
   const { contentRef, resizeHandleProps, resetSize } = useResizableDialog();
+
+  // dnd-kit sensors: 5px 激活阈值防止按钮点击误触拖拽
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+  );
   const electron = useElectron();
   const repositoryRoot = useTreeStore((state) => state.treeRoot?.key ?? null);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
@@ -193,7 +198,7 @@ export function HomePage() {
               transform: `translate3d(${dialogOffset.x}px, ${dialogOffset.y}px, 0)`,
             }}
           >
-            <DndContext>
+            <DndContext sensors={sensors}>
               <DraggableHeader
                 fileName={fileName}
                 onDiscard={() => setConfirmDiscardOpen(true)}
@@ -305,10 +310,6 @@ function DraggableHeader({
   onMoveToPanel,
   onDragEnd,
 }: DraggableHeaderProps) {
-  // 5px 激活阈值：用户点击按钮不会误触 drag，需移动 5px 才激活。
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-  );
   // 保存 dnd-kit transform 的引用，避免 React render 时引用变化。
   const lastTransformRef = useRef<DialogOffset>({ x: 0, y: 0 });
 
