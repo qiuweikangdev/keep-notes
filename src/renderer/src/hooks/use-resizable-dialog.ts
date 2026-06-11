@@ -128,6 +128,8 @@ function computeNext(
 
 export function useResizableDialog(): ResizableDialogResult {
   const contentRef = useRef<HTMLDivElement | null>(null);
+  const { startResize, endResize } = useDragResize();
+
   const sessionRef = useRef<ResizeSession | null>(null);
   const handlersRef = useRef<ResizableDialogResult["resizeHandleProps"]>(
     {} as never,
@@ -150,6 +152,7 @@ export function useResizableDialog(): ResizableDialogResult {
         startY: event.clientY,
         startRect: captureGeometry(contentRef.current),
       };
+      startResize();
     };
 
     const onPointerMove: PointerEventHandler<HTMLElement> = (event) => {
@@ -170,6 +173,7 @@ export function useResizableDialog(): ResizableDialogResult {
       if (!session || session.pointerId !== event.pointerId) return;
       event.currentTarget.releasePointerCapture?.(event.pointerId);
       sessionRef.current = null;
+      endResize();
     };
 
     const handlers = {
