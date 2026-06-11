@@ -29,6 +29,7 @@ import {
 } from "react";
 
 const DRAG_ACTIVATION_DISTANCE = 8;
+const DRAG_DAMPENING = 0.6;
 const VIEWPORT_MARGIN = 16;
 
 export function HomePage() {
@@ -271,18 +272,20 @@ function DiffDialog({
       target.style.setProperty("transform", "none", "important");
     }
 
-    // 计算新位置并限制在视口边界内
+    // 计算新位置：应用阻尼系数降低灵敏度，并限制在视口边界内
     const target = contentRef.current;
     const rect = target.getBoundingClientRect();
     const maxLeft = window.innerWidth - rect.width - VIEWPORT_MARGIN;
     const maxTop = window.innerHeight - rect.height - VIEWPORT_MARGIN;
+    const dampenedDx = dx * DRAG_DAMPENING;
+    const dampenedDy = dy * DRAG_DAMPENING;
     const newLeft = Math.max(
       VIEWPORT_MARGIN,
-      Math.min(session.startLeft + dx, maxLeft),
+      Math.min(session.startLeft + dampenedDx, maxLeft),
     );
     const newTop = Math.max(
       VIEWPORT_MARGIN,
-      Math.min(session.startTop + dy, maxTop),
+      Math.min(session.startTop + dampenedDy, maxTop),
     );
     target.style.setProperty("left", `${newLeft}px`, "important");
     target.style.setProperty("top", `${newTop}px`, "important");
