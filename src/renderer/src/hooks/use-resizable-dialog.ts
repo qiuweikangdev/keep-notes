@@ -1,15 +1,13 @@
-import { useCallback, useRef, type PointerEventHandler, type RefObject } from "react";
+import {
+  useCallback,
+  useRef,
+  type PointerEventHandler,
+  type RefObject,
+} from "react";
+import { useDragResize } from "@/components/drag-resize-provider";
 
 // 调整方向的 8 个方位：四角 + 四边。
-export type ResizeDirection =
-  | "n"
-  | "s"
-  | "e"
-  | "w"
-  | "ne"
-  | "nw"
-  | "se"
-  | "sw";
+export type ResizeDirection = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
 
 interface ResizeGeometry {
   width: number;
@@ -114,8 +112,16 @@ function computeNext(
   }
 
   // 视口边界保护。
-  left = clamp(left, VIEWPORT_MARGIN, window.innerWidth - VIEWPORT_MARGIN - width);
-  top = clamp(top, VIEWPORT_MARGIN, window.innerHeight - VIEWPORT_MARGIN - height);
+  left = clamp(
+    left,
+    VIEWPORT_MARGIN,
+    window.innerWidth - VIEWPORT_MARGIN - width,
+  );
+  top = clamp(
+    top,
+    VIEWPORT_MARGIN,
+    window.innerHeight - VIEWPORT_MARGIN - height,
+  );
 
   return { width, height, left, top };
 }
