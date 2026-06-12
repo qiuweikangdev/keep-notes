@@ -43,18 +43,17 @@ export function ConfirmDialog({
             className="flex items-center justify-between p-4"
             style={{ borderBottom: "1px solid var(--border-color)" }}
           >
-            <span
+            <Dialog.Title
               className="font-medium"
               style={{ color: "var(--text-primary)" }}
             >
               {title}
-            </span>
-            <button
-              onClick={() => onOpenChange(false)}
-              className="p-1 rounded-lg transition-colors hover:bg-[var(--hover-bg)]"
-            >
-              <X className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
-            </button>
+            </Dialog.Title>
+            <Dialog.Close asChild>
+              <button className="p-1 rounded-lg transition-colors hover:bg-[var(--hover-bg)]">
+                <X className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
+              </button>
+            </Dialog.Close>
           </div>
 
           {/* 内容区域 */}
@@ -71,13 +70,14 @@ export function ConfirmDialog({
             className="flex items-center justify-end gap-2 p-4"
             style={{ borderTop: "1px solid var(--border-color)" }}
           >
-            <button
-              type="button"
-              onClick={() => onOpenChange(false)}
-              className="px-4 py-1.5 text-sm rounded-md bg-transparent text-[var(--text-primary)] border border-[var(--border-color)] transition-colors hover:bg-[var(--hover-bg)]"
-            >
-              {cancelText}
-            </button>
+            <Dialog.Close asChild>
+              <button
+                type="button"
+                className="px-4 py-1.5 text-sm rounded-md bg-transparent text-[var(--text-primary)] border border-[var(--border-color)] transition-colors hover:bg-[var(--hover-bg)]"
+              >
+                {cancelText}
+              </button>
+            </Dialog.Close>
             <button
               type="button"
               onClick={handleConfirm}

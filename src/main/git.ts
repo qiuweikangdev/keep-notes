@@ -132,29 +132,35 @@ export async function getStatus(
     const git = getGitInstance(dirPath);
     // 禁用 quotepath 以正确处理中文文件名
     await git.addConfig("core.quotepath", "false");
+    // 设置 git 使用 UTF-8 编码
+    await git.addConfig("core.quotepath", "false");
     const status: StatusResult = await git.status();
+
+    // 确保路径使用正斜杠
+    const normalizePath = (p: string) => p.replace(/\\/g, "/");
+
     return {
       code: CodeResult.Success,
       data: {
         current: status.current || "",
         tracking: status.tracking || "",
         files: status.files.map((f) => ({
-          path: f.path,
+          path: normalizePath(f.path),
           index: f.index,
           working_dir: f.working_dir,
         })),
         ahead: status.ahead,
         behind: status.behind,
-        created: status.created,
-        not_added: status.not_added,
-        modified: status.modified,
-        deleted: status.deleted,
+        created: status.created.map(normalizePath),
+        not_added: status.not_added.map(normalizePath),
+        modified: status.modified.map(normalizePath),
+        deleted: status.deleted.map(normalizePath),
         renamed: status.renamed.map((r) => ({
-          from: r.from,
-          to: r.to,
+          from: normalizePath(r.from),
+          to: normalizePath(r.to),
         })),
-        staged: status.staged,
-        conflicted: status.conflicted,
+        staged: status.staged.map(normalizePath),
+        conflicted: status.conflicted.map(normalizePath),
       },
     };
   } catch (e: any) {
