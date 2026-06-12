@@ -7,6 +7,7 @@ import {
   editorSaveCoordinator,
   subscribeToEditorFile,
 } from "../lib/editor-runtime";
+import { shouldApplyExternalFileChange } from "../lib/editor-external-change";
 import { BlockNoteEditor } from "./blocknote-editor";
 import { EditorStateView } from "./editor-state-view";
 import { MarkdownSourceEditor } from "./markdown-source-editor";
@@ -34,6 +35,15 @@ export function EditorWorkspace({
     return subscribeToEditorFile(path, (content) => {
       editorCache.setContent(path, content);
       const state = useEditorStore.getState();
+      const currentTab = state.panelGroups
+        .find((group) => group.id === groupId)
+        ?.tabs.find((item) => item.id === tabId);
+      if (
+        currentTab &&
+        !shouldApplyExternalFileChange(currentTab.content, content)
+      ) {
+        return;
+      }
       state.completeTabLoad(groupId, tabId, path, content);
       state.syncFileContent(path, content, tabId);
     });

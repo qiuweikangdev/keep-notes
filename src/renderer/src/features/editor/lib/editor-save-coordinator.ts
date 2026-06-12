@@ -13,10 +13,17 @@ interface PendingSave {
   inFlight: Promise<boolean> | null;
 }
 
+interface OwnWriteRecord {
+  content: string;
+  expiresAt: number;
+}
+
+const OWN_WRITE_TTL_MS = 2_000;
+
 export class EditorSaveCoordinator {
   private revision = 0;
   private readonly pending = new Map<string, PendingSave>();
-  private readonly ownWrites = new Map<string, string[]>();
+  private readonly ownWrites = new Map<string, OwnWriteRecord[]>();
 
   constructor(private readonly options: EditorSaveCoordinatorOptions) {}
 
@@ -92,18 +99,13 @@ export class EditorSaveCoordinator {
   }
 
   isOwnWrite(path: string, content: string): boolean {
-    const recentWrites = this.ownWrites.get(path);
-    const matchingIndex = recentWrites?.indexOf(content) ?? -1;
-    if (!recentWrites || matchingIndex === -1) {
+    const recentWrites = this.pruneExpiredOwnWrites(path);
+    if (!recentWrites) {
       return false;
     }
 
-    // 每个落盘记录只消费一次，同时允许文件系统事件乱序到达。
-    recentWrites.splice(matchingIndex, 1);
-    if (recentWrites.length === 0) {
-      this.ownWrites.delete(path);
-    }
-    return true;
+    // fs.watch 可能为同一次写盘连续触发多个 change，窗口期内需保持幂等识别。
+    return recentWrites.some((write) => write.content === content);
   }
 
   private async persist(
@@ -144,8 +146,11 @@ export class EditorSaveCoordinator {
   }
 
   private rememberOwnWrite(path: string, content: string): void {
-    const recentWrites = this.ownWrites.get(path) ?? [];
-    recentWrites.push(content);
+    const recentWrites = this.pruneExpiredOwnWrites(path) ?? [];
+    recentWrites.push({
+      content,
+      expiresAt: Date.now() + OWN_WRITE_TTL_MS,
+    });
     // 写入前登记，避免文件系统事件先于 IPC 写入结果返回。
     if (recentWrites.length > 8) {
       recentWrites.splice(0, recentWrites.length - 8);
@@ -155,12 +160,29 @@ export class EditorSaveCoordinator {
 
   private forgetOwnWrite(path: string, content: string): void {
     const recentWrites = this.ownWrites.get(path);
-    const matchingIndex = recentWrites?.indexOf(content) ?? -1;
+    const matchingIndex =
+      recentWrites?.findLastIndex((write) => write.content === content) ?? -1;
     if (!recentWrites || matchingIndex === -1) return;
 
     recentWrites.splice(matchingIndex, 1);
     if (recentWrites.length === 0) {
       this.ownWrites.delete(path);
     }
+  }
+
+  private pruneExpiredOwnWrites(path: string): OwnWriteRecord[] | null {
+    const recentWrites = this.ownWrites.get(path);
+    if (!recentWrites) return null;
+
+    const now = Date.now();
+    const activeWrites = recentWrites.filter((write) => write.expiresAt > now);
+    if (activeWrites.length === 0) {
+      this.ownWrites.delete(path);
+      return null;
+    }
+    if (activeWrites.length !== recentWrites.length) {
+      this.ownWrites.set(path, activeWrites);
+    }
+    return activeWrites;
   }
 }

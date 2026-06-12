@@ -8,6 +8,7 @@ import {
   selectEditorLayoutSignature,
   selectPanelGroupSignature,
 } from "../lib/editor-view-selectors";
+import { isEditorFileDrag } from "../lib/editor-drag-session";
 
 // 支持的文件扩展名
 const SUPPORTED_EXTENSIONS = [".md", ".txt"];
@@ -27,8 +28,8 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
   const [isDragOver, setIsDragOver] = useState(false);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
-    // 允许BlockNote内部拖拽
-    if (e.dataTransfer.types.includes("blocknote/html")) {
+    // 仅接管文件拖放，BlockNote 表格和普通块拖拽继续交给编辑器处理。
+    if (!isEditorFileDrag(e.dataTransfer.types)) {
       return;
     }
     e.preventDefault();
@@ -37,8 +38,7 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
   }, []);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
-    // 允许BlockNote内部拖拽
-    if (e.dataTransfer.types.includes("blocknote/html")) {
+    if (!isEditorFileDrag(e.dataTransfer.types)) {
       return;
     }
     e.preventDefault();
@@ -47,8 +47,7 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
 
   const handleDrop = useCallback(
     async (e: React.DragEvent) => {
-      // 允许BlockNote内部拖拽
-      if (e.dataTransfer.types.includes("blocknote/html")) {
+      if (!isEditorFileDrag(e.dataTransfer.types)) {
         return;
       }
       e.preventDefault();

@@ -54,7 +54,7 @@ describe("EditorSaveCoordinator", () => {
     expect(coordinator.hasPending("a.md")).toBe(false);
   });
 
-  it("recognizes one matching filesystem event as its own write", async () => {
+  it("recognizes matching filesystem events during the recent-write window", async () => {
     const coordinator = new EditorSaveCoordinator({
       delayMs: 800,
       write: vi.fn().mockResolvedValue(undefined),
@@ -64,7 +64,21 @@ describe("EditorSaveCoordinator", () => {
     await coordinator.flush("a.md");
 
     expect(coordinator.isOwnWrite("a.md", "saved")).toBe(true);
+    await vi.advanceTimersByTimeAsync(2_001);
     expect(coordinator.isOwnWrite("a.md", "saved")).toBe(false);
+  });
+
+  it("recognizes repeated filesystem events from the same recent write", async () => {
+    const coordinator = new EditorSaveCoordinator({
+      delayMs: 800,
+      write: vi.fn().mockResolvedValue(undefined),
+    });
+
+    coordinator.schedule("a.md", "saved");
+    await coordinator.flush("a.md");
+
+    expect(coordinator.isOwnWrite("a.md", "saved")).toBe(true);
+    expect(coordinator.isOwnWrite("a.md", "saved")).toBe(true);
   });
 
   it("marks a write before the filesystem event can arrive", async () => {
