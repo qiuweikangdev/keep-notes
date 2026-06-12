@@ -169,22 +169,14 @@ export function QuickActionsPanel({
         ) : (
           /* 正常状态：显示打开文件夹按钮 */
           <div
-            className="flex items-center"
+            className="quick-open-folder flex items-center"
             style={{ borderTop: "1px solid var(--border-color)" }}
           >
             <button
               type="button"
-              className="flex flex-1 items-center justify-center gap-2 py-2.5 text-[13px] transition-colors"
+              className="flex flex-1 items-center justify-center gap-2 py-2.5 text-[13px]"
               style={{ color: "var(--text-muted)" }}
               onClick={handleOpenFolder}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                e.currentTarget.style.color = "var(--text-primary)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "transparent";
-                e.currentTarget.style.color = "var(--text-muted)";
-              }}
             >
               <FolderOpen className="h-4 w-4" />
               打开文件夹...
@@ -194,17 +186,11 @@ export function QuickActionsPanel({
             {hasRecentContent && (
               <button
                 type="button"
-                className="flex h-8 w-8 flex-shrink-0 items-center justify-center transition-colors"
+                className="flex h-8 w-8 flex-shrink-0 items-center justify-center"
                 style={{ color: "var(--text-muted)" }}
                 onClick={() => {
                   setIsExpanded(true);
                   onExpandedChange?.(true);
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.color = "var(--text-primary)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.color = "var(--text-muted)";
                 }}
               >
                 <MoreVertical className="h-4 w-4" />
