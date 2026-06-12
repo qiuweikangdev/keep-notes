@@ -290,9 +290,8 @@ export const TreeNode = memo(function TreeNode({
 
   const handleDragStart = useCallback(
     (e: React.DragEvent) => {
-      // 设置自定义数据类型，用于识别文件拖拽
+      // 只设置自定义数据类型，避免 text/plain 导致文件路径被插入编辑器
       e.dataTransfer.setData("application/x-keep-notes-file", node.key);
-      e.dataTransfer.setData("text/plain", node.key);
       e.dataTransfer.effectAllowed = "copyMove";
       if (rowRef.current) {
         rowRef.current.style.opacity = "0.5";
@@ -350,7 +349,9 @@ export const TreeNode = memo(function TreeNode({
       setDragCounter(0);
       setIsDropTarget(false);
 
-      const sourcePath = e.dataTransfer.getData("text/plain");
+      const sourcePath = e.dataTransfer.getData(
+        "application/x-keep-notes-file",
+      );
       if (!sourcePath) return;
 
       const normalizedSource = normalizePath(sourcePath);
@@ -447,13 +448,7 @@ export const TreeNode = memo(function TreeNode({
       console.error("Failed to read file for diff:", error);
       closeDiff();
     }
-  }, [
-    closeDiff,
-    getFileHeadContent,
-    node.key,
-    openDiff,
-    updateContent,
-  ]);
+  }, [closeDiff, getFileHeadContent, node.key, openDiff, updateContent]);
 
   const icon = isFolder ? (
     isExpanded ? (
