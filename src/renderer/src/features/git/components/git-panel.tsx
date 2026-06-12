@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useElectron } from "@/hooks/use-electron";
 import { useTreeStore } from "@/store/tree.store";
 import { useEditorStore } from "@/store/editor.store";
+import { useDiffStore } from "@/store/diff.store";
 import { CodeResult } from "@/types";
 import type { GitStatus, GitBranch, GitCommitOptions } from "@/types";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -17,6 +18,7 @@ import {
   ChevronRight,
   ExternalLink,
   RotateCcw,
+  GitCompare,
   List,
   FolderTree,
   File,
@@ -51,6 +53,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     discardChanges,
     openFile: openFileInEditor,
     loadTree,
+    getFileHeadContent,
   } = useElectron();
   const { treeRoot, setSelectedKey, expandedKeys, setExpandedKeys } =
     useTreeStore();
@@ -76,6 +79,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
   }>({ open: false, filePath: "" });
   const [treeView, setTreeView] = useState(false);
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
+  const { openDiff, updateContent } = useDiffStore();
 
   const getCurrentDir = useCallback(() => {
     return treeRoot?.key || "";
@@ -390,6 +394,50 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       expandedKeys,
       setExpandedKeys,
     ],
+  );
+
+  // 处理 diff 比较
+  const handleDiffFile = useCallback(
+    async (filePath: string) => {
+      const dir = getCurrentDir();
+      if (!dir) return;
+
+      // 先打开弹窗占位并标记加载中
+      openDiff(filePath, "", "");
+
+      try {
+        // 构造完整路径
+        const sep = dir.includes("\\") ? "\\" : "/";
+        const normalizedFile = filePath.replace(/[/\\]/g, sep);
+        const fullPath = dir + sep + normalizedFile;
+
+        // 获取编辑器中的内容（如果已打开）
+        let editorContent = "";
+        const matchedTab = useEditorStore
+          .getState()
+          .panelGroups.flatMap((g) => g.tabs)
+          .find((t) => t.filePath === fullPath);
+        if (matchedTab?.content) {
+          editorContent = matchedTab.content;
+        } else {
+          // 从磁盘读取
+          editorContent = await window.electronAPI.readFile(fullPath);
+        }
+
+        // 获取 HEAD 中的内容
+        let baseContent = "";
+        const headResult = await getFileHeadContent(dir, filePath);
+        if (headResult.code === CodeResult.Success) {
+          baseContent = headResult.data ?? "";
+        }
+
+        updateContent(baseContent, editorContent);
+      } catch (error) {
+        console.error("Failed to read file for diff:", error);
+        closeDiff();
+      }
+    },
+    [getCurrentDir, openDiff, updateContent, closeDiff, getFileHeadContent],
   );
 
   // 放弃更改 - 打开确认弹窗
@@ -973,6 +1021,14 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                           </div>
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
+                              onClick={() => handleDiffFile(node.path)}
+                              className="p-1 rounded transition-colors hover:bg-accent hover:text-[var(--accent-color)]"
+                              style={{ color: "var(--text-muted)" }}
+                              title="查看差异"
+                            >
+                              <GitCompare className="h-3.5 w-3.5" />
+                            </button>
+                            <button
                               onClick={() => handleOpenFile(node.path)}
                               className="p-1 rounded transition-colors hover:bg-accent hover:text-foreground"
                               style={{ color: "var(--text-muted)" }}
@@ -1081,6 +1137,14 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                       </span>
                     </div>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => handleDiffFile(file.path)}
+                        className="p-1 rounded transition-colors hover:bg-accent hover:text-[var(--accent-color)]"
+                        style={{ color: "var(--text-muted)" }}
+                        title="查看差异"
+                      >
+                        <GitCompare className="h-3.5 w-3.5" />
+                      </button>
                       <button
                         onClick={() => handleOpenFile(file.path)}
                         className="p-1 rounded transition-colors hover:bg-accent hover:text-foreground"
