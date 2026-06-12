@@ -23,10 +23,10 @@ export function Switch({
       onClick={() => onCheckedChange(!checked)}
       className={cn(
         "relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-color)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
-        checked ? "switch-checked" : "switch-unchecked",
         className,
       )}
       style={{
+        backgroundColor: checked ? "var(--accent-color)" : "var(--bg-tertiary)",
         border: checked ? "none" : "1px solid var(--border-color)",
       }}
     >
