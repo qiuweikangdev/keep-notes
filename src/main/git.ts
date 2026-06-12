@@ -13,7 +13,7 @@ import type {
 
 // 获取 Git 实例
 function getGitInstance(baseDir: string): SimpleGit {
-  return simpleGit({ baseDir });
+  return simpleGit({ baseDir, binary: "git" });
 }
 
 // 检测是否为 Git 仓库
@@ -130,6 +130,8 @@ export async function getStatus(
 ): Promise<ApiResponse<GitStatus>> {
   try {
     const git = getGitInstance(dirPath);
+    // 禁用 quotepath 以正确处理中文文件名
+    await git.addConfig("core.quotepath", "false");
     const status: StatusResult = await git.status();
     return {
       code: CodeResult.Success,
