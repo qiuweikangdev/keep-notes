@@ -306,7 +306,7 @@ export function SettingsModal() {
                     backgroundColor: isActive
                       ? "var(--active-bg)"
                       : "transparent",
-                    color: "white",
+                    color: "var(--text-primary)",
                     width: "calc(100% - 8px)",
                   }}
                   onMouseEnter={(e) => {
@@ -323,7 +323,7 @@ export function SettingsModal() {
                   {isActive && (
                     <ChevronRight
                       className="h-3 w-3 flex-shrink-0 ml-auto"
-                      style={{ color: "white" }}
+                      style={{ color: "var(--text-muted)" }}
                     />
                   )}
                 </button>
