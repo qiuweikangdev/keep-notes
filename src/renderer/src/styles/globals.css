@@ -763,3 +763,20 @@ select {
   appearance: none;
   background-image: none;
 }
+
+/* Switch 开关组件样式 */
+.switch-checked {
+  background-color: var(--accent-color);
+}
+
+.switch-checked:hover {
+  background-color: color-mix(in srgb, var(--accent-color) 85%, black);
+}
+
+.switch-unchecked {
+  background-color: var(--bg-tertiary);
+}
+
+.switch-unchecked:hover {
+  background-color: color-mix(in srgb, var(--bg-tertiary) 85%, var(--border-color));
+}
