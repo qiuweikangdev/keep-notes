@@ -263,23 +263,22 @@ function DiffDialog({
       dragActivatedRef.current = true;
       startDrag();
 
-      // 将对话框从 CSS 居中切换为绝对定位
+      // 激活时：读取一次 rect，计算偏移，切换到绝对定位，然后直接返回
+      // 避免在同一帧内读写交替导致布局抖动
       const target = contentRef.current;
       const rect = target.getBoundingClientRect();
+      session.offsetX = e.clientX - rect.left;
+      session.offsetY = e.clientY - rect.top;
       target.style.setProperty("left", `${rect.left}px`, "important");
       target.style.setProperty("top", `${rect.top}px`, "important");
       target.style.setProperty("transform", "none", "important");
-
-      // 记录鼠标在对话框内的偏移，确保抓取点跟随鼠标
-      session.offsetX = e.clientX - rect.left;
-      session.offsetY = e.clientY - rect.top;
+      return;
     }
 
-    // 新位置 = 鼠标位置 - 抓取偏移，限制在视口边界内
+    // 移动阶段：使用 offsetWidth/offsetHeight 避免 getBoundingClientRect 的布局开销
     const target = contentRef.current;
-    const rect = target.getBoundingClientRect();
-    const maxLeft = window.innerWidth - rect.width - VIEWPORT_MARGIN;
-    const maxTop = window.innerHeight - rect.height - VIEWPORT_MARGIN;
+    const maxLeft = window.innerWidth - target.offsetWidth - VIEWPORT_MARGIN;
+    const maxTop = window.innerHeight - target.offsetHeight - VIEWPORT_MARGIN;
     const newLeft = Math.max(
       VIEWPORT_MARGIN,
       Math.min(e.clientX - session.offsetX, maxLeft),
