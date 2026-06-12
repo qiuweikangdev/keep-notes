@@ -79,7 +79,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
   }>({ open: false, filePath: "" });
   const [treeView, setTreeView] = useState(false);
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
-  const { openDiff, updateContent } = useDiffStore();
+  const { openDiff, closeDiff, updateContent } = useDiffStore();
 
   const getCurrentDir = useCallback(() => {
     return treeRoot?.key || "";
