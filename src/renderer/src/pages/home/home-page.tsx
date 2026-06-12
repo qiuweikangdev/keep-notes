@@ -29,7 +29,6 @@ import {
 } from "react";
 
 const DRAG_ACTIVATION_DISTANCE = 8;
-const DRAG_DAMPENING = 0.6;
 const VIEWPORT_MARGIN = 16;
 
 export function HomePage() {
@@ -215,31 +214,30 @@ function DiffDialog({
 }) {
   const { startDrag, endDrag } = useDragResize();
 
-  // 拖拽会话：记录起始鼠标位置和对话框起始 rect。
+  // 拖拽会话
   const dragSessionRef = useRef<{
     pointerId: number;
-    startX: number;
-    startY: number;
-    startLeft: number;
-    startTop: number;
+    // 鼠标按下时的坐标
+    downX: number;
+    downY: number;
+    // 鼠标相对于对话框左上角的偏移（激活时计算）
+    offsetX: number;
+    offsetY: number;
   } | null>(null);
 
   // 拖拽是否已激活（超过激活距离）
   const dragActivatedRef = useRef(false);
 
   const handleHeaderPointerDown: PointerEventHandler<HTMLElement> = (e) => {
-    // 只响应主键
     if (e.button !== 0 || !contentRef.current) return;
-    // 防止选中文本
     e.preventDefault();
 
-    const rect = contentRef.current.getBoundingClientRect();
     dragSessionRef.current = {
       pointerId: e.pointerId,
-      startX: e.clientX,
-      startY: e.clientY,
-      startLeft: rect.left,
-      startTop: rect.top,
+      downX: e.clientX,
+      downY: e.clientY,
+      offsetX: 0,
+      offsetY: 0,
     };
     dragActivatedRef.current = false;
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -250,10 +248,10 @@ function DiffDialog({
     if (!session || session.pointerId !== e.pointerId) return;
     if (!contentRef.current) return;
 
-    const dx = e.clientX - session.startX;
-    const dy = e.clientY - session.startY;
+    const dx = e.clientX - session.downX;
+    const dy = e.clientY - session.downY;
 
-    // 激活距离检查：移动超过阈值才开始拖拽
+    // 激活距离检查
     if (!dragActivatedRef.current) {
       if (
         Math.abs(dx) < DRAG_ACTIVATION_DISTANCE &&
@@ -264,28 +262,30 @@ function DiffDialog({
       dragActivatedRef.current = true;
       startDrag();
 
-      // 激活时将对话框从 CSS 居中切换为绝对定位
+      // 将对话框从 CSS 居中切换为绝对定位
       const target = contentRef.current;
       const rect = target.getBoundingClientRect();
       target.style.setProperty("left", `${rect.left}px`, "important");
       target.style.setProperty("top", `${rect.top}px`, "important");
       target.style.setProperty("transform", "none", "important");
+
+      // 记录鼠标在对话框内的偏移，确保抓取点跟随鼠标
+      session.offsetX = e.clientX - rect.left;
+      session.offsetY = e.clientY - rect.top;
     }
 
-    // 计算新位置：应用阻尼系数降低灵敏度，并限制在视口边界内
+    // 新位置 = 鼠标位置 - 抓取偏移，限制在视口边界内
     const target = contentRef.current;
     const rect = target.getBoundingClientRect();
     const maxLeft = window.innerWidth - rect.width - VIEWPORT_MARGIN;
     const maxTop = window.innerHeight - rect.height - VIEWPORT_MARGIN;
-    const dampenedDx = dx * DRAG_DAMPENING;
-    const dampenedDy = dy * DRAG_DAMPENING;
     const newLeft = Math.max(
       VIEWPORT_MARGIN,
-      Math.min(session.startLeft + dampenedDx, maxLeft),
+      Math.min(e.clientX - session.offsetX, maxLeft),
     );
     const newTop = Math.max(
       VIEWPORT_MARGIN,
-      Math.min(session.startTop + dampenedDy, maxTop),
+      Math.min(e.clientY - session.offsetY, maxTop),
     );
     target.style.setProperty("left", `${newLeft}px`, "important");
     target.style.setProperty("top", `${newTop}px`, "important");
