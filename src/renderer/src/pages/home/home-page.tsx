@@ -21,6 +21,7 @@ import { useTreeStore } from "@/store/tree.store";
 import { discardFileChanges } from "@/features/editor/lib/discard-file-changes";
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   useMemo,
@@ -55,8 +56,8 @@ function HomePageContent() {
     return window.electronAPI?.getPlatform() === "darwin";
   }, []);
 
-  // 对话框打开时重置尺寸，居中由 CSS 类处理
-  useEffect(() => {
+  // 对话框打开时重置尺寸，使用 useLayoutEffect 在浏览器绘制前同步清除旧内联样式，避免闪烁
+  useLayoutEffect(() => {
     if (isOpen) {
       resetSize();
     }
