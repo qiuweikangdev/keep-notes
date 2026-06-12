@@ -406,7 +406,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       openDiff(filePath, "", "");
 
       try {
-        // 构造完整路径
+        // 构造完整路径，使用与 handleOpenFile 相同的方式
         const sep = dir.includes("\\") ? "\\" : "/";
         const normalizedFile = filePath.replace(/[/\\]/g, sep);
         const fullPath = dir + sep + normalizedFile;
