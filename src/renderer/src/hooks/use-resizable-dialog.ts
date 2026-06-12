@@ -71,6 +71,7 @@ function clearGeometry(target: HTMLElement) {
   target.style.removeProperty("left");
   target.style.removeProperty("top");
   target.style.removeProperty("transform");
+  target.style.removeProperty("transition");
 }
 
 function computeNext(

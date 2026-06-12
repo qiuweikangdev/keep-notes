@@ -269,6 +269,8 @@ function DiffDialog({
       const rect = target.getBoundingClientRect();
       session.offsetX = e.clientX - rect.left;
       session.offsetY = e.clientY - rect.top;
+      // 先禁用过渡动画，再切换定位方式，避免 duration-200 导致的闪跳
+      target.style.setProperty("transition", "none", "important");
       target.style.setProperty("left", `${rect.left}px`, "important");
       target.style.setProperty("top", `${rect.top}px`, "important");
       target.style.setProperty("transform", "none", "important");
