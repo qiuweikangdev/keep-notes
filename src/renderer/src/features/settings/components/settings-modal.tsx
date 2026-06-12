@@ -93,21 +93,24 @@ export function SettingsModal() {
               </div>
             </div>
 
+            {/* 编辑模式切换 */}
+            <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+              <SettingRow
+                label="编辑模式切换"
+                description="在编辑器标签栏显示富文本与 Markdown 源码切换按钮"
+              >
+                <Switch
+                  checked={appearance.showModeSwitcher}
+                  onCheckedChange={(checked) =>
+                    setAppearance({ showModeSwitcher: checked })
+                  }
+                />
+              </SettingRow>
+            </div>
+
             {/* 字体设置 */}
             <div style={{ borderBottom: "1px solid var(--border-color)" }}>
               <div className="py-1">
-                <SettingRow
-                  label="编辑模式切换"
-                  description="在编辑器标签栏显示富文本与 Markdown 源码切换按钮"
-                >
-                  <Switch
-                    checked={appearance.showModeSwitcher}
-                    onCheckedChange={(checked) =>
-                      setAppearance({ showModeSwitcher: checked })
-                    }
-                  />
-                </SettingRow>
-
                 <SettingRow label="UI 字体">
                   <FontSelector
                     value={appearance.uiFont || fontFamilyOptions[0].value}
@@ -289,7 +292,7 @@ export function SettingsModal() {
         <div className="flex gap-0 overflow-hidden" style={{ height: "540px" }}>
           {/* 左侧导航 */}
           <div
-            className="w-[220px] flex-shrink-0 py-4 px-2 overflow-y-auto"
+            className="w-[220px] flex-shrink-0 py-6 px-2 overflow-y-auto"
             style={{
               borderRight: "1px solid var(--border-color)",
             }}
