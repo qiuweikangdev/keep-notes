@@ -292,9 +292,11 @@ export function SettingsModal() {
         <div className="flex gap-0 overflow-hidden" style={{ height: "540px" }}>
           {/* 左侧导航 */}
           <div
-            className="w-[220px] flex-shrink-0 py-6 px-2 overflow-y-auto"
+            className="w-[220px] flex-shrink-0 px-2 overflow-y-auto"
             style={{
               borderRight: "1px solid var(--border-color)",
+              paddingTop: "20px",
+              paddingBottom: "20px",
             }}
           >
             {settingsMenuItems.map((item) => {
@@ -304,7 +306,7 @@ export function SettingsModal() {
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all rounded-lg mx-1"
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all rounded-lg mb-1"
                   style={{
                     backgroundColor: isActive
                       ? "var(--active-bg)"
