@@ -4,6 +4,7 @@ import { useTreeStore } from "@/store/tree.store";
 import { useEditorStore } from "@/store/editor.store";
 import { CodeResult } from "@/types";
 import type { GitStatus, GitBranch, GitCommitOptions } from "@/types";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   GitBranch as GitBranchIcon,
   GitCommit,
@@ -1160,71 +1161,20 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       </div>
 
       {/* 确认放弃更改弹窗 */}
-      {confirmDialog.open && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center"
-          style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
-          onClick={() => setConfirmDialog({ open: false, filePath: "" })}
-        >
-          <div
-            className="w-[400px] rounded-xl shadow-2xl overflow-hidden"
-            style={{ backgroundColor: "var(--bg-secondary)" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              className="flex items-center justify-between p-4"
-              style={{ borderBottom: "1px solid var(--border-color)" }}
-            >
-              <span
-                className="font-medium"
-                style={{ color: "var(--text-primary)" }}
-              >
-                确认放弃更改
-              </span>
-              <button
-                onClick={() => setConfirmDialog({ open: false, filePath: "" })}
-                className="p-1 rounded-lg transition-colors hover:bg-[var(--hover-bg)]"
-              >
-                <X className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
-              </button>
-            </div>
-            <div className="p-4">
-              <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                确定要放弃{" "}
-                <span style={{ color: "var(--text-primary)", fontWeight: 500 }}>
-                  {confirmDialog.filePath.endsWith("/*")
-                    ? `目录 "${confirmDialog.filePath.slice(0, -2)}" 下的所有更改`
-                    : `"${confirmDialog.filePath}" 的更改`}
-                </span>
-                吗？
-              </p>
-              <p
-                className="text-xs mt-2"
-                style={{ color: "var(--text-muted)" }}
-              >
-                此操作不可撤销。
-              </p>
-            </div>
-            <div
-              className="flex items-center justify-end gap-2 p-4"
-              style={{ borderTop: "1px solid var(--border-color)" }}
-            >
-              <button
-                onClick={() => setConfirmDialog({ open: false, filePath: "" })}
-                className="px-4 py-1.5 text-sm rounded-md bg-transparent text-[var(--text-primary)] border border-[var(--border-color)] transition-colors hover:bg-[var(--hover-bg)]"
-              >
-                取消
-              </button>
-              <button
-                onClick={confirmDiscardChanges}
-                className="px-4 py-1.5 text-sm rounded-md bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors hover:bg-[var(--hover-bg)]"
-              >
-                确定
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={confirmDialog.open}
+        onOpenChange={(open) =>
+          setConfirmDialog({ open, filePath: confirmDialog.filePath })
+        }
+        title="确认放弃更改"
+        description={`确定要放弃 ${
+          confirmDialog.filePath.endsWith("/*")
+            ? `目录 "${confirmDialog.filePath.slice(0, -2)}" 下的所有更改`
+            : `"${confirmDialog.filePath}" 的更改`
+        } 吗？`}
+        confirmText="确定"
+        onConfirm={confirmDiscardChanges}
+      />
     </div>
   );
 }

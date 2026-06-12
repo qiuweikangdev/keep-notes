@@ -20,7 +20,6 @@ import { useDiffPanelStore } from "@/features/diff/store/diff-panel.store";
 import { useTreeStore } from "@/store/tree.store";
 import { discardFileChanges } from "@/features/editor/lib/discard-file-changes";
 import {
-  useEffect,
   useLayoutEffect,
   useRef,
   useState,

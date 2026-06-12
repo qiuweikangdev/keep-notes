@@ -1,4 +1,5 @@
 import { Dialog } from "@/components/ui/dialog";
+import { X } from "lucide-react";
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -7,7 +8,6 @@ interface ConfirmDialogProps {
   description?: string;
   confirmText?: string;
   cancelText?: string;
-  variant?: "default" | "danger";
   onConfirm: () => void | Promise<void>;
 }
 
@@ -18,7 +18,6 @@ export function ConfirmDialog({
   description,
   confirmText = "确认",
   cancelText = "取消",
-  variant = "default",
   onConfirm,
 }: ConfirmDialogProps) {
   const handleConfirm = async () => {
@@ -31,51 +30,58 @@ export function ConfirmDialog({
       <Dialog.Portal>
         <Dialog.Overlay
           className="fixed inset-0 z-50"
-          style={{ backgroundColor: "rgba(0, 0, 0, 0.4)" }}
+          style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
         />
         <Dialog.Content
-          className="fixed left-[50%] top-[50%] z-50 w-full max-w-[420px] translate-x-[-50%] translate-y-[-50%] rounded-lg p-5 shadow-lg"
+          className="fixed left-[50%] top-[50%] z-50 w-full max-w-[400px] translate-x-[-50%] translate-y-[-50%] rounded-xl shadow-2xl overflow-hidden"
           style={{
-            backgroundColor: "var(--bg-primary)",
-            border: "1px solid var(--border-color)",
+            backgroundColor: "var(--bg-secondary)",
           }}
         >
-          <h3
-            className="text-sm font-medium"
-            style={{ color: "var(--text-primary)" }}
+          {/* 标题行：左侧标题 + 右侧关闭按钮 */}
+          <div
+            className="flex items-center justify-between p-4"
+            style={{ borderBottom: "1px solid var(--border-color)" }}
           >
-            {title}
-          </h3>
-          {description ? (
-            <p
-              className="mt-2 text-sm"
-              style={{ color: "var(--text-secondary)" }}
+            <span
+              className="font-medium"
+              style={{ color: "var(--text-primary)" }}
             >
-              {description}
-            </p>
+              {title}
+            </span>
+            <button
+              onClick={() => onOpenChange(false)}
+              className="p-1 rounded-lg transition-colors hover:bg-[var(--hover-bg)]"
+            >
+              <X className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
+            </button>
+          </div>
+
+          {/* 内容区域 */}
+          {description ? (
+            <div className="p-4">
+              <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                {description}
+              </p>
+            </div>
           ) : null}
 
-          <div className="mt-5 flex justify-end gap-2">
+          {/* 按钮区域 */}
+          <div
+            className="flex items-center justify-end gap-2 p-4"
+            style={{ borderTop: "1px solid var(--border-color)" }}
+          >
             <button
               type="button"
               onClick={() => onOpenChange(false)}
-              className="h-8 rounded-md px-4 text-sm transition-colors"
-              style={{
-                backgroundColor: "var(--bg-tertiary)",
-                border: "1px solid var(--border-color)",
-                color: "var(--text-primary)",
-              }}
+              className="px-4 py-1.5 text-sm rounded-md bg-transparent text-[var(--text-primary)] border border-[var(--border-color)] transition-colors hover:bg-[var(--hover-bg)]"
             >
               {cancelText}
             </button>
             <button
               type="button"
               onClick={handleConfirm}
-              className="h-8 rounded-md px-4 text-sm text-white transition-colors"
-              style={{
-                backgroundColor:
-                  variant === "danger" ? "#dc2626" : "var(--accent-color)",
-              }}
+              className="px-4 py-1.5 text-sm rounded-md bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors hover:bg-[var(--hover-bg)]"
             >
               {confirmText}
             </button>
