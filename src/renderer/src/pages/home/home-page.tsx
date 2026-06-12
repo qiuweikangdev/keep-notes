@@ -174,10 +174,9 @@ function HomePageContent() {
       <ConfirmDialog
         open={confirmDiscardOpen}
         onOpenChange={setConfirmDiscardOpen}
-        title="放弃文件更改"
-        description={`将恢复"${fileName || "当前文件"}"到 Git 中的版本，此操作无法撤销。`}
-        confirmText="放弃更改"
-        variant="danger"
+        title="确认放弃更改"
+        description={`确定要放弃 "${fileName || "当前文件"}" 的更改吗？`}
+        confirmText="确定"
         onConfirm={handleConfirmDiscard}
       />
     </div>

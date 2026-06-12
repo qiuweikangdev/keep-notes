@@ -190,10 +190,9 @@ export function EditorToolbar({ groupId }: EditorToolbarProps) {
       <ConfirmDialog
         open={confirmDiscard}
         onOpenChange={setConfirmDiscard}
-        title="放弃文件更改"
-        description={`将恢复“${tab.filePath?.split(/[\\/]/).pop() ?? "当前文件"}”到 Git 中的版本，此操作无法撤销。`}
-        confirmText="放弃更改"
-        variant="danger"
+        title="确认放弃更改"
+        description={`确定要放弃 "${tab.filePath?.split(/[\\/]/).pop() ?? "当前文件"}" 的更改吗？`}
+        confirmText="确定"
         onConfirm={handleDiscard}
       />
     </>
