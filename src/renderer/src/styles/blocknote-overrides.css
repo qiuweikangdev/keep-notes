@@ -164,24 +164,41 @@
     "SF Mono", "Fira Code", Consolas, "Courier New", monospace !important;
 }
 
+.bn-block-content[data-content-type="checkListItem"] > div:has(> input) {
+  align-items: center;
+  min-height: 24px;
+}
+
 .bn-block-content[data-content-type="checkListItem"] > div > input {
   accent-color: var(--accent-color);
+  width: 18px;
+  height: 18px;
+  margin-left: 2px;
+  margin-right: 10px;
+  margin-block: 0;
+  flex-shrink: 0;
+  border-radius: 9999px;
 }
 
 .bn-block-content[data-content-type="checkListItem"][data-checked="true"]
   .bn-inline-content {
   color: var(--text-muted);
+  text-decoration: line-through;
 }
 
 .bn-editor [data-content-type="table"] .tableWrapper {
   margin-block: 0.8em;
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  overflow: auto;
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .bn-editor [data-content-type="table"] table {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
 }
 
