@@ -1,14 +1,7 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-} from "react";
+import { useCallback, useEffect, useRef, type CSSProperties } from "react";
 import { useCreateBlockNote, useEditorChange } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
 import type { Block } from "@blocknote/core";
-import { Trash2 } from "lucide-react";
 
 import { useTheme } from "@/hooks/use-theme";
 import { useDiffStore } from "@/store/diff.store";
@@ -31,12 +24,6 @@ import {
   restoreEditorScrollTop,
 } from "../lib/editor-viewport";
 import { createParseFallback } from "../lib/editor-parse-fallback";
-import {
-  findHoveredTableDeleteTarget,
-  getTableDeleteButtonPosition,
-  isPointerWithinTableDeleteHoverZone,
-  isTableDeleteButtonTarget,
-} from "../lib/editor-table-delete-overlay";
 
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
@@ -56,12 +43,6 @@ interface BlockNoteEditorInnerProps {
 
 const MARKDOWN_PARSER_VERSION = "blocknote-v2";
 
-interface TableDeleteOverlayState {
-  blockId: string;
-  top: number;
-  left: number;
-}
-
 function BlockNoteEditorInner({
   groupId,
   tabId,
@@ -79,9 +60,6 @@ function BlockNoteEditorInner({
   const changeGateRef = useRef(new EditorChangeGate());
   const contentRef = useRef(content);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const hoveredTableRef = useRef<ReturnType<
-    typeof findHoveredTableDeleteTarget
-  > | null>(null);
   const appliedPathRef = useRef<string | null>(null);
   const appliedSourceRef = useRef(content);
   const serializedBaselineRef = useRef<string | null>(null);
@@ -90,8 +68,6 @@ function BlockNoteEditorInner({
   );
   const applyTokenRef = useRef(0);
   const editor = useCreateBlockNote({ initialContent: undefined });
-  const [tableDeleteOverlay, setTableDeleteOverlay] =
-    useState<TableDeleteOverlayState | null>(null);
 
   useEffect(() => {
     contentRef.current = content;
@@ -285,117 +261,6 @@ function BlockNoteEditorInner({
     changeGateRef.current.markUserIntent();
   }, []);
 
-  const clearTableDeleteOverlay = useCallback(() => {
-    hoveredTableRef.current = null;
-    setTableDeleteOverlay(null);
-  }, []);
-
-  const refreshTableDeleteOverlay = useCallback(() => {
-    const hoveredTable = hoveredTableRef.current;
-    const scrollContainer = scrollContainerRef.current;
-    if (
-      !hoveredTable ||
-      !scrollContainer ||
-      !hoveredTable.tableRoot.isConnected
-    ) {
-      clearTableDeleteOverlay();
-      return;
-    }
-
-    const position = getTableDeleteButtonPosition(
-      hoveredTable.tableWrapper,
-      scrollContainer,
-    );
-    if (!position) {
-      clearTableDeleteOverlay();
-      return;
-    }
-
-    setTableDeleteOverlay((current) => {
-      if (
-        current?.blockId === hoveredTable.blockId &&
-        current.top === position.top &&
-        current.left === position.left
-      ) {
-        return current;
-      }
-
-      return {
-        blockId: hoveredTable.blockId,
-        top: position.top,
-        left: position.left,
-      };
-    });
-  }, [clearTableDeleteOverlay]);
-
-  const updateTableDeleteOverlay = useCallback(
-    (target: EventTarget | null) => {
-      const hoveredTable = findHoveredTableDeleteTarget(target);
-      if (!hoveredTable) {
-        clearTableDeleteOverlay();
-        return;
-      }
-
-      hoveredTableRef.current = hoveredTable;
-      const scrollContainer = scrollContainerRef.current;
-      if (!scrollContainer) {
-        clearTableDeleteOverlay();
-        return;
-      }
-
-      const position = getTableDeleteButtonPosition(
-        hoveredTable.tableWrapper,
-        scrollContainer,
-      );
-      if (!position) {
-        clearTableDeleteOverlay();
-        return;
-      }
-
-      setTableDeleteOverlay({
-        blockId: hoveredTable.blockId,
-        top: position.top,
-        left: position.left,
-      });
-    },
-    [clearTableDeleteOverlay],
-  );
-
-  const handleDeleteTable = useCallback(() => {
-    const hoveredTable = hoveredTableRef.current;
-    if (!hoveredTable) return;
-
-    markUserIntent();
-
-    const blockId = hoveredTable.blockId;
-    const cursorPosition = editor.getTextCursorPosition();
-    if (cursorPosition.block.id === blockId) {
-      const fallbackBlock =
-        cursorPosition.nextBlock ?? cursorPosition.prevBlock;
-      if (fallbackBlock) {
-        editor.setTextCursorPosition(
-          fallbackBlock.id,
-          cursorPosition.nextBlock?.id === fallbackBlock.id ? "start" : "end",
-        );
-      }
-    }
-
-    if (editor.document.length === 1) {
-      const result = editor.replaceBlocks(
-        [blockId],
-        [{ type: "paragraph", content: [] }],
-      );
-      const replacementBlock = result.insertedBlocks[0];
-      if (replacementBlock) {
-        editor.setTextCursorPosition(replacementBlock.id, "start");
-      }
-    } else {
-      editor.removeBlocks([blockId]);
-    }
-
-    clearTableDeleteOverlay();
-  }, [clearTableDeleteOverlay, editor, markUserIntent]);
-
   useEffect(() => {
     const handleFloatingControlPointerDown = (event: PointerEvent) => {
       const target = event.target;
@@ -432,42 +297,10 @@ function BlockNoteEditorInner({
     };
   }, [markUserIntent]);
 
-  useEffect(() => {
-    // 表格手柄和删除按钮不在同一个 DOM 分支里，悬浮态需要跟随全局指针统一更新。
-    const handlePointerMove = (event: PointerEvent) => {
-      if (isTableDeleteButtonTarget(event.target)) {
-        refreshTableDeleteOverlay();
-        return;
-      }
-
-      const hoveredTable = hoveredTableRef.current;
-      if (
-        hoveredTable &&
-        isPointerWithinTableDeleteHoverZone(
-          hoveredTable.tableWrapper,
-          event.clientX,
-          event.clientY,
-        )
-      ) {
-        refreshTableDeleteOverlay();
-        return;
-      }
-
-      updateTableDeleteOverlay(event.target);
-    };
-
-    document.addEventListener("pointermove", handlePointerMove, true);
-    window.addEventListener("resize", refreshTableDeleteOverlay);
-    return () => {
-      document.removeEventListener("pointermove", handlePointerMove, true);
-      window.removeEventListener("resize", refreshTableDeleteOverlay);
-    };
-  }, [refreshTableDeleteOverlay, updateTableDeleteOverlay]);
-
   return (
     <div
       ref={scrollContainerRef}
-      className="editor-rich-scroll relative h-full overflow-y-auto overflow-x-hidden"
+      className="editor-rich-scroll h-full overflow-y-auto overflow-x-hidden"
       style={editorStyle}
       onFocus={onFocus}
       onClick={onFocus}
@@ -490,7 +323,6 @@ function BlockNoteEditorInner({
             readEditorScrollTop(event.currentTarget),
           );
         }
-        refreshTableDeleteOverlay();
       }}
     >
       <BlockNoteView
@@ -502,31 +334,6 @@ function BlockNoteEditorInner({
           padding: `${appearance.padding}px`,
         }}
       />
-      {tableDeleteOverlay ? (
-        <button
-          type="button"
-          aria-label="删除表格"
-          data-keep-notes-table-delete
-          className="absolute z-20 flex h-6 w-6 items-center justify-center rounded-md border border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--text-muted)] shadow-sm transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--danger-color)]"
-          style={{
-            top: `${tableDeleteOverlay.top}px`,
-            left: `${tableDeleteOverlay.left}px`,
-          }}
-          onMouseEnter={refreshTableDeleteOverlay}
-          onMouseDown={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            markUserIntent();
-          }}
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            handleDeleteTable();
-          }}
-        >
-          <Trash2 size={12} />
-        </button>
-      ) : null}
     </div>
   );
 }

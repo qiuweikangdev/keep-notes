@@ -283,12 +283,6 @@
   background-color: var(--hover-bg) !important;
 }
 
-.bn-mantine .bn-extend-button-add-remove-rows {
-  width: calc(100% - 22px);
-  max-width: calc(100% - 22px);
-  margin-right: 22px;
-}
-
 /* 占位符文字 */
 .bn-inline-content [data-placeholder]::before {
   color: var(--text-muted) !important;
