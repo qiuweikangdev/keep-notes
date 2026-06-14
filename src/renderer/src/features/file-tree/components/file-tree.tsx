@@ -61,12 +61,27 @@ export function FileTree() {
   const confirmedRef = useRef(false);
   const isRootCreating = creatingInfo?.parentKey === treeRoot?.key;
 
-  // 大纲标题列表（占位实现，后续可从编辑器内容解析）
-  const headings = useMemo(() => [], []);
+  // 大纲标题列表
+  const [headings, setHeadings] = useState<
+    Array<{ id: string; text: string; level: number }>
+  >([]);
 
-  // 处理大纲标题点击（占位实现，后续可滚动到对应位置）
+  // 定期刷新标题列表
+  useEffect(() => {
+    const refreshHeadings = () => {
+      const newHeadings = (window as any).__outlineHeadings?.() ?? [];
+      setHeadings(newHeadings);
+    };
+
+    refreshHeadings();
+    const interval = setInterval(refreshHeadings, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // 处理大纲标题点击，滚动到对应位置
   const handleHeadingClick = useCallback((id: string) => {
-    console.log("点击大纲标题:", id);
+    (window as any).__scrollToBlock?.(id);
   }, []);
 
   useEffect(() => {
