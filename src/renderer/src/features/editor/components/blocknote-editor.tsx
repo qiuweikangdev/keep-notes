@@ -122,6 +122,63 @@ function BlockNoteEditorInner({
     window.__scrollToBlock = scrollToBlock;
   }, [extractHeadings, scrollToBlock]);
 
+  // 监听编辑器滚动，更新当前活跃的标题
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+
+    let ticking = false;
+
+    const handleScroll = () => {
+      if (ticking) return;
+      ticking = true;
+
+      requestAnimationFrame(() => {
+        const headings = extractHeadings();
+        if (headings.length === 0) {
+          ticking = false;
+          return;
+        }
+
+        // 找到当前可见的标题
+        const scrollTop = scrollContainer.scrollTop;
+        const viewportHeight = scrollContainer.clientHeight;
+        let activeId: string | null = null;
+
+        for (const heading of headings) {
+          const blockElement = editor.domElement?.querySelector(
+            `[data-id="${heading.id}"]`,
+          );
+          if (blockElement) {
+            const rect = blockElement.getBoundingClientRect();
+            const containerRect = scrollContainer.getBoundingClientRect();
+            const relativeTop = rect.top - containerRect.top;
+
+            // 如果标题在视口中或之前，更新为当前活跃标题
+            if (relativeTop <= viewportHeight * 0.3) {
+              activeId = heading.id;
+            }
+          }
+        }
+
+        if (activeId) {
+          window.dispatchEvent(
+            new CustomEvent("outline-scroll-update", {
+              detail: { headingId: activeId },
+            }),
+          );
+        }
+
+        ticking = false;
+      });
+    };
+
+    scrollContainer.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      scrollContainer.removeEventListener("scroll", handleScroll);
+    };
+  }, [extractHeadings, editor]);
+
   useEffect(() => {
     contentRef.current = content;
   }, [content]);

@@ -8,10 +8,15 @@ interface Heading {
 
 interface OutlinePanelProps {
   headings: Heading[];
+  activeHeadingId: string | null;
   onHeadingClick: (id: string) => void;
 }
 
-export function OutlinePanel({ headings, onHeadingClick }: OutlinePanelProps) {
+export function OutlinePanel({
+  headings,
+  activeHeadingId,
+  onHeadingClick,
+}: OutlinePanelProps) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 overflow-auto py-2">
@@ -29,6 +34,7 @@ export function OutlinePanel({ headings, onHeadingClick }: OutlinePanelProps) {
               id={heading.id}
               text={heading.text}
               level={heading.level}
+              isActive={heading.id === activeHeadingId}
               onClick={onHeadingClick}
             />
           ))

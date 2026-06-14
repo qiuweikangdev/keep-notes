@@ -10,6 +10,7 @@ import {
   File,
   Folder,
   FolderOpen,
+  List,
   ListTree,
   Plus,
   FolderPlus,
@@ -65,6 +66,7 @@ export function FileTree() {
   const [headings, setHeadings] = useState<
     Array<{ id: string; text: string; level: number }>
   >([]);
+  const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null);
 
   // 定期刷新标题列表
   useEffect(() => {
@@ -79,8 +81,27 @@ export function FileTree() {
     return () => clearInterval(interval);
   }, []);
 
+  // 监听编辑器滚动，更新当前活跃的标题
+  useEffect(() => {
+    const handleScrollUpdate = (event: CustomEvent<{ headingId: string }>) => {
+      setActiveHeadingId(event.detail.headingId);
+    };
+
+    window.addEventListener(
+      "outline-scroll-update",
+      handleScrollUpdate as EventListener,
+    );
+    return () => {
+      window.removeEventListener(
+        "outline-scroll-update",
+        handleScrollUpdate as EventListener,
+      );
+    };
+  }, []);
+
   // 处理大纲标题点击，滚动到对应位置
   const handleHeadingClick = useCallback((id: string) => {
+    setActiveHeadingId(id);
     (window as any).__scrollToBlock?.(id);
   }, []);
 
@@ -219,7 +240,9 @@ export function FileTree() {
               type="button"
               className={TOOL_BUTTON_CLASS}
               style={{ color: "var(--text-muted)" }}
-              title={sidebarView === "file" ? "切换到大纲" : "切换到文件"}
+              title={
+                sidebarView === "file" ? "切换到大纲视图" : "切换到文件树视图"
+              }
               onClick={() =>
                 setSidebarView(sidebarView === "file" ? "outline" : "file")
               }
@@ -233,7 +256,7 @@ export function FileTree() {
               }}
             >
               {sidebarView === "file" ? (
-                <FolderOpen className="h-3.5 w-3.5" />
+                <List className="h-3.5 w-3.5" />
               ) : (
                 <ListTree className="h-3.5 w-3.5" />
               )}
@@ -381,6 +404,7 @@ export function FileTree() {
             ) : (
               <OutlinePanel
                 headings={headings}
+                activeHeadingId={activeHeadingId}
                 onHeadingClick={handleHeadingClick}
               />
             )}
