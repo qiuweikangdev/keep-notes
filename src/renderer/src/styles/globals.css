@@ -84,8 +84,8 @@ button:focus-visible {
 }
 
 .dark {
-  --button-hover-bg: #2d2d32;
-  --button-active-bg: #34343a;
+  --button-hover-bg: #2c3038;
+  --button-active-bg: #383c44;
 }
 
 .nord {
