@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, type CSSProperties } from "react";
 import { useCreateBlockNote, useEditorChange } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
-import type { Block } from "@blocknote/core";
+import type { Block, InlineContent } from "@blocknote/core";
 
 import { useTheme } from "@/hooks/use-theme";
 import { useDiffStore } from "@/store/diff.store";
@@ -28,6 +28,13 @@ import { createParseFallback } from "../lib/editor-parse-fallback";
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 import "@/styles/blocknote-overrides.css";
+
+declare global {
+  interface Window {
+    __outlineHeadings: () => Array<{ id: string; text: string; level: number }>;
+    __scrollToBlock: (blockId: string) => void;
+  }
+}
 
 interface BlockNoteEditorInnerProps {
   groupId: string;
@@ -73,12 +80,12 @@ function BlockNoteEditorInner({
   const extractHeadings = useCallback(() => {
     const headings: Array<{ id: string; text: string; level: number }> = [];
 
-    function walk(blocks: any[]) {
+    function walk(blocks: Block[]) {
       for (const block of blocks) {
         if (block.type === "heading") {
           const text =
-            (block.content as any[])
-              ?.map((ic: any) => (ic.type === "text" ? ic.text : ""))
+            (block.content as InlineContent[])
+              ?.map((ic) => (ic.type === "text" ? ic.text : ""))
               .join("") ?? "";
           headings.push({
             id: block.id,
@@ -111,9 +118,9 @@ function BlockNoteEditorInner({
 
   // 通过全局状态暴露给侧边栏
   useEffect(() => {
-    (window as any).__outlineHeadings = extractHeadings;
-    (window as any).__scrollToBlock = scrollToBlock;
-  }, [extractHeadings, scrollToBlock, editor.document]);
+    window.__outlineHeadings = extractHeadings;
+    window.__scrollToBlock = scrollToBlock;
+  }, [extractHeadings, scrollToBlock]);
 
   useEffect(() => {
     contentRef.current = content;
