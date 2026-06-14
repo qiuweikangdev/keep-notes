@@ -128,6 +128,7 @@ function BlockNoteEditorInner({
     if (!scrollContainer) return;
 
     let ticking = false;
+    let lastActiveId: string | null = null;
 
     const handleScroll = () => {
       if (ticking) return;
@@ -141,11 +142,12 @@ function BlockNoteEditorInner({
         }
 
         // 找到当前可见的标题
-        const scrollTop = scrollContainer.scrollTop;
         const viewportHeight = scrollContainer.clientHeight;
         let activeId: string | null = null;
 
-        for (const heading of headings) {
+        // 从后往前遍历，找到第一个在视口上方的标题
+        for (let i = headings.length - 1; i >= 0; i--) {
+          const heading = headings[i];
           const blockElement = editor.domElement?.querySelector(
             `[data-id="${heading.id}"]`,
           );
@@ -154,14 +156,17 @@ function BlockNoteEditorInner({
             const containerRect = scrollContainer.getBoundingClientRect();
             const relativeTop = rect.top - containerRect.top;
 
-            // 如果标题在视口中或之前，更新为当前活跃标题
+            // 如果标题在视口上方 30% 的位置，认为是当前活跃标题
             if (relativeTop <= viewportHeight * 0.3) {
               activeId = heading.id;
+              break;
             }
           }
         }
 
-        if (activeId) {
+        // 只在活跃标题变化时才触发事件
+        if (activeId && activeId !== lastActiveId) {
+          lastActiveId = activeId;
           window.dispatchEvent(
             new CustomEvent("outline-scroll-update", {
               detail: { headingId: activeId },
@@ -251,6 +256,9 @@ function BlockNoteEditorInner({
       serializationTimerRef.current = null;
       void serializeChange();
     }, 250);
+
+    // 触发编辑器内容变化事件，用于更新大纲标题列表
+    window.dispatchEvent(new CustomEvent("editor-content-change"));
   }, editor);
 
   useEffect(() => {

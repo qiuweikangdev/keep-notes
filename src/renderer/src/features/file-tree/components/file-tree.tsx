@@ -27,6 +27,7 @@ import { QuickActionsPanel } from "./quick-actions-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ContextMenu } from "@/components/ui/context-menu";
+import { Tooltip } from "@/components/ui/tooltip";
 import type { TreeNode as TreeNodeType } from "@/types";
 import { CodeResult } from "@/types";
 
@@ -67,19 +68,29 @@ export function FileTree() {
     Array<{ id: string; text: string; level: number }>
   >([]);
   const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null);
+  const headingsRef = useRef(headings);
+  headingsRef.current = headings;
 
-  // 定期刷新标题列表
+  // 刷新标题列表的函数
+  const refreshHeadings = useCallback(() => {
+    const newHeadings = (window as any).__outlineHeadings?.() ?? [];
+    setHeadings(newHeadings);
+  }, []);
+
+  // 初始加载标题列表，并监听文档变化
   useEffect(() => {
-    const refreshHeadings = () => {
-      const newHeadings = (window as any).__outlineHeadings?.() ?? [];
-      setHeadings(newHeadings);
+    refreshHeadings();
+
+    // 监听编辑器内容变化，刷新标题列表
+    const handleContentChange = () => {
+      refreshHeadings();
     };
 
-    refreshHeadings();
-    const interval = setInterval(refreshHeadings, 1000);
-
-    return () => clearInterval(interval);
-  }, []);
+    window.addEventListener("editor-content-change", handleContentChange);
+    return () => {
+      window.removeEventListener("editor-content-change", handleContentChange);
+    };
+  }, [refreshHeadings]);
 
   // 监听编辑器滚动，更新当前活跃的标题
   useEffect(() => {
@@ -236,31 +247,47 @@ export function FileTree() {
               backgroundColor: "var(--bg-secondary)",
             }}
           >
-            <button
-              type="button"
-              className={TOOL_BUTTON_CLASS}
-              style={{ color: "var(--text-muted)" }}
-              title={
-                sidebarView === "file" ? "切换到大纲视图" : "切换到文件树视图"
-              }
-              onClick={() =>
-                setSidebarView(sidebarView === "file" ? "outline" : "file")
-              }
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                e.currentTarget.style.color = "var(--text-primary)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "transparent";
-                e.currentTarget.style.color = "var(--text-muted)";
-              }}
-            >
-              {sidebarView === "file" ? (
-                <List className="h-3.5 w-3.5" />
-              ) : (
-                <ListTree className="h-3.5 w-3.5" />
-              )}
-            </button>
+            <Tooltip.Provider>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <button
+                    type="button"
+                    className={TOOL_BUTTON_CLASS}
+                    style={{ color: "var(--text-muted)" }}
+                    onClick={() =>
+                      setSidebarView(
+                        sidebarView === "file" ? "outline" : "file",
+                      )
+                    }
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                      e.currentTarget.style.color = "var(--text-primary)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "transparent";
+                      e.currentTarget.style.color = "var(--text-muted)";
+                    }}
+                  >
+                    {sidebarView === "file" ? (
+                      <List className="h-3.5 w-3.5" />
+                    ) : (
+                      <ListTree className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                </Tooltip.Trigger>
+                <Tooltip.Portal>
+                  <Tooltip.Content
+                    className="z-50 rounded-md bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md"
+                    sideOffset={5}
+                  >
+                    {sidebarView === "file"
+                      ? "切换到大纲视图"
+                      : "切换到文件树视图"}
+                    <Tooltip.Arrow className="fill-popover" />
+                  </Tooltip.Content>
+                </Tooltip.Portal>
+              </Tooltip.Root>
+            </Tooltip.Provider>
             <div className="flex min-w-0 flex-1 items-center justify-center">
               <span
                 className="truncate text-[13px] font-medium"
@@ -269,27 +296,41 @@ export function FileTree() {
                 {sidebarView === "file" ? "文件" : "大纲"}
               </span>
             </div>
-            <button
-              type="button"
-              className={TOOL_BUTTON_CLASS}
-              style={{ color: "var(--text-muted)" }}
-              title={showSearch ? "关闭搜索" : "搜索"}
-              onClick={handleToggleSearch}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                e.currentTarget.style.color = "var(--text-primary)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "transparent";
-                e.currentTarget.style.color = "var(--text-muted)";
-              }}
-            >
-              {showSearch ? (
-                <X className="h-3.5 w-3.5" />
-              ) : (
-                <Search className="h-3.5 w-3.5" />
-              )}
-            </button>
+            <Tooltip.Provider>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <button
+                    type="button"
+                    className={TOOL_BUTTON_CLASS}
+                    style={{ color: "var(--text-muted)" }}
+                    onClick={handleToggleSearch}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                      e.currentTarget.style.color = "var(--text-primary)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "transparent";
+                      e.currentTarget.style.color = "var(--text-muted)";
+                    }}
+                  >
+                    {showSearch ? (
+                      <X className="h-3.5 w-3.5" />
+                    ) : (
+                      <Search className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                </Tooltip.Trigger>
+                <Tooltip.Portal>
+                  <Tooltip.Content
+                    className="z-50 rounded-md bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md"
+                    sideOffset={5}
+                  >
+                    {showSearch ? "关闭搜索" : "搜索文件"}
+                    <Tooltip.Arrow className="fill-popover" />
+                  </Tooltip.Content>
+                </Tooltip.Portal>
+              </Tooltip.Root>
+            </Tooltip.Provider>
           </div>
 
           <div className="flex-1 overflow-auto py-2">
