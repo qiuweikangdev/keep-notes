@@ -278,6 +278,7 @@ export function FileTree() {
                 <Tooltip.Portal>
                   <Tooltip.Content
                     className="z-50 rounded-md bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md"
+                    side="bottom"
                     sideOffset={5}
                   >
                     {sidebarView === "file"
@@ -323,6 +324,7 @@ export function FileTree() {
                 <Tooltip.Portal>
                   <Tooltip.Content
                     className="z-50 rounded-md bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md"
+                    side="bottom"
                     sideOffset={5}
                   >
                     {showSearch ? "关闭搜索" : "搜索文件"}
