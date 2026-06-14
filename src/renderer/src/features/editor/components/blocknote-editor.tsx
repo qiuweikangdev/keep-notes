@@ -69,6 +69,52 @@ function BlockNoteEditorInner({
   const applyTokenRef = useRef(0);
   const editor = useCreateBlockNote({ initialContent: undefined });
 
+  // 提取标题的函数
+  const extractHeadings = useCallback(() => {
+    const headings: Array<{ id: string; text: string; level: number }> = [];
+
+    function walk(blocks: any[]) {
+      for (const block of blocks) {
+        if (block.type === "heading") {
+          const text =
+            (block.content as any[])
+              ?.map((ic: any) => (ic.type === "text" ? ic.text : ""))
+              .join("") ?? "";
+          headings.push({
+            id: block.id,
+            text,
+            level: block.props.level ?? 1,
+          });
+        }
+        if (block.children?.length) {
+          walk(block.children);
+        }
+      }
+    }
+
+    walk(editor.document);
+    return headings;
+  }, [editor]);
+
+  // 跳转到指定块的函数
+  const scrollToBlock = useCallback(
+    (blockId: string) => {
+      const blockElement = editor.domElement?.querySelector(
+        `[data-id="${blockId}"]`,
+      );
+      if (blockElement) {
+        blockElement.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    },
+    [editor],
+  );
+
+  // 通过全局状态暴露给侧边栏
+  useEffect(() => {
+    (window as any).__outlineHeadings = extractHeadings;
+    (window as any).__scrollToBlock = scrollToBlock;
+  }, [extractHeadings, scrollToBlock, editor.document]);
+
   useEffect(() => {
     contentRef.current = content;
   }, [content]);
