@@ -17,6 +17,7 @@ export interface EditorAppearance {
   opacity: number;
   padding: number;
   showModeSwitcher: boolean;
+  sidebarView: "file" | "outline";
 }
 
 export type EditorMode = "rich" | "source";
@@ -118,6 +119,7 @@ export interface EditorState {
   setWordCount: (count: number) => void;
   setDirty: (dirty: boolean) => void;
   setAppearance: (appearance: Partial<EditorAppearance>) => void;
+  setSidebarView: (view: "file" | "outline") => void;
   incrementReloadKey: () => void;
   resetEditor: () => void;
   resetTab: (groupId: string, tabId: string) => void;
@@ -129,6 +131,7 @@ const defaultAppearance: EditorAppearance = {
   opacity: 100,
   padding: 0,
   showModeSwitcher: true,
+  sidebarView: "file",
 };
 
 // 生成唯一ID
@@ -644,6 +647,10 @@ export const useEditorStore = create<EditorState>()(
         setAppearance: (appearance) =>
           set((state) => ({
             appearance: { ...state.appearance, ...appearance },
+          })),
+        setSidebarView: (view) =>
+          set((state) => ({
+            appearance: { ...state.appearance, sidebarView: view },
           })),
         incrementReloadKey: () =>
           set((state) => ({ reloadKey: state.reloadKey + 1 })),
