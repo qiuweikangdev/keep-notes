@@ -578,13 +578,22 @@ button:focus-visible {
 [data-panel-resize-handle-id] {
   position: relative;
   background-color: transparent !important;
-  border-left: 1px solid #383c44;
+  border-left: 1px solid #e0e0e0;
   transition: border-style 0.2s, border-color 0.2s;
 }
 
 [data-panel-resize-handle-id]:hover {
   border-left-style: dashed;
-  border-left-color: #6cb4ee;
+  border-left-color: #b0b0b0;
+}
+
+/* 暗黑主题面板调整手柄 */
+.dark [data-panel-resize-handle-id] {
+  border-left-color: #383c44;
+}
+
+.dark [data-panel-resize-handle-id]:hover {
+  border-left-color: #3c434e;
 }
 
 /* 鍔ㄧ敾 */
