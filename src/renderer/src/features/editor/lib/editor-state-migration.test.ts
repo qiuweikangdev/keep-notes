@@ -44,6 +44,7 @@ describe("normalizePersistedAppearance", () => {
     opacity: 100,
     padding: 60,
     showModeSwitcher: true,
+    sidebarView: "file" as const,
   };
 
   it("uses the new default for legacy appearance settings", () => {
@@ -63,5 +64,13 @@ describe("normalizePersistedAppearance", () => {
         showModeSwitcher: false,
       }).showModeSwitcher,
     ).toBe(false);
+  });
+
+  it("always resets sidebarView to file", () => {
+    expect(
+      normalizePersistedAppearance(defaults, {
+        sidebarView: "outline",
+      }).sidebarView,
+    ).toBe("file");
   });
 });

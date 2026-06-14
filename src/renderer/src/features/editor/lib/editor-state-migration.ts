@@ -29,6 +29,10 @@ export function normalizePersistedAppearance<TAppearance extends object>(
   return {
     ...defaults,
     ...persisted,
+    // sidebarView 不持久化，每次启动时重置为默认值
+    sidebarView: "file" as TAppearance extends { sidebarView: infer S }
+      ? S
+      : never,
   };
 }
 

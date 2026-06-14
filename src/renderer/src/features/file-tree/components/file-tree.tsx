@@ -70,6 +70,8 @@ export function FileTree() {
   const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null);
   const headingsRef = useRef(headings);
   headingsRef.current = headings;
+  const activeHeadingIdRef = useRef(activeHeadingId);
+  activeHeadingIdRef.current = activeHeadingId;
 
   // 刷新标题列表的函数
   const refreshHeadings = useCallback(() => {
@@ -92,10 +94,24 @@ export function FileTree() {
     };
   }, [refreshHeadings]);
 
-  // 监听编辑器滚动，更新当前活跃的标题
+  // 监听编辑器滚动，更新当前活跃的标题（使用防抖）
   useEffect(() => {
+    let updateTimer: ReturnType<typeof setTimeout> | null = null;
+
     const handleScrollUpdate = (event: CustomEvent<{ headingId: string }>) => {
-      setActiveHeadingId(event.detail.headingId);
+      const newId = event.detail.headingId;
+
+      // 清除之前的定时器
+      if (updateTimer) {
+        clearTimeout(updateTimer);
+      }
+
+      // 使用防抖来减少状态更新频率
+      updateTimer = setTimeout(() => {
+        if (newId !== activeHeadingIdRef.current) {
+          setActiveHeadingId(newId);
+        }
+      }, 50);
     };
 
     window.addEventListener(
@@ -103,6 +119,9 @@ export function FileTree() {
       handleScrollUpdate as EventListener,
     );
     return () => {
+      if (updateTimer) {
+        clearTimeout(updateTimer);
+      }
       window.removeEventListener(
         "outline-scroll-update",
         handleScrollUpdate as EventListener,

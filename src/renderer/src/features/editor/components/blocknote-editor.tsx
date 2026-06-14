@@ -129,14 +129,22 @@ function BlockNoteEditorInner({
 
     let ticking = false;
     let lastActiveId: string | null = null;
+    let cachedHeadings: Array<{ id: string; text: string; level: number }> = [];
+    let lastDocumentVersion = 0;
 
     const handleScroll = () => {
       if (ticking) return;
       ticking = true;
 
       requestAnimationFrame(() => {
-        const headings = extractHeadings();
-        if (headings.length === 0) {
+        // 只在文档变化时重新提取标题
+        const currentDocumentVersion = editor.document.length;
+        if (currentDocumentVersion !== lastDocumentVersion) {
+          cachedHeadings = extractHeadings();
+          lastDocumentVersion = currentDocumentVersion;
+        }
+
+        if (cachedHeadings.length === 0) {
           ticking = false;
           return;
         }
@@ -146,8 +154,8 @@ function BlockNoteEditorInner({
         let activeId: string | null = null;
 
         // 从后往前遍历，找到第一个在视口上方的标题
-        for (let i = headings.length - 1; i >= 0; i--) {
-          const heading = headings[i];
+        for (let i = cachedHeadings.length - 1; i >= 0; i--) {
+          const heading = cachedHeadings[i];
           const blockElement = editor.domElement?.querySelector(
             `[data-id="${heading.id}"]`,
           );
