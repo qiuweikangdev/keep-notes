@@ -574,15 +574,16 @@ button:focus-visible {
   color: var(--accent-color);
 }
 
-/* 面板调整手柄 */
+/* 面板调整手柄 - Typora 风格虚线效果 */
 [data-panel-resize-handle-id] {
   position: relative;
-  background-color: var(--border-color) !important;
-  transition: background-color 0.2s;
+  background-color: transparent !important;
+  border-left: 1px dashed #999999;
+  transition: border-color 0.2s;
 }
 
 [data-panel-resize-handle-id]:hover {
-  background-color: var(--accent-color) !important;
+  border-left-color: #6cb4ee;
 }
 
 /* 鍔ㄧ敾 */
