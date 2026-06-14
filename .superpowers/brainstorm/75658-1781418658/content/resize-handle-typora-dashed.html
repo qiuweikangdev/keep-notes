@@ -1,0 +1,128 @@
+<h2>Typora 风格 - 灰色虚线悬浮效果</h2>
+<p class="subtitle">参考 Typora 的面板拖拽虚线效果</p>
+
+<div class="cards">
+  <div class="card" data-choice="dashed-dark" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 20px; background: #f5f5f5;">
+      <div style="display: flex; height: 200px; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); position: relative;">
+        <div style="width: 180px; background: #ffffff; padding: 16px; border-right: 1px solid #e0e0e0;">
+          <div style="font-size: 13px; color: #666;">侧边栏内容</div>
+        </div>
+        <!-- Typora 风格：灰色虚线 -->
+        <div style="position: absolute; left: 180px; top: 0; bottom: 0; width: 0; border-left: 1px dashed #999999; cursor: col-resize;"></div>
+        <div style="flex: 1; background: #fafafa; padding: 16px;">
+          <div style="font-size: 13px; color: #666;">主内容区域</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>方案 A：中灰虚线</h3>
+      <p>标准的灰色虚线，与 Typora 一致</p>
+      <div style="margin-top: 8px; font-size: 12px; color: #888;">
+        颜色: #999999 | 样式: dashed | 宽度: 1px
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="dashed-light" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 20px; background: #f5f5f5;">
+      <div style="display: flex; height: 200px; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); position: relative;">
+        <div style="width: 180px; background: #ffffff; padding: 16px; border-right: 1px solid #e0e0e0;">
+          <div style="font-size: 13px; color: #666;">侧边栏内容</div>
+        </div>
+        <!-- Typora 风格：浅灰虚线 -->
+        <div style="position: absolute; left: 180px; top: 0; bottom: 0; width: 0; border-left: 1px dashed #b0b0b0; cursor: col-resize;"></div>
+        <div style="flex: 1; background: #fafafa; padding: 16px;">
+          <div style="font-size: 13px; color: #666;">主内容区域</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>方案 B：浅灰虚线</h3>
+      <p>更浅的灰色，更柔和</p>
+      <div style="margin-top: 8px; font-size: 12px; color: #888;">
+        颜色: #b0b0b0 | 样式: dashed | 宽度: 1px
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="dashed-dark-gray" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 20px; background: #f5f5f5;">
+      <div style="display: flex; height: 200px; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); position: relative;">
+        <div style="width: 180px; background: #ffffff; padding: 16px; border-right: 1px solid #e0e0e0;">
+          <div style="font-size: 13px; color: #666;">侧边栏内容</div>
+        </div>
+        <!-- Typora 风格：深灰虚线 -->
+        <div style="position: absolute; left: 180px; top: 0; bottom: 0; width: 0; border-left: 1px dashed #7a7a7a; cursor: col-resize;"></div>
+        <div style="flex: 1; background: #fafafa; padding: 16px;">
+          <div style="font-size: 13px; color: #666;">主内容区域</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>方案 C：深灰虚线</h3>
+      <p>更深的灰色，更明显</p>
+      <div style="margin-top: 8px; font-size: 12px; color: #888;">
+        颜色: #7a7a7a | 样式: dashed | 宽度: 1px
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="dashed-border-color" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 20px; background: #f5f5f5;">
+      <div style="display: flex; height: 200px; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); position: relative;">
+        <div style="width: 180px; background: #ffffff; padding: 16px; border-right: 1px solid #e0e0e0;">
+          <div style="font-size: 13px; color: #666;">侧边栏内容</div>
+        </div>
+        <!-- Typora 风格：使用边框色 -->
+        <div style="position: absolute; left: 180px; top: 0; bottom: 0; width: 0; border-left: 1px dashed var(--border-color, #e1e4e8); cursor: col-resize;"></div>
+        <div style="flex: 1; background: #fafafa; padding: 16px;">
+          <div style="font-size: 13px; color: #666;">主内容区域</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>方案 D：边框色虚线</h3>
+      <p>使用当前主题的 border-color</p>
+      <div style="margin-top: 8px; font-size: 12px; color: #888;">
+        颜色: var(--border-color) | 样式: dashed | 宽度: 1px
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 32px;">
+  <h3>Dark 主题（深邃蓝黑）下的效果预览</h3>
+  <div class="split">
+    <div class="mockup">
+      <div class="mockup-header">Light 主题 - 中灰虚线</div>
+      <div class="mockup-body" style="padding: 16px; background: #ffffff;">
+        <div style="display: flex; height: 120px; border: 1px solid #e0e0e0; border-radius: 4px; position: relative;">
+          <div style="width: 100px; background: #f5f5f5; padding: 8px; font-size: 11px; color: #666;">侧边栏</div>
+          <div style="position: absolute; left: 100px; top: 0; bottom: 0; width: 0; border-left: 1px dashed #999999;"></div>
+          <div style="flex: 1; padding: 8px; font-size: 11px; color: #666;">内容区</div>
+        </div>
+      </div>
+    </div>
+    <div class="mockup">
+      <div class="mockup-header">Dark 主题（深邃蓝黑）- 中灰虚线</div>
+      <div class="mockup-body" style="padding: 16px; background: #1a1a2e;">
+        <div style="display: flex; height: 120px; border: 1px solid #2a2a4a; border-radius: 4px; position: relative;">
+          <div style="width: 100px; background: #16213e; padding: 8px; font-size: 11px; color: #ccc;">侧边栏</div>
+          <div style="position: absolute; left: 100px; top: 0; bottom: 0; width: 0; border-left: 1px dashed #7a7a7a;"></div>
+          <div style="flex: 1; padding: 8px; font-size: 11px; color: #ccc;">内容区</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 24px; padding: 16px; background: #f0f0f0; border-radius: 8px;">
+  <h4>Typora 虚线效果特点</h4>
+  <ul style="font-size: 13px; color: #666; margin-top: 8px; padding-left: 20px;">
+    <li><strong>虚线样式</strong> - 使用 CSS border-style: dashed</li>
+    <li><strong>灰色调</strong> - 不使用蓝色，纯灰色</li>
+    <li><strong>1px 宽度</strong> - 保持纤细</li>
+    <li><strong>适中对比度</strong> - 既能看清但不刺眼</li>
+  </ul>
+</div>
