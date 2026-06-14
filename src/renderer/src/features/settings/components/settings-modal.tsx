@@ -224,7 +224,7 @@ export function SettingsModal() {
                   <div className="flex items-center gap-3">
                     <input
                       type="range"
-                      min="20"
+                      min="0"
                       max="120"
                       step="10"
                       value={appearance.padding}
@@ -233,7 +233,7 @@ export function SettingsModal() {
                       }
                       className="w-32 h-1 rounded-full appearance-none cursor-pointer"
                       style={{
-                        background: `linear-gradient(to right, var(--accent-color) 0%, var(--accent-color) ${((appearance.padding - 20) / 100) * 100}%, var(--bg-tertiary) ${((appearance.padding - 20) / 100) * 100}%, var(--bg-tertiary) 100%)`,
+                        background: `linear-gradient(to right, var(--accent-color) 0%, var(--accent-color) ${(appearance.padding / 120) * 100}%, var(--bg-tertiary) ${(appearance.padding / 120) * 100}%, var(--bg-tertiary) 100%)`,
                         accentColor: "var(--accent-color)",
                       }}
                     />

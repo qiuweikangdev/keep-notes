@@ -127,7 +127,7 @@ const defaultAppearance: EditorAppearance = {
   fontSize: 16,
   lineHeight: 1.8,
   opacity: 100,
-  padding: 12,
+  padding: 0,
   showModeSwitcher: true,
 };
 
