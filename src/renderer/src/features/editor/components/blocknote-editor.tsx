@@ -125,62 +125,79 @@ function BlockNoteEditorInner({
     window.__scrollToBlock = scrollToBlock;
   }, [scrollToBlock]);
 
-  // 监听编辑器滚动，更新当前活跃的标题
+  // 监听编辑器滚动，更新当前活跃的标题（参考 Typora 的体验）
   useEffect(() => {
     const scrollContainer = scrollContainerRef.current;
     if (!scrollContainer) return;
 
     let ticking = false;
     let lastActiveId: string | null = null;
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const updateActiveHeading = () => {
+      // 从 store 获取大纲标题列表
+      const headings = useEditorStore.getState().outlineHeadings;
+      if (headings.length === 0) return;
+
+      // 找到当前可见的标题
+      const viewportHeight = scrollContainer.clientHeight;
+      let activeId: string | null = null;
+
+      // 从后往前遍历，找到第一个在视口上方的标题
+      for (let i = headings.length - 1; i >= 0; i--) {
+        const heading = headings[i];
+        const blockElement = editor.domElement?.querySelector(
+          `[data-id="${heading.id}"]`,
+        );
+        if (blockElement) {
+          const rect = blockElement.getBoundingClientRect();
+          const containerRect = scrollContainer.getBoundingClientRect();
+          const relativeTop = rect.top - containerRect.top;
+
+          // 如果标题在视口上方 30% 的位置，认为是当前活跃标题
+          if (relativeTop <= viewportHeight * 0.3) {
+            activeId = heading.id;
+            break;
+          }
+        }
+      }
+
+      // 只在活跃标题变化时才更新 store
+      if (activeId && activeId !== lastActiveId) {
+        lastActiveId = activeId;
+        useEditorStore.getState().setActiveHeadingId(activeId);
+      }
+    };
 
     const handleScroll = () => {
       if (ticking) return;
       ticking = true;
 
       requestAnimationFrame(() => {
-        // 从 store 获取大纲标题列表
-        const headings = useEditorStore.getState().outlineHeadings;
-        if (headings.length === 0) {
-          ticking = false;
-          return;
-        }
-
-        // 找到当前可见的标题
-        const viewportHeight = scrollContainer.clientHeight;
-        let activeId: string | null = null;
-
-        // 从后往前遍历，找到第一个在视口上方的标题
-        for (let i = headings.length - 1; i >= 0; i--) {
-          const heading = headings[i];
-          const blockElement = editor.domElement?.querySelector(
-            `[data-id="${heading.id}"]`,
-          );
-          if (blockElement) {
-            const rect = blockElement.getBoundingClientRect();
-            const containerRect = scrollContainer.getBoundingClientRect();
-            const relativeTop = rect.top - containerRect.top;
-
-            // 如果标题在视口上方 30% 的位置，认为是当前活跃标题
-            if (relativeTop <= viewportHeight * 0.3) {
-              activeId = heading.id;
-              break;
-            }
-          }
-        }
-
-        // 只在活跃标题变化时才更新 store
-        if (activeId && activeId !== lastActiveId) {
-          lastActiveId = activeId;
-          useEditorStore.getState().setActiveHeadingId(activeId);
-        }
-
         ticking = false;
+
+        // 清除之前的防抖定时器
+        if (debounceTimer) {
+          clearTimeout(debounceTimer);
+        }
+
+        // 使用防抖来减少状态更新频率，避免闪烁
+        debounceTimer = setTimeout(() => {
+          updateActiveHeading();
+        }, 100);
       });
     };
 
     scrollContainer.addEventListener("scroll", handleScroll, { passive: true });
+
+    // 初始加载时也更新一次
+    updateActiveHeading();
+
     return () => {
       scrollContainer.removeEventListener("scroll", handleScroll);
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
     };
   }, [editor]);
 
