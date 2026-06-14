@@ -199,6 +199,10 @@
   overflow-y: hidden; */
 }
 
+.bn-mantine .bn-extend-button-add-remove-rows {
+  width: calc(100% - 22px);
+}
+
 .bn-editor [data-content-type="table"] table {
   width: max-content;
   min-width: 100%;
