@@ -29,13 +29,6 @@ import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 import "@/styles/blocknote-overrides.css";
 
-declare global {
-  interface Window {
-    __outlineHeadings: () => Array<{ id: string; text: string; level: number }>;
-    __scrollToBlock: (blockId: string) => void;
-  }
-}
-
 interface BlockNoteEditorInnerProps {
   groupId: string;
   tabId: string;
@@ -76,6 +69,11 @@ function BlockNoteEditorInner({
   const applyTokenRef = useRef(0);
   const editor = useCreateBlockNote({ initialContent: undefined });
 
+  // 获取 store 中的方法
+  const setOutlineHeadings = useEditorStore(
+    (state) => state.setOutlineHeadings,
+  );
+
   // 提取标题的函数
   const extractHeadings = useCallback(() => {
     const headings: Array<{ id: string; text: string; level: number }> = [];
@@ -103,6 +101,12 @@ function BlockNoteEditorInner({
     return headings;
   }, [editor]);
 
+  // 更新大纲标题列表到 store
+  const updateOutlineHeadings = useCallback(() => {
+    const headings = extractHeadings();
+    setOutlineHeadings(headings);
+  }, [extractHeadings, setOutlineHeadings]);
+
   // 跳转到指定块的函数
   const scrollToBlock = useCallback(
     (blockId: string) => {
@@ -116,11 +120,10 @@ function BlockNoteEditorInner({
     [editor],
   );
 
-  // 通过全局状态暴露给侧边栏
+  // 通过 store 暴露跳转函数给侧边栏
   useEffect(() => {
-    window.__outlineHeadings = extractHeadings;
     window.__scrollToBlock = scrollToBlock;
-  }, [extractHeadings, scrollToBlock]);
+  }, [scrollToBlock]);
 
   // 监听编辑器滚动，更新当前活跃的标题
   useEffect(() => {
@@ -129,22 +132,15 @@ function BlockNoteEditorInner({
 
     let ticking = false;
     let lastActiveId: string | null = null;
-    let cachedHeadings: Array<{ id: string; text: string; level: number }> = [];
-    let lastDocumentVersion = 0;
 
     const handleScroll = () => {
       if (ticking) return;
       ticking = true;
 
       requestAnimationFrame(() => {
-        // 只在文档变化时重新提取标题
-        const currentDocumentVersion = editor.document.length;
-        if (currentDocumentVersion !== lastDocumentVersion) {
-          cachedHeadings = extractHeadings();
-          lastDocumentVersion = currentDocumentVersion;
-        }
-
-        if (cachedHeadings.length === 0) {
+        // 从 store 获取大纲标题列表
+        const headings = useEditorStore.getState().outlineHeadings;
+        if (headings.length === 0) {
           ticking = false;
           return;
         }
@@ -154,8 +150,8 @@ function BlockNoteEditorInner({
         let activeId: string | null = null;
 
         // 从后往前遍历，找到第一个在视口上方的标题
-        for (let i = cachedHeadings.length - 1; i >= 0; i--) {
-          const heading = cachedHeadings[i];
+        for (let i = headings.length - 1; i >= 0; i--) {
+          const heading = headings[i];
           const blockElement = editor.domElement?.querySelector(
             `[data-id="${heading.id}"]`,
           );
@@ -172,14 +168,10 @@ function BlockNoteEditorInner({
           }
         }
 
-        // 只在活跃标题变化时才触发事件
+        // 只在活跃标题变化时才更新 store
         if (activeId && activeId !== lastActiveId) {
           lastActiveId = activeId;
-          window.dispatchEvent(
-            new CustomEvent("outline-scroll-update", {
-              detail: { headingId: activeId },
-            }),
-          );
+          useEditorStore.getState().setActiveHeadingId(activeId);
         }
 
         ticking = false;
@@ -190,7 +182,7 @@ function BlockNoteEditorInner({
     return () => {
       scrollContainer.removeEventListener("scroll", handleScroll);
     };
-  }, [extractHeadings, editor]);
+  }, [editor]);
 
   useEffect(() => {
     contentRef.current = content;
@@ -265,8 +257,8 @@ function BlockNoteEditorInner({
       void serializeChange();
     }, 250);
 
-    // 触发编辑器内容变化事件，用于更新大纲标题列表
-    window.dispatchEvent(new CustomEvent("editor-content-change"));
+    // 更新大纲标题列表到 store
+    updateOutlineHeadings();
   }, editor);
 
   useEffect(() => {

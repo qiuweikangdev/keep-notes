@@ -47,6 +47,12 @@ export interface EditorPanelGroup {
   direction: "horizontal" | "vertical";
 }
 
+export interface OutlineHeading {
+  id: string;
+  text: string;
+  level: number;
+}
+
 export interface EditorState {
   // 多面板组状态
   panelGroups: EditorPanelGroup[];
@@ -59,6 +65,10 @@ export interface EditorState {
   isDirty: boolean;
   appearance: EditorAppearance;
   reloadKey: number;
+
+  // 大纲标题状态
+  outlineHeadings: OutlineHeading[];
+  activeHeadingId: string | null;
 
   // 面板组操作
   addPanelGroup: (direction: "horizontal" | "vertical") => void;
@@ -112,6 +122,10 @@ export interface EditorState {
     content: string,
     sourceTabId?: string,
   ) => void;
+
+  // 大纲操作
+  setOutlineHeadings: (headings: OutlineHeading[]) => void;
+  setActiveHeadingId: (id: string | null) => void;
 
   // 保持向后兼容
   setContent: (content: string) => void;
@@ -661,6 +675,14 @@ export const useEditorStore = create<EditorState>()(
             wordCount: 0,
             isDirty: false,
           }),
+
+        // 大纲标题状态
+        outlineHeadings: [],
+        activeHeadingId: null,
+
+        // 大纲操作
+        setOutlineHeadings: (headings) => set({ outlineHeadings: headings }),
+        setActiveHeadingId: (id) => set({ activeHeadingId: id }),
       };
     },
     {

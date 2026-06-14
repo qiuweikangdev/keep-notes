@@ -63,77 +63,21 @@ export function FileTree() {
   const confirmedRef = useRef(false);
   const isRootCreating = creatingInfo?.parentKey === treeRoot?.key;
 
-  // 大纲标题列表
-  const [headings, setHeadings] = useState<
-    Array<{ id: string; text: string; level: number }>
-  >([]);
-  const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null);
-  const headingsRef = useRef(headings);
-  headingsRef.current = headings;
-  const activeHeadingIdRef = useRef(activeHeadingId);
-  activeHeadingIdRef.current = activeHeadingId;
-
-  // 刷新标题列表的函数
-  const refreshHeadings = useCallback(() => {
-    const newHeadings = (window as any).__outlineHeadings?.() ?? [];
-    setHeadings(newHeadings);
-  }, []);
-
-  // 初始加载标题列表，并监听文档变化
-  useEffect(() => {
-    refreshHeadings();
-
-    // 监听编辑器内容变化，刷新标题列表
-    const handleContentChange = () => {
-      refreshHeadings();
-    };
-
-    window.addEventListener("editor-content-change", handleContentChange);
-    return () => {
-      window.removeEventListener("editor-content-change", handleContentChange);
-    };
-  }, [refreshHeadings]);
-
-  // 监听编辑器滚动，更新当前活跃的标题（使用防抖）
-  useEffect(() => {
-    let updateTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const handleScrollUpdate = (event: CustomEvent<{ headingId: string }>) => {
-      const newId = event.detail.headingId;
-
-      // 清除之前的定时器
-      if (updateTimer) {
-        clearTimeout(updateTimer);
-      }
-
-      // 使用防抖来减少状态更新频率
-      updateTimer = setTimeout(() => {
-        if (newId !== activeHeadingIdRef.current) {
-          setActiveHeadingId(newId);
-        }
-      }, 50);
-    };
-
-    window.addEventListener(
-      "outline-scroll-update",
-      handleScrollUpdate as EventListener,
-    );
-    return () => {
-      if (updateTimer) {
-        clearTimeout(updateTimer);
-      }
-      window.removeEventListener(
-        "outline-scroll-update",
-        handleScrollUpdate as EventListener,
-      );
-    };
-  }, []);
+  // 从 store 获取大纲标题列表和活跃标题 ID
+  const headings = useEditorStore((state) => state.outlineHeadings);
+  const activeHeadingId = useEditorStore((state) => state.activeHeadingId);
+  const setActiveHeadingId = useEditorStore(
+    (state) => state.setActiveHeadingId,
+  );
 
   // 处理大纲标题点击，滚动到对应位置
-  const handleHeadingClick = useCallback((id: string) => {
-    setActiveHeadingId(id);
-    (window as any).__scrollToBlock?.(id);
-  }, []);
+  const handleHeadingClick = useCallback(
+    (id: string) => {
+      setActiveHeadingId(id);
+      window.__scrollToBlock?.(id);
+    },
+    [setActiveHeadingId],
+  );
 
   useEffect(() => {
     if (isRootCreating && createInputRef.current) {
