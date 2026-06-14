@@ -303,6 +303,9 @@ function BlockNoteEditorInner({
           cached?.scrollTop ?? 0,
         );
         onParseStateChange(null);
+
+        // 内容加载完成后更新大纲标题列表
+        updateOutlineHeadings();
       } catch (error) {
         if (applyToken !== applyTokenRef.current) return;
         const fallback = createParseFallback(error);
