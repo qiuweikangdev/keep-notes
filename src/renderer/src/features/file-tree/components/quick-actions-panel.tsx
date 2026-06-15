@@ -80,35 +80,37 @@ export function QuickActionsPanel({ onClose }: QuickActionsPanelProps) {
         className="relative flex-shrink-0"
         style={{ backgroundColor: "var(--bg-secondary)" }}
       >
-        {/* 打开文件夹按钮 + 更多选项 */}
-        <div
-          className="flex items-center"
-          style={{ borderTop: "1px solid var(--border-color)" }}
-        >
-          <button
-            type="button"
-            className="flex flex-1 items-center justify-center gap-2 py-2.5 text-[13px]"
-            style={{ color: "var(--text-muted)" }}
-            onClick={handleOpenFolder}
+        {/* 打开文件夹按钮 + 更多选项 - 菜单关闭时显示 */}
+        {!isMenuOpen && (
+          <div
+            className="flex items-center"
+            style={{ borderTop: "1px solid var(--border-color)" }}
           >
-            <FolderOpen className="h-4 w-4" />
-            打开文件夹...
-          </button>
-          <button
-            type="button"
-            className="flex h-8 w-8 flex-shrink-0 items-center justify-center transition-colors"
-            style={{ color: "var(--text-muted)" }}
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = "var(--text-primary)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = "var(--text-muted)";
-            }}
-          >
-            <MoreVertical className="h-4 w-4" />
-          </button>
-        </div>
+            <button
+              type="button"
+              className="flex flex-1 items-center justify-center gap-2 py-2.5 text-[13px]"
+              style={{ color: "var(--text-muted)" }}
+              onClick={handleOpenFolder}
+            >
+              <FolderOpen className="h-4 w-4" />
+              打开文件夹...
+            </button>
+            <button
+              type="button"
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center transition-colors"
+              style={{ color: "var(--text-muted)" }}
+              onClick={() => setIsMenuOpen(true)}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = "var(--text-primary)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = "var(--text-muted)";
+              }}
+            >
+              <MoreVertical className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         {/* 弹出菜单 */}
         {isMenuOpen && (
@@ -144,33 +146,37 @@ export function QuickActionsPanel({ onClose }: QuickActionsPanelProps) {
       className="relative flex-shrink-0"
       style={{ backgroundColor: "var(--bg-secondary)" }}
     >
-      {/* 当前目录名 + 更多选项 */}
-      <div
-        className="flex items-center"
-        style={{ borderTop: "1px solid var(--border-color)" }}
-      >
-        <div className="flex flex-1 items-center justify-center gap-2 py-2.5 text-[13px]">
-          <FolderOpen
-            className="h-4 w-4"
-            style={{ color: "var(--text-muted)" }}
-          />
-          <span style={{ color: "var(--text-primary)" }}>{treeRoot.title}</span>
-        </div>
-        <button
-          type="button"
-          className="flex h-8 w-8 flex-shrink-0 items-center justify-center transition-colors"
-          style={{ color: "var(--text-muted)" }}
-          onClick={() => setIsMenuOpen(!isMenuOpen)}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = "var(--text-primary)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = "var(--text-muted)";
-          }}
+      {/* 当前目录名 + 更多选项 - 菜单关闭时显示 */}
+      {!isMenuOpen && (
+        <div
+          className="flex items-center"
+          style={{ borderTop: "1px solid var(--border-color)" }}
         >
-          <MoreVertical className="h-4 w-4" />
-        </button>
-      </div>
+          <div className="flex flex-1 items-center justify-center gap-2 py-2.5 text-[13px]">
+            <FolderOpen
+              className="h-4 w-4"
+              style={{ color: "var(--text-muted)" }}
+            />
+            <span style={{ color: "var(--text-primary)" }}>
+              {treeRoot.title}
+            </span>
+          </div>
+          <button
+            type="button"
+            className="flex h-8 w-8 flex-shrink-0 items-center justify-center transition-colors"
+            style={{ color: "var(--text-muted)" }}
+            onClick={() => setIsMenuOpen(true)}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = "var(--text-primary)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = "var(--text-muted)";
+            }}
+          >
+            <MoreVertical className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* 弹出菜单 */}
       {isMenuOpen && (
