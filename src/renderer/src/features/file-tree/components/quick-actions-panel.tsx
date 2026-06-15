@@ -164,7 +164,7 @@ export function QuickActionsPanel({ onClose }: QuickActionsPanelProps) {
           </div>
           <button
             type="button"
-            className="flex h-8 w-8 flex-shrink-0 items-center justify-center transition-colors"
+            className="sidebar-bottom-bar flex h-8 w-8 flex-shrink-0 items-center justify-center transition-colors"
             style={{ color: "var(--text-muted)" }}
             onClick={(e) => {
               e.stopPropagation();
