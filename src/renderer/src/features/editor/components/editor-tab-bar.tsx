@@ -190,7 +190,6 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
       style={{
         backgroundColor: isDragOver ? "var(--hover-bg)" : "var(--bg-secondary)",
         borderBottom: "1px solid var(--border-color)",
-        transition: "background-color 0.15s ease",
       }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}

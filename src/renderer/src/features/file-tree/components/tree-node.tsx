@@ -527,7 +527,7 @@ export const TreeNode = memo(function TreeNode({
           <div ref={rowRef} className="px-2">
             <div
               className={cn(
-                "relative flex h-7 cursor-pointer select-none items-center rounded-md transition-colors duration-75",
+                "relative flex h-7 cursor-pointer select-none items-center rounded-md",
                 isDropTarget &&
                   isFolder &&
                   "outline outline-1 outline-[var(--accent-color)]/40",

@@ -41,21 +41,8 @@ export function useTheme() {
     const actualTheme = resolveTheme(theme);
     const config = getThemeConfig(actualTheme);
 
-    // 移除旧主题类
-    root.classList.remove(...THEME_CLASSES);
-    body.classList.remove(...THEME_CLASSES);
-
-    // 添加新主题类
-    root.classList.add(actualTheme);
-    body.classList.add(actualTheme);
-
-    // 设置 data 属性
-    root.setAttribute(
-      "data-theme",
-      theme === "system" ? "system" : actualTheme,
-    );
-
-    // 设置 CSS 变量
+    // 先设置 CSS 变量，再切换 class，避免中间状态闪烁
+    // 设置 CSS 变量（内联样式优先级最高，立即生效）
     root.style.setProperty("--bg-primary", config.colors.bgPrimary);
     root.style.setProperty("--bg-secondary", config.colors.bgSecondary);
     root.style.setProperty("--bg-tertiary", config.colors.bgTertiary);
@@ -70,6 +57,20 @@ export function useTheme() {
     // 设置 body 背景色
     body.style.backgroundColor = config.colors.bgPrimary;
     body.style.color = config.colors.textPrimary;
+
+    // 移除旧主题类
+    root.classList.remove(...THEME_CLASSES);
+    body.classList.remove(...THEME_CLASSES);
+
+    // 添加新主题类
+    root.classList.add(actualTheme);
+    body.classList.add(actualTheme);
+
+    // 设置 data 属性
+    root.setAttribute(
+      "data-theme",
+      theme === "system" ? "system" : actualTheme,
+    );
 
     // 保存到 localStorage
     localStorage.setItem("theme", theme);
