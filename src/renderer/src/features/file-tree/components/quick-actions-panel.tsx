@@ -214,7 +214,7 @@ function RecentContentPanel({
                   onMouseLeave={(e) => {
                     e.currentTarget.style.color = "var(--text-muted)";
                   }}
-                  title="移除"
+                  title="Remove"
                 >
                   <X className="h-3 w-3" />
                 </button>
