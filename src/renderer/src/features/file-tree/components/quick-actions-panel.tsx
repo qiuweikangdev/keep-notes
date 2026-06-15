@@ -158,9 +158,7 @@ export function QuickActionsPanel({ onClose }: QuickActionsPanelProps) {
               className="h-4 w-4"
               style={{ color: "var(--text-muted)" }}
             />
-            <span style={{ color: "var(--text-primary)" }}>
-              {treeRoot.title}
-            </span>
+            <span style={{ color: "var(--text-muted)" }}>{treeRoot.title}</span>
           </div>
           <button
             type="button"
