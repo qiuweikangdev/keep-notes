@@ -6,6 +6,7 @@ import {
   useEffect,
   type KeyboardEvent,
 } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   File,
   Folder,
@@ -18,12 +19,14 @@ import {
   Search,
   X,
   ExternalLink,
+  Pencil,
+  Trash2,
+  GitCompare,
 } from "lucide-react";
 import { useEditorStore } from "@/store/editor.store";
 import { OutlinePanel } from "./outline-panel";
 import { useTreeStore } from "@/store/tree.store";
 import { useElectron } from "@/hooks/use-electron";
-import { TreeNode } from "./tree-node";
 import { QuickActionsPanel } from "./quick-actions-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +35,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import type { TreeNode as TreeNodeType } from "@/types";
 import { CodeResult } from "@/types";
 import { cn } from "@/lib/cn";
+import { flattenTree, type FlatNode } from "../utils";
 
 const MENU_CONTENT_CLASS =
   "z-[9999] min-w-[180px] rounded-md border p-1 shadow-lg bg-[var(--bg-primary)] border-[var(--border-color)] text-[var(--text-primary)]";
@@ -40,6 +44,7 @@ const MENU_ITEM_CLASS =
 const MENU_SEPARATOR_CLASS = "my-1 h-px bg-[var(--border-color)]";
 const TOOL_BUTTON_CLASS =
   "flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md transition-colors";
+const ROW_HEIGHT = 28; // 7 * 4 = 28px (h-7)
 
 interface CreatingInfo {
   type: "file" | "folder";
@@ -49,7 +54,11 @@ interface CreatingInfo {
 
 export function FileTree() {
   const { treeData, treeRoot, setTreeData } = useTreeStore();
-  const { openFolder, openInExplorer, createFile, createFolder } =
+  const expandedKeys = useTreeStore((state) => state.expandedKeys);
+  const selectedKey = useTreeStore((state) => state.selectedKey);
+  const toggleExpandedKey = useTreeStore((state) => state.toggleExpandedKey);
+  const setSelectedKey = useTreeStore((state) => state.setSelectedKey);
+  const { openFolder, openInExplorer, openFile, createFile, createFolder } =
     useElectron();
 
   const appearance = useEditorStore((s) => s.appearance);
@@ -61,19 +70,13 @@ export function FileTree() {
   const [creatingInfo, setCreatingInfo] = useState<CreatingInfo | null>(null);
   const [createValue, setCreateValue] = useState("");
   const [isPanelExpanded, setIsPanelExpanded] = useState(false);
-  const [isRootHovered, setIsRootHovered] = useState(false);
   const createInputRef = useRef<HTMLInputElement>(null);
   const confirmedRef = useRef(false);
+  const parentRef = useRef<HTMLDivElement>(null);
   const isRootCreating = creatingInfo?.parentKey === treeRoot?.key;
 
-  const isRootSelected = useTreeStore(
-    (state) => state.selectedKey === treeRoot?.key,
-  );
-  const isRootExpanded = useTreeStore((state) =>
-    treeRoot ? state.expandedKeys.has(treeRoot.key) : false,
-  );
-  const toggleExpandedKey = useTreeStore((state) => state.toggleExpandedKey);
-  const setSelectedKey = useTreeStore((state) => state.setSelectedKey);
+  const isRootSelected = selectedKey === treeRoot?.key;
+  const isRootExpanded = treeRoot ? expandedKeys.has(treeRoot.key) : false;
 
   // 从 store 获取大纲标题列表和活跃标题 ID
   const headings = useEditorStore((state) => state.outlineHeadings);
@@ -158,6 +161,7 @@ export function FileTree() {
     }
   }, [showSearch]);
 
+  // 过滤树数据
   const filteredTreeData = useMemo(() => {
     if (!searchQuery.trim()) return treeData;
 
@@ -183,6 +187,45 @@ export function FileTree() {
 
     return filterNodes(treeData);
   }, [treeData, searchQuery]);
+
+  // 展平树结构
+  const flatNodes = useMemo(() => {
+    if (!isRootExpanded) return [];
+    return flattenTree(filteredTreeData, expandedKeys, 1);
+  }, [filteredTreeData, expandedKeys, isRootExpanded]);
+
+  // 虚拟化器
+  const virtualizer = useVirtualizer({
+    count: flatNodes.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 10,
+  });
+
+  // 处理节点点击
+  const handleNodeClick = useCallback(
+    (flatNode: FlatNode) => {
+      setSelectedKey(flatNode.key);
+      if (flatNode.isFolder) {
+        toggleExpandedKey(flatNode.key);
+      } else if (flatNode.title.endsWith(".md")) {
+        void openFile(flatNode.key);
+      }
+    },
+    [setSelectedKey, toggleExpandedKey, openFile],
+  );
+
+  // 处理创建
+  const handleCreateInFolder = useCallback(
+    (parentKey: string, type: "file" | "folder", level: number) => {
+      if (!parentKey) {
+        setCreatingInfo(null);
+      } else {
+        setCreatingInfo({ type, parentKey, level });
+      }
+    },
+    [],
+  );
 
   if (!treeRoot) {
     return (
@@ -394,17 +437,13 @@ export function FileTree() {
                   <ContextMenu.Trigger asChild>
                     <div className="px-2">
                       <div
-                        className={cn(
-                          "relative flex h-7 cursor-pointer select-none items-center rounded-md",
-                        )}
+                        className="tree-node-root relative flex h-7 cursor-pointer select-none items-center rounded-md"
                         style={{
                           paddingLeft: "8px",
                           paddingRight: "8px",
                           backgroundColor: isRootSelected
                             ? "var(--active-bg)"
-                            : isRootHovered
-                              ? "var(--hover-bg)"
-                              : "transparent",
+                            : "transparent",
                           boxShadow: isRootSelected
                             ? "inset 0 0 0 1px var(--border-color)"
                             : "none",
@@ -413,8 +452,6 @@ export function FileTree() {
                           setSelectedKey(treeRoot!.key);
                           toggleExpandedKey(treeRoot!.key);
                         }}
-                        onMouseEnter={() => setIsRootHovered(true)}
-                        onMouseLeave={() => setIsRootHovered(false)}
                       >
                         <div className="flex h-[26px] w-[12px] flex-shrink-0 items-center justify-center">
                           <button
@@ -494,23 +531,38 @@ export function FileTree() {
                   </ContextMenu.Portal>
                 </ContextMenu.Root>
 
-                {/* 子节点 */}
-                {isRootExpanded && filteredTreeData.length > 0 ? (
-                  filteredTreeData.map((node) => (
-                    <TreeNode
-                      key={node.key}
-                      node={node}
-                      level={1}
-                      creatingInfo={creatingInfo}
-                      onCreateInFolder={(parentKey, type, lvl) => {
-                        if (!parentKey) {
-                          setCreatingInfo(null);
-                        } else {
-                          setCreatingInfo({ type, parentKey, level: lvl });
-                        }
+                {/* 虚拟化子节点列表 */}
+                {isRootExpanded && flatNodes.length > 0 ? (
+                  <div
+                    ref={parentRef}
+                    className="overflow-auto"
+                    style={{
+                      height: `calc(100% - ${isRootCreating ? 36 : 0}px - 28px)`,
+                    }}
+                  >
+                    <div
+                      style={{
+                        height: `${virtualizer.getTotalSize()}px`,
+                        width: "100%",
+                        position: "relative",
                       }}
-                    />
-                  ))
+                    >
+                      {virtualizer.getVirtualItems().map((virtualItem) => {
+                        const flatNode = flatNodes[virtualItem.index];
+                        return (
+                          <VirtualTreeNode
+                            key={flatNode.key}
+                            flatNode={flatNode}
+                            virtualItem={virtualItem}
+                            selectedKey={selectedKey}
+                            creatingInfo={creatingInfo}
+                            onClick={handleNodeClick}
+                            onCreateInFolder={handleCreateInFolder}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
                 ) : isRootExpanded ? (
                   <div
                     className="flex h-28 items-center justify-center text-[12px]"
@@ -563,5 +615,297 @@ export function FileTree() {
         </ContextMenu.Content>
       </ContextMenu.Portal>
     </ContextMenu.Root>
+  );
+}
+
+// 虚拟节点组件
+interface VirtualTreeNodeProps {
+  flatNode: FlatNode;
+  virtualItem: ReturnType<
+    ReturnType<typeof useVirtualizer>["getVirtualItems"]
+  >[number];
+  selectedKey: string | null;
+  creatingInfo: CreatingInfo | null;
+  onClick: (flatNode: FlatNode) => void;
+  onCreateInFolder: (
+    parentKey: string,
+    type: "file" | "folder",
+    level: number,
+  ) => void;
+}
+
+function VirtualTreeNode({
+  flatNode,
+  virtualItem,
+  selectedKey,
+  creatingInfo,
+  onClick,
+  onCreateInFolder,
+}: VirtualTreeNodeProps) {
+  const isSelected = selectedKey === flatNode.key;
+  const isCreatingHere = creatingInfo?.parentKey === flatNode.key;
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        width: "100%",
+        height: `${virtualItem.size}px`,
+        transform: `translateY(${virtualItem.start}px)`,
+      }}
+    >
+      <ContextMenu.Root>
+        <ContextMenu.Trigger asChild>
+          <div className="px-2">
+            <div
+              className="tree-node-row relative flex h-7 cursor-pointer select-none items-center rounded-md"
+              style={{
+                paddingLeft: `${flatNode.level * 14 + 8}px`,
+                paddingRight: "8px",
+                backgroundColor: isSelected
+                  ? "var(--active-bg)"
+                  : "transparent",
+                boxShadow: isSelected
+                  ? "inset 0 0 0 1px var(--border-color)"
+                  : "none",
+              }}
+              onClick={() => onClick(flatNode)}
+            >
+              <div className="flex h-[26px] w-[12px] flex-shrink-0 items-center justify-center">
+                {flatNode.isFolder ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onClick(flatNode);
+                    }}
+                    className="flex h-[16px] w-[16px] items-center justify-center rounded-sm hover:bg-[var(--hover-bg)]"
+                  >
+                    <ChevronRight
+                      className={cn(
+                        "h-3 w-3 transition-transform duration-100",
+                      )}
+                      style={{ color: "var(--text-muted)" }}
+                    />
+                  </button>
+                ) : null}
+              </div>
+
+              <div className="mr-[6px] flex h-[26px] w-[16px] flex-shrink-0 items-center justify-center">
+                {flatNode.isFolder ? (
+                  <Folder
+                    className="h-[14px] w-[14px]"
+                    style={{ color: "var(--text-secondary)" }}
+                  />
+                ) : (
+                  <File
+                    className="h-[14px] w-[14px]"
+                    style={{ color: "var(--text-muted)" }}
+                  />
+                )}
+              </div>
+
+              <span
+                className="flex-1 truncate text-[13px] leading-7"
+                style={{
+                  color: isSelected
+                    ? "var(--text-primary)"
+                    : "var(--text-secondary)",
+                }}
+              >
+                {flatNode.title}
+              </span>
+            </div>
+          </div>
+        </ContextMenu.Trigger>
+
+        <ContextMenu.Portal>
+          <ContextMenu.Content className={MENU_CONTENT_CLASS}>
+            {flatNode.title.endsWith(".md") ? (
+              <ContextMenu.Item
+                className={MENU_ITEM_CLASS}
+                onClick={() => {
+                  void openFile(flatNode.key);
+                }}
+              >
+                <File className="h-4 w-4" /> 打开
+              </ContextMenu.Item>
+            ) : null}
+
+            {flatNode.title.endsWith(".md") ? (
+              <ContextMenu.Item
+                className={MENU_ITEM_CLASS}
+                onClick={() => {
+                  // diff 功能保持原有逻辑
+                }}
+              >
+                <GitCompare className="h-4 w-4" /> 比较差异
+              </ContextMenu.Item>
+            ) : null}
+
+            <ContextMenu.Item
+              className={MENU_ITEM_CLASS}
+              onClick={() => {
+                if (flatNode.isFolder) {
+                  onCreateInFolder(flatNode.key, "file", flatNode.level + 1);
+                } else {
+                  const lastSep = Math.max(
+                    flatNode.key.lastIndexOf("/"),
+                    flatNode.key.lastIndexOf("\\"),
+                  );
+                  const parentKey =
+                    lastSep > 0
+                      ? flatNode.key.substring(0, lastSep)
+                      : flatNode.key;
+                  onCreateInFolder(parentKey, "file", flatNode.level);
+                }
+              }}
+            >
+              <Plus className="h-4 w-4" /> 新建文件
+            </ContextMenu.Item>
+            <ContextMenu.Item
+              className={MENU_ITEM_CLASS}
+              onClick={() => {
+                if (flatNode.isFolder) {
+                  onCreateInFolder(flatNode.key, "folder", flatNode.level + 1);
+                } else {
+                  const lastSep = Math.max(
+                    flatNode.key.lastIndexOf("/"),
+                    flatNode.key.lastIndexOf("\\"),
+                  );
+                  const parentKey =
+                    lastSep > 0
+                      ? flatNode.key.substring(0, lastSep)
+                      : flatNode.key;
+                  onCreateInFolder(parentKey, "folder", flatNode.level);
+                }
+              }}
+            >
+              <FolderPlus className="h-4 w-4" /> 新建文件夹
+            </ContextMenu.Item>
+            <ContextMenu.Separator className={MENU_SEPARATOR_CLASS} />
+            <ContextMenu.Item
+              className={MENU_ITEM_CLASS}
+              onClick={() => {
+                // 重命名功能需要额外状态管理
+              }}
+            >
+              <Pencil className="h-4 w-4" /> 重命名
+            </ContextMenu.Item>
+            <ContextMenu.Item
+              className={MENU_ITEM_CLASS}
+              onClick={() => {
+                // 删除功能需要额外状态管理
+              }}
+            >
+              <Trash2 className="h-4 w-4" /> 删除
+            </ContextMenu.Item>
+            <ContextMenu.Separator className={MENU_SEPARATOR_CLASS} />
+            <ContextMenu.Item
+              className={MENU_ITEM_CLASS}
+              onClick={() => void openInExplorer(flatNode.key)}
+            >
+              <ExternalLink className="h-4 w-4" /> 在资源管理器中显示
+            </ContextMenu.Item>
+          </ContextMenu.Content>
+        </ContextMenu.Portal>
+      </ContextMenu.Root>
+
+      {/* 创建输入框 */}
+      {isCreatingHere ? (
+        <CreateInput
+          creatingInfo={creatingInfo}
+          onCancel={() => onCreateInFolder("", "file", 0)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+// 创建输入框组件
+function CreateInput({
+  creatingInfo,
+  onCancel,
+}: {
+  creatingInfo: CreatingInfo;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const confirmedRef = useRef(false);
+
+  useEffect(() => {
+    if (inputRef.current) {
+      requestAnimationFrame(() => inputRef.current?.focus());
+    }
+  }, []);
+
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        confirmedRef.current = true;
+        // 创建逻辑
+        onCancel();
+      }
+      if (e.key === "Escape") {
+        confirmedRef.current = true;
+        onCancel();
+      }
+    },
+    [onCancel],
+  );
+
+  return (
+    <div
+      className="mx-2 mb-1 flex h-7 animate-fade-in items-center rounded-md"
+      style={{
+        paddingLeft: `${creatingInfo.level * 14 + 8}px`,
+        paddingRight: "8px",
+        backgroundColor: "var(--bg-tertiary)",
+        border: "1px solid var(--border-color)",
+      }}
+    >
+      <div className="flex h-[26px] w-[12px] flex-shrink-0 items-center justify-center" />
+      <div className="mr-[6px] flex h-[26px] w-[16px] flex-shrink-0 items-center justify-center">
+        {creatingInfo.type === "file" ? (
+          <File
+            className="h-[14px] w-[14px]"
+            style={{ color: "var(--text-muted)" }}
+          />
+        ) : (
+          <Folder
+            className="h-[14px] w-[14px]"
+            style={{ color: "var(--text-secondary)" }}
+          />
+        )}
+      </div>
+      <input
+        ref={inputRef}
+        autoFocus
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onBlur={() => {
+          if (confirmedRef.current) {
+            confirmedRef.current = false;
+            return;
+          }
+          setTimeout(() => onCancel(), 100);
+        }}
+        onClick={(e) => e.stopPropagation()}
+        placeholder={
+          creatingInfo.type === "file" ? "输入文件名称" : "输入文件夹名称"
+        }
+        className="h-[22px] flex-1 rounded-[3px] px-[6px] text-[13px] outline-none"
+        style={{
+          backgroundColor: "transparent",
+          border: "1px solid transparent",
+          color: "var(--text-primary)",
+        }}
+      />
+    </div>
   );
 }

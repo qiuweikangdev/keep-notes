@@ -53,6 +53,7 @@
     "react-dom": "^19.2.7",
     "react-resizable-panels": "^2.1.0",
     "simple-git": "^3.36.0",
+    "@tanstack/react-virtual": "^3.13.0",
     "tailwind-merge": "^2.4.0",
     "zustand": "^4.5.0"
   },

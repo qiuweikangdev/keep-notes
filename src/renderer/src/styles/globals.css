@@ -774,3 +774,15 @@ select {
   appearance: none;
   background-image: none;
 }
+
+/* 文件树节点 hover 样式 - 使用 CSS 替代 JavaScript hover 状态 */
+.tree-node-row:hover,
+.tree-node-root:hover {
+  background-color: var(--hover-bg) !important;
+}
+
+/* 展开箭头旋转 */
+.tree-node-row .chevron-expanded,
+.tree-node-root .chevron-expanded {
+  transform: rotate(90deg);
+}
