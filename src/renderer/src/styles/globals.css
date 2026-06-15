@@ -78,6 +78,15 @@ button:not(:disabled):not([aria-disabled="true"]):not([role="switch"]):not(.quic
   background-color: var(--button-active-bg) !important;
 }
 
+/* 底部操作栏按钮悬停效果 */
+.sidebar-bottom-bar:hover {
+  background-color: transparent !important;
+}
+
+.sidebar-bottom-bar:active {
+  background-color: transparent !important;
+}
+
 button:focus-visible {
   outline: 2px solid var(--accent-color);
   outline-offset: 2px;
