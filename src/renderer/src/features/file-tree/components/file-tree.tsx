@@ -356,7 +356,7 @@ export function FileTree() {
             </Tooltip.Provider>
           </div>
 
-          <div className="flex-1 overflow-auto py-2">
+          <div className="flex-1 overflow-auto py-2 pb-12">
             {sidebarView === "file" ? (
               <>
                 {showSearch ? (
