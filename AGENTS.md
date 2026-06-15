@@ -93,3 +93,7 @@ After completing a task, explain:
 ## Language
 
 Respond in Chinese.
+
+## Superpowers Workflow
+
+When using the superpowers workflow skill (e.g., `using-superpowers`, `writing-plans`, `executing-plans`), all generated output documents must be written in English.
