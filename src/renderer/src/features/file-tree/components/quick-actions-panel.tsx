@@ -6,6 +6,7 @@ import {
   Folder,
   X,
   MoreVertical,
+  List,
 } from "lucide-react";
 import { useTreeStore } from "@/store/tree.store";
 import { useElectron } from "@/hooks/use-electron";
@@ -170,6 +171,19 @@ export function QuickActionsPanel({ onClose }: QuickActionsPanelProps) {
         >
           <MoreVertical className="h-4 w-4" />
         </button>
+        <button
+          type="button"
+          className="flex h-8 w-8 flex-shrink-0 items-center justify-center transition-colors"
+          style={{ color: "var(--text-muted)" }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = "var(--text-primary)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = "var(--text-muted)";
+          }}
+        >
+          <List className="h-4 w-4" />
+        </button>
       </div>
 
       {/* 弹出菜单 */}
@@ -258,19 +272,28 @@ function MenuContent({
           <MenuItem
             icon={<ExternalLink className="h-4 w-4" />}
             label="在 Finder 中显示"
-            onClick={() => onOpenInExplorer()}
+            onClick={() => {
+              onOpenInExplorer();
+              onClose();
+            }}
           />
         )}
         <MenuItem
           icon={<FolderOpen className="h-4 w-4" />}
           label="打开文件夹..."
-          onClick={onOpenFolder}
+          onClick={() => {
+            onOpenFolder();
+            onClose();
+          }}
         />
         {treeRoot && (
           <MenuItem
             icon={<RefreshCw className="h-4 w-4" />}
             label="刷新"
-            onClick={onRefresh}
+            onClick={() => {
+              onRefresh();
+              onClose();
+            }}
           />
         )}
       </div>
