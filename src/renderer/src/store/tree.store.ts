@@ -7,11 +7,6 @@ interface RecentFolder {
   path: string;
 }
 
-interface RecentFile {
-  title: string;
-  path: string;
-}
-
 interface TreeState {
   treeData: TreeNode[];
   treeRoot: TreeRoot | null;
@@ -19,7 +14,6 @@ interface TreeState {
   expandedKeys: Set<string>;
   dirSettings: DirSettings;
   recentFolders: RecentFolder[];
-  recentFiles: RecentFile[];
 
   setTreeData: (data: TreeNode[]) => void;
   setTreeRoot: (root: TreeRoot) => void;
@@ -30,8 +24,6 @@ interface TreeState {
   setDirSettings: (settings: Partial<DirSettings>) => void;
   addRecentFolder: (folder: RecentFolder) => void;
   removeRecentFolder: (path: string) => void;
-  addRecentFile: (file: RecentFile) => void;
-  removeRecentFile: (path: string) => void;
   resetTree: () => void;
 }
 
@@ -47,10 +39,14 @@ export const useTreeStore = create<TreeState>()(
         showIcon: false,
       },
       recentFolders: [],
-      recentFiles: [],
 
       setTreeData: (data) => set({ treeData: data }),
-      setTreeRoot: (root) => set({ treeRoot: root }),
+      setTreeRoot: (root) =>
+        set((state) => {
+          const expandedKeys = new Set(state.expandedKeys);
+          expandedKeys.add(root.key);
+          return { treeRoot: root, expandedKeys };
+        }),
       setSelectedKey: (key) => set({ selectedKey: key }),
       toggleExpandedKey: (key) =>
         set((state) => {
@@ -90,20 +86,6 @@ export const useTreeStore = create<TreeState>()(
         set((state) => ({
           recentFolders: state.recentFolders.filter((f) => f.path !== path),
         })),
-      addRecentFile: (file) =>
-        set((state) => {
-          // 去重：移除已存在的同路径文件，然后添加到最前面
-          const filtered = state.recentFiles.filter(
-            (f) => f.path !== file.path,
-          );
-          return {
-            recentFiles: [file, ...filtered].slice(0, 10), // 最多保留10个
-          };
-        }),
-      removeRecentFile: (path) =>
-        set((state) => ({
-          recentFiles: state.recentFiles.filter((f) => f.path !== path),
-        })),
       resetTree: () =>
         set({
           treeData: [],
@@ -117,7 +99,6 @@ export const useTreeStore = create<TreeState>()(
       partialize: (state) => ({
         dirSettings: state.dirSettings,
         recentFolders: state.recentFolders,
-        recentFiles: state.recentFiles,
       }),
     },
   ),

@@ -10,6 +10,7 @@ import {
   File,
   Folder,
   FolderOpen,
+  ChevronRight,
   List,
   ListTree,
   Plus,
@@ -30,6 +31,7 @@ import { ContextMenu } from "@/components/ui/context-menu";
 import { Tooltip } from "@/components/ui/tooltip";
 import type { TreeNode as TreeNodeType } from "@/types";
 import { CodeResult } from "@/types";
+import { cn } from "@/lib/cn";
 
 const MENU_CONTENT_CLASS =
   "z-[9999] min-w-[180px] rounded-md border p-1 shadow-lg bg-[var(--bg-primary)] border-[var(--border-color)] text-[var(--text-primary)]";
@@ -59,9 +61,19 @@ export function FileTree() {
   const [creatingInfo, setCreatingInfo] = useState<CreatingInfo | null>(null);
   const [createValue, setCreateValue] = useState("");
   const [isPanelExpanded, setIsPanelExpanded] = useState(false);
+  const [isRootHovered, setIsRootHovered] = useState(false);
   const createInputRef = useRef<HTMLInputElement>(null);
   const confirmedRef = useRef(false);
   const isRootCreating = creatingInfo?.parentKey === treeRoot?.key;
+
+  const isRootSelected = useTreeStore(
+    (state) => state.selectedKey === treeRoot?.key,
+  );
+  const isRootExpanded = useTreeStore((state) =>
+    treeRoot ? state.expandedKeys.has(treeRoot.key) : false,
+  );
+  const toggleExpandedKey = useTreeStore((state) => state.toggleExpandedKey);
+  const setSelectedKey = useTreeStore((state) => state.setSelectedKey);
 
   // 从 store 获取大纲标题列表和活跃标题 ID
   const headings = useEditorStore((state) => state.outlineHeadings);
@@ -188,12 +200,7 @@ export function FileTree() {
         </div>
 
         <div className="absolute bottom-0 left-0 right-0">
-          <QuickActionsPanel
-            onToggleSearch={handleToggleSearch}
-            onStartCreateFile={handleStartCreateFile}
-            onStartCreateFolder={handleStartCreateFolder}
-            onExpandedChange={setIsPanelExpanded}
-          />
+          <QuickActionsPanel onExpandedChange={setIsPanelExpanded} />
         </div>
       </div>
     );
@@ -382,12 +389,118 @@ export function FileTree() {
                   </div>
                 ) : null}
 
-                {filteredTreeData.length > 0 ? (
+                {/* 根节点 */}
+                <ContextMenu.Root>
+                  <ContextMenu.Trigger asChild>
+                    <div className="px-2">
+                      <div
+                        className={cn(
+                          "relative flex h-7 cursor-pointer select-none items-center rounded-md",
+                        )}
+                        style={{
+                          paddingLeft: "8px",
+                          paddingRight: "8px",
+                          backgroundColor: isRootSelected
+                            ? "var(--active-bg)"
+                            : isRootHovered
+                              ? "var(--hover-bg)"
+                              : "transparent",
+                          boxShadow: isRootSelected
+                            ? "inset 0 0 0 1px var(--border-color)"
+                            : "none",
+                        }}
+                        onClick={() => {
+                          setSelectedKey(treeRoot!.key);
+                          toggleExpandedKey(treeRoot!.key);
+                        }}
+                        onMouseEnter={() => setIsRootHovered(true)}
+                        onMouseLeave={() => setIsRootHovered(false)}
+                      >
+                        <div className="flex h-[26px] w-[12px] flex-shrink-0 items-center justify-center">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleExpandedKey(treeRoot!.key);
+                            }}
+                            className="flex h-[16px] w-[16px] items-center justify-center rounded-sm hover:bg-[var(--hover-bg)]"
+                          >
+                            <ChevronRight
+                              className={cn(
+                                "h-3 w-3 transition-transform duration-100",
+                                isRootExpanded && "rotate-90",
+                              )}
+                              style={{ color: "var(--text-muted)" }}
+                            />
+                          </button>
+                        </div>
+
+                        <div className="mr-[6px] flex h-[26px] w-[16px] flex-shrink-0 items-center justify-center">
+                          {isRootExpanded ? (
+                            <FolderOpen
+                              className="h-[14px] w-[14px]"
+                              style={{ color: "var(--text-secondary)" }}
+                            />
+                          ) : (
+                            <Folder
+                              className="h-[14px] w-[14px]"
+                              style={{ color: "var(--text-secondary)" }}
+                            />
+                          )}
+                        </div>
+
+                        <span
+                          className="flex-1 truncate text-[13px] leading-7 font-medium"
+                          style={{
+                            color: isRootSelected
+                              ? "var(--text-primary)"
+                              : "var(--text-secondary)",
+                          }}
+                        >
+                          {treeRoot!.title}
+                        </span>
+                      </div>
+                    </div>
+                  </ContextMenu.Trigger>
+
+                  <ContextMenu.Portal>
+                    <ContextMenu.Content className={MENU_CONTENT_CLASS}>
+                      <ContextMenu.Item
+                        className={MENU_ITEM_CLASS}
+                        onClick={handleStartCreateFile}
+                      >
+                        <Plus className="h-4 w-4" /> 新建文件
+                      </ContextMenu.Item>
+                      <ContextMenu.Item
+                        className={MENU_ITEM_CLASS}
+                        onClick={handleStartCreateFolder}
+                      >
+                        <FolderPlus className="h-4 w-4" /> 新建文件夹
+                      </ContextMenu.Item>
+                      <ContextMenu.Separator className={MENU_SEPARATOR_CLASS} />
+                      <ContextMenu.Item
+                        className={MENU_ITEM_CLASS}
+                        onClick={handleSelectDir}
+                      >
+                        <FolderOpen className="h-4 w-4" /> 打开文件夹
+                      </ContextMenu.Item>
+                      <ContextMenu.Item
+                        className={MENU_ITEM_CLASS}
+                        onClick={() => void openInExplorer(treeRoot!.key)}
+                      >
+                        <ExternalLink className="h-4 w-4" /> 在资源管理器中显示
+                      </ContextMenu.Item>
+                    </ContextMenu.Content>
+                  </ContextMenu.Portal>
+                </ContextMenu.Root>
+
+                {/* 子节点 */}
+                {isRootExpanded && filteredTreeData.length > 0 ? (
                   filteredTreeData.map((node) => (
                     <TreeNode
                       key={node.key}
                       node={node}
-                      level={0}
+                      level={1}
                       creatingInfo={creatingInfo}
                       onCreateInFolder={(parentKey, type, lvl) => {
                         if (!parentKey) {
@@ -398,14 +511,14 @@ export function FileTree() {
                       }}
                     />
                   ))
-                ) : (
+                ) : isRootExpanded ? (
                   <div
                     className="flex h-28 items-center justify-center text-[12px]"
                     style={{ color: "var(--text-muted)" }}
                   >
                     {searchQuery ? "没有匹配的文件" : "文件夹为空"}
                   </div>
-                )}
+                ) : null}
               </>
             ) : (
               <OutlinePanel
@@ -416,11 +529,7 @@ export function FileTree() {
             )}
           </div>
 
-          <QuickActionsPanel
-            onToggleSearch={handleToggleSearch}
-            onStartCreateFile={handleStartCreateFile}
-            onStartCreateFolder={handleStartCreateFolder}
-          />
+          <QuickActionsPanel />
         </div>
       </ContextMenu.Trigger>
 
