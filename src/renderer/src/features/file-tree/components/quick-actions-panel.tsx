@@ -1,54 +1,12 @@
-import { useState, useCallback, useRef, useEffect } from "react";
-import {
-  RefreshCw,
-  ExternalLink,
-  ChevronUp,
-  ChevronDown,
-  FolderOpen,
-  X,
-  MoreVertical,
-} from "lucide-react";
+import { useState, useCallback } from "react";
+import { RefreshCw, ExternalLink, FolderOpen, X } from "lucide-react";
 import { useTreeStore } from "@/store/tree.store";
 import { useElectron } from "@/hooks/use-electron";
 import { Tooltip } from "@/components/ui/tooltip";
 
-interface QuickActionsPanelProps {
-  onExpandedChange?: (expanded: boolean) => void;
-}
-
-export function QuickActionsPanel({
-  onExpandedChange,
-}: QuickActionsPanelProps) {
+export function QuickActionsPanel() {
   const { treeRoot, recentFolders, removeRecentFolder } = useTreeStore();
   const { openFolder, loadTree, openInExplorer } = useElectron();
-  const [isExpanded, setIsExpanded] = useState(false);
-  const panelRef = useRef<HTMLDivElement>(null);
-
-  // 点击外部区域关闭面板
-  useEffect(() => {
-    if (!isExpanded) return;
-
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        panelRef.current &&
-        !panelRef.current.contains(event.target as Node)
-      ) {
-        setIsExpanded(false);
-        onExpandedChange?.(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [isExpanded, onExpandedChange]);
-
-  const handleToggleExpand = useCallback(() => {
-    const newState = !isExpanded;
-    setIsExpanded(newState);
-    onExpandedChange?.(newState);
-  }, [isExpanded, onExpandedChange]);
 
   const handleOpenFolder = useCallback(async () => {
     await openFolder();
@@ -81,58 +39,36 @@ export function QuickActionsPanel({
     [removeRecentFolder],
   );
 
-  // 是否有最近内容可显示
-  const hasRecentContent = recentFolders.length > 0;
-
-  // 无文件夹时显示简洁的打开按钮
+  // 无文件夹时显示打开按钮和最近目录
   if (!treeRoot) {
     return (
       <div
-        ref={panelRef}
         className="flex-shrink-0"
         style={{ backgroundColor: "var(--bg-secondary)" }}
       >
-        {/* 展开最近目录面板时，只显示面板 */}
-        {isExpanded && hasRecentContent ? (
+        <div
+          className="quick-open-folder flex items-center"
+          style={{ borderTop: "1px solid var(--border-color)" }}
+        >
+          <button
+            type="button"
+            className="flex flex-1 items-center justify-center gap-2 py-2.5 text-[13px]"
+            style={{ color: "var(--text-muted)" }}
+            onClick={handleOpenFolder}
+          >
+            <FolderOpen className="h-4 w-4" />
+            打开文件夹...
+          </button>
+        </div>
+
+        {/* 最近使用的目录 - 始终显示 */}
+        {recentFolders.length > 0 && (
           <div style={{ borderTop: "1px solid var(--border-color)" }}>
             <RecentContentPanel
               recentFolders={recentFolders}
               onOpenRecentFolder={handleOpenRecentFolder}
               onRemoveRecentFolder={handleRemoveRecentFolder}
-              onOpenFolder={handleOpenFolder}
-              showOpenFolder={!treeRoot}
             />
-          </div>
-        ) : (
-          /* 正常状态：显示打开文件夹按钮 */
-          <div
-            className="quick-open-folder flex items-center"
-            style={{ borderTop: "1px solid var(--border-color)" }}
-          >
-            <button
-              type="button"
-              className="flex flex-1 items-center justify-center gap-2 py-2.5 text-[13px]"
-              style={{ color: "var(--text-muted)" }}
-              onClick={handleOpenFolder}
-            >
-              <FolderOpen className="h-4 w-4" />
-              打开文件夹...
-            </button>
-
-            {/* 右侧更多按钮 */}
-            {hasRecentContent && (
-              <button
-                type="button"
-                className="flex h-8 w-8 flex-shrink-0 items-center justify-center"
-                style={{ color: "var(--text-muted)" }}
-                onClick={() => {
-                  setIsExpanded(true);
-                  onExpandedChange?.(true);
-                }}
-              >
-                <MoreVertical className="h-4 w-4" />
-              </button>
-            )}
           </div>
         )}
       </div>
@@ -141,7 +77,6 @@ export function QuickActionsPanel({
 
   return (
     <div
-      ref={panelRef}
       className="flex-shrink-0"
       style={{ backgroundColor: "var(--bg-secondary)" }}
     >
@@ -153,56 +88,19 @@ export function QuickActionsPanel({
         <div className="flex items-center gap-0.5">
           <ToolButton
             icon={<ExternalLink className="h-3.5 w-3.5" />}
-            tooltip="在资源管理器中显示"
+            tooltip="Show in Explorer"
             onClick={handleOpenInExplorer}
           />
           <ToolButton
             icon={<RefreshCw className="h-3.5 w-3.5" />}
-            tooltip="刷新"
+            tooltip="Refresh"
             onClick={handleRefresh}
           />
         </div>
-        {hasRecentContent && (
-          <Tooltip.Provider>
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <button
-                  type="button"
-                  className="flex h-6 w-6 items-center justify-center rounded transition-colors"
-                  style={{ color: "var(--text-muted)" }}
-                  onClick={handleToggleExpand}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                    e.currentTarget.style.color = "var(--text-primary)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "transparent";
-                    e.currentTarget.style.color = "var(--text-muted)";
-                  }}
-                >
-                  {isExpanded ? (
-                    <ChevronDown className="h-3.5 w-3.5" />
-                  ) : (
-                    <ChevronUp className="h-3.5 w-3.5" />
-                  )}
-                </button>
-              </Tooltip.Trigger>
-              <Tooltip.Portal>
-                <Tooltip.Content
-                  className="z-50 rounded-md bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md"
-                  sideOffset={5}
-                >
-                  {isExpanded ? "收起最近列表" : "展开最近列表"}
-                  <Tooltip.Arrow className="fill-popover" />
-                </Tooltip.Content>
-              </Tooltip.Portal>
-            </Tooltip.Root>
-          </Tooltip.Provider>
-        )}
       </div>
 
-      {/* 最近使用面板 */}
-      {isExpanded && hasRecentContent && (
+      {/* 最近使用的目录 - 始终显示 */}
+      {recentFolders.length > 0 && (
         <div
           className="px-1 pb-0.5"
           style={{ borderTop: "1px solid var(--border-color)" }}
@@ -211,8 +109,6 @@ export function QuickActionsPanel({
             recentFolders={recentFolders}
             onOpenRecentFolder={handleOpenRecentFolder}
             onRemoveRecentFolder={handleRemoveRecentFolder}
-            onOpenFolder={handleOpenFolder}
-            showOpenFolder={!treeRoot}
           />
         </div>
       )}
@@ -268,16 +164,12 @@ interface RecentContentPanelProps {
   recentFolders: Array<{ title: string; path: string }>;
   onOpenRecentFolder: (path: string) => void;
   onRemoveRecentFolder: (e: React.MouseEvent, path: string) => void;
-  onOpenFolder: () => void;
-  showOpenFolder?: boolean;
 }
 
 function RecentContentPanel({
   recentFolders,
   onOpenRecentFolder,
   onRemoveRecentFolder,
-  onOpenFolder,
-  showOpenFolder = false,
 }: RecentContentPanelProps) {
   const [foldersCollapsed, setFoldersCollapsed] = useState(false);
 
@@ -353,40 +245,6 @@ function RecentContentPanel({
               ))}
             </div>
           )}
-        </div>
-      )}
-
-      {/* 分隔线和打开文件夹 - 仅在未打开目录时显示 */}
-      {showOpenFolder && (
-        <div
-          className="mt-0.5 pb-1"
-          style={{ borderTop: "1px solid var(--border-color)" }}
-        >
-          <div
-            className="px-2 py-0.5 text-[11px] font-medium"
-            style={{ color: "var(--text-muted)" }}
-          >
-            目录
-          </div>
-          <div
-            className="flex cursor-default items-center gap-2 px-3 py-0.5 text-[13px] transition-colors"
-            style={{ color: "var(--text-secondary)" }}
-            onClick={onOpenFolder}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-              e.currentTarget.style.color = "var(--text-primary)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
-              e.currentTarget.style.color = "var(--text-secondary)";
-            }}
-          >
-            <FolderOpen
-              className="h-3.5 w-3.5 flex-shrink-0"
-              style={{ color: "var(--text-muted)" }}
-            />
-            <span>打开文件夹...</span>
-          </div>
         </div>
       )}
     </div>
