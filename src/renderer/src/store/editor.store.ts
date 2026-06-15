@@ -18,6 +18,7 @@ export interface EditorAppearance {
   padding: number;
   showModeSwitcher: boolean;
   sidebarView: "file" | "outline";
+  showBottomBarOnHover: boolean;
 }
 
 export type EditorMode = "rich" | "source";
@@ -146,6 +147,7 @@ const defaultAppearance: EditorAppearance = {
   padding: 0,
   showModeSwitcher: true,
   sidebarView: "file",
+  showBottomBarOnHover: true,
 };
 
 // 生成唯一ID

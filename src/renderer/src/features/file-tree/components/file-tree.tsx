@@ -243,8 +243,16 @@ export function FileTree() {
         <div
           className="absolute bottom-0 left-0 right-0 z-10 transition-opacity duration-200"
           style={{
-            opacity: isSidebarHovered ? 1 : 0,
-            pointerEvents: isSidebarHovered ? "auto" : "none",
+            opacity: appearance.showBottomBarOnHover
+              ? isSidebarHovered
+                ? 1
+                : 0
+              : 1,
+            pointerEvents: appearance.showBottomBarOnHover
+              ? isSidebarHovered
+                ? "auto"
+                : "none"
+              : "auto",
           }}
         >
           <QuickActionsPanel />
@@ -592,8 +600,16 @@ export function FileTree() {
           <div
             className="absolute bottom-0 left-0 right-0 z-10 transition-opacity duration-200"
             style={{
-              opacity: isSidebarHovered ? 1 : 0,
-              pointerEvents: isSidebarHovered ? "auto" : "none",
+              opacity: appearance.showBottomBarOnHover
+                ? isSidebarHovered
+                  ? 1
+                  : 0
+                : 1,
+              pointerEvents: appearance.showBottomBarOnHover
+                ? isSidebarHovered
+                  ? "auto"
+                  : "none"
+                : "auto",
             }}
           >
             <QuickActionsPanel />

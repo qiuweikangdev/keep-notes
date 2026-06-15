@@ -115,6 +115,21 @@ export function SettingsModal() {
               </SettingRow>
             </div>
 
+            {/* 底部操作栏悬停显示 */}
+            <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+              <SettingRow
+                label="底部操作栏悬停显示"
+                description="鼠标悬停在侧边栏时显示底部操作栏"
+              >
+                <Switch
+                  checked={appearance.showBottomBarOnHover}
+                  onCheckedChange={(checked) =>
+                    setAppearance({ showBottomBarOnHover: checked })
+                  }
+                />
+              </SettingRow>
+            </div>
+
             {/* 字体设置 */}
             <div style={{ borderBottom: "1px solid var(--border-color)" }}>
               <div className="py-1">
