@@ -149,8 +149,15 @@ export function QuickActionsPanel({ onClose }: QuickActionsPanelProps) {
       {/* 当前目录名 + 更多选项 - 菜单关闭时显示 */}
       {!isMenuOpen && (
         <div
-          className="flex items-center"
+          className="flex cursor-pointer items-center transition-colors"
           style={{ borderTop: "1px solid var(--border-color)" }}
+          onClick={() => setIsMenuOpen(true)}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "transparent";
+          }}
         >
           <div className="flex flex-1 items-center justify-center gap-2 py-2.5 text-[13px]">
             <FolderOpen
@@ -165,7 +172,10 @@ export function QuickActionsPanel({ onClose }: QuickActionsPanelProps) {
             type="button"
             className="flex h-8 w-8 flex-shrink-0 items-center justify-center transition-colors"
             style={{ color: "var(--text-muted)" }}
-            onClick={() => setIsMenuOpen(true)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsMenuOpen(true);
+            }}
             onMouseEnter={(e) => {
               e.currentTarget.style.color = "var(--text-primary)";
             }}
