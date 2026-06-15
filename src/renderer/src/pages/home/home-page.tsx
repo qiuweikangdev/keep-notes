@@ -40,7 +40,17 @@ export function HomePage() {
 }
 
 function HomePageContent() {
-  const { panelSize, collapsed, toggleCollapse, handleResize } = usePanel();
+  const {
+    panelSize,
+    panelRef,
+    collapsed,
+    toggleCollapse,
+    handleLayoutChange,
+    handleLayoutChanged,
+    handleCollapse,
+    handleExpand,
+    handleDidMount,
+  } = usePanel();
   const [isMaximized] = useState(false);
   const { isOpen, isLoading, oldContent, newContent, filePath, closeDiff } =
     useDiffStore();
@@ -101,29 +111,38 @@ function HomePageContent() {
       <TitleBar collapsed={collapsed} onToggleCollapse={toggleCollapse} />
 
       <div className="flex-1 overflow-hidden">
-        <PanelGroup direction="horizontal" autoSaveId="main-layout">
-          {!collapsed && (
-            <>
-              <Panel
-                defaultSize={panelSize}
-                minSize={15}
-                maxSize={40}
-                onResize={handleResize}
-              >
-                <Sidebar />
-              </Panel>
-              <PanelResizeHandle
-                style={{
-                  width: "6px",
-                  minWidth: "6px",
-                  backgroundColor: "var(--border-color)",
-                  cursor: "col-resize",
-                  position: "relative",
-                }}
-                hitAreaMargins={{ coarse: 30, fine: 20 }}
-              />
-            </>
-          )}
+        <PanelGroup
+          direction="horizontal"
+          onLayoutChange={handleLayoutChange}
+          onLayoutChanged={handleLayoutChanged}
+        >
+          <Panel
+            ref={panelRef}
+            id="sidebar"
+            defaultSize={panelSize}
+            minSize={15}
+            collapsedSize={0}
+            collapsible
+            onCollapse={handleCollapse}
+            onExpand={handleExpand}
+            onDidMount={handleDidMount}
+          >
+            <Sidebar />
+          </Panel>
+          <PanelResizeHandle
+            className="group/resize"
+            style={{
+              width: "1px",
+              minWidth: "1px",
+              position: "relative",
+              cursor: "col-resize",
+            }}
+          >
+            <div
+              className="absolute inset-y-0 -left-1 -right-1"
+              style={{ backgroundColor: "var(--border-color)" }}
+            />
+          </PanelResizeHandle>
 
           <Panel minSize={30}>
             <div
