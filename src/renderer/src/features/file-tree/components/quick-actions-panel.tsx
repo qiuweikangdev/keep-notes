@@ -88,7 +88,7 @@ export function QuickActionsPanel({ onClose }: QuickActionsPanelProps) {
           >
             <button
               type="button"
-              className="flex flex-1 items-center justify-center gap-2 py-2.5 text-[13px]"
+              className="sidebar-bottom-bar flex flex-1 items-center justify-center gap-2 py-2.5 text-[13px]"
               style={{ color: "var(--text-muted)" }}
               onClick={handleOpenFolder}
             >
@@ -97,7 +97,7 @@ export function QuickActionsPanel({ onClose }: QuickActionsPanelProps) {
             </button>
             <button
               type="button"
-              className="flex h-8 w-8 flex-shrink-0 items-center justify-center transition-colors"
+              className="sidebar-bottom-bar flex h-8 w-8 flex-shrink-0 items-center justify-center transition-colors"
               style={{ color: "var(--text-muted)" }}
               onClick={() => setIsMenuOpen(true)}
               onMouseEnter={(e) => {
