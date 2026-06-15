@@ -152,27 +152,37 @@ export function QuickActionsPanel({ onClose }: QuickActionsPanelProps) {
           className="sidebar-bottom-bar flex cursor-pointer items-center"
           style={{ borderTop: "1px solid var(--border-color)" }}
           onClick={() => setIsMenuOpen(true)}
+          onMouseEnter={(e) => {
+            const container = e.currentTarget;
+            container.querySelectorAll("[data-hover-muted]").forEach((el) => {
+              (el as HTMLElement).style.color = "var(--text-primary)";
+            });
+          }}
+          onMouseLeave={(e) => {
+            const container = e.currentTarget;
+            container.querySelectorAll("[data-hover-muted]").forEach((el) => {
+              (el as HTMLElement).style.color = "var(--text-muted)";
+            });
+          }}
         >
           <div className="flex flex-1 items-center justify-center gap-2 py-2.5 text-[13px]">
             <FolderOpen
               className="h-4 w-4"
+              data-hover-muted
               style={{ color: "var(--text-muted)" }}
             />
-            <span style={{ color: "var(--text-muted)" }}>{treeRoot.title}</span>
+            <span data-hover-muted style={{ color: "var(--text-muted)" }}>
+              {treeRoot.title}
+            </span>
           </div>
           <button
             type="button"
             className="sidebar-bottom-bar flex h-8 w-8 flex-shrink-0 items-center justify-center transition-colors"
+            data-hover-muted
             style={{ color: "var(--text-muted)" }}
             onClick={(e) => {
               e.stopPropagation();
               setIsMenuOpen(true);
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = "var(--text-primary)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = "var(--text-muted)";
             }}
           >
             <MoreVertical className="h-4 w-4" />
