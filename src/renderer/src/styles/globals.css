@@ -81,6 +81,7 @@ button:not(:disabled):not([aria-disabled="true"]):not([role="switch"]):not(.quic
 /* 底部操作栏按钮悬停效果 */
 .sidebar-bottom-bar:hover {
   background-color: transparent !important;
+  color: var(--text-primary) !important;
 }
 
 .sidebar-bottom-bar:active {
