@@ -83,7 +83,7 @@ export function QuickActionsPanel({ onClose }: QuickActionsPanelProps) {
         {/* 打开文件夹按钮 + 更多选项 - 菜单关闭时显示 */}
         {!isMenuOpen && (
           <div
-            className="flex items-center"
+            className="sidebar-bottom-bar flex items-center"
             style={{ borderTop: "1px solid var(--border-color)" }}
           >
             <button
@@ -149,7 +149,7 @@ export function QuickActionsPanel({ onClose }: QuickActionsPanelProps) {
       {/* 当前目录名 + 更多选项 - 菜单关闭时显示 */}
       {!isMenuOpen && (
         <div
-          className="flex cursor-pointer items-center"
+          className="sidebar-bottom-bar flex cursor-pointer items-center"
           style={{ borderTop: "1px solid var(--border-color)" }}
           onClick={() => setIsMenuOpen(true)}
         >
