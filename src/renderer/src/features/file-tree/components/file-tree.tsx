@@ -69,6 +69,7 @@ export function FileTree() {
   const [showSearch, setShowSearch] = useState(false);
   const [creatingInfo, setCreatingInfo] = useState<CreatingInfo | null>(null);
   const [createValue, setCreateValue] = useState("");
+  const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const createInputRef = useRef<HTMLInputElement>(null);
   const confirmedRef = useRef(false);
   const parentRef = useRef<HTMLDivElement>(null);
@@ -228,14 +229,24 @@ export function FileTree() {
 
   if (!treeRoot) {
     return (
-      <div className="relative h-full flex-col">
+      <div
+        className="relative h-full flex-col"
+        onMouseEnter={() => setIsSidebarHovered(true)}
+        onMouseLeave={() => setIsSidebarHovered(false)}
+      >
         <div className="absolute inset-0 flex items-center justify-center p-4">
           <p className="text-[13px]" style={{ color: "var(--text-muted)" }}>
             没有打开的文件夹
           </p>
         </div>
 
-        <div className="absolute bottom-0 left-0 right-0">
+        <div
+          className="absolute bottom-0 left-0 right-0 z-10 transition-opacity duration-200"
+          style={{
+            opacity: isSidebarHovered ? 1 : 0,
+            pointerEvents: isSidebarHovered ? "auto" : "none",
+          }}
+        >
           <QuickActionsPanel />
         </div>
       </div>
@@ -245,7 +256,11 @@ export function FileTree() {
   return (
     <ContextMenu.Root>
       <ContextMenu.Trigger asChild>
-        <div className="flex h-full flex-col">
+        <div
+          className="relative flex h-full flex-col"
+          onMouseEnter={() => setIsSidebarHovered(true)}
+          onMouseLeave={() => setIsSidebarHovered(false)}
+        >
           <div
             className="flex h-[42px] flex-shrink-0 items-center gap-1 px-2"
             style={{
@@ -574,7 +589,15 @@ export function FileTree() {
             )}
           </div>
 
-          <QuickActionsPanel />
+          <div
+            className="absolute bottom-0 left-0 right-0 z-10 transition-opacity duration-200"
+            style={{
+              opacity: isSidebarHovered ? 1 : 0,
+              pointerEvents: isSidebarHovered ? "auto" : "none",
+            }}
+          >
+            <QuickActionsPanel />
+          </div>
         </div>
       </ContextMenu.Trigger>
 
