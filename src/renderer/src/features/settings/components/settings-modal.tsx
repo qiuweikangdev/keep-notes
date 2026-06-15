@@ -3,9 +3,8 @@ import { useUIStore } from "@/store/ui.store";
 import { useTreeStore } from "@/store/tree.store";
 import { useEditorStore } from "@/store/editor.store";
 import { useTheme } from "@/hooks/use-theme";
-import { type ThemeName } from "@/config/themes";
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
-import { ThemeSelector } from "@/components/ui/theme-selector";
+import { ThemeModeSelector } from "@/components/ui/theme-mode-selector";
 import { SettingRow } from "@/components/ui/setting-row";
 import { FontSelector } from "@/components/ui/font-selector";
 import { Switch } from "@/components/ui/switch";
@@ -78,14 +77,22 @@ export function SettingsModal() {
             {/* 主题选择 */}
             <div style={{ borderBottom: "1px solid var(--border-color)" }}>
               <div className="flex items-center justify-between py-3.5">
-                <span
-                  className="text-sm"
-                  style={{ color: "var(--text-primary)" }}
-                >
-                  主题
-                </span>
+                <div>
+                  <span
+                    className="text-sm font-medium"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    主题
+                  </span>
+                  <p
+                    className="text-xs mt-0.5"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    使用浅色、深色，或匹配系统设置
+                  </p>
+                </div>
                 <div className="flex items-center gap-2">
-                  <ThemeSelector
+                  <ThemeModeSelector
                     value={theme}
                     onChange={(val) => setTheme(val)}
                   />

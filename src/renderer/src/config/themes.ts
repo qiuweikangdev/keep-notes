@@ -1,4 +1,10 @@
-export type ThemeName = "light" | "dark" | "nord" | "dracula" | "solarized";
+export type ThemeName =
+  | "light"
+  | "dark"
+  | "nord"
+  | "dracula"
+  | "solarized"
+  | "system";
 
 export interface ThemeConfig {
   name: string;
@@ -141,5 +147,18 @@ export function getThemeConfig(theme: ThemeName): ThemeConfig {
 }
 
 export function isDarkTheme(theme: ThemeName): boolean {
+  if (theme === "system") {
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  }
   return theme !== "light";
+}
+
+// 获取系统实际应用的主题（将 system 解析为 light 或 dark）
+export function resolveTheme(theme: ThemeName): "light" | "dark" {
+  if (theme === "system") {
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  }
+  return theme === "light" ? "light" : "dark";
 }

@@ -1,31 +1,59 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useState } from "react";
 import { useUIStore } from "@/store/ui.store";
-import {
-  getThemeConfig,
-  isDarkTheme,
-  themes,
-  type ThemeName,
-} from "@/config/themes";
+import { getThemeConfig, resolveTheme, type ThemeName } from "@/config/themes";
+
+// 所有需要移除的主题类名
+const THEME_CLASSES = ["light", "dark", "nord", "dracula", "solarized"];
 
 export function useTheme() {
   const { theme, setTheme } = useUIStore();
+  // 跟踪系统实际应用的主题（用于 system 模式下的 UI 显示）
+  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">(() =>
+    resolveTheme(theme),
+  );
+
+  // 监听系统主题变化
+  useEffect(() => {
+    if (theme !== "system") {
+      setResolvedTheme(resolveTheme(theme));
+      return;
+    }
+
+    // system 模式下监听 OS 偏好变化
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+    const handleChange = () => {
+      setResolvedTheme(resolveTheme("system"));
+    };
+
+    mediaQuery.addEventListener("change", handleChange);
+    // 初始同步
+    setResolvedTheme(resolveTheme("system"));
+
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, [theme]);
 
   // 应用主题到 DOM
   useEffect(() => {
     const root = document.documentElement;
     const body = document.body;
-    const config = getThemeConfig(theme);
+    // 将 system 解析为实际的 light 或 dark
+    const actualTheme = resolveTheme(theme);
+    const config = getThemeConfig(actualTheme);
 
     // 移除旧主题类
-    root.classList.remove("light", "dark", "nord", "dracula", "solarized");
-    body.classList.remove("light", "dark", "nord", "dracula", "solarized");
+    root.classList.remove(...THEME_CLASSES);
+    body.classList.remove(...THEME_CLASSES);
 
     // 添加新主题类
-    root.classList.add(theme);
-    body.classList.add(theme);
+    root.classList.add(actualTheme);
+    body.classList.add(actualTheme);
 
     // 设置 data 属性
-    root.setAttribute("data-theme", theme);
+    root.setAttribute(
+      "data-theme",
+      theme === "system" ? "system" : actualTheme,
+    );
 
     // 设置 CSS 变量
     root.style.setProperty("--bg-primary", config.colors.bgPrimary);
@@ -45,7 +73,7 @@ export function useTheme() {
 
     // 保存到 localStorage
     localStorage.setItem("theme", theme);
-  }, [theme]);
+  }, [theme, resolvedTheme]);
 
   // 初始化主题 - 从 localStorage 读取
   useEffect(() => {
@@ -63,19 +91,25 @@ export function useTheme() {
     [setTheme],
   );
 
-  // 切换主题（在亮色和暗色之间切换）
+  // 切换主题（在亮色和暗色之间切换，system 视为当前系统主题的反向）
   const toggleTheme = useCallback(() => {
-    const newTheme = theme === "light" ? "dark" : "light";
-    setTheme(newTheme);
-  }, [theme, setTheme]);
+    if (theme === "system") {
+      // system 模式下，切换到与当前系统相反的主题
+      const newTheme = resolvedTheme === "light" ? "dark" : "light";
+      setTheme(newTheme);
+    } else {
+      const newTheme = theme === "light" ? "dark" : "light";
+      setTheme(newTheme);
+    }
+  }, [theme, resolvedTheme, setTheme]);
 
-  const config = getThemeConfig(theme);
+  const config = getThemeConfig(resolvedTheme);
 
   return {
     theme,
     setTheme: changeTheme,
     toggleTheme,
-    isDark: isDarkTheme(theme),
+    isDark: resolvedTheme === "dark",
     config,
   };
 }

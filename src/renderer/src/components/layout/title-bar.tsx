@@ -26,7 +26,7 @@ interface TitleBarProps {
 
 export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
   const { setSettingsOpen } = useUIStore();
-  const { theme, toggleTheme } = useTheme();
+  const { isDark, toggleTheme } = useTheme();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isGitOpen, setIsGitOpen] = useState(false);
   const [isGitRepo, setIsGitRepo] = useState(false);
@@ -196,12 +196,12 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
               e.currentTarget.style.backgroundColor = "transparent";
               e.currentTarget.style.color = "var(--text-muted)";
             }}
-            title={theme === "light" ? "切换暗色主题" : "切换亮色主题"}
+            title={isDark ? "切换亮色主题" : "切换暗色主题"}
           >
-            {theme === "light" ? (
-              <Moon className="h-4 w-4" />
-            ) : (
+            {isDark ? (
               <Sun className="h-4 w-4" />
+            ) : (
+              <Moon className="h-4 w-4" />
             )}
           </button>
           <button

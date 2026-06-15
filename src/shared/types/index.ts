@@ -110,7 +110,13 @@ export interface OutlineNode {
 }
 
 // 更新支持的主题
-export type ThemeName = "light" | "dark" | "nord" | "dracula" | "solarized";
+export type ThemeName =
+  | "light"
+  | "dark"
+  | "nord"
+  | "dracula"
+  | "solarized"
+  | "system";
 
 export interface MenuActionOptions {
   icon: React.ComponentType<Record<string, unknown>>;

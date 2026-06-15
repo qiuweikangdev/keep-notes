@@ -28,6 +28,7 @@ const DIFF_THEME_MAP: Record<string, DiffsThemeNames> = {
   nord: "nord",
   dracula: "dracula",
   solarized: "solarized-dark",
+  system: "pierre-dark",
 };
 
 // 通过 unsafeCSS 注入到 Shadow DOM 内的 @layer unsafe（pierre 默认最高优先级层）。
