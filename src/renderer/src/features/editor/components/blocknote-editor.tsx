@@ -466,6 +466,7 @@ function BlockNoteEditorInner({
       <BlockNoteView
         editor={editor}
         theme={isDark ? "dark" : "light"}
+        spellCheck={false}
         style={{
           fontSize: `${appearance.fontSize}px`,
           lineHeight: appearance.lineHeight,
