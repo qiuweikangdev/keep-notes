@@ -1,4 +1,11 @@
-import { useCallback, useEffect } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 
 import { useElectron } from "@/hooks/use-electron";
 import { useEditorStore } from "@/store/editor.store";
@@ -8,8 +15,23 @@ import {
   subscribeToEditorFile,
 } from "../lib/editor-runtime";
 import { shouldApplyExternalFileChange } from "../lib/editor-external-change";
+import {
+  findTextMatches,
+  getSteppedMatchIndex,
+  replaceAllTextMatches,
+  replaceTextMatch,
+  type FindTextOptions,
+} from "../lib/find-in-file";
+import {
+  applyEditorFindHighlights,
+  clearEditorFindHighlights,
+  collectEditorFindRanges,
+  selectEditorFindRanges,
+  scrollRangeIntoView,
+} from "../lib/editor-find-highlights";
 import { BlockNoteEditor } from "./blocknote-editor";
 import { EditorStateView } from "./editor-state-view";
+import { FindWidget } from "./find-widget";
 import { MarkdownSourceEditor } from "./markdown-source-editor";
 
 export function EditorWorkspace({
@@ -19,6 +41,15 @@ export function EditorWorkspace({
   groupId: string;
   tabId: string;
 }) {
+  const editorRootRef = useRef<HTMLDivElement>(null);
+  const sourceEditorRef = useRef<HTMLTextAreaElement>(null);
+  const replacementUndoStackRef = useRef<string[]>([]);
+  const [isFindOpen, setIsFindOpen] = useState(false);
+  const [isReplaceOpen, setIsReplaceOpen] = useState(false);
+  const [findQuery, setFindQuery] = useState("");
+  const [replacement, setReplacement] = useState("");
+  const [findOptions, setFindOptions] = useState<FindTextOptions>({});
+  const [activeFindIndex, setActiveFindIndex] = useState(-1);
   const tab = useEditorStore((state) =>
     state.panelGroups
       .find((group) => group.id === groupId)
@@ -26,8 +57,16 @@ export function EditorWorkspace({
   );
   const setTabContent = useEditorStore((state) => state.setTabContent);
   const setTabScrollTop = useEditorStore((state) => state.setTabScrollTop);
+  const incrementTabReloadKey = useEditorStore(
+    (state) => state.incrementTabReloadKey,
+  );
   const syncFileContent = useEditorStore((state) => state.syncFileContent);
   const { openFile } = useElectron();
+
+  const rawMatches = useMemo(
+    () => findTextMatches(tab?.content ?? "", findQuery, findOptions),
+    [findOptions, findQuery, tab?.content],
+  );
 
   useEffect(() => {
     if (!tab?.filePath) return;
@@ -49,6 +88,68 @@ export function EditorWorkspace({
     });
   }, [groupId, tab?.filePath, tabId]);
 
+  useEffect(() => {
+    setActiveFindIndex(findQuery && rawMatches.length > 0 ? 0 : -1);
+  }, [
+    findOptions.matchCase,
+    findOptions.useRegex,
+    findOptions.wholeWord,
+    findQuery,
+    rawMatches.length,
+    tabId,
+  ]);
+
+  useEffect(() => {
+    setActiveFindIndex((currentIndex) => {
+      if (rawMatches.length === 0) return -1;
+      if (currentIndex < 0) return 0;
+      return Math.min(currentIndex, rawMatches.length - 1);
+    });
+  }, [rawMatches.length]);
+
+  useEffect(() => {
+    if (!isFindOpen || !findQuery || tab?.mode !== "rich") {
+      clearEditorFindHighlights();
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      const root = editorRootRef.current;
+      if (!root) return;
+      const ranges = collectEditorFindRanges(root, findQuery, findOptions);
+      applyEditorFindHighlights(ranges, activeFindIndex);
+      scrollRangeIntoView(ranges[activeFindIndex]);
+    });
+
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+  }, [
+    activeFindIndex,
+    findOptions,
+    findQuery,
+    isFindOpen,
+    tab?.content,
+    tab?.mode,
+  ]);
+
+  useEffect(
+    () => () => {
+      clearEditorFindHighlights();
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!isFindOpen || !findQuery || tab?.mode !== "source") return;
+    const match = rawMatches[activeFindIndex];
+    if (!match) return;
+
+    requestAnimationFrame(() => {
+      sourceEditorRef.current?.setSelectionRange(match.start, match.end);
+    });
+  }, [activeFindIndex, findQuery, isFindOpen, rawMatches, tab?.mode]);
+
   const handleSourceChange = useCallback(
     (content: string) => {
       if (!tab) return;
@@ -59,6 +160,98 @@ export function EditorWorkspace({
     },
     [groupId, setTabContent, syncFileContent, tab, tabId],
   );
+
+  const openFindWidget = useCallback(() => {
+    setIsFindOpen(true);
+  }, []);
+
+  const closeFindWidget = useCallback(() => {
+    setIsFindOpen(false);
+    clearEditorFindHighlights();
+  }, []);
+
+  const handleKeyDownCapture = useCallback(
+    (event: KeyboardEvent<HTMLDivElement>) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        event.stopPropagation();
+        openFindWidget();
+      }
+    },
+    [openFindWidget],
+  );
+
+  const stepMatch = useCallback(
+    (direction: 1 | -1) => {
+      setActiveFindIndex((currentIndex) =>
+        getSteppedMatchIndex(currentIndex, rawMatches.length, direction),
+      );
+    },
+    [rawMatches.length],
+  );
+
+  const applyFindReplacement = useCallback(
+    (content: string, shouldPushUndo = true) => {
+      if (!tab) return;
+      if (content === tab.content) return;
+      if (shouldPushUndo) {
+        replacementUndoStackRef.current.push(tab.content);
+      }
+      setTabContent(groupId, tabId, content);
+      if (tab.filePath) {
+        syncFileContent(tab.filePath, content, tabId);
+        editorSaveCoordinator.schedule(tab.filePath, content);
+      }
+      if (tab.mode === "rich") {
+        incrementTabReloadKey(groupId, tabId);
+      }
+    },
+    [
+      groupId,
+      incrementTabReloadKey,
+      setTabContent,
+      syncFileContent,
+      tab,
+      tabId,
+    ],
+  );
+
+  const replaceCurrentMatch = useCallback(() => {
+    if (!tab) return;
+    const match = rawMatches[activeFindIndex];
+    if (!match) return;
+    applyFindReplacement(replaceTextMatch(tab.content, match, replacement));
+  }, [activeFindIndex, applyFindReplacement, rawMatches, replacement, tab]);
+
+  const replaceAllMatches = useCallback(() => {
+    if (!tab || rawMatches.length === 0) return;
+    applyFindReplacement(
+      replaceAllTextMatches(tab.content, rawMatches, replacement),
+    );
+  }, [applyFindReplacement, rawMatches, replacement, tab]);
+
+  const undoLastReplacement = useCallback(() => {
+    const previousContent = replacementUndoStackRef.current.pop();
+    if (!previousContent) return;
+    applyFindReplacement(previousContent, false);
+  }, [applyFindReplacement]);
+
+  const selectAllMatches = useCallback(() => {
+    if (!findQuery || rawMatches.length === 0) return;
+    if (tab?.mode === "source") {
+      const textarea = sourceEditorRef.current;
+      const firstMatch = rawMatches[0];
+      const lastMatch = rawMatches[rawMatches.length - 1];
+      textarea?.focus();
+      textarea?.setSelectionRange(firstMatch.start, lastMatch.end);
+      return;
+    }
+
+    const root = editorRootRef.current;
+    if (!root) return;
+    const ranges = collectEditorFindRanges(root, findQuery, findOptions);
+    selectEditorFindRanges(ranges);
+  }, [findOptions, findQuery, rawMatches, tab?.mode]);
 
   if (!tab) {
     return <EditorStateView status="empty" />;
@@ -77,7 +270,30 @@ export function EditorWorkspace({
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-[var(--bg-primary)]">
+    <div
+      ref={editorRootRef}
+      className="relative flex h-full flex-col overflow-hidden bg-[var(--bg-primary)]"
+      onKeyDownCapture={handleKeyDownCapture}
+    >
+      <FindWidget
+        isOpen={isFindOpen}
+        isReplaceOpen={isReplaceOpen}
+        query={findQuery}
+        replacement={replacement}
+        activeIndex={activeFindIndex}
+        matchCount={rawMatches.length}
+        options={findOptions}
+        onQueryChange={setFindQuery}
+        onReplacementChange={setReplacement}
+        onStep={stepMatch}
+        onClose={closeFindWidget}
+        onToggleReplace={() => setIsReplaceOpen((current) => !current)}
+        onOptionsChange={setFindOptions}
+        onReplaceCurrent={replaceCurrentMatch}
+        onReplaceAll={replaceAllMatches}
+        onSelectAllMatches={selectAllMatches}
+        onUndoReplace={undoLastReplacement}
+      />
       <div className="min-h-0 flex-1 overflow-hidden">
         {tab.mode === "source" ? (
           <div className="flex h-full min-h-0 flex-col">
@@ -92,6 +308,7 @@ export function EditorWorkspace({
             ) : null}
             <div className="min-h-0 flex-1">
               <MarkdownSourceEditor
+                ref={sourceEditorRef}
                 value={tab.content}
                 scrollTop={tab.scrollTop}
                 onChange={handleSourceChange}

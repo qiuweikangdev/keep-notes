@@ -28,6 +28,16 @@ textarea[aria-label="Markdown 源码"] {
   caret-color: var(--accent-color);
 }
 
+::highlight(keep-notes-find-match) {
+  background-color: rgba(245, 158, 11, 0.34);
+  color: inherit;
+}
+
+::highlight(keep-notes-find-active-match) {
+  background-color: rgba(245, 158, 11, 0.72);
+  color: inherit;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .editor-rich-scroll {
     scroll-behavior: auto;

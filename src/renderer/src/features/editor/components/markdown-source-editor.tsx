@@ -1,4 +1,9 @@
-import { useCallback, type KeyboardEvent } from "react";
+import {
+  forwardRef,
+  useCallback,
+  type ForwardedRef,
+  type KeyboardEvent,
+} from "react";
 
 interface MarkdownSourceEditorProps {
   value: string;
@@ -7,12 +12,23 @@ interface MarkdownSourceEditorProps {
   scrollTop?: number;
 }
 
-export function MarkdownSourceEditor({
-  value,
-  onChange,
-  onScrollTopChange,
-  scrollTop = 0,
-}: MarkdownSourceEditorProps) {
+function assignForwardedRef<T>(ref: ForwardedRef<T>, value: T | null) {
+  if (typeof ref === "function") {
+    ref(value);
+    return;
+  }
+  if (ref) {
+    ref.current = value;
+  }
+}
+
+export const MarkdownSourceEditor = forwardRef<
+  HTMLTextAreaElement,
+  MarkdownSourceEditorProps
+>(function MarkdownSourceEditor(
+  { value, onChange, onScrollTopChange, scrollTop = 0 },
+  ref,
+) {
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLTextAreaElement>) => {
       if (event.key !== "Tab") return;
@@ -31,6 +47,16 @@ export function MarkdownSourceEditor({
     [onChange, value],
   );
 
+  const setTextareaRef = useCallback(
+    (element: HTMLTextAreaElement | null) => {
+      assignForwardedRef(ref, element);
+      if (element && element.scrollTop !== scrollTop) {
+        element.scrollTop = scrollTop;
+      }
+    },
+    [ref, scrollTop],
+  );
+
   return (
     <textarea
       aria-label="Markdown 源码"
@@ -40,11 +66,7 @@ export function MarkdownSourceEditor({
       onChange={(event) => onChange(event.target.value)}
       onKeyDown={handleKeyDown}
       onScroll={(event) => onScrollTopChange(event.currentTarget.scrollTop)}
-      ref={(element) => {
-        if (element && element.scrollTop !== scrollTop) {
-          element.scrollTop = scrollTop;
-        }
-      }}
+      ref={setTextareaRef}
     />
   );
-}
+});
