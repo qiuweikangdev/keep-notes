@@ -26,7 +26,7 @@ export function normalizePersistedAppearance<TAppearance extends object>(
   defaults: TAppearance,
   persisted: Partial<TAppearance> | null | undefined,
 ): TAppearance {
-  return {
+  const normalized = {
     ...defaults,
     ...persisted,
     // sidebarView 不持久化，每次启动时重置为默认值
@@ -34,6 +34,15 @@ export function normalizePersistedAppearance<TAppearance extends object>(
       ? S
       : never,
   };
+
+  const defaultPadding = (defaults as { padding?: unknown }).padding;
+  const currentPadding = (normalized as { padding?: unknown }).padding;
+  if (typeof defaultPadding === "number" && currentPadding === 0) {
+    // 旧版本默认值为 0，会让编辑内容贴边；迁移到当前默认内边距。
+    (normalized as { padding: number }).padding = defaultPadding;
+  }
+
+  return normalized;
 }
 
 export function normalizePersistedPanelGroups(

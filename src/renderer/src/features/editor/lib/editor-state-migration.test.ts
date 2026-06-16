@@ -42,7 +42,7 @@ describe("normalizePersistedAppearance", () => {
     fontSize: 16,
     lineHeight: 1.8,
     opacity: 100,
-    padding: 60,
+    padding: 72,
     showModeSwitcher: true,
     sidebarView: "file" as const,
   };
@@ -56,6 +56,22 @@ describe("normalizePersistedAppearance", () => {
       ...defaults,
       fontSize: 18,
     });
+  });
+
+  it("upgrades legacy zero editor padding to the current default", () => {
+    expect(
+      normalizePersistedAppearance(defaults, {
+        padding: 0,
+      }).padding,
+    ).toBe(defaults.padding);
+  });
+
+  it("preserves a positive editor padding setting", () => {
+    expect(
+      normalizePersistedAppearance(defaults, {
+        padding: 80,
+      }).padding,
+    ).toBe(80);
   });
 
   it("preserves an explicit hidden mode switcher setting", () => {

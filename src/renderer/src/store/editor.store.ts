@@ -144,7 +144,7 @@ const defaultAppearance: EditorAppearance = {
   fontSize: 16,
   lineHeight: 1.8,
   opacity: 100,
-  padding: 0,
+  padding: 72,
   showModeSwitcher: true,
   sidebarView: "file",
   showBottomBarOnHover: true,

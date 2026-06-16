@@ -62,12 +62,19 @@ const codeFontOptions = [
   { label: "Consolas", value: 'Consolas, "Courier New", monospace' },
 ];
 
+const EDITOR_PADDING_MIN = 72;
+const EDITOR_PADDING_MAX = 120;
+
 export function SettingsModal() {
   const { isSettingsOpen, setSettingsOpen } = useUIStore();
   const { dirSettings, setDirSettings } = useTreeStore();
   const { appearance, setAppearance } = useEditorStore();
   const { theme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<SettingsTab>("appearance");
+  const editorPaddingProgress =
+    ((Math.max(appearance.padding, EDITOR_PADDING_MIN) - EDITOR_PADDING_MIN) /
+      (EDITOR_PADDING_MAX - EDITOR_PADDING_MIN)) *
+    100;
 
   const renderContent = () => {
     switch (activeTab) {
@@ -246,8 +253,8 @@ export function SettingsModal() {
                   <div className="flex items-center gap-3">
                     <input
                       type="range"
-                      min="0"
-                      max="120"
+                      min={EDITOR_PADDING_MIN}
+                      max={EDITOR_PADDING_MAX}
                       step="10"
                       value={appearance.padding}
                       onChange={(e) =>
@@ -255,7 +262,7 @@ export function SettingsModal() {
                       }
                       className="w-32 h-1 rounded-full appearance-none cursor-pointer"
                       style={{
-                        background: `linear-gradient(to right, var(--accent-color) 0%, var(--accent-color) ${(appearance.padding / 120) * 100}%, var(--bg-tertiary) ${(appearance.padding / 120) * 100}%, var(--bg-tertiary) 100%)`,
+                        background: `linear-gradient(to right, var(--accent-color) 0%, var(--accent-color) ${editorPaddingProgress}%, var(--bg-tertiary) ${editorPaddingProgress}%, var(--bg-tertiary) 100%)`,
                         accentColor: "var(--accent-color)",
                       }}
                     />
