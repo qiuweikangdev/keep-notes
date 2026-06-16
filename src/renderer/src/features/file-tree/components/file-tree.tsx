@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useEffect,
+  memo,
   type KeyboardEvent,
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -53,7 +54,9 @@ interface CreatingInfo {
 }
 
 export function FileTree() {
-  const { treeData, treeRoot, setTreeData } = useTreeStore();
+  const treeData = useTreeStore((state) => state.treeData);
+  const treeRoot = useTreeStore((state) => state.treeRoot);
+  const setTreeData = useTreeStore((state) => state.setTreeData);
   const expandedKeys = useTreeStore((state) => state.expandedKeys);
   const selectedKey = useTreeStore((state) => state.selectedKey);
   const toggleExpandedKey = useTreeStore((state) => state.toggleExpandedKey);
@@ -72,7 +75,6 @@ export function FileTree() {
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const createInputRef = useRef<HTMLInputElement>(null);
   const confirmedRef = useRef(false);
-  const parentRef = useRef<HTMLDivElement>(null);
   const isRootCreating = creatingInfo?.parentKey === treeRoot?.key;
 
   const isRootSelected = selectedKey === treeRoot?.key;
@@ -193,14 +195,6 @@ export function FileTree() {
     if (!isRootExpanded) return [];
     return flattenTree(filteredTreeData, expandedKeys, 1);
   }, [filteredTreeData, expandedKeys, isRootExpanded]);
-
-  // 虚拟化器
-  const virtualizer = useVirtualizer({
-    count: flatNodes.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => ROW_HEIGHT,
-    overscan: 10,
-  });
 
   // 处理节点点击
   const handleNodeClick = useCallback(
@@ -549,36 +543,16 @@ export function FileTree() {
 
                 {/* 虚拟化子节点列表 */}
                 {isRootExpanded && flatNodes.length > 0 ? (
-                  <div
-                    ref={parentRef}
-                    className="overflow-auto"
-                    style={{
-                      height: `calc(100% - ${isRootCreating ? 36 : 0}px - 28px)`,
-                    }}
-                  >
-                    <div
-                      style={{
-                        height: `${virtualizer.getTotalSize()}px`,
-                        width: "100%",
-                        position: "relative",
-                      }}
-                    >
-                      {virtualizer.getVirtualItems().map((virtualItem) => {
-                        const flatNode = flatNodes[virtualItem.index];
-                        return (
-                          <VirtualTreeNode
-                            key={flatNode.key}
-                            flatNode={flatNode}
-                            virtualItem={virtualItem}
-                            selectedKey={selectedKey}
-                            creatingInfo={creatingInfo}
-                            onClick={handleNodeClick}
-                            onCreateInFolder={handleCreateInFolder}
-                          />
-                        );
-                      })}
-                    </div>
-                  </div>
+                  <VirtualizedTreeList
+                    flatNodes={flatNodes}
+                    selectedKey={selectedKey}
+                    creatingInfo={creatingInfo}
+                    isRootCreating={isRootCreating}
+                    onClick={handleNodeClick}
+                    onCreateInFolder={handleCreateInFolder}
+                    openFile={openFile}
+                    openInExplorer={openInExplorer}
+                  />
                 ) : isRootExpanded ? (
                   <div
                     className="flex h-28 items-center justify-center text-[12px]"
@@ -650,13 +624,96 @@ export function FileTree() {
   );
 }
 
+interface VirtualizedTreeListProps {
+  flatNodes: FlatNode[];
+  selectedKey: string | null;
+  creatingInfo: CreatingInfo | null;
+  isRootCreating: boolean;
+  onClick: (flatNode: FlatNode) => void;
+  onCreateInFolder: (
+    parentKey: string,
+    type: "file" | "folder",
+    level: number,
+  ) => void;
+  openFile: (filePath: string) => Promise<void>;
+  openInExplorer: (targetPath: string) => Promise<boolean>;
+}
+
+const VirtualizedTreeList = memo(function VirtualizedTreeList({
+  flatNodes,
+  selectedKey,
+  creatingInfo,
+  isRootCreating,
+  onClick,
+  onCreateInFolder,
+  openFile,
+  openInExplorer,
+}: VirtualizedTreeListProps) {
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const getItemKey = useCallback(
+    (index: number) => flatNodes[index]?.key ?? index,
+    [flatNodes],
+  );
+
+  // 虚拟滚动状态隔离在列表组件内，避免滚动时带动整个侧边栏重渲。
+  const virtualizer = useVirtualizer({
+    count: flatNodes.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    getItemKey,
+    overscan: 6,
+  });
+
+  return (
+    <div
+      ref={parentRef}
+      className="overflow-auto"
+      style={{
+        height: `calc(100% - ${isRootCreating ? 36 : 0}px - 28px)`,
+        contain: "strict",
+      }}
+    >
+      <div
+        style={{
+          height: `${virtualizer.getTotalSize()}px`,
+          width: "100%",
+          position: "relative",
+        }}
+      >
+        {virtualizer.getVirtualItems().map((virtualItem) => {
+          const flatNode = flatNodes[virtualItem.index];
+          if (!flatNode) return null;
+          const isCreatingHere = creatingInfo?.parentKey === flatNode.key;
+
+          return (
+            <VirtualTreeNode
+              key={flatNode.key}
+              flatNode={flatNode}
+              size={virtualItem.size}
+              start={virtualItem.start}
+              isSelected={selectedKey === flatNode.key}
+              isCreatingHere={isCreatingHere}
+              creatingInfo={isCreatingHere ? creatingInfo : null}
+              onClick={onClick}
+              onCreateInFolder={onCreateInFolder}
+              openFile={openFile}
+              openInExplorer={openInExplorer}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
 // 虚拟节点组件
 interface VirtualTreeNodeProps {
   flatNode: FlatNode;
-  virtualItem: ReturnType<
-    ReturnType<typeof useVirtualizer>["getVirtualItems"]
-  >[number];
-  selectedKey: string | null;
+  size: number;
+  start: number;
+  isSelected: boolean;
+  isCreatingHere: boolean;
   creatingInfo: CreatingInfo | null;
   onClick: (flatNode: FlatNode) => void;
   onCreateInFolder: (
@@ -664,19 +721,22 @@ interface VirtualTreeNodeProps {
     type: "file" | "folder",
     level: number,
   ) => void;
+  openFile: (filePath: string) => Promise<void>;
+  openInExplorer: (targetPath: string) => Promise<boolean>;
 }
 
-function VirtualTreeNode({
+const VirtualTreeNode = memo(function VirtualTreeNode({
   flatNode,
-  virtualItem,
-  selectedKey,
+  size,
+  start,
+  isSelected,
+  isCreatingHere,
   creatingInfo,
   onClick,
   onCreateInFolder,
+  openFile,
+  openInExplorer,
 }: VirtualTreeNodeProps) {
-  const isSelected = selectedKey === flatNode.key;
-  const isCreatingHere = creatingInfo?.parentKey === flatNode.key;
-
   return (
     <div
       style={{
@@ -684,8 +744,9 @@ function VirtualTreeNode({
         top: 0,
         left: 0,
         width: "100%",
-        height: `${virtualItem.size}px`,
-        transform: `translateY(${virtualItem.start}px)`,
+        height: `${size}px`,
+        transform: `translateY(${start}px)`,
+        willChange: "transform",
       }}
     >
       <ContextMenu.Root>
@@ -854,7 +915,7 @@ function VirtualTreeNode({
       ) : null}
     </div>
   );
-}
+});
 
 // 创建输入框组件
 function CreateInput({
