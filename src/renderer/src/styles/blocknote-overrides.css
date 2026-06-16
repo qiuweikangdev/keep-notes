@@ -44,6 +44,7 @@
   color: var(--text-primary) !important;
   max-width: 760px;
   margin: 0 auto;
+  padding-inline: var(--editor-padding, 40px);
   padding-bottom: 30vh;
   font-size: var(--editor-font-size, 16px);
   line-height: var(--editor-line-height, 1.75);
@@ -98,7 +99,8 @@
 }
 
 .bn-block-content[data-content-type="paragraph"] {
-  margin-block: 0.12em;
+  margin-top: 1.2em;
+  margin-bottom: 0.12em;
 }
 
 .bn-editor blockquote {

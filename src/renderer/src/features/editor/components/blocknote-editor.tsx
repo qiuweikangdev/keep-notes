@@ -470,7 +470,6 @@ function BlockNoteEditorInner({
         style={{
           fontSize: `${appearance.fontSize}px`,
           lineHeight: appearance.lineHeight,
-          padding: `${appearance.padding}px`,
         }}
       />
     </div>
