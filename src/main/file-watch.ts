@@ -28,10 +28,31 @@ interface WorkspaceWatchRegistryOptions {
   debounceMs?: number;
 }
 
+interface FileContentWatchRegistryOptions {
+  watch?: WatchFunction;
+  readFile?: (targetPath: string) => Promise<string>;
+  debounceMs?: number;
+}
+
 interface WorkspaceWatchEntry {
   watcher: WatchHandle;
   onChange: (rootPath: string) => void;
   debounceTimer: ReturnType<typeof setTimeout> | null;
+}
+
+interface FileContentWatchEntry {
+  watcher: WatchHandle;
+  onChange: (filePath: string, content: string) => void | Promise<void>;
+  debounceTimer: ReturnType<typeof setTimeout> | null;
+}
+
+function isFileMissingError(error: unknown): boolean {
+  return (
+    Boolean(error) &&
+    typeof error === "object" &&
+    "code" in error &&
+    error.code === "ENOENT"
+  );
 }
 
 export function shouldIgnoreFsWatchPath(targetPath: string): boolean {
@@ -112,5 +133,86 @@ export class WorkspaceWatchRegistry {
     [...this.watchers.keys()].forEach((rootPath) =>
       this.unwatchWorkspace(rootPath),
     );
+  }
+}
+
+export class FileContentWatchRegistry {
+  private readonly watchers = new Map<string, FileContentWatchEntry>();
+  private readonly watch: WatchFunction;
+  private readonly readFile: (targetPath: string) => Promise<string>;
+  private readonly debounceMs: number;
+
+  constructor(options: FileContentWatchRegistryOptions = {}) {
+    this.watch =
+      options.watch ??
+      ((targetPath, watchOptions, callback) =>
+        fs.watch(targetPath, watchOptions, callback));
+    this.readFile =
+      options.readFile ??
+      ((targetPath) => fs.promises.readFile(targetPath, "utf-8"));
+    this.debounceMs = options.debounceMs ?? 80;
+  }
+
+  watchFile(
+    filePath: string,
+    onChange: (filePath: string, content: string) => void | Promise<void>,
+  ): void {
+    if (shouldIgnoreFsWatchPath(filePath)) return;
+
+    this.unwatchFile(filePath);
+
+    const directoryPath = path.dirname(filePath);
+    const targetName = path.basename(filePath);
+    const watcher = this.watch(directoryPath, {}, (_eventType, fileName) => {
+      const eventPath = resolveWatchEventPath(directoryPath, fileName);
+      if (shouldIgnoreFsWatchPath(eventPath)) return;
+      if (fileName && path.basename(eventPath) !== targetName) return;
+
+      const entry = this.watchers.get(filePath);
+      if (!entry) return;
+      if (entry.debounceTimer) clearTimeout(entry.debounceTimer);
+
+      // macOS 上很多编辑器会用 rename/replace 完成保存，监听父目录能避免文件 inode 替换后丢事件。
+      entry.debounceTimer = setTimeout(() => {
+        entry.debounceTimer = null;
+        void this.emitFileContent(filePath, entry);
+      }, this.debounceMs);
+    });
+
+    this.watchers.set(filePath, {
+      watcher,
+      onChange,
+      debounceTimer: null,
+    });
+  }
+
+  unwatchFile(filePath: string): void {
+    const entry = this.watchers.get(filePath);
+    if (!entry) return;
+
+    if (entry.debounceTimer) clearTimeout(entry.debounceTimer);
+    entry.watcher.close();
+    this.watchers.delete(filePath);
+  }
+
+  unwatchAll(): void {
+    [...this.watchers.keys()].forEach((filePath) => this.unwatchFile(filePath));
+  }
+
+  private async emitFileContent(
+    filePath: string,
+    entry: FileContentWatchEntry,
+  ): Promise<void> {
+    if (this.watchers.get(filePath) !== entry) return;
+
+    try {
+      const content = await this.readFile(filePath);
+      if (this.watchers.get(filePath) !== entry) return;
+      await entry.onChange(filePath, content);
+    } catch (error) {
+      // 文件替换过程中可能短暂不存在，等待下一次 rename/change 事件再同步即可。
+      if (isFileMissingError(error)) return;
+      console.error("Failed to read changed file:", error);
+    }
   }
 }

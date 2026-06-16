@@ -1,6 +1,4 @@
 import { ipcMain } from "electron";
-import { watch, type FSWatcher } from "node:fs";
-import { readFile } from "node:fs/promises";
 import { IPC_CHANNELS } from "../../shared/constants";
 import { getBrowserWindow } from "../utils";
 import {
@@ -12,19 +10,14 @@ import {
   genDirTreByPath,
   revealInSystemExplorer,
 } from "../file";
-import { shouldIgnoreFsWatchPath, WorkspaceWatchRegistry } from "../file-watch";
+import {
+  FileContentWatchRegistry,
+  shouldIgnoreFsWatchPath,
+  WorkspaceWatchRegistry,
+} from "../file-watch";
 
-const fileWatchers = new Map<string, FSWatcher>();
+const fileWatchRegistry = new FileContentWatchRegistry();
 const workspaceWatchRegistry = new WorkspaceWatchRegistry();
-
-function isFileMissingError(error: unknown): boolean {
-  return (
-    Boolean(error) &&
-    typeof error === "object" &&
-    "code" in error &&
-    error.code === "ENOENT"
-  );
-}
 
 export function registerFileIpc(): void {
   ipcMain.handle(IPC_CHANNELS.FILE.READ, async (_, filePath: string) => {
@@ -70,40 +63,21 @@ export function registerFileIpc(): void {
   ipcMain.handle(IPC_CHANNELS.FILE.WATCH, async (event, filePath: string) => {
     if (shouldIgnoreFsWatchPath(filePath)) return;
 
-    const existingWatcher = fileWatchers.get(filePath);
-    if (existingWatcher) {
-      existingWatcher.close();
-      fileWatchers.delete(filePath);
-    }
-
     const win = getBrowserWindow(event);
     if (!win) return;
 
     try {
-      const watcher = watch(filePath, async (eventType) => {
-        if (eventType !== "change" || shouldIgnoreFsWatchPath(filePath)) return;
-
-        try {
-          // 文件内容只在打开的文件监听中读取，工作区监听只负责刷新树。
-          const content = await readFile(filePath, "utf-8");
-          if (win.isDestroyed()) return;
-          win.webContents.send(
-            IPC_CHANNELS.FILE.ON_FILE_CHANGED,
-            filePath,
-            content,
-          );
-        } catch (error) {
-          // 外部删除或重命名会产生短暂读失败，这类竞态不打扰用户。
-          if (isFileMissingError(error)) return;
-          console.error("Failed to read changed file:", error);
-        }
+      fileWatchRegistry.watchFile(filePath, (changedFilePath, content) => {
+        if (win.isDestroyed()) return;
+        win.webContents.send(
+          IPC_CHANNELS.FILE.ON_FILE_CHANGED,
+          changedFilePath,
+          content,
+        );
       });
 
-      fileWatchers.set(filePath, watcher);
-
       win.once("closed", () => {
-        watcher.close();
-        fileWatchers.delete(filePath);
+        fileWatchRegistry.unwatchFile(filePath);
         workspaceWatchRegistry.unwatchAll();
       });
     } catch (error) {
@@ -112,11 +86,7 @@ export function registerFileIpc(): void {
   });
 
   ipcMain.handle(IPC_CHANNELS.FILE.UNWATCH, async (_, filePath: string) => {
-    const watcher = fileWatchers.get(filePath);
-    if (!watcher) return;
-
-    watcher.close();
-    fileWatchers.delete(filePath);
+    fileWatchRegistry.unwatchFile(filePath);
   });
 
   ipcMain.handle(

@@ -9,7 +9,11 @@ vi.mock("electron", () => ({
 }));
 
 import { readDirectory } from "./file";
-import { shouldIgnoreFsWatchPath, WorkspaceWatchRegistry } from "./file-watch";
+import {
+  FileContentWatchRegistry,
+  shouldIgnoreFsWatchPath,
+  WorkspaceWatchRegistry,
+} from "./file-watch";
 
 describe("shouldIgnoreFsWatchPath", () => {
   it("ignores dependency and git internals in any path segment", () => {
@@ -120,5 +124,99 @@ describe("WorkspaceWatchRegistry", () => {
     expect(onChange).not.toHaveBeenCalled();
 
     registry.unwatchWorkspace("notes");
+  });
+});
+
+describe("FileContentWatchRegistry", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("watches the parent directory and reads content after rename events", async () => {
+    vi.useFakeTimers();
+    const close = vi.fn();
+    let watchedPath = "";
+    let listener:
+      | ((eventType: string, fileName: string | Buffer | null) => void)
+      | undefined;
+    const onChange = vi.fn();
+    const registry = new FileContentWatchRegistry({
+      watch: (targetPath, _options, callback) => {
+        watchedPath = targetPath;
+        listener = callback;
+        return { close };
+      },
+      readFile: vi.fn().mockResolvedValue("updated"),
+      debounceMs: 80,
+    });
+
+    registry.watchFile("notes/daily.md", onChange);
+    listener?.("rename", "daily.md");
+
+    expect(watchedPath).toBe("notes");
+    vi.advanceTimersByTime(80);
+    await vi.runAllTimersAsync();
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith("notes/daily.md", "updated");
+
+    registry.unwatchFile("notes/daily.md");
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores unrelated directory events while keeping the watcher alive", () => {
+    vi.useFakeTimers();
+    let listener:
+      | ((eventType: string, fileName: string | Buffer | null) => void)
+      | undefined;
+    const onChange = vi.fn();
+    const readFile = vi.fn().mockResolvedValue("updated");
+    const registry = new FileContentWatchRegistry({
+      watch: (_targetPath, _options, callback) => {
+        listener = callback;
+        return { close: vi.fn() };
+      },
+      readFile,
+      debounceMs: 80,
+    });
+
+    registry.watchFile("notes/daily.md", onChange);
+    listener?.("change", "other.md");
+    listener?.("rename", ".DS_Store");
+    vi.advanceTimersByTime(80);
+
+    expect(readFile).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
+
+    registry.unwatchFile("notes/daily.md");
+  });
+
+  it("coalesces repeated file events into one content update", async () => {
+    vi.useFakeTimers();
+    let listener:
+      | ((eventType: string, fileName: string | Buffer | null) => void)
+      | undefined;
+    const onChange = vi.fn();
+    const readFile = vi.fn().mockResolvedValue("updated");
+    const registry = new FileContentWatchRegistry({
+      watch: (_targetPath, _options, callback) => {
+        listener = callback;
+        return { close: vi.fn() };
+      },
+      readFile,
+      debounceMs: 80,
+    });
+
+    registry.watchFile("notes/daily.md", onChange);
+    listener?.("rename", "daily.md");
+    vi.advanceTimersByTime(40);
+    listener?.("change", "daily.md");
+    vi.advanceTimersByTime(80);
+    await vi.runAllTimersAsync();
+
+    expect(readFile).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledTimes(1);
+
+    registry.unwatchFile("notes/daily.md");
   });
 });
