@@ -32,6 +32,28 @@ describe("editor file transition", () => {
     });
   });
 
+  it("preserves scroll offset when the current file is refreshed externally", () => {
+    const current = { ...createTab(), scrollTop: 320 };
+    const completed = completeFileTransition(current, "a.md", "# A updated");
+
+    expect(completed).toMatchObject({
+      filePath: "a.md",
+      content: "# A updated",
+      scrollTop: 320,
+      loadStatus: "ready",
+    });
+  });
+
+  it("resets scroll offset when switching to a different file", () => {
+    const loading = beginFileTransition(
+      { ...createTab(), scrollTop: 320 },
+      "b.md",
+    );
+    const completed = completeFileTransition(loading, "b.md", "# B");
+
+    expect(completed.scrollTop).toBe(0);
+  });
+
   it("ignores a stale completion for another target", () => {
     const loading = beginFileTransition(createTab(), "b.md");
 

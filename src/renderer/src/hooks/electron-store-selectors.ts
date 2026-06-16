@@ -8,7 +8,6 @@ export const selectSetTreeData = (state: TreeState) => state.setTreeData;
 export const selectSetTreeRoot = (state: TreeState) => state.setTreeRoot;
 export const selectAddRecentFolder = (state: TreeState) =>
   state.addRecentFolder;
-export const selectAddRecentFile = (state: TreeState) => state.addRecentFile;
 
 export const selectSetContent = (state: EditorState) => state.setContent;
 export const selectSetFilePath = (state: EditorState) => state.setFilePath;

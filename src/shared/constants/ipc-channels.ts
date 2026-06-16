@@ -19,6 +19,9 @@ export const IPC_CHANNELS = {
     WATCH: "file:watch", // 监听文件变化
     UNWATCH: "file:unwatch", // 取消监听文件变化
     ON_FILE_CHANGED: "file:on-changed", // 文件变化通知
+    WATCH_WORKSPACE: "file:watch-workspace",
+    UNWATCH_WORKSPACE: "file:unwatch-workspace",
+    ON_WORKSPACE_CHANGED: "file:on-workspace-changed",
   },
   TREE: {
     CREATE_FILE: "tree:create-file",

@@ -1,9 +1,8 @@
 import fs from "node:fs";
 import path, { basename } from "node:path";
-import { dialog, shell } from "electron/main";
+import { dialog, shell } from "electron";
 import { CodeResult } from "../shared/types";
-
-const ignoreDir = ["node_modules"];
+import { shouldIgnoreFsWatchPath } from "./file-watch";
 
 export async function readDirectory(directoryPath: string) {
   try {
@@ -13,13 +12,11 @@ export async function readDirectory(directoryPath: string) {
 
     for (const file of files) {
       const filePath = path.join(directoryPath, file);
+      if (shouldIgnoreFsWatchPath(filePath)) continue;
+
       const stats = await fs.promises.stat(filePath);
 
-      if (
-        stats.isDirectory() &&
-        !ignoreDir.includes(file) &&
-        !file.startsWith(".")
-      ) {
+      if (stats.isDirectory() && !file.startsWith(".")) {
         directories.push(file);
       } else if ([".md"].includes(path.extname(file))) {
         markdownFiles.push(file);

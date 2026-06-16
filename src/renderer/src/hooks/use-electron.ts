@@ -10,7 +10,6 @@ import {
   flushEditorChange,
 } from "@/features/editor/lib/editor-runtime";
 import {
-  selectAddRecentFile,
   selectAddRecentFolder,
   selectIncrementReloadKey,
   selectSetContent,
@@ -19,12 +18,70 @@ import {
   selectSetTreeRoot,
 } from "./electron-store-selectors";
 
+let watchedWorkspacePath: string | null = null;
+let unsubscribeWorkspaceChanged: (() => void) | null = null;
+let workspaceRefreshInFlight = false;
+let pendingWorkspaceRefreshPath: string | null = null;
+
+async function refreshWorkspaceTree(rootPath: string): Promise<void> {
+  if (workspaceRefreshInFlight) {
+    pendingWorkspaceRefreshPath = rootPath;
+    return;
+  }
+
+  workspaceRefreshInFlight = true;
+  try {
+    const currentRoot = useTreeStore.getState().treeRoot;
+    if (currentRoot?.key !== rootPath) return;
+
+    const result = await window.electronAPI.generateTree(rootPath);
+    const latestRoot = useTreeStore.getState().treeRoot;
+    if (
+      result.code === CodeResult.Success &&
+      result.data &&
+      latestRoot?.key === rootPath
+    ) {
+      // 工作区事件只刷新树结构，不触碰编辑器内容，避免外部保存时界面闪动。
+      useTreeStore.getState().setTreeData(result.data.treeData);
+      useTreeStore.getState().setTreeRoot(result.data.treeRoot);
+    }
+  } finally {
+    workspaceRefreshInFlight = false;
+    const pendingPath = pendingWorkspaceRefreshPath;
+    pendingWorkspaceRefreshPath = null;
+    if (pendingPath && useTreeStore.getState().treeRoot?.key === pendingPath) {
+      void refreshWorkspaceTree(pendingPath);
+    }
+  }
+}
+
+function ensureWorkspaceChangeSubscription(): void {
+  if (unsubscribeWorkspaceChanged) return;
+
+  unsubscribeWorkspaceChanged = window.electronAPI.onWorkspaceChanged(
+    (rootPath) => {
+      void refreshWorkspaceTree(rootPath);
+    },
+  );
+}
+
+async function startWorkspaceWatch(rootPath: string): Promise<void> {
+  ensureWorkspaceChangeSubscription();
+
+  if (watchedWorkspacePath === rootPath) return;
+  if (watchedWorkspacePath) {
+    await window.electronAPI.unwatchWorkspace(watchedWorkspacePath);
+  }
+
+  watchedWorkspacePath = rootPath;
+  await window.electronAPI.watchWorkspace(rootPath);
+}
+
 export function useElectron() {
   // 公共 hook 只订阅稳定 action，避免调用方随完整 store 的每次变化重渲染。
   const setTreeData = useTreeStore(selectSetTreeData);
   const setTreeRoot = useTreeStore(selectSetTreeRoot);
   const addRecentFolder = useTreeStore(selectAddRecentFolder);
-  const addRecentFile = useTreeStore(selectAddRecentFile);
   const setContent = useEditorStore(selectSetContent);
   const setFilePath = useEditorStore(selectSetFilePath);
   const incrementReloadKey = useEditorStore(selectIncrementReloadKey);
@@ -40,6 +97,7 @@ export function useElectron() {
         title: result.data.treeRoot.title,
         path: result.data.treeRoot.key,
       });
+      await startWorkspaceWatch(result.data.treeRoot.key);
       return result.data.selectedPath;
     }
     return null;
@@ -56,6 +114,7 @@ export function useElectron() {
           title: result.data.treeRoot.title,
           path: result.data.treeRoot.key,
         });
+        await startWorkspaceWatch(result.data.treeRoot.key);
       }
     },
     [setTreeData, setTreeRoot, addRecentFolder],
@@ -133,11 +192,8 @@ export function useElectron() {
         setFilePath(filePath);
         incrementReloadKey();
       }
-
-      const fileName = filePath.split(/[\\/]/).pop() || filePath;
-      addRecentFile({ title: fileName, path: filePath });
     },
-    [setContent, setFilePath, incrementReloadKey, addRecentFile],
+    [setContent, setFilePath, incrementReloadKey],
   );
 
   const saveFile = useCallback(async (content: string) => {

@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { readEditorScrollTop, restoreEditorScrollTop } from "./editor-viewport";
+import {
+  chooseRestoredEditorScrollTop,
+  readEditorScrollTop,
+  restoreEditorScrollTop,
+} from "./editor-viewport";
 
 describe("editor viewport", () => {
   it("normalizes invalid scroll offsets", () => {
@@ -19,5 +23,27 @@ describe("editor viewport", () => {
     expect(schedule).toHaveBeenCalledTimes(1);
     schedule.mock.calls[0][0]();
     expect(element.scrollTop).toBe(96);
+  });
+
+  it("keeps the current viewport when refreshing the same file", () => {
+    expect(
+      chooseRestoredEditorScrollTop({
+        currentPath: "a.md",
+        nextPath: "a.md",
+        currentScrollTop: 420,
+        cachedScrollTop: null,
+      }),
+    ).toBe(420);
+  });
+
+  it("uses cached scroll when switching to another cached file", () => {
+    expect(
+      chooseRestoredEditorScrollTop({
+        currentPath: "a.md",
+        nextPath: "b.md",
+        currentScrollTop: 420,
+        cachedScrollTop: 88,
+      }),
+    ).toBe(88);
   });
 });

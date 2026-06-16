@@ -20,6 +20,7 @@ import {
 } from "../lib/markdown";
 import { EditorChangeGate } from "../lib/editor-change-gate";
 import {
+  chooseRestoredEditorScrollTop,
   readEditorScrollTop,
   restoreEditorScrollTop,
 } from "../lib/editor-viewport";
@@ -287,6 +288,10 @@ function BlockNoteEditorInner({
     const applyContent = async () => {
       try {
         const source = contentRef.current;
+        const currentPath = appliedPathRef.current;
+        const currentScrollTop = readEditorScrollTop(
+          scrollContainerRef.current,
+        );
         // 解析规则升级后不能复用旧块缓存，否则会继续显示错误的列表或代码块结构。
         const cached = path
           ? editorCache.getBlocks(path, source, MARKDOWN_PARSER_VERSION)
@@ -304,6 +309,12 @@ function BlockNoteEditorInner({
         editor.replaceBlocks(editor.document, blocks);
         appliedPathRef.current = path;
         appliedSourceRef.current = source;
+        const restoredScrollTop = chooseRestoredEditorScrollTop({
+          currentPath,
+          nextPath: path,
+          currentScrollTop,
+          cachedScrollTop: cached?.scrollTop,
+        });
         serializedBaselineRef.current = serializedBaseline;
         if (path) {
           editorCache.setContent(path, source);
@@ -311,14 +322,11 @@ function BlockNoteEditorInner({
             path,
             source,
             blocks,
-            cached?.scrollTop ?? 0,
+            restoredScrollTop,
             MARKDOWN_PARSER_VERSION,
           );
         }
-        restoreEditorScrollTop(
-          scrollContainerRef.current,
-          cached?.scrollTop ?? 0,
-        );
+        restoreEditorScrollTop(scrollContainerRef.current, restoredScrollTop);
         onParseStateChange(null);
 
         // 内容加载完成后更新大纲标题列表

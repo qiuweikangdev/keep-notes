@@ -59,9 +59,12 @@ export interface ElectronAPI {
   // 文件监听
   watchFile: (filePath: string) => Promise<void>;
   unwatchFile: (filePath: string) => Promise<void>;
+  watchWorkspace: (rootPath: string) => Promise<void>;
+  unwatchWorkspace: (rootPath: string) => Promise<void>;
   onFileChanged: (
     callback: (filePath: string, content: string) => void,
   ) => () => void;
+  onWorkspaceChanged: (callback: (rootPath: string) => void) => () => void;
 }
 
 export interface GitAPI {

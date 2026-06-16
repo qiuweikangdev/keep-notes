@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  selectAddRecentFile,
+  selectAddRecentFolder,
   selectIncrementReloadKey,
   selectSetContent,
   selectSetTreeData,
@@ -10,10 +10,10 @@ import {
 describe("electron store selectors", () => {
   it("keeps tree action references stable across unrelated state updates", () => {
     const setTreeData = () => undefined;
-    const addRecentFile = () => undefined;
+    const addRecentFolder = () => undefined;
     const initialState = {
       setTreeData,
-      addRecentFile,
+      addRecentFolder,
       selectedKey: null,
     } as Parameters<typeof selectSetTreeData>[0];
     const updatedState = {
@@ -22,7 +22,7 @@ describe("electron store selectors", () => {
     };
 
     expect(selectSetTreeData(updatedState)).toBe(setTreeData);
-    expect(selectAddRecentFile(updatedState)).toBe(addRecentFile);
+    expect(selectAddRecentFolder(updatedState)).toBe(addRecentFolder);
   });
 
   it("keeps editor action references stable across content updates", () => {
