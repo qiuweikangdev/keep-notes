@@ -137,6 +137,21 @@ export function SettingsModal() {
               </SettingRow>
             </div>
 
+            {/* 文件历史导航 */}
+            <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+              <SettingRow
+                label="文件历史导航"
+                description="在标题栏显示前进/后退按钮，用于切换最近打开的文件"
+              >
+                <Switch
+                  checked={appearance.showFileHistoryNavigation}
+                  onCheckedChange={(checked) =>
+                    setAppearance({ showFileHistoryNavigation: checked })
+                  }
+                />
+              </SettingRow>
+            </div>
+
             {/* 字体设置 */}
             <div style={{ borderBottom: "1px solid var(--border-color)" }}>
               <div className="py-1">

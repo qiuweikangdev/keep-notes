@@ -2,17 +2,18 @@ import {
   Minus,
   Square,
   X,
-  PanelLeftClose,
-  PanelLeftOpen,
   Settings,
   Sun,
   Moon,
   Search,
   GitBranch,
+  ArrowLeft,
+  ArrowRight,
 } from "lucide-react";
 import { useUIStore } from "@/store/ui.store";
+import { useEditorStore } from "@/store/editor.store";
 import { useTheme } from "@/hooks/use-theme";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { SearchModal } from "@/features/search";
 import { GitPanel } from "@/features/git";
 import { useElectron } from "@/hooks/use-electron";
@@ -26,13 +27,22 @@ interface TitleBarProps {
 
 export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
   const { setSettingsOpen } = useUIStore();
+  const { appearance } = useEditorStore();
   const { isDark, toggleTheme } = useTheme();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isGitOpen, setIsGitOpen] = useState(false);
   const [isGitRepo, setIsGitRepo] = useState(false);
   const titleBarRef = useRef<HTMLDivElement>(null);
-  const { detectGitRepo } = useElectron();
+  const { detectGitRepo, openFile } = useElectron();
   const { treeRoot } = useTreeStore();
+
+  // 文件导航历史状态
+  const historyRef = useRef<{ files: string[]; index: number }>({
+    files: [],
+    index: -1,
+  });
+  const [, forceUpdate] = useState(0);
+  const isNavigatingRef = useRef(false);
 
   // 平台判断
   const isMac = useMemo(() => {
@@ -74,6 +84,66 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
     checkGitRepo();
   }, [treeRoot, detectGitRepo]);
 
+  // 添加文件到导航历史
+  const addToHistory = useCallback((filePath: string) => {
+    // 如果是通过前进/后退触发的，不添加到历史
+    if (isNavigatingRef.current) {
+      isNavigatingRef.current = false;
+      return;
+    }
+    const history = historyRef.current;
+    // 截断当前位置之后的历史记录
+    history.files = history.files.slice(0, history.index + 1);
+    // 避免连续添加相同的文件
+    if (history.files[history.files.length - 1] !== filePath) {
+      history.files.push(filePath);
+      history.index = history.files.length - 1;
+    }
+    forceUpdate((n) => n + 1);
+  }, []);
+
+  // 返回上一个文件
+  const handleGoBack = useCallback(async () => {
+    const history = historyRef.current;
+    if (history.index > 0) {
+      isNavigatingRef.current = true;
+      history.index -= 1;
+      const targetFile = history.files[history.index];
+      forceUpdate((n) => n + 1);
+      if (targetFile) {
+        await openFile(targetFile);
+      }
+      isNavigatingRef.current = false;
+    }
+  }, [openFile]);
+
+  // 前进到下一个文件
+  const handleGoForward = useCallback(async () => {
+    const history = historyRef.current;
+    if (history.index < history.files.length - 1) {
+      isNavigatingRef.current = true;
+      history.index += 1;
+      const targetFile = history.files[history.index];
+      forceUpdate((n) => n + 1);
+      if (targetFile) {
+        await openFile(targetFile);
+      }
+      isNavigatingRef.current = false;
+    }
+  }, [openFile]);
+
+  // 暴露导航函数到全局，供快捷键和文件树调用
+  useEffect(() => {
+    window.__addFileToHistory = addToHistory;
+    window.__navigateBack = handleGoBack;
+    window.__navigateForward = handleGoForward;
+    return () => {
+      delete window.__addFileToHistory;
+      delete window.__navigateBack;
+      delete window.__navigateForward;
+    };
+  }, [addToHistory, handleGoBack, handleGoForward]);
+
   return (
     <>
       <div
@@ -89,11 +159,11 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
         {/* macOS: 红绿灯按钮区域预留空间（78px），Windows: 无 */}
         {isMac && <div className="w-[78px] flex-shrink-0" />}
 
-        {/* 左侧：侧边栏切换 + Logo */}
-        <div className="flex items-center gap-3 pl-4">
+        {/* 左侧：侧边栏切换 + 导航箭头 */}
+        <div className="flex items-center gap-1 pl-3">
           <button
             onClick={onToggleCollapse}
-            className="flex items-center justify-center w-7 h-7 rounded-lg transition-all"
+            className="flex items-center justify-center w-8 h-8 rounded-md transition-all"
             style={{ color: "var(--text-muted)" }}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = "var(--hover-bg)";
@@ -106,27 +176,123 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
             title={collapsed ? "展开侧边栏" : "收起侧边栏"}
           >
             {collapsed ? (
-              <PanelLeftOpen className="h-4 w-4" />
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <rect
+                  x="2"
+                  y="3"
+                  width="12"
+                  height="10"
+                  rx="2"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                />
+                <line
+                  x1="5"
+                  y1="6"
+                  x2="5"
+                  y2="10"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                />
+              </svg>
             ) : (
-              <PanelLeftClose className="h-4 w-4" />
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <rect
+                  x="2"
+                  y="3"
+                  width="12"
+                  height="10"
+                  rx="2"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                />
+                <line
+                  x1="5"
+                  y1="6"
+                  x2="5"
+                  y2="10"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                />
+                <line
+                  x1="8"
+                  y1="6"
+                  x2="8"
+                  y2="10"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                />
+              </svg>
             )}
           </button>
-          <div className="flex items-center gap-2">
-            <div
-              className="w-6 h-6 rounded-md flex items-center justify-center"
-              style={{
-                background: "linear-gradient(135deg, #0066ff, #0044cc)",
-              }}
-            >
-              <span className="text-white text-xs font-bold">K</span>
-            </div>
-            <span
-              className="text-sm font-semibold"
-              style={{ color: "var(--text-primary)" }}
-            >
-              Keep Notes
-            </span>
-          </div>
+          {appearance.showFileHistoryNavigation && (
+            <>
+              <button
+                disabled={historyRef.current.index <= 0}
+                onClick={handleGoBack}
+                className="flex items-center justify-center w-8 h-8 rounded-md transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                style={{ color: "var(--text-muted)" }}
+                onMouseEnter={(e) => {
+                  if (historyRef.current.index > 0) {
+                    e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                    e.currentTarget.style.color = "var(--text-primary)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = "var(--text-muted)";
+                }}
+                title={
+                  historyRef.current.index > 0
+                    ? "返回上一个文件"
+                    : "没有历史记录"
+                }
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+              <button
+                disabled={
+                  historyRef.current.index >=
+                  historyRef.current.files.length - 1
+                }
+                onClick={handleGoForward}
+                className="flex items-center justify-center w-8 h-8 rounded-md transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                style={{ color: "var(--text-muted)" }}
+                onMouseEnter={(e) => {
+                  if (
+                    historyRef.current.index <
+                    historyRef.current.files.length - 1
+                  ) {
+                    e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                    e.currentTarget.style.color = "var(--text-primary)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = "var(--text-muted)";
+                }}
+                title={
+                  historyRef.current.index < historyRef.current.files.length - 1
+                    ? "前进下一个文件"
+                    : "没有更多记录"
+                }
+              >
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </>
+          )}
         </div>
 
         {/* 中间：搜索栏 */}

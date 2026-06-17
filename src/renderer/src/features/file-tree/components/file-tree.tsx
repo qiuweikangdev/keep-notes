@@ -203,6 +203,8 @@ export function FileTree() {
       if (flatNode.isFolder) {
         toggleExpandedKey(flatNode.key);
       } else if (flatNode.title.endsWith(".md")) {
+        // 调用标题栏的 addToHistory
+        window.__addFileToHistory?.(flatNode.key);
         void openFile(flatNode.key);
       }
     },

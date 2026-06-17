@@ -20,6 +20,7 @@ import { useDiffPanelStore } from "@/features/diff/store/diff-panel.store";
 import { useTreeStore } from "@/store/tree.store";
 import { discardFileChanges } from "@/features/editor/lib/discard-file-changes";
 import {
+  useCallback,
   useLayoutEffect,
   useRef,
   useState,
@@ -232,6 +233,25 @@ function DiffDialog({
 }) {
   const { startDrag, endDrag } = useDragResize();
 
+  // 防止弹窗打开时触发的 pointer 事件导致 DismissableLayer 立即关闭弹窗
+  const openTimeRef = useRef(0);
+  useLayoutEffect(() => {
+    if (isOpen) {
+      openTimeRef.current = Date.now();
+    }
+  }, [isOpen]);
+
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open) {
+        // 弹窗刚打开时（150ms 内），忽略 DismissableLayer 的关闭请求
+        if (Date.now() - openTimeRef.current < 150) return;
+        onClose();
+      }
+    },
+    [onClose],
+  );
+
   // 拖拽会话
   const dragSessionRef = useRef<{
     pointerId: number;
@@ -334,12 +354,7 @@ function DiffDialog({
   const stopPropagation: PointerEventHandler = (_e) => _e.stopPropagation();
 
   return (
-    <Dialog.Root
-      open={isOpen}
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
-    >
+    <Dialog.Root open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent
         ref={contentRef}
         showCloseButton={false}

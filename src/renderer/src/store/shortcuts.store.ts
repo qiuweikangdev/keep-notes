@@ -10,7 +10,9 @@ export type ShortcutAction =
   | "toggleTheme"
   | "saveFile"
   | "openSearch"
-  | "openSearchAlt";
+  | "openSearchAlt"
+  | "navigateBack"
+  | "navigateForward";
 
 /** 单个快捷键配置 */
 export interface ShortcutConfig {
@@ -72,6 +74,18 @@ const defaultShortcuts: ShortcutConfig[] = [
     name: "打开搜索（备用）",
     description: "使用备用快捷键打开搜索面板",
     keys: ["CmdOrCtrl+Shift+F"],
+  },
+  {
+    id: "navigateBack",
+    name: "返回上一个文件",
+    description: "切换到历史记录中的上一个文件",
+    keys: ["Alt+ArrowLeft", "CmdOrCtrl+Alt+ArrowLeft"],
+  },
+  {
+    id: "navigateForward",
+    name: "前进下一个文件",
+    description: "切换到历史记录中的下一个文件",
+    keys: ["Alt+ArrowRight", "CmdOrCtrl+Alt+ArrowRight"],
   },
 ];
 

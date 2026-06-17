@@ -139,6 +139,16 @@ export function useKeyboardShortcuts() {
         case "openSearchAlt":
           // 搜索快捷键在 App.tsx 中单独处理（需要设置 state）
           break;
+
+        case "navigateBack":
+          e.preventDefault();
+          window.__navigateBack?.();
+          break;
+
+        case "navigateForward":
+          e.preventDefault();
+          window.__navigateForward?.();
+          break;
       }
     },
     [

@@ -629,7 +629,10 @@ export const TreeNode = memo(function TreeNode({
             {isMarkdown ? (
               <ContextMenu.Item
                 className={MENU_ITEM_CLASS}
-                onClick={handleDiff}
+                onClick={() => {
+                  // 使用 setTimeout 延迟执行，避免 ContextMenu 关闭时的事件冲突导致弹窗立即关闭
+                  setTimeout(() => handleDiff(), 0);
+                }}
               >
                 <GitCompare className="h-4 w-4" /> 比较差异
               </ContextMenu.Item>

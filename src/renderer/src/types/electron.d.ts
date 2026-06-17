@@ -100,5 +100,9 @@ declare global {
   interface Window {
     electronAPI: ElectronAPI;
     gitAPI: GitAPI;
+    __addFileToHistory?: (filePath: string) => void;
+    __navigateBack?: () => void;
+    __navigateForward?: () => void;
+    __scrollToBlock?: (id: string) => void;
   }
 }

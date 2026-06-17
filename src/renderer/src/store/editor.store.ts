@@ -19,6 +19,7 @@ export interface EditorAppearance {
   showModeSwitcher: boolean;
   sidebarView: "file" | "outline";
   showBottomBarOnHover: boolean;
+  showFileHistoryNavigation: boolean;
 }
 
 export type EditorMode = "rich" | "source";
@@ -148,6 +149,7 @@ const defaultAppearance: EditorAppearance = {
   showModeSwitcher: true,
   sidebarView: "file",
   showBottomBarOnHover: true,
+  showFileHistoryNavigation: true,
 };
 
 // 生成唯一ID

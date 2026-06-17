@@ -19,11 +19,25 @@ import {
 /**
  * 将内部快捷键表示转换为用户可读的显示格式
  * 例如 "CmdOrCtrl+N" -> "Ctrl+N" (非 macOS) 或 "⌘N" (macOS)
+ * 只显示当前平台对应的快捷键
  */
 function formatKeys(keys: string[]): string {
   if (keys.length === 0) return "未指定";
   const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
-  return keys
+
+  // 根据平台过滤：macOS 只显示含 CmdOrCtrl 的绑定，Windows 过滤同时含 CmdOrCtrl 和 Alt 的绑定
+  const filtered = keys.filter((key) => {
+    const hasCmdOrCtrl = key.includes("CmdOrCtrl");
+    const hasAlt = key.includes("Alt+");
+    // 只有同时包含 CmdOrCtrl 和 Alt 的绑定才在 Windows 上过滤
+    if (!isMac && hasCmdOrCtrl && hasAlt) return false;
+    return true;
+  });
+
+  // 如果过滤后没有匹配的，回退显示所有
+  const displayKeys = filtered.length > 0 ? filtered : keys;
+
+  return displayKeys
     .map((key) => {
       let display = key;
       if (isMac) {
@@ -191,10 +205,24 @@ function KeyBindingCell({
 
   const hasKeys = shortcut.keys.length > 0;
 
+  // 根据平台过滤：macOS 只显示含 CmdOrCtrl 的绑定，Windows 只显示不含 CmdOrCtrl 的绑定
+  const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+  const displayKeys = hasKeys
+    ? shortcut.keys.filter((key) => {
+        const hasCmdOrCtrl = key.includes("CmdOrCtrl");
+        const hasAlt = key.includes("Alt+");
+        // 只有同时包含 CmdOrCtrl 和 Alt 的绑定才在 Windows 上过滤
+        // 其他绑定（如 CmdOrCtrl+N）在 Windows 上正常显示
+        if (!isMac && hasCmdOrCtrl && hasAlt) return false;
+        return true;
+      })
+    : [];
+  const hasDisplayKeys = displayKeys.length > 0;
+
   return (
     <div className="flex items-center gap-1.5 group/cell min-w-0">
-      {hasKeys ? (
-        shortcut.keys.map((keyCombo, idx) => (
+      {hasDisplayKeys ? (
+        displayKeys.map((keyCombo, idx) => (
           <span
             key={idx}
             className="inline-flex items-center h-7 px-2.5 rounded-md text-xs font-medium whitespace-nowrap transition-all"
