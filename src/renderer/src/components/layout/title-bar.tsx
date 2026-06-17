@@ -19,6 +19,10 @@ import { GitPanel } from "@/features/git";
 import { useElectron } from "@/hooks/use-electron";
 import { useTreeStore } from "@/store/tree.store";
 import { CodeResult } from "@/types";
+import {
+  MAC_TITLE_BAR_HEIGHT,
+  MAC_TRAFFIC_LIGHT_PLACEHOLDER_WIDTH,
+} from "@shared/title-bar";
 
 interface TitleBarProps {
   collapsed: boolean;
@@ -148,19 +152,26 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
     <>
       <div
         ref={titleBarRef}
+        data-testid="title-bar"
         className="flex items-center select-none"
         style={{
-          // macOS: 38px 高度，参考 VSCode；Windows: 44px
-          height: isMac ? "38px" : "44px",
+          // macOS 与原生红绿灯共享同一高度基准，避免左上角操作区视觉偏移。
+          height: isMac ? `${MAC_TITLE_BAR_HEIGHT}px` : "44px",
           backgroundColor: "var(--bg-primary)",
           borderBottom: "1px solid var(--border-color)",
         }}
       >
         {/* macOS: 红绿灯按钮区域预留空间（78px），Windows: 无 */}
-        {isMac && <div className="w-[78px] flex-shrink-0" />}
+        {isMac && (
+          <div
+            data-testid="mac-traffic-light-spacer"
+            className="h-full flex-shrink-0"
+            style={{ width: `${MAC_TRAFFIC_LIGHT_PLACEHOLDER_WIDTH}px` }}
+          />
+        )}
 
         {/* 左侧：侧边栏切换 + 导航箭头 */}
-        <div className="flex items-center gap-1 pl-3">
+        <div className="flex h-full items-center gap-1 pl-3">
           <button
             onClick={onToggleCollapse}
             className="flex items-center justify-center w-8 h-8 rounded-md transition-all"
@@ -296,7 +307,7 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
         </div>
 
         {/* 中间：搜索栏 */}
-        <div className="flex-1 flex justify-center px-4">
+        <div className="flex h-full flex-1 items-center justify-center px-4">
           <button
             onClick={() => setIsSearchOpen(true)}
             className="flex items-center gap-2 h-[30px] w-[320px] max-w-[50%] px-3 rounded-lg text-xs transition-all"
@@ -329,7 +340,7 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
         </div>
 
         {/* 右侧：Git 图标 + 主题切换 + 窗口控制 */}
-        <div className="flex items-center gap-1 pr-2">
+        <div className="flex h-full items-center gap-1 pr-2">
           {/* Git 图标 - 仅在 Git 仓库中显示 */}
           {isGitRepo && (
             <button

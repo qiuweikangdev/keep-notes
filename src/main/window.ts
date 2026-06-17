@@ -6,6 +6,7 @@ import { is } from "@electron-toolkit/utils";
 import icon from "../../resources/icon.png?asset";
 import { registerWindowShortcuts } from "./shortcuts";
 import { getCachedDirtyState } from "./ipc/editor.ipc";
+import { MAC_TRAFFIC_LIGHT_POSITION } from "../shared/title-bar";
 
 // 平台判断
 const isMac = process.platform === "darwin";
@@ -24,7 +25,7 @@ const windowConfig: Electron.BrowserWindowConstructorOptions = {
     ? {
         // macOS: 隐藏标题栏但保留原生红绿灯按钮
         titleBarStyle: "hidden",
-        trafficLightPosition: { x: 14, y: 14 },
+        trafficLightPosition: MAC_TRAFFIC_LIGHT_POSITION,
       }
     : {
         // Windows/Linux: 无边框透明窗口
