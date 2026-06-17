@@ -35,19 +35,53 @@ const DIFF_THEME_MAP: Record<string, DiffsThemeNames> = {
 // 库内默认 8x% mix 比例让红/绿颜色被强烈稀释，这里降低 mix 直接让删除/添加行
 // 的整行背景呈现明显对比度，对应 pierre 文档示例的视觉效果。
 const DIFF_VISUAL_BOOST_CSS = `
+  /* 覆盖 shadow root 内最终生效的主题变量，但不直接改行节点背景，
+   * 让 pierre 继续按原有链路计算增删行高亮。 */
+  :host {
+    --diffs-bg: var(--bg-primary) !important;
+    --diffs-fg: var(--text-primary) !important;
+    --diffs-bg-context: var(--bg-primary) !important;
+    --diffs-bg-context-gutter: var(--bg-secondary) !important;
+    --diffs-bg-buffer: var(--bg-primary) !important;
+    --diffs-bg-separator: var(--bg-secondary) !important;
+    --diffs-fg-number: var(--text-muted) !important;
+    --diffs-bg-hover-override: var(--hover-bg) !important;
+  }
+
+  /* VSCode 风格的整行 diff 背景：内容区比行号区更柔和，保留层次感。 */
   :where([data-background]) [data-line-type="change-addition"][data-line],
-  :where([data-background]) [data-line-type="change-addition"][data-no-newline],
+  :where([data-background]) [data-line-type="change-addition"][data-no-newline] {
+    --diffs-line-bg: color-mix(
+      in srgb,
+      rgb(46, 160, 67) 22%,
+      var(--bg-primary)
+    ) !important;
+  }
   :where([data-background]) [data-line-type="change-deletion"][data-line],
   :where([data-background]) [data-line-type="change-deletion"][data-no-newline] {
-    --mix-light: 60% !important;
-    --mix-dark: 50% !important;
+    --diffs-line-bg: color-mix(
+      in srgb,
+      rgb(248, 81, 73) 24%,
+      var(--bg-primary)
+    ) !important;
   }
   :where([data-background]) [data-line-type="change-addition"][data-gutter-buffer],
-  :where([data-background]) [data-line-type="change-addition"][data-column-number],
+  :where([data-background]) [data-line-type="change-addition"][data-column-number] {
+    --diffs-line-bg: color-mix(
+      in srgb,
+      rgb(46, 160, 67) 30%,
+      var(--bg-primary)
+    ) !important;
+    color: #4ade80 !important;
+  }
   :where([data-background]) [data-line-type="change-deletion"][data-gutter-buffer],
   :where([data-background]) [data-line-type="change-deletion"][data-column-number] {
-    --mix-light: 75% !important;
-    --mix-dark: 65% !important;
+    --diffs-line-bg: color-mix(
+      in srgb,
+      rgb(248, 81, 73) 34%,
+      var(--bg-primary)
+    ) !important;
+    color: #f87171 !important;
   }
   [data-line-type="change-addition"] [data-diff-span] {
     background-color: rgba(46, 160, 67, 0.45) !important;
