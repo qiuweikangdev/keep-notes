@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path, { basename } from "node:path";
-import { dialog, shell } from "electron";
+import { clipboard, dialog, shell } from "electron";
 import { CodeResult } from "../shared/types";
 import { shouldIgnoreFsWatchPath } from "./file-watch";
 
@@ -182,6 +182,16 @@ export function revealInSystemExplorer(targetPath: string) {
     return true;
   } catch (error) {
     console.error("Error while opening in explorer:", error);
+    return false;
+  }
+}
+
+export function copyPathToClipboard(targetPath: string) {
+  try {
+    clipboard.writeText(targetPath);
+    return true;
+  } catch (error) {
+    console.error("Error while copying path:", error);
     return false;
   }
 }

@@ -242,6 +242,14 @@ export function useElectron() {
     return window.electronAPI.openInExplorer(targetPath);
   }, []);
 
+  const copyPath = useCallback(async (targetPath: string) => {
+    return window.electronAPI.copyPath(targetPath);
+  }, []);
+
+  const openInNewWindow = useCallback(async (targetPath: string) => {
+    return window.electronAPI.openInNewWindow(targetPath);
+  }, []);
+
   // 原有的 Git 下载和上传方法
   const gitDownload = useCallback(async () => {
     const config: GitConfig = {
@@ -369,6 +377,8 @@ export function useElectron() {
     deleteItem,
     moveItem,
     openInExplorer,
+    copyPath,
+    openInNewWindow,
     gitDownload,
     gitUpload,
     // 新增的 Git 操作方法

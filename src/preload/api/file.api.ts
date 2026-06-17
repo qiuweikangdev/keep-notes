@@ -40,6 +40,14 @@ export const fileApi = {
     return ipcRenderer.invoke(IPC_CHANNELS.FILE.OPEN_IN_EXPLORER, targetPath);
   },
 
+  copyPath: (targetPath: string): Promise<boolean> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.FILE.COPY_PATH, targetPath);
+  },
+
+  openInNewWindow: (targetPath: string): Promise<boolean> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.FILE.OPEN_IN_NEW_WINDOW, targetPath);
+  },
+
   // 监听单个已打开文件的内容变化。
   watchFile: (filePath: string): Promise<void> => {
     return ipcRenderer.invoke(IPC_CHANNELS.FILE.WATCH, filePath);

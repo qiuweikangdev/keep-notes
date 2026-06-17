@@ -9,7 +9,9 @@ import {
   getSelectedPath,
   genDirTreByPath,
   revealInSystemExplorer,
+  copyPathToClipboard,
 } from "../file";
+import { openPathInNewWindow } from "../window";
 import {
   FileContentWatchRegistry,
   shouldIgnoreFsWatchPath,
@@ -57,6 +59,17 @@ export function registerFileIpc(): void {
     IPC_CHANNELS.FILE.OPEN_IN_EXPLORER,
     async (_, targetPath: string) => {
       return revealInSystemExplorer(targetPath);
+    },
+  );
+
+  ipcMain.handle(IPC_CHANNELS.FILE.COPY_PATH, async (_, targetPath: string) => {
+    return copyPathToClipboard(targetPath);
+  });
+
+  ipcMain.handle(
+    IPC_CHANNELS.FILE.OPEN_IN_NEW_WINDOW,
+    async (_, targetPath: string) => {
+      return openPathInNewWindow(targetPath);
     },
   );
 

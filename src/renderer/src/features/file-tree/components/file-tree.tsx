@@ -20,6 +20,7 @@ import {
   Search,
   X,
   ExternalLink,
+  Copy,
   Pencil,
   Trash2,
   GitCompare,
@@ -65,8 +66,15 @@ export function FileTree() {
   const selectedKey = useTreeStore((state) => state.selectedKey);
   const toggleExpandedKey = useTreeStore((state) => state.toggleExpandedKey);
   const setSelectedKey = useTreeStore((state) => state.setSelectedKey);
-  const { openFolder, openInExplorer, openFile, createFile, createFolder } =
-    useElectron();
+  const {
+    openFolder,
+    openInExplorer,
+    openFile,
+    createFile,
+    createFolder,
+    copyPath,
+    openInNewWindow,
+  } = useElectron();
 
   const appearance = useEditorStore((s) => s.appearance);
   const setSidebarView = useEditorStore((s) => s.setSidebarView);
@@ -542,6 +550,18 @@ export function FileTree() {
                       </ContextMenu.Item>
                       <ContextMenu.Item
                         className={MENU_ITEM_CLASS}
+                        onClick={() => void copyPath(treeRoot!.key)}
+                      >
+                        <Copy className="h-4 w-4" /> 复制路径
+                      </ContextMenu.Item>
+                      <ContextMenu.Item
+                        className={MENU_ITEM_CLASS}
+                        onClick={() => void openInNewWindow(treeRoot!.key)}
+                      >
+                        <ExternalLink className="h-4 w-4" /> 在新窗口中打开
+                      </ContextMenu.Item>
+                      <ContextMenu.Item
+                        className={MENU_ITEM_CLASS}
                         onClick={() => void openInExplorer(treeRoot!.key)}
                       >
                         <ExternalLink className="h-4 w-4" />{" "}
@@ -562,6 +582,8 @@ export function FileTree() {
                     onCreateInFolder={handleCreateInFolder}
                     openFile={openFile}
                     openInExplorer={openInExplorer}
+                    copyPath={copyPath}
+                    openInNewWindow={openInNewWindow}
                   />
                 ) : isRootExpanded ? (
                   <div
@@ -624,6 +646,18 @@ export function FileTree() {
           </ContextMenu.Item>
           <ContextMenu.Item
             className={MENU_ITEM_CLASS}
+            onClick={() => void copyPath(treeRoot.key)}
+          >
+            <Copy className="h-4 w-4" /> 复制路径
+          </ContextMenu.Item>
+          <ContextMenu.Item
+            className={MENU_ITEM_CLASS}
+            onClick={() => void openInNewWindow(treeRoot.key)}
+          >
+            <ExternalLink className="h-4 w-4" /> 在新窗口中打开
+          </ContextMenu.Item>
+          <ContextMenu.Item
+            className={MENU_ITEM_CLASS}
             onClick={() => void openInExplorer(treeRoot.key)}
           >
             <ExternalLink className="h-4 w-4" /> {revealInFileManagerLabel}
@@ -647,6 +681,8 @@ interface VirtualizedTreeListProps {
   ) => void;
   openFile: (filePath: string) => Promise<void>;
   openInExplorer: (targetPath: string) => Promise<boolean>;
+  copyPath: (targetPath: string) => Promise<boolean>;
+  openInNewWindow: (targetPath: string) => Promise<boolean>;
 }
 
 const VirtualizedTreeList = memo(function VirtualizedTreeList({
@@ -658,6 +694,8 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
   onCreateInFolder,
   openFile,
   openInExplorer,
+  copyPath,
+  openInNewWindow,
 }: VirtualizedTreeListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -709,6 +747,8 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
               onCreateInFolder={onCreateInFolder}
               openFile={openFile}
               openInExplorer={openInExplorer}
+              copyPath={copyPath}
+              openInNewWindow={openInNewWindow}
             />
           );
         })}
@@ -733,6 +773,8 @@ interface VirtualTreeNodeProps {
   ) => void;
   openFile: (filePath: string) => Promise<void>;
   openInExplorer: (targetPath: string) => Promise<boolean>;
+  copyPath: (targetPath: string) => Promise<boolean>;
+  openInNewWindow: (targetPath: string) => Promise<boolean>;
 }
 
 const VirtualTreeNode = memo(function VirtualTreeNode({
@@ -746,6 +788,8 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
   onCreateInFolder,
   openFile,
   openInExplorer,
+  copyPath,
+  openInNewWindow,
 }: VirtualTreeNodeProps) {
   const revealInFileManagerLabel = getRevealInFileManagerLabel(
     window.electronAPI?.getPlatform(),
@@ -910,6 +954,18 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
               <Trash2 className="h-4 w-4" /> 删除
             </ContextMenu.Item>
             <ContextMenu.Separator className={MENU_SEPARATOR_CLASS} />
+            <ContextMenu.Item
+              className={MENU_ITEM_CLASS}
+              onClick={() => void copyPath(flatNode.key)}
+            >
+              <Copy className="h-4 w-4" /> 复制路径
+            </ContextMenu.Item>
+            <ContextMenu.Item
+              className={MENU_ITEM_CLASS}
+              onClick={() => void openInNewWindow(flatNode.key)}
+            >
+              <ExternalLink className="h-4 w-4" /> 在新窗口中打开
+            </ContextMenu.Item>
             <ContextMenu.Item
               className={MENU_ITEM_CLASS}
               onClick={() => void openInExplorer(flatNode.key)}

@@ -21,6 +21,7 @@ import { useTreeStore } from "@/store/tree.store";
 import { discardFileChanges } from "@/features/editor/lib/discard-file-changes";
 import {
   useCallback,
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -59,6 +60,7 @@ function HomePageContent() {
   const { contentRef, resizeHandleProps, resetSize } = useResizableDialog();
 
   const electron = useElectron();
+  const { loadTree, openFile } = electron;
   const repositoryRoot = useTreeStore((state) => state.treeRoot?.key ?? null);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
 
@@ -72,6 +74,29 @@ function HomePageContent() {
       resetSize();
     }
   }, [isOpen, resetSize]);
+
+  useEffect(() => {
+    const applyWindowTarget = async () => {
+      const target = window.electronAPI.consumeWindowOpenTarget();
+      if (!target) return;
+
+      await loadTree(target.rootPath);
+      if (target.filePath) {
+        await openFile(target.filePath);
+      }
+    };
+
+    void applyWindowTarget();
+
+    return window.electronAPI.onWindowOpenTarget((target) => {
+      void (async () => {
+        await loadTree(target.rootPath);
+        if (target.filePath) {
+          await openFile(target.filePath);
+        }
+      })();
+    });
+  }, [loadTree, openFile]);
 
   const fileName = filePath?.split(/[\\/]/).pop() || "";
 

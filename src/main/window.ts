@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import fs from "node:fs";
 import process from "node:process";
 import { BrowserWindow, app, shell, dialog } from "electron";
@@ -7,6 +7,8 @@ import icon from "../../resources/icon.png?asset";
 import { registerWindowShortcuts } from "./shortcuts";
 import { getCachedDirtyState } from "./ipc/editor.ipc";
 import { MAC_TRAFFIC_LIGHT_POSITION } from "../shared/title-bar";
+import { IPC_CHANNELS } from "../shared/constants";
+import type { WindowOpenTarget } from "../shared/types";
 
 // 平台判断
 const isMac = process.platform === "darwin";
@@ -41,7 +43,7 @@ const windowConfig: Electron.BrowserWindowConstructorOptions = {
   },
 };
 
-export function createWindow(): BrowserWindow {
+export function createWindow(initialTarget?: WindowOpenTarget): BrowserWindow {
   const win = new BrowserWindow(windowConfig);
 
   registerWindowShortcuts(win);
@@ -53,6 +55,14 @@ export function createWindow(): BrowserWindow {
   win.on("ready-to-show", () => {
     win.show();
   });
+
+  if (initialTarget) {
+    // 新窗口首次完成加载后，把要打开的工作区/文件交给渲染进程处理。
+    win.webContents.once("did-finish-load", () => {
+      if (win.isDestroyed()) return;
+      win.webContents.send(IPC_CHANNELS.WINDOW.OPEN_TARGET, initialTarget);
+    });
+  }
 
   win.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url);
@@ -75,6 +85,49 @@ export function createWindow(): BrowserWindow {
   }
 
   return win;
+}
+
+export async function resolveWindowOpenTarget(
+  targetPath: string,
+  stat: typeof fs.promises.stat = fs.promises.stat,
+): Promise<WindowOpenTarget> {
+  const stats = await stat(targetPath);
+
+  // 文件夹直接作为新窗口工作区，文件则打开其所在目录并额外定位文件。
+  if (stats.isDirectory()) {
+    return { rootPath: targetPath };
+  }
+
+  if (stats.isFile()) {
+    return {
+      rootPath: dirname(targetPath),
+      filePath: targetPath,
+    };
+  }
+
+  throw new Error(`Unsupported open target: ${targetPath}`);
+}
+
+export async function openPathInNewWindow(
+  targetPath: string,
+  deps: {
+    createWindow?: (target?: WindowOpenTarget) => BrowserWindow | void;
+    stat?: typeof fs.promises.stat;
+  } = {},
+): Promise<boolean> {
+  const {
+    createWindow: createWindowImpl = createWindow,
+    stat = fs.promises.stat,
+  } = deps;
+
+  try {
+    const initialTarget = await resolveWindowOpenTarget(targetPath, stat);
+    createWindowImpl(initialTarget);
+    return true;
+  } catch (error) {
+    console.error("Error while opening in new window:", error);
+    return false;
+  }
 }
 
 async function checkAndCloseWindow(win: BrowserWindow): Promise<void> {

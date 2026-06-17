@@ -7,6 +7,7 @@ import type {
   GitBranch,
   GitCommitOptions,
   GitDetectResult,
+  WindowOpenTarget,
 } from "@shared/types";
 
 export interface ElectronAPI {
@@ -31,6 +32,8 @@ export interface ElectronAPI {
   getSelectedPath: () => Promise<string | null>;
   generateTree: (selectedPath: string) => Promise<ApiResponse<TreeInfo>>;
   openInExplorer: (targetPath: string) => Promise<boolean>;
+  copyPath: (targetPath: string) => Promise<boolean>;
+  openInNewWindow: (targetPath: string) => Promise<boolean>;
   createFile: (
     path: string,
     title: string,
@@ -65,6 +68,10 @@ export interface ElectronAPI {
     callback: (filePath: string, content: string) => void,
   ) => () => void;
   onWorkspaceChanged: (callback: (rootPath: string) => void) => () => void;
+  consumeWindowOpenTarget: () => WindowOpenTarget | null;
+  onWindowOpenTarget: (
+    callback: (target: WindowOpenTarget) => void,
+  ) => () => void;
 }
 
 export interface GitAPI {

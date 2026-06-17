@@ -1,5 +1,17 @@
 import { ipcRenderer } from "electron";
 import { IPC_CHANNELS } from "../../shared/constants";
+import type { WindowOpenTarget } from "../../shared/types";
+
+const windowOpenTargetListeners = new Set<(target: WindowOpenTarget) => void>();
+let pendingWindowOpenTarget: WindowOpenTarget | null = null;
+
+ipcRenderer.on(
+  IPC_CHANNELS.WINDOW.OPEN_TARGET,
+  (_event: Electron.IpcRendererEvent, target: WindowOpenTarget) => {
+    pendingWindowOpenTarget = target;
+    windowOpenTargetListeners.forEach((listener) => listener(target));
+  },
+);
 
 export const windowApi = {
   minimizeWindow: (): void => {
@@ -34,6 +46,21 @@ export const windowApi = {
     ipcRenderer.on(IPC_CHANNELS.MENU.ACTION, handler);
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.MENU.ACTION, handler);
+    };
+  },
+
+  consumeWindowOpenTarget: (): WindowOpenTarget | null => {
+    const target = pendingWindowOpenTarget;
+    pendingWindowOpenTarget = null;
+    return target;
+  },
+
+  onWindowOpenTarget: (
+    callback: (target: WindowOpenTarget) => void,
+  ): (() => void) => {
+    windowOpenTargetListeners.add(callback);
+    return () => {
+      windowOpenTargetListeners.delete(callback);
     };
   },
 };

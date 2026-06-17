@@ -76,6 +76,8 @@ describe("HomePage", () => {
       configurable: true,
       value: {
         getPlatform: () => "win32",
+        consumeWindowOpenTarget: () => null,
+        onWindowOpenTarget: () => () => undefined,
       },
     });
 

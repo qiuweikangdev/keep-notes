@@ -16,6 +16,7 @@ import {
   Pencil,
   Trash2,
   ExternalLink,
+  Copy,
   GitCompare,
 } from "lucide-react";
 import { useTreeStore } from "@/store/tree.store";
@@ -84,6 +85,8 @@ export const TreeNode = memo(function TreeNode({
     deleteItem,
     moveItem,
     openInExplorer,
+    copyPath,
+    openInNewWindow,
     getFileHeadContent,
   } = useElectron();
   const { openDiff, closeDiff, updateContent } = useDiffStore();
@@ -669,6 +672,18 @@ export const TreeNode = memo(function TreeNode({
               <Trash2 className="h-4 w-4" /> 删除
             </ContextMenu.Item>
             <ContextMenu.Separator className={MENU_SEPARATOR_CLASS} />
+            <ContextMenu.Item
+              className={MENU_ITEM_CLASS}
+              onClick={() => void copyPath(node.key)}
+            >
+              <Copy className="h-4 w-4" /> 复制路径
+            </ContextMenu.Item>
+            <ContextMenu.Item
+              className={MENU_ITEM_CLASS}
+              onClick={() => void openInNewWindow(node.key)}
+            >
+              <ExternalLink className="h-4 w-4" /> 在新窗口中打开
+            </ContextMenu.Item>
             <ContextMenu.Item
               className={MENU_ITEM_CLASS}
               onClick={() => void openInExplorer(node.key)}

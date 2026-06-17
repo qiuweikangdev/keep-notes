@@ -3,6 +3,7 @@ export const IPC_CHANNELS = {
     MINIMIZE: "window:minimize",
     MAXIMIZE: "window:maximize",
     CLOSE: "window:close",
+    OPEN_TARGET: "window:open-target",
   },
   EDITOR: {
     UPDATE_DIRTY_STATE: "editor:update-dirty-state",
@@ -16,6 +17,8 @@ export const IPC_CHANNELS = {
     GET_SELECTED_PATH: "file:get-selected-path",
     GENERATE_TREE: "file:generate-tree",
     OPEN_IN_EXPLORER: "file:open-in-explorer",
+    COPY_PATH: "file:copy-path",
+    OPEN_IN_NEW_WINDOW: "file:open-in-new-window",
     WATCH: "file:watch", // 监听文件变化
     UNWATCH: "file:unwatch", // 取消监听文件变化
     ON_FILE_CHANGED: "file:on-changed", // 文件变化通知

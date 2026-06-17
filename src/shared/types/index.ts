@@ -79,6 +79,11 @@ export interface TreeInfo {
   treeRoot: TreeRoot;
 }
 
+export interface WindowOpenTarget {
+  rootPath: string;
+  filePath?: string;
+}
+
 export enum LeftAreaEnum {
   File = "file",
   Outline = "outline",
