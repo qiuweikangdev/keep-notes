@@ -25,69 +25,157 @@ export interface ShortcutConfig {
   isSystem?: boolean;
 }
 
+type ShortcutPlatform = "darwin" | "other";
+
+const legacyMacNavigationShortcutMap = {
+  navigateBack: ["Alt+ArrowLeft", "CmdOrCtrl+Alt+ArrowLeft"],
+  navigateForward: ["Alt+ArrowRight", "CmdOrCtrl+Alt+ArrowRight"],
+} as const;
+
+function getShortcutPlatform(): ShortcutPlatform {
+  if (typeof window === "undefined") return "other";
+
+  const platform = window.electronAPI?.getPlatform?.();
+  return platform === "darwin" ? "darwin" : "other";
+}
+
+function normalizeNavigationKeysForPlatform(
+  shortcut: ShortcutConfig,
+  platform: ShortcutPlatform,
+): ShortcutConfig {
+  if (platform !== "darwin") return shortcut;
+
+  if (shortcut.id === "navigateBack") {
+    const legacyKeys = legacyMacNavigationShortcutMap.navigateBack;
+    const isLegacyBinding =
+      shortcut.keys.length === legacyKeys.length &&
+      legacyKeys.every((key) => shortcut.keys.includes(key));
+
+    if (isLegacyBinding) {
+      return { ...shortcut, keys: ["CmdOrCtrl+Alt+ArrowLeft"] };
+    }
+  }
+
+  if (shortcut.id === "navigateForward") {
+    const legacyKeys = legacyMacNavigationShortcutMap.navigateForward;
+    const isLegacyBinding =
+      shortcut.keys.length === legacyKeys.length &&
+      legacyKeys.every((key) => shortcut.keys.includes(key));
+
+    if (isLegacyBinding) {
+      return { ...shortcut, keys: ["CmdOrCtrl+Alt+ArrowRight"] };
+    }
+  }
+
+  return shortcut;
+}
+
+function normalizeShortcutListForPlatform(
+  shortcuts: ShortcutConfig[],
+  platform: ShortcutPlatform,
+): ShortcutConfig[] {
+  return shortcuts.map((shortcut) =>
+    normalizeNavigationKeysForPlatform(shortcut, platform),
+  );
+}
+
+function createDefaultShortcuts(
+  platform: ShortcutPlatform = getShortcutPlatform(),
+): ShortcutConfig[] {
+  const shortcuts: ShortcutConfig[] = [
+    {
+      id: "newFile",
+      name: "新建文件",
+      description: "创建一个新的空白文件",
+      keys: ["CmdOrCtrl+N"],
+    },
+    {
+      id: "openFolder",
+      name: "打开文件夹",
+      description: "在侧边栏打开一个文件夹",
+      keys: ["CmdOrCtrl+O"],
+    },
+    {
+      id: "closeTab",
+      name: "关闭标签页",
+      description: "关闭当前聚焦面板的标签页",
+      keys: ["CmdOrCtrl+W"],
+    },
+    {
+      id: "toggleSidebar",
+      name: "切换侧边栏",
+      description: "展开或收起左侧边栏",
+      keys: ["CmdOrCtrl+B"],
+    },
+    {
+      id: "toggleTheme",
+      name: "切换主题",
+      description: "在亮色和暗色主题之间切换",
+      keys: ["CmdOrCtrl+Shift+L"],
+    },
+    {
+      id: "saveFile",
+      name: "保存文件",
+      description: "弹出系统保存对话框保存文件",
+      keys: ["CmdOrCtrl+S"],
+    },
+    {
+      id: "openSearch",
+      name: "打开搜索",
+      description: "打开全局文件搜索面板",
+      keys: ["CmdOrCtrl+P"],
+    },
+    {
+      id: "openSearchAlt",
+      name: "打开搜索（备用）",
+      description: "使用备用快捷键打开搜索面板",
+      keys: ["CmdOrCtrl+Shift+F"],
+    },
+    {
+      id: "navigateBack",
+      name: "返回上一个文件",
+      description: "切换到历史记录中的上一个文件",
+      keys:
+        platform === "darwin"
+          ? ["CmdOrCtrl+Alt+ArrowLeft"]
+          : ["Alt+ArrowLeft", "CmdOrCtrl+Alt+ArrowLeft"],
+    },
+    {
+      id: "navigateForward",
+      name: "前进下一个文件",
+      description: "切换到历史记录中的下一个文件",
+      keys:
+        platform === "darwin"
+          ? ["CmdOrCtrl+Alt+ArrowRight"]
+          : ["Alt+ArrowRight", "CmdOrCtrl+Alt+ArrowRight"],
+    },
+  ];
+
+  return normalizeShortcutListForPlatform(shortcuts, platform);
+}
+
+function normalizePersistedShortcutsState(
+  persistedState: Partial<ShortcutsState> | undefined,
+  platform: ShortcutPlatform = getShortcutPlatform(),
+): Partial<ShortcutsState> | undefined {
+  if (!persistedState) return persistedState;
+
+  return {
+    ...persistedState,
+    shortcuts: persistedState.shortcuts
+      ? normalizeShortcutListForPlatform(persistedState.shortcuts, platform)
+      : persistedState.shortcuts,
+    defaultShortcuts: persistedState.defaultShortcuts
+      ? normalizeShortcutListForPlatform(
+          persistedState.defaultShortcuts,
+          platform,
+        )
+      : persistedState.defaultShortcuts,
+  };
+}
+
 /** 默认快捷键配置 */
-const defaultShortcuts: ShortcutConfig[] = [
-  {
-    id: "newFile",
-    name: "新建文件",
-    description: "创建一个新的空白文件",
-    keys: ["CmdOrCtrl+N"],
-  },
-  {
-    id: "openFolder",
-    name: "打开文件夹",
-    description: "在侧边栏打开一个文件夹",
-    keys: ["CmdOrCtrl+O"],
-  },
-  {
-    id: "closeTab",
-    name: "关闭标签页",
-    description: "关闭当前聚焦面板的标签页",
-    keys: ["CmdOrCtrl+W"],
-  },
-  {
-    id: "toggleSidebar",
-    name: "切换侧边栏",
-    description: "展开或收起左侧边栏",
-    keys: ["CmdOrCtrl+B"],
-  },
-  {
-    id: "toggleTheme",
-    name: "切换主题",
-    description: "在亮色和暗色主题之间切换",
-    keys: ["CmdOrCtrl+Shift+L"],
-  },
-  {
-    id: "saveFile",
-    name: "保存文件",
-    description: "弹出系统保存对话框保存文件",
-    keys: ["CmdOrCtrl+S"],
-  },
-  {
-    id: "openSearch",
-    name: "打开搜索",
-    description: "打开全局文件搜索面板",
-    keys: ["CmdOrCtrl+P"],
-  },
-  {
-    id: "openSearchAlt",
-    name: "打开搜索（备用）",
-    description: "使用备用快捷键打开搜索面板",
-    keys: ["CmdOrCtrl+Shift+F"],
-  },
-  {
-    id: "navigateBack",
-    name: "返回上一个文件",
-    description: "切换到历史记录中的上一个文件",
-    keys: ["Alt+ArrowLeft", "CmdOrCtrl+Alt+ArrowLeft"],
-  },
-  {
-    id: "navigateForward",
-    name: "前进下一个文件",
-    description: "切换到历史记录中的下一个文件",
-    keys: ["Alt+ArrowRight", "CmdOrCtrl+Alt+ArrowRight"],
-  },
-];
+const defaultShortcuts = createDefaultShortcuts();
 
 interface ShortcutsState {
   shortcuts: ShortcutConfig[];
@@ -133,6 +221,11 @@ export const useShortcutsStore = create<ShortcutsState>()(
     }),
     {
       name: "shortcuts-storage",
+      version: 1,
+      migrate: (persistedState) =>
+        normalizePersistedShortcutsState(
+          persistedState as Partial<ShortcutsState> | undefined,
+        ) ?? persistedState,
     },
   ),
 );
