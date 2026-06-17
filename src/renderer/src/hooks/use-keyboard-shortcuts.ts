@@ -214,6 +214,17 @@ export function useKeyboardShortcuts() {
           });
           break;
 
+        case "closeTab": {
+          const activeGroup = panelGroups.find((g) => g.id === activeGroupId);
+          if (activeGroup) {
+            removeTab(activeGroup.id, activeGroup.activeTabId);
+          } else if (filePath) {
+            setFilePath(null);
+            resetEditor();
+          }
+          break;
+        }
+
         case "toggleSidebar":
           toggleCollapse();
           break;
@@ -238,7 +249,13 @@ export function useKeyboardShortcuts() {
     treeRoot,
     treeData,
     content,
+    filePath,
     openFolder,
+    panelGroups,
+    activeGroupId,
+    removeTab,
+    setFilePath,
+    resetEditor,
     toggleCollapse,
     toggleTheme,
     setSettingsOpen,

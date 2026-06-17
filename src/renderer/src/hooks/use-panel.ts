@@ -1,10 +1,15 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, type MutableRefObject } from "react";
 import { useUIStore } from "@/store/ui.store";
 import type { ImperativePanelHandle, Layout } from "react-resizable-panels";
 
+// 所有触发入口需要操作同一个侧边栏实例，因此这里共享面板句柄。
+const sharedPanelRef: MutableRefObject<ImperativePanelHandle | null> = {
+  current: null,
+};
+
 export function usePanel() {
   const { panelSize, setPanelSize } = useUIStore();
-  const panelRef = useRef<ImperativePanelHandle>(null);
+  const panelRef = sharedPanelRef;
   const [collapsed, setCollapsed] = useState(false);
 
   // 拖拽中用 ref 跟踪最新尺寸，避免触发 React 重渲染

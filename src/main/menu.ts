@@ -64,7 +64,11 @@ export function registerAppMenu(): void {
           click: () => sendMenuAction("saveAs"),
         },
         { type: "separator" },
-        { role: "close" },
+        {
+          label: "关闭标签页",
+          accelerator: "Cmd+W",
+          click: () => sendMenuAction("closeTab"),
+        },
       ],
     },
     // 编辑菜单
@@ -99,7 +103,7 @@ export function registerAppMenu(): void {
         { type: "separator" },
         {
           label: "切换主题",
-          accelerator: "Shift+Cmd+J",
+          accelerator: "Shift+Cmd+L",
           click: () => sendMenuAction("toggleTheme"),
         },
         { type: "separator" },
