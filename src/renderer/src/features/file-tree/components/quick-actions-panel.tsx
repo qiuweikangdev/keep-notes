@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useTreeStore } from "@/store/tree.store";
 import { useElectron } from "@/hooks/use-electron";
+import { getRevealInFileManagerLabel } from "../utils";
 
 interface QuickActionsPanelProps {
   onClose?: () => void;
@@ -19,6 +20,9 @@ export function QuickActionsPanel({ onClose }: QuickActionsPanelProps) {
   const { openFolder, loadTree, openInExplorer } = useElectron();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const revealInFileManagerLabel = getRevealInFileManagerLabel(
+    window.electronAPI?.getPlatform(),
+  );
 
   // 点击外部关闭菜单
   useEffect(() => {
@@ -126,6 +130,7 @@ export function QuickActionsPanel({ onClose }: QuickActionsPanelProps) {
           >
             <MenuContent
               treeRoot={treeRoot}
+              revealInFileManagerLabel={revealInFileManagerLabel}
               recentFolders={recentFolders}
               onOpenFolder={handleOpenFolder}
               onOpenInExplorer={handleOpenInExplorer}
@@ -220,6 +225,7 @@ export function QuickActionsPanel({ onClose }: QuickActionsPanelProps) {
 
 interface MenuContentProps {
   treeRoot: { key: string; title: string } | null;
+  revealInFileManagerLabel: string;
   recentFolders: Array<{ title: string; path: string }>;
   onOpenFolder: () => void;
   onOpenInExplorer: () => void;
@@ -231,6 +237,7 @@ interface MenuContentProps {
 
 function MenuContent({
   treeRoot,
+  revealInFileManagerLabel,
   recentFolders,
   onOpenFolder,
   onOpenInExplorer,
@@ -275,7 +282,7 @@ function MenuContent({
         {treeRoot && (
           <MenuItem
             icon={<ExternalLink className="h-4 w-4" />}
-            label="在 Finder 中显示"
+            label={revealInFileManagerLabel}
             onClick={() => {
               onOpenInExplorer();
               onClose();

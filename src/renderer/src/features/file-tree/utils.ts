@@ -52,3 +52,10 @@ export function findNodeByKey(nodes: TreeNode[], key: string): TreeNode | null {
   }
   return null;
 }
+
+/**
+ * 统一“在系统文件管理器中显示”的跨平台文案，避免各入口出现不一致。
+ */
+export function getRevealInFileManagerLabel(platform?: string): string {
+  return platform === "darwin" ? "在 Finder 中显示" : "在资源管理器中显示";
+}

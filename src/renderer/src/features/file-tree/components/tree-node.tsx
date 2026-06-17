@@ -27,6 +27,7 @@ import { CodeResult } from "@/types";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useDiffStore } from "@/store/diff.store";
 import { useEditorStore } from "@/store/editor.store";
+import { getRevealInFileManagerLabel } from "../utils";
 
 interface CreatingInfo {
   type: "file" | "folder";
@@ -112,6 +113,9 @@ export const TreeNode = memo(function TreeNode({
   const isFolder = Array.isArray(node.children);
   const hasChildren = Boolean(node.children?.length);
   const isMarkdown = node.title.endsWith(".md");
+  const revealInFileManagerLabel = getRevealInFileManagerLabel(
+    window.electronAPI?.getPlatform(),
+  );
 
   const isCreatingHere = creatingInfo?.parentKey === node.key;
 
@@ -669,7 +673,7 @@ export const TreeNode = memo(function TreeNode({
               className={MENU_ITEM_CLASS}
               onClick={() => void openInExplorer(node.key)}
             >
-              <ExternalLink className="h-4 w-4" /> 在资源管理器中显示
+              <ExternalLink className="h-4 w-4" /> {revealInFileManagerLabel}
             </ContextMenu.Item>
           </ContextMenu.Content>
         </ContextMenu.Portal>

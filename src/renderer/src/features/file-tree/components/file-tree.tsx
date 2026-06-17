@@ -36,7 +36,11 @@ import { Tooltip } from "@/components/ui/tooltip";
 import type { TreeNode as TreeNodeType } from "@/types";
 import { CodeResult } from "@/types";
 import { cn } from "@/lib/cn";
-import { flattenTree, type FlatNode } from "../utils";
+import {
+  flattenTree,
+  getRevealInFileManagerLabel,
+  type FlatNode,
+} from "../utils";
 
 const MENU_CONTENT_CLASS =
   "z-[9999] min-w-[180px] rounded-md border p-1 shadow-lg bg-[var(--bg-primary)] border-[var(--border-color)] text-[var(--text-primary)]";
@@ -76,6 +80,9 @@ export function FileTree() {
   const createInputRef = useRef<HTMLInputElement>(null);
   const confirmedRef = useRef(false);
   const isRootCreating = creatingInfo?.parentKey === treeRoot?.key;
+  const revealInFileManagerLabel = getRevealInFileManagerLabel(
+    window.electronAPI?.getPlatform(),
+  );
 
   const isRootSelected = selectedKey === treeRoot?.key;
   const isRootExpanded = treeRoot ? expandedKeys.has(treeRoot.key) : false;
@@ -537,7 +544,8 @@ export function FileTree() {
                         className={MENU_ITEM_CLASS}
                         onClick={() => void openInExplorer(treeRoot!.key)}
                       >
-                        <ExternalLink className="h-4 w-4" /> 在资源管理器中显示
+                        <ExternalLink className="h-4 w-4" />{" "}
+                        {revealInFileManagerLabel}
                       </ContextMenu.Item>
                     </ContextMenu.Content>
                   </ContextMenu.Portal>
@@ -618,7 +626,7 @@ export function FileTree() {
             className={MENU_ITEM_CLASS}
             onClick={() => void openInExplorer(treeRoot.key)}
           >
-            <ExternalLink className="h-4 w-4" /> 在资源管理器中显示
+            <ExternalLink className="h-4 w-4" /> {revealInFileManagerLabel}
           </ContextMenu.Item>
         </ContextMenu.Content>
       </ContextMenu.Portal>
@@ -739,6 +747,10 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
   openFile,
   openInExplorer,
 }: VirtualTreeNodeProps) {
+  const revealInFileManagerLabel = getRevealInFileManagerLabel(
+    window.electronAPI?.getPlatform(),
+  );
+
   return (
     <div
       style={{
@@ -902,7 +914,7 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
               className={MENU_ITEM_CLASS}
               onClick={() => void openInExplorer(flatNode.key)}
             >
-              <ExternalLink className="h-4 w-4" /> 在资源管理器中显示
+              <ExternalLink className="h-4 w-4" /> {revealInFileManagerLabel}
             </ContextMenu.Item>
           </ContextMenu.Content>
         </ContextMenu.Portal>
