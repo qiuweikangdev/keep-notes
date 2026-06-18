@@ -122,6 +122,25 @@ describe("preserveMarkdownSource", () => {
 
     expect(preserveMarkdownSource(source, baseline, edited)).toBe("- alpha\n");
   });
+
+  it("preserves fenced code language and content when editing surrounding text", () => {
+    const source = [
+      "Before",
+      "",
+      "```ts",
+      "const value = 1;",
+      "```",
+      "",
+      "After",
+      "",
+    ].join("\n");
+    const baseline = source;
+    const edited = source.replace("Before", "Before edit");
+
+    expect(preserveMarkdownSource(source, baseline, edited)).toBe(
+      source.replace("Before", "Before edit"),
+    );
+  });
 });
 
 describe("ensureEditableBlocks", () => {
