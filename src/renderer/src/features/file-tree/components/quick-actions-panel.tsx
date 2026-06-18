@@ -170,13 +170,17 @@ export function QuickActionsPanel({ onClose }: QuickActionsPanelProps) {
             });
           }}
         >
-          <div className="flex flex-1 items-center justify-center gap-2 py-2.5 text-[13px]">
+          <div className="flex flex-1 items-center justify-center gap-2 px-3 py-2 text-[13px]">
             <FolderOpen
               className="h-4 w-4"
               data-hover-muted
               style={{ color: "var(--text-muted)" }}
             />
-            <span data-hover-muted style={{ color: "var(--text-muted)" }}>
+            <span
+              data-hover-muted
+              style={{ color: "var(--text-muted)" }}
+              className="flex items-center leading-4"
+            >
               {treeRoot.title}
             </span>
           </div>
@@ -209,6 +213,7 @@ export function QuickActionsPanel({ onClose }: QuickActionsPanelProps) {
         >
           <MenuContent
             treeRoot={treeRoot}
+            revealInFileManagerLabel={revealInFileManagerLabel}
             recentFolders={recentFolders}
             onOpenFolder={handleOpenFolder}
             onOpenInExplorer={handleOpenInExplorer}
@@ -323,7 +328,7 @@ function MenuContent({
               {recentFolders.map((folder) => (
                 <div
                   key={folder.path}
-                  className="group flex cursor-default items-center gap-2 px-3 py-1.5 text-[13px] transition-colors"
+                  className="group flex cursor-pointer items-center gap-3 px-3 py-1.5 text-[13px] transition-colors"
                   style={{ color: "var(--text-secondary)" }}
                   onClick={() => onOpenRecentFolder(folder.path)}
                   onMouseEnter={(e) => {
@@ -339,7 +344,7 @@ function MenuContent({
                     className="h-4 w-4 flex-shrink-0"
                     style={{ color: "var(--text-muted)" }}
                   />
-                  <span className="min-w-0 flex-1 truncate">
+                  <span className="min-w-0 flex-1 truncate leading-4">
                     {folder.title}
                   </span>
                   <button
@@ -392,7 +397,7 @@ function MenuItem({
       }}
     >
       <span style={{ color: "var(--text-muted)" }}>{icon}</span>
-      <span>{label}</span>
+      <span style={{ color: "var(--text-secondary)" }}>{label}</span>
     </button>
   );
 }
