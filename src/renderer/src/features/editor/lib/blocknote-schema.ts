@@ -14,6 +14,8 @@ import { createHighlighter } from "shiki";
 import { EditorCodeBlock } from "../components/editor-code-block";
 import { CODE_BLOCK_LANGUAGE_OPTIONS } from "./editor-code-block-languages";
 
+export const editorCodeBlockThemes = ["github-dark", "github-light"] as const;
+
 export const editorCodeBlockSupportedLanguages: NonNullable<
   CodeBlockOptions["supportedLanguages"]
 > = Object.fromEntries(
@@ -29,14 +31,18 @@ export const editorCodeBlockSupportedLanguages: NonNullable<
 const codeBlockOptions: Partial<CodeBlockOptions> = {
   defaultLanguage: "text",
   supportedLanguages: editorCodeBlockSupportedLanguages,
-  createHighlighter: () =>
-    createHighlighter({
-      langs: CODE_BLOCK_LANGUAGE_OPTIONS.map((language) => language.id),
-      themes: ["github-dark", "github-light"],
-    }),
+  createHighlighter: createEditorCodeBlockHighlighter,
 };
 
 const baseCodeBlockSpec = createCodeBlockSpec(codeBlockOptions);
+
+export function createEditorCodeBlockHighlighter() {
+  return createHighlighter({
+    // Shiki 语言由 BlockNote 高亮插件按当前代码块语言懒加载，避免首个代码块预加载整个常用语言集。
+    langs: [],
+    themes: [...editorCodeBlockThemes],
+  });
+}
 
 const editorCodeBlockSpec = createReactBlockSpec(
   createCodeBlockConfig(codeBlockOptions),

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createEditorCodeBlockHighlighter,
   editorBlockSpecs,
   editorCodeBlockSupportedLanguages,
+  editorCodeBlockThemes,
 } from "./blocknote-schema";
 
 describe("editor BlockNote schema", () => {
@@ -23,5 +25,23 @@ describe("editor BlockNote schema", () => {
       "ts",
     );
     expect(editorCodeBlockSupportedLanguages.cpp.aliases).toContain("c++");
+  });
+
+  it("preserves code block extensions for input rules and highlighting", () => {
+    expect(editorBlockSpecs.codeBlock.extensions?.length).toBeGreaterThan(0);
+    expect(editorBlockSpecs.codeBlock.implementation.toExternalHTML).toBeTypeOf(
+      "function",
+    );
+  });
+
+  it("creates a lazy Shiki highlighter with editor themes", async () => {
+    const highlighter = await createEditorCodeBlockHighlighter();
+
+    expect(highlighter.getLoadedThemes()).toEqual([...editorCodeBlockThemes]);
+    expect(highlighter.getLoadedLanguages()).toEqual([]);
+
+    await highlighter.loadLanguage("typescript");
+
+    expect(highlighter.getLoadedLanguages()).toContain("typescript");
   });
 });

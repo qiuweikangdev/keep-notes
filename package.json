@@ -39,6 +39,7 @@
     "@mantine/hooks": "^9.3.0",
     "@mantine/utils": "^6.0.22",
     "@pierre/diffs": "1.1.22",
+    "@tanstack/react-virtual": "^3.13.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "dayjs": "^1.11.20",
@@ -52,8 +53,8 @@
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-resizable-panels": "^2.1.0",
+    "shiki": "3.23.0",
     "simple-git": "^3.36.0",
-    "@tanstack/react-virtual": "^3.13.0",
     "tailwind-merge": "^2.4.0",
     "zustand": "^4.5.0"
   },
