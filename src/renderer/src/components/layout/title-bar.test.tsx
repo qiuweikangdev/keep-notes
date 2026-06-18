@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { TitleBar } from "./title-bar";
+import { MAC_TITLE_BAR_HEIGHT } from "@shared/title-bar";
 
 vi.mock("@/store/ui.store", () => ({
   useUIStore: () => ({
@@ -58,7 +59,9 @@ describe("TitleBar", () => {
 
     render(<TitleBar collapsed={false} onToggleCollapse={vi.fn()} />);
 
-    expect(screen.getByTestId("title-bar")).toHaveStyle({ height: "40px" });
+    expect(screen.getByTestId("title-bar")).toHaveStyle({
+      height: `${MAC_TITLE_BAR_HEIGHT}px`,
+    });
     expect(screen.getByTestId("mac-traffic-light-spacer")).toHaveClass(
       "h-full",
     );
