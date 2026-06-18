@@ -105,4 +105,21 @@ describe("EditorCodeBlock", () => {
     expect(writeText).toHaveBeenCalledWith("console.log('copy me');");
     expect(await screen.findByText("Copied")).toBeInTheDocument();
   });
+
+  it("contains clipboard write failures without showing copied state", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockRejectedValue(new Error("Denied"));
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    renderCodeBlock("javascript");
+
+    const code = screen.getByTestId("editor-code-block-content");
+    code.textContent = "console.log('do not copy');";
+    await user.click(screen.getByRole("button", { name: /copy code/i }));
+
+    expect(writeText).toHaveBeenCalledWith("console.log('do not copy');");
+    expect(screen.queryByText("Copied")).not.toBeInTheDocument();
+  });
 });

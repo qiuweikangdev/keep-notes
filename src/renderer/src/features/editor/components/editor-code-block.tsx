@@ -138,8 +138,18 @@ export function EditorCodeBlock({
   };
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(readCodeBlockText(codeRef.current));
-    setIsCopied(true);
+    try {
+      const writeText = navigator.clipboard?.writeText;
+      if (!writeText) return;
+
+      await writeText.call(
+        navigator.clipboard,
+        readCodeBlockText(codeRef.current),
+      );
+      setIsCopied(true);
+    } catch {
+      setIsCopied(false);
+    }
   };
 
   return (
