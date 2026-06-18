@@ -198,25 +198,31 @@ export function EditorCodeBlock({
                 aria-label="Code language options"
                 className="editor-code-block__language-options mt-2 max-h-64 overflow-y-auto"
               >
-                {languageOptions.map((option) => {
-                  const isSelected = option.id === language;
+                {languageOptions.length > 0 ? (
+                  languageOptions.map((option) => {
+                    const isSelected = option.id === language;
 
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      role="option"
-                      aria-selected={isSelected}
-                      className="editor-code-block__language-option flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--button-hover-bg)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--accent-color)]"
-                      onClick={() => handleLanguageSelect(option.id)}
-                    >
-                      <span>{option.label}</span>
-                      {isSelected ? (
-                        <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                      ) : null}
-                    </button>
-                  );
-                })}
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        role="option"
+                        aria-selected={isSelected}
+                        className="editor-code-block__language-option flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--button-hover-bg)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--accent-color)]"
+                        onClick={() => handleLanguageSelect(option.id)}
+                      >
+                        <span>{option.label}</span>
+                        {isSelected ? (
+                          <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                        ) : null}
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className="editor-code-block-language-empty">
+                    No languages found
+                  </div>
+                )}
               </div>
             </div>
           ) : null}

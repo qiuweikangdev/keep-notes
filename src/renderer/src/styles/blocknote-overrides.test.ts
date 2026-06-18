@@ -104,7 +104,7 @@ describe("blocknote overrides stylesheet", () => {
       /\.editor-code-block__language-option\[aria-selected="true"\]\s*\{[\s\S]*background:\s*color-mix\(in srgb,\s*var\(--accent-color\) 22%,\s*transparent\);/,
     );
     expect(stylesheet).toMatch(
-      /\.editor-code-block__language-options:empty::after\s*\{[\s\S]*content:\s*"No languages found";/,
+      /\.editor-code-block-language-empty\s*\{[\s\S]*text-align:\s*center;/,
     );
   });
 

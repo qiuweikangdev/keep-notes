@@ -322,12 +322,12 @@
   color: #ffffff;
 }
 
-.editor-code-block__language-options:empty::after {
-  content: "No languages found";
+.editor-code-block-language-empty {
   display: block;
   padding: 10px 8px;
   color: #94a3b8;
   font-size: 0.82rem;
+  text-align: center;
 }
 
 /* 内联代码样式 */

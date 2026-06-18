@@ -64,6 +64,21 @@ describe("EditorCodeBlock", () => {
     });
   });
 
+  it("shows an empty state when language search has no matches", async () => {
+    const user = userEvent.setup();
+    renderCodeBlock("javascript");
+
+    await user.click(
+      screen.getByRole("button", { name: /change code language/i }),
+    );
+    const popover = screen.getByRole("dialog", { name: /code language/i });
+    await user.type(within(popover).getByRole("searchbox"), "zzzz");
+
+    expect(within(popover).getByText("No languages found")).toHaveClass(
+      "editor-code-block-language-empty",
+    );
+  });
+
   it("exposes stable selectors for code block styling", async () => {
     const user = userEvent.setup();
     renderCodeBlock("javascript");
