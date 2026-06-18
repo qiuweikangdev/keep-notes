@@ -43,6 +43,69 @@ describe("blocknote overrides stylesheet", () => {
     expect(stylesheet).toMatch(
       /\.bn-block-content\[data-content-type="checkListItem"\] > div > input\s*\{[\s\S]*height:\s*18px;/,
     );
+    expect(stylesheet).toMatch(
+      /\.bn-block-content\[data-content-type="checkListItem"\] > div > input\s*\{[\s\S]*border-radius:\s*4px;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.bn-block-content\[data-content-type="checkListItem"\]\[data-checked="true"\]\s+\.bn-inline-content\s*\{[\s\S]*color:\s*var\(--text-muted\);[\s\S]*text-decoration:\s*line-through;/,
+    );
+  });
+
+  it("renders quotes as a left rule instead of a bordered card", () => {
+    const quoteRule = getRule(".bn-editor blockquote");
+
+    expect(quoteRule).toBeDefined();
+    expect(quoteRule).toMatch(
+      /border-left:\s*3px solid var\(--accent-color\);/,
+    );
+    expect(quoteRule).toMatch(/border-radius:\s*0;/);
+    expect(quoteRule).not.toMatch(/border:\s*1px solid/);
+  });
+
+  it("keeps bullet lists compact and readable across nested levels", () => {
+    expect(stylesheet).toMatch(
+      /\.bn-editor ul\s*\{[\s\S]*padding-left:\s*1\.25em;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.bn-editor li::marker\s*\{[\s\S]*font-size:\s*0\.72em;[\s\S]*color:\s*var\(--text-muted\);/,
+    );
+    expect(stylesheet).toMatch(
+      /\.bn-editor ul ul\s*\{[\s\S]*margin-block:\s*0\.12em;/,
+    );
+  });
+
+  it("defines custom code block surface and floating controls", () => {
+    expect(getRule(".editor-code-block-shell")).toMatch(
+      /background:\s*#111827;/,
+    );
+    expect(getRule(".editor-code-block-shell")).toMatch(
+      /border:\s*1px solid color-mix\(in srgb,\s*var\(--border-color\) 72%,\s*#ffffff 10%\);/,
+    );
+    expect(getRule(".editor-code-block-language-trigger")).toMatch(
+      /position:\s*absolute;/,
+    );
+    expect(getRule(".editor-code-block-copy")).toMatch(/position:\s*absolute;/);
+    expect(getRule(".editor-code-block-gutter")).toMatch(
+      /user-select:\s*none;/,
+    );
+  });
+
+  it("polishes the custom language search popover", () => {
+    const popoverRule = getRule(".editor-code-block-language-popover");
+
+    expect(popoverRule).toBeDefined();
+    expect(popoverRule).toMatch(/background:\s*#0f172a;/);
+    expect(popoverRule).toMatch(/border-radius:\s*10px;/);
+    expect(popoverRule).toMatch(/box-shadow:\s*0 18px 44px/);
+    expect(stylesheet).toMatch(
+      /\.editor-code-block-language-popover input\[type="search"\]\s*\{[\s\S]*background:\s*#111827;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.editor-code-block__language-option\[aria-selected="true"\]\s*\{[\s\S]*background:\s*color-mix\(in srgb,\s*var\(--accent-color\) 22%,\s*transparent\);/,
+    );
+    expect(stylesheet).toMatch(
+      /\.editor-code-block__language-options:empty::after\s*\{[\s\S]*content:\s*"No languages found";/,
+    );
   });
 
   it("keeps paragraph text aligned with the block side menu", () => {

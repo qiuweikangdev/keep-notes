@@ -105,12 +105,31 @@
 }
 
 .bn-editor blockquote {
-  margin-block: 0.6em;
-  padding: 0.65em 0.85em;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--accent-color) 6%, var(--bg-primary));
+  margin-block: 0.55em;
+  padding: 0.2em 0 0.2em 0.9em;
+  border-left: 3px solid var(--accent-color);
+  border-radius: 0;
+  background: transparent;
   color: var(--text-secondary);
+}
+
+.bn-editor ul {
+  margin-block: 0.18em;
+  padding-left: 1.25em;
+}
+
+.bn-editor ul ul {
+  margin-block: 0.12em;
+  padding-left: 1.15em;
+}
+
+.bn-editor li {
+  padding-left: 0.15em;
+}
+
+.bn-editor li::marker {
+  font-size: 0.72em;
+  color: var(--text-muted);
 }
 
 .bn-editor a {
@@ -136,11 +155,11 @@
 
 /* 代码块主题适配 */
 .bn-block-content[data-content-type="codeBlock"] {
-  background-color: var(--bg-tertiary) !important;
+  background: transparent !important;
   color: var(--text-primary) !important;
-  border: 1px solid var(--border-color) !important;
-  border-radius: 8px !important;
-  margin-block: 0.6em;
+  border: 0 !important;
+  border-radius: 0 !important;
+  margin-block: 0.8em;
 }
 
 .bn-block-content[data-content-type="codeBlock"] > pre {
@@ -158,6 +177,157 @@
 .bn-block-content[data-content-type="codeBlock"] > div > select > option {
   color: var(--text-primary) !important;
   background-color: var(--bg-secondary) !important;
+}
+
+.editor-code-block-shell {
+  position: relative;
+  overflow: hidden;
+  background: #111827;
+  border: 1px solid color-mix(in srgb, var(--border-color) 72%, #ffffff 10%);
+  border-radius: 8px;
+  color: #d1d5db;
+  box-shadow: none;
+}
+
+.editor-code-block__toolbar {
+  position: absolute;
+  inset: 8px 10px auto 10px;
+  z-index: 2;
+  border: 0 !important;
+  padding: 0 !important;
+  pointer-events: none;
+}
+
+.editor-code-block-language-trigger {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 28px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.92);
+  color: #cbd5e1;
+  pointer-events: auto;
+  backdrop-filter: blur(8px);
+}
+
+.editor-code-block-language-trigger:hover {
+  background: rgba(30, 41, 59, 0.96);
+  color: #f8fafc;
+}
+
+.editor-code-block-copy {
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 28px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.88);
+  color: #cbd5e1;
+  pointer-events: auto;
+  backdrop-filter: blur(8px);
+}
+
+.editor-code-block-copy:hover {
+  background: rgba(30, 41, 59, 0.96);
+  color: #f8fafc;
+}
+
+.editor-code-block__body {
+  padding-top: 42px;
+  background: #111827;
+}
+
+.editor-code-block-gutter {
+  width: 3.25rem;
+  min-width: 3.25rem;
+  user-select: none;
+  border-right: 1px solid rgba(148, 163, 184, 0.16) !important;
+  background: #0f172a;
+  color: #64748b;
+  line-height: 1.6rem;
+}
+
+.editor-code-block__pre {
+  margin: 0;
+  overflow-x: auto;
+  background: #111827;
+  scrollbar-color: rgba(148, 163, 184, 0.38) transparent;
+}
+
+.editor-code-block__content {
+  display: block;
+  min-width: max-content;
+  font-family:
+    "SF Mono", "Fira Code", Consolas, "Courier New", monospace;
+  font-size: 0.88em;
+  line-height: 1.6rem;
+  color: #e5e7eb;
+  tab-size: 2;
+  white-space: pre;
+}
+
+.editor-code-block__content .shiki,
+.editor-code-block__content .shiki span {
+  background: transparent !important;
+}
+
+.editor-code-block__content span {
+  color: var(--shiki-light, var(--shiki-dark, #e5e7eb));
+}
+
+.editor-code-block-language-popover {
+  background: #0f172a;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 10px;
+  color: #e5e7eb;
+  box-shadow: 0 18px 44px rgba(2, 6, 23, 0.42);
+}
+
+.editor-code-block-language-popover input[type="search"] {
+  background: #111827;
+  color: #f8fafc;
+  border: 0;
+  border-radius: 6px;
+  appearance: none;
+}
+
+.editor-code-block-language-popover
+  input[type="search"]::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.editor-code-block__search-label {
+  border-color: rgba(148, 163, 184, 0.22) !important;
+  background: #111827;
+  color: #94a3b8;
+}
+
+.editor-code-block__language-options {
+  scrollbar-color: rgba(148, 163, 184, 0.38) transparent;
+}
+
+.editor-code-block__language-option {
+  color: #dbeafe;
+}
+
+.editor-code-block__language-option:hover {
+  background: rgba(51, 65, 85, 0.72);
+  color: #ffffff;
+}
+
+.editor-code-block__language-option[aria-selected="true"] {
+  background: color-mix(in srgb, var(--accent-color) 22%, transparent);
+  color: #ffffff;
+}
+
+.editor-code-block__language-options:empty::after {
+  content: "No languages found";
+  display: block;
+  padding: 10px 8px;
+  color: #94a3b8;
+  font-size: 0.82rem;
 }
 
 /* 内联代码样式 */
@@ -183,7 +353,7 @@
   margin-right: 10px;
   margin-block: 0;
   flex-shrink: 0;
-  border-radius: 9999px;
+  border-radius: 4px;
 }
 
 .bn-block-content[data-content-type="checkListItem"][data-checked="true"]
