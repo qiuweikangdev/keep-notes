@@ -52,7 +52,9 @@ describe("blocknote overrides stylesheet", () => {
   });
 
   it("renders quotes as a left rule instead of a bordered card", () => {
-    const quoteRule = getRule(".bn-editor blockquote");
+    const quoteRule = getRule(
+      '.bn-editor [data-content-type="quote"] blockquote',
+    );
 
     expect(quoteRule).toBeDefined();
     expect(quoteRule).toMatch(
