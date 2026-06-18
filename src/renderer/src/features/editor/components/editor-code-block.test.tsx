@@ -64,6 +64,31 @@ describe("EditorCodeBlock", () => {
     });
   });
 
+  it("exposes stable selectors for code block styling", async () => {
+    const user = userEvent.setup();
+    renderCodeBlock("javascript");
+
+    const code = screen.getByTestId("editor-code-block-content");
+    const shell = code.closest(".editor-code-block-shell");
+
+    expect(shell).toBeInTheDocument();
+    expect(
+      shell?.querySelector(".editor-code-block-language-trigger"),
+    ).toBeInTheDocument();
+    expect(
+      shell?.querySelector(".editor-code-block-gutter"),
+    ).toBeInTheDocument();
+    expect(shell?.querySelector(".editor-code-block-copy")).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: /change code language/i }),
+    );
+
+    expect(
+      shell?.querySelector(".editor-code-block-language-popover"),
+    ).toBeInTheDocument();
+  });
+
   it("copies only the code content", async () => {
     const user = userEvent.setup();
     const writeText = vi.fn().mockResolvedValue(undefined);

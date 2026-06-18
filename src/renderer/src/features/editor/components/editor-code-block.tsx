@@ -145,7 +145,7 @@ export function EditorCodeBlock({
   return (
     <div
       ref={rootRef}
-      className="editor-code-block relative rounded-md border border-[var(--border-color)] bg-[var(--bg-secondary)]"
+      className="editor-code-block-shell editor-code-block relative rounded-md border border-[var(--border-color)] bg-[var(--bg-secondary)]"
     >
       <div
         contentEditable={false}
@@ -157,7 +157,7 @@ export function EditorCodeBlock({
             aria-expanded={isLanguagePickerOpen}
             aria-haspopup="dialog"
             aria-label="Change code language"
-            className="editor-code-block__language-button inline-flex h-7 items-center gap-1.5 rounded px-2 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--button-hover-bg)] hover:text-[var(--text-primary)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--accent-color)]"
+            className="editor-code-block-language-trigger editor-code-block__language-button inline-flex h-7 items-center gap-1.5 rounded px-2 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--button-hover-bg)] hover:text-[var(--text-primary)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--accent-color)]"
             onClick={() => setIsLanguagePickerOpen((isOpen) => !isOpen)}
           >
             <span>{languageShortLabel}</span>
@@ -168,7 +168,7 @@ export function EditorCodeBlock({
             <div
               role="dialog"
               aria-label="Code language"
-              className="editor-code-block__language-dialog absolute left-0 top-8 z-50 w-64 rounded-md border border-[var(--border-color)] bg-[var(--bg-primary)] p-2 shadow-xl"
+              className="editor-code-block-language-popover editor-code-block__language-dialog absolute left-0 top-8 z-50 w-64 rounded-md border border-[var(--border-color)] bg-[var(--bg-primary)] p-2 shadow-xl"
             >
               <label className="editor-code-block__search-label flex h-8 items-center gap-2 rounded border border-[var(--border-color)] px-2 text-[var(--text-muted)]">
                 <Search className="h-3.5 w-3.5" aria-hidden="true" />
@@ -215,7 +215,7 @@ export function EditorCodeBlock({
         <button
           type="button"
           aria-label="Copy code"
-          className="editor-code-block__copy-button inline-flex h-7 items-center gap-1.5 rounded px-2 text-xs text-[var(--text-secondary)] hover:bg-[var(--button-hover-bg)] hover:text-[var(--text-primary)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--accent-color)]"
+          className="editor-code-block-copy editor-code-block__copy-button inline-flex h-7 items-center gap-1.5 rounded px-2 text-xs text-[var(--text-secondary)] hover:bg-[var(--button-hover-bg)] hover:text-[var(--text-primary)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--accent-color)]"
           onClick={handleCopy}
         >
           {isCopied ? (
@@ -231,7 +231,7 @@ export function EditorCodeBlock({
         <div
           contentEditable={false}
           aria-hidden="true"
-          className="editor-code-block__line-gutter select-none border-r border-[var(--border-color)] px-3 py-2 text-right font-mono text-xs leading-6 text-[var(--text-muted)]"
+          className="editor-code-block-gutter editor-code-block__line-gutter select-none border-r border-[var(--border-color)] px-3 py-2 text-right font-mono text-xs leading-6 text-[var(--text-muted)]"
         >
           {lineNumbers.map((lineNumber) => (
             <div key={lineNumber} className="editor-code-block__line-number">
