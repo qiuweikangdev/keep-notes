@@ -25,6 +25,7 @@ import {
   restoreEditorScrollTop,
 } from "../lib/editor-viewport";
 import { createParseFallback } from "../lib/editor-parse-fallback";
+import { editorSchema } from "../lib/blocknote-schema";
 
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
@@ -68,7 +69,10 @@ function BlockNoteEditorInner({
     null,
   );
   const applyTokenRef = useRef(0);
-  const editor = useCreateBlockNote({ initialContent: undefined });
+  const editor = useCreateBlockNote({
+    initialContent: undefined,
+    schema: editorSchema,
+  });
 
   // 获取 store 中的方法
   const setOutlineHeadings = useEditorStore(
