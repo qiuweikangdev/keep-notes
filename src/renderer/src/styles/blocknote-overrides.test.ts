@@ -12,7 +12,7 @@ function getRule(selector: string) {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const matches = Array.from(
     stylesheet.matchAll(
-      new RegExp(`${escapedSelector}\\s*\\{([\\s\\S]*?)\\n\\}`, "g"),
+      new RegExp(`(?:^|\\n)${escapedSelector}\\s*\\{([\\s\\S]*?)\\n\\}`, "g"),
     ),
   );
   return matches.at(-1)?.[1];
@@ -77,8 +77,15 @@ describe("blocknote overrides stylesheet", () => {
   });
 
   it("defines custom code block surface and floating controls", () => {
+    expect(getRule('.bn-block-content[data-content-type="codeBlock"]')).toMatch(
+      /width:\s*100%;/,
+    );
+    expect(getRule('.bn-block-content[data-content-type="codeBlock"]')).toMatch(
+      /max-width:\s*100%;/,
+    );
+    expect(getRule(".editor-code-block-shell")).toMatch(/width:\s*100%;/);
     expect(getRule(".editor-code-block-shell")).toMatch(
-      /background:\s*#111827;/,
+      /background:\s*#111417;/,
     );
     expect(getRule(".editor-code-block-shell")).toMatch(
       /border:\s*1px solid color-mix\(in srgb,\s*var\(--border-color\) 72%,\s*#ffffff 10%\);/,
@@ -87,6 +94,10 @@ describe("blocknote overrides stylesheet", () => {
       /position:\s*absolute;/,
     );
     expect(getRule(".editor-code-block-copy")).toMatch(/position:\s*absolute;/);
+    expect(getRule(".editor-code-block-copy")).toMatch(/opacity:\s*0;/);
+    expect(
+      getRule(".editor-code-block-shell:hover .editor-code-block-copy"),
+    ).toMatch(/opacity:\s*1;/);
     expect(getRule(".editor-code-block-gutter")).toMatch(
       /user-select:\s*none;/,
     );
@@ -121,6 +132,12 @@ describe("blocknote overrides stylesheet", () => {
     expect(getRule(".bn-editor h1")).toMatch(/margin-top:\s*0;/);
     expect(getRule(".bn-editor h2")).toMatch(/margin-top:\s*0;/);
     expect(getRule(".bn-editor h3")).toMatch(/margin-top:\s*0;/);
+  });
+
+  it("aligns the code block side menu with the code block header row", () => {
+    expect(getRule('.bn-side-menu[data-block-type="codeBlock"]')).toMatch(
+      /height:\s*44px;/,
+    );
   });
 
   it("keeps the table wrapper and extend row button within the editor width", () => {

@@ -159,30 +159,18 @@
   color: var(--text-primary) !important;
   border: 0 !important;
   border-radius: 0 !important;
+  width: 100%;
+  max-width: 100%;
   margin-block: 0.8em;
-}
-
-.bn-block-content[data-content-type="codeBlock"] > pre {
-  padding: 14px 16px !important;
-  font-family:
-    "SF Mono", "Fira Code", Consolas, "Courier New", monospace !important;
-  font-size: 0.88em !important;
-  line-height: 1.65 !important;
-}
-
-.bn-block-content[data-content-type="codeBlock"] > div > select {
-  color: var(--text-primary) !important;
-}
-
-.bn-block-content[data-content-type="codeBlock"] > div > select > option {
-  color: var(--text-primary) !important;
-  background-color: var(--bg-secondary) !important;
 }
 
 .editor-code-block-shell {
   position: relative;
   overflow: hidden;
-  background: #111827;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  background: #111417;
   border: 1px solid color-mix(in srgb, var(--border-color) 72%, #ffffff 10%);
   border-radius: 8px;
   color: #d1d5db;
@@ -225,8 +213,21 @@
   border-radius: 6px;
   background: rgba(15, 23, 42, 0.88);
   color: #cbd5e1;
+  opacity: 0;
   pointer-events: auto;
   backdrop-filter: blur(8px);
+  transition:
+    opacity 120ms ease,
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.editor-code-block-shell:hover .editor-code-block-copy {
+  opacity: 1;
+}
+
+.editor-code-block-shell:focus-within .editor-code-block-copy {
+  opacity: 1;
 }
 
 .editor-code-block-copy:hover {
@@ -236,7 +237,7 @@
 
 .editor-code-block__body {
   padding-top: 42px;
-  background: #111827;
+  background: #111417;
 }
 
 .editor-code-block-gutter {
@@ -252,7 +253,8 @@
 .editor-code-block__pre {
   margin: 0;
   overflow-x: auto;
-  background: #111827;
+  min-width: 0;
+  background: #111417;
   scrollbar-color: rgba(148, 163, 184, 0.38) transparent;
 }
 
@@ -329,6 +331,10 @@
   color: #94a3b8;
   font-size: 0.82rem;
   text-align: center;
+}
+
+.bn-side-menu[data-block-type="codeBlock"] {
+  height: 44px;
 }
 
 /* 内联代码样式 */
