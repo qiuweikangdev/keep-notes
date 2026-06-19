@@ -283,6 +283,7 @@
 
 .editor-code-block__content {
   display: block;
+  background: var(--editor-code-block-bg);
   min-width: max-content;
   font-family:
     "SF Mono", "Fira Code", Consolas, "Courier New", monospace;
@@ -298,8 +299,8 @@
   background: transparent !important;
 }
 
-.editor-code-block__content span {
-  color: var(--shiki-light, var(--shiki-dark, #e5e7eb));
+.editor-code-block__content .shiki {
+  color: revert;
 }
 
 .editor-code-block-language-popover {
@@ -360,7 +361,7 @@
 }
 
 .bn-side-menu[data-block-type="codeBlock"] {
-  height: 44px;
+  height: 72px;
   align-items: center;
 }
 

@@ -121,6 +121,12 @@ describe("blocknote overrides stylesheet", () => {
     expect(getRule(".editor-code-block-gutter")).toMatch(
       /user-select:\s*none;/,
     );
+    expect(getRule(".editor-code-block__content")).toMatch(
+      /background:\s*var\(--editor-code-block-bg\);/,
+    );
+    expect(getRule(".editor-code-block__content .shiki")).toMatch(
+      /color:\s*revert;/,
+    );
   });
 
   it("polishes the custom language search popover", () => {
@@ -161,7 +167,7 @@ describe("blocknote overrides stylesheet", () => {
 
   it("aligns the code block side menu with the code block header row", () => {
     expect(getRule('.bn-side-menu[data-block-type="codeBlock"]')).toMatch(
-      /height:\s*44px;/,
+      /height:\s*72px;/,
     );
     expect(getRule('.bn-side-menu[data-block-type="codeBlock"]')).toMatch(
       /align-items:\s*center;/,
