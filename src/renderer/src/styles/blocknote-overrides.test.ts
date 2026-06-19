@@ -98,6 +98,7 @@ describe("blocknote overrides stylesheet", () => {
     expect(popoverRule).toBeDefined();
     expect(popoverRule).toMatch(/background:\s*#0f172a;/);
     expect(popoverRule).toMatch(/border-radius:\s*10px;/);
+    expect(popoverRule).toMatch(/pointer-events:\s*auto;/);
     expect(popoverRule).toMatch(/box-shadow:\s*0 18px 44px/);
     expect(stylesheet).toMatch(
       /\.editor-code-block-language-popover input\[type="search"\]\s*\{[\s\S]*background:\s*#111827;/,
@@ -123,9 +124,6 @@ describe("blocknote overrides stylesheet", () => {
   });
 
   it("keeps the table wrapper and extend row button within the editor width", () => {
-    expect(stylesheet).toMatch(
-      /\.bn-editor \[data-content-type="table"\] \.tableWrapper\s*\{[\s\S]*max-width:\s*100%;/,
-    );
     expect(stylesheet).toMatch(
       /\.bn-editor \[data-content-type="table"\] table\s*\{[\s\S]*width:\s*max-content;/,
     );

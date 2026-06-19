@@ -282,6 +282,7 @@
   border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 10px;
   color: #e5e7eb;
+  pointer-events: auto;
   box-shadow: 0 18px 44px rgba(2, 6, 23, 0.42);
 }
 
