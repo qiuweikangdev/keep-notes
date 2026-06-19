@@ -231,7 +231,7 @@ export function EditorCodeBlock({
         <button
           type="button"
           aria-label="Copy code"
-          className="editor-code-block-copy editor-code-block__copy-button inline-flex h-7 items-center gap-1.5 rounded px-2 text-xs text-[var(--text-secondary)] hover:bg-[var(--button-hover-bg)] hover:text-[var(--text-primary)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--accent-color)]"
+          className="editor-code-block-copy editor-code-block__copy-button inline-flex h-7 items-center justify-center rounded text-xs text-[var(--text-secondary)] hover:bg-[var(--button-hover-bg)] hover:text-[var(--text-primary)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--accent-color)]"
           onClick={handleCopy}
         >
           {isCopied ? (
@@ -239,7 +239,6 @@ export function EditorCodeBlock({
           ) : (
             <Clipboard className="h-3.5 w-3.5" aria-hidden="true" />
           )}
-          <span>{isCopied ? "Copied" : "Copy"}</span>
         </button>
       </div>
 

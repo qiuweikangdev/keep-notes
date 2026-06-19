@@ -17,6 +17,14 @@
   --bn-colors-shadow: var(--border-color);
   --bn-colors-border: var(--border-color);
   --bn-colors-side-menu: var(--text-muted);
+  --editor-code-block-bg: #f8f9ff;
+  --editor-code-block-gutter-bg: #eef2ff;
+  --editor-code-block-text: #1f2937;
+  --editor-code-block-muted: #64748b;
+  --editor-code-block-control-bg: rgba(248, 249, 255, 0.94);
+  --editor-code-block-control-border: rgba(100, 116, 139, 0.28);
+  --editor-code-block-popover-bg: #f8f9ff;
+  --editor-code-block-popover-hover: rgba(226, 232, 240, 0.82);
 }
 
 /* 暗色主题 */
@@ -36,6 +44,14 @@
   --bn-colors-shadow: var(--border-color);
   --bn-colors-border: var(--border-color);
   --bn-colors-side-menu: var(--text-muted);
+  --editor-code-block-bg: #111417;
+  --editor-code-block-gutter-bg: #0f172a;
+  --editor-code-block-text: #e5e7eb;
+  --editor-code-block-muted: #94a3b8;
+  --editor-code-block-control-bg: rgba(15, 23, 42, 0.92);
+  --editor-code-block-control-border: rgba(148, 163, 184, 0.22);
+  --editor-code-block-popover-bg: #0f172a;
+  --editor-code-block-popover-hover: rgba(51, 65, 85, 0.72);
 }
 
 /* 编辑器背景色覆盖 */
@@ -159,6 +175,7 @@
   color: var(--text-primary) !important;
   border: 0 !important;
   border-radius: 0 !important;
+  overflow: visible;
   width: 100%;
   max-width: 100%;
   margin-block: 0.8em;
@@ -166,14 +183,14 @@
 
 .editor-code-block-shell {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  background: #111417;
+  background: var(--editor-code-block-bg);
   border: 1px solid color-mix(in srgb, var(--border-color) 72%, #ffffff 10%);
   border-radius: 8px;
-  color: #d1d5db;
+  color: var(--editor-code-block-text);
   box-shadow: none;
 }
 
@@ -191,10 +208,10 @@
   left: 0;
   top: 0;
   height: 28px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
+  border: 1px solid var(--editor-code-block-control-border);
   border-radius: 6px;
-  background: rgba(15, 23, 42, 0.92);
-  color: #cbd5e1;
+  background: var(--editor-code-block-control-bg);
+  color: var(--editor-code-block-text);
   pointer-events: auto;
   backdrop-filter: blur(8px);
 }
@@ -208,13 +225,15 @@
   position: absolute;
   right: 0;
   top: 0;
+  width: 28px;
   height: 28px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  padding: 0 !important;
+  border: 1px solid var(--editor-code-block-control-border);
   border-radius: 6px;
-  background: rgba(15, 23, 42, 0.88);
-  color: #cbd5e1;
+  background: var(--editor-code-block-control-bg);
+  color: var(--editor-code-block-text);
   opacity: 0;
-  pointer-events: auto;
+  pointer-events: none;
   backdrop-filter: blur(8px);
   transition:
     opacity 120ms ease,
@@ -224,10 +243,12 @@
 
 .editor-code-block-shell:hover .editor-code-block-copy {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .editor-code-block-shell:focus-within .editor-code-block-copy {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .editor-code-block-copy:hover {
@@ -237,7 +258,9 @@
 
 .editor-code-block__body {
   padding-top: 42px;
-  background: #111417;
+  overflow: hidden;
+  background: var(--editor-code-block-bg);
+  border-radius: 8px;
 }
 
 .editor-code-block-gutter {
@@ -245,8 +268,8 @@
   min-width: 3.25rem;
   user-select: none;
   border-right: 1px solid rgba(148, 163, 184, 0.16) !important;
-  background: #0f172a;
-  color: #64748b;
+  background: var(--editor-code-block-gutter-bg);
+  color: var(--editor-code-block-muted);
   line-height: 1.6rem;
 }
 
@@ -254,7 +277,7 @@
   margin: 0;
   overflow-x: auto;
   min-width: 0;
-  background: #111417;
+  background: var(--editor-code-block-bg);
   scrollbar-color: rgba(148, 163, 184, 0.38) transparent;
 }
 
@@ -265,7 +288,7 @@
     "SF Mono", "Fira Code", Consolas, "Courier New", monospace;
   font-size: 0.88em;
   line-height: 1.6rem;
-  color: #e5e7eb;
+  color: var(--prosemirror-highlight, var(--editor-code-block-text));
   tab-size: 2;
   white-space: pre;
 }
@@ -280,19 +303,22 @@
 }
 
 .editor-code-block-language-popover {
-  background: #0f172a;
+  background: var(--editor-code-block-popover-bg);
   border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 10px;
-  color: #e5e7eb;
+  color: var(--editor-code-block-text);
   pointer-events: auto;
   box-shadow: 0 18px 44px rgba(2, 6, 23, 0.42);
 }
 
 .editor-code-block-language-popover input[type="search"] {
-  background: #111827;
-  color: #f8fafc;
-  border: 0;
-  border-radius: 6px;
+  width: 100%;
+  background: transparent !important;
+  color: var(--editor-code-block-text);
+  border: 0 !important;
+  border-radius: 0;
+  outline: none !important;
+  box-shadow: none !important;
   appearance: none;
 }
 
@@ -303,8 +329,8 @@
 
 .editor-code-block__search-label {
   border-color: rgba(148, 163, 184, 0.22) !important;
-  background: #111827;
-  color: #94a3b8;
+  background: var(--editor-code-block-control-bg);
+  color: var(--editor-code-block-muted);
 }
 
 .editor-code-block__language-options {
@@ -312,12 +338,12 @@
 }
 
 .editor-code-block__language-option {
-  color: #dbeafe;
+  color: var(--editor-code-block-text);
 }
 
 .editor-code-block__language-option:hover {
-  background: rgba(51, 65, 85, 0.72);
-  color: #ffffff;
+  background: var(--editor-code-block-popover-hover);
+  color: var(--editor-code-block-text);
 }
 
 .editor-code-block__language-option[aria-selected="true"] {
@@ -335,6 +361,14 @@
 
 .bn-side-menu[data-block-type="codeBlock"] {
   height: 44px;
+  align-items: center;
+}
+
+.bn-side-menu[data-block-type="codeBlock"] .mantine-UnstyledButton-root {
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* 内联代码样式 */

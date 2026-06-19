@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createEditorCodeBlockHighlighter,
   editorBlockSpecs,
+  editorCodeBlockPreloadedLanguages,
   editorCodeBlockSupportedLanguages,
   editorCodeBlockThemes,
 } from "./blocknote-schema";
@@ -38,10 +39,8 @@ describe("editor BlockNote schema", () => {
     const highlighter = await createEditorCodeBlockHighlighter();
 
     expect(highlighter.getLoadedThemes()).toEqual([...editorCodeBlockThemes]);
-    expect(highlighter.getLoadedLanguages()).toEqual([]);
-
-    await highlighter.loadLanguage("typescript");
-
+    expect(editorCodeBlockPreloadedLanguages).toContain("javascript");
     expect(highlighter.getLoadedLanguages()).toContain("typescript");
+    expect(highlighter.getLoadedLanguages()).toContain("javascript");
   });
 });

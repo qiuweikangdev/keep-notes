@@ -118,7 +118,8 @@ describe("EditorCodeBlock", () => {
     await user.click(screen.getByRole("button", { name: /copy code/i }));
 
     expect(writeText).toHaveBeenCalledWith("console.log('copy me');");
-    expect(await screen.findByText("Copied")).toBeInTheDocument();
+    expect(screen.queryByText("Copy")).not.toBeInTheDocument();
+    expect(screen.queryByText("Copied")).not.toBeInTheDocument();
   });
 
   it("contains clipboard write failures without showing copied state", async () => {

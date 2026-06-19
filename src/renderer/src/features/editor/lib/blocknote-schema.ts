@@ -15,6 +15,10 @@ import { EditorCodeBlock } from "../components/editor-code-block";
 import { CODE_BLOCK_LANGUAGE_OPTIONS } from "./editor-code-block-languages";
 
 export const editorCodeBlockThemes = ["github-dark", "github-light"] as const;
+export const editorCodeBlockPreloadedLanguages =
+  CODE_BLOCK_LANGUAGE_OPTIONS.filter((language) => language.id !== "text").map(
+    (language) => language.id,
+  );
 
 export const editorCodeBlockSupportedLanguages: NonNullable<
   CodeBlockOptions["supportedLanguages"]
@@ -38,8 +42,8 @@ const baseCodeBlockSpec = createCodeBlockSpec(codeBlockOptions);
 
 export function createEditorCodeBlockHighlighter() {
   return createHighlighter({
-    // Shiki 语言由 BlockNote 高亮插件按当前代码块语言懒加载，避免首个代码块预加载整个常用语言集。
-    langs: [],
+    // 预加载编辑器支持的常用语言，避免已有代码块首次渲染时出现长时间无高亮。
+    langs: editorCodeBlockPreloadedLanguages,
     themes: [...editorCodeBlockThemes],
   });
 }
