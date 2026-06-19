@@ -21,10 +21,10 @@ function getRule(selector: string) {
 describe("blocknote overrides stylesheet", () => {
   it("defines theme-aware code block colors", () => {
     expect(getRule('.bn-root[data-color-scheme="light"]')).toMatch(
-      /--editor-code-block-bg:\s*#f8f9ff;/,
+      /--editor-code-block-bg:\s*#f8fbff;/,
     );
     expect(getRule('.bn-root[data-color-scheme="dark"]')).toMatch(
-      /--editor-code-block-bg:\s*#111417;/,
+      /--editor-code-block-bg:\s*#14181f;/,
     );
   });
 
@@ -101,7 +101,7 @@ describe("blocknote overrides stylesheet", () => {
     );
     expect(getRule(".editor-code-block-shell")).toMatch(/overflow:\s*visible;/);
     expect(getRule(".editor-code-block-shell")).toMatch(
-      /border:\s*1px solid color-mix\(in srgb,\s*var\(--border-color\) 72%,\s*#ffffff 10%\);/,
+      /border:\s*1px solid var\(--editor-code-block-border\);/,
     );
     expect(getRule(".editor-code-block-language-trigger")).toMatch(
       /position:\s*absolute;/,
@@ -121,11 +121,14 @@ describe("blocknote overrides stylesheet", () => {
     expect(getRule(".editor-code-block-gutter")).toMatch(
       /user-select:\s*none;/,
     );
+    expect(getRule(".editor-code-block-gutter")).toMatch(
+      /background:\s*var\(--editor-code-block-gutter-bg\);/,
+    );
     expect(getRule(".editor-code-block__content")).toMatch(
       /background:\s*var\(--editor-code-block-bg\);/,
     );
-    expect(getRule(".editor-code-block__content .shiki")).toMatch(
-      /color:\s*revert;/,
+    expect(stylesheet).not.toMatch(
+      /\.editor-code-block__content \.shiki\s*\{[\s\S]*color:/,
     );
   });
 
@@ -138,7 +141,9 @@ describe("blocknote overrides stylesheet", () => {
     );
     expect(popoverRule).toMatch(/border-radius:\s*10px;/);
     expect(popoverRule).toMatch(/pointer-events:\s*auto;/);
-    expect(popoverRule).toMatch(/box-shadow:\s*0 18px 44px/);
+    expect(popoverRule).toMatch(
+      /box-shadow:\s*var\(--editor-code-block-popover-shadow\);/,
+    );
     expect(stylesheet).toMatch(
       /\.editor-code-block-language-popover input\[type="search"\]\s*\{[\s\S]*background:\s*transparent !important;/,
     );
@@ -166,6 +171,9 @@ describe("blocknote overrides stylesheet", () => {
   });
 
   it("aligns the code block side menu with the code block header row", () => {
+    expect(getRule('.bn-side-menu[data-block-type="codeBlock"]')).toMatch(
+      /display:\s*flex;/,
+    );
     expect(getRule('.bn-side-menu[data-block-type="codeBlock"]')).toMatch(
       /height:\s*72px;/,
     );

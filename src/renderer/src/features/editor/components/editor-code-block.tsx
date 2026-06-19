@@ -31,6 +31,14 @@ interface EditorCodeBlockEditor {
       };
     },
   ) => void;
+  prosemirrorView?: {
+    state: {
+      tr: {
+        setMeta: (key: string, value: unknown) => unknown;
+      };
+    };
+    dispatch: (transaction: unknown) => void;
+  };
 }
 
 interface EditorCodeBlockProps {
@@ -47,6 +55,13 @@ export function getCodeBlockLineNumbers(codeText: string): number[] {
 
 export function readCodeBlockText(element: HTMLElement | null): string {
   return element?.textContent ?? "";
+}
+
+export function refreshCodeBlockHighlighting(editor: EditorCodeBlockEditor) {
+  const view = editor.prosemirrorView;
+  if (!view) return;
+
+  view.dispatch(view.state.tr.setMeta("prosemirror-highlight-refresh", true));
 }
 
 export function EditorCodeBlock({
@@ -101,6 +116,21 @@ export function EditorCodeBlock({
 
     return () => observer.disconnect();
   }, [updateLineNumbers]);
+
+  useEffect(() => {
+    // Shiki 首次加载是异步的，触发空事务让 ProseMirror 重新计算高亮 decoration。
+    const animationFrame = window.requestAnimationFrame(() =>
+      refreshCodeBlockHighlighting(editor),
+    );
+    const delayedRefreshes = [180, 600, 1200].map((delay) =>
+      window.setTimeout(() => refreshCodeBlockHighlighting(editor), delay),
+    );
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      delayedRefreshes.forEach((timer) => window.clearTimeout(timer));
+    };
+  }, [editor, language]);
 
   useEffect(() => {
     if (!isLanguagePickerOpen) return;
@@ -261,8 +291,6 @@ export function EditorCodeBlock({
             data-testid="editor-code-block-content"
             data-language={language}
             className={`editor-code-block__content language-${language}`}
-            contentEditable
-            suppressContentEditableWarning
             aria-label={`${languageLabel} code`}
           />
         </pre>

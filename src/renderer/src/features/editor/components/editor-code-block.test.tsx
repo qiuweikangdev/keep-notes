@@ -6,6 +6,7 @@ import {
   EditorCodeBlock,
   getCodeBlockLineNumbers,
   readCodeBlockText,
+  refreshCodeBlockHighlighting,
 } from "./editor-code-block";
 
 afterEach(() => {
@@ -44,6 +45,25 @@ describe("EditorCodeBlock", () => {
     expect(readCodeBlockText(element)).toBe(
       "const value = 1;\nconsole.log(value);",
     );
+  });
+
+  it("refreshes ProseMirror decorations without changing code text", () => {
+    const transaction = { setMeta: vi.fn(() => "refresh-transaction") };
+    const dispatch = vi.fn();
+
+    refreshCodeBlockHighlighting({
+      updateBlock: vi.fn(),
+      prosemirrorView: {
+        state: { tr: transaction },
+        dispatch,
+      },
+    });
+
+    expect(transaction.setMeta).toHaveBeenCalledWith(
+      "prosemirror-highlight-refresh",
+      true,
+    );
+    expect(dispatch).toHaveBeenCalledWith("refresh-transaction");
   });
 
   it("renders a polished language picker and updates the block language", async () => {
@@ -94,6 +114,7 @@ describe("EditorCodeBlock", () => {
       shell?.querySelector(".editor-code-block-gutter"),
     ).toBeInTheDocument();
     expect(shell?.querySelector(".editor-code-block-copy")).toBeInTheDocument();
+    expect(code).not.toHaveAttribute("contenteditable");
 
     await user.click(
       screen.getByRole("button", { name: /change code language/i }),

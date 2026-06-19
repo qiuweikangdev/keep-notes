@@ -17,14 +17,19 @@
   --bn-colors-shadow: var(--border-color);
   --bn-colors-border: var(--border-color);
   --bn-colors-side-menu: var(--text-muted);
-  --editor-code-block-bg: #f8f9ff;
-  --editor-code-block-gutter-bg: #eef2ff;
-  --editor-code-block-text: #1f2937;
-  --editor-code-block-muted: #64748b;
-  --editor-code-block-control-bg: rgba(248, 249, 255, 0.94);
-  --editor-code-block-control-border: rgba(100, 116, 139, 0.28);
-  --editor-code-block-popover-bg: #f8f9ff;
-  --editor-code-block-popover-hover: rgba(226, 232, 240, 0.82);
+  --editor-code-block-bg: #f8fbff;
+  --editor-code-block-gutter-bg: #f2f6ff;
+  --editor-code-block-text: #1f2328;
+  --editor-code-block-muted: #6b7280;
+  --editor-code-block-border: rgba(191, 204, 224, 0.9);
+  --editor-code-block-gutter-border: rgba(209, 219, 235, 0.92);
+  --editor-code-block-control-bg: rgba(255, 255, 255, 0.92);
+  --editor-code-block-control-border: rgba(148, 163, 184, 0.34);
+  --editor-code-block-control-hover-bg: #eef4ff;
+  --editor-code-block-control-hover-text: #1d4ed8;
+  --editor-code-block-popover-bg: #ffffff;
+  --editor-code-block-popover-hover: #eef4ff;
+  --editor-code-block-popover-shadow: 0 18px 44px rgba(148, 163, 184, 0.2);
 }
 
 /* 暗色主题 */
@@ -44,14 +49,19 @@
   --bn-colors-shadow: var(--border-color);
   --bn-colors-border: var(--border-color);
   --bn-colors-side-menu: var(--text-muted);
-  --editor-code-block-bg: #111417;
-  --editor-code-block-gutter-bg: #0f172a;
-  --editor-code-block-text: #e5e7eb;
-  --editor-code-block-muted: #94a3b8;
-  --editor-code-block-control-bg: rgba(15, 23, 42, 0.92);
-  --editor-code-block-control-border: rgba(148, 163, 184, 0.22);
-  --editor-code-block-popover-bg: #0f172a;
-  --editor-code-block-popover-hover: rgba(51, 65, 85, 0.72);
+  --editor-code-block-bg: #14181f;
+  --editor-code-block-gutter-bg: #10141b;
+  --editor-code-block-text: #d8dee9;
+  --editor-code-block-muted: #7c8599;
+  --editor-code-block-border: rgba(64, 72, 92, 0.92);
+  --editor-code-block-gutter-border: rgba(58, 66, 86, 0.92);
+  --editor-code-block-control-bg: rgba(24, 29, 39, 0.92);
+  --editor-code-block-control-border: rgba(108, 118, 145, 0.28);
+  --editor-code-block-control-hover-bg: #242c38;
+  --editor-code-block-control-hover-text: #ffffff;
+  --editor-code-block-popover-bg: #1a1f29;
+  --editor-code-block-popover-hover: rgba(72, 82, 110, 0.34);
+  --editor-code-block-popover-shadow: 0 20px 48px rgba(2, 6, 23, 0.5);
 }
 
 /* 编辑器背景色覆盖 */
@@ -188,7 +198,7 @@
   max-width: 100%;
   min-width: 0;
   background: var(--editor-code-block-bg);
-  border: 1px solid color-mix(in srgb, var(--border-color) 72%, #ffffff 10%);
+  border: 1px solid var(--editor-code-block-border);
   border-radius: 8px;
   color: var(--editor-code-block-text);
   box-shadow: none;
@@ -217,8 +227,8 @@
 }
 
 .editor-code-block-language-trigger:hover {
-  background: rgba(30, 41, 59, 0.96);
-  color: #f8fafc;
+  background: var(--editor-code-block-control-hover-bg);
+  color: var(--editor-code-block-control-hover-text);
 }
 
 .editor-code-block-copy {
@@ -252,8 +262,8 @@
 }
 
 .editor-code-block-copy:hover {
-  background: rgba(30, 41, 59, 0.96);
-  color: #f8fafc;
+  background: var(--editor-code-block-control-hover-bg);
+  color: var(--editor-code-block-control-hover-text);
 }
 
 .editor-code-block__body {
@@ -267,7 +277,7 @@
   width: 3.25rem;
   min-width: 3.25rem;
   user-select: none;
-  border-right: 1px solid rgba(148, 163, 184, 0.16) !important;
+  border-right: 1px solid var(--editor-code-block-gutter-border) !important;
   background: var(--editor-code-block-gutter-bg);
   color: var(--editor-code-block-muted);
   line-height: 1.6rem;
@@ -299,17 +309,13 @@
   background: transparent !important;
 }
 
-.editor-code-block__content .shiki {
-  color: revert;
-}
-
 .editor-code-block-language-popover {
   background: var(--editor-code-block-popover-bg);
   border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 10px;
   color: var(--editor-code-block-text);
   pointer-events: auto;
-  box-shadow: 0 18px 44px rgba(2, 6, 23, 0.42);
+  box-shadow: var(--editor-code-block-popover-shadow);
 }
 
 .editor-code-block-language-popover input[type="search"] {
@@ -361,6 +367,7 @@
 }
 
 .bn-side-menu[data-block-type="codeBlock"] {
+  display: flex;
   height: 72px;
   align-items: center;
 }

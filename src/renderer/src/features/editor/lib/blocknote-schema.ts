@@ -9,12 +9,15 @@ import {
   createCodeBlockSpec,
 } from "@blocknote/core/blocks";
 import { createReactBlockSpec } from "@blocknote/react";
-import { createHighlighter } from "shiki";
+import { createHighlighter, createJavaScriptRegexEngine } from "shiki";
 
 import { EditorCodeBlock } from "../components/editor-code-block";
 import { CODE_BLOCK_LANGUAGE_OPTIONS } from "./editor-code-block-languages";
 
-export const editorCodeBlockThemes = ["github-dark", "github-light"] as const;
+export const editorCodeBlockThemes = [
+  "material-theme-palenight",
+  "light-plus",
+] as const;
 export const editorCodeBlockPreloadedLanguages =
   CODE_BLOCK_LANGUAGE_OPTIONS.filter((language) => language.id !== "text").map(
     (language) => language.id,
@@ -42,6 +45,8 @@ const baseCodeBlockSpec = createCodeBlockSpec(codeBlockOptions);
 
 export function createEditorCodeBlockHighlighter() {
   return createHighlighter({
+    // Electron renderer 的 CSP 不允许 WebAssembly eval，使用 JS 正则引擎避免 Shiki Oniguruma WASM 被拦截。
+    engine: createJavaScriptRegexEngine(),
     // 预加载编辑器支持的常用语言，避免已有代码块首次渲染时出现长时间无高亮。
     langs: editorCodeBlockPreloadedLanguages,
     themes: [...editorCodeBlockThemes],
