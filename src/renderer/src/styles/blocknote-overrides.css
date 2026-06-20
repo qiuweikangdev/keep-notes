@@ -32,7 +32,7 @@
   --editor-code-block-popover-shadow: 0 18px 44px rgba(148, 163, 184, 0.2);
   --editor-code-block-fold-bg: rgba(37, 99, 235, 0.11);
   --editor-code-block-fold-text: #1d4ed8;
-  --editor-code-token-filter: saturate(2.25) contrast(1.85) brightness(0.56);
+  --editor-code-token-shadow: 0 0 0 currentColor;
 }
 
 /* 暗色主题 */
@@ -67,7 +67,7 @@
   --editor-code-block-popover-shadow: 0 20px 48px rgba(2, 6, 23, 0.5);
   --editor-code-block-fold-bg: rgba(88, 166, 255, 0.18);
   --editor-code-block-fold-text: #79c0ff;
-  --editor-code-token-filter: saturate(1.75) contrast(1.32) brightness(1.2);
+  --editor-code-token-shadow: 0 0 0 currentColor;
 }
 
 /* 编辑器背景色覆盖 */
@@ -275,7 +275,7 @@
 .editor-code-block__body {
   padding-top: 42px;
   overflow: hidden;
-  background: var(--editor-code-block-bg);
+  background: var(--editor-code-block-bg) !important;
   border-radius: 8px;
 }
 
@@ -283,8 +283,8 @@
   width: 4.25rem;
   min-width: 4.25rem;
   user-select: none;
-  border-right: 1px solid var(--editor-code-block-gutter-border) !important;
-  background: var(--editor-code-block-bg);
+  border-right: 0 !important;
+  background: var(--editor-code-block-bg) !important;
   color: var(--editor-code-block-muted);
   line-height: 1.6rem;
 }
@@ -299,7 +299,7 @@
 
 .editor-code-block__fold-toggle,
 .editor-code-block__fold-spacer {
-  width: 1rem;
+  width: 0.85rem;
   height: 1rem;
 }
 
@@ -314,7 +314,7 @@
   background: transparent;
   color: var(--editor-code-block-muted);
   cursor: pointer;
-  opacity: 0.72;
+  opacity: 0.82;
 }
 
 .editor-code-block__fold-toggle:hover {
@@ -328,13 +328,13 @@
   margin: 0;
   overflow-x: auto;
   min-width: 0;
-  background: var(--editor-code-block-bg);
+  background: var(--editor-code-block-bg) !important;
   scrollbar-color: rgba(148, 163, 184, 0.38) transparent;
 }
 
 .editor-code-block__content {
   display: block;
-  background: var(--editor-code-block-bg);
+  background: var(--editor-code-block-bg) !important;
   min-width: max-content;
   font-family:
     "SF Mono", "Fira Code", Consolas, "Courier New", monospace;
@@ -356,23 +356,26 @@
 .editor-code-block__content .shiki,
 .editor-code-block__content .shiki span,
 .editor-code-block__content span[style*="color"],
-.editor-code-block__content span[style*="--prosemirror-highlight"] {
+.editor-code-block__content span[style*="--prosemirror-highlight"],
+.editor-code-block__fold-preview span[style*="color"],
+.editor-code-block__fold-preview span[style*="--prosemirror-highlight"] {
   background: transparent !important;
 }
 
 .editor-code-block__content .shiki span,
 .editor-code-block__content span[style*="color"],
-.editor-code-block__content span[style*="--prosemirror-highlight"] {
-  filter: var(--editor-code-token-filter);
+.editor-code-block__content span[style*="--prosemirror-highlight"],
+.editor-code-block__fold-preview span[style*="color"],
+.editor-code-block__fold-preview span[style*="--prosemirror-highlight"] {
   font-weight: 700;
   opacity: 1 !important;
-  text-shadow: 0 0 0 currentColor;
+  text-shadow: var(--editor-code-token-shadow);
 }
 
 .editor-code-block__fold-preview {
   display: block;
   min-width: max-content;
-  background: var(--editor-code-block-bg);
+  background: var(--editor-code-block-bg) !important;
   color: var(--editor-code-block-text);
   font-family:
     "SF Mono", "Fira Code", Consolas, "Courier New", monospace;
@@ -383,16 +386,28 @@
   white-space: pre;
 }
 
+.editor-code-block__fold-preview-line {
+  display: block;
+  min-height: 1.6rem;
+}
+
+.editor-code-block__fold-preview-code {
+  display: inline;
+}
+
 .editor-code-block__fold-placeholder {
   display: inline-flex;
   align-items: center;
-  margin-left: 0.4rem;
-  padding: 0 0.45rem;
-  border-radius: 999px;
-  background: var(--editor-code-block-fold-bg);
+  justify-content: center;
+  margin-inline: 0.2rem;
+  padding: 0 0.28rem;
+  border: 1px solid color-mix(in srgb, var(--editor-code-block-fold-text) 36%, transparent);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--editor-code-block-fold-bg) 68%, transparent);
   color: var(--editor-code-block-fold-text);
-  font-size: 0.78em;
-  line-height: 1.2rem;
+  font-size: 0.72em;
+  font-weight: 700;
+  line-height: 0.92rem;
 }
 
 .editor-code-block-language-popover {

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, type CSSProperties } from "react";
 import { useCreateBlockNote, useEditorChange } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
 import type { Block, InlineContent } from "@blocknote/core";
+import { AllSelection } from "@tiptap/pm/state";
+import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 
 import { useTheme } from "@/hooks/use-theme";
 import { useDiffStore } from "@/store/diff.store";
@@ -26,10 +28,36 @@ import {
 } from "../lib/editor-viewport";
 import { createParseFallback } from "../lib/editor-parse-fallback";
 import { editorSchema } from "../lib/blocknote-schema";
+import { selectCodeBlockContent } from "./editor-code-block";
 
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 import "@/styles/blocknote-overrides.css";
+
+interface RichEditorSelectionTarget {
+  prosemirrorView?: {
+    state: {
+      doc: ProseMirrorNode;
+      tr: {
+        setSelection: (selection: AllSelection) => {
+          scrollIntoView?: () => unknown;
+        };
+      };
+    };
+    dispatch: (transaction: unknown) => void;
+    focus?: () => void;
+  };
+}
+
+interface RichEditorSelectAllEvent {
+  altKey: boolean;
+  ctrlKey: boolean;
+  key: string;
+  metaKey: boolean;
+  preventDefault: () => void;
+  stopPropagation: () => void;
+  target: EventTarget | null;
+}
 
 interface BlockNoteEditorInnerProps {
   groupId: string;
@@ -44,6 +72,75 @@ interface BlockNoteEditorInnerProps {
 }
 
 const MARKDOWN_PARSER_VERSION = "blocknote-v2";
+
+function isSelectAllShortcut(event: RichEditorSelectAllEvent) {
+  return (
+    event.key.toLowerCase() === "a" &&
+    (event.metaKey || event.ctrlKey) &&
+    !event.altKey
+  );
+}
+
+function getElementFromEventTarget(target: EventTarget | null) {
+  if (target instanceof Element) return target;
+  if (target instanceof Node) return target.parentElement;
+  return null;
+}
+
+function getCodeElementFromSelectionRoot(root: Element | null) {
+  const selection = window.getSelection?.();
+  const anchorNode = selection?.anchorNode;
+  const anchorElement =
+    anchorNode instanceof Element ? anchorNode : anchorNode?.parentElement;
+
+  return (
+    root?.querySelector<HTMLElement>(".editor-code-block__content") ??
+    anchorElement
+      ?.closest(".editor-code-block-shell")
+      ?.querySelector<HTMLElement>(".editor-code-block__content") ??
+    null
+  );
+}
+
+export function selectEntireRichEditorContent(
+  editor: RichEditorSelectionTarget,
+): boolean {
+  const view = editor.prosemirrorView;
+  if (!view) return false;
+
+  const transaction = view.state.tr.setSelection(
+    new AllSelection(view.state.doc),
+  );
+  view.dispatch(transaction.scrollIntoView?.() ?? transaction);
+  try {
+    view.focus?.();
+  } catch {
+    // 未挂载的测试/初始化阶段没有可聚焦 view；selection dispatch 已经完成即可。
+  }
+
+  return true;
+}
+
+export function handleRichEditorSelectAllShortcut(
+  event: RichEditorSelectAllEvent,
+  editor: RichEditorSelectionTarget,
+): boolean {
+  if (!isSelectAllShortcut(event)) return false;
+
+  const targetElement = getElementFromEventTarget(event.target);
+  const codeBlockRoot =
+    targetElement?.closest(".editor-code-block-shell") ?? null;
+  const codeElement = getCodeElementFromSelectionRoot(codeBlockRoot);
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  if (codeElement) {
+    return selectCodeBlockContent(codeElement, editor.prosemirrorView);
+  }
+
+  return selectEntireRichEditorContent(editor);
+}
 
 function BlockNoteEditorInner({
   groupId,
@@ -411,6 +508,14 @@ function BlockNoteEditorInner({
     changeGateRef.current.markUserIntent();
   }, []);
 
+  const handleKeyDownCapture = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      markUserIntent();
+      handleRichEditorSelectAllShortcut(event, editor);
+    },
+    [editor, markUserIntent],
+  );
+
   useEffect(() => {
     const handleFloatingControlPointerDown = (event: PointerEvent) => {
       const target = event.target;
@@ -455,7 +560,7 @@ function BlockNoteEditorInner({
       onFocus={onFocus}
       onClick={onFocus}
       onBeforeInputCapture={markUserIntent}
-      onKeyDownCapture={markUserIntent}
+      onKeyDownCapture={handleKeyDownCapture}
       onPointerDownCapture={markUserIntent}
       onPasteCapture={markUserIntent}
       onCutCapture={markUserIntent}

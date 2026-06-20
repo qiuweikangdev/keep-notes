@@ -4,8 +4,11 @@ import {
   useMemo,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
   type RefCallback,
 } from "react";
+import { TextSelection } from "@tiptap/pm/state";
+import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import {
   Check,
   ChevronDown,
@@ -39,11 +42,17 @@ interface EditorCodeBlockEditor {
   ) => void;
   prosemirrorView?: {
     state: {
+      doc: ProseMirrorNode;
       tr: {
         setMeta: (key: string, value: unknown) => unknown;
+        setSelection?: (selection: TextSelection) => {
+          scrollIntoView?: () => unknown;
+        };
       };
     };
     dispatch: (transaction: unknown) => void;
+    focus?: () => void;
+    posAtDOM?: (node: Node, offset: number) => number;
   };
 }
 
@@ -62,6 +71,83 @@ export interface CodeBlockVisibleLine {
   lineNumber: number;
   text: string;
   foldedRange?: CodeBlockFoldRange;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function serializeElementAttributes(element: Element): string {
+  const attributes = Array.from(element.attributes)
+    .filter(
+      (attribute) =>
+        ["class", "style"].includes(attribute.name) ||
+        attribute.name.startsWith("data-") ||
+        attribute.name.startsWith("aria-"),
+    )
+    .map((attribute) => ` ${attribute.name}="${escapeHtml(attribute.value)}"`);
+
+  return attributes.join("");
+}
+
+function wrapHighlightedText(text: string, ancestors: Element[]): string {
+  let html = escapeHtml(text);
+  const inlineAncestors = ancestors.filter(
+    (element) => element.tagName.toLowerCase() === "span",
+  );
+
+  for (let index = inlineAncestors.length - 1; index >= 0; index -= 1) {
+    const element = inlineAncestors[index];
+    const tagName = element.tagName.toLowerCase();
+    html = `<${tagName}${serializeElementAttributes(element)}>${html}</${tagName}>`;
+  }
+
+  return html;
+}
+
+export function getHighlightedCodeBlockLineHtml(
+  element: HTMLElement | null,
+  codeText: string,
+): string[] {
+  const fallbackLines = codeText.split("\n").map(escapeHtml);
+  if (!element) return fallbackLines.length > 0 ? fallbackLines : [""];
+
+  const lineHtml: string[] = [""];
+
+  const appendText = (text: string, ancestors: Element[]) => {
+    const parts = text.split("\n");
+
+    parts.forEach((part, index) => {
+      if (index > 0) {
+        lineHtml.push("");
+      }
+      if (!part) return;
+
+      lineHtml[lineHtml.length - 1] += wrapHighlightedText(part, ancestors);
+    });
+  };
+
+  const visitNode = (node: Node, ancestors: Element[]) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      appendText(node.textContent ?? "", ancestors);
+      return;
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+    const elementNode = node as Element;
+    const nextAncestors = [...ancestors, elementNode];
+
+    node.childNodes.forEach((childNode) => visitNode(childNode, nextAncestors));
+  };
+
+  element.childNodes.forEach((node) => visitNode(node, []));
+
+  return lineHtml.length > 0 ? lineHtml : fallbackLines;
 }
 
 export function getCodeBlockLineNumbers(codeText: string): number[] {
@@ -267,6 +353,94 @@ export function readCodeBlockText(element: HTMLElement | null): string {
   return element?.textContent ?? "";
 }
 
+type EditorCodeBlockProseMirrorView = NonNullable<
+  EditorCodeBlockEditor["prosemirrorView"]
+>;
+
+function getTextNodeBoundary(
+  element: HTMLElement,
+  direction: "start" | "end",
+): { node: Text; offset: number } | null {
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  let boundaryNode: Text | null = null;
+
+  for (
+    let currentNode = walker.nextNode() as Text | null;
+    currentNode;
+    currentNode = walker.nextNode() as Text | null
+  ) {
+    if (direction === "start") {
+      return { node: currentNode, offset: 0 };
+    }
+    boundaryNode = currentNode;
+  }
+
+  if (!boundaryNode) return null;
+
+  return {
+    node: boundaryNode,
+    offset: boundaryNode.textContent?.length ?? 0,
+  };
+}
+
+export function selectCodeBlockContent(
+  element: HTMLElement | null,
+  view?: EditorCodeBlockProseMirrorView,
+): boolean {
+  const selection = window.getSelection?.();
+  if (!element || !selection) return false;
+
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  selection.removeAllRanges();
+  selection.addRange(range);
+
+  if (view?.posAtDOM && view.state.tr.setSelection) {
+    try {
+      const startBoundary = getTextNodeBoundary(element, "start");
+      const endBoundary = getTextNodeBoundary(element, "end");
+      const from = startBoundary
+        ? view.posAtDOM(startBoundary.node, startBoundary.offset)
+        : view.posAtDOM(element, 0);
+      const to = endBoundary
+        ? view.posAtDOM(endBoundary.node, endBoundary.offset)
+        : view.posAtDOM(element, element.childNodes.length);
+      const textSelection = TextSelection.create(
+        view.state.doc,
+        Math.min(from, to),
+        Math.max(from, to),
+      );
+      const transaction = view.state.tr.setSelection(textSelection);
+      view.dispatch(transaction.scrollIntoView?.() ?? transaction);
+      view.focus?.();
+    } catch {
+      // DOM Selection 已经生效；ProseMirror 位置映射失败时不阻断用户的全选反馈。
+    }
+  }
+
+  return true;
+}
+
+function isCodeBlockSelectAllShortcut(event: ReactKeyboardEvent<HTMLElement>) {
+  return (
+    event.key.toLowerCase() === "a" &&
+    (event.metaKey || event.ctrlKey) &&
+    !event.altKey
+  );
+}
+
+function isSelectionInsideElement(element: HTMLElement): boolean {
+  const selection = window.getSelection?.();
+  if (!selection || selection.rangeCount === 0) return false;
+
+  const { anchorNode, focusNode } = selection;
+
+  return (
+    (!anchorNode || element.contains(anchorNode)) &&
+    (!focusNode || element.contains(focusNode))
+  );
+}
+
 export function refreshCodeBlockHighlighting(editor: EditorCodeBlockEditor) {
   const view = editor.prosemirrorView;
   if (!view) return;
@@ -288,6 +462,7 @@ export function EditorCodeBlock({
     getCodeBlockLineNumbers(""),
   );
   const [codeText, setCodeText] = useState("");
+  const [highlightRevision, setHighlightRevision] = useState(0);
   const [foldedStartLines, setFoldedStartLines] = useState<Set<number>>(
     () => new Set(),
   );
@@ -314,6 +489,10 @@ export function EditorCodeBlock({
     () => getCodeBlockVisibleLines(codeText, foldedStartLines),
     [codeText, foldedStartLines],
   );
+  const highlightedLineHtml = useMemo(
+    () => getHighlightedCodeBlockLineHtml(codeRef.current, codeText),
+    [codeText, highlightRevision],
+  );
   const hasFoldedLines = visibleLines.some((line) => line.foldedRange);
   const displayedLineNumbers = hasFoldedLines
     ? visibleLines.map((line) => line.lineNumber)
@@ -324,6 +503,7 @@ export function EditorCodeBlock({
 
     setCodeText(nextCodeText);
     setLineNumbers(getCodeBlockLineNumbers(nextCodeText));
+    setHighlightRevision((revision) => revision + 1);
   }, []);
 
   const setCodeElement = useCallback(
@@ -447,10 +627,29 @@ export function EditorCodeBlock({
     });
   };
 
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!isCodeBlockSelectAllShortcut(event)) return;
+
+    const codeElement = codeRef.current;
+    const eventTarget = event.target instanceof Node ? event.target : null;
+    if (
+      !codeElement ||
+      ((!eventTarget || !codeElement.contains(eventTarget)) &&
+        !isSelectionInsideElement(codeElement))
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    selectCodeBlockContent(codeElement, editor.prosemirrorView);
+  };
+
   return (
     <div
       ref={rootRef}
       className="editor-code-block-shell editor-code-block relative rounded-md border border-[var(--border-color)] bg-[var(--bg-secondary)]"
+      onKeyDown={handleKeyDown}
     >
       <div
         contentEditable={false}
@@ -540,7 +739,7 @@ export function EditorCodeBlock({
       <div className="editor-code-block__body grid grid-cols-[auto_1fr]">
         <div
           contentEditable={false}
-          className="editor-code-block-gutter editor-code-block__line-gutter select-none border-r border-[var(--border-color)] px-3 py-2 text-right font-mono text-xs leading-6 text-[var(--text-muted)]"
+          className="editor-code-block-gutter editor-code-block__line-gutter select-none px-3 py-2 text-right font-mono text-xs leading-6 text-[var(--text-muted)]"
         >
           {displayedLineNumbers.map((lineNumber) => {
             const foldRange = foldRangeByStartLine.get(lineNumber);
@@ -597,15 +796,23 @@ export function EditorCodeBlock({
                   key={line.lineNumber}
                   className="editor-code-block__fold-preview-line"
                 >
-                  {line.text}
+                  <span
+                    className="editor-code-block__fold-preview-code"
+                    dangerouslySetInnerHTML={{
+                      __html:
+                        highlightedLineHtml[line.lineNumber - 1] ??
+                        escapeHtml(line.text),
+                    }}
+                  />
                   {line.foldedRange ? (
                     <span
                       contentEditable={false}
+                      aria-label={`${
+                        line.foldedRange.endLine - line.foldedRange.startLine
+                      } folded lines`}
                       className="editor-code-block__fold-placeholder"
                     >
-                      {"  ... "}
-                      {line.foldedRange.endLine - line.foldedRange.startLine}
-                      {" lines folded"}
+                      ...
                     </span>
                   ) : null}
                   {index < visibleLines.length - 1 ? "\n" : null}

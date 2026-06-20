@@ -122,17 +122,24 @@ describe("blocknote overrides stylesheet", () => {
       /user-select:\s*none;/,
     );
     expect(getRule(".editor-code-block-gutter")).toMatch(
-      /background:\s*var\(--editor-code-block-bg\);/,
+      /background:\s*var\(--editor-code-block-bg\) !important;/,
+    );
+    expect(getRule(".editor-code-block-gutter")).toMatch(
+      /border-right:\s*0 !important;/,
+    );
+    expect(getRule(".editor-code-block__body")).toMatch(
+      /background:\s*var\(--editor-code-block-bg\) !important;/,
+    );
+    expect(getRule(".editor-code-block__pre")).toMatch(
+      /background:\s*var\(--editor-code-block-bg\) !important;/,
     );
     expect(getRule(".editor-code-block__content")).toMatch(
-      /background:\s*var\(--editor-code-block-bg\);/,
+      /background:\s*var\(--editor-code-block-bg\) !important;/,
     );
     expect(stylesheet).not.toMatch(
       /\.editor-code-block__content \.shiki\s*\{[\s\S]*color:/,
     );
-    expect(stylesheet).toMatch(
-      /\.editor-code-block__content span\[style\*="color"\][\s\S]*\{[\s\S]*filter:\s*var\(--editor-code-token-filter\);/,
-    );
+    expect(stylesheet).not.toMatch(/--editor-code-token-filter/);
     expect(stylesheet).toMatch(
       /\.editor-code-block__content span\[style\*="color"\][\s\S]*\{[\s\S]*font-weight:\s*700;/,
     );
@@ -140,19 +147,31 @@ describe("blocknote overrides stylesheet", () => {
       /\.editor-code-block__content span\[style\*="color"\][\s\S]*\{[\s\S]*opacity:\s*1 !important;/,
     );
     expect(stylesheet).toMatch(
-      /\.editor-code-block__content \.shiki span[\s\S]*\{[\s\S]*filter:\s*var\(--editor-code-token-filter\);/,
-    );
-    expect(stylesheet).toMatch(
       /\.editor-code-block__content \.shiki span[\s\S]*\{[\s\S]*font-weight:\s*700;/,
     );
     expect(stylesheet).toMatch(
       /\.editor-code-block__content \.shiki span[\s\S]*\{[\s\S]*opacity:\s*1 !important;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.editor-code-block__fold-preview span\[style\*="color"\][\s\S]*\{[\s\S]*font-weight:\s*700;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.editor-code-block__fold-preview span\[style\*="color"\][\s\S]*\{[\s\S]*opacity:\s*1 !important;/,
     );
     expect(getRule(".editor-code-block__fold-toggle")).toMatch(
       /cursor:\s*pointer;/,
     );
     expect(getRule(".editor-code-block__content--source-hidden")).toMatch(
       /opacity:\s*0;/,
+    );
+    expect(getRule(".editor-code-block__fold-preview")).toMatch(
+      /background:\s*var\(--editor-code-block-bg\) !important;/,
+    );
+    expect(getRule(".editor-code-block__fold-preview-line")).toMatch(
+      /display:\s*block;/,
+    );
+    expect(getRule(".editor-code-block__fold-preview-code")).toMatch(
+      /display:\s*inline;/,
     );
   });
 

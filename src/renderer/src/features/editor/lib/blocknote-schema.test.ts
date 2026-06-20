@@ -94,6 +94,32 @@ describe("editor BlockNote schema", () => {
     expect(tokens.flat().some((token) => token.color)).toBe(true);
   });
 
+  it("uses the active editor color scheme when tokenizing code", async () => {
+    document.body.innerHTML =
+      '<div class="bn-root" data-color-scheme="dark" />';
+    const highlighter = await createEditorCodeBlockHighlighter();
+    const darkTokens = highlighter.codeToTokens("const a = 1", {
+      lang: "javascript",
+      theme: "one-light",
+    }).tokens;
+
+    document.body.innerHTML =
+      '<div class="bn-root" data-color-scheme="light" />';
+    const lightTokens = highlighter.codeToTokens("const a = 1", {
+      lang: "javascript",
+      theme: "one-dark-pro",
+    }).tokens;
+
+    const getTokenColors = (tokens: typeof darkTokens) =>
+      tokens
+        .flat()
+        .map((token) => token.color?.toLowerCase())
+        .filter(Boolean);
+
+    expect(getTokenColors(darkTokens)).toContain("#c678dd");
+    expect(getTokenColors(lightTokens)).toContain("#a626a4");
+  });
+
   it("creates Shiki token colors when WebAssembly compilation is blocked", async () => {
     const blockedWebAssembly = {
       compile: vi.fn(() => {
