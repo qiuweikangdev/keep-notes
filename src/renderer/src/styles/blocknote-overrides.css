@@ -164,6 +164,13 @@
   color: var(--text-muted);
 }
 
+/* 保留嵌套缩进，不显示 BlockNote 默认引导竖线。 */
+.bn-editor .bn-block-group .bn-block-group > .bn-block-outer::before {
+  content: none !important;
+  border-left: 0 !important;
+  display: none !important;
+}
+
 .bn-editor a {
   color: var(--accent-color);
   text-decoration-line: underline;

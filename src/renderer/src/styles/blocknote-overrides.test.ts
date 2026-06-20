@@ -85,6 +85,17 @@ describe("blocknote overrides stylesheet", () => {
     );
   });
 
+  it("removes BlockNote indent guide lines from nested blocks", () => {
+    const indentGuideRule = getRule(
+      ".bn-editor .bn-block-group .bn-block-group > .bn-block-outer::before",
+    );
+
+    expect(indentGuideRule).toBeDefined();
+    expect(indentGuideRule).toMatch(/content:\s*none !important;/);
+    expect(indentGuideRule).toMatch(/border-left:\s*0 !important;/);
+    expect(indentGuideRule).toMatch(/display:\s*none !important;/);
+  });
+
   it("defines custom code block surface and floating controls", () => {
     expect(getRule('.bn-block-content[data-content-type="codeBlock"]')).toMatch(
       /width:\s*100%;/,
