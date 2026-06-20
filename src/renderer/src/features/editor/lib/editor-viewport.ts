@@ -20,13 +20,9 @@ export function chooseRestoredEditorScrollTop({
   currentPath,
   nextPath,
   currentScrollTop,
-  cachedScrollTop,
 }: RestoredScrollTopOptions): number {
   if (currentPath && currentPath === nextPath) {
     return Math.max(0, currentScrollTop);
-  }
-  if (Number.isFinite(cachedScrollTop)) {
-    return Math.max(0, cachedScrollTop ?? 0);
   }
   return 0;
 }

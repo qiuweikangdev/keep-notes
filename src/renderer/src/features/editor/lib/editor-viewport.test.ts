@@ -36,7 +36,7 @@ describe("editor viewport", () => {
     ).toBe(420);
   });
 
-  it("uses cached scroll when switching to another cached file", () => {
+  it("starts at the top when switching to another cached file", () => {
     expect(
       chooseRestoredEditorScrollTop({
         currentPath: "a.md",
@@ -44,6 +44,6 @@ describe("editor viewport", () => {
         currentScrollTop: 420,
         cachedScrollTop: 88,
       }),
-    ).toBe(88);
+    ).toBe(0);
   });
 });
