@@ -6,7 +6,13 @@ import {
   useState,
   type RefCallback,
 } from "react";
-import { Check, ChevronDown, Clipboard, Search } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Clipboard,
+  Search,
+} from "lucide-react";
 
 import {
   getCodeBlockLanguageLabel,
@@ -47,10 +53,214 @@ interface EditorCodeBlockProps {
   contentRef?: RefCallback<HTMLElement>;
 }
 
+export interface CodeBlockFoldRange {
+  startLine: number;
+  endLine: number;
+}
+
+export interface CodeBlockVisibleLine {
+  lineNumber: number;
+  text: string;
+  foldedRange?: CodeBlockFoldRange;
+}
+
 export function getCodeBlockLineNumbers(codeText: string): number[] {
   const lineCount = Math.max(1, codeText.split("\n").length);
 
   return Array.from({ length: lineCount }, (_, index) => index + 1);
+}
+
+function getIndentSize(line: string): number {
+  let size = 0;
+
+  for (const character of line) {
+    if (character === " ") {
+      size += 1;
+      continue;
+    }
+    if (character === "\t") {
+      size += 2;
+      continue;
+    }
+    break;
+  }
+
+  return size;
+}
+
+function stripFoldIgnoredSyntax(line: string): string {
+  let result = "";
+  let quote: "'" | '"' | "`" | null = null;
+  let isEscaped = false;
+
+  // 折叠范围只关心结构符号，先忽略字符串和行内注释中的括号。
+  for (let index = 0; index < line.length; index += 1) {
+    const character = line[index];
+    const nextCharacter = line[index + 1];
+
+    if (quote) {
+      if (isEscaped) {
+        isEscaped = false;
+        continue;
+      }
+      if (character === "\\") {
+        isEscaped = true;
+        continue;
+      }
+      if (character === quote) {
+        quote = null;
+      }
+      continue;
+    }
+
+    if (character === "/" && nextCharacter === "/") break;
+    if (character === "'" || character === '"' || character === "`") {
+      quote = character;
+      continue;
+    }
+
+    result += character;
+  }
+
+  return result;
+}
+
+function collectBraceFoldRanges(lines: string[]): CodeBlockFoldRange[] {
+  const ranges: CodeBlockFoldRange[] = [];
+  const stack: Array<{ open: string; lineNumber: number }> = [];
+  const closingToOpening: Record<string, string> = {
+    ")": "(",
+    "]": "[",
+    "}": "{",
+  };
+  const openingBraces = new Set(["(", "[", "{"]);
+
+  // 用栈匹配跨行括号，让函数、类、对象、数组等同作用域块都能折叠。
+  lines.forEach((line, lineIndex) => {
+    const lineNumber = lineIndex + 1;
+    const foldableCode = stripFoldIgnoredSyntax(line);
+
+    for (const character of foldableCode) {
+      if (openingBraces.has(character)) {
+        stack.push({ open: character, lineNumber });
+        continue;
+      }
+
+      const expectedOpen = closingToOpening[character];
+      if (!expectedOpen) continue;
+
+      const stackIndex = stack.findLastIndex(
+        (entry) => entry.open === expectedOpen,
+      );
+      if (stackIndex === -1) continue;
+
+      const [entry] = stack.splice(stackIndex, 1);
+      if (lineNumber > entry.lineNumber) {
+        ranges.push({
+          startLine: entry.lineNumber,
+          endLine: lineNumber,
+        });
+      }
+    }
+  });
+
+  return ranges;
+}
+
+function collectIndentFoldRanges(lines: string[]): CodeBlockFoldRange[] {
+  const ranges: CodeBlockFoldRange[] = [];
+
+  // 兼容 Python/YAML 等缩进型语言：下一段缩进更深时认为当前行开启了作用域。
+  for (let lineIndex = 0; lineIndex < lines.length - 1; lineIndex += 1) {
+    if (!lines[lineIndex].trim()) continue;
+
+    const currentIndent = getIndentSize(lines[lineIndex]);
+    let nextLineIndex = lineIndex + 1;
+    while (nextLineIndex < lines.length && !lines[nextLineIndex].trim()) {
+      nextLineIndex += 1;
+    }
+    if (nextLineIndex >= lines.length) break;
+
+    const nextIndent = getIndentSize(lines[nextLineIndex]);
+    if (nextIndent <= currentIndent) continue;
+
+    let endLineIndex = nextLineIndex;
+    for (
+      let candidateIndex = nextLineIndex + 1;
+      candidateIndex < lines.length;
+      candidateIndex += 1
+    ) {
+      if (!lines[candidateIndex].trim()) {
+        endLineIndex = candidateIndex;
+        continue;
+      }
+      if (getIndentSize(lines[candidateIndex]) <= currentIndent) break;
+      endLineIndex = candidateIndex;
+    }
+
+    ranges.push({
+      startLine: lineIndex + 1,
+      endLine: endLineIndex + 1,
+    });
+  }
+
+  return ranges;
+}
+
+export function getCodeBlockFoldRanges(codeText: string): CodeBlockFoldRange[] {
+  const lines = codeText.split("\n");
+  const widestRangeByStartLine = new Map<number, CodeBlockFoldRange>();
+
+  for (const range of [
+    ...collectBraceFoldRanges(lines),
+    ...collectIndentFoldRanges(lines),
+  ]) {
+    if (range.endLine <= range.startLine) continue;
+
+    const existingRange = widestRangeByStartLine.get(range.startLine);
+    if (!existingRange || range.endLine > existingRange.endLine) {
+      widestRangeByStartLine.set(range.startLine, range);
+    }
+  }
+
+  return [...widestRangeByStartLine.values()].sort(
+    (left, right) =>
+      left.startLine - right.startLine || right.endLine - left.endLine,
+  );
+}
+
+export function getCodeBlockVisibleLines(
+  codeText: string,
+  foldedStartLines: Iterable<number>,
+): CodeBlockVisibleLine[] {
+  const lines = codeText.split("\n");
+  const foldedStartLineSet = new Set(foldedStartLines);
+  const foldRangeByStartLine = new Map(
+    getCodeBlockFoldRanges(codeText).map((range) => [range.startLine, range]),
+  );
+  const visibleLines: CodeBlockVisibleLine[] = [];
+
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const lineNumber = lineIndex + 1;
+    const foldedRange = foldRangeByStartLine.get(lineNumber);
+
+    if (foldedRange && foldedStartLineSet.has(lineNumber)) {
+      visibleLines.push({
+        lineNumber,
+        text: lines[lineIndex],
+        foldedRange,
+      });
+      lineIndex = foldedRange.endLine - 1;
+      continue;
+    }
+
+    visibleLines.push({
+      lineNumber,
+      text: lines[lineIndex],
+    });
+  }
+
+  return visibleLines.length > 0 ? visibleLines : [{ lineNumber: 1, text: "" }];
 }
 
 export function readCodeBlockText(element: HTMLElement | null): string {
@@ -77,6 +287,10 @@ export function EditorCodeBlock({
   const [lineNumbers, setLineNumbers] = useState(() =>
     getCodeBlockLineNumbers(""),
   );
+  const [codeText, setCodeText] = useState("");
+  const [foldedStartLines, setFoldedStartLines] = useState<Set<number>>(
+    () => new Set(),
+  );
   const [isCopied, setIsCopied] = useState(false);
 
   const language = getSupportedCodeBlockLanguageId(
@@ -88,9 +302,28 @@ export function EditorCodeBlock({
     () => searchCodeBlockLanguages(languageQuery),
     [languageQuery],
   );
+  const foldRanges = useMemo(
+    () => getCodeBlockFoldRanges(codeText),
+    [codeText],
+  );
+  const foldRangeByStartLine = useMemo(
+    () => new Map(foldRanges.map((range) => [range.startLine, range])),
+    [foldRanges],
+  );
+  const visibleLines = useMemo(
+    () => getCodeBlockVisibleLines(codeText, foldedStartLines),
+    [codeText, foldedStartLines],
+  );
+  const hasFoldedLines = visibleLines.some((line) => line.foldedRange);
+  const displayedLineNumbers = hasFoldedLines
+    ? visibleLines.map((line) => line.lineNumber)
+    : lineNumbers;
 
   const updateLineNumbers = useCallback(() => {
-    setLineNumbers(getCodeBlockLineNumbers(readCodeBlockText(codeRef.current)));
+    const nextCodeText = readCodeBlockText(codeRef.current);
+
+    setCodeText(nextCodeText);
+    setLineNumbers(getCodeBlockLineNumbers(nextCodeText));
   }, []);
 
   const setCodeElement = useCallback(
@@ -159,6 +392,24 @@ export function EditorCodeBlock({
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [isLanguagePickerOpen]);
 
+  useEffect(() => {
+    const validStartLines = new Set(foldRanges.map((range) => range.startLine));
+
+    setFoldedStartLines((currentStartLines) => {
+      const nextStartLines = new Set<number>();
+
+      for (const startLine of currentStartLines) {
+        if (validStartLines.has(startLine)) {
+          nextStartLines.add(startLine);
+        }
+      }
+
+      return nextStartLines.size === currentStartLines.size
+        ? currentStartLines
+        : nextStartLines;
+    });
+  }, [foldRanges]);
+
   const handleLanguageSelect = (nextLanguage: string) => {
     editor.updateBlock(block.id, {
       props: { language: nextLanguage },
@@ -180,6 +431,20 @@ export function EditorCodeBlock({
     } catch {
       setIsCopied(false);
     }
+  };
+
+  const handleFoldToggle = (lineNumber: number) => {
+    setFoldedStartLines((currentStartLines) => {
+      const nextStartLines = new Set(currentStartLines);
+
+      if (nextStartLines.has(lineNumber)) {
+        nextStartLines.delete(lineNumber);
+      } else {
+        nextStartLines.add(lineNumber);
+      }
+
+      return nextStartLines;
+    });
   };
 
   return (
@@ -275,14 +540,39 @@ export function EditorCodeBlock({
       <div className="editor-code-block__body grid grid-cols-[auto_1fr]">
         <div
           contentEditable={false}
-          aria-hidden="true"
           className="editor-code-block-gutter editor-code-block__line-gutter select-none border-r border-[var(--border-color)] px-3 py-2 text-right font-mono text-xs leading-6 text-[var(--text-muted)]"
         >
-          {lineNumbers.map((lineNumber) => (
-            <div key={lineNumber} className="editor-code-block__line-number">
-              {lineNumber}
-            </div>
-          ))}
+          {displayedLineNumbers.map((lineNumber) => {
+            const foldRange = foldRangeByStartLine.get(lineNumber);
+            const isFolded = foldedStartLines.has(lineNumber);
+
+            return (
+              <div key={lineNumber} className="editor-code-block__line-number">
+                {foldRange ? (
+                  <button
+                    type="button"
+                    aria-expanded={!isFolded}
+                    aria-label={`${
+                      isFolded ? "Expand" : "Fold"
+                    } code block from line ${foldRange.startLine} to ${
+                      foldRange.endLine
+                    }`}
+                    className="editor-code-block__fold-toggle"
+                    onClick={() => handleFoldToggle(lineNumber)}
+                  >
+                    {isFolded ? (
+                      <ChevronRight className="h-3 w-3" aria-hidden="true" />
+                    ) : (
+                      <ChevronDown className="h-3 w-3" aria-hidden="true" />
+                    )}
+                  </button>
+                ) : (
+                  <span className="editor-code-block__fold-spacer" />
+                )}
+                <span aria-hidden="true">{lineNumber}</span>
+              </div>
+            );
+          })}
         </div>
 
         <pre className="editor-code-block__pre m-0 overflow-x-auto p-2">
@@ -290,9 +580,39 @@ export function EditorCodeBlock({
             ref={setCodeElement}
             data-testid="editor-code-block-content"
             data-language={language}
-            className={`editor-code-block__content language-${language}`}
+            className={`editor-code-block__content language-${language}${
+              hasFoldedLines ? " editor-code-block__content--source-hidden" : ""
+            }`}
             aria-label={`${languageLabel} code`}
           />
+
+          {hasFoldedLines ? (
+            <code
+              contentEditable={false}
+              className="editor-code-block__fold-preview"
+              aria-label={`${languageLabel} folded code preview`}
+            >
+              {visibleLines.map((line, index) => (
+                <span
+                  key={line.lineNumber}
+                  className="editor-code-block__fold-preview-line"
+                >
+                  {line.text}
+                  {line.foldedRange ? (
+                    <span
+                      contentEditable={false}
+                      className="editor-code-block__fold-placeholder"
+                    >
+                      {"  ... "}
+                      {line.foldedRange.endLine - line.foldedRange.startLine}
+                      {" lines folded"}
+                    </span>
+                  ) : null}
+                  {index < visibleLines.length - 1 ? "\n" : null}
+                </span>
+              ))}
+            </code>
+          ) : null}
         </pre>
       </div>
     </div>

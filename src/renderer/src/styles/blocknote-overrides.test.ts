@@ -21,10 +21,10 @@ function getRule(selector: string) {
 describe("blocknote overrides stylesheet", () => {
   it("defines theme-aware code block colors", () => {
     expect(getRule('.bn-root[data-color-scheme="light"]')).toMatch(
-      /--editor-code-block-bg:\s*#f8fbff;/,
+      /--editor-code-block-bg:\s*#f5f8ff;/,
     );
     expect(getRule('.bn-root[data-color-scheme="dark"]')).toMatch(
-      /--editor-code-block-bg:\s*#14181f;/,
+      /--editor-code-block-bg:\s*#0d1117;/,
     );
   });
 
@@ -122,13 +122,37 @@ describe("blocknote overrides stylesheet", () => {
       /user-select:\s*none;/,
     );
     expect(getRule(".editor-code-block-gutter")).toMatch(
-      /background:\s*var\(--editor-code-block-gutter-bg\);/,
+      /background:\s*var\(--editor-code-block-bg\);/,
     );
     expect(getRule(".editor-code-block__content")).toMatch(
       /background:\s*var\(--editor-code-block-bg\);/,
     );
     expect(stylesheet).not.toMatch(
       /\.editor-code-block__content \.shiki\s*\{[\s\S]*color:/,
+    );
+    expect(stylesheet).toMatch(
+      /\.editor-code-block__content span\[style\*="color"\][\s\S]*\{[\s\S]*filter:\s*var\(--editor-code-token-filter\);/,
+    );
+    expect(stylesheet).toMatch(
+      /\.editor-code-block__content span\[style\*="color"\][\s\S]*\{[\s\S]*font-weight:\s*700;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.editor-code-block__content span\[style\*="color"\][\s\S]*\{[\s\S]*opacity:\s*1 !important;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.editor-code-block__content \.shiki span[\s\S]*\{[\s\S]*filter:\s*var\(--editor-code-token-filter\);/,
+    );
+    expect(stylesheet).toMatch(
+      /\.editor-code-block__content \.shiki span[\s\S]*\{[\s\S]*font-weight:\s*700;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.editor-code-block__content \.shiki span[\s\S]*\{[\s\S]*opacity:\s*1 !important;/,
+    );
+    expect(getRule(".editor-code-block__fold-toggle")).toMatch(
+      /cursor:\s*pointer;/,
+    );
+    expect(getRule(".editor-code-block__content--source-hidden")).toMatch(
+      /opacity:\s*0;/,
     );
   });
 

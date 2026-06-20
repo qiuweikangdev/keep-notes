@@ -15,8 +15,8 @@ import { EditorCodeBlock } from "../components/editor-code-block";
 import { CODE_BLOCK_LANGUAGE_OPTIONS } from "./editor-code-block-languages";
 
 export const editorCodeBlockThemes = [
-  "material-theme-palenight",
-  "light-plus",
+  "github-dark-high-contrast",
+  "github-light-high-contrast",
 ] as const;
 export const editorCodeBlockPreloadedLanguages =
   CODE_BLOCK_LANGUAGE_OPTIONS.filter((language) => language.id !== "text").map(
