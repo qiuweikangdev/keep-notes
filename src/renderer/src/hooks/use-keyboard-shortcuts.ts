@@ -9,6 +9,10 @@ import {
   useShortcutsStore,
   type ShortcutAction,
 } from "@/store/shortcuts.store";
+import {
+  editorSaveCoordinator,
+  flushEditorChange,
+} from "@/features/editor/lib/editor-runtime";
 
 /**
  * 将 KeyboardEvent 转换为内部快捷键字符串
@@ -58,6 +62,48 @@ function useShortcutMap(): Map<string, ShortcutAction> {
   }, [shortcuts]);
 }
 
+function getActiveEditorTarget() {
+  const state = useEditorStore.getState();
+  const activeGroup = state.panelGroups.find(
+    (group) => group.id === state.activeGroupId,
+  );
+  const activeTab = activeGroup?.tabs.find(
+    (tab) => tab.id === activeGroup.activeTabId,
+  );
+
+  if (activeGroup && activeTab) {
+    return {
+      groupId: activeGroup.id,
+      tabId: activeTab.id,
+      filePath: activeTab.filePath,
+      content: activeTab.content,
+    };
+  }
+
+  return {
+    groupId: null,
+    tabId: null,
+    filePath: state.filePath,
+    content: state.content,
+  };
+}
+
+function markSaveAsSuccess(filePath: string) {
+  const state = useEditorStore.getState();
+  const activeGroup = state.panelGroups.find(
+    (group) => group.id === state.activeGroupId,
+  );
+
+  if (activeGroup) {
+    state.setTabFilePath(activeGroup.id, activeGroup.activeTabId, filePath);
+    state.setTabDirty(activeGroup.id, activeGroup.activeTabId, false);
+    return;
+  }
+
+  state.setFilePath(filePath);
+  state.setDirty(false);
+}
+
 export function useKeyboardShortcuts() {
   const { openFolder } = useElectron();
   const { toggleCollapse } = usePanel();
@@ -67,13 +113,44 @@ export function useKeyboardShortcuts() {
     filePath,
     setFilePath,
     resetEditor,
-    content,
     panelGroups,
     activeGroupId,
     removeTab,
   } = useEditorStore();
   const { isSettingsOpen, setSettingsOpen } = useUIStore();
   const shortcutMap = useShortcutMap();
+
+  const saveActiveEditorAs = useCallback(async () => {
+    const target = getActiveEditorTarget();
+    if (target.groupId && target.tabId) {
+      // 先冲刷编辑器内部的延迟序列化，确保保存弹窗写入的是最新内容。
+      await flushEditorChange(target.groupId, target.tabId);
+    }
+
+    const latestTarget = getActiveEditorTarget();
+    const result = await window.electronAPI.saveAs(latestTarget.content);
+    if (result.code === 0 && result.data) {
+      markSaveAsSuccess(result.data.filePath);
+    }
+  }, []);
+
+  const saveActiveEditorFile = useCallback(async () => {
+    const target = getActiveEditorTarget();
+    if (!target.filePath) {
+      await saveActiveEditorAs();
+      return;
+    }
+
+    if (target.groupId && target.tabId) {
+      // 手动保存需要立刻落盘，不能等待自动保存的防抖窗口。
+      await flushEditorChange(target.groupId, target.tabId);
+    }
+
+    const latestTarget = getActiveEditorTarget();
+    const filePath = latestTarget.filePath ?? target.filePath;
+    editorSaveCoordinator.schedule(filePath, latestTarget.content);
+    await editorSaveCoordinator.flush(filePath);
+  }, [saveActiveEditorAs]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -127,12 +204,7 @@ export function useKeyboardShortcuts() {
 
         case "saveFile":
           e.preventDefault();
-          window.electronAPI.saveAs(content).then((result) => {
-            if (result.code === 0 && result.data) {
-              useEditorStore.getState().setFilePath(result.data.filePath);
-              useEditorStore.getState().setDirty(false);
-            }
-          });
+          void saveActiveEditorFile();
           break;
 
         case "openSearch":
@@ -157,7 +229,6 @@ export function useKeyboardShortcuts() {
       treeRoot,
       treeData,
       filePath,
-      content,
       setFilePath,
       resetEditor,
       toggleCollapse,
@@ -166,6 +237,7 @@ export function useKeyboardShortcuts() {
       activeGroupId,
       removeTab,
       isSettingsOpen,
+      saveActiveEditorFile,
     ],
   );
 
@@ -197,21 +269,11 @@ export function useKeyboardShortcuts() {
           break;
 
         case "saveFile":
-          window.electronAPI.saveAs(content).then((result) => {
-            if (result.code === 0 && result.data) {
-              useEditorStore.getState().setFilePath(result.data.filePath);
-              useEditorStore.getState().setDirty(false);
-            }
-          });
+          void saveActiveEditorFile();
           break;
 
         case "saveAs":
-          window.electronAPI.saveAs(content).then((result) => {
-            if (result.code === 0 && result.data) {
-              useEditorStore.getState().setFilePath(result.data.filePath);
-              useEditorStore.getState().setDirty(false);
-            }
-          });
+          void saveActiveEditorAs();
           break;
 
         case "closeTab": {
@@ -248,7 +310,6 @@ export function useKeyboardShortcuts() {
   }, [
     treeRoot,
     treeData,
-    content,
     filePath,
     openFolder,
     panelGroups,
@@ -259,5 +320,7 @@ export function useKeyboardShortcuts() {
     toggleCollapse,
     toggleTheme,
     setSettingsOpen,
+    saveActiveEditorFile,
+    saveActiveEditorAs,
   ]);
 }
