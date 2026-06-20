@@ -37,29 +37,44 @@ jobs:
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
 
-          if git rev-parse "${TAG_NAME}" >/dev/null 2>&1; then
-            echo "::notice::${TAG_NAME} already exists. Bump package.json version before publishing a new update."
-            echo "should_release=false" >> "$GITHUB_OUTPUT"
-          else
+          TAG_SHA="$(git rev-list -n 1 "${TAG_NAME}" 2>/dev/null || true)"
+          if [ -z "${TAG_SHA}" ]; then
             echo "should_release=true" >> "$GITHUB_OUTPUT"
+          elif [ "${TAG_SHA}" = "$GITHUB_SHA" ]; then
+            echo "::notice::${TAG_NAME} already points to this commit. Reusing the existing tag for release assets."
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::${TAG_NAME} already points to another commit. Bump package.json version before publishing a new update."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            exit 1
           fi
 
-      - name: Create release tag
+      - name: Ensure release tag
         if: steps.version.outputs.should_release == 'true'
         shell: bash
         run: |
-          git tag "${{ steps.version.outputs.tag_name }}" "$GITHUB_SHA"
-          git push origin "${{ steps.version.outputs.tag_name }}"
+          if git rev-parse "${{ steps.version.outputs.tag_name }}" >/dev/null 2>&1; then
+            echo "${{ steps.version.outputs.tag_name }} already exists."
+          else
+            git tag "${{ steps.version.outputs.tag_name }}" "$GITHUB_SHA"
+            git push origin "${{ steps.version.outputs.tag_name }}"
+          fi
 
-      - name: Create GitHub release
+      - name: Ensure GitHub release
         if: steps.version.outputs.should_release == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
-          gh release create "${{ steps.version.outputs.tag_name }}" \
-            --title "Keep Notes ${{ steps.version.outputs.tag_name }}" \
-            --notes "Automated release for Keep Notes ${{ steps.version.outputs.version }}."
+          if gh release view "${{ steps.version.outputs.tag_name }}" >/dev/null 2>&1; then
+            gh release edit "${{ steps.version.outputs.tag_name }}" \
+              --title "Keep Notes ${{ steps.version.outputs.tag_name }}" \
+              --notes "Automated release for Keep Notes ${{ steps.version.outputs.version }}."
+          else
+            gh release create "${{ steps.version.outputs.tag_name }}" \
+              --title "Keep Notes ${{ steps.version.outputs.tag_name }}" \
+              --notes "Automated release for Keep Notes ${{ steps.version.outputs.version }}."
+          fi
 
   build-and-publish:
     name: Build ${{ matrix.name }}
@@ -72,13 +87,13 @@ jobs:
         include:
           - name: macOS
             os: macos-latest
-            build_args: --mac --publish always
+            build_args: --mac
           - name: Windows
             os: windows-latest
-            build_args: --win --publish always
+            build_args: --win
           - name: Linux
             os: ubuntu-latest
-            build_args: --linux AppImage deb --publish always
+            build_args: --linux AppImage deb
 
     steps:
       - name: Checkout
@@ -103,15 +118,34 @@ jobs:
 
       - name: Package and publish installers
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: pnpm exec electron-builder ${{ matrix.build_args }}
+        run: pnpm exec electron-builder ${{ matrix.build_args }} --publish never
+
+      - name: Upload installers to GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare-release.outputs.tag_name }}
+          files: |
+            dist/**/*.dmg
+            dist/**/*.zip
+            dist/**/*.exe
+            dist/**/*.AppImage
+            dist/**/*.deb
+            dist/**/*.yml
+            dist/**/*.blockmap
+            dist/**/*.zsync
 
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
         with:
           name: keep-notes-${{ needs.prepare-release.outputs.version }}-${{ matrix.name }}
           path: |
-            dist/**
-            !dist/**/*.blockmap
+            dist/**/*.dmg
+            dist/**/*.zip
+            dist/**/*.exe
+            dist/**/*.AppImage
+            dist/**/*.deb
+            dist/**/*.yml
+            dist/**/*.blockmap
+            dist/**/*.zsync
           if-no-files-found: ignore
