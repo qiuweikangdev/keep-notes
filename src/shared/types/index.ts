@@ -84,6 +84,37 @@ export interface WindowOpenTarget {
   filePath?: string;
 }
 
+export interface AppInfo {
+  version: string;
+  repositoryUrl: string;
+  author: string;
+}
+
+export type AppUpdateStatus =
+  | "idle"
+  | "checking"
+  | "available"
+  | "not-available"
+  | "downloading"
+  | "downloaded"
+  | "canceled"
+  | "error";
+
+export interface AppUpdateProgress {
+  percent: number;
+  transferred: number;
+  total: number;
+  bytesPerSecond: number;
+}
+
+export interface AppUpdateState {
+  status: AppUpdateStatus;
+  currentVersion: string;
+  version?: string;
+  progress?: AppUpdateProgress;
+  message?: string;
+}
+
 export enum LeftAreaEnum {
   File = "file",
   Outline = "outline",

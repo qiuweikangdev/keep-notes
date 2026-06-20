@@ -1,6 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useUIStore } from "@/store/ui.store";
-import { useTreeStore } from "@/store/tree.store";
 import { useEditorStore } from "@/store/editor.store";
 import { useTheme } from "@/hooks/use-theme";
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
@@ -8,14 +7,26 @@ import { ThemeModeSelector } from "@/components/ui/theme-mode-selector";
 import { SettingRow } from "@/components/ui/setting-row";
 import { FontSelector } from "@/components/ui/font-selector";
 import { Switch } from "@/components/ui/switch";
-import { Palette, ChevronRight, Keyboard } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Palette,
+  ChevronRight,
+  Keyboard,
+  Info,
+  RefreshCw,
+  ExternalLink,
+  XCircle,
+  Download,
+} from "lucide-react";
 import { ShortcutsSettings } from "./shortcuts-settings";
+import type { AppInfo, AppUpdateState, AppUpdateStatus } from "@shared/types";
 
-type SettingsTab = "appearance" | "shortcuts";
+type SettingsTab = "appearance" | "shortcuts" | "about";
 
 const settingsMenuItems = [
   { id: "appearance" as SettingsTab, label: "外观", icon: Palette },
   { id: "shortcuts" as SettingsTab, label: "键盘快捷键", icon: Keyboard },
+  { id: "about" as SettingsTab, label: "关于", icon: Info },
 ];
 
 const fontFamilyOptions = [
@@ -65,16 +76,125 @@ const codeFontOptions = [
 const EDITOR_PADDING_MIN = 72;
 const EDITOR_PADDING_MAX = 120;
 
+const defaultAppInfo: AppInfo = {
+  version: "",
+  repositoryUrl: "",
+  author: "",
+};
+
+const defaultUpdateState: AppUpdateState = {
+  status: "idle",
+  currentVersion: "",
+};
+
+const cancellableUpdateStatuses: AppUpdateStatus[] = [
+  "checking",
+  "available",
+  "downloading",
+];
+
+function getUpdateStatusText(state: AppUpdateState): string {
+  switch (state.status) {
+    case "checking":
+      return "正在检查更新...";
+    case "available":
+      return state.version
+        ? `发现新版本 v${state.version}，正在准备下载...`
+        : "发现新版本，正在准备下载...";
+    case "downloading":
+      return state.version ? `正在下载 v${state.version}` : "正在下载更新...";
+    case "downloaded":
+      return state.version
+        ? `v${state.version} 已下载，重启应用后安装。`
+        : "更新已下载，重启应用后安装。";
+    case "not-available":
+      return "当前已是最新版本。";
+    case "canceled":
+      return "已取消更新操作。";
+    case "error":
+      return state.message || "更新操作失败，请稍后再试。";
+    case "idle":
+    default:
+      return "点击检查更新以获取 GitHub 最新发布版本。";
+  }
+}
+
+function getRepositoryLabel(repositoryUrl: string): string {
+  return repositoryUrl
+    .replace(/^https?:\/\/github\.com\//, "")
+    .replace(/\.git$/, "");
+}
+
 export function SettingsModal() {
   const { isSettingsOpen, setSettingsOpen } = useUIStore();
-  const { dirSettings, setDirSettings } = useTreeStore();
   const { appearance, setAppearance } = useEditorStore();
   const { theme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<SettingsTab>("appearance");
+  const [appInfo, setAppInfo] = useState<AppInfo>(defaultAppInfo);
+  const [updateState, setUpdateState] =
+    useState<AppUpdateState>(defaultUpdateState);
   const editorPaddingProgress =
     ((Math.max(appearance.padding, EDITOR_PADDING_MIN) - EDITOR_PADDING_MIN) /
       (EDITOR_PADDING_MAX - EDITOR_PADDING_MIN)) *
     100;
+  const displayVersion =
+    appInfo.version ||
+    updateState.currentVersion ||
+    defaultUpdateState.currentVersion;
+  const isUpdateCancellable = cancellableUpdateStatuses.includes(
+    updateState.status,
+  );
+  const progressPercent = Math.round(updateState.progress?.percent ?? 0);
+  const repositoryLabel = getRepositoryLabel(appInfo.repositoryUrl);
+
+  useEffect(() => {
+    if (!isSettingsOpen) return;
+
+    let isMounted = true;
+    const unsubscribe = window.electronAPI.onUpdateState((state) => {
+      if (!isMounted) return;
+      setUpdateState(state);
+    });
+
+    void Promise.all([
+      window.electronAPI.getAppInfo(),
+      window.electronAPI.getUpdateState(),
+    ]).then(([info, state]) => {
+      if (!isMounted) return;
+      setAppInfo(info);
+      setUpdateState(state);
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [isSettingsOpen]);
+
+  const handleOpenChange = (open: boolean) => {
+    if (!open && isUpdateCancellable) {
+      void window.electronAPI.cancelUpdate();
+    }
+    setSettingsOpen(open);
+  };
+
+  const handleCheckForUpdates = async () => {
+    const state = await window.electronAPI.checkForUpdates();
+    setUpdateState(state);
+  };
+
+  const handleCancelUpdate = async () => {
+    const state = await window.electronAPI.cancelUpdate();
+    setUpdateState(state);
+  };
+
+  const handleInstallUpdate = () => {
+    void window.electronAPI.installUpdate();
+  };
+
+  const handleOpenRepository = () => {
+    void window.electronAPI.openRepository();
+  };
 
   const renderContent = () => {
     switch (activeTab) {
@@ -158,7 +278,7 @@ export function SettingsModal() {
                 <SettingRow label="UI 字体">
                   <FontSelector
                     value={appearance.uiFont || fontFamilyOptions[0].value}
-                    onChange={(val) => setAppearance({ uiFont: val } as any)}
+                    onChange={(val) => setAppearance({ uiFont: val })}
                     options={fontFamilyOptions}
                   />
                 </SettingRow>
@@ -166,7 +286,7 @@ export function SettingsModal() {
                 <SettingRow label="代码字体">
                   <FontSelector
                     value={appearance.codeFont || codeFontOptions[0].value}
-                    onChange={(val) => setAppearance({ codeFont: val } as any)}
+                    onChange={(val) => setAppearance({ codeFont: val })}
                     options={codeFontOptions}
                   />
                 </SettingRow>
@@ -189,7 +309,7 @@ export function SettingsModal() {
                       onChange={(e) =>
                         setAppearance({
                           uiFontSize: Number(e.target.value),
-                        } as any)
+                        })
                       }
                       className="w-14 h-9 px-3 text-sm rounded-lg text-center"
                       style={{
@@ -321,11 +441,187 @@ export function SettingsModal() {
         );
       case "shortcuts":
         return <ShortcutsSettings />;
+      case "about":
+        return (
+          <div className="space-y-5 py-2">
+            <section
+              className="rounded-lg px-4 py-4"
+              style={{
+                backgroundColor: "var(--bg-secondary)",
+                border: "1px solid var(--border-color)",
+              }}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <h3
+                    className="text-base font-medium leading-none"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    Keep Notes
+                  </h3>
+                  <div className="mt-2 flex items-center gap-2">
+                    <span
+                      className="text-xs"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      当前版本
+                    </span>
+                    {displayVersion && (
+                      <span
+                        className="rounded-md px-2 py-0.5 text-xs"
+                        style={{
+                          backgroundColor: "var(--bg-tertiary)",
+                          color: "var(--text-secondary)",
+                        }}
+                      >
+                        v{displayVersion}
+                      </span>
+                    )}
+                  </div>
+                  <p
+                    className="mt-3 text-sm"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    {getUpdateStatusText(updateState)}
+                  </p>
+                </div>
+
+                <div className="flex flex-shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCheckForUpdates}
+                    disabled={isUpdateCancellable}
+                    className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50"
+                    style={{
+                      backgroundColor: "transparent",
+                      border: "1px solid var(--border-color)",
+                      color: "var(--text-primary)",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "transparent";
+                    }}
+                  >
+                    <RefreshCw
+                      className={`h-4 w-4 ${
+                        updateState.status === "checking" ? "animate-spin" : ""
+                      }`}
+                    />
+                    检查更新
+                  </button>
+                  {isUpdateCancellable && (
+                    <button
+                      type="button"
+                      aria-label="取消更新"
+                      title="取消更新"
+                      onClick={handleCancelUpdate}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors"
+                      style={{
+                        color: "var(--text-muted)",
+                        border: "1px solid var(--border-color)",
+                        backgroundColor: "transparent",
+                      }}
+                    >
+                      <XCircle className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {updateState.status === "downloading" && (
+                <div className="mt-4">
+                  <div
+                    className="h-1.5 overflow-hidden rounded-full"
+                    style={{ backgroundColor: "var(--bg-tertiary)" }}
+                  >
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${progressPercent}%`,
+                        backgroundColor: "var(--accent-color)",
+                      }}
+                    />
+                  </div>
+                  <div className="mt-2 flex justify-between text-xs">
+                    <span style={{ color: "var(--text-muted)" }}>下载进度</span>
+                    <span style={{ color: "var(--text-primary)" }}>
+                      {progressPercent}%
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {updateState.status === "downloaded" && (
+                <div className="mt-4">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleInstallUpdate}
+                    className="h-8 gap-1.5 px-3"
+                  >
+                    <Download className="h-4 w-4" />
+                    立即安装
+                  </Button>
+                </div>
+              )}
+            </section>
+
+            <section
+              className="overflow-hidden rounded-lg"
+              style={{ border: "1px solid var(--border-color)" }}
+            >
+              <button
+                type="button"
+                title={appInfo.repositoryUrl}
+                onClick={handleOpenRepository}
+                className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition-colors"
+                style={{ color: "var(--text-primary)" }}
+              >
+                <div className="min-w-0">
+                  <div className="text-sm font-medium">GitHub 仓库</div>
+                  <div
+                    className="mt-1 truncate text-xs"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    {repositoryLabel}
+                  </div>
+                </div>
+                <ExternalLink
+                  className="h-4 w-4 flex-shrink-0"
+                  style={{ color: "var(--accent-color)" }}
+                />
+              </button>
+
+              <div
+                className="flex items-center justify-between gap-4 px-4 py-3"
+                style={{ borderTop: "1px solid var(--border-color)" }}
+              >
+                <div>
+                  <div className="text-sm font-medium">作者</div>
+                  <div
+                    className="mt-1 text-xs"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    项目维护者
+                  </div>
+                </div>
+                <span
+                  className="text-sm"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  {appInfo.author}
+                </span>
+              </div>
+            </section>
+          </div>
+        );
     }
   };
 
   return (
-    <Dialog.Root open={isSettingsOpen} onOpenChange={setSettingsOpen}>
+    <Dialog.Root open={isSettingsOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[780px] sm:max-h-[640px] overflow-hidden p-0">
         <DialogHeader className="px-8 pt-8 pb-0">
           <Dialog.Title style={{ color: "var(--text-primary)" }}>

@@ -1,5 +1,6 @@
 import { Menu, BrowserWindow, app, shell } from "electron";
 import process from "node:process";
+import { APP_REPOSITORY_URL } from "../shared/constants";
 
 // 菜单动作转发给渲染进程
 function sendMenuAction(action: string): void {
@@ -134,7 +135,7 @@ export function registerAppMenu(): void {
         {
           label: "Keep Notes 帮助",
           click: async () => {
-            await shell.openExternal("https://github.com/user/keep-notes");
+            await shell.openExternal(APP_REPOSITORY_URL);
           },
         },
       ],

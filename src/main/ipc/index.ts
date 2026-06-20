@@ -3,6 +3,7 @@ import { registerTreeIpc } from "./tree.ipc";
 import { registerGitIpc } from "./git.ipc";
 import { registerMenuIpc } from "./menu.ipc";
 import { registerEditorIpc } from "./editor.ipc";
+import { registerUpdaterIpc } from "./updater.ipc";
 
 export function registerAllIpc(): void {
   registerFileIpc();
@@ -10,4 +11,5 @@ export function registerAllIpc(): void {
   registerGitIpc();
   registerMenuIpc();
   registerEditorIpc();
+  registerUpdaterIpc();
 }

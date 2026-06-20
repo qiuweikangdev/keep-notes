@@ -13,9 +13,12 @@ import {
 
 export interface EditorAppearance {
   fontSize: number;
+  uiFontSize: number;
   lineHeight: number;
   opacity: number;
   padding: number;
+  uiFont: string;
+  codeFont: string;
   showModeSwitcher: boolean;
   sidebarView: "file" | "outline";
   showBottomBarOnHover: boolean;
@@ -143,9 +146,12 @@ export interface EditorState {
 
 const defaultAppearance: EditorAppearance = {
   fontSize: 16,
+  uiFontSize: 13,
   lineHeight: 1.8,
   opacity: 100,
   padding: 72,
+  uiFont: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  codeFont: '"SF Mono", ui-monospace, "Cascadia Code", Consolas, monospace',
   showModeSwitcher: true,
   sidebarView: "file",
   showBottomBarOnHover: true,

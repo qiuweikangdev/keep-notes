@@ -8,9 +8,18 @@ import type {
   GitCommitOptions,
   GitDetectResult,
   WindowOpenTarget,
+  AppInfo,
+  AppUpdateState,
 } from "@shared/types";
 
 export interface ElectronAPI {
+  getAppInfo: () => Promise<AppInfo>;
+  getUpdateState: () => Promise<AppUpdateState>;
+  checkForUpdates: () => Promise<AppUpdateState>;
+  cancelUpdate: () => Promise<AppUpdateState>;
+  installUpdate: () => Promise<void>;
+  openRepository: () => Promise<boolean>;
+  onUpdateState: (callback: (state: AppUpdateState) => void) => () => void;
   minimizeWindow: () => void;
   maximizeWindow: () => void;
   closeWindow: () => void;

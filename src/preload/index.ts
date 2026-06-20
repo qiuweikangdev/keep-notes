@@ -3,8 +3,10 @@ import { windowApi } from "./api/window.api";
 import { fileApi } from "./api/file.api";
 import { treeApi } from "./api/tree.api";
 import { gitApi } from "./api/git.api";
+import { appApi } from "./api/app.api";
 
 const api = {
+  ...appApi,
   ...windowApi,
   ...fileApi,
   ...treeApi,

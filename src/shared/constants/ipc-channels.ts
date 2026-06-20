@@ -5,6 +5,15 @@ export const IPC_CHANNELS = {
     CLOSE: "window:close",
     OPEN_TARGET: "window:open-target",
   },
+  APP: {
+    GET_INFO: "app:get-info",
+    GET_UPDATE_STATE: "app:get-update-state",
+    CHECK_FOR_UPDATES: "app:check-for-updates",
+    CANCEL_UPDATE: "app:cancel-update",
+    INSTALL_UPDATE: "app:install-update",
+    OPEN_REPOSITORY: "app:open-repository",
+    ON_UPDATE_STATE: "app:on-update-state",
+  },
   EDITOR: {
     UPDATE_DIRTY_STATE: "editor:update-dirty-state",
     SAVE_DRAFT: "editor:save-draft",

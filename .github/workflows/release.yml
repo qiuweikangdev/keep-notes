@@ -1,0 +1,117 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare-release:
+    name: Prepare GitHub Release
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.version.outputs.should_release }}
+      tag_name: ${{ steps.version.outputs.tag_name }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve package version
+        id: version
+        shell: bash
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          TAG_NAME="v${VERSION}"
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
+
+          if git rev-parse "${TAG_NAME}" >/dev/null 2>&1; then
+            echo "::notice::${TAG_NAME} already exists. Bump package.json version before publishing a new update."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create release tag
+        if: steps.version.outputs.should_release == 'true'
+        shell: bash
+        run: |
+          git tag "${{ steps.version.outputs.tag_name }}" "$GITHUB_SHA"
+          git push origin "${{ steps.version.outputs.tag_name }}"
+
+      - name: Create GitHub release
+        if: steps.version.outputs.should_release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          gh release create "${{ steps.version.outputs.tag_name }}" \
+            --title "Keep Notes ${{ steps.version.outputs.tag_name }}" \
+            --notes "Automated release for Keep Notes ${{ steps.version.outputs.version }}."
+
+  build-and-publish:
+    name: Build ${{ matrix.name }}
+    needs: prepare-release
+    if: needs.prepare-release.outputs.should_release == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            os: macos-latest
+            build_args: --mac --publish always
+          - name: Windows
+            os: windows-latest
+            build_args: --win --publish always
+          - name: Linux
+            os: ubuntu-latest
+            build_args: --linux AppImage deb --publish always
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck and build app
+        run: pnpm build
+
+      - name: Package and publish installers
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: pnpm exec electron-builder ${{ matrix.build_args }}
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: keep-notes-${{ needs.prepare-release.outputs.version }}-${{ matrix.name }}
+          path: |
+            dist/**
+            !dist/**/*.blockmap
+          if-no-files-found: ignore
