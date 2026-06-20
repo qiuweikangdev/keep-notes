@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, type CSSProperties } from "react";
 import { useCreateBlockNote, useEditorChange } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
-import type { Block, InlineContent } from "@blocknote/core";
+import type {
+  Block,
+  BlockNoteEditor as CoreBlockNoteEditor,
+  InlineContent,
+} from "@blocknote/core";
 import { AllSelection } from "@tiptap/pm/state";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 
@@ -59,6 +63,16 @@ interface RichEditorSelectAllEvent {
   target: EventTarget | null;
 }
 
+interface RichEditorHeadingShortcutEvent {
+  altKey: boolean;
+  ctrlKey: boolean;
+  key: string;
+  metaKey: boolean;
+  preventDefault: () => void;
+  shiftKey?: boolean;
+  stopPropagation: () => void;
+}
+
 interface BlockNoteEditorInnerProps {
   groupId: string;
   tabId: string;
@@ -79,6 +93,16 @@ function isSelectAllShortcut(event: RichEditorSelectAllEvent) {
     (event.metaKey || event.ctrlKey) &&
     !event.altKey
   );
+}
+
+function getHeadingShortcutLevel(event: RichEditorHeadingShortcutEvent) {
+  if (event.altKey || event.shiftKey) return null;
+  if (!event.metaKey && !event.ctrlKey) return null;
+
+  const level = Number(event.key);
+  if (!Number.isInteger(level) || level < 1 || level > 6) return null;
+
+  return level;
 }
 
 function getElementFromEventTarget(target: EventTarget | null) {
@@ -140,6 +164,31 @@ export function handleRichEditorSelectAllShortcut(
   }
 
   return selectEntireRichEditorContent(editor);
+}
+
+export function handleRichEditorHeadingShortcut(
+  event: RichEditorHeadingShortcutEvent,
+  editor: CoreBlockNoteEditor,
+): boolean {
+  const level = getHeadingShortcutLevel(event);
+  if (level === null) return false;
+
+  const cursorPosition = editor.getTextCursorPosition();
+  if (
+    editor.schema.blockSchema[cursorPosition.block.type].content !== "inline"
+  ) {
+    return false;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  // 复用 BlockNote 的块更新能力，仅把当前光标所在块切换为指定级别标题。
+  editor.updateBlock(cursorPosition.block, {
+    type: "heading",
+    props: { level },
+  });
+
+  return true;
 }
 
 function BlockNoteEditorInner({
@@ -511,6 +560,7 @@ function BlockNoteEditorInner({
   const handleKeyDownCapture = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
       markUserIntent();
+      if (handleRichEditorHeadingShortcut(event, editor)) return;
       handleRichEditorSelectAllShortcut(event, editor);
     },
     [editor, markUserIntent],
