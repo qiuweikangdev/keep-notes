@@ -111,10 +111,13 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Typecheck and build app
         run: pnpm build
+
+      - name: Install Electron app dependencies
+        run: pnpm exec electron-builder install-app-deps
 
       - name: Package and publish installers
         env:
