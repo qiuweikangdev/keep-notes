@@ -111,7 +111,7 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts --registry=https://registry.npmjs.org/
 
       - name: Typecheck and build app
         run: pnpm build
