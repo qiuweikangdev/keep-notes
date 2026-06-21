@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { RefObject } from "react";
 import { ChevronRight } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,30 @@ const unitOptions: Array<{ label: string; value: ReminderRepeatUnit }> = [
 const repeatControlClassName =
   "h-9 rounded-md px-3 text-[13px] outline-none transition-colors focus:border-[var(--accent-color)]";
 
+function useCloseOnOutsidePointerDown(
+  open: boolean,
+  containerRef: RefObject<HTMLElement>,
+  onClose: () => void,
+) {
+  useEffect(() => {
+    if (!open) return;
+
+    // 自定义下拉是自绘浮层，点击控件外部时主动关闭，避免菜单遮挡后续操作。
+    const handlePointerDown = (event: PointerEvent) => {
+      if (
+        event.target instanceof Node &&
+        containerRef.current?.contains(event.target)
+      ) {
+        return;
+      }
+      onClose();
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [containerRef, onClose, open]);
+}
+
 interface CustomRepeatDialogProps {
   open: boolean;
   value?: ReminderRepeatCustomRule;
@@ -40,7 +65,6 @@ export function CustomRepeatDialog({
   const [unit, setUnit] = useState<ReminderRepeatUnit>(value?.unit ?? "day");
   const [interval, setInterval] = useState(String(value?.interval ?? 1));
   const [isUnitOpen, setIsUnitOpen] = useState(false);
-  const pickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -48,24 +72,6 @@ export function CustomRepeatDialog({
     setInterval(String(value?.interval ?? 1));
     setIsUnitOpen(false);
   }, [open, value]);
-
-  useEffect(() => {
-    if (!isUnitOpen) return;
-
-    // 频率菜单使用应用内浮层，点击外部时主动收起，避免残留在弹窗上。
-    const handlePointerDown = (event: MouseEvent) => {
-      if (
-        event.target instanceof Node &&
-        pickerRef.current?.contains(event.target)
-      ) {
-        return;
-      }
-      setIsUnitOpen(false);
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, [isUnitOpen]);
 
   const parsedInterval = useMemo(() => Number(interval), [interval]);
   const isValid =
@@ -87,6 +93,7 @@ export function CustomRepeatDialog({
           style={{ backgroundColor: "rgba(0, 0, 0, 0.3)" }}
         />
         <Dialog.Content
+          onPointerDownOutside={() => onOpenChange(false)}
           className="fixed left-[50%] top-[50%] z-[71] w-[360px] max-w-[92vw] translate-x-[-50%] translate-y-[-50%] overflow-visible rounded-xl border shadow-lg"
           style={{
             backgroundColor: "var(--bg-primary)",
@@ -102,7 +109,7 @@ export function CustomRepeatDialog({
             <h3 className="text-[15px] font-semibold">自定义重复</h3>
           </div>
 
-          <div className="space-y-3 px-5 py-4" ref={pickerRef}>
+          <div className="space-y-3 px-5 py-4">
             <label className="grid grid-cols-[64px_1fr] items-center gap-3">
               <span
                 className="text-[13px] font-medium"
@@ -201,11 +208,14 @@ function UnitPickerControl({
   onChange,
   onOpenChange,
 }: UnitPickerControlProps) {
+  const pickerRef = useRef<HTMLDivElement>(null);
   const selectedLabel =
     unitOptions.find((option) => option.value === value)?.label ?? "每天";
 
+  useCloseOnOutsidePointerDown(open, pickerRef, () => onOpenChange(false));
+
   return (
-    <div className="relative">
+    <div className="relative" ref={pickerRef}>
       <button
         type="button"
         data-theme-control="true"

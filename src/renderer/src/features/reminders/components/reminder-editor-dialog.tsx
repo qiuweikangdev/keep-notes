@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import {
   CalendarDays,
   ChevronLeft,
@@ -114,6 +114,30 @@ function getInitialState(
   };
 }
 
+function useCloseOnOutsidePointerDown(
+  open: boolean,
+  containerRef: RefObject<HTMLElement>,
+  onClose: () => void,
+) {
+  useEffect(() => {
+    if (!open) return;
+
+    // 自绘浮层不经过 Radix Popover，统一监听外部点击来模拟系统浮窗的收起体验。
+    const handlePointerDown = (event: PointerEvent) => {
+      if (
+        event.target instanceof Node &&
+        containerRef.current?.contains(event.target)
+      ) {
+        return;
+      }
+      onClose();
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [containerRef, onClose, open]);
+}
+
 export function ReminderEditorDialog() {
   const reminders = useReminderStore((state) => state.reminders);
   const isEditorOpen = useReminderStore((state) => state.isEditorOpen);
@@ -153,7 +177,6 @@ export function ReminderEditorDialog() {
   const [displayMonth, setDisplayMonth] = useState(() =>
     parseDateValue(initialState.date),
   );
-  const pickerContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isEditorOpen) return;
@@ -167,24 +190,6 @@ export function ReminderEditorDialog() {
     setOpenPicker(null);
     setDisplayMonth(parseDateValue(initialState.date));
   }, [initialState, isEditorOpen]);
-
-  useEffect(() => {
-    if (!openPicker) return;
-
-    // 日期/时间浮层需要在点击外部时关闭，避免在 Electron 中残留悬浮控件。
-    const handlePointerDown = (event: MouseEvent) => {
-      if (
-        event.target instanceof Node &&
-        pickerContainerRef.current?.contains(event.target)
-      ) {
-        return;
-      }
-      setOpenPicker(null);
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, [openPicker]);
 
   const filePath = initialState.filePath;
   const canSave =
@@ -264,7 +269,7 @@ export function ReminderEditorDialog() {
               </p>
             </div>
 
-            <div className="space-y-4 px-5" ref={pickerContainerRef}>
+            <div className="space-y-4 px-5">
               <section>
                 <h3
                   className="mb-2 text-[13px] font-medium"
@@ -460,6 +465,7 @@ function DatePickerControl({
   onDisplayMonthChange,
   onOpenChange,
 }: DatePickerControlProps) {
+  const pickerRef = useRef<HTMLDivElement>(null);
   const calendarCells = useMemo(
     () => getCalendarCells(displayMonth),
     [displayMonth],
@@ -467,8 +473,10 @@ function DatePickerControl({
   const todayValue = formatDateValue(new Date());
   const monthTitle = `${displayMonth.getFullYear()}年 ${displayMonth.getMonth() + 1}月`;
 
+  useCloseOnOutsidePointerDown(open, pickerRef, () => onOpenChange(false));
+
   return (
-    <div className="relative">
+    <div className="relative" ref={pickerRef}>
       <button
         type="button"
         data-theme-control="true"
@@ -594,14 +602,17 @@ function TimePickerControl({
   onChange,
   onOpenChange,
 }: TimePickerControlProps) {
+  const pickerRef = useRef<HTMLDivElement>(null);
   const [selectedHour, selectedMinute] = value.split(":");
+
+  useCloseOnOutsidePointerDown(open, pickerRef, () => onOpenChange(false));
 
   const updateTime = (nextHour: string, nextMinute: string) => {
     onChange(`${nextHour}:${nextMinute}`);
   };
 
   return (
-    <div className="relative">
+    <div className="relative" ref={pickerRef}>
       <button
         type="button"
         data-theme-control="true"
@@ -696,11 +707,14 @@ function RepeatPickerControl({
   onChange,
   onOpenChange,
 }: RepeatPickerControlProps) {
+  const pickerRef = useRef<HTMLDivElement>(null);
   const selectedLabel =
     repeatOptions.find((option) => option.value === value)?.label ?? "永不";
 
+  useCloseOnOutsidePointerDown(open, pickerRef, () => onOpenChange(false));
+
   return (
-    <div className="relative ml-auto">
+    <div className="relative ml-auto" ref={pickerRef}>
       <button
         type="button"
         data-theme-control="true"
