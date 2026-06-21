@@ -14,6 +14,11 @@ export type {
   GitBranch,
   GitCommitOptions,
   GitDetectResult,
+  Reminder,
+  ReminderInput,
+  ReminderRepeatCustomRule,
+  ReminderRepeatPreset,
+  ReminderRepeatUnit,
 } from "@shared/types";
 
 export { CodeResult, LeftAreaEnum, DirColorEnum } from "@shared/types";
