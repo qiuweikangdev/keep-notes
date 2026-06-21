@@ -35,6 +35,14 @@ export const IPC_CHANNELS = {
     UNWATCH_WORKSPACE: "file:unwatch-workspace",
     ON_WORKSPACE_CHANGED: "file:on-workspace-changed",
   },
+  REMINDER: {
+    LIST: "reminder:list",
+    CREATE: "reminder:create",
+    UPDATE: "reminder:update",
+    DELETE: "reminder:delete",
+    COMPLETE: "reminder:complete",
+    ON_CHANGED: "reminder:on-changed",
+  },
   TREE: {
     CREATE_FILE: "tree:create-file",
     CREATE_FOLDER: "tree:create-folder",

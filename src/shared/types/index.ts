@@ -115,6 +115,48 @@ export interface AppUpdateState {
   message?: string;
 }
 
+export type ReminderRepeatPreset =
+  | "never"
+  | "daily"
+  | "weekdays"
+  | "weekends"
+  | "weekly"
+  | "biweekly"
+  | "monthly"
+  | "quarterly"
+  | "semiannual"
+  | "yearly"
+  | "custom";
+
+export type ReminderRepeatUnit = "day" | "week" | "month" | "year";
+
+export interface ReminderRepeatCustomRule {
+  interval: number;
+  unit: ReminderRepeatUnit;
+}
+
+export interface Reminder {
+  id: string;
+  title: string;
+  filePath: string;
+  fileName: string;
+  scheduledAt: string;
+  repeat: ReminderRepeatPreset;
+  customRepeat?: ReminderRepeatCustomRule;
+  completed: boolean;
+  createdAt: string;
+  updatedAt: string;
+  lastNotifiedAt?: string;
+}
+
+export interface ReminderInput {
+  title: string;
+  filePath: string;
+  scheduledAt: string;
+  repeat: ReminderRepeatPreset;
+  customRepeat?: ReminderRepeatCustomRule;
+}
+
 export enum LeftAreaEnum {
   File = "file",
   Outline = "outline",
