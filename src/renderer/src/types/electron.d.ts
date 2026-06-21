@@ -10,6 +10,8 @@ import type {
   WindowOpenTarget,
   AppInfo,
   AppUpdateState,
+  Reminder,
+  ReminderInput,
 } from "@shared/types";
 
 export interface ElectronAPI {
@@ -81,6 +83,15 @@ export interface ElectronAPI {
   onWindowOpenTarget: (
     callback: (target: WindowOpenTarget) => void,
   ) => () => void;
+  listReminders: () => Promise<Reminder[]>;
+  createReminder: (input: ReminderInput) => Promise<Reminder>;
+  updateReminder: (
+    id: string,
+    input: Partial<ReminderInput>,
+  ) => Promise<Reminder>;
+  deleteReminder: (id: string) => Promise<boolean>;
+  completeReminder: (id: string) => Promise<Reminder>;
+  onRemindersChanged: (callback: (reminders: Reminder[]) => void) => () => void;
 }
 
 export interface GitAPI {

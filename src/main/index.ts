@@ -4,8 +4,9 @@ import { electronApp, optimizer } from "@electron-toolkit/utils";
 import { createWindow } from "./window";
 import { registerAllIpc } from "./ipc";
 import { registerAppMenu } from "./menu";
+import { initializeReminderIpc } from "./ipc/reminder.ipc";
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   electronApp.setAppUserModelId("com.keep-notes");
 
   app.on("browser-window-created", (_, window) => {
@@ -23,8 +24,9 @@ app.whenReady().then(() => {
   // 注册 macOS 应用菜单
   registerAppMenu();
 
-  createWindow();
   registerAllIpc();
+  await initializeReminderIpc();
+  createWindow();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {

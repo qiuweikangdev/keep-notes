@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { CodeResult } from "@/types";
 import type { TreeNode, GitConfig, GitCommitOptions } from "@/types";
+import type { ReminderInput } from "@shared/types";
 import { useTreeStore } from "@/store/tree.store";
 import { useEditorStore } from "@/store/editor.store";
 import { useUserStore } from "@/store/user.store";
@@ -250,6 +251,36 @@ export function useElectron() {
     return window.electronAPI.openInNewWindow(targetPath);
   }, []);
 
+  const listReminders = useCallback(async () => {
+    return window.electronAPI.listReminders();
+  }, []);
+
+  const createReminder = useCallback(async (input: ReminderInput) => {
+    return window.electronAPI.createReminder(input);
+  }, []);
+
+  const updateReminder = useCallback(
+    async (id: string, input: Partial<ReminderInput>) => {
+      return window.electronAPI.updateReminder(id, input);
+    },
+    [],
+  );
+
+  const deleteReminder = useCallback(async (id: string) => {
+    return window.electronAPI.deleteReminder(id);
+  }, []);
+
+  const completeReminder = useCallback(async (id: string) => {
+    return window.electronAPI.completeReminder(id);
+  }, []);
+
+  const onRemindersChanged = useCallback(
+    (callback: Parameters<typeof window.electronAPI.onRemindersChanged>[0]) => {
+      return window.electronAPI.onRemindersChanged(callback);
+    },
+    [],
+  );
+
   // 原有的 Git 下载和上传方法
   const gitDownload = useCallback(async () => {
     const config: GitConfig = {
@@ -379,6 +410,12 @@ export function useElectron() {
     openInExplorer,
     copyPath,
     openInNewWindow,
+    listReminders,
+    createReminder,
+    updateReminder,
+    deleteReminder,
+    completeReminder,
+    onRemindersChanged,
     gitDownload,
     gitUpload,
     // 新增的 Git 操作方法

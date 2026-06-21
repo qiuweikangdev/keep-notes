@@ -4,6 +4,7 @@ import { registerGitIpc } from "./git.ipc";
 import { registerMenuIpc } from "./menu.ipc";
 import { registerEditorIpc } from "./editor.ipc";
 import { registerUpdaterIpc } from "./updater.ipc";
+import { registerReminderIpc } from "./reminder.ipc";
 
 export function registerAllIpc(): void {
   registerFileIpc();
@@ -12,4 +13,5 @@ export function registerAllIpc(): void {
   registerMenuIpc();
   registerEditorIpc();
   registerUpdaterIpc();
+  registerReminderIpc();
 }
