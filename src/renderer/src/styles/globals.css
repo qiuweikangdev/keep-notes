@@ -108,60 +108,105 @@ button[data-ui-button="true"][aria-disabled="true"] {
 button[data-ui-button="true"][data-variant="default"] {
   background-color: color-mix(
     in srgb,
-    var(--accent-color) 10%,
+    var(--bg-secondary) 42%,
     var(--bg-primary)
   );
-  border-color: color-mix(in srgb, var(--accent-color) 22%, var(--border-color));
-  color: color-mix(in srgb, var(--accent-color) 58%, var(--text-primary));
+  border-color: color-mix(in srgb, var(--border-color) 90%, var(--text-muted));
+  color: var(--text-primary);
 }
 
 button[data-ui-button="true"][data-variant="default"]:not(:disabled):not([aria-disabled="true"]):hover {
   background-color: color-mix(
     in srgb,
-    var(--accent-color) 15%,
+    var(--bg-tertiary) 76%,
     var(--bg-primary)
   ) !important;
-  border-color: color-mix(in srgb, var(--accent-color) 32%, var(--border-color));
-  color: color-mix(
-    in srgb,
-    var(--accent-color) 68%,
-    var(--text-primary)
-  ) !important;
+  border-color: color-mix(in srgb, var(--border-color) 82%, var(--text-muted));
+  color: var(--text-primary) !important;
 }
 
 button[data-ui-button="true"][data-variant="default"]:not(:disabled):not([aria-disabled="true"]):active {
   background-color: color-mix(
     in srgb,
-    var(--accent-color) 20%,
-    var(--bg-primary)
+    var(--hover-bg) 70%,
+    var(--bg-secondary)
   ) !important;
-  border-color: color-mix(in srgb, var(--accent-color) 38%, var(--border-color));
-  color: color-mix(
-    in srgb,
-    var(--accent-color) 72%,
-    var(--text-primary)
-  ) !important;
+  border-color: color-mix(in srgb, var(--border-color) 76%, var(--text-muted));
+  color: var(--text-primary) !important;
 }
 
 button[data-ui-button="true"][data-variant="default"]:disabled,
 button[data-ui-button="true"][data-variant="default"][aria-disabled="true"] {
   background-color: color-mix(
     in srgb,
-    var(--bg-secondary) 76%,
+    var(--bg-tertiary) 84%,
     transparent
   );
-  border-color: color-mix(in srgb, var(--border-color) 60%, transparent);
-  color: color-mix(in srgb, var(--text-muted) 72%, transparent);
+  border-color: color-mix(in srgb, var(--border-color) 70%, transparent);
+  color: var(--text-muted);
+  opacity: 0.55;
+}
+
+.dark button[data-ui-button="true"][data-variant="default"],
+.nord button[data-ui-button="true"][data-variant="default"],
+.dracula button[data-ui-button="true"][data-variant="default"],
+.solarized button[data-ui-button="true"][data-variant="default"] {
+  background-color: color-mix(
+    in srgb,
+    var(--bg-secondary) 76%,
+    var(--bg-primary)
+  );
+  border-color: color-mix(in srgb, var(--border-color) 72%, transparent);
+  color: var(--text-primary);
+}
+
+.dark button[data-ui-button="true"][data-variant="default"]:not(:disabled):not([aria-disabled="true"]):hover,
+.nord button[data-ui-button="true"][data-variant="default"]:not(:disabled):not([aria-disabled="true"]):hover,
+.dracula button[data-ui-button="true"][data-variant="default"]:not(:disabled):not([aria-disabled="true"]):hover,
+.solarized button[data-ui-button="true"][data-variant="default"]:not(:disabled):not([aria-disabled="true"]):hover {
+  background-color: color-mix(
+    in srgb,
+    var(--bg-tertiary) 86%,
+    var(--bg-secondary)
+  ) !important;
+  border-color: color-mix(in srgb, var(--border-color) 86%, var(--text-muted));
+  color: var(--text-primary) !important;
+}
+
+.dark button[data-ui-button="true"][data-variant="default"]:not(:disabled):not([aria-disabled="true"]):active,
+.nord button[data-ui-button="true"][data-variant="default"]:not(:disabled):not([aria-disabled="true"]):active,
+.dracula button[data-ui-button="true"][data-variant="default"]:not(:disabled):not([aria-disabled="true"]):active,
+.solarized button[data-ui-button="true"][data-variant="default"]:not(:disabled):not([aria-disabled="true"]):active {
+  background-color: color-mix(
+    in srgb,
+    var(--active-bg) 18%,
+    var(--bg-tertiary)
+  ) !important;
+  border-color: color-mix(in srgb, var(--border-color) 78%, var(--text-muted));
+  color: var(--text-primary) !important;
+}
+
+.dark button[data-ui-button="true"][data-variant="default"]:disabled,
+.dark button[data-ui-button="true"][data-variant="default"][aria-disabled="true"],
+.nord button[data-ui-button="true"][data-variant="default"]:disabled,
+.nord button[data-ui-button="true"][data-variant="default"][aria-disabled="true"],
+.dracula button[data-ui-button="true"][data-variant="default"]:disabled,
+.dracula button[data-ui-button="true"][data-variant="default"][aria-disabled="true"],
+.solarized button[data-ui-button="true"][data-variant="default"]:disabled,
+.solarized button[data-ui-button="true"][data-variant="default"][aria-disabled="true"] {
+  background-color: color-mix(
+    in srgb,
+    var(--bg-secondary) 80%,
+    transparent
+  );
+  border-color: color-mix(in srgb, var(--border-color) 54%, transparent);
+  color: var(--text-muted);
 }
 
 button[data-ui-button="true"][data-variant="secondary"] {
-  background-color: color-mix(
-    in srgb,
-    var(--bg-primary) 68%,
-    var(--bg-secondary)
-  );
-  border-color: color-mix(in srgb, var(--border-color) 82%, transparent);
-  color: var(--text-secondary);
+  background-color: transparent;
+  border-color: var(--border-color);
+  color: var(--text-primary);
 }
 
 button[data-ui-button="true"][data-variant="secondary"]:not(:disabled):not([aria-disabled="true"]):hover,
@@ -272,6 +317,17 @@ button[data-ui-button="true"][data-variant="link"]:not(:disabled):not([aria-disa
 button[data-theme-control="true"]:not(:disabled):hover {
   background-color: var(--hover-bg) !important;
   color: var(--text-primary) !important;
+}
+
+button[data-theme-control="true"] {
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease !important;
+}
+
+button[data-theme-control="true"]:not(:disabled):active {
+  background-color: var(--active-bg) !important;
 }
 
 button[data-theme-control="true"][data-selected="true"],

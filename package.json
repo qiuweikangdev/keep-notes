@@ -1,7 +1,7 @@
 {
   "name": "keep-notes",
   "type": "module",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "Markdown编辑器笔记软件",
   "author": "qiuweikangdev",
   "homepage": "https://github.com/qiuweikangdev/keep-notes",

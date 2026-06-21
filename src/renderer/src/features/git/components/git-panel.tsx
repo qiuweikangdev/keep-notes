@@ -6,6 +6,7 @@ import { useDiffStore } from "@/store/diff.store";
 import { CodeResult } from "@/types";
 import type { GitStatus, GitBranch, GitCommitOptions } from "@/types";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Button } from "@/components/ui/button";
 import {
   GitBranch as GitBranchIcon,
   GitCommit,
@@ -682,7 +683,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             </div>
             <button
               onClick={onClose}
-              className="p-1 rounded-lg transition-colors hover:bg-accent"
+              data-theme-control="true"
+              className="rounded-lg p-1"
               style={{ color: "var(--text-muted)" }}
             >
               <X className="h-4 w-4" />
@@ -735,7 +737,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg transition-colors hover:bg-accent"
+            data-theme-control="true"
+            className="p-1 rounded-lg"
             style={{ color: "var(--text-muted)" }}
           >
             <X className="h-4 w-4" />
@@ -777,7 +780,12 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowBranchList(!showBranchList)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors hover:bg-[var(--hover-bg)]"
+                data-theme-control="true"
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm"
+                style={{
+                  backgroundColor: "var(--bg-tertiary)",
+                  color: "var(--text-primary)",
+                }}
                 disabled={loading}
               >
                 <GitBranchIcon className="h-3.5 w-3.5" />
@@ -790,7 +798,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
               </button>
               <button
                 onClick={() => setShowCreateBranch(!showCreateBranch)}
-                className="p-1.5 rounded-lg transition-colors hover:bg-accent hover:text-foreground"
+                data-theme-control="true"
+                className="rounded-lg p-1.5"
                 style={{ color: "var(--text-muted)" }}
                 title="创建新分支"
               >
@@ -812,7 +821,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                 <button
                   key={branch.name}
                   onClick={() => handleSwitchBranch(branch.name)}
-                  className="w-full flex items-center justify-between px-3 py-2 text-sm transition-colors hover:bg-accent"
+                  data-theme-control="true"
+                  className="flex w-full items-center justify-between px-3 py-2 text-sm"
                   style={{
                     backgroundColor: branch.current
                       ? "var(--active-bg)"
@@ -837,7 +847,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                   setShowBranchList(false);
                   setShowCreateBranch(true);
                 }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-accent hover:text-foreground"
+                data-theme-control="true"
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm"
                 style={{ color: "var(--text-muted)" }}
               >
                 <Plus className="h-3.5 w-3.5" />
@@ -875,32 +886,23 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                 }}
                 autoFocus
               />
-              <button
+              <Button
                 onClick={handleCreateBranch}
                 disabled={!newBranchName.trim() || loading}
-                className="px-3 py-1.5 text-sm rounded-lg transition-colors"
-                style={{
-                  backgroundColor:
-                    newBranchName.trim() && !loading
-                      ? "var(--accent-color)"
-                      : "var(--bg-tertiary)",
-                  color:
-                    newBranchName.trim() && !loading
-                      ? "#ffffff"
-                      : "var(--text-muted)",
-                }}
+                size="sm"
               >
                 创建
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => {
                   setShowCreateBranch(false);
                   setNewBranchName("");
                 }}
-                className="px-3 py-1.5 text-sm rounded-lg bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors hover:bg-[var(--hover-bg)]"
+                size="sm"
+                variant="secondary"
               >
                 取消
-              </button>
+              </Button>
             </div>
           )}
 
@@ -962,7 +964,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                 )}
                 <button
                   onClick={() => setTreeView(!treeView)}
-                  className="p-1 rounded transition-colors hover:bg-[var(--hover-bg)]"
+                  data-theme-control="true"
+                  className="rounded p-1"
                   style={{ color: "var(--text-muted)" }}
                   title={treeView ? "列表视图" : "树形视图"}
                 >
@@ -1022,7 +1025,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
                               onClick={() => handleDiffFile(node.path)}
-                              className="p-1 rounded transition-colors hover:bg-accent hover:text-[var(--accent-color)]"
+                              data-theme-control="true"
+                              className="rounded p-1"
                               style={{ color: "var(--text-muted)" }}
                               title="查看差异"
                             >
@@ -1030,7 +1034,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                             </button>
                             <button
                               onClick={() => handleOpenFile(node.path)}
-                              className="p-1 rounded transition-colors hover:bg-accent hover:text-foreground"
+                              data-theme-control="true"
+                              className="rounded p-1"
                               style={{ color: "var(--text-muted)" }}
                               title="打开文件"
                             >
@@ -1038,7 +1043,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                             </button>
                             <button
                               onClick={() => handleDiscardChanges(node.path)}
-                              className="p-1 rounded transition-colors hover:bg-accent hover:text-[#f14c4c]"
+                              data-theme-control="true"
+                              className="rounded p-1"
                               style={{ color: "var(--text-muted)" }}
                               title="放弃更改"
                             >
@@ -1096,7 +1102,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
                               onClick={() => handleDiscardDirChanges(node.path)}
-                              className="p-1 rounded transition-colors hover:bg-accent hover:text-[#f14c4c]"
+                              data-theme-control="true"
+                              className="rounded p-1"
                               style={{ color: "var(--text-muted)" }}
                               title="放弃目录更改"
                             >
@@ -1139,7 +1146,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => handleDiffFile(file.path)}
-                        className="p-1 rounded transition-colors hover:bg-accent hover:text-[var(--accent-color)]"
+                        data-theme-control="true"
+                        className="rounded p-1"
                         style={{ color: "var(--text-muted)" }}
                         title="查看差异"
                       >
@@ -1147,7 +1155,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                       </button>
                       <button
                         onClick={() => handleOpenFile(file.path)}
-                        className="p-1 rounded transition-colors hover:bg-accent hover:text-foreground"
+                        data-theme-control="true"
+                        className="rounded p-1"
                         style={{ color: "var(--text-muted)" }}
                         title="打开文件"
                       >
@@ -1155,7 +1164,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                       </button>
                       <button
                         onClick={() => handleDiscardChanges(file.path)}
-                        className="p-1 rounded transition-colors hover:bg-accent hover:text-[#f14c4c]"
+                        data-theme-control="true"
+                        className="rounded p-1"
                         style={{ color: "var(--text-muted)" }}
                         title="放弃更改"
                       >
@@ -1186,40 +1196,33 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           style={{ borderTop: "1px solid var(--border-color)" }}
         >
           <div className="flex items-center gap-2">
-            <button
-              onClick={handlePull}
-              disabled={loading}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors disabled:opacity-50 hover:bg-[var(--hover-bg)]"
-            >
+            <Button onClick={handlePull} disabled={loading} className="gap-1.5">
               <RefreshCw
                 className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
               />
               拉取
-            </button>
-            <button
-              onClick={handlePush}
-              disabled={loading}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors disabled:opacity-50 hover:bg-[var(--hover-bg)]"
-            >
+            </Button>
+            <Button onClick={handlePush} disabled={loading} className="gap-1.5">
               <GitCommit className="h-3.5 w-3.5" />
               推送
-            </button>
+            </Button>
           </div>
           <div className="flex items-center gap-2">
-            <button
+            <Button
               onClick={() => handleCommit(false)}
               disabled={loading}
-              className="px-4 py-1.5 text-sm rounded-md bg-transparent text-[var(--text-primary)] border border-[var(--border-color)] transition-colors disabled:opacity-50 hover:bg-[var(--hover-bg)]"
+              variant="secondary"
+              className="px-4"
             >
               提交
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => handleCommit(true)}
               disabled={loading}
-              className="px-4 py-1.5 text-sm rounded-md bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors disabled:opacity-50 hover:bg-[var(--hover-bg)]"
+              className="px-4"
             >
               提交并推送
-            </button>
+            </Button>
           </div>
         </div>
       </div>
