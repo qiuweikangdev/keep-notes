@@ -252,6 +252,8 @@ describe("App shortcuts", () => {
       configurable: true,
       value: {
         getPlatform: () => "darwin",
+        listReminders: vi.fn(async () => []),
+        onRemindersChanged: vi.fn(() => () => undefined),
         onMenuAction: (callback: (action: string) => void) => {
           menuActionHandler = callback;
           return () => {

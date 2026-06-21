@@ -9,6 +9,7 @@ import {
   GitBranch,
   ArrowLeft,
   ArrowRight,
+  Bell,
 } from "lucide-react";
 import { useUIStore } from "@/store/ui.store";
 import { useEditorStore } from "@/store/editor.store";
@@ -18,6 +19,7 @@ import { SearchModal } from "@/features/search";
 import { GitPanel } from "@/features/git";
 import { useElectron } from "@/hooks/use-electron";
 import { useTreeStore } from "@/store/tree.store";
+import { useReminderStore } from "@/store/reminder.store";
 import { CodeResult } from "@/types";
 import {
   MAC_TITLE_BAR_HEIGHT,
@@ -39,6 +41,7 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
   const titleBarRef = useRef<HTMLDivElement>(null);
   const { detectGitRepo, openFile } = useElectron();
   const { treeRoot } = useTreeStore();
+  const openReminderList = useReminderStore((state) => state.openList);
 
   // 文件导航历史状态
   const historyRef = useRef<{ files: string[]; index: number }>({
@@ -341,6 +344,23 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
 
         {/* 右侧：Git 图标 + 主题切换 + 窗口控制 */}
         <div className="flex h-full items-center gap-1 pr-2">
+          <button
+            onClick={openReminderList}
+            className="flex h-8 w-8 items-center justify-center rounded-lg transition-all"
+            style={{ color: "var(--text-muted)" }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+              e.currentTarget.style.color = "var(--text-primary)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "transparent";
+              e.currentTarget.style.color = "var(--text-muted)";
+            }}
+            title="提醒事项"
+          >
+            <Bell className="h-4 w-4" />
+          </button>
+
           {/* Git 图标 - 仅在 Git 仓库中显示 */}
           {isGitRepo && (
             <button

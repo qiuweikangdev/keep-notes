@@ -24,11 +24,13 @@ import {
   Pencil,
   Trash2,
   GitCompare,
+  BellPlus,
 } from "lucide-react";
 import { useEditorStore } from "@/store/editor.store";
 import { OutlinePanel } from "./outline-panel";
 import { useTreeStore } from "@/store/tree.store";
 import { useElectron } from "@/hooks/use-electron";
+import { useReminderStore } from "@/store/reminder.store";
 import { QuickActionsPanel } from "./quick-actions-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,6 +81,7 @@ export function FileTree() {
   const appearance = useEditorStore((s) => s.appearance);
   const setSidebarView = useEditorStore((s) => s.setSidebarView);
   const sidebarView = appearance.sidebarView;
+  const openCreateReminder = useReminderStore((s) => s.openCreateDialog);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
@@ -584,6 +587,7 @@ export function FileTree() {
                     openInExplorer={openInExplorer}
                     copyPath={copyPath}
                     openInNewWindow={openInNewWindow}
+                    openCreateReminder={openCreateReminder}
                   />
                 ) : isRootExpanded ? (
                   <div
@@ -683,6 +687,7 @@ interface VirtualizedTreeListProps {
   openInExplorer: (targetPath: string) => Promise<boolean>;
   copyPath: (targetPath: string) => Promise<boolean>;
   openInNewWindow: (targetPath: string) => Promise<boolean>;
+  openCreateReminder: (filePath: string) => void;
 }
 
 const VirtualizedTreeList = memo(function VirtualizedTreeList({
@@ -696,6 +701,7 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
   openInExplorer,
   copyPath,
   openInNewWindow,
+  openCreateReminder,
 }: VirtualizedTreeListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -749,6 +755,7 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
               openInExplorer={openInExplorer}
               copyPath={copyPath}
               openInNewWindow={openInNewWindow}
+              openCreateReminder={openCreateReminder}
             />
           );
         })}
@@ -775,6 +782,7 @@ interface VirtualTreeNodeProps {
   openInExplorer: (targetPath: string) => Promise<boolean>;
   copyPath: (targetPath: string) => Promise<boolean>;
   openInNewWindow: (targetPath: string) => Promise<boolean>;
+  openCreateReminder: (filePath: string) => void;
 }
 
 const VirtualTreeNode = memo(function VirtualTreeNode({
@@ -790,6 +798,7 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
   openInExplorer,
   copyPath,
   openInNewWindow,
+  openCreateReminder,
 }: VirtualTreeNodeProps) {
   const revealInFileManagerLabel = getRevealInFileManagerLabel(
     window.electronAPI?.getPlatform(),
@@ -882,6 +891,15 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
                 }}
               >
                 <File className="h-4 w-4" /> 打开
+              </ContextMenu.Item>
+            ) : null}
+
+            {flatNode.title.endsWith(".md") ? (
+              <ContextMenu.Item
+                className={MENU_ITEM_CLASS}
+                onClick={() => openCreateReminder(flatNode.key)}
+              >
+                <BellPlus className="h-4 w-4" /> 新建提醒事项
               </ContextMenu.Item>
             ) : null}
 

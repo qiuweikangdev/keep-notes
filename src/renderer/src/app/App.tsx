@@ -3,10 +3,12 @@ import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { useEditorStore } from "@/store/editor.store";
 import { SettingsModal } from "@/features/settings";
 import { SearchModal } from "@/features/search";
+import { ReminderEditorDialog, ReminderListDialog } from "@/features/reminders";
 import { HomePage } from "@/pages/home";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useUIStore } from "@/store/ui.store";
 import { useShortcutsStore } from "@/store/shortcuts.store";
+import { useReminderStore } from "@/store/reminder.store";
 
 /**
  * 将 KeyboardEvent 转换为内部快捷键字符串
@@ -35,6 +37,10 @@ export function App() {
   const { appearance } = useEditorStore();
   const { isSettingsOpen } = useUIStore();
   const shortcuts = useShortcutsStore((s) => s.shortcuts);
+  const loadReminders = useReminderStore((s) => s.loadReminders);
+  const subscribeToReminderChanges = useReminderStore(
+    (s) => s.subscribeToReminderChanges,
+  );
 
   // 初始化键盘快捷键
   useKeyboardShortcuts();
@@ -78,6 +84,11 @@ export function App() {
     };
   }, [handleKeyDown]);
 
+  useEffect(() => {
+    void loadReminders();
+    return subscribeToReminderChanges();
+  }, [loadReminders, subscribeToReminderChanges]);
+
   // 监听来自菜单的搜索事件
   useEffect(() => {
     const handleOpenSearch = () => setIsSearchOpen(true);
@@ -110,6 +121,8 @@ export function App() {
           isOpen={isSearchOpen}
           onClose={() => setIsSearchOpen(false)}
         />
+        <ReminderEditorDialog />
+        <ReminderListDialog />
       </div>
     </Tooltip.Provider>
   );
