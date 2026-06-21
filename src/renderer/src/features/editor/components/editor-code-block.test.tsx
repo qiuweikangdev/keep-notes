@@ -1,5 +1,6 @@
 import {
   cleanup,
+  fireEvent,
   render,
   screen,
   waitFor,
@@ -296,7 +297,103 @@ describe("EditorCodeBlock", () => {
       screen.getByLabelText(/typescript folded code preview/i),
     ).toHaveTextContent("function demo() {... const next = 2;");
     expect(screen.getByLabelText(/2 folded lines/i)).toHaveTextContent("...");
-    expect(code).toHaveClass("editor-code-block__content--source-hidden");
+    expect(code.closest(".editor-code-block__code-pane")).toHaveClass(
+      "editor-code-block__code-pane--folded",
+    );
+  });
+
+  it("keeps folded preview outside the editable code content host", async () => {
+    const user = userEvent.setup();
+    renderCodeBlock("typescript");
+
+    const code = screen.getByTestId("editor-code-block-content");
+    code.textContent = "function demo() {\n  return 1;\n}";
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: /fold code block from line 1 to 3/i,
+      }),
+    );
+
+    const preview = screen.getByLabelText(/typescript folded code preview/i);
+    expect(preview.closest(".editor-code-block__pre")).toBe(null);
+  });
+
+  it("does not mutate the editable code content host when folding", async () => {
+    const user = userEvent.setup();
+    renderCodeBlock("typescript");
+
+    const code = screen.getByTestId("editor-code-block-content");
+    code.textContent = "function demo() {\n  return 1;\n}";
+    const codeClassName = code.className;
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: /fold code block from line 1 to 3/i,
+      }),
+    );
+
+    expect(code.className).toBe(codeClassName);
+    expect(code.closest(".editor-code-block__code-pane")).toHaveClass(
+      "editor-code-block__code-pane--folded",
+    );
+  });
+
+  it("keeps fold toggle pointer events inside the code block control", async () => {
+    const parentPointerDown = vi.fn();
+    const parentMouseDown = vi.fn();
+    const parentClick = vi.fn();
+    const nativeParentMouseDown = vi.fn();
+    const nativeParentClick = vi.fn();
+    const updateBlock = vi.fn();
+    const block = {
+      id: "block-1",
+      type: "codeBlock",
+      props: { language: "typescript" },
+    };
+
+    const { container } = render(
+      <div
+        onClick={parentClick}
+        onMouseDown={parentMouseDown}
+        onPointerDown={parentPointerDown}
+      >
+        <EditorCodeBlock
+          block={block}
+          editor={{ updateBlock } as never}
+          contentRef={() => undefined}
+        />
+      </div>,
+    );
+    const nativeParent = container.firstElementChild;
+    nativeParent?.addEventListener("mousedown", nativeParentMouseDown);
+    nativeParent?.addEventListener("click", nativeParentClick);
+
+    const code = screen.getByTestId("editor-code-block-content");
+    code.textContent = "function demo() {\n  return 1;\n}";
+
+    const foldButton = await screen.findByRole("button", {
+      name: /fold code block from line 1 to 3/i,
+    });
+
+    const pointerAllowed = fireEvent.pointerDown(foldButton);
+    expect(pointerAllowed).toBe(true);
+    expect(parentPointerDown).not.toHaveBeenCalled();
+
+    const mouseDownAllowed = fireEvent.mouseDown(foldButton);
+    expect(mouseDownAllowed).toBe(false);
+    expect(nativeParentMouseDown).not.toHaveBeenCalled();
+    expect(parentMouseDown).not.toHaveBeenCalled();
+
+    const clickAllowed = fireEvent.click(foldButton);
+    expect(clickAllowed).toBe(false);
+    expect(nativeParentClick).not.toHaveBeenCalled();
+    expect(parentClick).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", {
+        name: /expand code block from line 1 to 3/i,
+      }),
+    ).toBeInTheDocument();
   });
 
   it("handles command/control+a inside the code block as code-only selection", () => {

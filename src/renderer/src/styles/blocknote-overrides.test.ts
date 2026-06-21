@@ -141,6 +141,9 @@ describe("blocknote overrides stylesheet", () => {
     expect(getRule(".editor-code-block__body")).toMatch(
       /background:\s*var\(--editor-code-block-bg\) !important;/,
     );
+    expect(getRule(".editor-code-block__code-pane")).toMatch(
+      /background:\s*var\(--editor-code-block-bg\) !important;/,
+    );
     expect(getRule(".editor-code-block__pre")).toMatch(
       /background:\s*var\(--editor-code-block-bg\) !important;/,
     );
@@ -172,9 +175,11 @@ describe("blocknote overrides stylesheet", () => {
     expect(getRule(".editor-code-block__fold-toggle")).toMatch(
       /cursor:\s*pointer;/,
     );
-    expect(getRule(".editor-code-block__content--source-hidden")).toMatch(
-      /opacity:\s*0;/,
-    );
+    expect(
+      getRule(
+        ".editor-code-block__code-pane--folded .editor-code-block__content",
+      ),
+    ).toMatch(/opacity:\s*0;/);
     expect(getRule(".editor-code-block__fold-preview")).toMatch(
       /background:\s*var\(--editor-code-block-bg\) !important;/,
     );

@@ -5,6 +5,8 @@ import {
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
   type RefCallback,
 } from "react";
 import { TextSelection } from "@tiptap/pm/state";
@@ -613,7 +615,34 @@ export function EditorCodeBlock({
     }
   };
 
-  const handleFoldToggle = (lineNumber: number) => {
+  const stopFoldControlEvent = (
+    event:
+      | ReactMouseEvent<HTMLButtonElement>
+      | ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    // 折叠按钮位于 ProseMirror 编辑区内，阻断事件避免触发块选中、缩进或全选等编辑器行为。
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  const handleFoldPointerDownCapture = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    event.stopPropagation();
+  };
+
+  const handleFoldMouseDownCapture = (
+    event: ReactMouseEvent<HTMLButtonElement>,
+  ) => {
+    stopFoldControlEvent(event);
+  };
+
+  const handleFoldClickCapture = (
+    event: ReactMouseEvent<HTMLButtonElement>,
+    lineNumber: number,
+  ) => {
+    stopFoldControlEvent(event);
+
     setFoldedStartLines((currentStartLines) => {
       const nextStartLines = new Set(currentStartLines);
 
@@ -757,7 +786,11 @@ export function EditorCodeBlock({
                       foldRange.endLine
                     }`}
                     className="editor-code-block__fold-toggle"
-                    onClick={() => handleFoldToggle(lineNumber)}
+                    onPointerDownCapture={handleFoldPointerDownCapture}
+                    onMouseDownCapture={handleFoldMouseDownCapture}
+                    onClickCapture={(event) =>
+                      handleFoldClickCapture(event, lineNumber)
+                    }
                   >
                     {isFolded ? (
                       <ChevronRight className="h-3 w-3" aria-hidden="true" />
@@ -774,21 +807,25 @@ export function EditorCodeBlock({
           })}
         </div>
 
-        <pre className="editor-code-block__pre m-0 overflow-x-auto p-2">
-          <code
-            ref={setCodeElement}
-            data-testid="editor-code-block-content"
-            data-language={language}
-            className={`editor-code-block__content language-${language}${
-              hasFoldedLines ? " editor-code-block__content--source-hidden" : ""
-            }`}
-            aria-label={`${languageLabel} code`}
-          />
+        <div
+          className={`editor-code-block__code-pane${
+            hasFoldedLines ? " editor-code-block__code-pane--folded" : ""
+          }`}
+        >
+          <pre className="editor-code-block__pre m-0 p-2">
+            <code
+              ref={setCodeElement}
+              data-testid="editor-code-block-content"
+              data-language={language}
+              className={`editor-code-block__content language-${language}`}
+              aria-label={`${languageLabel} code`}
+            />
+          </pre>
 
           {hasFoldedLines ? (
-            <code
+            <pre
               contentEditable={false}
-              className="editor-code-block__fold-preview"
+              className="editor-code-block__fold-preview m-0 p-2"
               aria-label={`${languageLabel} folded code preview`}
             >
               {visibleLines.map((line, index) => (
@@ -818,9 +855,9 @@ export function EditorCodeBlock({
                   {index < visibleLines.length - 1 ? "\n" : null}
                 </span>
               ))}
-            </code>
+            </pre>
           ) : null}
-        </pre>
+        </div>
       </div>
     </div>
   );

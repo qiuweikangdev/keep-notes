@@ -330,13 +330,19 @@
   opacity: 1;
 }
 
-.editor-code-block__pre {
+.editor-code-block__code-pane {
   position: relative;
-  margin: 0;
   overflow-x: auto;
   min-width: 0;
   background: var(--editor-code-block-bg) !important;
   scrollbar-color: rgba(148, 163, 184, 0.38) transparent;
+}
+
+.editor-code-block__pre {
+  position: relative;
+  margin: 0;
+  min-width: max-content;
+  background: var(--editor-code-block-bg) !important;
 }
 
 .editor-code-block__content {
@@ -352,7 +358,7 @@
   white-space: pre;
 }
 
-.editor-code-block__content--source-hidden {
+.editor-code-block__code-pane--folded .editor-code-block__content {
   position: absolute;
   inset: 0;
   opacity: 0;
