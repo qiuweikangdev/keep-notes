@@ -73,6 +73,7 @@ function addDatePart(
   interval: number,
 ): Date {
   const next = new Date(date);
+  if (unit === "hour") next.setHours(next.getHours() + interval);
   if (unit === "day") next.setDate(next.getDate() + interval);
   if (unit === "week") next.setDate(next.getDate() + interval * 7);
   if (unit === "month") next.setMonth(next.getMonth() + interval);
@@ -96,6 +97,8 @@ export function calculateNextReminderDate(
   },
 ): Date {
   switch (rule.repeat) {
+    case "hourly":
+      return addDatePart(from, "hour", 1);
     case "daily":
       return addDatePart(from, "day", 1);
     case "weekdays":
@@ -108,6 +111,8 @@ export function calculateNextReminderDate(
       return addDatePart(from, "week", 2);
     case "monthly":
       return addDatePart(from, "month", 1);
+    case "bimonthly":
+      return addDatePart(from, "month", 2);
     case "quarterly":
       return addDatePart(from, "month", 3);
     case "semiannual":

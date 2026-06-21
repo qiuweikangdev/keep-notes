@@ -66,6 +66,9 @@ describe("calculateNextReminderDate", () => {
     const due = new Date("2026-06-19T09:00:00.000Z");
 
     expect(
+      calculateNextReminderDate(due, { repeat: "hourly" }).toISOString(),
+    ).toBe("2026-06-19T10:00:00.000Z");
+    expect(
       calculateNextReminderDate(due, { repeat: "daily" }).toISOString(),
     ).toBe("2026-06-20T09:00:00.000Z");
     expect(
@@ -84,6 +87,9 @@ describe("calculateNextReminderDate", () => {
       calculateNextReminderDate(due, { repeat: "monthly" }).toISOString(),
     ).toBe("2026-07-19T09:00:00.000Z");
     expect(
+      calculateNextReminderDate(due, { repeat: "bimonthly" }).toISOString(),
+    ).toBe("2026-08-19T09:00:00.000Z");
+    expect(
       calculateNextReminderDate(due, { repeat: "quarterly" }).toISOString(),
     ).toBe("2026-09-19T09:00:00.000Z");
     expect(
@@ -97,6 +103,12 @@ describe("calculateNextReminderDate", () => {
   it("calculates custom repeat intervals", () => {
     const due = new Date("2026-06-21T09:00:00.000Z");
 
+    expect(
+      calculateNextReminderDate(due, {
+        repeat: "custom",
+        customRepeat: { interval: 5, unit: "hour" },
+      }).toISOString(),
+    ).toBe("2026-06-21T14:00:00.000Z");
     expect(
       calculateNextReminderDate(due, {
         repeat: "custom",

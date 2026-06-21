@@ -6,19 +6,27 @@ export function getRepeatLabel(
   reminder: Pick<Reminder, "repeat" | "customRepeat">,
 ): string {
   if (reminder.repeat === "never") return "永不";
+  if (reminder.repeat === "hourly") return "每小时";
   if (reminder.repeat === "daily") return "每天";
   if (reminder.repeat === "weekdays") return "工作日";
   if (reminder.repeat === "weekends") return "周末";
   if (reminder.repeat === "weekly") return "每周";
   if (reminder.repeat === "biweekly") return "每两周";
   if (reminder.repeat === "monthly") return "每月";
+  if (reminder.repeat === "bimonthly") return "每两个月";
   if (reminder.repeat === "quarterly") return "每 3 个月";
   if (reminder.repeat === "semiannual") return "每 6 个月";
   if (reminder.repeat === "yearly") return "每年";
 
   const unit = reminder.customRepeat?.unit ?? "day";
   const interval = reminder.customRepeat?.interval ?? 1;
-  const unitLabel = { day: "天", week: "周", month: "月", year: "年" }[unit];
+  const unitLabel = {
+    hour: "小时",
+    day: "天",
+    week: "周",
+    month: "月",
+    year: "年",
+  }[unit];
   return `每 ${interval} ${unitLabel}`;
 }
 

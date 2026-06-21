@@ -117,18 +117,20 @@ export interface AppUpdateState {
 
 export type ReminderRepeatPreset =
   | "never"
+  | "hourly"
   | "daily"
   | "weekdays"
   | "weekends"
   | "weekly"
   | "biweekly"
   | "monthly"
+  | "bimonthly"
   | "quarterly"
   | "semiannual"
   | "yearly"
   | "custom";
 
-export type ReminderRepeatUnit = "day" | "week" | "month" | "year";
+export type ReminderRepeatUnit = "hour" | "day" | "week" | "month" | "year";
 
 export interface ReminderRepeatCustomRule {
   interval: number;

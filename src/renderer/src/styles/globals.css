@@ -88,6 +88,198 @@ button:not(:disabled):not([aria-disabled="true"]):not([role="switch"]):not(.quic
   background-color: var(--button-active-bg) !important;
 }
 
+button[data-ui-button="true"] {
+  border: 1px solid transparent;
+  box-shadow: none;
+  color: var(--text-primary);
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease !important;
+}
+
+button[data-ui-button="true"]:disabled,
+button[data-ui-button="true"][aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+button[data-ui-button="true"][data-variant="default"] {
+  background-color: color-mix(
+    in srgb,
+    var(--accent-color) 10%,
+    var(--bg-primary)
+  );
+  border-color: color-mix(in srgb, var(--accent-color) 22%, var(--border-color));
+  color: color-mix(in srgb, var(--accent-color) 58%, var(--text-primary));
+}
+
+button[data-ui-button="true"][data-variant="default"]:not(:disabled):not([aria-disabled="true"]):hover {
+  background-color: color-mix(
+    in srgb,
+    var(--accent-color) 15%,
+    var(--bg-primary)
+  ) !important;
+  border-color: color-mix(in srgb, var(--accent-color) 32%, var(--border-color));
+  color: color-mix(
+    in srgb,
+    var(--accent-color) 68%,
+    var(--text-primary)
+  ) !important;
+}
+
+button[data-ui-button="true"][data-variant="default"]:not(:disabled):not([aria-disabled="true"]):active {
+  background-color: color-mix(
+    in srgb,
+    var(--accent-color) 20%,
+    var(--bg-primary)
+  ) !important;
+  border-color: color-mix(in srgb, var(--accent-color) 38%, var(--border-color));
+  color: color-mix(
+    in srgb,
+    var(--accent-color) 72%,
+    var(--text-primary)
+  ) !important;
+}
+
+button[data-ui-button="true"][data-variant="default"]:disabled,
+button[data-ui-button="true"][data-variant="default"][aria-disabled="true"] {
+  background-color: color-mix(
+    in srgb,
+    var(--bg-secondary) 76%,
+    transparent
+  );
+  border-color: color-mix(in srgb, var(--border-color) 60%, transparent);
+  color: color-mix(in srgb, var(--text-muted) 72%, transparent);
+}
+
+button[data-ui-button="true"][data-variant="secondary"] {
+  background-color: color-mix(
+    in srgb,
+    var(--bg-primary) 68%,
+    var(--bg-secondary)
+  );
+  border-color: color-mix(in srgb, var(--border-color) 82%, transparent);
+  color: var(--text-secondary);
+}
+
+button[data-ui-button="true"][data-variant="secondary"]:not(:disabled):not([aria-disabled="true"]):hover,
+button[data-ui-button="true"][data-variant="outline"]:not(:disabled):not([aria-disabled="true"]):hover,
+button[data-ui-button="true"][data-variant="ghost"]:not(:disabled):not([aria-disabled="true"]):hover {
+  background-color: color-mix(
+    in srgb,
+    var(--hover-bg) 82%,
+    var(--bg-primary)
+  ) !important;
+  border-color: color-mix(in srgb, var(--border-color) 86%, transparent);
+  color: var(--text-primary) !important;
+}
+
+button[data-ui-button="true"][data-variant="secondary"]:not(:disabled):not([aria-disabled="true"]):active,
+button[data-ui-button="true"][data-variant="outline"]:not(:disabled):not([aria-disabled="true"]):active,
+button[data-ui-button="true"][data-variant="ghost"]:not(:disabled):not([aria-disabled="true"]):active {
+  background-color: color-mix(
+    in srgb,
+    var(--active-bg) 42%,
+    var(--bg-primary)
+  ) !important;
+  color: var(--text-primary) !important;
+}
+
+button[data-ui-button="true"][data-variant="secondary"]:disabled,
+button[data-ui-button="true"][data-variant="secondary"][aria-disabled="true"],
+button[data-ui-button="true"][data-variant="outline"]:disabled,
+button[data-ui-button="true"][data-variant="outline"][aria-disabled="true"],
+button[data-ui-button="true"][data-variant="ghost"]:disabled,
+button[data-ui-button="true"][data-variant="ghost"][aria-disabled="true"] {
+  background-color: color-mix(
+    in srgb,
+    var(--bg-secondary) 70%,
+    transparent
+  );
+  border-color: color-mix(in srgb, var(--border-color) 55%, transparent);
+  color: var(--text-muted);
+}
+
+button[data-ui-button="true"][data-variant="outline"] {
+  background-color: transparent;
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+button[data-ui-button="true"][data-variant="ghost"] {
+  background-color: transparent;
+  color: var(--text-primary);
+}
+
+button[data-ui-button="true"][data-variant="destructive"] {
+  background-color: color-mix(
+    in srgb,
+    var(--danger-color) 16%,
+    var(--bg-primary)
+  );
+  border-color: color-mix(in srgb, var(--danger-color) 30%, var(--border-color));
+  color: var(--danger-color);
+}
+
+button[data-ui-button="true"][data-variant="destructive"]:not(:disabled):not([aria-disabled="true"]):hover {
+  background-color: color-mix(
+    in srgb,
+    var(--danger-color) 24%,
+    var(--bg-primary)
+  ) !important;
+  border-color: color-mix(in srgb, var(--danger-color) 46%, var(--border-color));
+  color: color-mix(
+    in srgb,
+    var(--danger-color) 88%,
+    var(--text-primary)
+  ) !important;
+}
+
+button[data-ui-button="true"][data-variant="destructive"]:not(:disabled):not([aria-disabled="true"]):active {
+  background-color: color-mix(
+    in srgb,
+    var(--danger-color) 30%,
+    var(--bg-primary)
+  ) !important;
+  color: var(--danger-color) !important;
+}
+
+button[data-ui-button="true"][data-variant="destructive"]:disabled,
+button[data-ui-button="true"][data-variant="destructive"][aria-disabled="true"] {
+  background-color: color-mix(
+    in srgb,
+    var(--danger-color) 18%,
+    var(--bg-secondary)
+  );
+  border-color: color-mix(in srgb, var(--danger-color) 16%, var(--border-color));
+  color: var(--text-muted);
+}
+
+button[data-ui-button="true"][data-variant="link"] {
+  background-color: transparent;
+  color: var(--accent-color);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+button[data-ui-button="true"][data-variant="link"]:not(:disabled):not([aria-disabled="true"]):hover {
+  background-color: transparent !important;
+  color: color-mix(in srgb, var(--accent-color) 82%, var(--text-primary)) !important;
+}
+
+button[data-theme-control="true"]:not(:disabled):hover {
+  background-color: var(--hover-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+button[data-theme-control="true"][data-selected="true"],
+button[data-theme-control="true"][data-selected="true"]:hover {
+  background-color: var(--accent-color) !important;
+  color: #ffffff !important;
+}
+
 /* 底部操作栏按钮悬停效果 */
 .sidebar-bottom-bar:hover {
   background-color: transparent !important;

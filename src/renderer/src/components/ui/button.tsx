@@ -4,7 +4,7 @@ import { cn } from "@/lib/cn";
 import { Slot } from "@/lib/radix";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-[13px] font-medium leading-none transition-colors focus-visible:outline-none disabled:pointer-events-none",
   {
     variants: {
       variant: {
@@ -16,10 +16,10 @@ const buttonVariants = cva(
         link: "",
       },
       size: {
-        default: "h-10 px-4 py-2",
-        sm: "h-9 rounded-md px-3",
-        lg: "h-11 rounded-md px-8",
-        icon: "h-10 w-10",
+        default: "h-8 px-3",
+        sm: "h-7 rounded-md px-2.5 text-xs",
+        lg: "h-9 rounded-md px-4",
+        icon: "h-8 w-8",
       },
     },
     defaultVariants: {
@@ -39,58 +39,17 @@ export interface ButtonProps
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, style, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
-
-    const getVariantStyles = () => {
-      switch (variant) {
-        case "default":
-          return {
-            backgroundColor: "var(--accent-color)",
-            color: "#ffffff",
-          };
-        case "destructive":
-          return {
-            backgroundColor: "#ff4d4f",
-            color: "#ffffff",
-          };
-        case "outline":
-          return {
-            backgroundColor: "transparent",
-            border: "1px solid var(--border-color)",
-            color: "var(--text-primary)",
-          };
-        case "secondary":
-          return {
-            backgroundColor: "var(--bg-secondary)",
-            color: "var(--text-primary)",
-          };
-        case "ghost":
-          return {
-            backgroundColor: "transparent",
-            color: "var(--text-primary)",
-          };
-        case "link":
-          return {
-            backgroundColor: "transparent",
-            color: "var(--accent-color)",
-            textDecoration: "underline",
-            textUnderlineOffset: "4px",
-          };
-        default:
-          return {
-            backgroundColor: "var(--accent-color)",
-            color: "#ffffff",
-          };
-      }
-    };
+    const resolvedVariant = variant ?? "default";
 
     return (
       <Comp
-        className={cn(buttonVariants({ variant, size, className }))}
+        className={cn(
+          buttonVariants({ variant: resolvedVariant, size, className }),
+        )}
+        data-ui-button="true"
+        data-variant={resolvedVariant}
         ref={ref}
-        style={{
-          ...getVariantStyles(),
-          ...style,
-        }}
+        style={style}
         {...props}
       />
     );

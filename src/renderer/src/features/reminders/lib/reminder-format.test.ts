@@ -22,15 +22,23 @@ const baseReminder: Reminder = {
 describe("getRepeatLabel", () => {
   it("formats preset and custom repeat labels", () => {
     expect(getRepeatLabel({ repeat: "never" })).toBe("永不");
+    expect(getRepeatLabel({ repeat: "hourly" })).toBe("每小时");
     expect(getRepeatLabel({ repeat: "daily" })).toBe("每天");
     expect(getRepeatLabel({ repeat: "weekdays" })).toBe("工作日");
     expect(getRepeatLabel({ repeat: "weekends" })).toBe("周末");
     expect(getRepeatLabel({ repeat: "weekly" })).toBe("每周");
     expect(getRepeatLabel({ repeat: "biweekly" })).toBe("每两周");
     expect(getRepeatLabel({ repeat: "monthly" })).toBe("每月");
+    expect(getRepeatLabel({ repeat: "bimonthly" })).toBe("每两个月");
     expect(getRepeatLabel({ repeat: "quarterly" })).toBe("每 3 个月");
     expect(getRepeatLabel({ repeat: "semiannual" })).toBe("每 6 个月");
     expect(getRepeatLabel({ repeat: "yearly" })).toBe("每年");
+    expect(
+      getRepeatLabel({
+        repeat: "custom",
+        customRepeat: { interval: 5, unit: "hour" },
+      }),
+    ).toBe("每 5 小时");
     expect(
       getRepeatLabel({
         repeat: "custom",
