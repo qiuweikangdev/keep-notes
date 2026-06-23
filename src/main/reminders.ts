@@ -8,6 +8,7 @@ import type {
   ReminderRepeatPreset,
   ReminderRepeatUnit,
 } from "../shared/types";
+import { notificationChannelManager } from "./notification-channels/manager";
 import { openPathInNewWindow } from "./window";
 
 const MAX_TIMER_DELAY = 2_147_483_647;
@@ -269,7 +270,7 @@ export class ReminderService {
         continue;
       }
 
-      this.notify(reminder);
+      await this.notify(reminder);
       reminder.lastNotifiedAt = reminder.scheduledAt;
 
       if (reminder.repeat !== "never") {
@@ -290,11 +291,19 @@ export class ReminderService {
     }
   }
 
-  private notify(reminder: Reminder): void {
-    const notification = this.showNotification(reminder, () => {
-      void this.openFileInNewWindow(reminder.filePath);
-    });
-    notification.show();
+  private async notify(reminder: Reminder): Promise<void> {
+    const config = notificationChannelManager.getConfig();
+
+    // 桌面通知受配置控制
+    if (config.desktop.enabled) {
+      const notification = this.showNotification(reminder, () => {
+        void this.openFileInNewWindow(reminder.filePath);
+      });
+      notification.show();
+    }
+
+    // 发送远程通知（邮件等）
+    await notificationChannelManager.sendAll(reminder);
   }
 
   private async persistAndNotify(): Promise<void> {

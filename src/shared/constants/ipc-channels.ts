@@ -43,6 +43,12 @@ export const IPC_CHANNELS = {
     COMPLETE: "reminder:complete",
     ON_CHANGED: "reminder:on-changed",
   },
+  NOTIFICATION: {
+    GET_CONFIG: "notification:get-config",
+    SET_CONFIG: "notification:set-config",
+    TEST_CHANNEL: "notification:test-channel",
+    ON_CONFIG_CHANGED: "notification:on-config-changed",
+  },
   TREE: {
     CREATE_FILE: "tree:create-file",
     CREATE_FOLDER: "tree:create-folder",

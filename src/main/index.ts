@@ -5,6 +5,7 @@ import { createWindow } from "./window";
 import { registerAllIpc } from "./ipc";
 import { registerAppMenu } from "./menu";
 import { initializeReminderIpc } from "./ipc/reminder.ipc";
+import { initializeNotificationIpc } from "./ipc/notification.ipc";
 
 app.whenReady().then(async () => {
   electronApp.setAppUserModelId("com.keep-notes");
@@ -26,6 +27,7 @@ app.whenReady().then(async () => {
 
   registerAllIpc();
   await initializeReminderIpc();
+  await initializeNotificationIpc();
   createWindow();
 
   app.on("activate", () => {

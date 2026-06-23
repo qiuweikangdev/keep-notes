@@ -5,6 +5,7 @@ import { registerMenuIpc } from "./menu.ipc";
 import { registerEditorIpc } from "./editor.ipc";
 import { registerUpdaterIpc } from "./updater.ipc";
 import { registerReminderIpc } from "./reminder.ipc";
+import { registerNotificationIpc } from "./notification.ipc";
 
 export function registerAllIpc(): void {
   registerFileIpc();
@@ -14,4 +15,5 @@ export function registerAllIpc(): void {
   registerEditorIpc();
   registerUpdaterIpc();
   registerReminderIpc();
+  registerNotificationIpc();
 }
