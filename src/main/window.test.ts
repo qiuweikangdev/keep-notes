@@ -1,13 +1,35 @@
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
+  createWindow,
   openPathInNewWindow,
   resolveWindowOpenTarget,
   type WindowOpenTarget,
 } from "./window";
 
+const BrowserWindowMock = vi.hoisted(() =>
+  vi.fn(function BrowserWindow(
+    options: Electron.BrowserWindowConstructorOptions,
+  ) {
+    return {
+      options,
+      webContents: {
+        openDevTools: vi.fn(),
+        once: vi.fn(),
+        setWindowOpenHandler: vi.fn(),
+        send: vi.fn(),
+      },
+      on: vi.fn(),
+      loadFile: vi.fn(),
+      loadURL: vi.fn(),
+      isDestroyed: vi.fn(() => false),
+      show: vi.fn(),
+    };
+  }),
+);
+
 vi.mock("electron", () => ({
-  BrowserWindow: class {},
+  BrowserWindow: BrowserWindowMock,
   app: { isPackaged: true },
   shell: { openExternal: vi.fn() },
   dialog: { showMessageBox: vi.fn(), showSaveDialog: vi.fn() },
@@ -23,6 +45,10 @@ vi.mock("./shortcuts", () => ({
 
 vi.mock("./ipc/editor.ipc", () => ({
   getCachedDirtyState: vi.fn(() => false),
+}));
+
+vi.mock("../../resources/icon.png?asset", () => ({
+  default: "mock-icon.png",
 }));
 
 describe("resolveWindowOpenTarget", () => {
@@ -57,6 +83,18 @@ describe("resolveWindowOpenTarget", () => {
       rootPath: path.dirname(filePath),
       filePath,
     });
+  });
+});
+
+describe("createWindow", () => {
+  it("uses the app icon for Windows and Linux development windows", () => {
+    createWindow();
+
+    expect(BrowserWindowMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        icon: "mock-icon.png",
+      }),
+    );
   });
 });
 

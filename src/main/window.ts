@@ -34,7 +34,7 @@ const windowConfig: Electron.BrowserWindowConstructorOptions = {
         frame: false,
         transparent: true,
       }),
-  ...(process.platform === "linux" ? { icon } : {}),
+  ...(!isMac ? { icon } : {}),
   webPreferences: {
     preload: join(__dirname, "../preload/index.mjs"),
     sandbox: false,
