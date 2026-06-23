@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, type CSSProperties } from "react";
 import { useCreateBlockNote, useEditorChange } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
+import { EditorView as CodeMirrorView } from "@codemirror/view";
 import type {
   Block,
   BlockNoteEditor as CoreBlockNoteEditor,
@@ -126,6 +127,45 @@ function getCodeElementFromSelectionRoot(root: Element | null) {
   );
 }
 
+function selectCodeMirrorCodeBlockContent(root: Element | null) {
+  const editorElement = root?.querySelector<HTMLElement>(
+    ".editor-code-block__codemirror .cm-editor",
+  );
+  if (!editorElement) return false;
+
+  const view = CodeMirrorView.findFromDOM(editorElement);
+  if (!view) return false;
+
+  view.focus();
+  view.dispatch({
+    selection: {
+      anchor: 0,
+      head: view.state.doc.length,
+    },
+    scrollIntoView: true,
+  });
+
+  return true;
+}
+
+export function shouldMarkRichEditorPointerIntent(target: EventTarget | null) {
+  const targetElement = getElementFromEventTarget(target);
+  if (!targetElement) return true;
+
+  // CodeMirror 折叠 gutter 只是展示/控制层，不应触发保存/缩进链路的用户编辑意图。
+  return !targetElement.closest(
+    [".cm-gutters", ".cm-foldGutter", ".cm-lineNumbers"].join(", "),
+  );
+}
+
+export function shouldLetCodeMirrorHandleKeyboardEvent(
+  target: EventTarget | null,
+) {
+  const targetElement = getElementFromEventTarget(target);
+
+  return Boolean(targetElement?.closest(".editor-code-block__codemirror"));
+}
+
 export function selectEntireRichEditorContent(
   editor: RichEditorSelectionTarget,
 ): boolean {
@@ -150,6 +190,7 @@ export function handleRichEditorSelectAllShortcut(
   editor: RichEditorSelectionTarget,
 ): boolean {
   if (!isSelectAllShortcut(event)) return false;
+  if (shouldLetCodeMirrorHandleKeyboardEvent(event.target)) return false;
 
   const targetElement = getElementFromEventTarget(event.target);
   const codeBlockRoot =
@@ -158,6 +199,10 @@ export function handleRichEditorSelectAllShortcut(
 
   event.preventDefault();
   event.stopPropagation();
+
+  if (selectCodeMirrorCodeBlockContent(codeBlockRoot)) {
+    return true;
+  }
 
   if (codeElement) {
     return selectCodeBlockContent(codeElement, editor.prosemirrorView);
@@ -557,9 +602,19 @@ function BlockNoteEditorInner({
     changeGateRef.current.markUserIntent();
   }, []);
 
+  const handlePointerDownCapture = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (shouldMarkRichEditorPointerIntent(event.target)) {
+        markUserIntent();
+      }
+    },
+    [markUserIntent],
+  );
+
   const handleKeyDownCapture = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
       markUserIntent();
+      if (shouldLetCodeMirrorHandleKeyboardEvent(event.target)) return;
       if (handleRichEditorHeadingShortcut(event, editor)) return;
       handleRichEditorSelectAllShortcut(event, editor);
     },
@@ -611,7 +666,7 @@ function BlockNoteEditorInner({
       onClick={onFocus}
       onBeforeInputCapture={markUserIntent}
       onKeyDownCapture={handleKeyDownCapture}
-      onPointerDownCapture={markUserIntent}
+      onPointerDownCapture={handlePointerDownCapture}
       onPasteCapture={markUserIntent}
       onCutCapture={markUserIntent}
       onCompositionStartCapture={markUserIntent}

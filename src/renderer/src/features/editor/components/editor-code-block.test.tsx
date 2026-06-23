@@ -9,8 +9,9 @@ import {
 import userEvent from "@testing-library/user-event";
 import { BlockNoteEditor as CoreBlockNoteEditor } from "@blocknote/core";
 import { BlockNoteView } from "@blocknote/mantine";
+import { EditorView } from "@codemirror/view";
 import { createElement } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { editorSchema } from "../lib/blocknote-schema";
 import {
@@ -28,6 +29,42 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
+
+beforeEach(() => {
+  setupCodeMirrorDomMeasurements();
+});
+
+function setupCodeMirrorDomMeasurements() {
+  const createRect = () =>
+    ({
+      bottom: 0,
+      height: 0,
+      left: 0,
+      right: 0,
+      top: 0,
+      width: 0,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    }) as DOMRect;
+  const createRectList = () =>
+    ({
+      length: 0,
+      item: () => null,
+      [Symbol.iterator]: function* iterator() {
+        yield* [];
+      },
+    }) as DOMRectList;
+
+  Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+    configurable: true,
+    value: createRect,
+  });
+  Object.defineProperty(Range.prototype, "getClientRects", {
+    configurable: true,
+    value: createRectList,
+  });
+}
 
 function setupMatchMedia() {
   Object.defineProperty(window, "matchMedia", {
@@ -47,6 +84,7 @@ function setupMatchMedia() {
 
 function renderCodeBlock(language = "javascript") {
   const updateBlock = vi.fn();
+  const removeBlocks = vi.fn();
   const block = {
     id: "block-1",
     type: "codeBlock",
@@ -56,12 +94,36 @@ function renderCodeBlock(language = "javascript") {
   render(
     <EditorCodeBlock
       block={block}
-      editor={{ updateBlock } as never}
+      editor={{ removeBlocks, updateBlock } as never}
       contentRef={() => undefined}
     />,
   );
 
-  return { updateBlock };
+  return { removeBlocks, updateBlock };
+}
+
+async function expectCodeMirrorFolded() {
+  expect((await screen.findAllByTitle("Unfold line")).length).toBeGreaterThan(
+    0,
+  );
+  expect(screen.getAllByLabelText("folded code").length).toBeGreaterThan(0);
+}
+
+function getCodeMirrorContent() {
+  return screen
+    .getByTestId("editor-code-block-codemirror")
+    .querySelector(".cm-content");
+}
+
+function getCodeMirrorView() {
+  const host = screen.getByTestId("editor-code-block-codemirror");
+  const editorElement = host.querySelector<HTMLElement>(".cm-editor");
+  expect(editorElement).not.toBeNull();
+
+  const view = EditorView.findFromDOM(editorElement as HTMLElement);
+  expect(view).not.toBeNull();
+
+  return view as EditorView;
 }
 
 describe("EditorCodeBlock", () => {
@@ -117,6 +179,38 @@ describe("EditorCodeBlock", () => {
     ]);
   });
 
+  it("keeps Vue folded preview line numbers matched with visible source lines", () => {
+    const code = [
+      "<template>",
+      "  <article>",
+      '    <div class="cover">',
+      "      <img />",
+      "    </div>",
+      '    <div class="content">',
+      "      <NuxtLink>",
+      "        title",
+      "      </NuxtLink>",
+      "    </div>",
+      "</template>",
+    ].join("\n");
+
+    expect(getCodeBlockVisibleLines(code, [3])).toEqual([
+      { lineNumber: 1, text: "<template>" },
+      { lineNumber: 2, text: "  <article>" },
+      {
+        lineNumber: 3,
+        text: '    <div class="cover">',
+        foldedRange: { startLine: 3, endLine: 5 },
+      },
+      { lineNumber: 6, text: '    <div class="content">' },
+      { lineNumber: 7, text: "      <NuxtLink>" },
+      { lineNumber: 8, text: "        title" },
+      { lineNumber: 9, text: "      </NuxtLink>" },
+      { lineNumber: 10, text: "    </div>" },
+      { lineNumber: 11, text: "</template>" },
+    ]);
+  });
+
   it("reads only code text from the code content element", () => {
     const element = document.createElement("code");
     element.textContent = "const value = 1;\nconsole.log(value);";
@@ -145,7 +239,7 @@ describe("EditorCodeBlock", () => {
     wrapper.remove();
   });
 
-  it("syncs code block select-all to the ProseMirror selection", async () => {
+  it("selects the CodeMirror code block content inside the BlockNote schema", async () => {
     setupMatchMedia();
     const editor = CoreBlockNoteEditor.create({
       schema: editorSchema,
@@ -158,24 +252,32 @@ describe("EditorCodeBlock", () => {
       ],
     });
     const { container } = render(createElement(BlockNoteView, { editor }));
-    const code = await waitFor(() => {
-      const element = container.querySelector<HTMLElement>(
-        ".editor-code-block__content",
-      );
-      expect(element).not.toBe(null);
-      expect(element?.textContent).toBe("const value = 1;");
-      return element;
+
+    await waitFor(() => {
+      expect(getCodeMirrorView().state.doc.toString()).toBe("const value = 1;");
     });
 
-    expect(selectCodeBlockContent(code, editor.prosemirrorView)).toBe(true);
+    const editorElement = container.querySelector<HTMLElement>(
+      ".editor-code-block__codemirror .cm-editor",
+    );
+    expect(editorElement).not.toBe(null);
+    const view = EditorView.findFromDOM(editorElement as HTMLElement);
+    expect(view).not.toBe(null);
 
-    const { selection } = editor.prosemirrorView.state;
-    expect(
-      editor.prosemirrorView.state.doc.textBetween(
-        selection.from,
-        selection.to,
-      ),
-    ).toBe("const value = 1;");
+    (view as EditorView).focus();
+    (view as EditorView).contentDOM.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        bubbles: true,
+        cancelable: true,
+        key: "a",
+        metaKey: true,
+      }),
+    );
+
+    expect((view as EditorView).state.selection.main.from).toBe(0);
+    expect((view as EditorView).state.selection.main.to).toBe(
+      "const value = 1;".length,
+    );
   });
 
   it("serializes highlighted code lines without block-level wrappers", () => {
@@ -193,6 +295,49 @@ describe("EditorCodeBlock", () => {
     expect(lineHtml).toContain('style="color: rgb(160, 17, 31);"');
     expect(lineHtml).toContain('style="color: rgb(3, 43, 127);"');
     expect(lineHtml).not.toContain("<div");
+  });
+
+  it("preserves source indentation when highlighted markup omits leading spaces", () => {
+    const element = document.createElement("code");
+    element.innerHTML = [
+      '<span style="color: rgb(160, 17, 31);">&lt;template&gt;</span>',
+      "\n",
+      '<span style="color: rgb(160, 17, 31);">&lt;article&gt;</span>',
+    ].join("");
+
+    const [, indentedLineHtml] = getHighlightedCodeBlockLineHtml(
+      element,
+      "<template>\n  <article>",
+    );
+
+    expect(indentedLineHtml.startsWith("  ")).toBe(true);
+    expect(indentedLineHtml).toContain("&lt;article&gt;");
+  });
+
+  it("does not duplicate indentation already present in highlighted markup", () => {
+    const element = document.createElement("code");
+    element.innerHTML = [
+      '<span style="color: rgb(160, 17, 31);">{</span>',
+      "\n",
+      '<span style="color: rgb(160, 17, 31);">  &quot;name&quot;</span>',
+    ].join("");
+
+    const [, indentedLineHtml] = getHighlightedCodeBlockLineHtml(
+      element,
+      '{\n  "name"',
+    );
+    const renderedLine = document.createElement("span");
+    renderedLine.innerHTML = indentedLineHtml;
+
+    expect(renderedLine.textContent).toBe('  "name"');
+  });
+
+  it("falls back to source lines when highlighted markup is not ready", () => {
+    const element = document.createElement("code");
+
+    expect(
+      getHighlightedCodeBlockLineHtml(element, "<template>\n  <article>"),
+    ).toEqual(["&lt;template&gt;", "  &lt;article&gt;"]);
   });
 
   it("refreshes ProseMirror decorations without changing code text", () => {
@@ -258,13 +403,13 @@ describe("EditorCodeBlock", () => {
     expect(
       shell?.querySelector(".editor-code-block-language-trigger"),
     ).toBeInTheDocument();
-    expect(
-      shell?.querySelector(".editor-code-block-gutter"),
-    ).toBeInTheDocument();
-    expect(shell?.querySelector(".editor-code-block-gutter")).not.toHaveClass(
-      "border-r",
-    );
+    expect(shell?.querySelector(".cm-editor")).toBeInTheDocument();
+    expect(shell?.querySelector(".cm-lineNumbers")).toBeInTheDocument();
+    expect(shell?.querySelector(".cm-foldGutter")).toBeInTheDocument();
     expect(shell?.querySelector(".editor-code-block-copy")).toBeInTheDocument();
+    expect(
+      shell?.querySelector(".editor-code-block__blocknote-content-pre"),
+    ).toBeInTheDocument();
     expect(code).not.toHaveAttribute("contenteditable");
 
     await user.click(
@@ -276,67 +421,126 @@ describe("EditorCodeBlock", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders fold controls and switches to a folded preview", async () => {
+  it("renders CodeMirror while keeping the BlockNote content host", async () => {
+    renderCodeBlock("json");
+
+    const code = screen.getByTestId("editor-code-block-content");
+    code.textContent = '{\n  "name": "demo"\n}';
+
+    const shell = code.closest(".editor-code-block-shell");
+    await waitFor(() => {
+      expect(shell?.querySelector(".cm-editor")).toBeInTheDocument();
+      expect(shell?.querySelector(".cm-foldGutter")).toBeInTheDocument();
+    });
+    expect(code).toHaveClass("editor-code-block__blocknote-content");
+  });
+
+  it("renders CodeMirror fold controls and toggles the current scope", async () => {
     const user = userEvent.setup();
     renderCodeBlock("typescript");
 
     const code = screen.getByTestId("editor-code-block-content");
     code.textContent = "function demo() {\n  return 1;\n}\nconst next = 2;";
 
-    const foldButton = await screen.findByRole("button", {
-      name: /fold code block from line 1 to 3/i,
-    });
-    await user.click(foldButton);
+    await user.click((await screen.findAllByTitle("Fold line"))[0]);
 
-    expect(
-      screen.getByRole("button", {
-        name: /expand code block from line 1 to 3/i,
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByLabelText(/typescript folded code preview/i),
-    ).toHaveTextContent("function demo() {... const next = 2;");
-    expect(screen.getByLabelText(/2 folded lines/i)).toHaveTextContent("...");
-    expect(code.closest(".editor-code-block__code-pane")).toHaveClass(
-      "editor-code-block__code-pane--folded",
+    await expectCodeMirrorFolded();
+    const codeMirrorContent = getCodeMirrorContent();
+    expect(codeMirrorContent?.textContent).toContain("const next = 2;");
+    expect(code.textContent).toBe(
+      "function demo() {\n  return 1;\n}\nconst next = 2;",
     );
   });
 
-  it("keeps folded preview outside the editable code content host", async () => {
+  it("folds indentation-based code even without a dedicated CodeMirror parser", async () => {
+    const user = userEvent.setup();
+    renderCodeBlock("python");
+
+    const code = screen.getByTestId("editor-code-block-content");
+    code.textContent = [
+      "class Notes:",
+      "  def save(self):",
+      "    return True",
+      "  def load(self):",
+      "    return None",
+      "print('done')",
+    ].join("\n");
+
+    await user.click((await screen.findAllByTitle("Fold line"))[0]);
+
+    await expectCodeMirrorFolded();
+    expect(getCodeMirrorView().state.doc.toString()).toBe(code.textContent);
+  });
+
+  it("keeps CodeMirror outside the BlockNote content host", async () => {
     const user = userEvent.setup();
     renderCodeBlock("typescript");
 
     const code = screen.getByTestId("editor-code-block-content");
     code.textContent = "function demo() {\n  return 1;\n}";
 
-    await user.click(
-      await screen.findByRole("button", {
-        name: /fold code block from line 1 to 3/i,
-      }),
-    );
+    const codeMirror = screen.getByTestId("editor-code-block-codemirror");
+    await user.click((await screen.findAllByTitle("Fold line"))[0]);
 
-    const preview = screen.getByLabelText(/typescript folded code preview/i);
-    expect(preview.closest(".editor-code-block__pre")).toBe(null);
+    expect(codeMirror).not.toContainElement(code);
+    expect(
+      code.closest(".editor-code-block__blocknote-content-pre"),
+    ).toBeInTheDocument();
+    await expectCodeMirrorFolded();
   });
 
-  it("does not mutate the editable code content host when folding", async () => {
+  it("does not mutate the BlockNote content host when folding", async () => {
     const user = userEvent.setup();
     renderCodeBlock("typescript");
 
     const code = screen.getByTestId("editor-code-block-content");
     code.textContent = "function demo() {\n  return 1;\n}";
     const codeClassName = code.className;
+    const originalText = code.textContent;
 
-    await user.click(
-      await screen.findByRole("button", {
-        name: /fold code block from line 1 to 3/i,
-      }),
-    );
+    await user.click((await screen.findAllByTitle("Fold line"))[0]);
 
     expect(code.className).toBe(codeClassName);
-    expect(code.closest(".editor-code-block__code-pane")).toHaveClass(
-      "editor-code-block__code-pane--folded",
-    );
+    expect(code.textContent).toBe(originalText);
+    await expectCodeMirrorFolded();
+  });
+
+  it("keeps source indentation exactly when folding", async () => {
+    const user = userEvent.setup();
+    renderCodeBlock("json");
+
+    const code = screen.getByTestId("editor-code-block-content");
+    code.textContent = [
+      "{",
+      '  "account": {',
+      '    "credentials": {',
+      '      "token": "value"',
+      "    },",
+      '    "priority": 0',
+      "  }",
+      "}",
+    ].join("\n");
+    const originalText = code.textContent;
+
+    const foldButtons = await screen.findAllByTitle("Fold line");
+    await user.click(foldButtons.at(-1) as HTMLElement);
+
+    await expectCodeMirrorFolded();
+    expect(code.textContent).toBe(originalText);
+  });
+
+  it("keeps code outside the folded scope visible on a separate line", async () => {
+    const user = userEvent.setup();
+    renderCodeBlock("typescript");
+
+    const code = screen.getByTestId("editor-code-block-content");
+    code.textContent = "function demo() {\n  return 1;\n}\nnext();";
+
+    await user.click((await screen.findAllByTitle("Fold line"))[0]);
+
+    await expectCodeMirrorFolded();
+    const codeMirrorContent = getCodeMirrorContent();
+    expect(codeMirrorContent?.textContent).toContain("next();");
   });
 
   it("keeps fold toggle pointer events inside the code block control", async () => {
@@ -372,16 +576,14 @@ describe("EditorCodeBlock", () => {
     const code = screen.getByTestId("editor-code-block-content");
     code.textContent = "function demo() {\n  return 1;\n}";
 
-    const foldButton = await screen.findByRole("button", {
-      name: /fold code block from line 1 to 3/i,
-    });
+    const foldButton = (await screen.findAllByTitle("Fold line"))[0];
 
     const pointerAllowed = fireEvent.pointerDown(foldButton);
     expect(pointerAllowed).toBe(true);
     expect(parentPointerDown).not.toHaveBeenCalled();
 
     const mouseDownAllowed = fireEvent.mouseDown(foldButton);
-    expect(mouseDownAllowed).toBe(false);
+    expect(mouseDownAllowed).toBe(true);
     expect(nativeParentMouseDown).not.toHaveBeenCalled();
     expect(parentMouseDown).not.toHaveBeenCalled();
 
@@ -389,18 +591,70 @@ describe("EditorCodeBlock", () => {
     expect(clickAllowed).toBe(false);
     expect(nativeParentClick).not.toHaveBeenCalled();
     expect(parentClick).not.toHaveBeenCalled();
-    expect(
-      screen.getByRole("button", {
-        name: /expand code block from line 1 to 3/i,
-      }),
-    ).toBeInTheDocument();
+    await expectCodeMirrorFolded();
   });
 
-  it("handles command/control+a inside the code block as code-only selection", () => {
+  it("keeps code block display surface pointer events away from the parent editor", async () => {
+    const user = userEvent.setup();
+    const parentPointerDown = vi.fn();
+    const parentMouseDown = vi.fn();
+    const parentClick = vi.fn();
+    const nativeParentMouseDown = vi.fn();
+    const nativeParentClick = vi.fn();
+    const updateBlock = vi.fn();
+    const block = {
+      id: "block-1",
+      type: "codeBlock",
+      props: { language: "typescript" },
+    };
+
+    const { container } = render(
+      <div
+        onClick={parentClick}
+        onMouseDown={parentMouseDown}
+        onPointerDown={parentPointerDown}
+      >
+        <EditorCodeBlock
+          block={block}
+          editor={{ updateBlock } as never}
+          contentRef={() => undefined}
+        />
+      </div>,
+    );
+    const nativeParent = container.firstElementChild;
+    nativeParent?.addEventListener("mousedown", nativeParentMouseDown);
+    nativeParent?.addEventListener("click", nativeParentClick);
+
+    const code = screen.getByTestId("editor-code-block-content");
+    code.textContent = "function demo() {\n  return 1;\n}\nnext();";
+
+    const codeMirrorContent = getCodeMirrorContent();
+    expect(codeMirrorContent).not.toBeNull();
+    expect(fireEvent.pointerDown(codeMirrorContent as Element)).toBe(true);
+    expect(fireEvent.mouseDown(codeMirrorContent as Element)).toBe(false);
+    expect(fireEvent.click(codeMirrorContent as Element)).toBe(true);
+
+    await user.click((await screen.findAllByTitle("Fold line"))[0]);
+    await expectCodeMirrorFolded();
+
+    expect(nativeParentMouseDown).not.toHaveBeenCalled();
+    expect(nativeParentClick).not.toHaveBeenCalled();
+    expect(parentPointerDown).not.toHaveBeenCalled();
+    expect(parentMouseDown).not.toHaveBeenCalled();
+    expect(parentClick).not.toHaveBeenCalled();
+  });
+
+  it("handles command/control+a inside the hidden code host as CodeMirror selection", async () => {
     renderCodeBlock("typescript");
 
     const code = screen.getByTestId("editor-code-block-content");
     code.textContent = "const value = 1;\nconsole.log(value);";
+
+    await waitFor(() => {
+      expect(getCodeMirrorView().state.doc.toString()).toBe(
+        "const value = 1;\nconsole.log(value);",
+      );
+    });
     const event = new KeyboardEvent("keydown", {
       bubbles: true,
       cancelable: true,
@@ -411,65 +665,138 @@ describe("EditorCodeBlock", () => {
     code.dispatchEvent(event);
 
     expect(event.defaultPrevented).toBe(true);
-    expect(window.getSelection()?.toString()).toBe(
-      "const value = 1;\nconsole.log(value);",
-    );
+    await waitFor(() => {
+      expect(getCodeMirrorView().state.selection.main.from).toBe(0);
+      expect(getCodeMirrorView().state.selection.main.to).toBe(
+        "const value = 1;\nconsole.log(value);".length,
+      );
+    });
   });
 
-  it("keeps code outside the folded scope on a separate preview line", async () => {
-    const user = userEvent.setup();
+  it("handles command/control+a inside CodeMirror as code-only selection", async () => {
     renderCodeBlock("typescript");
 
     const code = screen.getByTestId("editor-code-block-content");
-    code.textContent = "root\n  child\n  child\nnext";
+    code.textContent = "const value = 1;\nconsole.log(value);";
 
-    await user.click(
-      await screen.findByRole("button", {
-        name: /fold code block from line 1 to 3/i,
-      }),
-    );
+    await waitFor(() => {
+      expect(getCodeMirrorView().state.doc.toString()).toBe(
+        "const value = 1;\nconsole.log(value);",
+      );
+    });
 
-    const preview = screen.getByLabelText(/typescript folded code preview/i);
-    const previewLines = preview.querySelectorAll(
-      ".editor-code-block__fold-preview-line",
-    );
+    const view = getCodeMirrorView();
+    view.focus();
+    fireEvent.keyDown(view.contentDOM, {
+      bubbles: true,
+      cancelable: true,
+      key: "a",
+      metaKey: true,
+    });
 
-    expect(previewLines).toHaveLength(2);
-    expect(previewLines[0]).toHaveTextContent("root...");
-    expect(previewLines[0]).not.toHaveTextContent("next");
-    expect(previewLines[1]).toHaveTextContent("next");
+    await waitFor(() => {
+      expect(getCodeMirrorView().state.selection.main.from).toBe(0);
+      expect(getCodeMirrorView().state.selection.main.to).toBe(
+        "const value = 1;\nconsole.log(value);".length,
+      );
+    });
   });
 
-  it("keeps highlighted token markup in the folded preview", async () => {
-    const user = userEvent.setup();
-    renderCodeBlock("typescript");
+  it("handles command/control+a from the code block shell as CodeMirror selection", async () => {
+    renderCodeBlock("json");
 
     const code = screen.getByTestId("editor-code-block-content");
-    code.innerHTML = [
-      '<span style="color: rgb(160, 17, 31);">function</span> ',
-      '<span style="color: rgb(3, 43, 127);">demo</span>() {',
-      "\n  ",
-      '<span style="color: rgb(160, 17, 31);">return</span> 1;',
-      "\n}",
-      "\n",
-      '<span style="color: rgb(3, 43, 127);">next</span>();',
-    ].join("");
+    code.textContent = '{\n  "name": "FlexTV"\n}';
 
-    await user.click(
-      await screen.findByRole("button", {
-        name: /fold code block from line 1 to 3/i,
-      }),
-    );
+    await waitFor(() => {
+      expect(getCodeMirrorView().state.doc.toString()).toBe(
+        '{\n  "name": "FlexTV"\n}',
+      );
+    });
 
-    const preview = screen.getByLabelText(/typescript folded code preview/i);
+    const shell = screen
+      .getByTestId("editor-code-block-codemirror")
+      .closest(".editor-code-block-shell");
+    expect(shell).not.toBeNull();
 
-    expect(
-      preview.querySelector('span[style*="rgb(160, 17, 31)"]'),
-    ).toHaveTextContent("function");
-    expect(
-      preview.querySelector('span[style*="rgb(3, 43, 127)"]'),
-    ).toHaveTextContent("demo");
-    expect(screen.getByLabelText(/2 folded lines/i)).toHaveTextContent("...");
+    fireEvent.keyDown(shell as Element, {
+      bubbles: true,
+      cancelable: true,
+      key: "a",
+      metaKey: true,
+    });
+
+    await waitFor(() => {
+      expect(getCodeMirrorView().state.selection.main.from).toBe(0);
+      expect(getCodeMirrorView().state.selection.main.to).toBe(
+        '{\n  "name": "FlexTV"\n}'.length,
+      );
+    });
+  });
+
+  it("removes the current code block when Backspace is pressed on an empty CodeMirror block", () => {
+    const { removeBlocks } = renderCodeBlock("typescript");
+
+    const view = getCodeMirrorView();
+    expect(view.state.doc.toString()).toBe("");
+
+    fireEvent.keyDown(view.contentDOM, {
+      bubbles: true,
+      cancelable: true,
+      key: "Backspace",
+    });
+
+    expect(removeBlocks).toHaveBeenCalledWith(["block-1"]);
+  });
+
+  it("removes the current code block after Backspace deletes the final CodeMirror character", async () => {
+    const { removeBlocks } = renderCodeBlock("json");
+    const code = screen.getByTestId("editor-code-block-content");
+    code.textContent = "1";
+
+    await waitFor(() => {
+      expect(getCodeMirrorView().state.doc.toString()).toBe("1");
+    });
+
+    const view = getCodeMirrorView();
+    view.focus();
+    view.dispatch({
+      selection: { anchor: 1 },
+    });
+
+    fireEvent.keyDown(view.contentDOM, {
+      bubbles: true,
+      cancelable: true,
+      key: "Backspace",
+    });
+
+    await waitFor(() => {
+      expect(getCodeMirrorView().state.doc.toString()).toBe("");
+    });
+
+    fireEvent.keyDown(view.contentDOM, {
+      bubbles: true,
+      cancelable: true,
+      key: "Backspace",
+    });
+
+    expect(removeBlocks).toHaveBeenCalledWith(["block-1"]);
+  });
+
+  it("removes the current empty code block when Backspace reaches the code block shell", () => {
+    const { removeBlocks } = renderCodeBlock("json");
+    const shell = screen
+      .getByTestId("editor-code-block-codemirror")
+      .closest(".editor-code-block-shell");
+
+    expect(shell).not.toBeNull();
+    fireEvent.keyDown(shell as Element, {
+      bubbles: true,
+      cancelable: true,
+      key: "Backspace",
+    });
+
+    expect(removeBlocks).toHaveBeenCalledWith(["block-1"]);
   });
 
   it("copies only the code content", async () => {

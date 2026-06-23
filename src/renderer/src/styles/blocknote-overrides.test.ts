@@ -26,6 +26,18 @@ describe("blocknote overrides stylesheet", () => {
     expect(getRule('.bn-root[data-color-scheme="dark"]')).toMatch(
       /--editor-code-block-bg:\s*#0d1117;/,
     );
+    expect(getRule('.bn-root[data-color-scheme="light"]')).toMatch(
+      /--editor-code-token-keyword:\s*#a626a4;/,
+    );
+    expect(getRule('.bn-root[data-color-scheme="light"]')).toMatch(
+      /--editor-code-token-string:\s*#50a14f;/,
+    );
+    expect(getRule('.bn-root[data-color-scheme="dark"]')).toMatch(
+      /--editor-code-token-keyword:\s*#c678dd;/,
+    );
+    expect(getRule('.bn-root[data-color-scheme="dark"]')).toMatch(
+      /--editor-code-token-string:\s*#98c379;/,
+    );
   });
 
   it("keeps rich editor content anchored to the panel left edge", () => {
@@ -129,15 +141,6 @@ describe("blocknote overrides stylesheet", () => {
     expect(
       getRule(".editor-code-block-shell:hover .editor-code-block-copy"),
     ).toMatch(/pointer-events:\s*auto;/);
-    expect(getRule(".editor-code-block-gutter")).toMatch(
-      /user-select:\s*none;/,
-    );
-    expect(getRule(".editor-code-block-gutter")).toMatch(
-      /background:\s*var\(--editor-code-block-bg\) !important;/,
-    );
-    expect(getRule(".editor-code-block-gutter")).toMatch(
-      /border-right:\s*0 !important;/,
-    );
     expect(getRule(".editor-code-block__body")).toMatch(
       /background:\s*var\(--editor-code-block-bg\) !important;/,
     );
@@ -150,45 +153,55 @@ describe("blocknote overrides stylesheet", () => {
     expect(getRule(".editor-code-block__content")).toMatch(
       /background:\s*var\(--editor-code-block-bg\) !important;/,
     );
+    expect(getRule(".editor-code-block__blocknote-content-pre")).toMatch(
+      /position:\s*absolute;/,
+    );
+    expect(getRule(".editor-code-block__blocknote-content-pre")).toMatch(
+      /clip:\s*rect\(0 0 0 0\);/,
+    );
+    expect(getRule(".editor-code-block__codemirror")).toMatch(
+      /min-width:\s*max-content;/,
+    );
+    expect(getRule(".editor-code-block__codemirror .cm-gutters")).toMatch(
+      /user-select:\s*none;/,
+    );
+    expect(getRule(".editor-code-block__codemirror .cm-gutters")).toMatch(
+      /padding-top:\s*0 !important;/,
+    );
+    expect(getRule(".editor-code-block__codemirror .cm-gutters")).toMatch(
+      /padding-bottom:\s*0 !important;/,
+    );
+    expect(getRule(".editor-code-block__codemirror .cm-gutterElement")).toMatch(
+      /line-height:\s*1\.6rem !important;/,
+    );
+    expect(
+      getRule(".editor-code-block__codemirror .cm-gutterElement"),
+    ).not.toMatch(/display:\s*flex;/);
+    expect(
+      getRule(".editor-code-block__codemirror .cm-gutterElement"),
+    ).not.toMatch(/align-items:/);
+    expect(
+      getRule(".editor-code-block__codemirror .cm-gutterElement"),
+    ).not.toMatch(/min-height:/);
+    expect(
+      getRule(
+        ".editor-code-block__codemirror .cm-lineNumbers .cm-gutterElement",
+      ),
+    ).toMatch(/text-align:\s*right;/);
+    expect(getRule(".editor-code-block__codemirror .cm-line")).toMatch(
+      /line-height:\s*1\.6rem !important;/,
+    );
+    expect(
+      getRule(".editor-code-block__codemirror .cm-foldPlaceholder"),
+    ).toMatch(
+      /background:\s*color-mix\(in srgb,\s*var\(--editor-code-block-fold-bg\) 68%,\s*transparent\);/,
+    );
     expect(stylesheet).not.toMatch(
       /\.editor-code-block__content \.shiki\s*\{[\s\S]*color:/,
     );
     expect(stylesheet).not.toMatch(/--editor-code-token-filter/);
-    expect(stylesheet).toMatch(
-      /\.editor-code-block__content span\[style\*="color"\][\s\S]*\{[\s\S]*font-weight:\s*700;/,
-    );
-    expect(stylesheet).toMatch(
-      /\.editor-code-block__content span\[style\*="color"\][\s\S]*\{[\s\S]*opacity:\s*1 !important;/,
-    );
-    expect(stylesheet).toMatch(
-      /\.editor-code-block__content \.shiki span[\s\S]*\{[\s\S]*font-weight:\s*700;/,
-    );
-    expect(stylesheet).toMatch(
-      /\.editor-code-block__content \.shiki span[\s\S]*\{[\s\S]*opacity:\s*1 !important;/,
-    );
-    expect(stylesheet).toMatch(
-      /\.editor-code-block__fold-preview span\[style\*="color"\][\s\S]*\{[\s\S]*font-weight:\s*700;/,
-    );
-    expect(stylesheet).toMatch(
-      /\.editor-code-block__fold-preview span\[style\*="color"\][\s\S]*\{[\s\S]*opacity:\s*1 !important;/,
-    );
-    expect(getRule(".editor-code-block__fold-toggle")).toMatch(
-      /cursor:\s*pointer;/,
-    );
-    expect(
-      getRule(
-        ".editor-code-block__code-pane--folded .editor-code-block__content",
-      ),
-    ).toMatch(/opacity:\s*0;/);
-    expect(getRule(".editor-code-block__fold-preview")).toMatch(
-      /background:\s*var\(--editor-code-block-bg\) !important;/,
-    );
-    expect(getRule(".editor-code-block__fold-preview-line")).toMatch(
-      /display:\s*block;/,
-    );
-    expect(getRule(".editor-code-block__fold-preview-code")).toMatch(
-      /display:\s*inline;/,
-    );
+    expect(stylesheet).not.toMatch(/editor-code-block__fold-preview/);
+    expect(stylesheet).not.toMatch(/editor-code-block__code-pane--folded/);
   });
 
   it("polishes the custom language search popover", () => {
@@ -217,6 +230,25 @@ describe("blocknote overrides stylesheet", () => {
     );
   });
 
+  it("keeps the code block copy action hidden until hover", () => {
+    expect(getRule(".editor-code-block-copy")).toMatch(/opacity:\s*0;/);
+    expect(
+      getRule(".editor-code-block-shell:hover .editor-code-block-copy"),
+    ).toMatch(/opacity:\s*1;/);
+    expect(stylesheet).not.toMatch(
+      /\.editor-code-block-shell:focus-within \.editor-code-block-copy/,
+    );
+  });
+
+  it("keeps CodeMirror selection color consistent with rich text selection", () => {
+    expect(
+      getRule(".editor-code-block__codemirror .cm-selectionBackground"),
+    ).toMatch(/background-color:\s*var\(--accent-color\) !important;/);
+    expect(
+      getRule(".editor-code-block__codemirror .cm-content ::selection"),
+    ).toMatch(/background-color:\s*var\(--accent-color\) !important;/);
+  });
+
   it("keeps paragraph text aligned with the block side menu", () => {
     expect(getRule('.bn-block-content[data-content-type="paragraph"]')).toMatch(
       /margin-top:\s*0;/,
@@ -239,11 +271,19 @@ describe("blocknote overrides stylesheet", () => {
     expect(getRule('.bn-side-menu[data-block-type="codeBlock"]')).toMatch(
       /align-items:\s*center;/,
     );
+    expect(getRule('.bn-side-menu[data-block-type="codeBlock"]')).toMatch(
+      /pointer-events:\s*none;/,
+    );
     expect(
       getRule(
         '.bn-side-menu[data-block-type="codeBlock"] .mantine-UnstyledButton-root',
       ),
     ).toMatch(/align-items:\s*center;/);
+    expect(
+      getRule(
+        '.bn-side-menu[data-block-type="codeBlock"] .mantine-UnstyledButton-root',
+      ),
+    ).toMatch(/pointer-events:\s*auto;/);
   });
 
   it("keeps the table wrapper and extend row button within the editor width", () => {

@@ -1,22 +1,62 @@
 import { BlockNoteEditor } from "@blocknote/core";
 import { BlockNoteView } from "@blocknote/mantine";
-import { cleanup, render, waitFor } from "@testing-library/react";
+import { EditorView } from "@codemirror/view";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  createEditorCodeBlockHighlighter,
   editorBlockSpecs,
-  editorCodeBlockPreloadedLanguages,
   editorCodeBlockSupportedLanguages,
-  editorCodeBlockThemes,
   editorSchema,
 } from "./blocknote-schema";
+import * as blocknoteSchemaModule from "./blocknote-schema";
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
+
+beforeEach(() => {
+  setupCodeMirrorDomMeasurements();
+});
+
+function setupCodeMirrorDomMeasurements() {
+  const createRect = () =>
+    ({
+      bottom: 0,
+      height: 0,
+      left: 0,
+      right: 0,
+      top: 0,
+      width: 0,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    }) as DOMRect;
+  const createRectList = () =>
+    ({
+      length: 0,
+      item: () => null,
+      [Symbol.iterator]: function* iterator() {
+        yield* [];
+      },
+    }) as DOMRectList;
+
+  Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+    configurable: true,
+    value: createRect,
+  });
+  Object.defineProperty(Range.prototype, "getClientRects", {
+    configurable: true,
+    value: createRectList,
+  });
+  Object.defineProperty(document, "elementsFromPoint", {
+    configurable: true,
+    value: () => [],
+  });
+}
 
 function setupMatchMedia() {
   Object.defineProperty(window, "matchMedia", {
@@ -53,6 +93,18 @@ function typeString(editor: BlockNoteEditor, value: string) {
   }
 }
 
+function getCodeMirrorView(container: HTMLElement) {
+  const editorElement = container.querySelector<HTMLElement>(
+    ".editor-code-block__codemirror .cm-editor",
+  );
+  expect(editorElement).not.toBe(null);
+
+  const view = EditorView.findFromDOM(editorElement as HTMLElement);
+  expect(view).not.toBe(null);
+
+  return view as EditorView;
+}
+
 describe("editor BlockNote schema", () => {
   it("replaces the default code block while preserving common blocks", () => {
     expect(Object.keys(editorBlockSpecs)).toContain("paragraph");
@@ -62,7 +114,7 @@ describe("editor BlockNote schema", () => {
     expect(editorBlockSpecs.codeBlock.config.type).toBe("codeBlock");
   });
 
-  it("configures Shiki supported language metadata", () => {
+  it("configures code block supported language metadata", () => {
     expect(editorCodeBlockSupportedLanguages.javascript).toEqual({
       name: "JavaScript",
       aliases: ["js", "mjs", "cjs"],
@@ -73,80 +125,81 @@ describe("editor BlockNote schema", () => {
     expect(editorCodeBlockSupportedLanguages.cpp.aliases).toContain("c++");
   });
 
-  it("preserves code block extensions for input rules and highlighting", () => {
+  it("preserves code block extensions for input rules", () => {
     expect(editorBlockSpecs.codeBlock.extensions?.length).toBeGreaterThan(0);
     expect(editorBlockSpecs.codeBlock.implementation.toExternalHTML).toBeTypeOf(
       "function",
     );
   });
 
-  it("creates a lazy Shiki highlighter with editor themes", async () => {
-    const highlighter = await createEditorCodeBlockHighlighter();
-    const tokens = highlighter.codeToTokens("const a = 1", {
-      lang: "javascript",
-      theme: editorCodeBlockThemes[0],
-    }).tokens;
-
-    expect(highlighter.getLoadedThemes()).toEqual([...editorCodeBlockThemes]);
-    expect(editorCodeBlockPreloadedLanguages).toContain("javascript");
-    expect(highlighter.getLoadedLanguages()).toContain("typescript");
-    expect(highlighter.getLoadedLanguages()).toContain("javascript");
-    expect(tokens.flat().some((token) => token.color)).toBe(true);
-  });
-
-  it("uses the active editor color scheme when tokenizing code", async () => {
-    document.body.innerHTML =
-      '<div class="bn-root" data-color-scheme="dark" />';
-    const highlighter = await createEditorCodeBlockHighlighter();
-    const darkTokens = highlighter.codeToTokens("const a = 1", {
-      lang: "javascript",
-      theme: "one-light",
-    }).tokens;
-
-    document.body.innerHTML =
-      '<div class="bn-root" data-color-scheme="light" />';
-    const lightTokens = highlighter.codeToTokens("const a = 1", {
-      lang: "javascript",
-      theme: "one-dark-pro",
-    }).tokens;
-
-    const getTokenColors = (tokens: typeof darkTokens) =>
-      tokens
-        .flat()
-        .map((token) => token.color?.toLowerCase())
-        .filter(Boolean);
-
-    expect(getTokenColors(darkTokens)).toContain("#c678dd");
-    expect(getTokenColors(lightTokens)).toContain("#a626a4");
-  });
-
-  it("creates Shiki token colors when WebAssembly compilation is blocked", async () => {
-    const blockedWebAssembly = {
-      compile: vi.fn(() => {
-        throw new Error("WebAssembly compilation is blocked by CSP");
-      }),
-      compileStreaming: vi.fn(() => {
-        throw new Error("WebAssembly compilation is blocked by CSP");
-      }),
-      instantiate: vi.fn(() => {
-        throw new Error("WebAssembly compilation is blocked by CSP");
-      }),
-      instantiateStreaming: vi.fn(() => {
-        throw new Error("WebAssembly compilation is blocked by CSP");
-      }),
+  it("isolates code block DOM events from the outer ProseMirror editor like Milkdown", () => {
+    const output = editorBlockSpecs.codeBlock.implementation.render.call(
+      {
+        blockContentDOMAttributes: {},
+        props: undefined,
+        renderType: "nodeView",
+      },
+      {
+        id: "block-1",
+        type: "codeBlock",
+        props: { language: "ts" },
+        content: "const a = 1",
+        children: [],
+      } as never,
+      {
+        isEditable: true,
+        updateBlock: vi.fn(),
+      } as never,
+    ) as {
+      destroy?: () => void;
+      stopEvent?: (event: Event) => boolean;
     };
-    vi.stubGlobal("WebAssembly", blockedWebAssembly);
 
-    const highlighter = await createEditorCodeBlockHighlighter();
-    const tokens = highlighter.codeToTokens("const a = 1", {
-      lang: "typescript",
-      theme: editorCodeBlockThemes[0],
-    }).tokens;
-
-    expect(tokens.flat().some((token) => token.color)).toBe(true);
+    expect(output.stopEvent?.(new KeyboardEvent("keydown"))).toBe(true);
+    output.destroy?.();
   });
 
-  it("applies Shiki token colors to rendered JavaScript code blocks", async () => {
+  it("renders code blocks as self-contained Milkdown-style CodeMirror node views", () => {
+    const output = editorBlockSpecs.codeBlock.implementation.render.call(
+      {
+        blockContentDOMAttributes: {},
+        props: undefined,
+        renderType: "nodeView",
+      },
+      {
+        id: "block-1",
+        type: "codeBlock",
+        props: { language: "json" },
+        content: '{\n  "ok": true\n}',
+        children: [],
+      } as never,
+      {
+        isEditable: true,
+        updateBlock: vi.fn(),
+      } as never,
+    ) as {
+      contentDOM?: HTMLElement;
+      destroy?: () => void;
+      dom: HTMLElement;
+      stopEvent?: (event: Event) => boolean;
+    };
+
+    expect(output.contentDOM).toBeUndefined();
+    expect(output.stopEvent?.(new KeyboardEvent("keydown"))).toBe(true);
+    expect(
+      output.dom.querySelector(".editor-code-block__codemirror .cm-editor"),
+    ).not.toBe(null);
+
+    output.destroy?.();
+  });
+
+  it("does not expose a BlockNote Shiki highlighter for editor code blocks", () => {
+    expect("createEditorCodeBlockHighlighter" in blocknoteSchemaModule).toBe(
+      false,
+    );
+  });
+
+  it("renders JavaScript code blocks with CodeMirror", async () => {
     setupMatchMedia();
     const editor = BlockNoteEditor.create({
       schema: editorSchema,
@@ -164,17 +217,19 @@ describe("editor BlockNote schema", () => {
     await waitFor(
       () => {
         const token = container.querySelector<HTMLElement>(
-          ".editor-code-block__content .shiki",
+          ".editor-code-block__codemirror .cm-editor",
         );
 
         expect(token).not.toBe(null);
-        expect(token?.getAttribute("style")).toContain("color:");
+        expect(
+          container.querySelector(".editor-code-block__codemirror .cm-line"),
+        ).not.toBe(null);
       },
       { timeout: 1000 },
     );
   });
 
-  it("applies Shiki token colors after creating a TypeScript code block from input", async () => {
+  it("renders CodeMirror after creating a TypeScript code block from input", async () => {
     setupMatchMedia();
     const editor = BlockNoteEditor.create({
       schema: editorSchema,
@@ -190,14 +245,290 @@ describe("editor BlockNote schema", () => {
     await waitFor(
       () => {
         const token = container.querySelector<HTMLElement>(
-          ".editor-code-block__content .shiki",
+          ".editor-code-block__codemirror .cm-editor",
         );
 
         expect(editor.document[0].type).toBe("codeBlock");
         expect(token).not.toBe(null);
-        expect(token?.getAttribute("style")).toContain("color:");
+        expect(
+          container.querySelector(".editor-code-block__codemirror .cm-line"),
+        ).not.toBe(null);
       },
       { timeout: 1000 },
     );
+  });
+
+  it("folds a real BlockNote code block with the CodeMirror gutter", async () => {
+    setupMatchMedia();
+    const user = userEvent.setup();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "codeBlock",
+          props: { language: "ts" },
+          content: "function demo() {\n  return 1;\n}\nnext();",
+        },
+      ],
+    });
+
+    const { container, findAllByTitle } = render(
+      createElement(BlockNoteView, { editor }),
+    );
+
+    await user.click((await findAllByTitle("Fold line"))[0]);
+
+    await waitFor(() => {
+      expect(
+        container.querySelectorAll(
+          ".editor-code-block__codemirror [aria-label='folded code']",
+        ).length,
+      ).toBeGreaterThan(0);
+      expect(getCodeMirrorView(container).state.doc.toString()).toBe(
+        "function demo() {\n  return 1;\n}\nnext();",
+      );
+    });
+  });
+
+  it("folds a real JSON code block with the CodeMirror gutter", async () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "codeBlock",
+          props: { language: "json" },
+          content:
+            '{\n  "accounts": [\n    {\n      "name": "FlexTV"\n    }\n  ]\n}',
+        },
+      ],
+    });
+
+    const { container, findAllByTitle } = render(
+      createElement(BlockNoteView, { editor }),
+    );
+    const foldButtons = await findAllByTitle("Fold line");
+
+    foldButtons[0].dispatchEvent(
+      new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(
+        container.querySelectorAll(
+          ".editor-code-block__codemirror [aria-label='folded code']",
+        ).length,
+      ).toBeGreaterThan(0);
+      expect(getCodeMirrorView(container).state.doc.toString()).toBe(
+        '{\n  "accounts": [\n    {\n      "name": "FlexTV"\n    }\n  ]\n}',
+      );
+    });
+  });
+
+  it("selects only the real BlockNote code block content with command/control+a", async () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "codeBlock",
+          props: { language: "ts" },
+          content: "const value = 1;\nconsole.log(value);",
+        },
+      ],
+    });
+
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    await waitFor(() => {
+      expect(getCodeMirrorView(container).state.doc.toString()).toBe(
+        "const value = 1;\nconsole.log(value);",
+      );
+    });
+
+    const view = getCodeMirrorView(container);
+    view.focus();
+    view.contentDOM.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        bubbles: true,
+        cancelable: true,
+        key: "a",
+        metaKey: true,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(getCodeMirrorView(container).state.selection.main.from).toBe(0);
+      expect(getCodeMirrorView(container).state.selection.main.to).toBe(
+        "const value = 1;\nconsole.log(value);".length,
+      );
+    });
+  });
+
+  it("focuses CodeMirror when clicking the code block blank shell", async () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "codeBlock",
+          props: { language: "js" },
+          content: "const a = 1",
+        },
+      ],
+    });
+
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    await waitFor(() => {
+      expect(getCodeMirrorView(container).state.doc.toString()).toBe(
+        "const a = 1",
+      );
+    });
+
+    const shell = container.querySelector<HTMLElement>(
+      ".editor-code-block-shell",
+    );
+    expect(shell).not.toBe(null);
+
+    getCodeMirrorView(container).contentDOM.blur();
+    fireEvent.mouseDown(shell as HTMLElement);
+
+    expect(getCodeMirrorView(container).hasFocus).toBe(true);
+  });
+
+  it("shows a check icon after copying code from the CodeMirror node view", async () => {
+    setupMatchMedia();
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "codeBlock",
+          props: { language: "js" },
+          content: "console.log('copied');",
+        },
+      ],
+    });
+
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    await waitFor(() => {
+      expect(getCodeMirrorView(container).state.doc.toString()).toBe(
+        "console.log('copied');",
+      );
+    });
+
+    await user.click(container.querySelector(".editor-code-block-copy")!);
+
+    expect(writeText).toHaveBeenCalledWith("console.log('copied');");
+    expect(
+      container.querySelector(
+        '.editor-code-block-copy path[d="M20 6 9 17l-5-5"]',
+      ),
+    ).not.toBe(null);
+  });
+
+  it("closes the code language picker when clicking the code area", async () => {
+    setupMatchMedia();
+    const user = userEvent.setup();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "codeBlock",
+          props: { language: "js" },
+          content: "const a = 1",
+        },
+      ],
+    });
+
+    const { container, queryByRole } = render(
+      createElement(BlockNoteView, { editor }),
+    );
+
+    await user.click(
+      container.querySelector(".editor-code-block-language-trigger")!,
+    );
+    expect(queryByRole("dialog", { name: /code language/i })).not.toBe(null);
+
+    container
+      .querySelector(".editor-code-block__codemirror .cm-content")
+      ?.dispatchEvent(
+        new MouseEvent("pointerdown", {
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+
+    expect(queryByRole("dialog", { name: /code language/i })).toBe(null);
+  });
+
+  it("removes a real empty BlockNote code block after Backspace in CodeMirror", async () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "codeBlock",
+          props: { language: "ts" },
+          content: "",
+        },
+      ],
+    });
+
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    await waitFor(() => {
+      expect(getCodeMirrorView(container).state.doc.toString()).toBe("");
+    });
+
+    const view = getCodeMirrorView(container);
+    view.focus();
+    view.contentDOM.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        bubbles: true,
+        cancelable: true,
+        key: "Backspace",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(editor.document[0].type).not.toBe("codeBlock");
+    });
+  });
+
+  it("removes a real empty BlockNote code block after Backspace reaches the outer editor", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "codeBlock",
+          props: { language: "json" },
+          content: "",
+        },
+      ],
+    });
+    render(createElement(BlockNoteView, { editor }));
+    editor.setTextCursorPosition(editor.document[0].id, "start");
+
+    editor.prosemirrorView.dom.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        bubbles: true,
+        cancelable: true,
+        key: "Backspace",
+      }),
+    );
+
+    expect(editor.document[0].type).not.toBe("codeBlock");
   });
 });

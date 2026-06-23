@@ -1,23 +1,60 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
-  type MouseEvent as ReactMouseEvent,
-  type PointerEvent as ReactPointerEvent,
   type RefCallback,
 } from "react";
+import {
+  defaultKeymap,
+  history,
+  historyKeymap,
+  indentWithTab,
+} from "@codemirror/commands";
+import { css } from "@codemirror/lang-css";
+import { html } from "@codemirror/lang-html";
+import { javascript } from "@codemirror/lang-javascript";
+import { json } from "@codemirror/lang-json";
+import { markdown } from "@codemirror/lang-markdown";
+import {
+  bracketMatching,
+  codeFolding,
+  foldEffect,
+  foldGutter,
+  foldKeymap,
+  foldService,
+  foldable,
+  foldedRanges,
+  HighlightStyle,
+  indentUnit,
+  syntaxHighlighting,
+  unfoldEffect,
+} from "@codemirror/language";
+import {
+  Compartment,
+  EditorSelection,
+  EditorState,
+  Prec,
+  type Extension,
+} from "@codemirror/state";
+import {
+  crosshairCursor,
+  drawSelection,
+  dropCursor,
+  EditorView,
+  highlightActiveLine,
+  highlightActiveLineGutter,
+  keymap,
+  lineNumbers,
+  type BlockInfo,
+} from "@codemirror/view";
+import { tags as t } from "@lezer/highlight";
 import { TextSelection } from "@tiptap/pm/state";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
-import {
-  Check,
-  ChevronDown,
-  ChevronRight,
-  Clipboard,
-  Search,
-} from "lucide-react";
+import { Check, ChevronDown, Clipboard, Search } from "lucide-react";
 
 import {
   getCodeBlockLanguageLabel,
@@ -25,6 +62,15 @@ import {
   getSupportedCodeBlockLanguageId,
   searchCodeBlockLanguages,
 } from "../lib/editor-code-block-languages";
+import { getCodeBlockFoldRanges } from "../lib/editor-code-folding";
+export type {
+  CodeBlockFoldRange,
+  CodeBlockVisibleLine,
+} from "../lib/editor-code-folding";
+export {
+  getCodeBlockFoldRanges,
+  getCodeBlockVisibleLines,
+} from "../lib/editor-code-folding";
 
 interface EditorCodeBlockBlock {
   id: string;
@@ -37,11 +83,13 @@ interface EditorCodeBlockEditor {
   updateBlock: (
     id: string,
     update: {
-      props: {
+      props?: {
         language: string;
       };
+      content?: string;
     },
   ) => void;
+  removeBlocks?: (ids: string[]) => void;
   prosemirrorView?: {
     state: {
       doc: ProseMirrorNode;
@@ -55,6 +103,7 @@ interface EditorCodeBlockEditor {
     dispatch: (transaction: unknown) => void;
     focus?: () => void;
     posAtDOM?: (node: Node, offset: number) => number;
+    root?: Document | ShadowRoot;
   };
 }
 
@@ -62,17 +111,6 @@ interface EditorCodeBlockProps {
   block: EditorCodeBlockBlock;
   editor: EditorCodeBlockEditor;
   contentRef?: RefCallback<HTMLElement>;
-}
-
-export interface CodeBlockFoldRange {
-  startLine: number;
-  endLine: number;
-}
-
-export interface CodeBlockVisibleLine {
-  lineNumber: number;
-  text: string;
-  foldedRange?: CodeBlockFoldRange;
 }
 
 function escapeHtml(value: string): string {
@@ -110,6 +148,319 @@ function wrapHighlightedText(text: string, ancestors: Element[]): string {
 
   return html;
 }
+
+function getLeadingWhitespace(value: string): string {
+  return value.match(/^[\t ]*/)?.[0] ?? "";
+}
+
+function getVisibleLeadingWhitespaceFromHtml(value: string): string {
+  let indent = "";
+
+  // 高亮后的 HTML 可能把行首空格包进 span，比较缩进时需要跳过标签本身。
+  for (let index = 0; index < value.length; ) {
+    const character = value[index];
+
+    if (character === "<") {
+      const closeIndex = value.indexOf(">", index + 1);
+      if (closeIndex === -1) break;
+      index = closeIndex + 1;
+      continue;
+    }
+
+    if (character === " " || character === "\t") {
+      indent += character;
+      index += 1;
+      continue;
+    }
+
+    if (value.startsWith("&nbsp;", index)) {
+      indent += " ";
+      index += "&nbsp;".length;
+      continue;
+    }
+
+    break;
+  }
+
+  return indent;
+}
+
+function restoreSourceLineIndentation(sourceLine: string, lineHtml: string) {
+  const sourceIndent = getLeadingWhitespace(sourceLine);
+  if (!sourceIndent) return lineHtml;
+
+  const htmlIndent = getVisibleLeadingWhitespaceFromHtml(lineHtml);
+  if (sourceIndent.startsWith(htmlIndent)) {
+    return `${escapeHtml(sourceIndent.slice(htmlIndent.length))}${lineHtml}`;
+  }
+
+  return lineHtml;
+}
+
+function getCodeMirrorLanguageExtension(language: string): Extension {
+  switch (language) {
+    case "javascript":
+      return javascript();
+    case "typescript":
+      return javascript({ typescript: true });
+    case "jsx":
+      return javascript({ jsx: true });
+    case "tsx":
+      return javascript({ jsx: true, typescript: true });
+    case "json":
+      return json();
+    case "html":
+    case "xml":
+    case "vue":
+      return html();
+    case "css":
+    case "scss":
+      return css();
+    case "markdown":
+      return markdown();
+    default:
+      return [];
+  }
+}
+
+const editorCodeMirrorTheme = EditorView.theme({
+  "&": {
+    backgroundColor: "var(--editor-code-block-bg)",
+    color: "var(--editor-code-block-text)",
+    fontSize: "0.88em",
+  },
+  ".cm-scroller": {
+    fontFamily: '"SF Mono", "Fira Code", Consolas, "Courier New", monospace',
+    lineHeight: "1.6rem",
+  },
+  ".cm-content": {
+    fontWeight: "600",
+    minWidth: "max-content",
+    padding: "0.5rem 0.5rem 0.5rem 0",
+  },
+  ".cm-line": {
+    padding: "0",
+  },
+  ".cm-gutters": {
+    backgroundColor: "var(--editor-code-block-bg)",
+    borderRight: "0",
+    color: "var(--editor-code-block-muted)",
+    padding: "0.5rem 0.25rem 0.5rem 0.75rem",
+  },
+  ".cm-gutterElement": {
+    minHeight: "1.6rem",
+    padding: "0 0.35rem 0 0",
+  },
+  ".cm-foldGutter .cm-gutterElement": {
+    cursor: "pointer",
+    minWidth: "0.85rem",
+    paddingRight: "0.15rem",
+  },
+  ".cm-activeLine, .cm-activeLineGutter": {
+    backgroundColor: "transparent",
+  },
+  ".cm-cursor": {
+    borderLeftColor: "var(--accent-color)",
+  },
+  ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
+    backgroundColor: "color-mix(in srgb, var(--accent-color) 26%, transparent)",
+  },
+  "&.cm-focused": {
+    outline: "none",
+  },
+});
+
+const editorCodeMirrorHighlightStyle = HighlightStyle.define([
+  {
+    tag: [
+      t.keyword,
+      t.controlKeyword,
+      t.definitionKeyword,
+      t.moduleKeyword,
+      t.modifier,
+      t.operatorKeyword,
+      t.atom,
+      t.null,
+      t.bool,
+    ],
+    color: "var(--editor-code-token-keyword)",
+    fontWeight: "700",
+  },
+  {
+    tag: [t.string, t.character, t.attributeValue, t.docString],
+    color: "var(--editor-code-token-string)",
+    fontWeight: "700",
+  },
+  {
+    tag: [t.number, t.integer, t.float, t.literal],
+    color: "var(--editor-code-token-number)",
+    fontWeight: "700",
+  },
+  {
+    tag: [t.function(t.variableName), t.function(t.propertyName)],
+    color: "var(--editor-code-token-function)",
+    fontWeight: "700",
+  },
+  {
+    tag: [t.className, t.typeName, t.namespace],
+    color: "var(--editor-code-token-type)",
+    fontWeight: "700",
+  },
+  {
+    tag: [t.tagName, t.variableName],
+    color: "var(--editor-code-token-variable)",
+    fontWeight: "700",
+  },
+  {
+    tag: [t.propertyName, t.attributeName, t.labelName],
+    color: "var(--editor-code-token-property)",
+    fontWeight: "700",
+  },
+  {
+    tag: [
+      t.operator,
+      t.arithmeticOperator,
+      t.compareOperator,
+      t.logicOperator,
+      t.definitionOperator,
+      t.separator,
+      t.punctuation,
+    ],
+    color: "var(--editor-code-token-operator)",
+  },
+  {
+    tag: [t.comment, t.lineComment, t.blockComment, t.docComment],
+    color: "var(--editor-code-token-comment)",
+    fontStyle: "italic",
+  },
+  {
+    tag: [t.heading, t.strong],
+    color: "var(--editor-code-token-heading)",
+    fontWeight: "700",
+  },
+  {
+    tag: [t.link, t.url],
+    color: "var(--editor-code-token-link)",
+  },
+]);
+
+function stopCodeMirrorEvent(event: Event) {
+  event.stopPropagation();
+
+  return false;
+}
+
+function handleCodeMirrorKeyDown(event: KeyboardEvent, view: EditorView) {
+  if (event.key.toLowerCase() === "a" && (event.metaKey || event.ctrlKey)) {
+    event.preventDefault();
+    event.stopPropagation();
+    view.dispatch({
+      selection: EditorSelection.range(0, view.state.doc.length),
+      scrollIntoView: true,
+    });
+
+    return true;
+  }
+
+  return stopCodeMirrorEvent(event);
+}
+
+function isCodeMirrorEmptyAtStart(view: EditorView) {
+  const selection = view.state.selection.main;
+
+  return (
+    view.state.doc.lines === 1 &&
+    selection.empty &&
+    selection.anchor === 0 &&
+    view.state.doc.line(1).text.length === 0
+  );
+}
+
+const codeMirrorFallbackFoldRangeCache = new WeakMap<
+  object,
+  Map<number, { from: number; to: number }>
+>();
+
+function getCodeMirrorFallbackFoldRanges(state: EditorState) {
+  const cachedRanges = codeMirrorFallbackFoldRangeCache.get(state.doc);
+  if (cachedRanges) return cachedRanges;
+
+  const rangesByStartPosition = new Map<number, { from: number; to: number }>();
+
+  for (const range of getCodeBlockFoldRanges(state.doc.toString())) {
+    const startLine = state.doc.line(range.startLine);
+    const endLine = state.doc.line(range.endLine);
+    const foldRange = {
+      from: startLine.to,
+      to: endLine.to,
+    };
+
+    if (foldRange.to > foldRange.from) {
+      rangesByStartPosition.set(startLine.from, foldRange);
+    }
+  }
+
+  codeMirrorFallbackFoldRangeCache.set(state.doc, rangesByStartPosition);
+
+  return rangesByStartPosition;
+}
+
+function getCodeMirrorFallbackFoldRange(state: EditorState, lineStart: number) {
+  return getCodeMirrorFallbackFoldRanges(state).get(lineStart) ?? null;
+}
+
+function getFoldedCodeMirrorRangeAtLine(view: EditorView, line: BlockInfo) {
+  let foldedRange: { from: number; to: number } | null = null;
+
+  foldedRanges(view.state).between(line.from, line.to, (from, to) => {
+    foldedRange = { from, to };
+  });
+
+  return foldedRange;
+}
+
+function toggleCodeMirrorFoldAtLine(
+  view: EditorView,
+  line: BlockInfo,
+  event: Event,
+) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  const foldedRange = getFoldedCodeMirrorRangeAtLine(view, line);
+  if (foldedRange) {
+    view.dispatch({
+      effects: unfoldEffect.of(foldedRange),
+    });
+
+    return true;
+  }
+
+  const foldRange = foldable(view.state, line.from, line.to);
+  if (foldRange) {
+    view.dispatch({
+      effects: foldEffect.of(foldRange),
+    });
+  }
+
+  return true;
+}
+
+const editorCodeMirrorDomEventHandlers = EditorView.domEventHandlers({
+  click: stopCodeMirrorEvent,
+  keydown: handleCodeMirrorKeyDown,
+  mousedown: stopCodeMirrorEvent,
+  pointerdown: stopCodeMirrorEvent,
+});
+
+const editorCodeMirrorFoldGutterHandlers = {
+  click: (view: EditorView, line: BlockInfo, event: Event) =>
+    toggleCodeMirrorFoldAtLine(view, line, event),
+  mousedown: (_view: EditorView, _line: unknown, event: Event) =>
+    stopCodeMirrorEvent(event),
+  pointerdown: (_view: EditorView, _line: unknown, event: Event) =>
+    stopCodeMirrorEvent(event),
+};
 
 export function getHighlightedCodeBlockLineHtml(
   element: HTMLElement | null,
@@ -149,206 +500,21 @@ export function getHighlightedCodeBlockLineHtml(
 
   element.childNodes.forEach((node) => visitNode(node, []));
 
-  return lineHtml.length > 0 ? lineHtml : fallbackLines;
+  if (lineHtml.length === 0) return fallbackLines;
+
+  // 折叠预览必须以原始代码文本为准补齐行首缩进，避免高亮 DOM 漏掉空白时造成视觉“自动缩进”。
+  return codeText.split("\n").map((sourceLine, index) => {
+    const highlightedLine = lineHtml[index] ?? "";
+    if (!highlightedLine && sourceLine) return escapeHtml(sourceLine);
+
+    return restoreSourceLineIndentation(sourceLine, highlightedLine);
+  });
 }
 
 export function getCodeBlockLineNumbers(codeText: string): number[] {
   const lineCount = Math.max(1, codeText.split("\n").length);
 
   return Array.from({ length: lineCount }, (_, index) => index + 1);
-}
-
-function getIndentSize(line: string): number {
-  let size = 0;
-
-  for (const character of line) {
-    if (character === " ") {
-      size += 1;
-      continue;
-    }
-    if (character === "\t") {
-      size += 2;
-      continue;
-    }
-    break;
-  }
-
-  return size;
-}
-
-function stripFoldIgnoredSyntax(line: string): string {
-  let result = "";
-  let quote: "'" | '"' | "`" | null = null;
-  let isEscaped = false;
-
-  // 折叠范围只关心结构符号，先忽略字符串和行内注释中的括号。
-  for (let index = 0; index < line.length; index += 1) {
-    const character = line[index];
-    const nextCharacter = line[index + 1];
-
-    if (quote) {
-      if (isEscaped) {
-        isEscaped = false;
-        continue;
-      }
-      if (character === "\\") {
-        isEscaped = true;
-        continue;
-      }
-      if (character === quote) {
-        quote = null;
-      }
-      continue;
-    }
-
-    if (character === "/" && nextCharacter === "/") break;
-    if (character === "'" || character === '"' || character === "`") {
-      quote = character;
-      continue;
-    }
-
-    result += character;
-  }
-
-  return result;
-}
-
-function collectBraceFoldRanges(lines: string[]): CodeBlockFoldRange[] {
-  const ranges: CodeBlockFoldRange[] = [];
-  const stack: Array<{ open: string; lineNumber: number }> = [];
-  const closingToOpening: Record<string, string> = {
-    ")": "(",
-    "]": "[",
-    "}": "{",
-  };
-  const openingBraces = new Set(["(", "[", "{"]);
-
-  // 用栈匹配跨行括号，让函数、类、对象、数组等同作用域块都能折叠。
-  lines.forEach((line, lineIndex) => {
-    const lineNumber = lineIndex + 1;
-    const foldableCode = stripFoldIgnoredSyntax(line);
-
-    for (const character of foldableCode) {
-      if (openingBraces.has(character)) {
-        stack.push({ open: character, lineNumber });
-        continue;
-      }
-
-      const expectedOpen = closingToOpening[character];
-      if (!expectedOpen) continue;
-
-      const stackIndex = stack.findLastIndex(
-        (entry) => entry.open === expectedOpen,
-      );
-      if (stackIndex === -1) continue;
-
-      const [entry] = stack.splice(stackIndex, 1);
-      if (lineNumber > entry.lineNumber) {
-        ranges.push({
-          startLine: entry.lineNumber,
-          endLine: lineNumber,
-        });
-      }
-    }
-  });
-
-  return ranges;
-}
-
-function collectIndentFoldRanges(lines: string[]): CodeBlockFoldRange[] {
-  const ranges: CodeBlockFoldRange[] = [];
-
-  // 兼容 Python/YAML 等缩进型语言：下一段缩进更深时认为当前行开启了作用域。
-  for (let lineIndex = 0; lineIndex < lines.length - 1; lineIndex += 1) {
-    if (!lines[lineIndex].trim()) continue;
-
-    const currentIndent = getIndentSize(lines[lineIndex]);
-    let nextLineIndex = lineIndex + 1;
-    while (nextLineIndex < lines.length && !lines[nextLineIndex].trim()) {
-      nextLineIndex += 1;
-    }
-    if (nextLineIndex >= lines.length) break;
-
-    const nextIndent = getIndentSize(lines[nextLineIndex]);
-    if (nextIndent <= currentIndent) continue;
-
-    let endLineIndex = nextLineIndex;
-    for (
-      let candidateIndex = nextLineIndex + 1;
-      candidateIndex < lines.length;
-      candidateIndex += 1
-    ) {
-      if (!lines[candidateIndex].trim()) {
-        endLineIndex = candidateIndex;
-        continue;
-      }
-      if (getIndentSize(lines[candidateIndex]) <= currentIndent) break;
-      endLineIndex = candidateIndex;
-    }
-
-    ranges.push({
-      startLine: lineIndex + 1,
-      endLine: endLineIndex + 1,
-    });
-  }
-
-  return ranges;
-}
-
-export function getCodeBlockFoldRanges(codeText: string): CodeBlockFoldRange[] {
-  const lines = codeText.split("\n");
-  const widestRangeByStartLine = new Map<number, CodeBlockFoldRange>();
-
-  for (const range of [
-    ...collectBraceFoldRanges(lines),
-    ...collectIndentFoldRanges(lines),
-  ]) {
-    if (range.endLine <= range.startLine) continue;
-
-    const existingRange = widestRangeByStartLine.get(range.startLine);
-    if (!existingRange || range.endLine > existingRange.endLine) {
-      widestRangeByStartLine.set(range.startLine, range);
-    }
-  }
-
-  return [...widestRangeByStartLine.values()].sort(
-    (left, right) =>
-      left.startLine - right.startLine || right.endLine - left.endLine,
-  );
-}
-
-export function getCodeBlockVisibleLines(
-  codeText: string,
-  foldedStartLines: Iterable<number>,
-): CodeBlockVisibleLine[] {
-  const lines = codeText.split("\n");
-  const foldedStartLineSet = new Set(foldedStartLines);
-  const foldRangeByStartLine = new Map(
-    getCodeBlockFoldRanges(codeText).map((range) => [range.startLine, range]),
-  );
-  const visibleLines: CodeBlockVisibleLine[] = [];
-
-  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
-    const lineNumber = lineIndex + 1;
-    const foldedRange = foldRangeByStartLine.get(lineNumber);
-
-    if (foldedRange && foldedStartLineSet.has(lineNumber)) {
-      visibleLines.push({
-        lineNumber,
-        text: lines[lineIndex],
-        foldedRange,
-      });
-      lineIndex = foldedRange.endLine - 1;
-      continue;
-    }
-
-    visibleLines.push({
-      lineNumber,
-      text: lines[lineIndex],
-    });
-  }
-
-  return visibleLines.length > 0 ? visibleLines : [{ lineNumber: 1, text: "" }];
 }
 
 export function readCodeBlockText(element: HTMLElement | null): string {
@@ -431,6 +597,15 @@ function isCodeBlockSelectAllShortcut(event: ReactKeyboardEvent<HTMLElement>) {
   );
 }
 
+function isCodeBlockBackspaceShortcut(event: ReactKeyboardEvent<HTMLElement>) {
+  return (
+    event.key === "Backspace" &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.altKey
+  );
+}
+
 function isSelectionInsideElement(element: HTMLElement): boolean {
   const selection = window.getSelection?.();
   if (!selection || selection.rangeCount === 0) return false;
@@ -457,17 +632,15 @@ export function EditorCodeBlock({
 }: EditorCodeBlockProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const codeRef = useRef<HTMLElement | null>(null);
+  const codeMirrorViewRef = useRef<EditorView | null>(null);
+  const codeMirrorLanguageRef = useRef(new Compartment());
+  const isSyncingFromCodeMirrorRef = useRef(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [codeMirrorHost, setCodeMirrorHost] = useState<HTMLDivElement | null>(
+    null,
+  );
   const [isLanguagePickerOpen, setIsLanguagePickerOpen] = useState(false);
   const [languageQuery, setLanguageQuery] = useState("");
-  const [lineNumbers, setLineNumbers] = useState(() =>
-    getCodeBlockLineNumbers(""),
-  );
-  const [codeText, setCodeText] = useState("");
-  const [highlightRevision, setHighlightRevision] = useState(0);
-  const [foldedStartLines, setFoldedStartLines] = useState<Set<number>>(
-    () => new Set(),
-  );
   const [isCopied, setIsCopied] = useState(false);
 
   const language = getSupportedCodeBlockLanguageId(
@@ -479,50 +652,43 @@ export function EditorCodeBlock({
     () => searchCodeBlockLanguages(languageQuery),
     [languageQuery],
   );
-  const foldRanges = useMemo(
-    () => getCodeBlockFoldRanges(codeText),
-    [codeText],
-  );
-  const foldRangeByStartLine = useMemo(
-    () => new Map(foldRanges.map((range) => [range.startLine, range])),
-    [foldRanges],
-  );
-  const visibleLines = useMemo(
-    () => getCodeBlockVisibleLines(codeText, foldedStartLines),
-    [codeText, foldedStartLines],
-  );
-  const highlightedLineHtml = useMemo(
-    () => getHighlightedCodeBlockLineHtml(codeRef.current, codeText),
-    [codeText, highlightRevision],
-  );
-  const hasFoldedLines = visibleLines.some((line) => line.foldedRange);
-  const displayedLineNumbers = hasFoldedLines
-    ? visibleLines.map((line) => line.lineNumber)
-    : lineNumbers;
 
-  const updateLineNumbers = useCallback(() => {
+  const syncCodeMirrorDocument = useCallback((nextCodeText: string) => {
+    const view = codeMirrorViewRef.current;
+    if (!view || view.state.doc.toString() === nextCodeText) return;
+
+    view.dispatch({
+      changes: {
+        from: 0,
+        to: view.state.doc.length,
+        insert: nextCodeText,
+      },
+    });
+  }, []);
+
+  const syncContentHostToCodeMirror = useCallback(() => {
     const nextCodeText = readCodeBlockText(codeRef.current);
 
-    setCodeText(nextCodeText);
-    setLineNumbers(getCodeBlockLineNumbers(nextCodeText));
-    setHighlightRevision((revision) => revision + 1);
-  }, []);
+    if (!isSyncingFromCodeMirrorRef.current) {
+      syncCodeMirrorDocument(nextCodeText);
+    }
+  }, [syncCodeMirrorDocument]);
 
   const setCodeElement = useCallback(
     (element: HTMLElement | null) => {
       codeRef.current = element;
       contentRef?.(element);
-      updateLineNumbers();
+      syncContentHostToCodeMirror();
     },
-    [contentRef, updateLineNumbers],
+    [contentRef, syncContentHostToCodeMirror],
   );
 
   useEffect(() => {
     const codeElement = codeRef.current;
     if (!codeElement || typeof MutationObserver === "undefined") return;
 
-    // 监听 BlockNote 写入的真实文本变化，保证行号与编辑内容同步。
-    const observer = new MutationObserver(updateLineNumbers);
+    // 监听 BlockNote 写入的真实文本变化，保证 CodeMirror 与持久化内容同步。
+    const observer = new MutationObserver(syncContentHostToCodeMirror);
     observer.observe(codeElement, {
       characterData: true,
       childList: true,
@@ -530,22 +696,142 @@ export function EditorCodeBlock({
     });
 
     return () => observer.disconnect();
-  }, [updateLineNumbers]);
+  }, [syncContentHostToCodeMirror]);
 
   useEffect(() => {
-    // Shiki 首次加载是异步的，触发空事务让 ProseMirror 重新计算高亮 decoration。
-    const animationFrame = window.requestAnimationFrame(() =>
-      refreshCodeBlockHighlighting(editor),
-    );
-    const delayedRefreshes = [180, 600, 1200].map((delay) =>
-      window.setTimeout(() => refreshCodeBlockHighlighting(editor), delay),
-    );
+    if (!codeMirrorHost || codeMirrorViewRef.current) return;
+
+    const updateListener = EditorView.updateListener.of((update) => {
+      if (!update.docChanged) return;
+
+      const nextCodeText = update.state.doc.toString();
+      const codeElement = codeRef.current;
+
+      // CodeMirror 是可见编辑器；隐藏 content host 只负责让 BlockNote/Markdown 保存链路继续拿到代码文本。
+      isSyncingFromCodeMirrorRef.current = true;
+      if (codeElement && codeElement.textContent !== nextCodeText) {
+        codeElement.textContent = nextCodeText;
+      }
+      window.queueMicrotask(() => {
+        isSyncingFromCodeMirrorRef.current = false;
+      });
+
+      editor.updateBlock(block.id, { content: nextCodeText });
+    });
+
+    const view = new EditorView({
+      parent: codeMirrorHost,
+      root: editor.prosemirrorView?.root,
+      state: EditorState.create({
+        doc: readCodeBlockText(codeRef.current),
+        extensions: [
+          Prec.highest(
+            keymap.of([
+              {
+                key: "Backspace",
+                run: (view) => {
+                  if (!isCodeMirrorEmptyAtStart(view)) return false;
+                  if (!editor.removeBlocks) return false;
+
+                  // 代码内容已经删空后，再按一次退格，交给 BlockNote 删除整个代码块。
+                  editor.removeBlocks([block.id]);
+
+                  return true;
+                },
+              },
+              {
+                key: "Mod-a",
+                run: (view) => {
+                  view.dispatch({
+                    selection: EditorSelection.range(0, view.state.doc.length),
+                    scrollIntoView: true,
+                  });
+
+                  return true;
+                },
+              },
+            ]),
+          ),
+          lineNumbers(),
+          foldGutter({
+            domEventHandlers: editorCodeMirrorFoldGutterHandlers,
+          }),
+          foldService.of(getCodeMirrorFallbackFoldRange),
+          codeFolding(),
+          history(),
+          drawSelection(),
+          dropCursor(),
+          crosshairCursor(),
+          highlightActiveLine(),
+          highlightActiveLineGutter(),
+          bracketMatching(),
+          syntaxHighlighting(editorCodeMirrorHighlightStyle, {
+            fallback: true,
+          }),
+          indentUnit.of("  "),
+          EditorState.tabSize.of(2),
+          editorCodeMirrorTheme,
+          editorCodeMirrorDomEventHandlers,
+          codeMirrorLanguageRef.current.of(
+            getCodeMirrorLanguageExtension(language),
+          ),
+          keymap.of([
+            indentWithTab,
+            ...defaultKeymap,
+            ...historyKeymap,
+            ...foldKeymap,
+          ]),
+          updateListener,
+        ],
+      }),
+    });
+    codeMirrorViewRef.current = view;
 
     return () => {
-      window.cancelAnimationFrame(animationFrame);
-      delayedRefreshes.forEach((timer) => window.clearTimeout(timer));
+      view.destroy();
+      codeMirrorViewRef.current = null;
     };
-  }, [editor, language]);
+  }, [codeMirrorHost]);
+
+  useLayoutEffect(() => {
+    if (!codeMirrorHost) return;
+
+    const handleNativeKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key.toLowerCase() !== "a" ||
+        (!event.metaKey && !event.ctrlKey) ||
+        event.altKey
+      ) {
+        return;
+      }
+
+      const view = codeMirrorViewRef.current;
+      if (!view) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      view.dispatch({
+        selection: EditorSelection.range(0, view.state.doc.length),
+        scrollIntoView: true,
+      });
+    };
+
+    codeMirrorHost.addEventListener("keydown", handleNativeKeyDown, true);
+
+    return () =>
+      codeMirrorHost.removeEventListener("keydown", handleNativeKeyDown, true);
+  }, [codeMirrorHost]);
+
+  useEffect(() => {
+    const view = codeMirrorViewRef.current;
+    if (!view) return;
+
+    view.dispatch({
+      effects: codeMirrorLanguageRef.current.reconfigure(
+        getCodeMirrorLanguageExtension(language),
+      ),
+    });
+  }, [language]);
 
   useEffect(() => {
     if (!isLanguagePickerOpen) return;
@@ -574,24 +860,6 @@ export function EditorCodeBlock({
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [isLanguagePickerOpen]);
 
-  useEffect(() => {
-    const validStartLines = new Set(foldRanges.map((range) => range.startLine));
-
-    setFoldedStartLines((currentStartLines) => {
-      const nextStartLines = new Set<number>();
-
-      for (const startLine of currentStartLines) {
-        if (validStartLines.has(startLine)) {
-          nextStartLines.add(startLine);
-        }
-      }
-
-      return nextStartLines.size === currentStartLines.size
-        ? currentStartLines
-        : nextStartLines;
-    });
-  }, [foldRanges]);
-
   const handleLanguageSelect = (nextLanguage: string) => {
     editor.updateBlock(block.id, {
       props: { language: nextLanguage },
@@ -607,7 +875,8 @@ export function EditorCodeBlock({
 
       await writeText.call(
         navigator.clipboard,
-        readCodeBlockText(codeRef.current),
+        codeMirrorViewRef.current?.state.doc.toString() ??
+          readCodeBlockText(codeRef.current),
       );
       setIsCopied(true);
     } catch {
@@ -615,49 +884,43 @@ export function EditorCodeBlock({
     }
   };
 
-  const stopFoldControlEvent = (
-    event:
-      | ReactMouseEvent<HTMLButtonElement>
-      | ReactPointerEvent<HTMLButtonElement>,
-  ) => {
-    // 折叠按钮位于 ProseMirror 编辑区内，阻断事件避免触发块选中、缩进或全选等编辑器行为。
-    event.preventDefault();
-    event.stopPropagation();
-  };
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (isCodeBlockBackspaceShortcut(event)) {
+      const eventTarget = event.target instanceof Element ? event.target : null;
+      if (eventTarget?.closest(".editor-code-block-language-popover")) return;
+      if (eventTarget?.closest(".editor-code-block__codemirror")) return;
 
-  const handleFoldPointerDownCapture = (
-    event: ReactPointerEvent<HTMLButtonElement>,
-  ) => {
-    event.stopPropagation();
-  };
-
-  const handleFoldMouseDownCapture = (
-    event: ReactMouseEvent<HTMLButtonElement>,
-  ) => {
-    stopFoldControlEvent(event);
-  };
-
-  const handleFoldClickCapture = (
-    event: ReactMouseEvent<HTMLButtonElement>,
-    lineNumber: number,
-  ) => {
-    stopFoldControlEvent(event);
-
-    setFoldedStartLines((currentStartLines) => {
-      const nextStartLines = new Set(currentStartLines);
-
-      if (nextStartLines.has(lineNumber)) {
-        nextStartLines.delete(lineNumber);
-      } else {
-        nextStartLines.add(lineNumber);
+      const view = codeMirrorViewRef.current;
+      if (!view || !isCodeMirrorEmptyAtStart(view) || !editor.removeBlocks) {
+        return;
       }
 
-      return nextStartLines;
-    });
-  };
+      event.preventDefault();
+      event.stopPropagation();
+      editor.removeBlocks([block.id]);
 
-  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      return;
+    }
+
     if (!isCodeBlockSelectAllShortcut(event)) return;
+
+    const eventTargetElement =
+      event.target instanceof Element ? event.target : null;
+    if (eventTargetElement?.closest(".editor-code-block-language-popover")) {
+      return;
+    }
+
+    const codeMirrorView = codeMirrorViewRef.current;
+    if (codeMirrorView) {
+      event.preventDefault();
+      event.stopPropagation();
+      codeMirrorView.dispatch({
+        selection: EditorSelection.range(0, codeMirrorView.state.doc.length),
+        scrollIntoView: true,
+      });
+
+      return;
+    }
 
     const codeElement = codeRef.current;
     const eventTarget = event.target instanceof Node ? event.target : null;
@@ -672,6 +935,22 @@ export function EditorCodeBlock({
     event.preventDefault();
     event.stopPropagation();
     selectCodeBlockContent(codeElement, editor.prosemirrorView);
+  };
+
+  const handleCodeMirrorHostKeyDownCapture = (
+    event: ReactKeyboardEvent<HTMLDivElement>,
+  ) => {
+    if (!isCodeBlockSelectAllShortcut(event)) return;
+
+    const view = codeMirrorViewRef.current;
+    if (!view) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    view.dispatch({
+      selection: EditorSelection.range(0, view.state.doc.length),
+      scrollIntoView: true,
+    });
   };
 
   return (
@@ -765,98 +1044,26 @@ export function EditorCodeBlock({
         </button>
       </div>
 
-      <div className="editor-code-block__body grid grid-cols-[auto_1fr]">
-        <div
-          contentEditable={false}
-          className="editor-code-block-gutter editor-code-block__line-gutter select-none px-3 py-2 text-right font-mono text-xs leading-6 text-[var(--text-muted)]"
-        >
-          {displayedLineNumbers.map((lineNumber) => {
-            const foldRange = foldRangeByStartLine.get(lineNumber);
-            const isFolded = foldedStartLines.has(lineNumber);
-
-            return (
-              <div key={lineNumber} className="editor-code-block__line-number">
-                {foldRange ? (
-                  <button
-                    type="button"
-                    aria-expanded={!isFolded}
-                    aria-label={`${
-                      isFolded ? "Expand" : "Fold"
-                    } code block from line ${foldRange.startLine} to ${
-                      foldRange.endLine
-                    }`}
-                    className="editor-code-block__fold-toggle"
-                    onPointerDownCapture={handleFoldPointerDownCapture}
-                    onMouseDownCapture={handleFoldMouseDownCapture}
-                    onClickCapture={(event) =>
-                      handleFoldClickCapture(event, lineNumber)
-                    }
-                  >
-                    {isFolded ? (
-                      <ChevronRight className="h-3 w-3" aria-hidden="true" />
-                    ) : (
-                      <ChevronDown className="h-3 w-3" aria-hidden="true" />
-                    )}
-                  </button>
-                ) : (
-                  <span className="editor-code-block__fold-spacer" />
-                )}
-                <span aria-hidden="true">{lineNumber}</span>
-              </div>
-            );
-          })}
-        </div>
-
-        <div
-          className={`editor-code-block__code-pane${
-            hasFoldedLines ? " editor-code-block__code-pane--folded" : ""
-          }`}
-        >
-          <pre className="editor-code-block__pre m-0 p-2">
+      <div className="editor-code-block__body">
+        <div className="editor-code-block__code-pane">
+          <pre
+            aria-hidden="true"
+            className="editor-code-block__pre editor-code-block__blocknote-content-pre m-0"
+          >
             <code
               ref={setCodeElement}
               data-testid="editor-code-block-content"
               data-language={language}
-              className={`editor-code-block__content language-${language}`}
+              className={`editor-code-block__content editor-code-block__blocknote-content language-${language}`}
               aria-label={`${languageLabel} code`}
             />
           </pre>
-
-          {hasFoldedLines ? (
-            <pre
-              contentEditable={false}
-              className="editor-code-block__fold-preview m-0 p-2"
-              aria-label={`${languageLabel} folded code preview`}
-            >
-              {visibleLines.map((line, index) => (
-                <span
-                  key={line.lineNumber}
-                  className="editor-code-block__fold-preview-line"
-                >
-                  <span
-                    className="editor-code-block__fold-preview-code"
-                    dangerouslySetInnerHTML={{
-                      __html:
-                        highlightedLineHtml[line.lineNumber - 1] ??
-                        escapeHtml(line.text),
-                    }}
-                  />
-                  {line.foldedRange ? (
-                    <span
-                      contentEditable={false}
-                      aria-label={`${
-                        line.foldedRange.endLine - line.foldedRange.startLine
-                      } folded lines`}
-                      className="editor-code-block__fold-placeholder"
-                    >
-                      ...
-                    </span>
-                  ) : null}
-                  {index < visibleLines.length - 1 ? "\n" : null}
-                </span>
-              ))}
-            </pre>
-          ) : null}
+          <div
+            ref={setCodeMirrorHost}
+            className="editor-code-block__codemirror"
+            data-testid="editor-code-block-codemirror"
+            onKeyDownCapture={handleCodeMirrorHostKeyDownCapture}
+          />
         </div>
       </div>
     </div>
