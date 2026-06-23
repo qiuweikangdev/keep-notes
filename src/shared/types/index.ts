@@ -204,3 +204,31 @@ export interface MenuActionOptions {
   command?: string;
   handle: () => void;
 }
+
+export type NotificationChannelType = "desktop" | "email" | "feishu";
+
+export interface EmailChannelConfig {
+  enabled: boolean;
+  smtpHost: string;
+  smtpPort: number;
+  senderEmail: string;
+  authorizationCode: string;
+  receiverEmail: string;
+}
+
+export interface NotificationConfig {
+  desktop: { enabled: boolean };
+  email: EmailChannelConfig;
+}
+
+export const DEFAULT_NOTIFICATION_CONFIG: NotificationConfig = {
+  desktop: { enabled: true },
+  email: {
+    enabled: false,
+    smtpHost: "smtp.qq.com",
+    smtpPort: 465,
+    senderEmail: "",
+    authorizationCode: "",
+    receiverEmail: "",
+  },
+};

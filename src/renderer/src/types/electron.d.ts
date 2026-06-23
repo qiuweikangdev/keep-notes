@@ -12,6 +12,8 @@ import type {
   AppUpdateState,
   Reminder,
   ReminderInput,
+  NotificationChannelType,
+  NotificationConfig,
 } from "@shared/types";
 
 export interface ElectronAPI {
@@ -92,6 +94,15 @@ export interface ElectronAPI {
   deleteReminder: (id: string) => Promise<boolean>;
   completeReminder: (id: string) => Promise<Reminder>;
   onRemindersChanged: (callback: (reminders: Reminder[]) => void) => () => void;
+  // Notification
+  getNotificationConfig: () => Promise<NotificationConfig>;
+  setNotificationConfig: (config: NotificationConfig) => Promise<void>;
+  testNotificationChannel: (
+    type: NotificationChannelType,
+  ) => Promise<{ success: boolean; error?: string }>;
+  onNotificationConfigChanged: (
+    callback: (config: NotificationConfig) => void,
+  ) => () => void;
 }
 
 export interface GitAPI {

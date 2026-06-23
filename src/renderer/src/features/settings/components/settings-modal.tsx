@@ -12,6 +12,7 @@ import {
   Palette,
   ChevronRight,
   Keyboard,
+  Bell,
   Info,
   RefreshCw,
   ExternalLink,
@@ -19,13 +20,15 @@ import {
   Download,
 } from "lucide-react";
 import { ShortcutsSettings } from "./shortcuts-settings";
+import { NotificationSettings } from "./notification-settings";
 import type { AppInfo, AppUpdateState, AppUpdateStatus } from "@shared/types";
 
-type SettingsTab = "appearance" | "shortcuts" | "about";
+type SettingsTab = "appearance" | "shortcuts" | "notifications" | "about";
 
 const settingsMenuItems = [
   { id: "appearance" as SettingsTab, label: "外观", icon: Palette },
   { id: "shortcuts" as SettingsTab, label: "键盘快捷键", icon: Keyboard },
+  { id: "notifications" as SettingsTab, label: "通知推送", icon: Bell },
   { id: "about" as SettingsTab, label: "关于", icon: Info },
 ];
 
@@ -441,6 +444,8 @@ export function SettingsModal() {
         );
       case "shortcuts":
         return <ShortcutsSettings />;
+      case "notifications":
+        return <NotificationSettings />;
       case "about":
         return (
           <div className="space-y-5 py-2">
