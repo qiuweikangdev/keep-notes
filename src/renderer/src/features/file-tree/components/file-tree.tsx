@@ -5,6 +5,7 @@ import {
   useRef,
   useEffect,
   memo,
+  startTransition,
   type KeyboardEvent,
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -35,6 +36,7 @@ import { QuickActionsPanel } from "./quick-actions-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ContextMenu } from "@/components/ui/context-menu";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Tooltip } from "@/components/ui/tooltip";
 import type { TreeNode as TreeNodeType } from "@/types";
 import { CodeResult } from "@/types";
@@ -74,6 +76,7 @@ export function FileTree() {
     openFile,
     createFile,
     createFolder,
+    deleteItem,
     copyPath,
     openInNewWindow,
   } = useElectron();
@@ -88,6 +91,11 @@ export function FileTree() {
   const [creatingInfo, setCreatingInfo] = useState<CreatingInfo | null>(null);
   const [createValue, setCreateValue] = useState("");
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean;
+    key: string;
+    title: string;
+  }>({ open: false, key: "", title: "" });
   const createInputRef = useRef<HTMLInputElement>(null);
   const confirmedRef = useRef(false);
   const isRootCreating = creatingInfo?.parentKey === treeRoot?.key;
@@ -235,11 +243,38 @@ export function FileTree() {
       if (!parentKey) {
         setCreatingInfo(null);
       } else {
-        setCreatingInfo({ type, parentKey, level });
+        // 使用 startTransition 批量更新状态，避免多次渲染导致闪烁
+        startTransition(() => {
+          // 先展开文件夹（直接从 store 获取最新的 expandedKeys）
+          const currentExpandedKeys = useTreeStore.getState().expandedKeys;
+          if (!currentExpandedKeys.has(parentKey)) {
+            toggleExpandedKey(parentKey);
+          }
+          // 再设置创建信息
+          setCreatingInfo({ type, parentKey, level });
+        });
       }
     },
-    [],
+    [toggleExpandedKey],
   );
+
+  // 触发删除确认对话框
+  const handleDeleteNode = useCallback((key: string, title: string) => {
+    setConfirmState({ open: true, key, title });
+  }, []);
+
+  // 确认删除
+  const handleDeleteConfirm = useCallback(async () => {
+    const { key, title } = confirmState;
+    if (!key) return;
+
+    const currentTreeData = useTreeStore.getState().treeData;
+    const result = await deleteItem(key, title, currentTreeData);
+    if (result.code === CodeResult.Success && result.data) {
+      setTreeData(result.data.treeData);
+    }
+    setConfirmState({ open: false, key: "", title: "" });
+  }, [confirmState, deleteItem, setTreeData]);
 
   if (!treeRoot) {
     return (
@@ -583,6 +618,7 @@ export function FileTree() {
                     isRootCreating={isRootCreating}
                     onClick={handleNodeClick}
                     onCreateInFolder={handleCreateInFolder}
+                    onDeleteNode={handleDeleteNode}
                     openFile={openFile}
                     openInExplorer={openInExplorer}
                     copyPath={copyPath}
@@ -668,6 +704,16 @@ export function FileTree() {
           </ContextMenu.Item>
         </ContextMenu.Content>
       </ContextMenu.Portal>
+
+      <ConfirmDialog
+        open={confirmState.open}
+        onOpenChange={(open) => setConfirmState((prev) => ({ ...prev, open }))}
+        title="确认删除"
+        description={`确定要删除「${confirmState.title}」吗？此操作不可撤销。`}
+        confirmText="删除"
+        variant="danger"
+        onConfirm={handleDeleteConfirm}
+      />
     </ContextMenu.Root>
   );
 }
@@ -683,6 +729,7 @@ interface VirtualizedTreeListProps {
     type: "file" | "folder",
     level: number,
   ) => void;
+  onDeleteNode: (key: string, title: string) => void;
   openFile: (filePath: string) => Promise<void>;
   openInExplorer: (targetPath: string) => Promise<boolean>;
   copyPath: (targetPath: string) => Promise<boolean>;
@@ -697,6 +744,7 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
   isRootCreating,
   onClick,
   onCreateInFolder,
+  onDeleteNode,
   openFile,
   openInExplorer,
   copyPath,
@@ -719,6 +767,20 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
     overscan: 6,
   });
 
+  // 查找正在创建的节点位置（使用 useMemo 缓存计算结果）
+  const { creatingIndex, creatingInsertIndex, extraHeight } = useMemo(() => {
+    if (!creatingInfo) {
+      return { creatingIndex: -1, creatingInsertIndex: -1, extraHeight: 0 };
+    }
+    const idx = flatNodes.findIndex((n) => n.key === creatingInfo.parentKey);
+    const insertIdx = idx >= 0 ? idx + 1 : -1;
+    return {
+      creatingIndex: idx,
+      creatingInsertIndex: insertIdx,
+      extraHeight: insertIdx >= 0 ? ROW_HEIGHT : 0,
+    };
+  }, [creatingInfo, flatNodes]);
+
   return (
     <div
       ref={parentRef}
@@ -730,7 +792,7 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
     >
       <div
         style={{
-          height: `${virtualizer.getTotalSize()}px`,
+          height: `${virtualizer.getTotalSize() + extraHeight}px`,
           width: "100%",
           position: "relative",
         }}
@@ -738,19 +800,23 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
         {virtualizer.getVirtualItems().map((virtualItem) => {
           const flatNode = flatNodes[virtualItem.index];
           if (!flatNode) return null;
-          const isCreatingHere = creatingInfo?.parentKey === flatNode.key;
+
+          // 如果当前节点在插入位置之后，需要向下偏移输入框的高度
+          const adjustedStart =
+            creatingInsertIndex >= 0 && virtualItem.index >= creatingInsertIndex
+              ? virtualItem.start + ROW_HEIGHT
+              : virtualItem.start;
 
           return (
             <VirtualTreeNode
               key={flatNode.key}
               flatNode={flatNode}
               size={virtualItem.size}
-              start={virtualItem.start}
+              start={adjustedStart}
               isSelected={selectedKey === flatNode.key}
-              isCreatingHere={isCreatingHere}
-              creatingInfo={isCreatingHere ? creatingInfo : null}
               onClick={onClick}
               onCreateInFolder={onCreateInFolder}
+              onDeleteNode={onDeleteNode}
               openFile={openFile}
               openInExplorer={openInExplorer}
               copyPath={copyPath}
@@ -759,6 +825,16 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
             />
           );
         })}
+
+        {/* 单独渲染创建输入框 */}
+        {creatingInsertIndex >= 0 ? (
+          <CreateInput
+            creatingInfo={creatingInfo!}
+            parentKey={creatingInfo!.parentKey}
+            top={creatingInsertIndex * ROW_HEIGHT}
+            onCancel={() => onCreateInFolder("", "file", 0)}
+          />
+        ) : null}
       </div>
     </div>
   );
@@ -770,14 +846,13 @@ interface VirtualTreeNodeProps {
   size: number;
   start: number;
   isSelected: boolean;
-  isCreatingHere: boolean;
-  creatingInfo: CreatingInfo | null;
   onClick: (flatNode: FlatNode) => void;
   onCreateInFolder: (
     parentKey: string,
     type: "file" | "folder",
     level: number,
   ) => void;
+  onDeleteNode: (key: string, title: string) => void;
   openFile: (filePath: string) => Promise<void>;
   openInExplorer: (targetPath: string) => Promise<boolean>;
   copyPath: (targetPath: string) => Promise<boolean>;
@@ -790,18 +865,67 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
   size,
   start,
   isSelected,
-  isCreatingHere,
-  creatingInfo,
   onClick,
   onCreateInFolder,
+  onDeleteNode,
   openFile,
   openInExplorer,
   copyPath,
   openInNewWindow,
   openCreateReminder,
 }: VirtualTreeNodeProps) {
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const renameInputRef = useRef<HTMLInputElement>(null);
+  const setTreeData = useTreeStore((state) => state.setTreeData);
+  const { renameItem } = useElectron();
+
   const revealInFileManagerLabel = getRevealInFileManagerLabel(
     window.electronAPI?.getPlatform(),
+  );
+
+  // 重命名输入框自动聚焦
+  useEffect(() => {
+    if (isRenaming && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [isRenaming]);
+
+  // 开始重命名
+  const handleStartRename = useCallback(() => {
+    setRenameValue(flatNode.title.replace(/\.md$/, ""));
+    setIsRenaming(true);
+  }, [flatNode.title]);
+
+  // 确认重命名
+  const handleRenameConfirm = useCallback(async () => {
+    const title = renameValue.trim();
+    const current = flatNode.title.replace(/\.md$/, "");
+    if (!title || title === current) {
+      setIsRenaming(false);
+      return;
+    }
+
+    const treeData = useTreeStore.getState().treeData;
+    const result = await renameItem(flatNode.key, title, treeData);
+    if (result.code === CodeResult.Success && result.data) {
+      setTreeData(result.data.treeData);
+    }
+    setIsRenaming(false);
+  }, [renameValue, flatNode.title, flatNode.key, renameItem, setTreeData]);
+
+  // 重命名键盘事件
+  const handleRenameKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter") {
+        void handleRenameConfirm();
+      }
+      if (e.key === "Escape") {
+        setIsRenaming(false);
+      }
+    },
+    [handleRenameConfirm],
   );
 
   return (
@@ -867,16 +991,35 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
                 )}
               </div>
 
-              <span
-                className="flex-1 truncate text-[13px] leading-7"
-                style={{
-                  color: isSelected
-                    ? "var(--text-primary)"
-                    : "var(--text-secondary)",
-                }}
-              >
-                {flatNode.title}
-              </span>
+              {isRenaming ? (
+                <input
+                  ref={renameInputRef}
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onKeyDown={handleRenameKeyDown}
+                  onBlur={() =>
+                    setTimeout(() => void handleRenameConfirm(), 100)
+                  }
+                  onClick={(e) => e.stopPropagation()}
+                  className="h-[22px] flex-1 rounded-[3px] px-[6px] text-[13px] outline-none"
+                  style={{
+                    backgroundColor: "var(--bg-tertiary)",
+                    border: "1px solid var(--border-color)",
+                    color: "var(--text-primary)",
+                  }}
+                />
+              ) : (
+                <span
+                  className="flex-1 truncate text-[13px] leading-7"
+                  style={{
+                    color: isSelected
+                      ? "var(--text-primary)"
+                      : "var(--text-secondary)",
+                  }}
+                >
+                  {flatNode.title}
+                </span>
+              )}
             </div>
           </div>
         </ContextMenu.Trigger>
@@ -957,17 +1100,13 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
             <ContextMenu.Separator className={MENU_SEPARATOR_CLASS} />
             <ContextMenu.Item
               className={MENU_ITEM_CLASS}
-              onClick={() => {
-                // 重命名功能需要额外状态管理
-              }}
+              onClick={handleStartRename}
             >
               <Pencil className="h-4 w-4" /> 重命名
             </ContextMenu.Item>
             <ContextMenu.Item
               className={MENU_ITEM_CLASS}
-              onClick={() => {
-                // 删除功能需要额外状态管理
-              }}
+              onClick={() => onDeleteNode(flatNode.key, flatNode.title)}
             >
               <Trash2 className="h-4 w-4" /> 删除
             </ContextMenu.Item>
@@ -993,14 +1132,6 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
           </ContextMenu.Content>
         </ContextMenu.Portal>
       </ContextMenu.Root>
-
-      {/* 创建输入框 */}
-      {isCreatingHere ? (
-        <CreateInput
-          creatingInfo={creatingInfo}
-          onCancel={() => onCreateInFolder("", "file", 0)}
-        />
-      ) : null}
     </div>
   );
 });
@@ -1008,14 +1139,23 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
 // 创建输入框组件
 function CreateInput({
   creatingInfo,
+  parentKey,
+  top,
   onCancel,
 }: {
   creatingInfo: CreatingInfo;
+  parentKey: string;
+  top: number;
   onCancel: () => void;
 }) {
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const confirmedRef = useRef(false);
+  const setTreeData = useTreeStore((state) => state.setTreeData);
+  const setSelectedKey = useTreeStore((state) => state.setSelectedKey);
+  const toggleExpandedKey = useTreeStore((state) => state.toggleExpandedKey);
+  const expandedKeys = useTreeStore((state) => state.expandedKeys);
+  const { createFile, createFolder } = useElectron();
 
   useEffect(() => {
     if (inputRef.current) {
@@ -1023,30 +1163,73 @@ function CreateInput({
     }
   }, []);
 
+  // 执行创建
+  const doCreate = useCallback(async () => {
+    const title = value.trim();
+    if (!title) {
+      onCancel();
+      return;
+    }
+
+    const fn = creatingInfo.type === "file" ? createFile : createFolder;
+    const treeData = useTreeStore.getState().treeData;
+    const result = await fn(parentKey, title, treeData);
+    if (result.code === CodeResult.Success && result.data) {
+      setTreeData(result.data.treeData);
+      // 展开父节点
+      if (!expandedKeys.has(parentKey)) {
+        toggleExpandedKey(parentKey);
+      }
+      // 选中新创建的节点
+      const sep = parentKey.includes("\\") ? "\\" : "/";
+      const newKey =
+        creatingInfo.type === "file"
+          ? `${parentKey}${sep}${title}.md`
+          : `${parentKey}${sep}${title}`;
+      setSelectedKey(newKey);
+    }
+    onCancel();
+  }, [
+    value,
+    creatingInfo,
+    parentKey,
+    createFile,
+    createFolder,
+    setTreeData,
+    setSelectedKey,
+    expandedKeys,
+    toggleExpandedKey,
+    onCancel,
+  ]);
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "Enter") {
         e.preventDefault();
         confirmedRef.current = true;
-        // 创建逻辑
-        onCancel();
+        void doCreate();
       }
       if (e.key === "Escape") {
         confirmedRef.current = true;
         onCancel();
       }
     },
-    [onCancel],
+    [doCreate, onCancel],
   );
 
   return (
     <div
-      className="mx-2 mb-1 flex h-7 animate-fade-in items-center rounded-md"
+      className="flex h-7 items-center rounded-md"
       style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        width: "100%",
+        height: `${ROW_HEIGHT}px`,
+        transform: `translateY(${top}px)`,
         paddingLeft: `${creatingInfo.level * 14 + 8}px`,
         paddingRight: "8px",
-        backgroundColor: "var(--bg-tertiary)",
-        border: "1px solid var(--border-color)",
+        zIndex: 10,
       }}
     >
       <div className="flex h-[26px] w-[12px] flex-shrink-0 items-center justify-center" />
@@ -1074,16 +1257,15 @@ function CreateInput({
             confirmedRef.current = false;
             return;
           }
-          setTimeout(() => onCancel(), 100);
+          setTimeout(() => void doCreate(), 100);
         }}
         onClick={(e) => e.stopPropagation()}
         placeholder={
           creatingInfo.type === "file" ? "输入文件名称" : "输入文件夹名称"
         }
-        className="h-[22px] flex-1 rounded-[3px] px-[6px] text-[13px] outline-none"
+        className="h-[22px] flex-1 rounded-[3px] px-[6px] text-[13px] outline-none focus:ring-1 focus:ring-[var(--border-color)]"
         style={{
           backgroundColor: "transparent",
-          border: "1px solid transparent",
           color: "var(--text-primary)",
         }}
       />
