@@ -94,6 +94,7 @@ export interface ElectronAPI {
   deleteReminder: (id: string) => Promise<boolean>;
   completeReminder: (id: string) => Promise<Reminder>;
   onRemindersChanged: (callback: (reminders: Reminder[]) => void) => () => void;
+  onReminderTriggered: (callback: (reminder: Reminder) => void) => () => void;
   // Notification
   getNotificationConfig: () => Promise<NotificationConfig>;
   setNotificationConfig: (config: NotificationConfig) => Promise<void>;

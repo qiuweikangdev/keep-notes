@@ -3,7 +3,11 @@ import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { useEditorStore } from "@/store/editor.store";
 import { SettingsModal } from "@/features/settings";
 import { SearchModal } from "@/features/search";
-import { ReminderEditorDialog, ReminderListDialog } from "@/features/reminders";
+import {
+  ReminderEditorDialog,
+  ReminderListDialog,
+  ReminderNotificationToast,
+} from "@/features/reminders";
 import { HomePage } from "@/pages/home";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useUIStore } from "@/store/ui.store";
@@ -40,6 +44,9 @@ export function App() {
   const loadReminders = useReminderStore((s) => s.loadReminders);
   const subscribeToReminderChanges = useReminderStore(
     (s) => s.subscribeToReminderChanges,
+  );
+  const subscribeToReminderTriggers = useReminderStore(
+    (s) => s.subscribeToReminderTriggers,
   );
 
   // 初始化键盘快捷键
@@ -86,8 +93,13 @@ export function App() {
 
   useEffect(() => {
     void loadReminders();
-    return subscribeToReminderChanges();
-  }, [loadReminders, subscribeToReminderChanges]);
+    const unsubscribeChanges = subscribeToReminderChanges();
+    const unsubscribeTriggers = subscribeToReminderTriggers();
+    return () => {
+      unsubscribeChanges();
+      unsubscribeTriggers();
+    };
+  }, [loadReminders, subscribeToReminderChanges, subscribeToReminderTriggers]);
 
   // 监听来自菜单的搜索事件
   useEffect(() => {
@@ -123,6 +135,7 @@ export function App() {
         />
         <ReminderEditorDialog />
         <ReminderListDialog />
+        <ReminderNotificationToast />
       </div>
     </Tooltip.Provider>
   );

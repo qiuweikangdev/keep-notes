@@ -31,6 +31,8 @@ function createTestService(
     initial?: Reminder[];
     now?: Date;
     showNotification?: ReturnType<typeof vi.fn>;
+    scheduleTimer?: ReturnType<typeof vi.fn>;
+    broadcastTriggered?: ReturnType<typeof vi.fn>;
   } = {},
 ) {
   const saved: Reminder[][] = [];
@@ -45,10 +47,12 @@ function createTestService(
     },
     now: () => options.now ?? new Date("2026-06-21T08:00:00.000Z"),
     createId: () => createReminderId("test"),
-    scheduleTimer: () => ({ dispose: timerDispose }),
+    scheduleTimer:
+      options.scheduleTimer ?? vi.fn(() => ({ dispose: timerDispose })),
     showNotification,
     openFileInNewWindow,
     broadcast,
+    broadcastTriggered: options.broadcastTriggered,
   });
 
   return {
@@ -181,6 +185,76 @@ describe("ReminderService", () => {
       id: reminder.id,
       lastNotifiedAt: "2026-06-21T09:00:00.000Z",
     });
+  });
+
+  it("schedules newly created overdue reminders to notify immediately", async () => {
+    let scheduledCallback: (() => void) | undefined;
+    const notification = { show: vi.fn() };
+    const showNotification = vi.fn(() => notification);
+    const scheduleTimer = vi.fn((callback: () => void, _delay: number) => {
+      scheduledCallback = callback;
+      return { dispose: vi.fn() };
+    });
+    const { service } = createTestService({
+      now: new Date("2026-06-21T09:01:00.000Z"),
+      showNotification,
+      scheduleTimer,
+    });
+    await service.load();
+
+    await service.create(baseInput);
+    await scheduledCallback?.();
+
+    expect(scheduleTimer).toHaveBeenLastCalledWith(expect.any(Function), 0);
+    expect(showNotification).toHaveBeenCalledTimes(1);
+    expect(notification.show).toHaveBeenCalledTimes(1);
+  });
+
+  it("broadcasts triggered reminders to renderer windows", async () => {
+    const broadcastTriggered = vi.fn();
+    const { service } = createTestService({
+      now: new Date("2026-06-21T09:01:00.000Z"),
+      showNotification: vi.fn(() => ({ show: vi.fn() })),
+      broadcastTriggered,
+    });
+    await service.load();
+    const reminder = await service.create(baseInput);
+
+    await service.processDueReminders();
+
+    expect(broadcastTriggered).toHaveBeenCalledWith(
+      expect.objectContaining({ id: reminder.id }),
+    );
+  });
+
+  it("continues processing when desktop notification fails", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const broadcastTriggered = vi.fn();
+    const { service } = createTestService({
+      now: new Date("2026-06-21T09:01:00.000Z"),
+      showNotification: vi.fn(() => {
+        throw new Error("Notifications unavailable");
+      }),
+      broadcastTriggered,
+    });
+    await service.load();
+    const reminder = await service.create(baseInput);
+
+    await service.processDueReminders();
+
+    expect(broadcastTriggered).toHaveBeenCalledWith(
+      expect.objectContaining({ id: reminder.id }),
+    );
+    expect(service.getSnapshot()[0]).toMatchObject({
+      lastNotifiedAt: "2026-06-21T09:00:00.000Z",
+    });
+    expect(consoleError).toHaveBeenCalledWith(
+      "Failed to show desktop reminder notification:",
+      expect.any(Error),
+    );
+    consoleError.mockRestore();
   });
 
   it("advances repeating reminders after notification", async () => {

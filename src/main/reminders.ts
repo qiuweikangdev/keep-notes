@@ -33,6 +33,7 @@ interface ReminderServiceDeps {
   ) => NotificationHandle;
   openFileInNewWindow?: (filePath: string) => Promise<boolean>;
   broadcast?: (reminders: Reminder[]) => void;
+  broadcastTriggered?: (reminder: Reminder) => void;
 }
 
 export function createReminderId(prefix = "reminder"): string {
@@ -165,6 +166,7 @@ export class ReminderService {
   ) => NotificationHandle;
   private readonly openFileInNewWindow: (filePath: string) => Promise<boolean>;
   private broadcast: (reminders: Reminder[]) => void;
+  private broadcastTriggered: (reminder: Reminder) => void;
 
   constructor(deps: ReminderServiceDeps = {}) {
     this.readReminders = deps.readReminders ?? readReminderFile;
@@ -175,10 +177,15 @@ export class ReminderService {
     this.showNotification = deps.showNotification ?? createDefaultNotification;
     this.openFileInNewWindow = deps.openFileInNewWindow ?? openPathInNewWindow;
     this.broadcast = deps.broadcast ?? (() => undefined);
+    this.broadcastTriggered = deps.broadcastTriggered ?? (() => undefined);
   }
 
   setBroadcast(broadcast: (reminders: Reminder[]) => void): void {
     this.broadcast = broadcast;
+  }
+
+  setTriggeredBroadcast(broadcast: (reminder: Reminder) => void): void {
+    this.broadcastTriggered = broadcast;
   }
 
   async load(): Promise<Reminder[]> {
@@ -294,12 +301,19 @@ export class ReminderService {
   private async notify(reminder: Reminder): Promise<void> {
     const config = notificationChannelManager.getConfig();
 
+    // 系统通知可能被操作系统权限拦截，先广播给渲染进程显示应用内提醒兜底。
+    this.broadcastTriggered({ ...reminder });
+
     // 桌面通知受配置控制
     if (config.desktop.enabled) {
-      const notification = this.showNotification(reminder, () => {
-        void this.openFileInNewWindow(reminder.filePath);
-      });
-      notification.show();
+      try {
+        const notification = this.showNotification(reminder, () => {
+          void this.openFileInNewWindow(reminder.filePath);
+        });
+        notification.show();
+      } catch (error) {
+        console.error("Failed to show desktop reminder notification:", error);
+      }
     }
 
     // 发送远程通知（邮件等）

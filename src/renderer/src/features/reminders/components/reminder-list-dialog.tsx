@@ -50,8 +50,18 @@ export function ReminderListDialog() {
   return (
     <>
       <Dialog.Root open={isListOpen} onOpenChange={closeList}>
-        <DialogContent className="max-w-[680px] gap-0 overflow-hidden p-0">
+        <DialogContent
+          className="max-w-[680px] gap-0 overflow-hidden p-0 shadow-2xl"
+          style={{
+            backgroundColor: "var(--bg-secondary)",
+            border: "1px solid var(--border-color)",
+            color: "var(--text-primary)",
+          }}
+        >
           <Dialog.Title className="sr-only">提醒事项</Dialog.Title>
+          <Dialog.Description className="sr-only">
+            查看、搜索、编辑和完成笔记提醒事项
+          </Dialog.Description>
           <div
             className="border-b px-5 py-4"
             style={{ borderColor: "var(--border-color)" }}
@@ -101,7 +111,7 @@ export function ReminderListDialog() {
               <Tabs.Content
                 key={item.value}
                 value={item.value}
-                className="max-h-[420px] min-h-[260px] overflow-auto px-3 py-3"
+                className="max-h-[420px] min-h-[260px] overflow-auto bg-[var(--bg-primary)] px-3 py-3"
               >
                 {visibleReminders.length > 0 ? (
                   <div className="space-y-1">

@@ -15,13 +15,17 @@ const reminder: Reminder = {
 };
 
 describe("useReminderStore", () => {
+  let remindersChangedCallback: ((reminders: Reminder[]) => void) | undefined;
+
   beforeEach(() => {
+    remindersChangedCallback = undefined;
     useReminderStore.setState({
       reminders: [],
       isEditorOpen: false,
       editingReminderId: null,
       draftFilePath: null,
       isListOpen: false,
+      triggeredReminder: null,
     });
 
     window.electronAPI = {
@@ -31,7 +35,14 @@ describe("useReminderStore", () => {
       updateReminder: vi.fn(async () => reminder),
       deleteReminder: vi.fn(async () => true),
       completeReminder: vi.fn(async () => ({ ...reminder, completed: true })),
-      onRemindersChanged: vi.fn(() => () => undefined),
+      onRemindersChanged: vi.fn((callback) => {
+        remindersChangedCallback = callback;
+        return () => undefined;
+      }),
+      onReminderTriggered: vi.fn((callback) => {
+        callback(reminder);
+        return () => undefined;
+      }),
     };
   });
 
@@ -68,5 +79,33 @@ describe("useReminderStore", () => {
       isEditorOpen: false,
       draftFilePath: null,
     });
+  });
+
+  it("does not duplicate a newly created reminder when the main process broadcasts first", async () => {
+    window.electronAPI.createReminder = vi.fn(async () => {
+      remindersChangedCallback?.([reminder]);
+      return reminder;
+    });
+    useReminderStore.getState().subscribeToReminderChanges();
+    useReminderStore.getState().openCreateDialog("/workspace/notes/today.md");
+
+    await useReminderStore.getState().createReminder({
+      title: "Read notes",
+      filePath: "/workspace/notes/today.md",
+      scheduledAt: "2026-06-21T09:00:00.000Z",
+      repeat: "never",
+    });
+
+    expect(useReminderStore.getState().reminders).toEqual([reminder]);
+  });
+
+  it("tracks and clears a triggered reminder notification", () => {
+    useReminderStore.getState().subscribeToReminderTriggers();
+
+    expect(useReminderStore.getState().triggeredReminder).toEqual(reminder);
+
+    useReminderStore.getState().closeTriggeredReminder();
+
+    expect(useReminderStore.getState().triggeredReminder).toBeNull();
   });
 });

@@ -90,18 +90,21 @@ export function CustomRepeatDialog({
       <Dialog.Portal>
         <Dialog.Overlay
           className="fixed inset-0 z-[70]"
-          style={{ backgroundColor: "rgba(0, 0, 0, 0.3)" }}
+          style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
         />
         <Dialog.Content
           onPointerDownOutside={() => onOpenChange(false)}
-          className="fixed left-[50%] top-[50%] z-[71] w-[360px] max-w-[92vw] translate-x-[-50%] translate-y-[-50%] overflow-visible rounded-xl border shadow-lg"
+          className="fixed left-[50%] top-[50%] z-[71] w-[360px] max-w-[92vw] translate-x-[-50%] translate-y-[-50%] overflow-visible rounded-xl border shadow-2xl"
           style={{
-            backgroundColor: "var(--bg-primary)",
+            backgroundColor: "var(--bg-secondary)",
             borderColor: "var(--border-color)",
             color: "var(--text-primary)",
           }}
         >
           <Dialog.Title className="sr-only">自定义重复</Dialog.Title>
+          <Dialog.Description className="sr-only">
+            设置提醒事项的自定义重复间隔
+          </Dialog.Description>
           <div
             className="border-b px-5 py-4"
             style={{ borderColor: "var(--border-color)" }}

@@ -1,6 +1,6 @@
 import { BrowserWindow, ipcMain } from "electron";
 import { IPC_CHANNELS } from "../../shared/constants";
-import type { ReminderInput } from "../../shared/types";
+import type { Reminder, ReminderInput } from "../../shared/types";
 import { reminderService } from "../reminders";
 
 function broadcastReminders(): void {
@@ -12,8 +12,17 @@ function broadcastReminders(): void {
   });
 }
 
+function broadcastTriggeredReminder(reminder: Reminder): void {
+  BrowserWindow.getAllWindows().forEach((win) => {
+    if (!win.isDestroyed()) {
+      win.webContents.send(IPC_CHANNELS.REMINDER.ON_TRIGGERED, reminder);
+    }
+  });
+}
+
 export async function initializeReminderIpc(): Promise<void> {
   reminderService.setBroadcast(broadcastReminders);
+  reminderService.setTriggeredBroadcast(broadcastTriggeredReminder);
   await reminderService.load();
 }
 

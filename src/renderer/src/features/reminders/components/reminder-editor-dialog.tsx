@@ -201,10 +201,11 @@ export function ReminderEditorDialog() {
     isTimeEnabled;
 
   const handleRepeatChange = (value: ReminderRepeatPreset) => {
-    setRepeat(value);
     if (value === "custom") {
       setIsCustomOpen(true);
+      return;
     }
+    setRepeat(value);
   };
 
   const handleSave = async () => {
@@ -232,12 +233,20 @@ export function ReminderEditorDialog() {
     <>
       <Dialog.Root open={isEditorOpen} onOpenChange={closeEditor}>
         <DialogContent
-          className="max-w-[480px] gap-0 overflow-visible rounded-xl p-0 shadow-lg"
+          className="max-w-[480px] gap-0 overflow-visible rounded-xl p-0 shadow-2xl"
           showCloseButton={false}
+          style={{
+            backgroundColor: "var(--bg-secondary)",
+            border: "1px solid var(--border-color)",
+            color: "var(--text-primary)",
+          }}
         >
           <Dialog.Title className="sr-only">
             {editingReminder ? "修改提醒事项" : "新建提醒事项"}
           </Dialog.Title>
+          <Dialog.Description className="sr-only">
+            设置提醒标题、日期时间和重复频率
+          </Dialog.Description>
           <div
             className="space-y-4 rounded-xl"
             style={{ backgroundColor: "var(--bg-secondary)" }}
@@ -245,7 +254,7 @@ export function ReminderEditorDialog() {
             <div
               className="rounded-t-xl border-b px-5 py-4"
               style={{
-                backgroundColor: "var(--bg-primary)",
+                backgroundColor: "var(--bg-secondary)",
                 borderColor: "var(--border-color)",
               }}
             >
@@ -371,7 +380,7 @@ export function ReminderEditorDialog() {
             <div
               className="flex justify-end gap-2 rounded-b-xl border-t px-5 py-4"
               style={{
-                backgroundColor: "var(--bg-primary)",
+                backgroundColor: "var(--bg-secondary)",
                 borderColor: "var(--border-color)",
               }}
             >

@@ -35,4 +35,14 @@ export const reminderApi = {
       ipcRenderer.removeListener(IPC_CHANNELS.REMINDER.ON_CHANGED, handler);
     };
   },
+
+  onReminderTriggered: (callback: (reminder: Reminder) => void) => {
+    const handler = (_event: IpcRendererEvent, reminder: Reminder) => {
+      callback(reminder);
+    };
+    ipcRenderer.on(IPC_CHANNELS.REMINDER.ON_TRIGGERED, handler);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.REMINDER.ON_TRIGGERED, handler);
+    };
+  },
 };

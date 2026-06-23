@@ -42,6 +42,7 @@ export const IPC_CHANNELS = {
     DELETE: "reminder:delete",
     COMPLETE: "reminder:complete",
     ON_CHANGED: "reminder:on-changed",
+    ON_TRIGGERED: "reminder:on-triggered",
   },
   NOTIFICATION: {
     GET_CONFIG: "notification:get-config",
