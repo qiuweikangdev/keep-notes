@@ -12,6 +12,7 @@ vi.mock("electron", () => ({
   Notification: class {
     show = vi.fn();
     on = vi.fn();
+    once = vi.fn();
   },
 }));
 

@@ -8,16 +8,20 @@ import type {
 } from "../../shared/types";
 import { DEFAULT_NOTIFICATION_CONFIG } from "../../shared/types";
 import type { NotificationChannel } from "./channel.interface";
+import { DesktopChannel } from "./desktop.channel";
 import { EmailChannel } from "./email.channel";
 
 export class NotificationChannelManager {
   private channels: Map<NotificationChannelType, NotificationChannel> =
     new Map();
   private config: NotificationConfig = DEFAULT_NOTIFICATION_CONFIG;
+  private desktopChannel: DesktopChannel;
   private emailChannel: EmailChannel;
 
   constructor() {
+    this.desktopChannel = new DesktopChannel();
     this.emailChannel = new EmailChannel(this.config.email);
+    this.channels.set("desktop", this.desktopChannel);
     this.channels.set("email", this.emailChannel);
   }
 

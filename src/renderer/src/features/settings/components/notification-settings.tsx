@@ -16,6 +16,11 @@ export function NotificationSettings() {
   const [email, setEmail] = useState(config.email.senderEmail);
   const [code, setCode] = useState(config.email.authorizationCode);
   const [isTesting, setIsTesting] = useState(false);
+  const [isTestingDesktop, setIsTestingDesktop] = useState(false);
+  const [desktopTestResult, setDesktopTestResult] = useState<{
+    success: boolean;
+    error?: string;
+  } | null>(null);
   const [testResult, setTestResult] = useState<{
     success: boolean;
     error?: string;
@@ -53,6 +58,18 @@ export function NotificationSettings() {
     setTestResult(null);
   };
 
+  /** 发送系统桌面通知测试，确认系统权限和 Electron 通知链路是否可用 */
+  const handleTestDesktopNotification = async () => {
+    setIsTestingDesktop(true);
+    setDesktopTestResult(null);
+    try {
+      const result = await testChannel("desktop");
+      setDesktopTestResult(result);
+    } finally {
+      setIsTestingDesktop(false);
+    }
+  };
+
   /** 测试 SMTP 连接 */
   const handleTestConnection = async () => {
     setIsTesting(true);
@@ -87,13 +104,63 @@ export function NotificationSettings() {
       {/* 桌面通知 */}
       <div style={{ borderBottom: "1px solid var(--border-color)" }}>
         <SettingRow label="桌面通知" description="提醒到期时显示系统桌面通知">
-          <Switch
-            checked={config.desktop.enabled}
-            onCheckedChange={(checked) =>
-              updateConfig({ desktop: { enabled: checked } })
-            }
-          />
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleTestDesktopNotification}
+              disabled={isTestingDesktop || !config.desktop.enabled}
+              className="h-7 gap-1.5 px-2.5 text-xs"
+            >
+              {isTestingDesktop ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                "测试通知"
+              )}
+            </Button>
+            <Switch
+              checked={config.desktop.enabled}
+              onCheckedChange={(checked) => {
+                void updateConfig({ desktop: { enabled: checked } });
+                setDesktopTestResult(null);
+              }}
+            />
+          </div>
         </SettingRow>
+        {desktopTestResult ? (
+          <div
+            className="mx-4 mb-3 flex items-center gap-2 rounded-md px-3 py-2 text-xs"
+            style={{
+              backgroundColor: desktopTestResult.success
+                ? "rgba(34, 197, 94, 0.1)"
+                : "rgba(239, 68, 68, 0.1)",
+              border: `1px solid ${desktopTestResult.success ? "rgba(34, 197, 94, 0.3)" : "rgba(239, 68, 68, 0.3)"}`,
+            }}
+          >
+            {desktopTestResult.success ? (
+              <>
+                <CheckCircle2
+                  className="h-3.5 w-3.5 flex-shrink-0"
+                  style={{ color: "var(--success-color, #22c55e)" }}
+                />
+                <span style={{ color: "var(--success-color, #22c55e)" }}>
+                  测试通知已发送
+                </span>
+              </>
+            ) : (
+              <>
+                <XCircle
+                  className="h-3.5 w-3.5 flex-shrink-0"
+                  style={{ color: "var(--error-color, #ef4444)" }}
+                />
+                <span style={{ color: "var(--error-color, #ef4444)" }}>
+                  {desktopTestResult.error || "桌面通知发送失败"}
+                </span>
+              </>
+            )}
+          </div>
+        ) : null}
       </div>
 
       {/* 邮箱推送开关 */}

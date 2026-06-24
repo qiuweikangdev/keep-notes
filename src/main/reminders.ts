@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import { basename, join } from "node:path";
-import { app, Notification } from "electron";
+import { app } from "electron";
 import type {
   Reminder,
   ReminderInput,
@@ -9,6 +9,7 @@ import type {
   ReminderRepeatUnit,
 } from "../shared/types";
 import { notificationChannelManager } from "./notification-channels/manager";
+import { createDesktopNotification } from "./desktop-notification";
 import { openPathInNewWindow } from "./window";
 
 const MAX_TIMER_DELAY = 2_147_483_647;
@@ -18,7 +19,7 @@ export interface TimerHandle {
 }
 
 interface NotificationHandle {
-  show: () => void;
+  show: () => void | Promise<void>;
 }
 
 interface ReminderServiceDeps {
@@ -134,12 +135,13 @@ function createDefaultNotification(
   reminder: Reminder,
   onClick: () => void,
 ): NotificationHandle {
-  const notification = new Notification({
-    title: reminder.title,
-    body: reminder.fileName,
-  });
-  notification.on("click", onClick);
-  return notification;
+  return createDesktopNotification(
+    {
+      title: reminder.title,
+      body: reminder.fileName,
+    },
+    onClick,
+  );
 }
 
 function createDefaultTimer(callback: () => void, delay: number): TimerHandle {
@@ -310,7 +312,7 @@ export class ReminderService {
         const notification = this.showNotification(reminder, () => {
           void this.openFileInNewWindow(reminder.filePath);
         });
-        notification.show();
+        await notification.show();
       } catch (error) {
         console.error("Failed to show desktop reminder notification:", error);
       }

@@ -632,6 +632,9 @@ export function SettingsModal() {
           <Dialog.Title style={{ color: "var(--text-primary)" }}>
             设置
           </Dialog.Title>
+          <Dialog.Description className="sr-only">
+            配置应用外观、快捷键、通知推送和关于信息。
+          </Dialog.Description>
         </DialogHeader>
 
         <div className="flex gap-0 overflow-hidden" style={{ height: "540px" }}>
