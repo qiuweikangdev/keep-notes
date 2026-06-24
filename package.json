@@ -1,5 +1,6 @@
 {
   "name": "keep-notes",
+  "productName": "Keep Notes",
   "type": "module",
   "version": "2.0.4",
   "description": "Markdown编辑器笔记软件",
