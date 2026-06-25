@@ -42,13 +42,18 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
   const { detectGitRepo, openFile } = useElectron();
 
   // 双击标题栏最大化/还原窗口
-  const handleDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement;
-    if (target.closest("button")) {
-      return;
-    }
-    window.electronAPI.maximizeWindow();
-  };
+  // 使用 useCallback 保持与其他处理器的一致性
+  const handleDoubleClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const target = e.target as HTMLElement;
+      if (target.closest("button")) {
+        return;
+      }
+      window.electronAPI.maximizeWindow();
+    },
+    [],
+  );
+
   const { treeRoot } = useTreeStore();
   const openReminderList = useReminderStore((state) => state.openList);
 
@@ -76,6 +81,23 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
       });
     }
   }, [isGitRepo]);
+
+  // 抑制 Windows 上 drag 区域的原生双击最大化行为，
+  // 避免与自定义 handleDoubleClick 同时触发导致双重切换。
+  useEffect(() => {
+    const el = titleBarRef.current;
+    if (!el) return;
+    const suppressNativeDblClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest("button")) {
+        e.preventDefault();
+      }
+    };
+    el.addEventListener("dblclick", suppressNativeDblClick);
+    return () => {
+      el.removeEventListener("dblclick", suppressNativeDblClick);
+    };
+  }, []);
 
   // 检测 Git 仓库
   useEffect(() => {
