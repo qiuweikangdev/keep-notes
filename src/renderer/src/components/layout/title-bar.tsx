@@ -40,6 +40,15 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
   const [isGitRepo, setIsGitRepo] = useState(false);
   const titleBarRef = useRef<HTMLDivElement>(null);
   const { detectGitRepo, openFile } = useElectron();
+
+  // 双击标题栏最大化/还原窗口
+  const handleDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.closest("button")) {
+      return;
+    }
+    window.electronAPI.maximizeWindow();
+  };
   const { treeRoot } = useTreeStore();
   const openReminderList = useReminderStore((state) => state.openList);
 
@@ -157,6 +166,7 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
         ref={titleBarRef}
         data-testid="title-bar"
         className="flex items-center select-none"
+        onDoubleClick={handleDoubleClick}
         style={{
           // macOS 与原生红绿灯共享同一高度基准，避免左上角操作区视觉偏移。
           height: isMac ? `${MAC_TITLE_BAR_HEIGHT}px` : "44px",
