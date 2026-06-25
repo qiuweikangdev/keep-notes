@@ -42,13 +42,9 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
   const { detectGitRepo, openFile } = useElectron();
 
   // 双击标题栏最大化/还原窗口
-  // 使用原生事件监听器，因为React的onDoubleClick可能被drag区域影响
-  useEffect(() => {
-    const el = titleBarRef.current;
-    if (!el) return;
-
-    const handleDoubleClick = (e: MouseEvent) => {
-      console.log("Native double-click detected", e.target);
+  const handleDoubleClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      console.log("Double-click detected", e.target);
       const target = e.target as HTMLElement;
       if (target.closest("button")) {
         console.log("Ignoring button click");
@@ -56,13 +52,9 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
       }
       console.log("Calling maximizeWindow");
       window.electronAPI.maximizeWindow();
-    };
-
-    el.addEventListener("dblclick", handleDoubleClick);
-    return () => {
-      el.removeEventListener("dblclick", handleDoubleClick);
-    };
-  }, []);
+    },
+    [],
+  );
 
   const { treeRoot } = useTreeStore();
   const openReminderList = useReminderStore((state) => state.openList);
@@ -184,6 +176,7 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
         ref={titleBarRef}
         data-testid="title-bar"
         className="flex items-center select-none"
+        onDoubleClick={handleDoubleClick}
         style={{
           // macOS 与原生红绿灯共享同一高度基准，避免左上角操作区视觉偏移。
           height: isMac ? `${MAC_TITLE_BAR_HEIGHT}px` : "44px",
