@@ -84,7 +84,7 @@ export function ThemeModeSelector({
 }: ThemeModeSelectorProps) {
   return (
     <div
-      className={cn("inline-flex items-center rounded-lg p-1", className)}
+      className={cn("inline-flex items-center rounded-lg p-0.5", className)}
       style={{
         backgroundColor: "var(--bg-tertiary)",
         border: "1px solid var(--border-color)",
@@ -97,7 +97,7 @@ export function ThemeModeSelector({
             key={option.value}
             type="button"
             onClick={() => onChange(option.value)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-all cursor-pointer"
+            className="flex items-center gap-1 px-2.5 py-1 text-sm rounded-md transition-all cursor-pointer"
             style={{
               backgroundColor: isActive ? "var(--bg-primary)" : "transparent",
               color: isActive ? "var(--text-primary)" : "var(--text-muted)",

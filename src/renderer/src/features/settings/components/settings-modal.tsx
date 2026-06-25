@@ -206,7 +206,7 @@ export function SettingsModal() {
           <div className="space-y-0">
             {/* 主题选择 */}
             <div style={{ borderBottom: "1px solid var(--border-color)" }}>
-              <div className="flex items-center justify-between py-3.5">
+              <div className="flex items-center justify-between py-2.5">
                 <div>
                   <span
                     className="text-sm font-medium"
@@ -221,12 +221,10 @@ export function SettingsModal() {
                     使用浅色、深色，或匹配系统设置
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <ThemeModeSelector
-                    value={theme}
-                    onChange={(val) => setTheme(val)}
-                  />
-                </div>
+                <ThemeModeSelector
+                  value={theme}
+                  onChange={(val) => setTheme(val)}
+                />
               </div>
             </div>
 
