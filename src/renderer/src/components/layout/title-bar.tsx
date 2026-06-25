@@ -45,13 +45,16 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
   // 使用 useCallback 保持与其他处理器的一致性
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
+      console.log("Double-click detected", e.target);
       const target = e.target as HTMLElement;
       if (target.closest("button")) {
+        console.log("Ignoring button click");
         return;
       }
       // 停止事件传播，防止与原生双击行为冲突
       e.stopPropagation();
       e.nativeEvent.stopImmediatePropagation();
+      console.log("Calling maximizeWindow");
       window.electronAPI.maximizeWindow();
     },
     [],
