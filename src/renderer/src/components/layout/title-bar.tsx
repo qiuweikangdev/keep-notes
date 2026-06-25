@@ -49,6 +49,9 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
       if (target.closest("button")) {
         return;
       }
+      // 停止事件传播，防止与原生双击行为冲突
+      e.stopPropagation();
+      e.nativeEvent.stopImmediatePropagation();
       window.electronAPI.maximizeWindow();
     },
     [],
@@ -82,22 +85,8 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
     }
   }, [isGitRepo]);
 
-  // 抑制 Windows 上 drag 区域的原生双击最大化行为，
-  // 避免与自定义 handleDoubleClick 同时触发导致双重切换。
-  useEffect(() => {
-    const el = titleBarRef.current;
-    if (!el) return;
-    const suppressNativeDblClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest("button")) {
-        e.preventDefault();
-      }
-    };
-    el.addEventListener("dblclick", suppressNativeDblClick);
-    return () => {
-      el.removeEventListener("dblclick", suppressNativeDblClick);
-    };
-  }, []);
+  // 注意：Windows 上 drag 区域的原生双击最大化行为可能与自定义处理器冲突
+  // 如果出现问题，可能需要进一步调试
 
   // 检测 Git 仓库
   useEffect(() => {
