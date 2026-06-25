@@ -46,6 +46,7 @@ import {
   canMoveNodeToFolder,
   flattenTree,
   getRevealInFileManagerLabel,
+  normalizeTreePath,
   type FlatNode,
 } from "../utils";
 
@@ -81,6 +82,7 @@ export function FileTree() {
     deleteItem,
     copyPath,
     openInNewWindow,
+    moveItem,
   } = useElectron();
 
   const appearance = useEditorStore((s) => s.appearance);
@@ -98,8 +100,10 @@ export function FileTree() {
     key: string;
     title: string;
   }>({ open: false, key: "", title: "" });
+  const [isRootDropTarget, setIsRootDropTarget] = useState(false);
   const createInputRef = useRef<HTMLInputElement>(null);
   const confirmedRef = useRef(false);
+  const rootDragDepthRef = useRef(0);
   const isRootCreating = creatingInfo?.parentKey === treeRoot?.key;
   const revealInFileManagerLabel = getRevealInFileManagerLabel(
     window.electronAPI?.getPlatform(),
@@ -190,6 +194,91 @@ export function FileTree() {
       setSearchQuery("");
     }
   }, [showSearch]);
+
+  // 根节点拖拽处理
+  const isTreeFileDrag = useCallback((e: React.DragEvent) => {
+    return e.dataTransfer.types.includes(KEEP_NOTES_FILE_DRAG_TYPE);
+  }, []);
+
+  const handleRootDragOver = useCallback(
+    (e: React.DragEvent) => {
+      if (!treeRoot || !isTreeFileDrag(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = "move";
+      setIsRootDropTarget(true);
+    },
+    [treeRoot, isTreeFileDrag],
+  );
+
+  const handleRootDragEnter = useCallback(
+    (e: React.DragEvent) => {
+      if (!treeRoot || !isTreeFileDrag(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      rootDragDepthRef.current += 1;
+      setIsRootDropTarget(true);
+    },
+    [treeRoot, isTreeFileDrag],
+  );
+
+  const handleRootDragLeave = useCallback(
+    (e: React.DragEvent) => {
+      if (!treeRoot || !isTreeFileDrag(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      rootDragDepthRef.current = Math.max(0, rootDragDepthRef.current - 1);
+      if (rootDragDepthRef.current === 0) {
+        setIsRootDropTarget(false);
+      }
+    },
+    [treeRoot, isTreeFileDrag],
+  );
+
+  const handleRootDrop = useCallback(
+    (e: React.DragEvent) => {
+      if (!treeRoot || !isTreeFileDrag(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      rootDragDepthRef.current = 0;
+      setIsRootDropTarget(false);
+
+      const sourcePath = e.dataTransfer.getData(KEEP_NOTES_FILE_DRAG_TYPE);
+      if (!sourcePath || !canMoveNodeToFolder(sourcePath, treeRoot.key)) {
+        return;
+      }
+
+      // 文件已在根目录下，无需移动
+      const sourceParent = sourcePath.replace(/[\\/][^\\/]+$/, "");
+      if (normalizeTreePath(sourceParent) === normalizeTreePath(treeRoot.key)) {
+        return;
+      }
+
+      // 直接移动到根目录，无需确认
+      void (async () => {
+        const currentTreeData = useTreeStore.getState().treeData;
+        const result = await moveItem(
+          sourcePath,
+          treeRoot.key,
+          currentTreeData,
+        );
+        if (result.code === CodeResult.Success && result.data) {
+          setTreeData(result.data.treeData);
+          if (!expandedKeys.has(treeRoot.key)) {
+            toggleExpandedKey(treeRoot.key);
+          }
+        }
+      })();
+    },
+    [
+      treeRoot,
+      isTreeFileDrag,
+      moveItem,
+      setTreeData,
+      expandedKeys,
+      toggleExpandedKey,
+    ],
+  );
 
   // 过滤树数据
   const filteredTreeData = useMemo(() => {
@@ -509,7 +598,11 @@ export function FileTree() {
                   <ContextMenu.Trigger asChild>
                     <div className="px-2">
                       <div
-                        className="tree-node-root relative flex h-7 cursor-pointer select-none items-center rounded-md"
+                        className={cn(
+                          "tree-node-root relative flex h-7 cursor-pointer select-none items-center rounded-md",
+                          isRootDropTarget &&
+                            "outline outline-1 outline-[var(--accent-color)]/40",
+                        )}
                         style={{
                           paddingLeft: "8px",
                           paddingRight: "8px",
@@ -524,6 +617,10 @@ export function FileTree() {
                           setSelectedKey(treeRoot!.key);
                           toggleExpandedKey(treeRoot!.key);
                         }}
+                        onDragOver={handleRootDragOver}
+                        onDragEnter={handleRootDragEnter}
+                        onDragLeave={handleRootDragLeave}
+                        onDrop={handleRootDrop}
                       >
                         <div className="flex h-[26px] w-[12px] flex-shrink-0 items-center justify-center">
                           <button
@@ -1018,6 +1115,15 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
       if (
         !sourcePath ||
         !canMoveNodeToFolder(sourcePath, dropTargetFolderPath)
+      ) {
+        return;
+      }
+
+      // 文件已在目标目录下，无需移动
+      const sourceParent = sourcePath.replace(/[\\/][^\\/]+$/, "");
+      if (
+        normalizeTreePath(sourceParent) ===
+        normalizeTreePath(dropTargetFolderPath)
       ) {
         return;
       }
