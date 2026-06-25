@@ -161,6 +161,21 @@
   color: var(--text-secondary);
 }
 
+.bn-editor
+  .bn-block-content[data-content-type="quote"]:has(
+    .ProseMirror-trailingBreak:only-child
+  ) {
+  /* 空引用块的 placeholder 与引用线垂直居中对齐。 */
+  align-items: center;
+}
+
+.bn-editor
+  .bn-block-content[data-content-type="quote"]:has(
+    .ProseMirror-trailingBreak:only-child
+  )::after {
+  align-self: center;
+}
+
 .bn-editor ul {
   margin-block: 0.18em;
   padding-left: 1.25em;
@@ -465,6 +480,22 @@
 }
 
 .bn-side-menu[data-block-type="codeBlock"] .mantine-UnstyledButton-root {
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.bn-side-menu[data-block-type="quote"] {
+  /* 引用块包含 margin 与 padding，side-menu 需要按引用内容中心重新定高。 */
+  display: flex;
+  height: 58px;
+  align-items: center;
+  pointer-events: none;
+}
+
+.bn-side-menu[data-block-type="quote"] .mantine-UnstyledButton-root {
   height: 30px;
   display: inline-flex;
   align-items: center;

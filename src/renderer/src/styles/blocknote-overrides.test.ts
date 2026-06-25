@@ -83,6 +83,12 @@ describe("blocknote overrides stylesheet", () => {
     );
     expect(quoteRule).toMatch(/border-radius:\s*0;/);
     expect(quoteRule).not.toMatch(/border:\s*1px solid/);
+    expect(stylesheet).toMatch(
+      /\.bn-editor\s+\.bn-block-content\[data-content-type="quote"\]:has\(\s*\.ProseMirror-trailingBreak:only-child\s*\)\s*\{[\s\S]*align-items:\s*center;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.bn-editor\s+\.bn-block-content\[data-content-type="quote"\]:has\(\s*\.ProseMirror-trailingBreak:only-child\s*\)::after\s*\{[\s\S]*align-self:\s*center;/,
+    );
   });
 
   it("keeps bullet lists compact and readable across nested levels", () => {
@@ -282,6 +288,31 @@ describe("blocknote overrides stylesheet", () => {
     expect(
       getRule(
         '.bn-side-menu[data-block-type="codeBlock"] .mantine-UnstyledButton-root',
+      ),
+    ).toMatch(/pointer-events:\s*auto;/);
+  });
+
+  it("aligns the quote block side menu with the quote content", () => {
+    expect(getRule('.bn-side-menu[data-block-type="quote"]')).toMatch(
+      /display:\s*flex;/,
+    );
+    expect(getRule('.bn-side-menu[data-block-type="quote"]')).toMatch(
+      /height:\s*58px;/,
+    );
+    expect(getRule('.bn-side-menu[data-block-type="quote"]')).toMatch(
+      /align-items:\s*center;/,
+    );
+    expect(getRule('.bn-side-menu[data-block-type="quote"]')).toMatch(
+      /pointer-events:\s*none;/,
+    );
+    expect(
+      getRule(
+        '.bn-side-menu[data-block-type="quote"] .mantine-UnstyledButton-root',
+      ),
+    ).toMatch(/align-items:\s*center;/);
+    expect(
+      getRule(
+        '.bn-side-menu[data-block-type="quote"] .mantine-UnstyledButton-root',
       ),
     ).toMatch(/pointer-events:\s*auto;/);
   });
