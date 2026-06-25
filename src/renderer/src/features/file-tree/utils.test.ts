@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { canMoveNodeToFolder, getRevealInFileManagerLabel } from "./utils";
+import {
+  canMoveNodeToFolder,
+  flattenTree,
+  getRevealInFileManagerLabel,
+} from "./utils";
 
 describe("getRevealInFileManagerLabel", () => {
   it("returns Finder copy on macOS", () => {
@@ -26,5 +30,38 @@ describe("canMoveNodeToFolder", () => {
 
   it("prevents moving a folder into its own descendant", () => {
     expect(canMoveNodeToFolder("D:/notes/a", "D:/notes/a/child")).toBe(false);
+  });
+});
+
+describe("flattenTree", () => {
+  it("keeps parent folder path on child file rows", () => {
+    const flatNodes = flattenTree(
+      [
+        {
+          key: "D:/notes/B",
+          title: "B",
+          children: [
+            {
+              key: "D:/notes/B/a.md",
+              title: "a.md",
+            },
+          ],
+        },
+      ],
+      new Set(["D:/notes/B"]),
+      1,
+      "D:/notes",
+    );
+
+    expect(flatNodes).toEqual([
+      expect.objectContaining({
+        key: "D:/notes/B",
+        parentKey: "D:/notes",
+      }),
+      expect.objectContaining({
+        key: "D:/notes/B/a.md",
+        parentKey: "D:/notes/B",
+      }),
+    ]);
   });
 });

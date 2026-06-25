@@ -6,6 +6,7 @@ export interface FlatNode {
   level: number;
   isFolder: boolean;
   hasChildren: boolean;
+  parentKey: string | null;
 }
 
 export function normalizeTreePath(path: string) {
@@ -32,6 +33,7 @@ export function flattenTree(
   nodes: TreeNode[],
   expandedKeys: Set<string>,
   level: number = 0,
+  parentKey: string | null = null,
 ): FlatNode[] {
   const result: FlatNode[] = [];
 
@@ -45,11 +47,14 @@ export function flattenTree(
       level,
       isFolder,
       hasChildren,
+      parentKey,
     });
 
     // 如果是展开的文件夹，递归添加子节点
     if (isFolder && expandedKeys.has(node.key) && node.children) {
-      result.push(...flattenTree(node.children, expandedKeys, level + 1));
+      result.push(
+        ...flattenTree(node.children, expandedKeys, level + 1, node.key),
+      );
     }
   }
 

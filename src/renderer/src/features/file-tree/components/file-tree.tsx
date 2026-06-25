@@ -221,8 +221,13 @@ export function FileTree() {
   // 展平树结构
   const flatNodes = useMemo(() => {
     if (!isRootExpanded) return [];
-    return flattenTree(filteredTreeData, expandedKeys, 1);
-  }, [filteredTreeData, expandedKeys, isRootExpanded]);
+    return flattenTree(
+      filteredTreeData,
+      expandedKeys,
+      1,
+      treeRoot?.key ?? null,
+    );
+  }, [filteredTreeData, expandedKeys, isRootExpanded, treeRoot?.key]);
 
   // 处理节点点击
   const handleNodeClick = useCallback(
@@ -888,11 +893,14 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
   const renameInputRef = useRef<HTMLInputElement>(null);
   const dragDepthRef = useRef(0);
   const setTreeData = useTreeStore((state) => state.setTreeData);
-  const isExpanded = useTreeStore((state) =>
-    state.expandedKeys.has(flatNode.key),
-  );
+  const expandedKeys = useTreeStore((state) => state.expandedKeys);
   const toggleExpandedKey = useTreeStore((state) => state.toggleExpandedKey);
   const { renameItem, moveItem } = useElectron();
+  const dropTargetFolderPath = flatNode.isFolder
+    ? flatNode.key
+    : flatNode.parentKey;
+  const dropTargetFolderTitle =
+    dropTargetFolderPath?.split(/[\\/]/).pop() ?? flatNode.title;
 
   const revealInFileManagerLabel = getRevealInFileManagerLabel(
     window.electronAPI?.getPlatform(),
@@ -961,31 +969,31 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
 
   const handleDragOver = useCallback(
     (e: React.DragEvent) => {
-      if (!flatNode.isFolder || !isTreeFileDrag(e)) return;
+      if (!dropTargetFolderPath || !isTreeFileDrag(e)) return;
 
       e.preventDefault();
       e.stopPropagation();
       e.dataTransfer.dropEffect = "move";
       setIsDropTarget(true);
     },
-    [flatNode.isFolder, isTreeFileDrag],
+    [dropTargetFolderPath, isTreeFileDrag],
   );
 
   const handleDragEnter = useCallback(
     (e: React.DragEvent) => {
-      if (!flatNode.isFolder || !isTreeFileDrag(e)) return;
+      if (!dropTargetFolderPath || !isTreeFileDrag(e)) return;
 
       e.preventDefault();
       e.stopPropagation();
       dragDepthRef.current += 1;
       setIsDropTarget(true);
     },
-    [flatNode.isFolder, isTreeFileDrag],
+    [dropTargetFolderPath, isTreeFileDrag],
   );
 
   const handleDragLeave = useCallback(
     (e: React.DragEvent) => {
-      if (!flatNode.isFolder || !isTreeFileDrag(e)) return;
+      if (!dropTargetFolderPath || !isTreeFileDrag(e)) return;
 
       e.preventDefault();
       e.stopPropagation();
@@ -994,12 +1002,12 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
         setIsDropTarget(false);
       }
     },
-    [flatNode.isFolder, isTreeFileDrag],
+    [dropTargetFolderPath, isTreeFileDrag],
   );
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
-      if (!flatNode.isFolder || !isTreeFileDrag(e)) return;
+      if (!dropTargetFolderPath || !isTreeFileDrag(e)) return;
 
       e.preventDefault();
       e.stopPropagation();
@@ -1007,18 +1015,21 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
       setIsDropTarget(false);
 
       const sourcePath = e.dataTransfer.getData(KEEP_NOTES_FILE_DRAG_TYPE);
-      if (!sourcePath || !canMoveNodeToFolder(sourcePath, flatNode.key)) {
+      if (
+        !sourcePath ||
+        !canMoveNodeToFolder(sourcePath, dropTargetFolderPath)
+      ) {
         return;
       }
 
       setMoveConfirm({
         open: true,
         sourcePath,
-        targetPath: flatNode.key,
+        targetPath: dropTargetFolderPath,
         title: sourcePath.split(/[\\/]/).pop() || sourcePath,
       });
     },
-    [flatNode.isFolder, flatNode.key, isTreeFileDrag],
+    [dropTargetFolderPath, isTreeFileDrag],
   );
 
   const handleMoveConfirm = useCallback(async () => {
@@ -1032,13 +1043,12 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
     );
     if (result.code === CodeResult.Success && result.data) {
       setTreeData(result.data.treeData);
-      if (!isExpanded) {
-        toggleExpandedKey(flatNode.key);
+      if (!expandedKeys.has(moveConfirm.targetPath)) {
+        toggleExpandedKey(moveConfirm.targetPath);
       }
     }
   }, [
-    flatNode.key,
-    isExpanded,
+    expandedKeys,
     moveConfirm.sourcePath,
     moveConfirm.targetPath,
     moveItem,
@@ -1065,7 +1075,7 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
               className={cn(
                 "tree-node-row relative flex h-7 cursor-pointer select-none items-center rounded-md",
                 isDropTarget &&
-                  flatNode.isFolder &&
+                  dropTargetFolderPath &&
                   "outline outline-1 outline-[var(--accent-color)]/40",
               )}
               style={{
@@ -1267,7 +1277,7 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
         open={moveConfirm.open}
         onOpenChange={(open) => setMoveConfirm((prev) => ({ ...prev, open }))}
         title="确认移动"
-        description={`确定要将「${moveConfirm.title}」移动到「${flatNode.title}」文件夹中吗？`}
+        description={`确定要将「${moveConfirm.title}」移动到「${dropTargetFolderTitle}」文件夹中吗？`}
         confirmText="移动"
         onConfirm={handleMoveConfirm}
       />
