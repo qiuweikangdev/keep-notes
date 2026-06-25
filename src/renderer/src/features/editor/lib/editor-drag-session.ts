@@ -1,9 +1,6 @@
-interface DragTypes {
-  includes(type: string): boolean;
-}
-
-export function isEditorFileDrag(types: DragTypes): boolean {
-  return (
-    types.includes("application/x-keep-notes-file") || types.includes("Files")
-  );
-}
+export {
+  getDraggedFilePath,
+  KEEP_NOTES_FILE_DRAG_TYPE,
+  setDraggedFilePath,
+  isFileDrag as isEditorFileDrag,
+} from "@/lib/file-drag";

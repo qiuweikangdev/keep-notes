@@ -13,6 +13,10 @@ import {
   editorSaveCoordinator,
   flushEditorChange,
 } from "../lib/editor-runtime";
+import {
+  getDraggedFilePath,
+  isEditorFileDrag,
+} from "../lib/editor-drag-session";
 import { selectTabBarSignature } from "../lib/editor-view-selectors";
 import { EditorToolbar } from "./editor-toolbar";
 
@@ -143,6 +147,7 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
 
   // 拖拽事件处理
   const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (!isEditorFileDrag(e.dataTransfer.types)) return;
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = "copy";
@@ -150,6 +155,7 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
   }, []);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
+    if (!isEditorFileDrag(e.dataTransfer.types)) return;
     e.preventDefault();
     e.stopPropagation();
     setIsDragOver(false);
@@ -157,12 +163,13 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
 
   const handleDrop = useCallback(
     async (e: React.DragEvent) => {
+      if (!isEditorFileDrag(e.dataTransfer.types)) return;
       e.preventDefault();
       e.stopPropagation();
       setIsDragOver(false);
 
-      // 获取拖拽的文件路径
-      const filePath = e.dataTransfer.getData("application/x-keep-notes-file");
+      // 获取拖拽文件路径，支持文件树拖拽和系统文件拖拽。
+      const filePath = getDraggedFilePath(e.dataTransfer);
       if (!filePath || !isSupportedFile(filePath)) return;
 
       // 检查当前活动标签页是否已经是该文件

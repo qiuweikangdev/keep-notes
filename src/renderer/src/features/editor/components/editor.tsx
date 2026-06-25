@@ -8,7 +8,10 @@ import {
   selectEditorLayoutSignature,
   selectPanelGroupSignature,
 } from "../lib/editor-view-selectors";
-import { isEditorFileDrag } from "../lib/editor-drag-session";
+import {
+  getDraggedFilePath,
+  isEditorFileDrag,
+} from "../lib/editor-drag-session";
 
 // 支持的文件扩展名
 const SUPPORTED_EXTENSIONS = [".md", ".txt"];
@@ -55,7 +58,7 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
       setIsDragOver(false);
 
       // 获取拖拽的文件路径
-      const filePath = e.dataTransfer.getData("application/x-keep-notes-file");
+      const filePath = getDraggedFilePath(e.dataTransfer);
       if (!filePath || !isSupportedFile(filePath)) return;
 
       // 检查当前活动标签页是否已经是该文件

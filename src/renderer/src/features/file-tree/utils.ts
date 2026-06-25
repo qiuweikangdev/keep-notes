@@ -8,6 +8,23 @@ export interface FlatNode {
   hasChildren: boolean;
 }
 
+export function normalizeTreePath(path: string) {
+  return path.replace(/\\/g, "/").replace(/\/+$/, "");
+}
+
+export function canMoveNodeToFolder(
+  sourcePath: string,
+  targetFolderPath: string,
+) {
+  const normalizedSource = normalizeTreePath(sourcePath);
+  const normalizedTarget = normalizeTreePath(targetFolderPath);
+
+  return (
+    normalizedSource !== normalizedTarget &&
+    !normalizedTarget.startsWith(`${normalizedSource}/`)
+  );
+}
+
 /**
  * 将树结构展平为列表，只包含可见节点（展开的文件夹的子节点会显示）
  */

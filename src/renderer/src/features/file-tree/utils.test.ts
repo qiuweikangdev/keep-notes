@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getRevealInFileManagerLabel } from "./utils";
+import { canMoveNodeToFolder, getRevealInFileManagerLabel } from "./utils";
 
 describe("getRevealInFileManagerLabel", () => {
   it("returns Finder copy on macOS", () => {
@@ -12,5 +12,19 @@ describe("getRevealInFileManagerLabel", () => {
 
   it("falls back to Explorer copy on other platforms", () => {
     expect(getRevealInFileManagerLabel("linux")).toBe("在资源管理器中显示");
+  });
+});
+
+describe("canMoveNodeToFolder", () => {
+  it("allows moving a file into another folder", () => {
+    expect(canMoveNodeToFolder("D:/notes/a.md", "D:/notes/archive")).toBe(true);
+  });
+
+  it("prevents moving a node into itself", () => {
+    expect(canMoveNodeToFolder("D:/notes/a", "D:/notes/a")).toBe(false);
+  });
+
+  it("prevents moving a folder into its own descendant", () => {
+    expect(canMoveNodeToFolder("D:/notes/a", "D:/notes/a/child")).toBe(false);
   });
 });

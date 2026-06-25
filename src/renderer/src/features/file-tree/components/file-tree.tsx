@@ -41,7 +41,9 @@ import { Tooltip } from "@/components/ui/tooltip";
 import type { TreeNode as TreeNodeType } from "@/types";
 import { CodeResult } from "@/types";
 import { cn } from "@/lib/cn";
+import { KEEP_NOTES_FILE_DRAG_TYPE, setDraggedFilePath } from "@/lib/file-drag";
 import {
+  canMoveNodeToFolder,
   flattenTree,
   getRevealInFileManagerLabel,
   type FlatNode,
@@ -876,9 +878,21 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
 }: VirtualTreeNodeProps) {
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
+  const [isDropTarget, setIsDropTarget] = useState(false);
+  const [moveConfirm, setMoveConfirm] = useState<{
+    open: boolean;
+    sourcePath: string;
+    targetPath: string;
+    title: string;
+  }>({ open: false, sourcePath: "", targetPath: "", title: "" });
   const renameInputRef = useRef<HTMLInputElement>(null);
+  const dragDepthRef = useRef(0);
   const setTreeData = useTreeStore((state) => state.setTreeData);
-  const { renameItem } = useElectron();
+  const isExpanded = useTreeStore((state) =>
+    state.expandedKeys.has(flatNode.key),
+  );
+  const toggleExpandedKey = useTreeStore((state) => state.toggleExpandedKey);
+  const { renameItem, moveItem } = useElectron();
 
   const revealInFileManagerLabel = getRevealInFileManagerLabel(
     window.electronAPI?.getPlatform(),
@@ -928,6 +942,110 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
     [handleRenameConfirm],
   );
 
+  const handleDragStart = useCallback(
+    (e: React.DragEvent) => {
+      setDraggedFilePath(e.dataTransfer, flatNode.key);
+      e.dataTransfer.effectAllowed = "copyMove";
+    },
+    [flatNode.key],
+  );
+
+  const handleDragEnd = useCallback(() => {
+    dragDepthRef.current = 0;
+    setIsDropTarget(false);
+  }, []);
+
+  const isTreeFileDrag = useCallback((e: React.DragEvent) => {
+    return e.dataTransfer.types.includes(KEEP_NOTES_FILE_DRAG_TYPE);
+  }, []);
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent) => {
+      if (!flatNode.isFolder || !isTreeFileDrag(e)) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = "move";
+      setIsDropTarget(true);
+    },
+    [flatNode.isFolder, isTreeFileDrag],
+  );
+
+  const handleDragEnter = useCallback(
+    (e: React.DragEvent) => {
+      if (!flatNode.isFolder || !isTreeFileDrag(e)) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      dragDepthRef.current += 1;
+      setIsDropTarget(true);
+    },
+    [flatNode.isFolder, isTreeFileDrag],
+  );
+
+  const handleDragLeave = useCallback(
+    (e: React.DragEvent) => {
+      if (!flatNode.isFolder || !isTreeFileDrag(e)) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+      if (dragDepthRef.current === 0) {
+        setIsDropTarget(false);
+      }
+    },
+    [flatNode.isFolder, isTreeFileDrag],
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      if (!flatNode.isFolder || !isTreeFileDrag(e)) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      dragDepthRef.current = 0;
+      setIsDropTarget(false);
+
+      const sourcePath = e.dataTransfer.getData(KEEP_NOTES_FILE_DRAG_TYPE);
+      if (!sourcePath || !canMoveNodeToFolder(sourcePath, flatNode.key)) {
+        return;
+      }
+
+      setMoveConfirm({
+        open: true,
+        sourcePath,
+        targetPath: flatNode.key,
+        title: sourcePath.split(/[\\/]/).pop() || sourcePath,
+      });
+    },
+    [flatNode.isFolder, flatNode.key, isTreeFileDrag],
+  );
+
+  const handleMoveConfirm = useCallback(async () => {
+    if (!moveConfirm.sourcePath || !moveConfirm.targetPath) return;
+
+    const treeData = useTreeStore.getState().treeData;
+    const result = await moveItem(
+      moveConfirm.sourcePath,
+      moveConfirm.targetPath,
+      treeData,
+    );
+    if (result.code === CodeResult.Success && result.data) {
+      setTreeData(result.data.treeData);
+      if (!isExpanded) {
+        toggleExpandedKey(flatNode.key);
+      }
+    }
+  }, [
+    flatNode.key,
+    isExpanded,
+    moveConfirm.sourcePath,
+    moveConfirm.targetPath,
+    moveItem,
+    setTreeData,
+    toggleExpandedKey,
+  ]);
+
   return (
     <div
       style={{
@@ -944,7 +1062,12 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
         <ContextMenu.Trigger asChild>
           <div className="px-2">
             <div
-              className="tree-node-row relative flex h-7 cursor-pointer select-none items-center rounded-md"
+              className={cn(
+                "tree-node-row relative flex h-7 cursor-pointer select-none items-center rounded-md",
+                isDropTarget &&
+                  flatNode.isFolder &&
+                  "outline outline-1 outline-[var(--accent-color)]/40",
+              )}
               style={{
                 paddingLeft: `${flatNode.level * 14 + 8}px`,
                 paddingRight: "8px",
@@ -956,6 +1079,13 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
                   : "none",
               }}
               onClick={() => onClick(flatNode)}
+              draggable={!isRenaming}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+              onDragOver={handleDragOver}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
             >
               <div className="flex h-[26px] w-[12px] flex-shrink-0 items-center justify-center">
                 {flatNode.isFolder ? (
@@ -1132,6 +1262,15 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
           </ContextMenu.Content>
         </ContextMenu.Portal>
       </ContextMenu.Root>
+
+      <ConfirmDialog
+        open={moveConfirm.open}
+        onOpenChange={(open) => setMoveConfirm((prev) => ({ ...prev, open }))}
+        title="确认移动"
+        description={`确定要将「${moveConfirm.title}」移动到「${flatNode.title}」文件夹中吗？`}
+        confirmText="移动"
+        onConfirm={handleMoveConfirm}
+      />
     </div>
   );
 });
