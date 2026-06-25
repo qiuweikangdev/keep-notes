@@ -347,8 +347,7 @@ button[data-theme-control="true"][data-selected="true"]:hover {
 }
 
 button:focus-visible {
-  outline: 2px solid var(--accent-color);
-  outline-offset: 2px;
+  outline: none;
 }
 
 .dark {
