@@ -94,7 +94,6 @@
     "cz-git": "^1.13.1",
     "electron": "^28.3.3",
     "electron-builder": "^26.15.3",
-    "electron-builder-squirrel-windows": "26.15.3",
     "electron-vite": "^2.3.0",
     "eslint": "^8.57.1",
     "husky": "^9.1.7",
