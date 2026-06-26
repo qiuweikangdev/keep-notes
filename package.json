@@ -28,6 +28,8 @@
     "build:win": "npm run build && electron-builder --win",
     "build:mac": "npm run build && electron-builder --mac",
     "build:linux": "npm run build && electron-builder --linux",
+    "sign": "./scripts/sign-app.sh",
+    "dev:signed": "./scripts/dev-signed.sh",
     "lint-staged": "lint-staged",
     "prepare": "husky install",
     "commit": "git-cz",
