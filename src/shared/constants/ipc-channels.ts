@@ -4,6 +4,9 @@ export const IPC_CHANNELS = {
     MAXIMIZE: "window:maximize",
     CLOSE: "window:close",
     OPEN_TARGET: "window:open-target",
+    GET_POSITION: "window:get-position",
+    SET_POSITION: "window:set-position",
+    IS_MAXIMIZED: "window:is-maximized",
   },
   APP: {
     GET_INFO: "app:get-info",

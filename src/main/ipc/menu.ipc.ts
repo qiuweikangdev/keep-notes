@@ -23,4 +23,25 @@ export function registerMenuIpc(): void {
     const win = getBrowserWindow(event);
     win?.close();
   });
+
+  // 获取窗口位置（用于 JS 拖拽）
+  ipcMain.handle(IPC_CHANNELS.WINDOW.GET_POSITION, (event) => {
+    const win = getBrowserWindow(event);
+    return win?.getPosition() ?? [0, 0];
+  });
+
+  // 设置窗口位置（用于 JS 拖拽）
+  ipcMain.on(
+    IPC_CHANNELS.WINDOW.SET_POSITION,
+    (event, x: number, y: number) => {
+      const win = getBrowserWindow(event);
+      win?.setPosition(x, y);
+    },
+  );
+
+  // 判断窗口是否最大化
+  ipcMain.handle(IPC_CHANNELS.WINDOW.IS_MAXIMIZED, (event) => {
+    const win = getBrowserWindow(event);
+    return win?.isMaximized() ?? false;
+  });
 }
