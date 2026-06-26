@@ -7,7 +7,10 @@ import type { ExternalOpenApp, ExternalOpenAppId } from "../shared/types";
 
 type Platform = NodeJS.Platform;
 type StatResult = Pick<fs.Stats, "isDirectory" | "isFile">;
-type SpawnResult = { unref?: () => void } | void;
+type SpawnResult = {
+  unref?: () => void;
+  once?: (event: "error" | "spawn", listener: () => void) => unknown;
+} | void;
 type SpawnCommand = (
   command: string,
   args: string[],
@@ -123,6 +126,12 @@ function getWindowsEditorPaths(editor: EditorDefinition): string[] {
   );
 }
 
+function getParentDirectory(targetPath: string, platform: Platform): string {
+  return platform === "win32"
+    ? path.win32.dirname(targetPath)
+    : path.dirname(targetPath);
+}
+
 async function isMacEditorAvailable(
   editor: EditorDefinition,
   deps: ReturnType<typeof resolveDeps>,
@@ -191,6 +200,7 @@ export async function listExternalOpenApps(
 export async function getDirectoryTargetForExternalApp(
   targetPath: string,
   stat: StatPath = fs.promises.stat,
+  platform: Platform = process.platform,
 ): Promise<string> {
   try {
     const stats = await stat(targetPath);
@@ -198,10 +208,10 @@ export async function getDirectoryTargetForExternalApp(
     // 终端只能可靠地打开目录；文件目标统一转换为其父目录。
     if (stats.isDirectory()) return targetPath;
   } catch {
-    return path.dirname(targetPath);
+    return getParentDirectory(targetPath, platform);
   }
 
-  return path.dirname(targetPath);
+  return getParentDirectory(targetPath, platform);
 }
 
 async function getShell(shell?: ExternalShell): Promise<ExternalShell> {
@@ -215,15 +225,34 @@ function spawnDetached(
   spawn: SpawnCommand,
   command: string,
   args: string[],
-): boolean {
+  options: SpawnOptions = {},
+): Promise<boolean> {
   try {
-    const child = spawn(command, args, { detached: true, stdio: "ignore" });
+    const child = spawn(command, args, {
+      ...options,
+      detached: true,
+      stdio: "ignore",
+    });
 
     child?.unref?.();
-    return true;
+
+    if (typeof child?.once !== "function") return Promise.resolve(true);
+
+    return new Promise((resolve) => {
+      let settled = false;
+      const settle = (result: boolean) => {
+        if (settled) return;
+        settled = true;
+        resolve(result);
+      };
+
+      // 监听同步启动后的首个结果，避免把 ENOENT 等启动失败乐观地报告为成功。
+      child.once?.("error", () => settle(false));
+      child.once?.("spawn", () => settle(true));
+    });
   } catch (error) {
     console.error("Failed to open external app:", error);
-    return false;
+    return Promise.resolve(false);
   }
 }
 
@@ -231,24 +260,8 @@ function openMacApp(
   spawn: SpawnCommand,
   appName: string,
   targetPath: string,
-): boolean {
+): Promise<boolean> {
   return spawnDetached(spawn, "open", ["-a", appName, targetPath]);
-}
-
-function openWindowsCommand(
-  spawn: SpawnCommand,
-  command: string,
-  args: string[],
-): boolean {
-  return spawnDetached(spawn, "cmd.exe", [
-    "/d",
-    "/s",
-    "/c",
-    "start",
-    '""',
-    command,
-    ...args,
-  ]);
 }
 
 async function getWindowsEditorCommand(
@@ -277,9 +290,7 @@ async function openEditor(
     const command = await getWindowsEditorCommand(editor, deps);
     if (!command) return false;
 
-    return path.isAbsolute(command)
-      ? spawnDetached(deps.spawn, command, [targetPath])
-      : openWindowsCommand(deps.spawn, command, [targetPath]);
+    return spawnDetached(deps.spawn, command, [targetPath]);
   }
 
   return false;
@@ -292,6 +303,7 @@ async function openTerminal(
   const directoryPath = await getDirectoryTargetForExternalApp(
     targetPath,
     deps.stat,
+    deps.platform,
   );
 
   if (deps.platform === "darwin") {
@@ -299,12 +311,9 @@ async function openTerminal(
   }
 
   if (deps.platform === "win32") {
-    return openWindowsCommand(deps.spawn, "cmd.exe", [
-      "/k",
-      "cd",
-      "/d",
-      directoryPath,
-    ]);
+    return spawnDetached(deps.spawn, "cmd.exe", ["/k"], {
+      cwd: directoryPath,
+    });
   }
 
   return false;
