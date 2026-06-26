@@ -120,7 +120,12 @@ export class AppUpdateController {
         this.state.status === "checking" ||
         this.state.status === "available"
       ) {
-        void this.startDownload(result.updateInfo);
+        this.setState({
+          status: "available",
+          currentVersion: this.app.getVersion(),
+          version: result.updateInfo.version,
+          message: `发现新版本 v${result.updateInfo.version}`,
+        });
       }
 
       return this.getState();
@@ -144,6 +149,36 @@ export class AppUpdateController {
     });
   }
 
+  async downloadUpdate(): Promise<AppUpdateState> {
+    if (this.state.status !== "available" || !this.state.version) {
+      return this.getState();
+    }
+
+    this.cancellationToken = this.createCancellationToken();
+    this.setState({
+      status: "downloading",
+      currentVersion: this.app.getVersion(),
+      version: this.state.version,
+      message: "正在下载更新...",
+      progress: { percent: 0, transferred: 0, total: 0, bytesPerSecond: 0 },
+    });
+
+    try {
+      await this.updater.downloadUpdate(this.cancellationToken);
+    } catch (error) {
+      if (this.state.status === "canceled") return this.getState();
+      this.cancellationToken = null;
+      this.setState({
+        status: "error",
+        currentVersion: this.app.getVersion(),
+        version: this.state.version,
+        message: this.toErrorMessage(error),
+      });
+    }
+
+    return this.getState();
+  }
+
   installUpdate(): void {
     this.updater.quitAndInstall(false, true);
   }
@@ -159,9 +194,8 @@ export class AppUpdateController {
         status: "available",
         currentVersion: this.app.getVersion(),
         version: info.version,
-        message: `发现新版本 v${info.version}，开始下载...`,
+        message: `发现新版本 v${info.version}`,
       });
-      void this.startDownload(info);
     });
 
     this.updater.on("update-not-available", () => {
@@ -218,32 +252,6 @@ export class AppUpdateController {
         message: this.toErrorMessage(error),
       });
     });
-  }
-
-  private async startDownload(info: UpdateInfo): Promise<void> {
-    if (this.state.status === "downloading") return;
-
-    this.cancellationToken = this.createCancellationToken();
-    this.setState({
-      status: "downloading",
-      currentVersion: this.app.getVersion(),
-      version: info.version,
-      message: "正在下载更新...",
-      progress: { percent: 0, transferred: 0, total: 0, bytesPerSecond: 0 },
-    });
-
-    try {
-      await this.updater.downloadUpdate(this.cancellationToken);
-    } catch (error) {
-      if (this.state.status === "canceled") return;
-      this.cancellationToken = null;
-      this.setState({
-        status: "error",
-        currentVersion: this.app.getVersion(),
-        version: info.version,
-        message: this.toErrorMessage(error),
-      });
-    }
   }
 
   private setState(nextState: AppUpdateState): AppUpdateState {

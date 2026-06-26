@@ -15,6 +15,10 @@ export const appApi = {
     return ipcRenderer.invoke(IPC_CHANNELS.APP.CHECK_FOR_UPDATES);
   },
 
+  downloadUpdate: (): Promise<AppUpdateState> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.APP.DOWNLOAD_UPDATE);
+  },
+
   cancelUpdate: (): Promise<AppUpdateState> => {
     return ipcRenderer.invoke(IPC_CHANNELS.APP.CANCEL_UPDATE);
   },

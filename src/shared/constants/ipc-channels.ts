@@ -12,6 +12,7 @@ export const IPC_CHANNELS = {
     GET_INFO: "app:get-info",
     GET_UPDATE_STATE: "app:get-update-state",
     CHECK_FOR_UPDATES: "app:check-for-updates",
+    DOWNLOAD_UPDATE: "app:download-update",
     CANCEL_UPDATE: "app:cancel-update",
     INSTALL_UPDATE: "app:install-update",
     OPEN_REPOSITORY: "app:open-repository",

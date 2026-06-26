@@ -51,9 +51,7 @@ function getUpdateStatusText(state: AppUpdateState): string {
     case "checking":
       return "正在检查更新...";
     case "available":
-      return state.version
-        ? `发现新版本 v${state.version}，正在准备下载...`
-        : "发现新版本，正在准备下载...";
+      return "";
     case "downloading":
       return state.version ? `正在下载 v${state.version}` : "正在下载更新...";
     case "downloaded":
@@ -140,6 +138,11 @@ export function SettingsModal() {
 
   const handleCheckForUpdates = async () => {
     const state = await window.electronAPI.checkForUpdates();
+    setUpdateState(state);
+  };
+
+  const handleDownloadUpdate = async () => {
+    const state = await window.electronAPI.downloadUpdate();
     setUpdateState(state);
   };
 
@@ -426,43 +429,47 @@ export function SettingsModal() {
                 </div>
 
                 <div className="flex flex-shrink-0 items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleCheckForUpdates}
-                    disabled={
-                      updateState.status === "checking" ||
-                      updateState.status === "downloading"
-                    }
-                    className="update-button inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50"
-                    style={{
-                      backgroundColor:
-                        updateState.status === "available"
-                          ? "var(--accent-color)"
-                          : "transparent",
-                      border:
-                        updateState.status === "available"
-                          ? "none"
-                          : "1px solid var(--border-color)",
-                      color:
-                        updateState.status === "available"
-                          ? "#fff"
-                          : "var(--text-primary)",
-                    }}
-                  >
-                    {updateState.status === "checking" ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : updateState.status === "available" ? (
+                  {updateState.status === "available" ? (
+                    <button
+                      type="button"
+                      onClick={handleDownloadUpdate}
+                      className="update-button inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors"
+                      style={{
+                        backgroundColor: "var(--accent-color)",
+                        border: "none",
+                        color: "#fff",
+                      }}
+                    >
                       <Download className="h-4 w-4" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4" />
-                    )}
-                    {updateState.status === "checking"
-                      ? "检查中..."
-                      : updateState.status === "available" &&
-                          updateState.version
+                      {updateState.version
                         ? `更新到 v${updateState.version}`
+                        : "更新"}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleCheckForUpdates}
+                      disabled={
+                        updateState.status === "checking" ||
+                        updateState.status === "downloading"
+                      }
+                      className="update-button inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50"
+                      style={{
+                        backgroundColor: "transparent",
+                        border: "1px solid var(--border-color)",
+                        color: "var(--text-primary)",
+                      }}
+                    >
+                      {updateState.status === "checking" ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                      {updateState.status === "checking"
+                        ? "检查中..."
                         : "检查更新"}
-                  </button>
+                    </button>
+                  )}
                 </div>
               </div>
 

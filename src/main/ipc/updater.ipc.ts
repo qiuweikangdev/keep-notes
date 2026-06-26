@@ -22,6 +22,9 @@ export function registerUpdaterIpc(): void {
   ipcMain.handle(IPC_CHANNELS.APP.CHECK_FOR_UPDATES, () =>
     appUpdateController.checkForUpdates(),
   );
+  ipcMain.handle(IPC_CHANNELS.APP.DOWNLOAD_UPDATE, () =>
+    appUpdateController.downloadUpdate(),
+  );
   ipcMain.handle(IPC_CHANNELS.APP.CANCEL_UPDATE, () =>
     appUpdateController.cancelUpdate(),
   );
