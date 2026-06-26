@@ -42,6 +42,22 @@ export function normalizePersistedAppearance<TAppearance extends object>(
     (normalized as { padding: number }).padding = defaultPadding;
   }
 
+  const defaultExternalOpenApp = (
+    defaults as { defaultExternalOpenApp?: unknown }
+  ).defaultExternalOpenApp;
+  const currentExternalOpenApp = (
+    normalized as { defaultExternalOpenApp?: unknown }
+  ).defaultExternalOpenApp;
+  if (
+    typeof defaultExternalOpenApp === "string" &&
+    !["vscode", "zed", "cursor", "terminal", "file-manager"].includes(
+      String(currentExternalOpenApp),
+    )
+  ) {
+    (normalized as { defaultExternalOpenApp: string }).defaultExternalOpenApp =
+      defaultExternalOpenApp;
+  }
+
   return normalized;
 }
 

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { ExternalOpenAppId } from "@shared/types";
 
 import {
   normalizePersistedAppearance,
@@ -23,6 +24,8 @@ export interface EditorAppearance {
   sidebarView: "file" | "outline";
   showBottomBarOnHover: boolean;
   showFileHistoryNavigation: boolean;
+  defaultExternalOpenApp: ExternalOpenAppId;
+  showTitleBarQuickLauncher: boolean;
 }
 
 export type EditorMode = "rich" | "source";
@@ -156,6 +159,8 @@ const defaultAppearance: EditorAppearance = {
   sidebarView: "file",
   showBottomBarOnHover: true,
   showFileHistoryNavigation: true,
+  defaultExternalOpenApp: "vscode",
+  showTitleBarQuickLauncher: true,
 };
 
 // 生成唯一ID
