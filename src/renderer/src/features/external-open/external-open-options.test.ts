@@ -37,6 +37,18 @@ describe("external open options", () => {
   });
 
   it("falls back to the first editor before file manager", () => {
-    expect(resolveEffectiveExternalOpenApp(apps, "cursor")?.id).toBe("vscode");
+    const appsWithFileManagerFirst: ExternalOpenApp[] = [
+      {
+        id: "file-manager",
+        label: "Finder",
+        kind: "file-manager",
+        available: true,
+      },
+      { id: "vscode", label: "VS Code", kind: "editor", available: true },
+    ];
+
+    expect(
+      resolveEffectiveExternalOpenApp(appsWithFileManagerFirst, "cursor")?.id,
+    ).toBe("vscode");
   });
 });
