@@ -36,4 +36,24 @@ describe("fileApi", () => {
       "/workspace/notes/daily.md",
     );
   });
+
+  it("invokes the list-external-open-apps channel", async () => {
+    const { fileApi } = await import("./file.api");
+
+    await fileApi.listExternalOpenApps();
+
+    expect(invoke).toHaveBeenCalledWith("file:list-external-open-apps");
+  });
+
+  it("invokes the open-with-external-app channel", async () => {
+    const { fileApi } = await import("./file.api");
+
+    await fileApi.openWithExternalApp("/workspace/notes/daily.md", "vscode");
+
+    expect(invoke).toHaveBeenCalledWith(
+      "file:open-with-external-app",
+      "/workspace/notes/daily.md",
+      "vscode",
+    );
+  });
 });

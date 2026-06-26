@@ -90,6 +90,22 @@ export interface AppInfo {
   author: string;
 }
 
+export type ExternalOpenAppId =
+  | "vscode"
+  | "zed"
+  | "cursor"
+  | "terminal"
+  | "file-manager";
+
+export type ExternalOpenAppKind = "editor" | "terminal" | "file-manager";
+
+export interface ExternalOpenApp {
+  id: ExternalOpenAppId;
+  label: string;
+  kind: ExternalOpenAppKind;
+  available: boolean;
+}
+
 export type AppUpdateStatus =
   | "idle"
   | "checking"

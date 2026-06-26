@@ -28,6 +28,8 @@ export const IPC_CHANNELS = {
     OPEN_IN_EXPLORER: "file:open-in-explorer",
     COPY_PATH: "file:copy-path",
     OPEN_IN_NEW_WINDOW: "file:open-in-new-window",
+    LIST_EXTERNAL_OPEN_APPS: "file:list-external-open-apps",
+    OPEN_WITH_EXTERNAL_APP: "file:open-with-external-app",
     WATCH: "file:watch", // 监听文件变化
     UNWATCH: "file:unwatch", // 取消监听文件变化
     ON_FILE_CHANGED: "file:on-changed", // 文件变化通知

@@ -1,7 +1,13 @@
 import { ipcRenderer } from "electron";
 import type { IpcRendererEvent } from "electron";
 import { IPC_CHANNELS } from "../../shared/constants";
-import type { ApiResponse, TreeInfo, TreeNode } from "../../shared/types";
+import type {
+  ApiResponse,
+  ExternalOpenApp,
+  ExternalOpenAppId,
+  TreeInfo,
+  TreeNode,
+} from "../../shared/types";
 
 export const fileApi = {
   readFile: (filePath: string): Promise<string> => {
@@ -46,6 +52,21 @@ export const fileApi = {
 
   openInNewWindow: (targetPath: string): Promise<boolean> => {
     return ipcRenderer.invoke(IPC_CHANNELS.FILE.OPEN_IN_NEW_WINDOW, targetPath);
+  },
+
+  listExternalOpenApps: (): Promise<ExternalOpenApp[]> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.FILE.LIST_EXTERNAL_OPEN_APPS);
+  },
+
+  openWithExternalApp: (
+    targetPath: string,
+    appId: ExternalOpenAppId,
+  ): Promise<boolean> => {
+    return ipcRenderer.invoke(
+      IPC_CHANNELS.FILE.OPEN_WITH_EXTERNAL_APP,
+      targetPath,
+      appId,
+    );
   },
 
   // 监听单个已打开文件的内容变化。

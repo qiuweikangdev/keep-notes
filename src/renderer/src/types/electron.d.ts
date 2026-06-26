@@ -10,6 +10,8 @@ import type {
   WindowOpenTarget,
   AppInfo,
   AppUpdateState,
+  ExternalOpenApp,
+  ExternalOpenAppId,
   Reminder,
   ReminderInput,
   NotificationChannelType,
@@ -47,6 +49,11 @@ export interface ElectronAPI {
   openInExplorer: (targetPath: string) => Promise<boolean>;
   copyPath: (targetPath: string) => Promise<boolean>;
   openInNewWindow: (targetPath: string) => Promise<boolean>;
+  listExternalOpenApps: () => Promise<ExternalOpenApp[]>;
+  openWithExternalApp: (
+    targetPath: string,
+    appId: ExternalOpenAppId,
+  ) => Promise<boolean>;
   createFile: (
     path: string,
     title: string,
