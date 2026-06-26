@@ -254,8 +254,12 @@ export class AppUpdateController {
   }
 
   private toErrorMessage(error: unknown): string {
-    if (error instanceof Error) return error.message;
-    return "更新操作失败，请稍后再试。";
+    const message = error instanceof Error ? error.message : String(error);
+    // 404 表示 Release 尚未发布完成（GitHub Actions 打包中）
+    if (message.includes("404")) {
+      return "暂无可用更新，请稍后再试。";
+    }
+    return message || "更新操作失败，请稍后再试。";
   }
 }
 
