@@ -18,10 +18,11 @@ import {
   ExternalLink,
   XCircle,
   Download,
+  Loader2,
 } from "lucide-react";
 import { ShortcutsSettings } from "./shortcuts-settings";
 import { NotificationSettings } from "./notification-settings";
-import type { AppInfo, AppUpdateState, AppUpdateStatus } from "@shared/types";
+import type { AppInfo, AppUpdateState } from "@shared/types";
 
 type SettingsTab = "appearance" | "shortcuts" | "notifications" | "about";
 
@@ -90,12 +91,6 @@ const defaultUpdateState: AppUpdateState = {
   currentVersion: "",
 };
 
-const cancellableUpdateStatuses: AppUpdateStatus[] = [
-  "checking",
-  "available",
-  "downloading",
-];
-
 function getUpdateStatusText(state: AppUpdateState): string {
   switch (state.status) {
     case "checking":
@@ -144,9 +139,7 @@ export function SettingsModal() {
     appInfo.version ||
     updateState.currentVersion ||
     defaultUpdateState.currentVersion;
-  const isUpdateCancellable = cancellableUpdateStatuses.includes(
-    updateState.status,
-  );
+
   const progressPercent = Math.round(updateState.progress?.percent ?? 0);
   const repositoryLabel = getRepositoryLabel(appInfo.repositoryUrl);
 
@@ -174,8 +167,17 @@ export function SettingsModal() {
     };
   }, [isSettingsOpen]);
 
+  useEffect(() => {
+    if (activeTab !== "about") return;
+    void handleCheckForUpdates();
+  }, [activeTab]);
+
   const handleOpenChange = (open: boolean) => {
-    if (!open && isUpdateCancellable) {
+    if (
+      !open &&
+      (updateState.status === "checking" ||
+        updateState.status === "downloading")
+    ) {
       void window.electronAPI.cancelUpdate();
     }
     setSettingsOpen(open);
@@ -493,59 +495,72 @@ export function SettingsModal() {
                   <button
                     type="button"
                     onClick={handleCheckForUpdates}
-                    disabled={isUpdateCancellable}
-                    className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50"
+                    disabled={
+                      updateState.status === "checking" ||
+                      updateState.status === "downloading"
+                    }
+                    className="update-button inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50"
                     style={{
-                      backgroundColor: "transparent",
-                      border: "1px solid var(--border-color)",
-                      color: "var(--text-primary)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "transparent";
+                      backgroundColor:
+                        updateState.status === "available"
+                          ? "var(--accent-color)"
+                          : "transparent",
+                      border:
+                        updateState.status === "available"
+                          ? "none"
+                          : "1px solid var(--border-color)",
+                      color:
+                        updateState.status === "available"
+                          ? "#fff"
+                          : "var(--text-primary)",
                     }}
                   >
-                    <RefreshCw
-                      className={`h-4 w-4 ${
-                        updateState.status === "checking" ? "animate-spin" : ""
-                      }`}
-                    />
-                    检查更新
+                    {updateState.status === "checking" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : updateState.status === "available" ? (
+                      <Download className="h-4 w-4" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                    {updateState.status === "checking"
+                      ? "检查中..."
+                      : updateState.status === "available" &&
+                          updateState.version
+                        ? `更新到 v${updateState.version}`
+                        : "检查更新"}
                   </button>
-                  {isUpdateCancellable && (
+                </div>
+              </div>
+
+              {updateState.status === "downloading" && (
+                <div className="mt-4">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="h-1.5 flex-1 overflow-hidden rounded-full"
+                      style={{ backgroundColor: "var(--bg-tertiary)" }}
+                    >
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${progressPercent}%`,
+                          backgroundColor: "var(--accent-color)",
+                        }}
+                      />
+                    </div>
                     <button
                       type="button"
                       aria-label="取消更新"
                       title="取消更新"
                       onClick={handleCancelUpdate}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors"
+                      className="inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors flex-shrink-0"
                       style={{
                         color: "var(--text-muted)",
                         border: "1px solid var(--border-color)",
                         backgroundColor: "transparent",
                       }}
                     >
-                      <XCircle className="h-4 w-4" />
+                      <XCircle className="h-3.5 w-3.5" />
                     </button>
-                  )}
-                </div>
-              </div>
-
-              {updateState.status === "downloading" && (
-                <div className="mt-4">
-                  <div
-                    className="h-1.5 overflow-hidden rounded-full"
-                    style={{ backgroundColor: "var(--bg-tertiary)" }}
-                  >
-                    <div
-                      className="h-full rounded-full transition-all"
-                      style={{
-                        width: `${progressPercent}%`,
-                        backgroundColor: "var(--accent-color)",
-                      }}
-                    />
                   </div>
                   <div className="mt-2 flex justify-between text-xs">
                     <span style={{ color: "var(--text-muted)" }}>下载进度</span>
