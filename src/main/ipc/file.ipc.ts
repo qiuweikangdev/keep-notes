@@ -1,5 +1,6 @@
 import { ipcMain } from "electron";
 import { IPC_CHANNELS } from "../../shared/constants";
+import type { ExternalOpenAppId } from "../../shared/types";
 import { getBrowserWindow } from "../utils";
 import {
   readFileContent,
@@ -10,6 +11,8 @@ import {
   genDirTreByPath,
   revealInSystemExplorer,
   copyPathToClipboard,
+  listAvailableExternalOpenApps,
+  openPathWithExternalApp,
 } from "../file";
 import { openPathInNewWindow } from "../window";
 import {
@@ -70,6 +73,17 @@ export function registerFileIpc(): void {
     IPC_CHANNELS.FILE.OPEN_IN_NEW_WINDOW,
     async (_, targetPath: string) => {
       return openPathInNewWindow(targetPath);
+    },
+  );
+
+  ipcMain.handle(IPC_CHANNELS.FILE.LIST_EXTERNAL_OPEN_APPS, async () => {
+    return listAvailableExternalOpenApps();
+  });
+
+  ipcMain.handle(
+    IPC_CHANNELS.FILE.OPEN_WITH_EXTERNAL_APP,
+    async (_, targetPath: string, appId: ExternalOpenAppId) => {
+      return openPathWithExternalApp(targetPath, appId);
     },
   );
 

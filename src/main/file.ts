@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path, { basename } from "node:path";
 import { clipboard, dialog, shell } from "electron";
-import { CodeResult } from "../shared/types";
+import { CodeResult, type ExternalOpenAppId } from "../shared/types";
+import { listExternalOpenApps, openWithExternalApp } from "./external-open";
 import { shouldIgnoreFsWatchPath } from "./file-watch";
 
 export async function readDirectory(directoryPath: string) {
@@ -194,4 +195,15 @@ export function copyPathToClipboard(targetPath: string) {
     console.error("Error while copying path:", error);
     return false;
   }
+}
+
+export function listAvailableExternalOpenApps() {
+  return listExternalOpenApps();
+}
+
+export function openPathWithExternalApp(
+  targetPath: string,
+  appId: ExternalOpenAppId,
+) {
+  return openWithExternalApp(targetPath, appId);
 }
