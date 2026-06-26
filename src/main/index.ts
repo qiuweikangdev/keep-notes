@@ -1,4 +1,5 @@
 import process from "node:process";
+import { join } from "node:path";
 import { BrowserWindow, app, session } from "electron";
 import { electronApp, optimizer } from "@electron-toolkit/utils";
 import icon from "../../resources/icon.png?asset";
@@ -12,6 +13,19 @@ const APP_ID = "com.keep-notes";
 const APP_NAME = "Keep Notes";
 
 app.setName(APP_NAME);
+
+if (!app.isPackaged) {
+  // 开发版使用独立数据目录，避免与已安装版本争用缓存和网络状态文件。
+  app.setPath("userData", join(app.getPath("appData"), `${APP_NAME} Dev`));
+
+  if (process.platform === "win32") {
+    // Windows 开发环境可能缺少 GPU 运行时或沙箱权限，禁用硬件加速避免启动崩溃。
+    app.disableHardwareAcceleration();
+    app.commandLine.appendSwitch("disable-gpu");
+    app.commandLine.appendSwitch("disable-gpu-compositing");
+    app.commandLine.appendSwitch("disable-gpu-sandbox");
+  }
+}
 
 app.whenReady().then(async () => {
   electronApp.setAppUserModelId(APP_ID);

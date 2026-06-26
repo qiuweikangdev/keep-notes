@@ -1,11 +1,15 @@
 import { app, shell } from "electron";
 import electronUpdater from "electron-updater";
-import { CancellationToken } from "builder-util-runtime";
-import type { ProgressInfo, UpdateInfo } from "electron-updater";
+import type {
+  CancellationToken as ElectronUpdaterCancellationToken,
+  ProgressInfo,
+  UpdateInfo,
+} from "electron-updater";
 import { APP_AUTHOR, APP_REPOSITORY_URL } from "../shared/constants";
 import type { AppInfo, AppUpdateState } from "../shared/types";
 
-const { autoUpdater } = electronUpdater;
+const { autoUpdater, CancellationToken: CancellationTokenCtor } =
+  electronUpdater;
 
 type UpdateListener = (state: AppUpdateState) => void;
 
@@ -16,7 +20,9 @@ interface UpdaterLike {
     isUpdateAvailable: boolean;
     updateInfo: UpdateInfo;
   } | null>;
-  downloadUpdate: (cancellationToken?: CancellationToken) => Promise<string[]>;
+  downloadUpdate: (
+    cancellationToken?: ElectronUpdaterCancellationToken,
+  ) => Promise<string[]>;
   quitAndInstall: (isSilent?: boolean, isForceRunAfter?: boolean) => void;
   on: (event: string, listener: (...args: unknown[]) => void) => unknown;
 }
@@ -34,16 +40,16 @@ interface AppUpdateControllerOptions {
   app?: AppLike;
   updater?: UpdaterLike;
   shell?: ShellLike;
-  createCancellationToken?: () => CancellationToken;
+  createCancellationToken?: () => ElectronUpdaterCancellationToken;
 }
 
 export class AppUpdateController {
   private readonly app: AppLike;
   private readonly updater: UpdaterLike;
   private readonly shell: ShellLike;
-  private readonly createCancellationToken: () => CancellationToken;
+  private readonly createCancellationToken: () => ElectronUpdaterCancellationToken;
   private readonly listeners = new Set<UpdateListener>();
-  private cancellationToken: CancellationToken | null = null;
+  private cancellationToken: ElectronUpdaterCancellationToken | null = null;
   private state: AppUpdateState;
 
   constructor(options: AppUpdateControllerOptions = {}) {
@@ -51,7 +57,7 @@ export class AppUpdateController {
     this.updater = options.updater ?? autoUpdater;
     this.shell = options.shell ?? shell;
     this.createCancellationToken =
-      options.createCancellationToken ?? (() => new CancellationToken());
+      options.createCancellationToken ?? (() => new CancellationTokenCtor());
     this.state = {
       status: "idle",
       currentVersion: this.app.getVersion(),
