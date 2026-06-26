@@ -5,7 +5,6 @@ import { useTheme } from "@/hooks/use-theme";
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
 import { ThemeModeSelector } from "@/components/ui/theme-mode-selector";
 import { SettingRow } from "@/components/ui/setting-row";
-import { FontSelector } from "@/components/ui/font-selector";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,50 +30,6 @@ const settingsMenuItems = [
   { id: "shortcuts" as SettingsTab, label: "键盘快捷键", icon: Keyboard },
   { id: "notifications" as SettingsTab, label: "通知推送", icon: Bell },
   { id: "about" as SettingsTab, label: "关于", icon: Info },
-];
-
-const fontFamilyOptions = [
-  {
-    label: "系统字体",
-    value: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-  },
-  {
-    label: "SF Pro",
-    value: '"SF Pro Display", -apple-system, BlinkMacSystemFont, sans-serif',
-  },
-  {
-    label: "Inter",
-    value: '"Inter", -apple-system, BlinkMacSystemFont, sans-serif',
-  },
-  {
-    label: "Noto Sans",
-    value: '"Noto Sans SC", -apple-system, BlinkMacSystemFont, sans-serif',
-  },
-  {
-    label: "Source Han Sans",
-    value:
-      '"Source Han Sans SC", -apple-system, BlinkMacSystemFont, sans-serif',
-  },
-];
-
-const codeFontOptions = [
-  {
-    label: "SF Mono",
-    value: '"SF Mono", ui-monospace, "Cascadia Code", Consolas, monospace',
-  },
-  {
-    label: "JetBrains Mono",
-    value: '"JetBrains Mono", ui-monospace, Consolas, monospace',
-  },
-  {
-    label: "Fira Code",
-    value: '"Fira Code", "Cascadia Code", Consolas, monospace',
-  },
-  {
-    label: "Cascadia Code",
-    value: '"Cascadia Code", "Fira Code", Consolas, monospace',
-  },
-  { label: "Consolas", value: 'Consolas, "Courier New", monospace' },
 ];
 
 const EDITOR_PADDING_MIN = 72;
@@ -275,27 +230,6 @@ export function SettingsModal() {
               </SettingRow>
             </div>
 
-            {/* 字体设置 */}
-            <div style={{ borderBottom: "1px solid var(--border-color)" }}>
-              <div className="py-1">
-                <SettingRow label="UI 字体">
-                  <FontSelector
-                    value={appearance.uiFont || fontFamilyOptions[0].value}
-                    onChange={(val) => setAppearance({ uiFont: val })}
-                    options={fontFamilyOptions}
-                  />
-                </SettingRow>
-
-                <SettingRow label="代码字体">
-                  <FontSelector
-                    value={appearance.codeFont || codeFontOptions[0].value}
-                    onChange={(val) => setAppearance({ codeFont: val })}
-                    options={codeFontOptions}
-                  />
-                </SettingRow>
-              </div>
-            </div>
-
             {/* UI 字号 */}
             <div style={{ borderBottom: "1px solid var(--border-color)" }}>
               <div className="py-1">
@@ -314,7 +248,7 @@ export function SettingsModal() {
                           uiFontSize: Number(e.target.value),
                         })
                       }
-                      className="w-14 h-9 px-3 text-sm rounded-lg text-center"
+                      className="w-14 h-7 px-2 text-sm rounded-md text-center"
                       style={{
                         backgroundColor: "var(--bg-tertiary)",
                         border: "1px solid var(--border-color)",
@@ -344,7 +278,7 @@ export function SettingsModal() {
                       onChange={(e) =>
                         setAppearance({ fontSize: Number(e.target.value) })
                       }
-                      className="w-14 h-9 px-3 text-sm rounded-lg text-center"
+                      className="w-14 h-7 px-2 text-sm rounded-md text-center"
                       style={{
                         backgroundColor: "var(--bg-tertiary)",
                         border: "1px solid var(--border-color)",
