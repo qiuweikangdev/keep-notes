@@ -71,6 +71,9 @@ importers:
       '@tanstack/react-virtual':
         specifier: ^3.14.3
         version: 3.14.4(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@tiptap/pm':
+        specifier: 3.27.1
+        version: 3.27.1
       builder-util-runtime:
         specifier: ^9.7.0
         version: 9.7.0

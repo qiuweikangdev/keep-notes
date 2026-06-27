@@ -20,6 +20,7 @@ nsis:
   createDesktopShortcut: always
 mac:
   icon: build/icon.icns
+  artifactName: ${name}-${version}-${arch}-mac.${ext}
   entitlementsInherit: build/entitlements.mac.plist
   category: public.app-category.productivity
   extendInfo:
