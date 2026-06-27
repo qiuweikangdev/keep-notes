@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { ExternalOpenAppId } from "../shared/types";
 import {
@@ -45,6 +48,75 @@ describe("external open apps", () => {
     ]);
   });
 
+  it("detects Warp as a terminal app when installed on macOS", async () => {
+    const apps = await listExternalOpenApps({
+      platform: "darwin",
+      pathExists: async (path) => path === "/Applications/Warp.app",
+      getFileIconDataUrl: async (path) =>
+        path === "/Applications/Warp.app" ? "data:image/png;base64,warp" : null,
+    });
+
+    expect(apps).toEqual([
+      {
+        id: "warp",
+        label: "Warp",
+        kind: "terminal",
+        available: true,
+        iconDataUrl: "data:image/png;base64,warp",
+      },
+      { id: "terminal", label: "Terminal", kind: "terminal", available: true },
+      {
+        id: "file-manager",
+        label: "Finder",
+        kind: "file-manager",
+        available: true,
+      },
+    ]);
+  });
+
+  it("detects Warp inside a macOS Applications subfolder", async () => {
+    const applicationRoot = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "keep-notes-applications-"),
+    );
+
+    try {
+      const warpAppPath = path.join(applicationRoot, "tools-dev", "Warp.app");
+      await fs.promises.mkdir(warpAppPath, { recursive: true });
+
+      const apps = await listExternalOpenApps({
+        platform: "darwin",
+        pathExists: async () => false,
+        macApplicationRoots: [applicationRoot],
+        getFileIconDataUrl: async (path) =>
+          path === warpAppPath ? "data:image/png;base64,warp" : null,
+      });
+
+      expect(apps).toEqual([
+        {
+          id: "warp",
+          label: "Warp",
+          kind: "terminal",
+          available: true,
+          iconDataUrl: "data:image/png;base64,warp",
+        },
+        {
+          id: "terminal",
+          label: "Terminal",
+          kind: "terminal",
+          available: true,
+        },
+        {
+          id: "file-manager",
+          label: "Finder",
+          kind: "file-manager",
+          available: true,
+        },
+      ]);
+    } finally {
+      await fs.promises.rm(applicationRoot, { recursive: true, force: true });
+    }
+  });
+
   it("opens terminal at the parent directory for file targets", async () => {
     const stat = vi.fn(async () => ({
       isDirectory: () => false,
@@ -77,6 +149,32 @@ describe("external open apps", () => {
 
     expect(result).toBe(false);
     expect(spawn).not.toHaveBeenCalled();
+  });
+
+  it("opens Warp at the parent directory for file targets on macOS", async () => {
+    const spawn = vi.fn(() => ({ unref: vi.fn() }));
+
+    const result = await openWithExternalApp(
+      "/workspace/notes/daily.md",
+      "warp",
+      {
+        platform: "darwin",
+        spawn,
+        pathExists: async (path) => path === "/Applications/Warp.app",
+        stat: async () =>
+          ({ isDirectory: () => false, isFile: () => true }) as never,
+      },
+    );
+
+    expect(result).toBe(true);
+    expect(spawn).toHaveBeenCalledWith(
+      "open",
+      ["-a", "/Applications/Warp.app", "/workspace/notes"],
+      {
+        detached: true,
+        stdio: "ignore",
+      },
+    );
   });
 
   it("opens Windows terminal with cwd instead of reparsing the target path through cmd start", async () => {

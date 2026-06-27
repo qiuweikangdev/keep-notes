@@ -50,7 +50,7 @@ export function normalizePersistedAppearance<TAppearance extends object>(
   ).defaultExternalOpenApp;
   if (
     typeof defaultExternalOpenApp === "string" &&
-    !["vscode", "zed", "cursor", "terminal", "file-manager"].includes(
+    !["vscode", "zed", "cursor", "warp", "terminal", "file-manager"].includes(
       String(currentExternalOpenApp),
     )
   ) {

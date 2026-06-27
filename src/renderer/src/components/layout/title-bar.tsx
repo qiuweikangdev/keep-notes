@@ -10,6 +10,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Bell,
+  ChevronDown,
 } from "lucide-react";
 import { useUIStore } from "@/store/ui.store";
 import { useEditorStore } from "@/store/editor.store";
@@ -21,10 +22,17 @@ import { useElectron } from "@/hooks/use-electron";
 import { useTreeStore } from "@/store/tree.store";
 import { useReminderStore } from "@/store/reminder.store";
 import { CodeResult } from "@/types";
+import { DropdownMenu } from "@/components/ui/dropdown-menu";
+import {
+  resolveEffectiveExternalOpenApp,
+  resolveExternalOpenTargetPath,
+} from "@/features/external-open/external-open-options";
+import { ExternalOpenAppIcon } from "@/features/external-open/external-open-icons";
 import {
   MAC_TITLE_BAR_HEIGHT,
   MAC_TRAFFIC_LIGHT_PLACEHOLDER_WIDTH,
 } from "@shared/title-bar";
+import type { ExternalOpenApp, ExternalOpenAppId } from "@shared/types";
 
 interface TitleBarProps {
   collapsed: boolean;
@@ -33,11 +41,14 @@ interface TitleBarProps {
 
 export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
   const { setSettingsOpen } = useUIStore();
-  const { appearance } = useEditorStore();
+  const { appearance, setAppearance } = useEditorStore();
   const { isDark, toggleTheme } = useTheme();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isGitOpen, setIsGitOpen] = useState(false);
   const [isGitRepo, setIsGitRepo] = useState(false);
+  const [externalOpenApps, setExternalOpenApps] = useState<ExternalOpenApp[]>(
+    [],
+  );
   const titleBarRef = useRef<HTMLDivElement>(null);
   const { detectGitRepo, openFile } = useElectron();
 
@@ -56,8 +67,16 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
     [],
   );
 
-  const { treeRoot } = useTreeStore();
+  const { treeRoot, selectedKey } = useTreeStore();
   const openReminderList = useReminderStore((state) => state.openList);
+  const externalOpenTargetPath = resolveExternalOpenTargetPath(
+    selectedKey,
+    treeRoot?.key,
+  );
+  const effectiveExternalOpenApp = resolveEffectiveExternalOpenApp(
+    externalOpenApps,
+    appearance.defaultExternalOpenApp,
+  );
 
   // 文件导航历史状态
   const historyRef = useRef<{ files: string[]; index: number }>({
@@ -82,7 +101,11 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
         btn.style.webkitAppRegion = "no-drag";
       });
     }
-  }, [isGitRepo]);
+  }, [
+    isGitRepo,
+    externalOpenApps.length,
+    appearance.showTitleBarQuickLauncher,
+  ]);
 
   // 注意：Windows 上 drag 区域的原生双击最大化行为可能与自定义处理器冲突
   // 如果出现问题，可能需要进一步调试
@@ -109,6 +132,49 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
 
     checkGitRepo();
   }, [treeRoot, detectGitRepo]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadExternalOpenApps = window.electronAPI.listExternalOpenApps;
+    if (!loadExternalOpenApps) {
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    void loadExternalOpenApps()
+      .then((apps) => {
+        if (isMounted) {
+          setExternalOpenApps(apps);
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to load external open apps:", error);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleOpenWithExternalApp = useCallback(
+    (appId: ExternalOpenAppId) => {
+      if (!externalOpenTargetPath) return;
+      void window.electronAPI.openWithExternalApp(
+        externalOpenTargetPath,
+        appId,
+      );
+    },
+    [externalOpenTargetPath],
+  );
+
+  const handleSelectExternalOpenApp = useCallback(
+    (appId: ExternalOpenAppId) => {
+      setAppearance({ defaultExternalOpenApp: appId });
+      handleOpenWithExternalApp(appId);
+    },
+    [handleOpenWithExternalApp, setAppearance],
+  );
 
   // 添加文件到导航历史
   const addToHistory = useCallback((filePath: string) => {
@@ -360,6 +426,93 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
               ⌘P
             </kbd>
           </button>
+
+          {appearance.showTitleBarQuickLauncher && effectiveExternalOpenApp ? (
+            <div
+              className="ml-1.5 flex h-[26px] flex-shrink-0 items-center overflow-hidden rounded-md"
+              style={{
+                backgroundColor: "var(--bg-secondary)",
+                border: "1px solid var(--border-color)",
+              }}
+            >
+              <button
+                type="button"
+                disabled={!externalOpenTargetPath}
+                aria-label={`使用 ${effectiveExternalOpenApp.label} 打开`}
+                title={`使用 ${effectiveExternalOpenApp.label} 打开`}
+                onClick={() =>
+                  handleOpenWithExternalApp(effectiveExternalOpenApp.id)
+                }
+                className="flex h-full w-[26px] items-center justify-center px-0 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                style={{ color: "var(--text-primary)" }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                }}
+              >
+                <ExternalOpenAppIcon
+                  appId={effectiveExternalOpenApp.id}
+                  iconDataUrl={effectiveExternalOpenApp.iconDataUrl}
+                  className="h-4 w-4"
+                />
+              </button>
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger asChild>
+                  <button
+                    type="button"
+                    disabled={!externalOpenTargetPath}
+                    aria-label="选择打开应用"
+                    title="选择打开应用"
+                    className="flex h-full w-5 items-center justify-center transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                    style={{
+                      color: "var(--text-muted)",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                      e.currentTarget.style.color = "var(--text-primary)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "transparent";
+                      e.currentTarget.style.color = "var(--text-muted)";
+                    }}
+                  >
+                    <ChevronDown className="h-3 w-3" />
+                  </button>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content
+                    align="end"
+                    sideOffset={6}
+                    className="z-[9999] min-w-[168px] rounded-lg border p-1 shadow-lg"
+                    style={{
+                      backgroundColor: "var(--bg-primary)",
+                      borderColor: "var(--border-color)",
+                    }}
+                  >
+                    {externalOpenApps
+                      .filter((app) => app.available)
+                      .map((app) => (
+                        <DropdownMenu.Item
+                          key={app.id}
+                          className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--hover-bg)]"
+                          style={{ color: "var(--text-primary)" }}
+                          onClick={() => handleSelectExternalOpenApp(app.id)}
+                        >
+                          <ExternalOpenAppIcon
+                            appId={app.id}
+                            iconDataUrl={app.iconDataUrl}
+                            className="h-4 w-4"
+                          />
+                          <span>{app.label}</span>
+                        </DropdownMenu.Item>
+                      ))}
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu.Root>
+            </div>
+          ) : null}
         </div>
 
         {/* 右侧：Git 图标 + 主题切换 + 窗口控制 */}

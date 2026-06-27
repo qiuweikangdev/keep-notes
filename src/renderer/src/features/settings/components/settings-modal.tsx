@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import {
   Palette,
   ChevronRight,
+  ChevronDown,
   Keyboard,
   Bell,
   Info,
@@ -21,7 +22,15 @@ import {
 } from "lucide-react";
 import { ShortcutsSettings } from "./shortcuts-settings";
 import { NotificationSettings } from "./notification-settings";
-import type { AppInfo, AppUpdateState, AppUpdateStatus } from "@shared/types";
+import { DropdownMenu } from "@/components/ui/dropdown-menu";
+import { ExternalOpenAppIcon } from "@/features/external-open/external-open-icons";
+import type {
+  AppInfo,
+  AppUpdateState,
+  AppUpdateStatus,
+  ExternalOpenApp,
+  ExternalOpenAppId,
+} from "@shared/types";
 
 type SettingsTab = "appearance" | "shortcuts" | "notifications" | "about";
 
@@ -136,6 +145,9 @@ export function SettingsModal() {
   const [appInfo, setAppInfo] = useState<AppInfo>(defaultAppInfo);
   const [updateState, setUpdateState] =
     useState<AppUpdateState>(defaultUpdateState);
+  const [externalOpenApps, setExternalOpenApps] = useState<ExternalOpenApp[]>(
+    [],
+  );
   const editorPaddingProgress =
     ((Math.max(appearance.padding, EDITOR_PADDING_MIN) - EDITOR_PADDING_MIN) /
       (EDITOR_PADDING_MAX - EDITOR_PADDING_MIN)) *
@@ -149,6 +161,19 @@ export function SettingsModal() {
   );
   const progressPercent = Math.round(updateState.progress?.percent ?? 0);
   const repositoryLabel = getRepositoryLabel(appInfo.repositoryUrl);
+  const availableExternalOpenApps = externalOpenApps.filter(
+    (app) => app.available,
+  );
+  const selectedExternalOpenApp =
+    availableExternalOpenApps.find(
+      (app) => app.id === appearance.defaultExternalOpenApp,
+    )?.id ??
+    availableExternalOpenApps.find((app) => app.kind === "editor")?.id ??
+    availableExternalOpenApps.find((app) => app.id === "file-manager")?.id ??
+    appearance.defaultExternalOpenApp;
+  const selectedExternalOpenAppOption = availableExternalOpenApps.find(
+    (app) => app.id === selectedExternalOpenApp,
+  );
 
   useEffect(() => {
     if (!isSettingsOpen) return;
@@ -162,10 +187,12 @@ export function SettingsModal() {
     void Promise.all([
       window.electronAPI.getAppInfo(),
       window.electronAPI.getUpdateState(),
-    ]).then(([info, state]) => {
+      window.electronAPI.listExternalOpenApps?.() ?? Promise.resolve([]),
+    ]).then(([info, state, apps]) => {
       if (!isMounted) return;
       setAppInfo(info);
       setUpdateState(state);
+      setExternalOpenApps(apps);
     });
 
     return () => {
@@ -226,6 +253,104 @@ export function SettingsModal() {
                   onChange={(val) => setTheme(val)}
                 />
               </div>
+            </div>
+
+            {/* 默认打开目标 */}
+            <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+              <SettingRow
+                label="默认打开目标"
+                description="默认打开文件和文件夹的位置"
+              >
+                <DropdownMenu.Root>
+                  <DropdownMenu.Trigger asChild>
+                    <button
+                      type="button"
+                      disabled={!selectedExternalOpenAppOption}
+                      className="flex h-8 min-w-[160px] items-center justify-between gap-2 rounded-md px-2.5 text-xs outline-none transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                      style={{
+                        backgroundColor: "var(--bg-tertiary)",
+                        border: "1px solid var(--border-color)",
+                        color: "var(--text-primary)",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor =
+                          "var(--hover-bg)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor =
+                          "var(--bg-tertiary)";
+                      }}
+                    >
+                      <span className="flex min-w-0 items-center gap-2">
+                        {selectedExternalOpenAppOption ? (
+                          <ExternalOpenAppIcon
+                            appId={selectedExternalOpenAppOption.id}
+                            iconDataUrl={
+                              selectedExternalOpenAppOption.iconDataUrl
+                            }
+                            className="h-4 w-4"
+                          />
+                        ) : null}
+                        <span className="truncate">
+                          {selectedExternalOpenAppOption?.label ??
+                            "暂无可用应用"}
+                        </span>
+                      </span>
+                      <ChevronDown
+                        className="h-3.5 w-3.5 flex-shrink-0"
+                        style={{ color: "var(--text-muted)" }}
+                      />
+                    </button>
+                  </DropdownMenu.Trigger>
+                  <DropdownMenu.Portal>
+                    <DropdownMenu.Content
+                      align="end"
+                      sideOffset={6}
+                      className="z-[9999] min-w-[168px] rounded-lg border p-1 shadow-lg"
+                      style={{
+                        backgroundColor: "var(--bg-primary)",
+                        borderColor: "var(--border-color)",
+                      }}
+                    >
+                      {availableExternalOpenApps.map((app) => (
+                        <DropdownMenu.Item
+                          key={app.id}
+                          className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--hover-bg)]"
+                          style={{ color: "var(--text-primary)" }}
+                          onClick={() =>
+                            setAppearance({
+                              defaultExternalOpenApp:
+                                app.id as ExternalOpenAppId,
+                            })
+                          }
+                        >
+                          <ExternalOpenAppIcon
+                            appId={app.id}
+                            iconDataUrl={app.iconDataUrl}
+                            className="h-4 w-4"
+                          />
+                          <span>{app.label}</span>
+                        </DropdownMenu.Item>
+                      ))}
+                    </DropdownMenu.Content>
+                  </DropdownMenu.Portal>
+                </DropdownMenu.Root>
+              </SettingRow>
+            </div>
+
+            {/* 标题栏快速打开器 */}
+            <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+              <SettingRow
+                label="标题栏快速打开器"
+                description="在标题栏显示默认应用与快捷下拉入口"
+              >
+                <Switch
+                  checked={appearance.showTitleBarQuickLauncher}
+                  onCheckedChange={(checked) =>
+                    setAppearance({ showTitleBarQuickLauncher: checked })
+                  }
+                />
+              </SettingRow>
             </div>
 
             {/* 编辑模式切换 */}

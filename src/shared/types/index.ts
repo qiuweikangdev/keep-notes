@@ -94,6 +94,7 @@ export type ExternalOpenAppId =
   | "vscode"
   | "zed"
   | "cursor"
+  | "warp"
   | "terminal"
   | "file-manager";
 
@@ -104,6 +105,7 @@ export interface ExternalOpenApp {
   label: string;
   kind: ExternalOpenAppKind;
   available: boolean;
+  iconDataUrl?: string;
 }
 
 export type AppUpdateStatus =
