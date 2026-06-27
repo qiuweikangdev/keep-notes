@@ -5,7 +5,6 @@ import { useTheme } from "@/hooks/use-theme";
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
 import { ThemeModeSelector } from "@/components/ui/theme-mode-selector";
 import { SettingRow } from "@/components/ui/setting-row";
-import { FontSelector } from "@/components/ui/font-selector";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +18,7 @@ import {
   ExternalLink,
   XCircle,
   Download,
+  Loader2,
 } from "lucide-react";
 import { ShortcutsSettings } from "./shortcuts-settings";
 import { NotificationSettings } from "./notification-settings";
@@ -41,50 +41,6 @@ const settingsMenuItems = [
   { id: "about" as SettingsTab, label: "关于", icon: Info },
 ];
 
-const fontFamilyOptions = [
-  {
-    label: "系统字体",
-    value: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-  },
-  {
-    label: "SF Pro",
-    value: '"SF Pro Display", -apple-system, BlinkMacSystemFont, sans-serif',
-  },
-  {
-    label: "Inter",
-    value: '"Inter", -apple-system, BlinkMacSystemFont, sans-serif',
-  },
-  {
-    label: "Noto Sans",
-    value: '"Noto Sans SC", -apple-system, BlinkMacSystemFont, sans-serif',
-  },
-  {
-    label: "Source Han Sans",
-    value:
-      '"Source Han Sans SC", -apple-system, BlinkMacSystemFont, sans-serif',
-  },
-];
-
-const codeFontOptions = [
-  {
-    label: "SF Mono",
-    value: '"SF Mono", ui-monospace, "Cascadia Code", Consolas, monospace',
-  },
-  {
-    label: "JetBrains Mono",
-    value: '"JetBrains Mono", ui-monospace, Consolas, monospace',
-  },
-  {
-    label: "Fira Code",
-    value: '"Fira Code", "Cascadia Code", Consolas, monospace',
-  },
-  {
-    label: "Cascadia Code",
-    value: '"Cascadia Code", "Fira Code", Consolas, monospace',
-  },
-  { label: "Consolas", value: 'Consolas, "Courier New", monospace' },
-];
-
 const EDITOR_PADDING_MIN = 72;
 const EDITOR_PADDING_MAX = 120;
 
@@ -99,20 +55,12 @@ const defaultUpdateState: AppUpdateState = {
   currentVersion: "",
 };
 
-const cancellableUpdateStatuses: AppUpdateStatus[] = [
-  "checking",
-  "available",
-  "downloading",
-];
-
 function getUpdateStatusText(state: AppUpdateState): string {
   switch (state.status) {
     case "checking":
       return "正在检查更新...";
     case "available":
-      return state.version
-        ? `发现新版本 v${state.version}，正在准备下载...`
-        : "发现新版本，正在准备下载...";
+      return "";
     case "downloading":
       return state.version ? `正在下载 v${state.version}` : "正在下载更新...";
     case "downloaded":
@@ -156,9 +104,7 @@ export function SettingsModal() {
     appInfo.version ||
     updateState.currentVersion ||
     defaultUpdateState.currentVersion;
-  const isUpdateCancellable = cancellableUpdateStatuses.includes(
-    updateState.status,
-  );
+
   const progressPercent = Math.round(updateState.progress?.percent ?? 0);
   const repositoryLabel = getRepositoryLabel(appInfo.repositoryUrl);
   const availableExternalOpenApps = externalOpenApps.filter(
@@ -201,8 +147,17 @@ export function SettingsModal() {
     };
   }, [isSettingsOpen]);
 
+  useEffect(() => {
+    if (activeTab !== "about") return;
+    void handleCheckForUpdates();
+  }, [activeTab]);
+
   const handleOpenChange = (open: boolean) => {
-    if (!open && isUpdateCancellable) {
+    if (
+      !open &&
+      (updateState.status === "checking" ||
+        updateState.status === "downloading")
+    ) {
       void window.electronAPI.cancelUpdate();
     }
     setSettingsOpen(open);
@@ -210,6 +165,11 @@ export function SettingsModal() {
 
   const handleCheckForUpdates = async () => {
     const state = await window.electronAPI.checkForUpdates();
+    setUpdateState(state);
+  };
+
+  const handleDownloadUpdate = async () => {
+    const state = await window.electronAPI.downloadUpdate();
     setUpdateState(state);
   };
 
@@ -398,27 +358,6 @@ export function SettingsModal() {
               </SettingRow>
             </div>
 
-            {/* 字体设置 */}
-            <div style={{ borderBottom: "1px solid var(--border-color)" }}>
-              <div className="py-1">
-                <SettingRow label="UI 字体">
-                  <FontSelector
-                    value={appearance.uiFont || fontFamilyOptions[0].value}
-                    onChange={(val) => setAppearance({ uiFont: val })}
-                    options={fontFamilyOptions}
-                  />
-                </SettingRow>
-
-                <SettingRow label="代码字体">
-                  <FontSelector
-                    value={appearance.codeFont || codeFontOptions[0].value}
-                    onChange={(val) => setAppearance({ codeFont: val })}
-                    options={codeFontOptions}
-                  />
-                </SettingRow>
-              </div>
-            </div>
-
             {/* UI 字号 */}
             <div style={{ borderBottom: "1px solid var(--border-color)" }}>
               <div className="py-1">
@@ -437,7 +376,7 @@ export function SettingsModal() {
                           uiFontSize: Number(e.target.value),
                         })
                       }
-                      className="w-14 h-9 px-3 text-sm rounded-lg text-center"
+                      className="w-14 h-7 px-2 text-sm rounded-md text-center"
                       style={{
                         backgroundColor: "var(--bg-tertiary)",
                         border: "1px solid var(--border-color)",
@@ -467,7 +406,7 @@ export function SettingsModal() {
                       onChange={(e) =>
                         setAppearance({ fontSize: Number(e.target.value) })
                       }
-                      className="w-14 h-9 px-3 text-sm rounded-lg text-center"
+                      className="w-14 h-7 px-2 text-sm rounded-md text-center"
                       style={{
                         backgroundColor: "var(--bg-tertiary)",
                         border: "1px solid var(--border-color)",
@@ -615,44 +554,45 @@ export function SettingsModal() {
                 </div>
 
                 <div className="flex flex-shrink-0 items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleCheckForUpdates}
-                    disabled={isUpdateCancellable}
-                    className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50"
-                    style={{
-                      backgroundColor: "transparent",
-                      border: "1px solid var(--border-color)",
-                      color: "var(--text-primary)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "transparent";
-                    }}
-                  >
-                    <RefreshCw
-                      className={`h-4 w-4 ${
-                        updateState.status === "checking" ? "animate-spin" : ""
-                      }`}
-                    />
-                    检查更新
-                  </button>
-                  {isUpdateCancellable && (
+                  {updateState.status === "available" ? (
                     <button
                       type="button"
-                      aria-label="取消更新"
-                      title="取消更新"
-                      onClick={handleCancelUpdate}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors"
+                      onClick={handleDownloadUpdate}
+                      className="update-button inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors"
                       style={{
-                        color: "var(--text-muted)",
-                        border: "1px solid var(--border-color)",
-                        backgroundColor: "transparent",
+                        backgroundColor: "var(--accent-color)",
+                        border: "none",
+                        color: "#fff",
                       }}
                     >
-                      <XCircle className="h-4 w-4" />
+                      <Download className="h-4 w-4" />
+                      {updateState.version
+                        ? `更新到 v${updateState.version}`
+                        : "更新"}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleCheckForUpdates}
+                      disabled={
+                        updateState.status === "checking" ||
+                        updateState.status === "downloading"
+                      }
+                      className="update-button inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50"
+                      style={{
+                        backgroundColor: "transparent",
+                        border: "1px solid var(--border-color)",
+                        color: "var(--text-primary)",
+                      }}
+                    >
+                      {updateState.status === "checking" ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                      {updateState.status === "checking"
+                        ? "检查中..."
+                        : "检查更新"}
                     </button>
                   )}
                 </div>
@@ -660,17 +600,33 @@ export function SettingsModal() {
 
               {updateState.status === "downloading" && (
                 <div className="mt-4">
-                  <div
-                    className="h-1.5 overflow-hidden rounded-full"
-                    style={{ backgroundColor: "var(--bg-tertiary)" }}
-                  >
+                  <div className="flex items-center gap-2">
                     <div
-                      className="h-full rounded-full transition-all"
+                      className="h-1.5 flex-1 overflow-hidden rounded-full"
+                      style={{ backgroundColor: "var(--bg-tertiary)" }}
+                    >
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${progressPercent}%`,
+                          backgroundColor: "var(--accent-color)",
+                        }}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      aria-label="取消更新"
+                      title="取消更新"
+                      onClick={handleCancelUpdate}
+                      className="inline-flex h-6 w-6 items-center justify-center rounded-md transition-colors flex-shrink-0"
                       style={{
-                        width: `${progressPercent}%`,
-                        backgroundColor: "var(--accent-color)",
+                        color: "var(--text-muted)",
+                        border: "1px solid var(--border-color)",
+                        backgroundColor: "transparent",
                       }}
-                    />
+                    >
+                      <XCircle className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                   <div className="mt-2 flex justify-between text-xs">
                     <span style={{ color: "var(--text-muted)" }}>下载进度</span>

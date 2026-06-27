@@ -1,11 +1,15 @@
 import { app, shell } from "electron";
 import electronUpdater from "electron-updater";
-import { CancellationToken } from "builder-util-runtime";
-import type { ProgressInfo, UpdateInfo } from "electron-updater";
+import type {
+  CancellationToken as ElectronUpdaterCancellationToken,
+  ProgressInfo,
+  UpdateInfo,
+} from "electron-updater";
 import { APP_AUTHOR, APP_REPOSITORY_URL } from "../shared/constants";
 import type { AppInfo, AppUpdateState } from "../shared/types";
 
-const { autoUpdater } = electronUpdater;
+const { autoUpdater, CancellationToken: CancellationTokenCtor } =
+  electronUpdater;
 
 type UpdateListener = (state: AppUpdateState) => void;
 
@@ -16,7 +20,9 @@ interface UpdaterLike {
     isUpdateAvailable: boolean;
     updateInfo: UpdateInfo;
   } | null>;
-  downloadUpdate: (cancellationToken?: CancellationToken) => Promise<string[]>;
+  downloadUpdate: (
+    cancellationToken?: ElectronUpdaterCancellationToken,
+  ) => Promise<string[]>;
   quitAndInstall: (isSilent?: boolean, isForceRunAfter?: boolean) => void;
   on: (event: string, listener: (...args: unknown[]) => void) => unknown;
 }
@@ -34,16 +40,16 @@ interface AppUpdateControllerOptions {
   app?: AppLike;
   updater?: UpdaterLike;
   shell?: ShellLike;
-  createCancellationToken?: () => CancellationToken;
+  createCancellationToken?: () => ElectronUpdaterCancellationToken;
 }
 
 export class AppUpdateController {
   private readonly app: AppLike;
   private readonly updater: UpdaterLike;
   private readonly shell: ShellLike;
-  private readonly createCancellationToken: () => CancellationToken;
+  private readonly createCancellationToken: () => ElectronUpdaterCancellationToken;
   private readonly listeners = new Set<UpdateListener>();
-  private cancellationToken: CancellationToken | null = null;
+  private cancellationToken: ElectronUpdaterCancellationToken | null = null;
   private state: AppUpdateState;
 
   constructor(options: AppUpdateControllerOptions = {}) {
@@ -51,7 +57,7 @@ export class AppUpdateController {
     this.updater = options.updater ?? autoUpdater;
     this.shell = options.shell ?? shell;
     this.createCancellationToken =
-      options.createCancellationToken ?? (() => new CancellationToken());
+      options.createCancellationToken ?? (() => new CancellationTokenCtor());
     this.state = {
       status: "idle",
       currentVersion: this.app.getVersion(),
@@ -120,7 +126,12 @@ export class AppUpdateController {
         this.state.status === "checking" ||
         this.state.status === "available"
       ) {
-        void this.startDownload(result.updateInfo);
+        this.setState({
+          status: "available",
+          currentVersion: this.app.getVersion(),
+          version: result.updateInfo.version,
+          message: `发现新版本 v${result.updateInfo.version}`,
+        });
       }
 
       return this.getState();
@@ -144,6 +155,36 @@ export class AppUpdateController {
     });
   }
 
+  async downloadUpdate(): Promise<AppUpdateState> {
+    if (this.state.status !== "available" || !this.state.version) {
+      return this.getState();
+    }
+
+    this.cancellationToken = this.createCancellationToken();
+    this.setState({
+      status: "downloading",
+      currentVersion: this.app.getVersion(),
+      version: this.state.version,
+      message: "正在下载更新...",
+      progress: { percent: 0, transferred: 0, total: 0, bytesPerSecond: 0 },
+    });
+
+    try {
+      await this.updater.downloadUpdate(this.cancellationToken);
+    } catch (error) {
+      if (this.state.status === "canceled") return this.getState();
+      this.cancellationToken = null;
+      this.setState({
+        status: "error",
+        currentVersion: this.app.getVersion(),
+        version: this.state.version,
+        message: this.toErrorMessage(error),
+      });
+    }
+
+    return this.getState();
+  }
+
   installUpdate(): void {
     this.updater.quitAndInstall(false, true);
   }
@@ -159,9 +200,8 @@ export class AppUpdateController {
         status: "available",
         currentVersion: this.app.getVersion(),
         version: info.version,
-        message: `发现新版本 v${info.version}，开始下载...`,
+        message: `发现新版本 v${info.version}`,
       });
-      void this.startDownload(info);
     });
 
     this.updater.on("update-not-available", () => {
@@ -220,32 +260,6 @@ export class AppUpdateController {
     });
   }
 
-  private async startDownload(info: UpdateInfo): Promise<void> {
-    if (this.state.status === "downloading") return;
-
-    this.cancellationToken = this.createCancellationToken();
-    this.setState({
-      status: "downloading",
-      currentVersion: this.app.getVersion(),
-      version: info.version,
-      message: "正在下载更新...",
-      progress: { percent: 0, transferred: 0, total: 0, bytesPerSecond: 0 },
-    });
-
-    try {
-      await this.updater.downloadUpdate(this.cancellationToken);
-    } catch (error) {
-      if (this.state.status === "canceled") return;
-      this.cancellationToken = null;
-      this.setState({
-        status: "error",
-        currentVersion: this.app.getVersion(),
-        version: info.version,
-        message: this.toErrorMessage(error),
-      });
-    }
-  }
-
   private setState(nextState: AppUpdateState): AppUpdateState {
     this.state = nextState;
     const snapshot = this.getState();
@@ -254,8 +268,12 @@ export class AppUpdateController {
   }
 
   private toErrorMessage(error: unknown): string {
-    if (error instanceof Error) return error.message;
-    return "更新操作失败，请稍后再试。";
+    const message = error instanceof Error ? error.message : String(error);
+    // 404 表示 Release 尚未发布完成（GitHub Actions 打包中）
+    if (message.includes("404")) {
+      return "暂无可用更新，请稍后再试。";
+    }
+    return message || "更新操作失败，请稍后再试。";
   }
 }
 

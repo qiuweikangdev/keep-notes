@@ -52,21 +52,6 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
   const titleBarRef = useRef<HTMLDivElement>(null);
   const { detectGitRepo, openFile } = useElectron();
 
-  // 双击标题栏最大化/还原窗口
-  const handleDoubleClick = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      console.log("Double-click detected", e.target);
-      const target = e.target as HTMLElement;
-      if (target.closest("button")) {
-        console.log("Ignoring button click");
-        return;
-      }
-      console.log("Calling maximizeWindow");
-      window.electronAPI.maximizeWindow();
-    },
-    [],
-  );
-
   const { treeRoot, selectedKey } = useTreeStore();
   const openReminderList = useReminderStore((state) => state.openList);
   const externalOpenTargetPath = resolveExternalOpenTargetPath(
@@ -91,24 +76,59 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
     return window.electronAPI?.getPlatform() === "darwin";
   }, []);
 
-  // 应用拖拽样式
+  // 标题栏拖拽：手动实现（-webkit-app-region: drag 会阻止 dblclick）
   useEffect(() => {
-    if (titleBarRef.current) {
-      titleBarRef.current.style.webkitAppRegion = "drag";
-      // 为所有按钮设置 no-drag
-      const buttons = titleBarRef.current.querySelectorAll("button");
-      buttons.forEach((btn) => {
-        btn.style.webkitAppRegion = "no-drag";
-      });
-    }
-  }, [
-    isGitRepo,
-    externalOpenApps.length,
-    appearance.showTitleBarQuickLauncher,
-  ]);
+    const el = titleBarRef.current;
+    if (!el) return;
 
-  // 注意：Windows 上 drag 区域的原生双击最大化行为可能与自定义处理器冲突
-  // 如果出现问题，可能需要进一步调试
+    const DRAG_THRESHOLD = 5;
+    let dragging = false;
+    let pendingDrag = false;
+    let startMouseX = 0;
+    let startMouseY = 0;
+    let startWinX = 0;
+    let startWinY = 0;
+
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button !== 0) return;
+      const target = e.target as HTMLElement;
+      if (target.closest("button")) return;
+      pendingDrag = true;
+      dragging = false;
+      startMouseX = e.screenX;
+      startMouseY = e.screenY;
+      window.electronAPI.getWindowPosition().then(([wx, wy]) => {
+        startWinX = wx;
+        startWinY = wy;
+      });
+    };
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (!pendingDrag) return;
+      const dx = e.screenX - startMouseX;
+      const dy = e.screenY - startMouseY;
+      if (!dragging) {
+        if (Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD)
+          return;
+        dragging = true;
+      }
+      window.electronAPI.setWindowPosition(startWinX + dx, startWinY + dy);
+    };
+
+    const onMouseUp = () => {
+      pendingDrag = false;
+      dragging = false;
+    };
+
+    el.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      el.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, []);
 
   // 检测 Git 仓库
   useEffect(() => {
@@ -242,7 +262,10 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
         ref={titleBarRef}
         data-testid="title-bar"
         className="flex items-center select-none"
-        onDoubleClick={handleDoubleClick}
+        onDoubleClick={(e) => {
+          if ((e.target as HTMLElement).closest("button")) return;
+          window.electronAPI.maximizeWindow();
+        }}
         style={{
           // macOS 与原生红绿灯共享同一高度基准，避免左上角操作区视觉偏移。
           height: isMac ? `${MAC_TITLE_BAR_HEIGHT}px` : "44px",

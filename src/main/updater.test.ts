@@ -16,6 +16,9 @@ vi.mock("electron", () => ({
 vi.mock("electron-updater", () => ({
   default: {
     autoUpdater: new EventEmitter(),
+    CancellationToken: class {
+      cancel(): void {}
+    },
   },
 }));
 
@@ -63,6 +66,7 @@ describe("AppUpdateController", () => {
     controller.subscribe((state) => states.push(state));
 
     await controller.checkForUpdates();
+    void controller.downloadUpdate();
     updater.emit("download-progress", {
       percent: 42,
       transferred: 42,
@@ -96,6 +100,7 @@ describe("AppUpdateController", () => {
     const controller = createController();
 
     await controller.checkForUpdates();
+    void controller.downloadUpdate();
     const state = controller.cancelUpdate();
 
     expect(cancel).toHaveBeenCalledTimes(1);

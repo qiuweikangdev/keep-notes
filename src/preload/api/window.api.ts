@@ -26,6 +26,21 @@ export const windowApi = {
     ipcRenderer.send(IPC_CHANNELS.WINDOW.CLOSE);
   },
 
+  // 获取窗口位置
+  getWindowPosition: (): Promise<[number, number]> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.WINDOW.GET_POSITION);
+  },
+
+  // 设置窗口位置
+  setWindowPosition: (x: number, y: number): void => {
+    ipcRenderer.send(IPC_CHANNELS.WINDOW.SET_POSITION, x, y);
+  },
+
+  // 判断窗口是否最大化
+  isWindowMaximized: (): Promise<boolean> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.WINDOW.IS_MAXIMIZED);
+  },
+
   updateDirtyState: (isDirty: boolean): void => {
     ipcRenderer.send(IPC_CHANNELS.EDITOR.UPDATE_DIRTY_STATE, isDirty);
   },

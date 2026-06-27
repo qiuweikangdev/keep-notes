@@ -155,7 +155,7 @@ const defaultAppearance: EditorAppearance = {
   padding: 72,
   uiFont: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
   codeFont: '"SF Mono", ui-monospace, "Cascadia Code", Consolas, monospace',
-  showModeSwitcher: true,
+  showModeSwitcher: false,
   sidebarView: "file",
   showBottomBarOnHover: true,
   showFileHistoryNavigation: true,
