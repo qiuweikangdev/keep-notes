@@ -44,6 +44,7 @@ interface EditorDefinition {
   appName: string;
   command: string;
   windowsPaths: string[];
+  windowsExecutableNames: string[];
 }
 
 interface TerminalAppDefinition {
@@ -52,6 +53,7 @@ interface TerminalAppDefinition {
   appName: string;
   command: string;
   windowsPaths: string[];
+  windowsExecutableNames: string[];
 }
 
 const EDITORS: EditorDefinition[] = [
@@ -64,6 +66,7 @@ const EDITORS: EditorDefinition[] = [
       "Programs/Microsoft VS Code/Code.exe",
       "Microsoft VS Code/Code.exe",
     ],
+    windowsExecutableNames: ["Code.exe"],
   },
   {
     id: "zed",
@@ -71,6 +74,7 @@ const EDITORS: EditorDefinition[] = [
     appName: "Zed",
     command: "zed",
     windowsPaths: ["Programs/Zed/Zed.exe", "Zed/Zed.exe"],
+    windowsExecutableNames: ["Zed.exe"],
   },
   {
     id: "cursor",
@@ -78,6 +82,7 @@ const EDITORS: EditorDefinition[] = [
     appName: "Cursor",
     command: "cursor",
     windowsPaths: ["Programs/Cursor/Cursor.exe", "Cursor/Cursor.exe"],
+    windowsExecutableNames: ["Cursor.exe"],
   },
 ];
 
@@ -87,6 +92,7 @@ const WARP: TerminalAppDefinition = {
   appName: "Warp",
   command: "warp",
   windowsPaths: ["Programs/Warp/Warp.exe", "Warp/Warp.exe"],
+  windowsExecutableNames: ["warp.exe"],
 };
 
 function defaultPathExists(targetPath: string): Promise<boolean> {
@@ -95,6 +101,11 @@ function defaultPathExists(targetPath: string): Promise<boolean> {
     .then(() => true)
     .catch(() => false);
 }
+
+const defaultSpawn: SpawnCommand = (command, args, options) =>
+  options === undefined
+    ? nodeSpawn(command, args)
+    : nodeSpawn(command, args, options);
 
 function defaultResolveCommandPath(
   command: string,
@@ -298,7 +309,7 @@ function resolveDeps(deps?: ExternalOpenDeps) {
 
   return {
     platform,
-    spawn: deps?.spawn ?? nodeSpawn,
+    spawn: deps?.spawn ?? defaultSpawn,
     pathExists: deps?.pathExists ?? defaultPathExists,
     resolveCommandPath:
       deps?.resolveCommandPath ??
@@ -325,8 +336,8 @@ function resolveDeps(deps?: ExternalOpenDeps) {
 
 function getMacAppPaths(appName: string): string[] {
   return [
-    path.join("/Applications", `${appName}.app`),
-    path.join(os.homedir(), "Applications", `${appName}.app`),
+    path.posix.join("/Applications", `${appName}.app`),
+    path.posix.join(os.homedir(), "Applications", `${appName}.app`),
   ];
 }
 
@@ -373,10 +384,6 @@ async function findMacAppInApplicationSubfolders(
   return null;
 }
 
-function getWindowsEditorPaths(editor: EditorDefinition): string[] {
-  return getWindowsAppPaths(editor.windowsPaths);
-}
-
 function getWindowsAppPaths(windowsPaths: string[]): string[] {
   const roots = [
     process.env.LOCALAPPDATA,
@@ -385,7 +392,70 @@ function getWindowsAppPaths(windowsPaths: string[]): string[] {
   ].filter((root): root is string => Boolean(root));
 
   return roots.flatMap((root) =>
-    windowsPaths.map((appPath) => path.join(root, appPath)),
+    windowsPaths.map((appPath) => path.win32.join(root, appPath)),
+  );
+}
+
+function cleanWindowsCommandPath(commandPath: string): string {
+  return commandPath.trim().replace(/^"(.*)"$/, "$1");
+}
+
+async function resolveWindowsExecutableFromCommandPath(
+  commandPath: string,
+  executableNames: string[],
+  pathExists: PathExists,
+): Promise<string | null> {
+  const normalizedCommandPath = cleanWindowsCommandPath(commandPath);
+  const executableNameSet = new Set(
+    executableNames.map((name) => name.toLowerCase()),
+  );
+  const commandFileName = path.win32
+    .basename(normalizedCommandPath)
+    .toLowerCase();
+
+  if (
+    executableNameSet.has(commandFileName) &&
+    (await pathExists(normalizedCommandPath))
+  ) {
+    return normalizedCommandPath;
+  }
+
+  let currentDirectory = path.win32.dirname(normalizedCommandPath);
+
+  // Windows 的 PATH 常指向 bin 下的 CLI shim；向上查找真实 exe，图标和启动都应使用应用本体。
+  for (let depth = 0; depth < 6; depth += 1) {
+    for (const executableName of executableNames) {
+      const candidatePath = path.win32.join(currentDirectory, executableName);
+      if (await pathExists(candidatePath)) return candidatePath;
+    }
+
+    const parentDirectory = path.win32.dirname(currentDirectory);
+    if (parentDirectory === currentDirectory) break;
+    currentDirectory = parentDirectory;
+  }
+
+  return null;
+}
+
+async function resolveWindowsAppExecutablePath(
+  windowsPaths: string[],
+  executableNames: string[],
+  command: string,
+  deps: ReturnType<typeof resolveDeps>,
+): Promise<string | null> {
+  const directPath = await resolveFirstExistingPath(
+    getWindowsAppPaths(windowsPaths),
+    deps.pathExists,
+  );
+  if (directPath) return directPath;
+
+  const commandPath = await deps.resolveCommandPath(command);
+  if (!commandPath) return null;
+
+  return resolveWindowsExecutableFromCommandPath(
+    commandPath,
+    executableNames,
+    deps.pathExists,
   );
 }
 
@@ -421,7 +491,11 @@ function getWindowsFileManagerIconPath(): string {
 function getWindowsTerminalIconPath(): string {
   return (
     process.env.ComSpec ??
-    path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "cmd.exe")
+    path.win32.join(
+      process.env.SystemRoot ?? "C:\\Windows",
+      "System32",
+      "cmd.exe",
+    )
   );
 }
 
@@ -434,12 +508,23 @@ async function resolveDetectedAppPath(
   const appPath =
     deps.platform === "darwin"
       ? await resolveMacAppPath(appName, deps)
-      : await resolveFirstExistingPath(
-          getWindowsAppPaths(windowsPaths),
-          deps.pathExists,
+      : await resolveWindowsAppExecutablePath(
+          windowsPaths,
+          getWindowsExecutableNames(appName),
+          command,
+          deps,
         );
 
-  return appPath ?? deps.resolveCommandPath(command);
+  if (appPath) return appPath;
+
+  return deps.platform === "darwin" ? deps.resolveCommandPath(command) : null;
+}
+
+function getWindowsExecutableNames(appName: string): string[] {
+  const editor = EDITORS.find((app) => app.appName === appName);
+  if (editor) return editor.windowsExecutableNames;
+
+  return appName === WARP.appName ? WARP.windowsExecutableNames : [];
 }
 
 async function isMacEditorAvailable(
@@ -459,9 +544,11 @@ async function isWindowsEditorAvailable(
   deps: ReturnType<typeof resolveDeps>,
 ): Promise<boolean> {
   if (
-    await resolveFirstExistingPath(
-      getWindowsEditorPaths(editor),
-      deps.pathExists,
+    await resolveWindowsAppExecutablePath(
+      editor.windowsPaths,
+      editor.windowsExecutableNames,
+      editor.command,
+      deps,
     )
   )
     return true;
@@ -647,9 +734,16 @@ async function getWindowsEditorCommand(
   editor: EditorDefinition,
   deps: ReturnType<typeof resolveDeps>,
 ): Promise<string | null> {
-  for (const editorPath of getWindowsEditorPaths(editor)) {
-    if (await deps.pathExists(editorPath)) return editorPath;
-  }
+  const executablePath = await resolveWindowsAppExecutablePath(
+    editor.windowsPaths,
+    editor.windowsExecutableNames,
+    editor.command,
+    deps,
+  );
+  if (executablePath) return executablePath;
+
+  const commandPath = await deps.resolveCommandPath(editor.command);
+  if (commandPath) return cleanWindowsCommandPath(commandPath);
 
   if (await deps.commandExists(editor.command)) return editor.command;
 
@@ -660,16 +754,57 @@ async function getWindowsTerminalAppCommand(
   terminalApp: TerminalAppDefinition,
   deps: ReturnType<typeof resolveDeps>,
 ): Promise<string | null> {
-  for (const terminalPath of getWindowsAppPaths(terminalApp.windowsPaths)) {
-    if (await deps.pathExists(terminalPath)) return terminalPath;
-  }
+  const executablePath = await resolveWindowsAppExecutablePath(
+    terminalApp.windowsPaths,
+    terminalApp.windowsExecutableNames,
+    terminalApp.command,
+    deps,
+  );
+  if (executablePath) return executablePath;
 
   const commandPath = await deps.resolveCommandPath(terminalApp.command);
-  if (commandPath) return commandPath;
+  if (commandPath) return cleanWindowsCommandPath(commandPath);
 
   if (await deps.commandExists(terminalApp.command)) return terminalApp.command;
 
   return null;
+}
+
+function shouldUseWindowsShell(command: string): boolean {
+  const extension = path.win32.extname(command).toLowerCase();
+  return extension === ".cmd" || extension === ".bat" || extension === "";
+}
+
+function openWindowsCommandPrompt(
+  spawn: SpawnCommand,
+  directoryPath: string,
+): Promise<boolean> {
+  return spawnDetached(
+    spawn,
+    "cmd.exe",
+    ["/c", "start", '""', "cmd.exe", "/k"],
+    {
+      cwd: directoryPath,
+      windowsVerbatimArguments: true,
+    },
+  );
+}
+
+async function openWindowsTerminal(
+  directoryPath: string,
+  deps: ReturnType<typeof resolveDeps>,
+): Promise<boolean> {
+  const windowsTerminalPath = await deps.resolveCommandPath("wt");
+  if (windowsTerminalPath) {
+    return spawnDetached(
+      deps.spawn,
+      cleanWindowsCommandPath(windowsTerminalPath),
+      ["-d", directoryPath],
+      { cwd: directoryPath },
+    );
+  }
+
+  return openWindowsCommandPrompt(deps.spawn, directoryPath);
 }
 
 async function openEditor(
@@ -685,7 +820,12 @@ async function openEditor(
     const command = await getWindowsEditorCommand(editor, deps);
     if (!command) return false;
 
-    return spawnDetached(deps.spawn, command, [targetPath]);
+    return spawnDetached(
+      deps.spawn,
+      command,
+      [targetPath],
+      shouldUseWindowsShell(command) ? { shell: true } : {},
+    );
   }
 
   return false;
@@ -710,8 +850,9 @@ async function openWarp(
     const command = await getWindowsTerminalAppCommand(WARP, deps);
     if (!command) return false;
 
-    return spawnDetached(deps.spawn, command, [directoryPath], {
+    return spawnDetached(deps.spawn, command, [], {
       cwd: directoryPath,
+      ...(shouldUseWindowsShell(command) ? { shell: true } : {}),
     });
   }
 
@@ -733,9 +874,7 @@ async function openTerminal(
   }
 
   if (deps.platform === "win32") {
-    return spawnDetached(deps.spawn, "cmd.exe", ["/k"], {
-      cwd: directoryPath,
-    });
+    return openWindowsTerminal(directoryPath, deps);
   }
 
   return false;
