@@ -84,9 +84,14 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
 
   // 自动聚焦
   useEffect(() => {
-    if (isOpen && inputRef.current) {
-      inputRef.current.focus();
+    if (!isOpen) {
+      setQuery("");
+      setResults([]);
+      setSelectedIndex(0);
+      return;
     }
+
+    inputRef.current?.focus();
   }, [isOpen]);
 
   if (!isOpen) return null;
