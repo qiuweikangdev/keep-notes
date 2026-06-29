@@ -44,9 +44,12 @@ import { cn } from "@/lib/cn";
 import { KEEP_NOTES_FILE_DRAG_TYPE, setDraggedFilePath } from "@/lib/file-drag";
 import {
   canMoveNodeToFolder,
+  findAncestorKeys,
+  findNodeByKey,
   flattenTree,
   getRevealInFileManagerLabel,
   normalizeTreePath,
+  shouldRevealFileTreeOnViewChange,
   type FlatNode,
 } from "../utils";
 
@@ -65,6 +68,11 @@ interface CreatingInfo {
   level: number;
 }
 
+interface FileTreeRevealRequest {
+  key: string;
+  id: number;
+}
+
 export function FileTree() {
   const treeData = useTreeStore((state) => state.treeData);
   const treeRoot = useTreeStore((state) => state.treeRoot);
@@ -73,6 +81,7 @@ export function FileTree() {
   const selectedKey = useTreeStore((state) => state.selectedKey);
   const toggleExpandedKey = useTreeStore((state) => state.toggleExpandedKey);
   const setSelectedKey = useTreeStore((state) => state.setSelectedKey);
+  const setExpandedKeys = useTreeStore((state) => state.setExpandedKeys);
   const {
     openFolder,
     openInExplorer,
@@ -88,6 +97,15 @@ export function FileTree() {
   const appearance = useEditorStore((s) => s.appearance);
   const setSidebarView = useEditorStore((s) => s.setSidebarView);
   const sidebarView = appearance.sidebarView;
+  const activeFilePath = useEditorStore((state) => {
+    const activeGroup = state.panelGroups.find(
+      (group) => group.id === state.activeGroupId,
+    );
+    const activeTab = activeGroup?.tabs.find(
+      (tab) => tab.id === activeGroup.activeTabId,
+    );
+    return activeTab?.pendingFilePath ?? activeTab?.filePath ?? null;
+  });
   const openCreateReminder = useReminderStore((s) => s.openCreateDialog);
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -104,6 +122,10 @@ export function FileTree() {
   const createInputRef = useRef<HTMLInputElement>(null);
   const confirmedRef = useRef(false);
   const rootDragDepthRef = useRef(0);
+  const previousSidebarViewRef = useRef(sidebarView);
+  const revealRequestIdRef = useRef(0);
+  const [fileTreeRevealRequest, setFileTreeRevealRequest] =
+    useState<FileTreeRevealRequest | null>(null);
   const isRootCreating = creatingInfo?.parentKey === treeRoot?.key;
   const revealInFileManagerLabel = getRevealInFileManagerLabel(
     window.electronAPI?.getPlatform(),
@@ -111,6 +133,7 @@ export function FileTree() {
 
   const isRootSelected = selectedKey === treeRoot?.key;
   const isRootExpanded = treeRoot ? expandedKeys.has(treeRoot.key) : false;
+  const treeRootKey = treeRoot?.key ?? null;
 
   // 从 store 获取大纲标题列表和活跃标题 ID
   const headings = useEditorStore((state) => state.outlineHeadings);
@@ -133,6 +156,65 @@ export function FileTree() {
       requestAnimationFrame(() => createInputRef.current?.focus());
     }
   }, [isRootCreating]);
+
+  useEffect(() => {
+    const previousSidebarView = previousSidebarViewRef.current;
+    previousSidebarViewRef.current = sidebarView;
+
+    if (sidebarView !== "file" || !treeRootKey) {
+      return;
+    }
+
+    const revealKey = activeFilePath ?? selectedKey;
+    if (!revealKey || revealKey === treeRootKey) {
+      return;
+    }
+
+    const targetNode = findNodeByKey(treeData, revealKey);
+    if (!targetNode) {
+      return;
+    }
+
+    if (activeFilePath && selectedKey !== activeFilePath) {
+      setSelectedKey(activeFilePath);
+    }
+
+    const shouldReveal = shouldRevealFileTreeOnViewChange(
+      previousSidebarView,
+      sidebarView,
+    );
+    if (!shouldReveal) {
+      return;
+    }
+
+    const nextExpandedKeys = new Set(useTreeStore.getState().expandedKeys);
+    let shouldUpdateExpandedKeys = false;
+
+    // 切回文件树视图时先展开根节点和祖先节点，确保当前文件能被虚拟列表渲染出来。
+    for (const key of [treeRootKey, ...findAncestorKeys(treeData, revealKey)]) {
+      if (!nextExpandedKeys.has(key)) {
+        nextExpandedKeys.add(key);
+        shouldUpdateExpandedKeys = true;
+      }
+    }
+
+    if (shouldUpdateExpandedKeys) {
+      setExpandedKeys(nextExpandedKeys);
+    }
+
+    setFileTreeRevealRequest({
+      key: revealKey,
+      id: ++revealRequestIdRef.current,
+    });
+  }, [
+    activeFilePath,
+    selectedKey,
+    setExpandedKeys,
+    setSelectedKey,
+    sidebarView,
+    treeData,
+    treeRootKey,
+  ]);
 
   const doRootCreate = useCallback(async () => {
     const title = createValue.trim();
@@ -718,6 +800,7 @@ export function FileTree() {
                   <VirtualizedTreeList
                     flatNodes={flatNodes}
                     selectedKey={selectedKey}
+                    revealRequest={fileTreeRevealRequest}
                     creatingInfo={creatingInfo}
                     isRootCreating={isRootCreating}
                     onClick={handleNodeClick}
@@ -825,6 +908,7 @@ export function FileTree() {
 interface VirtualizedTreeListProps {
   flatNodes: FlatNode[];
   selectedKey: string | null;
+  revealRequest: FileTreeRevealRequest | null;
   creatingInfo: CreatingInfo | null;
   isRootCreating: boolean;
   onClick: (flatNode: FlatNode) => void;
@@ -844,6 +928,7 @@ interface VirtualizedTreeListProps {
 const VirtualizedTreeList = memo(function VirtualizedTreeList({
   flatNodes,
   selectedKey,
+  revealRequest,
   creatingInfo,
   isRootCreating,
   onClick,
@@ -871,15 +956,29 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
     overscan: 6,
   });
 
+  const revealIndex = useMemo(() => {
+    if (!revealRequest) return -1;
+    return flatNodes.findIndex((node) => node.key === revealRequest.key);
+  }, [flatNodes, revealRequest]);
+
+  useEffect(() => {
+    if (!revealRequest || revealIndex < 0) return;
+
+    const frame = requestAnimationFrame(() => {
+      virtualizer.scrollToIndex(revealIndex, { align: "center" });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [revealIndex, revealRequest, virtualizer]);
+
   // 查找正在创建的节点位置（使用 useMemo 缓存计算结果）
-  const { creatingIndex, creatingInsertIndex, extraHeight } = useMemo(() => {
+  const { creatingInsertIndex, extraHeight } = useMemo(() => {
     if (!creatingInfo) {
-      return { creatingIndex: -1, creatingInsertIndex: -1, extraHeight: 0 };
+      return { creatingInsertIndex: -1, extraHeight: 0 };
     }
     const idx = flatNodes.findIndex((n) => n.key === creatingInfo.parentKey);
     const insertIdx = idx >= 0 ? idx + 1 : -1;
     return {
-      creatingIndex: idx,
       creatingInsertIndex: insertIdx,
       extraHeight: insertIdx >= 0 ? ROW_HEIGHT : 0,
     };

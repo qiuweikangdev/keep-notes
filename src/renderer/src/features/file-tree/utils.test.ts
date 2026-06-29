@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   canMoveNodeToFolder,
+  findAncestorKeys,
   flattenTree,
   getRevealInFileManagerLabel,
+  shouldRevealFileTreeOnViewChange,
 } from "./utils";
 
 describe("getRevealInFileManagerLabel", () => {
@@ -63,5 +65,47 @@ describe("flattenTree", () => {
         parentKey: "D:/notes/B",
       }),
     ]);
+  });
+});
+
+describe("findAncestorKeys", () => {
+  it("returns folder ancestors for a nested file", () => {
+    const ancestors = findAncestorKeys(
+      [
+        {
+          key: "D:/notes/projects",
+          title: "projects",
+          children: [
+            {
+              key: "D:/notes/projects/app",
+              title: "app",
+              children: [
+                {
+                  key: "D:/notes/projects/app/readme.md",
+                  title: "readme.md",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      "D:/notes/projects/app/readme.md",
+    );
+
+    expect(ancestors).toEqual(["D:/notes/projects", "D:/notes/projects/app"]);
+  });
+
+  it("returns an empty list when the file is not in the tree", () => {
+    expect(findAncestorKeys([], "D:/notes/missing.md")).toEqual([]);
+  });
+});
+
+describe("shouldRevealFileTreeOnViewChange", () => {
+  it("reveals the current file when switching from outline to file tree", () => {
+    expect(shouldRevealFileTreeOnViewChange("outline", "file")).toBe(true);
+  });
+
+  it("keeps the current scroll position when staying in the file tree", () => {
+    expect(shouldRevealFileTreeOnViewChange("file", "file")).toBe(false);
   });
 });

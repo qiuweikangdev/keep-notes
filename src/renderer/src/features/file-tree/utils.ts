@@ -76,6 +76,39 @@ export function findNodeByKey(nodes: TreeNode[], key: string): TreeNode | null {
 }
 
 /**
+ * 查找目标节点的祖先文件夹 key，用于在文件树中自动展开当前文件路径。
+ */
+export function findAncestorKeys(nodes: TreeNode[], targetKey: string) {
+  const visit = (items: TreeNode[], ancestors: string[]): string[] | null => {
+    for (const item of items) {
+      if (item.key === targetKey) {
+        return ancestors;
+      }
+
+      if (!item.children) {
+        continue;
+      }
+
+      const found = visit(item.children, [...ancestors, item.key]);
+      if (found) {
+        return found;
+      }
+    }
+
+    return null;
+  };
+
+  return visit(nodes, []) ?? [];
+}
+
+export function shouldRevealFileTreeOnViewChange(
+  previousView: "file" | "outline",
+  nextView: "file" | "outline",
+) {
+  return previousView !== "file" && nextView === "file";
+}
+
+/**
  * 统一“在系统文件管理器中显示”的跨平台文案，避免各入口出现不一致。
  */
 export function getRevealInFileManagerLabel(platform?: string): string {
