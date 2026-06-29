@@ -310,6 +310,11 @@ export const useEditorStore = create<EditorState>()(
               }
               // 只有一个面板组时，清空标签页数组，显示空白状态
               return {
+                // 最后一个标签页关闭后，同步清理旧版全局状态，避免退出时读取到过期脏状态。
+                content: "",
+                filePath: null,
+                wordCount: 0,
+                isDirty: false,
                 panelGroups: state.panelGroups.map((g) =>
                   g.id === groupId
                     ? {
@@ -402,18 +407,23 @@ export const useEditorStore = create<EditorState>()(
               g.id === groupId
                 ? {
                     ...g,
-                    tabs: g.tabs.map((t) =>
-                      t.id === tabId
-                        ? {
-                            ...t,
-                            content,
-                            wordCount: content.length,
-                            isDirty: true,
-                            saveStatus: "dirty",
-                            errorMessage: null,
-                          }
-                        : t,
-                    ),
+                    tabs: g.tabs.map((t) => {
+                      if (t.id !== tabId) return t;
+
+                      // 未命名标签页恢复为空内容时，不应继续触发退出保存提示。
+                      const isDirty = t.filePath
+                        ? true
+                        : content.trim().length > 0;
+
+                      return {
+                        ...t,
+                        content,
+                        wordCount: content.length,
+                        isDirty,
+                        saveStatus: isDirty ? "dirty" : "clean",
+                        errorMessage: null,
+                      };
+                    }),
                   }
                 : g,
             ),
