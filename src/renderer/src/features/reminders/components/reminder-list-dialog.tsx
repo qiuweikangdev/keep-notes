@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { Bell, CheckCircle2, Pencil, Search, Trash2 } from "lucide-react";
+import { Bell, CheckCircle2, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ContextMenu } from "@/components/ui/context-menu";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -30,6 +31,7 @@ export function ReminderListDialog() {
   const reminders = useReminderStore((state) => state.reminders);
   const isListOpen = useReminderStore((state) => state.isListOpen);
   const closeList = useReminderStore((state) => state.closeList);
+  const openCreateDialog = useReminderStore((state) => state.openCreateDialog);
   const openEditDialog = useReminderStore((state) => state.openEditDialog);
   const completeReminder = useReminderStore((state) => state.completeReminder);
   const deleteReminder = useReminderStore((state) => state.deleteReminder);
@@ -45,6 +47,11 @@ export function ReminderListDialog() {
   const handleEdit = (reminder: Reminder) => {
     closeList();
     openEditDialog(reminder.id);
+  };
+
+  const handleCreate = () => {
+    closeList();
+    openCreateDialog();
   };
 
   return (
@@ -73,17 +80,29 @@ export function ReminderListDialog() {
               />
               <h2 className="text-lg font-semibold">提醒事项</h2>
             </div>
-            <div className="relative">
-              <Search
-                className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
-                style={{ color: "var(--text-muted)" }}
-              />
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="搜索标题或文件名"
-                className="h-9 pl-9"
-              />
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search
+                  className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
+                  style={{ color: "var(--text-muted)" }}
+                />
+                <Input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="搜索标题或文件名"
+                  className="h-9 pl-9"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                size="icon"
+                aria-label="新建提醒事项"
+                title="新建提醒事项"
+                onClick={handleCreate}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
             </div>
           </div>
 
@@ -174,6 +193,13 @@ function ReminderListItem({
   onComplete,
   onDelete,
 }: ReminderListItemProps) {
+  const detail = [
+    reminder.fileName,
+    formatReminderDateTime(reminder.scheduledAt),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
     <ContextMenu.Root>
       <ContextMenu.Trigger asChild>
@@ -189,8 +215,7 @@ function ReminderListItem({
               className="truncate text-[12px]"
               style={{ color: "var(--text-muted)" }}
             >
-              {reminder.fileName} ·{" "}
-              {formatReminderDateTime(reminder.scheduledAt)}
+              {detail}
             </div>
           </div>
           <div className="text-[12px]" style={{ color: "var(--text-muted)" }}>

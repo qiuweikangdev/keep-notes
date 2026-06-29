@@ -17,7 +17,10 @@ export class DesktopChannel implements NotificationChannel {
 
   /** 发送系统桌面通知；系统权限可能拦截展示，调用方负责兜底。 */
   async send(reminder: Reminder): Promise<void> {
-    await showDesktopNotification(reminder.title, reminder.fileName);
+    await showDesktopNotification(
+      reminder.title,
+      reminder.fileName || "提醒事项",
+    );
   }
 
   /** 发送一条测试通知，用于确认 Electron 与系统通知配置是否打通。 */

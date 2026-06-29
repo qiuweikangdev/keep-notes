@@ -38,12 +38,13 @@ export class EmailChannel implements NotificationChannel {
     const scheduledTime = dayjs(reminder.scheduledAt).format(
       "YYYY-MM-DD HH:mm",
     );
+    const fileName = reminder.fileName || "无关联文件";
 
     await transporter.sendMail({
       from: this.config.senderEmail,
       to: this.config.receiverEmail,
       subject: `提醒事项: ${reminder.title}`,
-      text: `您的笔记提醒已触发:\n\n标题: ${reminder.title}\n文件: ${reminder.fileName}\n时间: ${scheduledTime}`,
+      text: `您的笔记提醒已触发:\n\n标题: ${reminder.title}\n文件: ${fileName}\n时间: ${scheduledTime}`,
       html: `
         <div style="font-family: sans-serif; padding: 20px;">
           <h2 style="color: #333;">提醒事项</h2>
@@ -55,7 +56,7 @@ export class EmailChannel implements NotificationChannel {
             </tr>
             <tr>
               <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">文件</td>
-              <td style="padding: 8px; border: 1px solid #ddd;">${reminder.fileName}</td>
+              <td style="padding: 8px; border: 1px solid #ddd;">${fileName}</td>
             </tr>
             <tr>
               <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">时间</td>

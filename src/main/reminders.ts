@@ -138,7 +138,7 @@ function createDefaultNotification(
   return createDesktopNotification(
     {
       title: reminder.title,
-      body: reminder.fileName,
+      body: reminder.fileName || "提醒事项",
     },
     onClick,
   );
@@ -206,11 +206,12 @@ export class ReminderService {
 
   async create(input: ReminderInput): Promise<Reminder> {
     const timestamp = this.now().toISOString();
+    const filePath = input.filePath ?? "";
     const reminder: Reminder = {
       id: this.createId(),
       title: input.title,
-      filePath: input.filePath,
-      fileName: basename(input.filePath),
+      filePath,
+      fileName: filePath ? basename(filePath) : "",
       scheduledAt: input.scheduledAt,
       repeat: input.repeat,
       customRepeat: input.customRepeat,
@@ -230,10 +231,12 @@ export class ReminderService {
 
     this.reminders = this.reminders.map((reminder) => {
       if (reminder.id !== id) return reminder;
+      const filePath = input.filePath ?? reminder.filePath;
       updated = {
         ...reminder,
         ...input,
-        fileName: input.filePath ? basename(input.filePath) : reminder.fileName,
+        filePath,
+        fileName: filePath ? basename(filePath) : "",
         updatedAt: timestamp,
       };
       return updated;
@@ -310,7 +313,10 @@ export class ReminderService {
     if (config.desktop.enabled) {
       try {
         const notification = this.showNotification(reminder, () => {
-          void this.openFileInNewWindow(reminder.filePath);
+          // 无关联文件的提醒只展示通知，不触发文件打开动作。
+          if (reminder.filePath) {
+            void this.openFileInNewWindow(reminder.filePath);
+          }
         });
         await notification.show();
       } catch (error) {

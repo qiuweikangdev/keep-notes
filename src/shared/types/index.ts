@@ -171,7 +171,7 @@ export interface Reminder {
 
 export interface ReminderInput {
   title: string;
-  filePath: string;
+  filePath?: string;
   scheduledAt: string;
   repeat: ReminderRepeatPreset;
   customRepeat?: ReminderRepeatCustomRule;

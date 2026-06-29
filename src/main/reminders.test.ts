@@ -156,6 +156,23 @@ describe("ReminderService", () => {
     expect(broadcast).toHaveBeenCalledWith([reminder]);
   });
 
+  it("creates standalone reminders without a file path", async () => {
+    const { service } = createTestService();
+    await service.load();
+
+    const reminder = await service.create({
+      title: "Drink water",
+      scheduledAt: "2026-06-21T09:00:00.000Z",
+      repeat: "never",
+    });
+
+    expect(reminder).toMatchObject({
+      title: "Drink water",
+      filePath: "",
+      fileName: "",
+    });
+  });
+
   it("updates and completes reminders", async () => {
     const { service } = createTestService();
     await service.load();

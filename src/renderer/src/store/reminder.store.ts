@@ -11,7 +11,7 @@ interface ReminderState {
   loadReminders: () => Promise<void>;
   subscribeToReminderChanges: () => () => void;
   subscribeToReminderTriggers: () => () => void;
-  openCreateDialog: (filePath: string) => void;
+  openCreateDialog: (filePath?: string) => void;
   openEditDialog: (reminderId: string) => void;
   closeEditor: () => void;
   openList: () => void;
@@ -63,7 +63,7 @@ export const useReminderStore = create<ReminderState>()((set) => ({
     set({
       isEditorOpen: true,
       editingReminderId: null,
-      draftFilePath: filePath,
+      draftFilePath: filePath ?? null,
     });
   },
 

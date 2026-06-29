@@ -192,9 +192,9 @@ export function ReminderEditorDialog() {
   }, [initialState, isEditorOpen]);
 
   const filePath = initialState.filePath;
+  const fileName = getFileName(filePath);
   const canSave =
     title.trim().length > 0 &&
-    filePath.length > 0 &&
     date.length > 0 &&
     time.length > 0 &&
     isDateEnabled &&
@@ -252,7 +252,7 @@ export function ReminderEditorDialog() {
             style={{ backgroundColor: "var(--bg-secondary)" }}
           >
             <div
-              className="rounded-t-xl border-b px-5 py-4"
+              className="rounded-t-xl border-b px-5 py-3"
               style={{
                 backgroundColor: "var(--bg-secondary)",
                 borderColor: "var(--border-color)",
@@ -262,20 +262,22 @@ export function ReminderEditorDialog() {
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
                 placeholder="标题"
-                className="h-10 border-0 bg-transparent px-0 text-[22px] font-semibold"
+                className="h-9 px-3 py-1 text-[18px] font-semibold"
                 style={{
-                  backgroundColor: "transparent",
-                  border: "0",
+                  backgroundColor: "var(--bg-primary)",
+                  border: "1px solid var(--border-color)",
                   color: "var(--text-primary)",
                 }}
                 autoFocus
               />
-              <p
-                className="mt-1 truncate text-[13px]"
-                style={{ color: "var(--text-muted)" }}
-              >
-                {getFileName(filePath)}
-              </p>
+              {fileName ? (
+                <p
+                  className="mt-1 truncate px-1 text-[13px]"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  {fileName}
+                </p>
+              ) : null}
             </div>
 
             <div className="space-y-4 px-5">

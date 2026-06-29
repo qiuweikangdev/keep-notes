@@ -24,7 +24,15 @@ export function ReminderNotificationToast() {
 
   if (!reminder) return null;
 
+  const detail = [
+    reminder.fileName,
+    formatReminderDateTime(reminder.scheduledAt),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   const handleOpen = async () => {
+    if (!reminder.filePath) return;
     await openFile(reminder.filePath);
     closeTriggeredReminder();
   };
@@ -56,7 +64,7 @@ export function ReminderNotificationToast() {
             className="mt-0.5 truncate text-[12px]"
             style={{ color: "var(--text-muted)" }}
           >
-            {reminder.fileName} · {formatReminderDateTime(reminder.scheduledAt)}
+            {detail}
           </div>
         </div>
         <button
@@ -79,9 +87,11 @@ export function ReminderNotificationToast() {
         >
           稍后
         </Button>
-        <Button type="button" onClick={() => void handleOpen()}>
-          打开
-        </Button>
+        {reminder.filePath ? (
+          <Button type="button" onClick={() => void handleOpen()}>
+            打开
+          </Button>
+        ) : null}
       </div>
     </div>
   );
