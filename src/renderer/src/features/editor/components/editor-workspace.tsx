@@ -61,6 +61,7 @@ export function EditorWorkspace({
     (state) => state.incrementTabReloadKey,
   );
   const syncFileContent = useEditorStore((state) => state.syncFileContent);
+  const appearance = useEditorStore((state) => state.appearance);
   const { openFile } = useElectron();
 
   const rawMatches = useMemo(
@@ -309,6 +310,9 @@ export function EditorWorkspace({
             <div className="min-h-0 flex-1">
               <MarkdownSourceEditor
                 ref={sourceEditorRef}
+                fontFamily={appearance.codeFont}
+                fontSize={appearance.fontSize}
+                lineHeight={appearance.lineHeight}
                 value={tab.content}
                 scrollTop={tab.scrollTop}
                 onChange={handleSourceChange}

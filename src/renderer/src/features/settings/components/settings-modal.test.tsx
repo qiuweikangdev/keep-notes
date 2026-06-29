@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsModal } from "./settings-modal";
+import { useEditorStore } from "@/store/editor.store";
 import { useUIStore } from "@/store/ui.store";
 
 describe("SettingsModal about tab", () => {
@@ -105,6 +106,28 @@ describe("SettingsModal about tab", () => {
 
     await waitFor(() => {
       expect(window.electronAPI.cancelUpdate).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("keeps Markdown editor font size in sync when changing UI font size", () => {
+    const setAppearance = vi.fn();
+    useEditorStore.setState({
+      appearance: {
+        ...useEditorStore.getState().appearance,
+        fontSize: 16,
+        uiFontSize: 13,
+      },
+      setAppearance,
+    });
+
+    render(<SettingsModal />);
+
+    const [uiFontSizeInput] = screen.getAllByRole("spinbutton");
+    fireEvent.change(uiFontSizeInput, { target: { value: "18" } });
+
+    expect(setAppearance).toHaveBeenCalledWith({
+      fontSize: 18,
+      uiFontSize: 18,
     });
   });
 });

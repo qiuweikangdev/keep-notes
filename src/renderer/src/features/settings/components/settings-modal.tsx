@@ -358,44 +358,12 @@ export function SettingsModal() {
               </SettingRow>
             </div>
 
-            {/* UI 字号 */}
+            {/* 编辑器内容字号 */}
             <div style={{ borderBottom: "1px solid var(--border-color)" }}>
               <div className="py-1">
                 <SettingRow
-                  label="UI 字号"
-                  description="调整界面使用的基准字号"
-                >
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="number"
-                      min="10"
-                      max="20"
-                      value={appearance.uiFontSize || 13}
-                      onChange={(e) =>
-                        setAppearance({
-                          uiFontSize: Number(e.target.value),
-                        })
-                      }
-                      className="w-14 h-7 px-2 text-sm rounded-md text-center"
-                      style={{
-                        backgroundColor: "var(--bg-tertiary)",
-                        border: "1px solid var(--border-color)",
-                        color: "var(--text-primary)",
-                        outline: "none",
-                      }}
-                    />
-                    <span
-                      className="text-sm"
-                      style={{ color: "var(--text-muted)" }}
-                    >
-                      px
-                    </span>
-                  </div>
-                </SettingRow>
-
-                <SettingRow
-                  label="代码字体大小"
-                  description="调整代码使用的基准字号"
+                  label="编辑器内容字号"
+                  description="只调整 Markdown 编辑器内容的基准字号"
                 >
                   <div className="flex items-center gap-1">
                     <input
@@ -404,7 +372,10 @@ export function SettingsModal() {
                       max="20"
                       value={appearance.fontSize}
                       onChange={(e) =>
-                        setAppearance({ fontSize: Number(e.target.value) })
+                        setAppearance({
+                          fontSize: Number(e.target.value),
+                          uiFontSize: Number(e.target.value),
+                        })
                       }
                       className="w-14 h-7 px-2 text-sm rounded-md text-center"
                       style={{

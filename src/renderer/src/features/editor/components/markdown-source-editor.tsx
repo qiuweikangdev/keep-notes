@@ -1,11 +1,15 @@
 import {
   forwardRef,
   useCallback,
+  type CSSProperties,
   type ForwardedRef,
   type KeyboardEvent,
 } from "react";
 
 interface MarkdownSourceEditorProps {
+  fontFamily?: string;
+  fontSize?: number;
+  lineHeight?: number;
   value: string;
   onChange: (value: string) => void;
   onScrollTopChange: (scrollTop: number) => void;
@@ -91,7 +95,15 @@ export const MarkdownSourceEditor = forwardRef<
   HTMLTextAreaElement,
   MarkdownSourceEditorProps
 >(function MarkdownSourceEditor(
-  { value, onChange, onScrollTopChange, scrollTop = 0 },
+  {
+    fontFamily,
+    fontSize,
+    lineHeight,
+    value,
+    onChange,
+    onScrollTopChange,
+    scrollTop = 0,
+  },
   ref,
 ) {
   const handleKeyDown = useCallback(
@@ -145,10 +157,17 @@ export const MarkdownSourceEditor = forwardRef<
     [ref, scrollTop],
   );
 
+  const editorStyle: CSSProperties = {
+    fontFamily,
+    fontSize: fontSize ? `${fontSize}px` : undefined,
+    lineHeight,
+  };
+
   return (
     <textarea
       aria-label="Markdown 源码"
       className="h-full w-full resize-none bg-[var(--bg-primary)] px-10 py-8 font-mono text-[14px] leading-7 text-[var(--text-primary)] outline-none"
+      style={editorStyle}
       value={value}
       spellCheck={false}
       onChange={(event) => onChange(event.target.value)}

@@ -1,10 +1,20 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MarkdownSourceEditor } from "./markdown-source-editor";
 
 describe("MarkdownSourceEditor", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   it("inserts two spaces when Tab is pressed", async () => {
     const onChange = vi.fn();
     render(
@@ -39,5 +49,24 @@ describe("MarkdownSourceEditor", () => {
     fireEvent.keyDown(editor, { key: "2", ctrlKey: true });
 
     expect(onChange).toHaveBeenCalledWith("Intro\n## Existing heading\nBody");
+  });
+
+  it("applies editor typography settings", () => {
+    render(
+      <MarkdownSourceEditor
+        value="# Notes"
+        fontFamily='"SF Mono", monospace'
+        fontSize={18}
+        lineHeight={1.9}
+        onChange={vi.fn()}
+        onScrollTopChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("textbox", { name: "Markdown 源码" })).toHaveStyle({
+      fontFamily: '"SF Mono", monospace',
+      fontSize: "18px",
+      lineHeight: "1.9",
+    });
   });
 });

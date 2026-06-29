@@ -178,7 +178,12 @@ vi.mock("@/store/editor.store", () => ({
   useEditorStore: Object.assign(
     <T,>(
       selector?: (state: {
-        appearance: { opacity: number };
+        appearance: {
+          codeFont: string;
+          opacity: number;
+          uiFont: string;
+          uiFontSize: number;
+        };
         filePath: string | null;
         content: string;
         panelGroups: never[];
@@ -189,7 +194,12 @@ vi.mock("@/store/editor.store", () => ({
       }) => T,
     ) => {
       const state = {
-        appearance: { opacity: 100 },
+        appearance: {
+          codeFont: '"SF Mono", monospace',
+          opacity: 100,
+          uiFont: '"Inter", sans-serif',
+          uiFontSize: 15,
+        },
         filePath: null,
         content: "",
         panelGroups: [],
@@ -303,5 +313,15 @@ describe("App shortcuts", () => {
       "data-collapsed",
       "true",
     );
+  });
+
+  it("does not apply editor typography settings to the document", () => {
+    document.documentElement.style.fontSize = "";
+    document.body.style.fontFamily = "";
+
+    render(<App />);
+
+    expect(document.documentElement.style.fontSize).toBe("");
+    expect(document.body.style.fontFamily).toBe("");
   });
 });

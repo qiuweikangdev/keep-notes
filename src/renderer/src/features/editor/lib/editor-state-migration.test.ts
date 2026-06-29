@@ -40,6 +40,7 @@ describe("normalizePersistedPanelGroups", () => {
 describe("normalizePersistedAppearance", () => {
   const defaults = {
     fontSize: 16,
+    uiFontSize: 13,
     lineHeight: 1.8,
     opacity: 100,
     padding: 72,
@@ -56,6 +57,24 @@ describe("normalizePersistedAppearance", () => {
       ...defaults,
       fontSize: 18,
     });
+  });
+
+  it("migrates legacy UI font size to editor content font size", () => {
+    expect(
+      normalizePersistedAppearance(defaults, {
+        fontSize: 16,
+        uiFontSize: 18,
+      }).fontSize,
+    ).toBe(18);
+  });
+
+  it("preserves an explicit editor content font size over legacy UI font size", () => {
+    expect(
+      normalizePersistedAppearance(defaults, {
+        fontSize: 17,
+        uiFontSize: 18,
+      }).fontSize,
+    ).toBe(17);
   });
 
   it("upgrades legacy zero editor padding to the current default", () => {

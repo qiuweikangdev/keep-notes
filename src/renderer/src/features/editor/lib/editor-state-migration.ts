@@ -42,6 +42,22 @@ export function normalizePersistedAppearance<TAppearance extends object>(
     (normalized as { padding: number }).padding = defaultPadding;
   }
 
+  const defaultFontSize = (defaults as { fontSize?: unknown }).fontSize;
+  const defaultUiFontSize = (defaults as { uiFontSize?: unknown }).uiFontSize;
+  const currentFontSize = (normalized as { fontSize?: unknown }).fontSize;
+  const currentUiFontSize = (normalized as { uiFontSize?: unknown }).uiFontSize;
+  if (
+    typeof defaultFontSize === "number" &&
+    typeof defaultUiFontSize === "number" &&
+    typeof currentFontSize === "number" &&
+    typeof currentUiFontSize === "number" &&
+    currentFontSize === defaultFontSize &&
+    currentUiFontSize !== defaultUiFontSize
+  ) {
+    // 旧版 UI 字号曾作为独立字段保存；现在字号只影响编辑器内容，迁移旧值到实际生效字段。
+    (normalized as { fontSize: number }).fontSize = currentUiFontSize;
+  }
+
   const defaultExternalOpenApp = (
     defaults as { defaultExternalOpenApp?: unknown }
   ).defaultExternalOpenApp;
