@@ -6,10 +6,10 @@ import { BrowserWindow, screen } from "electron";
 import iconPath from "../../resources/icon.png?asset";
 
 const IS_MAC = process.platform === "darwin";
-const MAC_NOTIFICATION_WIDTH = 440;
-const MAC_NOTIFICATION_HEIGHT = 150;
-const WINDOWS_NOTIFICATION_WIDTH = 420;
-const WINDOWS_NOTIFICATION_HEIGHT = 214;
+const MAC_NOTIFICATION_WIDTH = 356;
+const MAC_NOTIFICATION_HEIGHT = 130;
+const WINDOWS_NOTIFICATION_WIDTH = 632;
+const WINDOWS_NOTIFICATION_HEIGHT = 344;
 const NOTIFICATION_MARGIN = 24;
 const AUTO_CLOSE_DELAY = 12_000;
 const NOTIFICATION_ACTION_PROTOCOL = "keep-notes-notification:";
@@ -72,7 +72,8 @@ function createNotificationHtml(options: AppNotificationOptions): string {
   const title = escapeHtml(options.title);
   const body = escapeHtml(options.body || "提醒事项");
   const detail = options.detail ? escapeHtml(options.detail) : "";
-  const openLabel = escapeHtml(options.openLabel || "打开");
+  const confirmLabel = "稍后提醒";
+  const openLabel = escapeHtml(options.openLabel || "查看详情");
   const openAction = createActionUrl("open");
   const confirmAction = createActionUrl("confirm");
   const platformClass = IS_MAC ? "platform-mac" : "platform-windows";
@@ -102,19 +103,19 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      backdrop-filter: blur(30px) saturate(1.55);
+      backdrop-filter: blur(34px) saturate(1.58);
     }
     .content {
       flex: 1;
       min-width: 0;
       display: grid;
-      grid-template-columns: 48px 1fr;
-      gap: 14px;
+      grid-template-columns: 72px 1fr;
+      gap: 22px;
     }
     .app-icon {
-      width: 48px;
-      height: 48px;
-      border-radius: 11px;
+      width: 72px;
+      height: 72px;
+      border-radius: 17px;
       object-fit: cover;
       flex: 0 0 auto;
     }
@@ -125,18 +126,18 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       align-items: center;
       gap: 12px;
       min-width: 0;
-      margin-bottom: 4px;
+      margin-bottom: 10px;
     }
     .app-name {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: 14px;
+      font-size: 26px;
       font-weight: 700;
-      line-height: 20px;
+      line-height: 32px;
     }
     .time {
-      font-size: 13px;
+      font-size: 24px;
       font-weight: 600;
       color: rgba(58, 66, 84, 0.74);
     }
@@ -159,9 +160,9 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: 16px;
-      font-weight: 700;
-      line-height: 21px;
+      font-size: 31px;
+      font-weight: 750;
+      line-height: 38px;
     }
     .body {
       margin-top: 2px;
@@ -169,88 +170,162 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
-      font-size: 14px;
-      line-height: 19px;
+      font-size: 26px;
+      line-height: 34px;
     }
     .detail {
-      margin-top: 4px;
+      margin-top: 7px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: 12px;
-      line-height: 16px;
+      font-size: 22px;
+      line-height: 28px;
     }
     .actions {
       display: flex;
-      gap: 8px;
+      gap: 18px;
     }
     .button {
-      height: 31px;
+      height: 52px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      padding: 0 16px;
-      font-size: 14px;
+      gap: 12px;
+      padding: 0 28px;
+      font-size: 26px;
       font-weight: 600;
       text-decoration: none;
       white-space: nowrap;
       -webkit-app-region: no-drag;
     }
+    .clock-icon {
+      display: none;
+      position: relative;
+      width: 30px;
+      height: 30px;
+      border: 2px solid currentColor;
+      border-radius: 999px;
+      opacity: 0.9;
+    }
+    .clock-icon::before,
+    .clock-icon::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 2px;
+      border-radius: 999px;
+      background: currentColor;
+      transform-origin: 50% 0;
+    }
+    .clock-icon::before {
+      height: 8px;
+      transform: translate(-50%, -1px) rotate(0deg);
+    }
+    .clock-icon::after {
+      height: 9px;
+      transform: translate(-50%, -1px) rotate(90deg);
+    }
     .platform-mac .notification {
-      border: 1px solid rgba(255, 255, 255, 0.44);
-      border-radius: 20px;
-      background: rgba(236, 239, 247, 0.82);
+      border: 1px solid rgba(255, 255, 255, 0.5);
+      border-radius: 16px;
+      background:
+        radial-gradient(circle at 15% 0%, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0) 38%),
+        linear-gradient(135deg, rgba(252, 239, 247, 0.88) 0%, rgba(241, 229, 250, 0.82) 48%, rgba(226, 217, 248, 0.78) 100%);
       box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.36),
-        0 10px 24px rgba(31, 41, 55, 0.18);
+        inset 0 1px 0 rgba(255, 255, 255, 0.52),
+        0 18px 40px rgba(54, 43, 72, 0.24);
       color: rgba(8, 12, 20, 0.94);
     }
     .platform-mac .content {
-      padding: 18px 24px 4px 24px;
+      grid-template-columns: 36px 1fr;
+      gap: 12px;
+      padding: 17px 18px 1px 18px;
+    }
+    .platform-mac .app-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+    }
+    .platform-mac .meta {
+      margin-bottom: 1px;
+    }
+    .platform-mac .app-name {
+      font-size: 14px;
+      line-height: 18px;
+      font-weight: 700;
+    }
+    .platform-mac .time {
+      font-size: 13px;
+      line-height: 18px;
+      font-weight: 600;
+    }
+    .platform-mac .title {
+      font-size: 16px;
+      line-height: 21px;
+      font-weight: 750;
+    }
+    .platform-mac .body {
+      margin-top: 0;
+      font-size: 14px;
+      line-height: 18px;
     }
     .platform-mac .body {
       color: rgba(17, 24, 39, 0.82);
     }
     .platform-mac .detail {
+      margin-top: 2px;
+      font-size: 11px;
+      line-height: 14px;
       color: rgba(58, 66, 84, 0.68);
     }
     .platform-mac .actions {
+      gap: 8px;
       justify-content: flex-end;
-      padding: 4px 22px 16px 86px;
+      padding: 3px 16px 13px 66px;
     }
     .platform-mac .button {
-      min-width: 86px;
-      border-radius: 8px;
-      border: 1px solid rgba(74, 85, 104, 0.26);
+      min-width: 78px;
+      height: 26px;
+      border-radius: 7px;
+      border: 1px solid rgba(79, 85, 105, 0.24);
       color: rgba(17, 24, 39, 0.9);
-      background: rgba(255, 255, 255, 0.2);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.38);
+      background: rgba(255, 255, 255, 0.22);
+      padding: 0 13px;
+      font-size: 14px;
+      font-weight: 600;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.42),
+        0 1px 2px rgba(31, 41, 55, 0.08);
     }
     .platform-mac .button.primary {
       border-color: transparent;
-      background: linear-gradient(180deg, #278dff 0%, #0a72e8 100%);
+      background: linear-gradient(180deg, #2f95ff 0%, #086fe8 100%);
       color: white;
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
     }
     .platform-windows .notification {
       border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 8px;
-      background: rgba(16, 24, 31, 0.96);
-      box-shadow: 0 14px 28px rgba(0, 0, 0, 0.32);
+      border-radius: 10px;
+      background:
+        radial-gradient(circle at 18% 0%, rgba(69, 82, 96, 0.28), rgba(69, 82, 96, 0) 34%),
+        linear-gradient(135deg, rgba(25, 33, 41, 0.98) 0%, rgba(13, 20, 28, 0.98) 100%);
+      box-shadow: 0 18px 34px rgba(0, 0, 0, 0.35);
       color: rgba(255, 255, 255, 0.96);
     }
     .platform-windows .content {
-      grid-template-columns: 46px 1fr;
-      gap: 15px;
-      padding: 22px 20px 10px;
+      grid-template-columns: 48px 1fr;
+      gap: 24px;
+      padding: 27px 28px 0;
     }
     .platform-windows .app-icon {
-      width: 46px;
-      height: 46px;
+      width: 48px;
+      height: 48px;
       border-radius: 9px;
     }
     .platform-windows .app-name {
-      font-size: 17px;
+      font-size: 28px;
+      line-height: 36px;
       font-weight: 600;
     }
     .platform-windows .time {
@@ -258,35 +333,41 @@ function createNotificationHtml(options: AppNotificationOptions): string {
     }
     .platform-windows .window-actions {
       display: flex;
+      padding-top: 2px;
+      font-size: 28px;
     }
     .platform-windows .title {
-      margin-top: 26px;
-      font-size: 24px;
-      line-height: 30px;
-      font-weight: 650;
+      margin-top: 31px;
+      font-size: 32px;
+      line-height: 40px;
+      font-weight: 700;
     }
     .platform-windows .body {
+      margin-top: 2px;
       color: rgba(255, 255, 255, 0.72);
     }
     .platform-windows .detail {
       color: rgba(255, 255, 255, 0.54);
     }
     .platform-windows .actions {
-      padding: 12px 20px 20px;
+      padding: 18px 30px 25px;
     }
     .platform-windows .button {
       flex: 1;
-      height: 40px;
-      border-radius: 6px;
+      height: 66px;
+      border-radius: 8px;
       border: 1px solid rgba(255, 255, 255, 0.04);
       background: rgba(255, 255, 255, 0.12);
       color: rgba(255, 255, 255, 0.94);
-      font-size: 16px;
+      font-size: 27px;
       font-weight: 500;
     }
     .platform-windows .button.primary {
       background: rgba(255, 255, 255, 0.14);
       color: white;
+    }
+    .platform-windows .clock-icon {
+      display: inline-block;
     }
     @media (prefers-reduced-motion: no-preference) {
       .notification {
@@ -324,7 +405,7 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       </div>
     </div>
     <div class="actions">
-      <a class="button" href="${confirmAction}">确认</a>
+      <a class="button" href="${confirmAction}"><span class="clock-icon" aria-hidden="true"></span><span>${confirmLabel}</span></a>
       ${options.openLabel ? `<a class="button primary" href="${openAction}">${openLabel}</a>` : ""}
     </div>
   </section>

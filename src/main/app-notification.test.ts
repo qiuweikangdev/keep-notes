@@ -144,17 +144,17 @@ describe("createAppNotification", () => {
 
     if (process.platform === "darwin") {
       expect(windowOptions).toMatchObject({
-        width: 440,
-        height: 150,
+        width: 356,
+        height: 130,
         y: 24,
         vibrancy: "popover",
       });
       expect(html).toContain('class="platform-mac"');
     } else {
       expect(windowOptions).toMatchObject({
-        width: 420,
-        height: 214,
-        y: 662,
+        width: 632,
+        height: 344,
+        y: 532,
       });
       expect(html).toContain('class="platform-windows"');
     }
@@ -163,6 +163,8 @@ describe("createAppNotification", () => {
     expect(html).toContain("data:image/png;base64,");
     expect(html).not.toContain("file://");
     expect(html).toContain("Keep Notes");
+    expect(html).toContain("稍后提醒");
     expect(html).toContain("查看详情");
+    expect(html).toContain('class="clock-icon"');
   });
 });

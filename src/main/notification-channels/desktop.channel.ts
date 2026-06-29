@@ -9,7 +9,7 @@ async function showDesktopNotification(
   title: string,
   body: string,
 ): Promise<void> {
-  await createAppNotification({ title, body }).show();
+  await createAppNotification({ title, body, openLabel: "查看详情" }).show();
 }
 
 export class DesktopChannel implements NotificationChannel {

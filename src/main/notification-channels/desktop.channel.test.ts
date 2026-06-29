@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Reminder } from "../../shared/types";
+import { createAppNotification } from "../app-notification";
 import { DesktopChannel } from "./desktop.channel";
 
 const electronMocks = vi.hoisted(() => {
@@ -63,6 +64,11 @@ describe("DesktopChannel", () => {
     await expect(channel.test()).resolves.toEqual({ success: true });
 
     expect(appNotificationMocks.show).toHaveBeenCalledTimes(1);
+    expect(createAppNotification).toHaveBeenCalledWith({
+      title: "Keep Notes 测试通知",
+      body: "系统桌面通知已触发",
+      openLabel: "查看详情",
+    });
     expect(electronMocks.show).not.toHaveBeenCalled();
   });
 
@@ -94,6 +100,11 @@ describe("DesktopChannel", () => {
     await channel.send(reminder);
 
     expect(appNotificationMocks.show).toHaveBeenCalledTimes(1);
+    expect(createAppNotification).toHaveBeenCalledWith({
+      title: "Read notes",
+      body: "today.md",
+      openLabel: "查看详情",
+    });
     expect(electronMocks.show).not.toHaveBeenCalled();
   });
 });

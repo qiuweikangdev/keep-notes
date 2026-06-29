@@ -148,7 +148,7 @@ function createDefaultNotification(
       title: reminder.title,
       body: reminder.fileName || "提醒事项",
       detail: new Date(reminder.scheduledAt).toLocaleString("zh-CN"),
-      openLabel: reminder.filePath ? "打开" : undefined,
+      openLabel: reminder.filePath ? "查看详情" : undefined,
       requireInteraction: options.requireInteraction,
     },
     onClick,
