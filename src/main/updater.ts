@@ -1,6 +1,6 @@
-import { execSync } from "node:child_process";
-import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { spawn } from "node:child_process";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { app, shell } from "electron";
 import electronUpdater from "electron-updater";
 import type {
@@ -33,6 +33,7 @@ interface UpdaterLike {
 interface AppLike {
   getVersion: () => string;
   isPackaged: boolean;
+  getPath: (name: string) => string;
 }
 
 interface ShellLike {
@@ -47,53 +48,49 @@ interface AppUpdateControllerOptions {
 }
 
 /**
- * 对下载好的更新包执行 ad-hoc 重签名，绕过 macOS ShipIt 的签名验证。
- * electron-updater 在 macOS 上将更新下载到 ShipIt 缓存目录后，
- * ShipIt 在替换应用前会验证代码签名，ad-hoc 签名因跨机器/跨路径失效。
+ * 绕过 ShipIt 签名验证，直接替换应用包。
+ *
+ * 背景：macOS 上 electron-updater 默认通过 ShipIt 替换应用，
+ * ShipIt 在替换前会验证代码签名。ad-hoc 签名打包进 zip 后跨机器失效。
+ *
+ * 方案：不调用 quitAndInstall()（那是 ShipIt 路径），而是生成一个
+ * 独立的 shell 脚本——等旧应用退出后直接 rm + cp 替换 .app，再 open 新版本。
  */
-function reSignUpdateApp(updateDir: string): void {
-  // 找到 ShipIt 缓存目录下的 .app 包
-  // 典型路径: ~/Library/Caches/com.keep-notes.ShipIt/update.XXXXX/
-  if (!existsSync(updateDir)) return;
+function spawnReplaceScript(
+  updateAppPath: string,
+  currentAppPath: string,
+): void {
+  const tmpDir = join(app.getPath("temp"), "keep-notes-update");
+  rmSync(tmpDir, { recursive: true, force: true });
+  mkdirSync(tmpDir, { recursive: true });
 
-  try {
-    const downloadedFiles = execSync(`ls "${updateDir}"`, {
-      encoding: "utf-8",
-    })
-      .trim()
-      .split("\n");
+  const scriptPath = join(tmpDir, "replace.sh");
+  // 注意：单引号包裹路径，防止路径包含空格时出错
+  const script = `#!/bin/bash
+set -e
 
-    const appBundle = downloadedFiles.find((name) => name.endsWith(".app"));
-    if (!appBundle) return;
+# 等待旧应用完全退出
+sleep 2
 
-    const appPath = join(updateDir, appBundle);
-    console.log(`[Updater] 对更新包执行 ad-hoc 重签名: ${appPath}`);
+# 删除旧版本
+rm -rf '${currentAppPath}'
 
-    // 移除旧的失效签名
-    execSync(`codesign --remove-signature "${appPath}"`, {
-      stdio: "pipe",
-    });
-  } catch {
-    // 移除签名失败不是致命错误，继续执行
-  }
+# 把新应用拷贝到 Applications
+cp -R '${updateAppPath}' '${currentAppPath}'
 
-  try {
-    const appBundle = execSync(`ls "${updateDir}"`, { encoding: "utf-8" })
-      .trim()
-      .split("\n")
-      .find((name) => name.endsWith(".app"));
+# 启动新版本
+open '${currentAppPath}'
 
-    if (!appBundle) return;
-    const appPath = join(updateDir, appBundle);
+# 清理临时目录
+rm -rf '${tmpDir}'
+`;
+  writeFileSync(scriptPath, script, { mode: 0o755 });
 
-    // ad-hoc 重签名
-    execSync(`codesign --force --deep --sign - "${appPath}"`, {
-      stdio: "pipe",
-    });
-    console.log(`[Updater] 更新包 ad-hoc 重签名完成: ${appPath}`);
-  } catch (error) {
-    console.error("[Updater] ad-hoc 重签名失败:", error);
-  }
+  spawn("/bin/sh", [scriptPath], {
+    detached: true,
+    stdio: "ignore",
+    cwd: "/",
+  }).unref();
 }
 
 export class AppUpdateController {
@@ -104,6 +101,8 @@ export class AppUpdateController {
   private readonly listeners = new Set<UpdateListener>();
   private cancellationToken: ElectronUpdaterCancellationToken | null = null;
   private state: AppUpdateState;
+  /** macOS 上下载完成后的更新包 .app 路径（用于绕过 ShipIt 的替换脚本） */
+  private pendingUpdateAppPath: string | null = null;
 
   constructor(options: AppUpdateControllerOptions = {}) {
     this.app = options.app ?? app;
@@ -227,15 +226,11 @@ export class AppUpdateController {
         this.cancellationToken,
       );
 
-      // 下载完成后立即对更新包执行 ad-hoc 重签名
-      // 避免 ShipIt 替换应用时因签名失效而报错
+      // 记录下载后的 .app 路径，installUpdate 时绕过 ShipIt 直接替换
       if (process.platform === "darwin" && downloadedFiles.length > 0) {
-        // electron-updater 下载后返回的是解压后的文件列表
-        // 第一个 .app 所在的目录即为更新缓存目录
         const firstApp = downloadedFiles.find((f) => f.endsWith(".app"));
         if (firstApp) {
-          const updateDir = firstApp.substring(0, firstApp.lastIndexOf("/"));
-          reSignUpdateApp(updateDir);
+          this.pendingUpdateAppPath = firstApp;
         }
       }
     } catch (error) {
@@ -253,12 +248,30 @@ export class AppUpdateController {
   }
 
   installUpdate(): void {
-    this.updater.quitAndInstall(false, true);
+    if (process.platform === "darwin" && this.pendingUpdateAppPath) {
+      // macOS: 绕过 ShipIt 签名验证，用独立脚本直接替换 .app
+      const currentAppPath = this.getAppBundlePath();
+      spawnReplaceScript(this.pendingUpdateAppPath, currentAppPath);
+      app.quit();
+    } else {
+      this.updater.quitAndInstall(false, true);
+    }
   }
 
   async openRepository(): Promise<boolean> {
     await this.shell.openExternal(APP_REPOSITORY_URL);
     return true;
+  }
+
+  /**
+   * 获取当前运行应用的 .app 包路径
+   * 例如 /Applications/Keep Notes.app
+   */
+  private getAppBundlePath(): string {
+    // app.getPath("exe") 返回:
+    //   macOS: /Applications/Keep Notes.app/Contents/MacOS/Keep Notes
+    // 向上两级到 Contents，再向上一级到 .app
+    return dirname(dirname(dirname(this.app.getPath("exe"))));
   }
 
   private registerUpdaterEvents(): void {

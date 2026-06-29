@@ -7,6 +7,7 @@ vi.mock("electron", () => ({
   app: {
     getVersion: () => "2.0.0",
     isPackaged: true,
+    getPath: () => "/Applications/Keep Notes.app/Contents/MacOS/Keep Notes",
   },
   shell: {
     openExternal: vi.fn(),
@@ -44,6 +45,7 @@ describe("AppUpdateController", () => {
       app: {
         getVersion: () => "2.0.0",
         isPackaged: true,
+        getPath: () => "/Applications/Keep Notes.app/Contents/MacOS/Keep Notes",
       },
       updater: updater as never,
       shell: {
