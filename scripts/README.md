@@ -58,6 +58,35 @@ pnpm dev:signed
 
 ---
 
+### `sign-electron-dev.mjs`
+
+**功能：** 为开发环境依赖中的 Electron.app 进行 ad-hoc 签名
+
+**使用场景：**
+- 执行 `pnpm install` 后自动运行
+- `node_modules/electron/dist/Electron.app` 被重新下载或覆盖后
+- `pnpm dev` 启动时出现 Electron.app 签名校验失败、`SIGABRT` 或类似 macOS 启动异常时
+
+**使用方法：**
+```bash
+node scripts/sign-electron-dev.mjs
+```
+
+**工作流程：**
+1. 非 macOS 系统直接跳过
+2. 通过 `require("electron")` 定位当前依赖中的 Electron 可执行文件
+3. 找到对应的 `node_modules/electron/dist/Electron.app`
+4. 先执行 `codesign --verify --deep --strict` 检查签名
+5. 签名有效时不做任何修改
+6. 签名无效时使用 `build/entitlements.mac.plist` 执行本地 ad-hoc 签名
+
+**注意事项：**
+- 该脚本只处理 `pnpm dev` 使用的依赖内 Electron.app
+- 不负责签名打包后的 `dist/mac* /Keep Notes.app`
+- 通常不需要手动执行，`postinstall` 会在安装依赖后自动处理
+
+---
+
 ## 工作原理
 
 ### 混合开发模式
@@ -109,6 +138,8 @@ A: macOS 对未签名的应用有诸多限制，特别是：
 
 ad-hoc 签名（`-`）是一种免费的本地签名方式，可以让应用获得基本的原生身份。
 
+`pnpm dev` 使用的是 `node_modules/electron/dist/Electron.app`。重新安装依赖或切换 Electron 版本后，这个开发用 Electron.app 可能被重新下载，导致本地签名丢失或校验失败。把 `sign-electron-dev.mjs` 放到 `postinstall` 中，可以在依赖安装完成后自动修复开发 Electron.app 的签名，避免再次出现启动异常。
+
 ### Q: 热更新不工作怎么办？
 
 A: 检查以下几点：
@@ -136,6 +167,9 @@ pnpm sign
 
 # 启动混合开发模式（签名 + 热更新）
 pnpm dev:signed
+
+# 手动签名开发依赖中的 Electron.app
+node scripts/sign-electron-dev.mjs
 
 # 传统开发模式（无原生身份）
 pnpm dev

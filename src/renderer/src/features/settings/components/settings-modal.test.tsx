@@ -67,10 +67,14 @@ describe("SettingsModal about tab", () => {
       "background-color: transparent",
     );
 
+    await waitFor(() => {
+      expect(window.electronAPI.checkForUpdates).toHaveBeenCalledTimes(1);
+    });
+
     fireEvent.click(checkButton);
 
     await waitFor(() => {
-      expect(window.electronAPI.checkForUpdates).toHaveBeenCalledTimes(1);
+      expect(window.electronAPI.checkForUpdates).toHaveBeenCalledTimes(2);
     });
   });
 

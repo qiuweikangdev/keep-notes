@@ -87,10 +87,17 @@ describe("resolveWindowOpenTarget", () => {
 });
 
 describe("createWindow", () => {
-  it("uses the app icon for Windows and Linux development windows", () => {
+  it("configures the app icon for the current platform", () => {
     createWindow();
 
-    expect(BrowserWindowMock).toHaveBeenCalledWith(
+    const [options] = BrowserWindowMock.mock.calls[0];
+
+    if (process.platform === "darwin") {
+      expect(options).not.toHaveProperty("icon");
+      return;
+    }
+
+    expect(options).toEqual(
       expect.objectContaining({
         icon: "mock-icon.png",
       }),
