@@ -1,3 +1,6 @@
+import { execSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { app, shell } from "electron";
 import electronUpdater from "electron-updater";
 import type {
@@ -41,6 +44,56 @@ interface AppUpdateControllerOptions {
   updater?: UpdaterLike;
   shell?: ShellLike;
   createCancellationToken?: () => ElectronUpdaterCancellationToken;
+}
+
+/**
+ * 对下载好的更新包执行 ad-hoc 重签名，绕过 macOS ShipIt 的签名验证。
+ * electron-updater 在 macOS 上将更新下载到 ShipIt 缓存目录后，
+ * ShipIt 在替换应用前会验证代码签名，ad-hoc 签名因跨机器/跨路径失效。
+ */
+function reSignUpdateApp(updateDir: string): void {
+  // 找到 ShipIt 缓存目录下的 .app 包
+  // 典型路径: ~/Library/Caches/com.keep-notes.ShipIt/update.XXXXX/
+  if (!existsSync(updateDir)) return;
+
+  try {
+    const downloadedFiles = execSync(`ls "${updateDir}"`, {
+      encoding: "utf-8",
+    })
+      .trim()
+      .split("\n");
+
+    const appBundle = downloadedFiles.find((name) => name.endsWith(".app"));
+    if (!appBundle) return;
+
+    const appPath = join(updateDir, appBundle);
+    console.log(`[Updater] 对更新包执行 ad-hoc 重签名: ${appPath}`);
+
+    // 移除旧的失效签名
+    execSync(`codesign --remove-signature "${appPath}"`, {
+      stdio: "pipe",
+    });
+  } catch {
+    // 移除签名失败不是致命错误，继续执行
+  }
+
+  try {
+    const appBundle = execSync(`ls "${updateDir}"`, { encoding: "utf-8" })
+      .trim()
+      .split("\n")
+      .find((name) => name.endsWith(".app"));
+
+    if (!appBundle) return;
+    const appPath = join(updateDir, appBundle);
+
+    // ad-hoc 重签名
+    execSync(`codesign --force --deep --sign - "${appPath}"`, {
+      stdio: "pipe",
+    });
+    console.log(`[Updater] 更新包 ad-hoc 重签名完成: ${appPath}`);
+  } catch (error) {
+    console.error("[Updater] ad-hoc 重签名失败:", error);
+  }
 }
 
 export class AppUpdateController {
@@ -170,7 +223,21 @@ export class AppUpdateController {
     });
 
     try {
-      await this.updater.downloadUpdate(this.cancellationToken);
+      const downloadedFiles = await this.updater.downloadUpdate(
+        this.cancellationToken,
+      );
+
+      // 下载完成后立即对更新包执行 ad-hoc 重签名
+      // 避免 ShipIt 替换应用时因签名失效而报错
+      if (process.platform === "darwin" && downloadedFiles.length > 0) {
+        // electron-updater 下载后返回的是解压后的文件列表
+        // 第一个 .app 所在的目录即为更新缓存目录
+        const firstApp = downloadedFiles.find((f) => f.endsWith(".app"));
+        if (firstApp) {
+          const updateDir = firstApp.substring(0, firstApp.lastIndexOf("/"));
+          reSignUpdateApp(updateDir);
+        }
+      }
     } catch (error) {
       if (this.state.status === "canceled") return this.getState();
       this.cancellationToken = null;
