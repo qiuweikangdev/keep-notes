@@ -19,3 +19,13 @@ Keep Notes 致力于提供纯粹、流畅的写作体验，让用户专注于记
 - **多面板管理**
   支持多面板布局，便于同时查看、编辑和管理多个笔记内容。
 
+
+
+## 安装问题
+
+- 首次在 Mac 上打开 Keep Notes 应用时，您会收到“Keep Notes 应用已损坏，无法打开”的错误提示。要解决此问题，请在终端输入如下命令，来解除 Keep Notes 应用的隔离
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Keep Notes.app"
+```
+
