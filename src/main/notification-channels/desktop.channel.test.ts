@@ -18,6 +18,11 @@ const electronMocks = vi.hoisted(() => {
   };
 });
 
+const appNotificationMocks = vi.hoisted(() => ({
+  isSupported: vi.fn(() => true),
+  show: vi.fn(() => Promise.resolve()),
+}));
+
 vi.mock("electron", () => ({
   Notification: class {
     static isSupported = electronMocks.isSupported;
@@ -25,6 +30,11 @@ vi.mock("electron", () => ({
     on = electronMocks.on;
     once = electronMocks.once;
   },
+}));
+
+vi.mock("../app-notification", () => ({
+  createAppNotification: vi.fn(() => ({ show: appNotificationMocks.show })),
+  isAppNotificationSupported: appNotificationMocks.isSupported,
 }));
 
 const reminder: Reminder = {
@@ -44,34 +54,32 @@ describe("DesktopChannel", () => {
     vi.clearAllMocks();
     electronMocks.handlers.clear();
     electronMocks.isSupported.mockReturnValue(true);
+    appNotificationMocks.isSupported.mockReturnValue(true);
   });
 
-  it("shows a test desktop notification when supported", async () => {
+  it("shows a test desktop notification with the custom notification window", async () => {
     const channel = new DesktopChannel();
 
     await expect(channel.test()).resolves.toEqual({ success: true });
 
-    expect(electronMocks.show).toHaveBeenCalledTimes(1);
-    expect(electronMocks.once).toHaveBeenCalledWith(
-      "failed",
-      expect.any(Function),
-    );
+    expect(appNotificationMocks.show).toHaveBeenCalledTimes(1);
+    expect(electronMocks.show).not.toHaveBeenCalled();
   });
 
   it("reports unsupported desktop notification environments", async () => {
-    electronMocks.isSupported.mockReturnValue(false);
+    appNotificationMocks.isSupported.mockReturnValue(false);
     const channel = new DesktopChannel();
 
     await expect(channel.test()).resolves.toEqual({
       success: false,
-      error: "当前运行环境不支持系统桌面通知",
+      error: "当前运行环境不支持应用通知窗口",
     });
   });
 
-  it("reports native desktop notification failures", async () => {
-    electronMocks.show.mockImplementationOnce(() => {
-      electronMocks.handlers.get("failed")?.({}, "Notifications unavailable");
-    });
+  it("reports custom notification window failures", async () => {
+    appNotificationMocks.show.mockRejectedValueOnce(
+      new Error("Notifications unavailable"),
+    );
     const channel = new DesktopChannel();
 
     await expect(channel.test()).resolves.toEqual({
@@ -85,6 +93,7 @@ describe("DesktopChannel", () => {
 
     await channel.send(reminder);
 
-    expect(electronMocks.show).toHaveBeenCalledTimes(1);
+    expect(appNotificationMocks.show).toHaveBeenCalledTimes(1);
+    expect(electronMocks.show).not.toHaveBeenCalled();
   });
 });

@@ -58,7 +58,7 @@ export function NotificationSettings() {
     setTestResult(null);
   };
 
-  /** 发送系统桌面通知测试，确认系统权限和 Electron 通知链路是否可用 */
+  /** 发送自定义桌面通知测试，确认主进程通知窗口可用 */
   const handleTestDesktopNotification = async () => {
     setIsTestingDesktop(true);
     setDesktopTestResult(null);
@@ -103,7 +103,7 @@ export function NotificationSettings() {
     <div className="space-y-0">
       {/* 桌面通知 */}
       <div style={{ borderBottom: "1px solid var(--border-color)" }}>
-        <SettingRow label="桌面通知" description="提醒到期时显示系统桌面通知">
+        <SettingRow label="桌面通知" description="提醒到期时显示应用通知弹窗">
           <div className="flex items-center gap-2">
             <Button
               type="button"
@@ -161,6 +161,24 @@ export function NotificationSettings() {
             )}
           </div>
         ) : null}
+      </div>
+
+      <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+        <SettingRow
+          label="持续显示"
+          description="提醒通知保持显示，直到点击确认"
+        >
+          <Switch
+            checked={config.desktop.requireInteraction}
+            disabled={!config.desktop.enabled}
+            onCheckedChange={(checked) => {
+              void updateConfig({
+                desktop: { requireInteraction: checked },
+              });
+              setDesktopTestResult(null);
+            }}
+          />
+        </SettingRow>
       </div>
 
       {/* 邮箱推送开关 */}

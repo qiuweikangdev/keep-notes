@@ -1,15 +1,15 @@
 import type { Reminder } from "../../shared/types";
 import {
-  createDesktopNotification,
-  isDesktopNotificationSupported,
-} from "../desktop-notification";
+  createAppNotification,
+  isAppNotificationSupported,
+} from "../app-notification";
 import type { NotificationChannel } from "./channel.interface";
 
 async function showDesktopNotification(
   title: string,
   body: string,
 ): Promise<void> {
-  await createDesktopNotification({ title, body }).show();
+  await createAppNotification({ title, body }).show();
 }
 
 export class DesktopChannel implements NotificationChannel {
@@ -25,10 +25,10 @@ export class DesktopChannel implements NotificationChannel {
 
   /** 发送一条测试通知，用于确认 Electron 与系统通知配置是否打通。 */
   async test(): Promise<{ success: boolean; error?: string }> {
-    if (!isDesktopNotificationSupported()) {
+    if (!isAppNotificationSupported()) {
       return {
         success: false,
-        error: "当前运行环境不支持系统桌面通知",
+        error: "当前运行环境不支持应用通知窗口",
       };
     }
 

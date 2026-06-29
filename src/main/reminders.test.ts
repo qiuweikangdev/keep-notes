@@ -1,5 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
-import type { Reminder, ReminderInput } from "../shared/types";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type {
+  NotificationConfig,
+  Reminder,
+  ReminderInput,
+} from "../shared/types";
+import { DEFAULT_NOTIFICATION_CONFIG } from "../shared/types";
 import {
   ReminderService,
   calculateNextReminderDate,
@@ -34,6 +39,7 @@ function createTestService(
     showNotification?: ReturnType<typeof vi.fn>;
     scheduleTimer?: ReturnType<typeof vi.fn>;
     broadcastTriggered?: ReturnType<typeof vi.fn>;
+    notificationConfig?: NotificationConfig;
   } = {},
 ) {
   const saved: Reminder[][] = [];
@@ -54,6 +60,8 @@ function createTestService(
     openFileInNewWindow,
     broadcast,
     broadcastTriggered: options.broadcastTriggered,
+    getNotificationConfig: () =>
+      options.notificationConfig ?? DEFAULT_NOTIFICATION_CONFIG,
   });
 
   return {
@@ -142,6 +150,10 @@ describe("calculateNextReminderDate", () => {
 });
 
 describe("ReminderService", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("creates reminders with derived file names and timestamps", async () => {
     const { service, saved, broadcast } = createTestService();
     await service.load();
@@ -203,6 +215,28 @@ describe("ReminderService", () => {
       id: reminder.id,
       lastNotifiedAt: "2026-06-21T09:00:00.000Z",
     });
+  });
+
+  it("passes persistent desktop notification preference to the notification window", async () => {
+    const showNotification = vi.fn(() => ({ show: vi.fn() }));
+    const { service } = createTestService({
+      now: new Date("2026-06-21T09:01:00.000Z"),
+      notificationConfig: {
+        ...DEFAULT_NOTIFICATION_CONFIG,
+        desktop: { enabled: true, requireInteraction: true },
+      },
+      showNotification,
+    });
+    await service.load();
+    await service.create(baseInput);
+
+    await service.processDueReminders();
+
+    expect(showNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Read notes" }),
+      expect.any(Function),
+      expect.objectContaining({ requireInteraction: true }),
+    );
   });
 
   it("schedules newly created overdue reminders to notify immediately", async () => {

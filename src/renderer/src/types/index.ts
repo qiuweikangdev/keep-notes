@@ -20,6 +20,7 @@ export type {
   ReminderRepeatPreset,
   ReminderRepeatUnit,
   NotificationChannelType,
+  DesktopChannelConfig,
   NotificationConfig,
 } from "@shared/types";
 

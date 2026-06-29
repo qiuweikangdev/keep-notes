@@ -27,13 +27,16 @@ export class NotificationChannelManager {
 
   /** 获取当前通知配置的副本 */
   getConfig(): NotificationConfig {
-    return { ...this.config };
+    return {
+      desktop: { ...this.config.desktop },
+      email: { ...this.config.email },
+    };
   }
 
   /** 更新通知配置并同步到邮件渠道 */
   updateConfig(config: NotificationConfig): void {
-    this.config = { ...config };
-    this.emailChannel.updateConfig(config.email);
+    this.config = this.normalizeConfig(config);
+    this.emailChannel.updateConfig(this.config.email);
   }
 
   /** 从 JSON 文件加载通知配置，文件不存在时使用默认配置 */
@@ -42,10 +45,9 @@ export class NotificationChannelManager {
       const content = await fs.promises.readFile(this.getConfigPath(), "utf-8");
       const parsed = JSON.parse(content) as unknown;
       if (parsed && typeof parsed === "object") {
-        this.config = {
-          ...DEFAULT_NOTIFICATION_CONFIG,
-          ...(parsed as Partial<NotificationConfig>),
-        };
+        this.config = this.normalizeConfig(
+          parsed as Partial<NotificationConfig>,
+        );
         this.emailChannel.updateConfig(this.config.email);
       }
     } catch (error) {
@@ -96,6 +98,22 @@ export class NotificationChannelManager {
   /** 获取通知配置文件路径 */
   private getConfigPath(): string {
     return join(app.getPath("userData"), "notification-config.json");
+  }
+
+  /** 合并默认配置，兼容旧版本缺少的新字段。 */
+  private normalizeConfig(
+    config: Partial<NotificationConfig>,
+  ): NotificationConfig {
+    return {
+      desktop: {
+        ...DEFAULT_NOTIFICATION_CONFIG.desktop,
+        ...config.desktop,
+      },
+      email: {
+        ...DEFAULT_NOTIFICATION_CONFIG.email,
+        ...config.email,
+      },
+    };
   }
 }
 

@@ -225,6 +225,11 @@ export interface MenuActionOptions {
 
 export type NotificationChannelType = "desktop" | "email" | "feishu";
 
+export interface DesktopChannelConfig {
+  enabled: boolean;
+  requireInteraction: boolean;
+}
+
 export interface EmailChannelConfig {
   enabled: boolean;
   smtpHost: string;
@@ -235,12 +240,12 @@ export interface EmailChannelConfig {
 }
 
 export interface NotificationConfig {
-  desktop: { enabled: boolean };
+  desktop: DesktopChannelConfig;
   email: EmailChannelConfig;
 }
 
 export const DEFAULT_NOTIFICATION_CONFIG: NotificationConfig = {
-  desktop: { enabled: true },
+  desktop: { enabled: true, requireInteraction: false },
   email: {
     enabled: false,
     smtpHost: "smtp.qq.com",

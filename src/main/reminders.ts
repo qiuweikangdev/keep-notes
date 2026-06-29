@@ -4,12 +4,13 @@ import { app } from "electron";
 import type {
   Reminder,
   ReminderInput,
+  NotificationConfig,
   ReminderRepeatCustomRule,
   ReminderRepeatPreset,
   ReminderRepeatUnit,
 } from "../shared/types";
 import { notificationChannelManager } from "./notification-channels/manager";
-import { createDesktopNotification } from "./desktop-notification";
+import { createAppNotification } from "./app-notification";
 import { openPathInNewWindow } from "./window";
 
 const MAX_TIMER_DELAY = 2_147_483_647;
@@ -22,6 +23,10 @@ interface NotificationHandle {
   show: () => void | Promise<void>;
 }
 
+interface ReminderNotificationOptions {
+  requireInteraction: boolean;
+}
+
 interface ReminderServiceDeps {
   readReminders?: () => Promise<Reminder[]>;
   writeReminders?: (reminders: Reminder[]) => Promise<void>;
@@ -31,7 +36,9 @@ interface ReminderServiceDeps {
   showNotification?: (
     reminder: Reminder,
     onClick: () => void,
+    options: ReminderNotificationOptions,
   ) => NotificationHandle;
+  getNotificationConfig?: () => NotificationConfig;
   openFileInNewWindow?: (filePath: string) => Promise<boolean>;
   broadcast?: (reminders: Reminder[]) => void;
   broadcastTriggered?: (reminder: Reminder) => void;
@@ -134,11 +141,15 @@ export function calculateNextReminderDate(
 function createDefaultNotification(
   reminder: Reminder,
   onClick: () => void,
+  options: ReminderNotificationOptions,
 ): NotificationHandle {
-  return createDesktopNotification(
+  return createAppNotification(
     {
       title: reminder.title,
       body: reminder.fileName || "提醒事项",
+      detail: new Date(reminder.scheduledAt).toLocaleString("zh-CN"),
+      openLabel: reminder.filePath ? "打开" : undefined,
+      requireInteraction: options.requireInteraction,
     },
     onClick,
   );
@@ -165,7 +176,9 @@ export class ReminderService {
   private readonly showNotification: (
     reminder: Reminder,
     onClick: () => void,
+    options: ReminderNotificationOptions,
   ) => NotificationHandle;
+  private readonly getNotificationConfig: () => NotificationConfig;
   private readonly openFileInNewWindow: (filePath: string) => Promise<boolean>;
   private broadcast: (reminders: Reminder[]) => void;
   private broadcastTriggered: (reminder: Reminder) => void;
@@ -177,6 +190,9 @@ export class ReminderService {
     this.createId = deps.createId ?? createReminderId;
     this.scheduleTimer = deps.scheduleTimer ?? createDefaultTimer;
     this.showNotification = deps.showNotification ?? createDefaultNotification;
+    this.getNotificationConfig =
+      deps.getNotificationConfig ??
+      (() => notificationChannelManager.getConfig());
     this.openFileInNewWindow = deps.openFileInNewWindow ?? openPathInNewWindow;
     this.broadcast = deps.broadcast ?? (() => undefined);
     this.broadcastTriggered = deps.broadcastTriggered ?? (() => undefined);
@@ -304,7 +320,7 @@ export class ReminderService {
   }
 
   private async notify(reminder: Reminder): Promise<void> {
-    const config = notificationChannelManager.getConfig();
+    const config = this.getNotificationConfig();
 
     // 系统通知可能被操作系统权限拦截，先广播给渲染进程显示应用内提醒兜底。
     this.broadcastTriggered({ ...reminder });
@@ -312,12 +328,18 @@ export class ReminderService {
     // 桌面通知受配置控制
     if (config.desktop.enabled) {
       try {
-        const notification = this.showNotification(reminder, () => {
-          // 无关联文件的提醒只展示通知，不触发文件打开动作。
-          if (reminder.filePath) {
-            void this.openFileInNewWindow(reminder.filePath);
-          }
-        });
+        const notification = this.showNotification(
+          reminder,
+          () => {
+            // 无关联文件的提醒只展示通知，不触发文件打开动作。
+            if (reminder.filePath) {
+              void this.openFileInNewWindow(reminder.filePath);
+            }
+          },
+          {
+            requireInteraction: config.desktop.requireInteraction,
+          },
+        );
         await notification.show();
       } catch (error) {
         console.error("Failed to show desktop reminder notification:", error);
