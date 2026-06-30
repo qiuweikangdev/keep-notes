@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join } from "node:path";
 import { BrowserWindow, shell } from "electron";
 import htmlToDocx from "html-to-docx";
@@ -24,6 +24,13 @@ const markdownRenderer = new MarkdownIt({
   breaks: true,
 });
 
+interface CaptureRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -46,14 +53,67 @@ function getExportDirectory(filePath: string, config: ExportConfig): string {
   return dirname(filePath);
 }
 
+async function pathExists(filePath: string): Promise<boolean> {
+  try {
+    await access(filePath);
+    return true;
+  } catch (error) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "ENOENT"
+    ) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+async function getUniqueExportBaseName(
+  outputDirectory: string,
+  baseName: string,
+  formats: ExportFormat[],
+): Promise<string> {
+  let copyIndex = 0;
+
+  while (true) {
+    const candidateBaseName =
+      copyIndex === 0 ? baseName : `${baseName}-副本${copyIndex}`;
+    const hasConflict = await Promise.all(
+      formats.map((format) =>
+        pathExists(
+          join(
+            outputDirectory,
+            `${candidateBaseName}${EXPORT_EXTENSIONS[format]}`,
+          ),
+        ),
+      ),
+    ).then((results) => results.some(Boolean));
+
+    if (!hasConflict) {
+      return candidateBaseName;
+    }
+
+    copyIndex += 1;
+  }
+}
+
+function removeEmptyTableHeaders(html: string): string {
+  return html.replace(
+    /<thead>\s*<tr>\s*((?:<th(?:\s[^>]*)?>\s*<\/th>\s*)+)<\/tr>\s*<\/thead>\s*/g,
+    "",
+  );
+}
+
 function createDocumentStyles(): string {
   return `
+    @page { margin: 0; }
     :root { color-scheme: light; }
     body {
       box-sizing: border-box;
-      margin: 0 auto;
-      max-width: 900px;
-      padding: 40px;
+      margin: 0;
+      padding: 24px;
       color: #1f2328;
       background: #ffffff;
       font: 14px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -67,6 +127,8 @@ function createDocumentStyles(): string {
     h2 { font-size: 22px; border-bottom: 1px solid #d8dee4; padding-bottom: 0.25em; }
     h3 { font-size: 18px; }
     p, blockquote, ul, ol, table, pre { margin: 0 0 16px; }
+    body > :first-child { margin-top: 0; }
+    body > :last-child { margin-bottom: 0; }
     ul, ol { padding-left: 1.5em; }
     li + li { margin-top: 0.25em; }
     blockquote {
@@ -109,7 +171,9 @@ function createDocumentStyles(): string {
 }
 
 export function createHtmlDocument(markdown: string, title: string): string {
-  const bodyContent = markdownRenderer.render(markdown);
+  const bodyContent = removeEmptyTableHeaders(
+    markdownRenderer.render(markdown),
+  );
 
   return `<!doctype html>
 <html lang="zh-CN">
@@ -160,37 +224,74 @@ async function createPdfDocument(html: string): Promise<Buffer> {
     return window.webContents.printToPDF({
       printBackground: true,
       margins: {
-        marginType: "default",
+        marginType: "none",
       },
     });
   });
 }
 
-async function getDocumentHeight(window: BrowserWindow): Promise<number> {
-  const height = await window.webContents.executeJavaScript(
-    `Math.ceil(Math.max(
-      document.body.scrollHeight,
-      document.body.offsetHeight,
-      document.documentElement.clientHeight,
-      document.documentElement.scrollHeight,
-      document.documentElement.offsetHeight
-    ))`,
+async function getDocumentCaptureRect(
+  window: BrowserWindow,
+): Promise<CaptureRect> {
+  const rect = await window.webContents.executeJavaScript(
+    `(() => {
+      const elements = Array.from(document.body.children);
+      if (elements.length === 0) {
+        return { x: 0, y: 0, width: 960, height: 320 };
+      }
+      const bounds = elements.reduce((current, element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          left: Math.min(current.left, rect.left),
+          top: Math.min(current.top, rect.top),
+          right: Math.max(current.right, rect.right),
+          bottom: Math.max(current.bottom, rect.bottom),
+        };
+      }, {
+        left: Number.POSITIVE_INFINITY,
+        top: Number.POSITIVE_INFINITY,
+        right: 0,
+        bottom: 0,
+      });
+      return {
+        x: Math.max(0, Math.floor(bounds.left)),
+        y: Math.max(0, Math.floor(bounds.top)),
+        width: Math.ceil(bounds.right - bounds.left),
+        height: Math.ceil(bounds.bottom - bounds.top),
+      };
+    })()`,
     true,
   );
 
-  if (typeof height !== "number" || !Number.isFinite(height)) {
-    return 1200;
+  if (!isCaptureRect(rect)) {
+    return { height: 1200, width: 960, x: 0, y: 0 };
   }
 
-  return Math.min(Math.max(height, 320), 12000);
+  return {
+    height: Math.min(Math.max(rect.height, 320), 12000),
+    width: Math.min(Math.max(rect.width, 320), 12000),
+    x: Math.max(rect.x, 0),
+    y: Math.max(rect.y, 0),
+  };
+}
+
+function isCaptureRect(value: unknown): value is CaptureRect {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const rect = value as Record<string, unknown>;
+  return ["height", "width", "x", "y"].every(
+    (key) => typeof rect[key] === "number" && Number.isFinite(rect[key]),
+  );
 }
 
 async function createPngDocument(html: string): Promise<Buffer> {
   return withRenderedWindow(html, 960, 1200, async (window) => {
-    // 截图前按页面实际高度调整窗口，避免长表格只导出首屏。
-    const documentHeight = await getDocumentHeight(window);
-    window.setContentSize(960, documentHeight);
-    const image = await window.capturePage();
+    // 截图前按真实内容边界裁剪，避免把页面留白一起导出。
+    const rect = await getDocumentCaptureRect(window);
+    window.setContentSize(rect.x + rect.width, rect.y + rect.height);
+    const image = await window.capturePage(rect);
     return image.toPNG();
   });
 }
@@ -249,12 +350,17 @@ export async function exportFile(
   const filePaths: string[] = [];
 
   await mkdir(outputDirectory, { recursive: true });
+  const exportBaseName = await getUniqueExportBaseName(
+    outputDirectory,
+    baseName,
+    config.enabledFormats,
+  );
 
   // 按用户配置的格式逐个落盘，确保每种格式都基于同一份渲染后的文档内容。
   for (const format of config.enabledFormats) {
     const outputPath = join(
       outputDirectory,
-      `${baseName}${EXPORT_EXTENSIONS[format]}`,
+      `${exportBaseName}${EXPORT_EXTENSIONS[format]}`,
     );
     const content = await createExportContent(format, markdown, baseName);
 

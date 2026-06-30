@@ -6,7 +6,12 @@ import type { ExportConfig } from "../shared/types";
 
 const electronMocks = vi.hoisted(() => {
   const printToPDF = vi.fn(async () => Buffer.from("%PDF mocked 中文"));
-  const executeJavaScript = vi.fn(async () => 720);
+  const executeJavaScript = vi.fn(async () => ({
+    height: 720,
+    width: 840,
+    x: 24,
+    y: 24,
+  }));
   const loadURL = vi.fn(async () => undefined);
   const setContentSize = vi.fn();
   const capturePage = vi.fn(async () => ({
@@ -112,6 +117,39 @@ describe("exportFile", () => {
         printBackground: true,
       }),
     );
-    expect(electronMocks.setContentSize).toHaveBeenCalledWith(960, 720);
+    expect(electronMocks.setContentSize).toHaveBeenCalledWith(864, 744);
+
+    const copiedResult = await exportFile(sourcePath, config);
+
+    expect(copiedResult.filePaths).toEqual([
+      join(outputDirectory, "daily-副本1.md"),
+      join(outputDirectory, "daily-副本1.html"),
+      join(outputDirectory, "daily-副本1.pdf"),
+      join(outputDirectory, "daily-副本1.docx"),
+      join(outputDirectory, "daily-副本1.png"),
+    ]);
+  });
+
+  it("removes empty table headers from rendered markdown exports", async () => {
+    const { createHtmlDocument } = await import("./export-service");
+
+    const htmlContent = createHtmlDocument(
+      [
+        "# 导出表格",
+        "",
+        "| | | | |",
+        "| --- | --- | --- | --- |",
+        "| 1 | 2 | 3 | 4 |",
+        "| 11 | 22 | 33 | 44 |",
+      ].join("\n"),
+      "table",
+    );
+
+    expect(htmlContent).toContain("<table>");
+    expect(htmlContent).toContain("<tbody>");
+    expect(htmlContent).not.toContain("<thead>");
+    expect(htmlContent).not.toContain("<th></th>");
+    expect(htmlContent).toContain("<td>1</td>");
+    expect(htmlContent).toContain("<td>44</td>");
   });
 });
