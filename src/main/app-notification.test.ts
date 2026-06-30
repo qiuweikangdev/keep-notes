@@ -172,9 +172,9 @@ describe("createAppNotification", () => {
       expect(html).toContain('class="platform-mac"');
     } else {
       expect(windowOptions).toMatchObject({
-        width: 420,
-        height: 214,
-        y: 662,
+        width: 384,
+        height: 188,
+        y: 704,
       });
       expect(html).toContain('class="platform-windows"');
     }

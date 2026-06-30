@@ -8,9 +8,10 @@ import iconPath from "../../resources/icon.png?asset";
 const IS_MAC = process.platform === "darwin";
 const MAC_NOTIFICATION_WIDTH = 356;
 const MAC_NOTIFICATION_HEIGHT = 130;
-const WINDOWS_NOTIFICATION_WIDTH = 420;
-const WINDOWS_NOTIFICATION_HEIGHT = 214;
-const NOTIFICATION_MARGIN = 24;
+const MAC_NOTIFICATION_MARGIN = 24;
+const WINDOWS_NOTIFICATION_WIDTH = 384;
+const WINDOWS_NOTIFICATION_HEIGHT = 188;
+const WINDOWS_NOTIFICATION_MARGIN = 8;
 const AUTO_CLOSE_DELAY = 12_000;
 const NOTIFICATION_ACTION_PROTOCOL = "keep-notes-notification:";
 
@@ -296,21 +297,21 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       color: rgba(255, 255, 255, 0.96);
     }
     .platform-windows .content {
-      grid-template-columns: 38px 1fr;
-      gap: 14px;
-      padding: 22px 20px 0;
+      grid-template-columns: 34px 1fr;
+      gap: 12px;
+      padding: 18px 18px 0;
     }
     .platform-windows .app-icon {
-      width: 38px;
-      height: 38px;
-      border-radius: 9px;
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
     }
     .platform-windows .meta {
       margin-bottom: 0;
     }
     .platform-windows .app-name {
-      font-size: 17px;
-      line-height: 24px;
+      font-size: 15px;
+      line-height: 21px;
       font-weight: 600;
     }
     .platform-windows .time {
@@ -319,38 +320,38 @@ function createNotificationHtml(options: AppNotificationOptions): string {
     .platform-windows .window-actions {
       display: flex;
       padding-top: 0;
-      font-size: 22px;
+      font-size: 20px;
     }
     .platform-windows .title {
-      margin-top: 25px;
-      font-size: 24px;
-      line-height: 30px;
+      margin-top: 20px;
+      font-size: 21px;
+      line-height: 27px;
       font-weight: 650;
     }
     .platform-windows .body {
       margin-top: 2px;
-      font-size: 17px;
-      line-height: 23px;
+      font-size: 15px;
+      line-height: 20px;
       color: rgba(255, 255, 255, 0.72);
     }
     .platform-windows .detail {
-      margin-top: 8px;
-      font-size: 15px;
-      line-height: 20px;
+      margin-top: 6px;
+      font-size: 13px;
+      line-height: 18px;
       color: rgba(255, 255, 255, 0.54);
     }
     .platform-windows .actions {
       gap: 10px;
-      padding: 12px 20px 20px;
+      padding: 10px 18px 16px;
     }
     .platform-windows .button {
       flex: 1;
-      height: 40px;
+      height: 36px;
       border-radius: 6px;
       border: 1px solid rgba(255, 255, 255, 0.04);
       background: rgba(255, 255, 255, 0.12);
       color: rgba(255, 255, 255, 0.94);
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 500;
     }
     .platform-windows .button.primary {
@@ -359,8 +360,8 @@ function createNotificationHtml(options: AppNotificationOptions): string {
     }
     .platform-windows .clock-icon {
       display: block;
-      width: 20px;
-      height: 20px;
+      width: 18px;
+      height: 18px;
     }
     @media (prefers-reduced-motion: no-preference) {
       .notification {
@@ -414,12 +415,13 @@ function getNotificationBounds(): Electron.Rectangle {
   const { workArea } = display;
   const width = IS_MAC ? MAC_NOTIFICATION_WIDTH : WINDOWS_NOTIFICATION_WIDTH;
   const height = IS_MAC ? MAC_NOTIFICATION_HEIGHT : WINDOWS_NOTIFICATION_HEIGHT;
+  const margin = IS_MAC ? MAC_NOTIFICATION_MARGIN : WINDOWS_NOTIFICATION_MARGIN;
   const y = IS_MAC
-    ? workArea.y + NOTIFICATION_MARGIN
-    : workArea.y + workArea.height - height - NOTIFICATION_MARGIN;
+    ? workArea.y + margin
+    : workArea.y + workArea.height - height - margin;
 
   return {
-    x: Math.round(workArea.x + workArea.width - width - NOTIFICATION_MARGIN),
+    x: Math.round(workArea.x + workArea.width - width - margin),
     y: Math.round(y),
     width,
     height,
