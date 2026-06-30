@@ -1,5 +1,6 @@
 import { Dialog } from "@/components/ui/dialog";
 import { X } from "lucide-react";
+import type { MouseEvent } from "react";
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -25,18 +26,24 @@ export function ConfirmDialog({
     onOpenChange(false);
   };
 
+  const stopPortalClick = (event: MouseEvent) => {
+    event.stopPropagation();
+  };
+
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay
           className="fixed inset-0 z-50"
           style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
+          onClick={stopPortalClick}
         />
         <Dialog.Content
-          className="fixed left-[50%] top-[50%] z-50 w-full max-w-[400px] translate-x-[-50%] translate-y-[-50%] rounded-xl shadow-2xl overflow-hidden"
+          className="fixed left-[50%] top-[50%] z-50 w-full max-w-[400px] translate-x-[-50%] translate-y-[-50%] rounded-lg shadow-lg overflow-hidden"
           style={{
             backgroundColor: "var(--bg-secondary)",
           }}
+          onClick={stopPortalClick}
         >
           {/* 标题行：左侧标题 + 右侧关闭按钮 */}
           <div

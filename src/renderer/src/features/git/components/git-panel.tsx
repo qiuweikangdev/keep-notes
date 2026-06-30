@@ -1,4 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  type ReactNode,
+} from "react";
 import { useElectron } from "@/hooks/use-electron";
 import { useTreeStore } from "@/store/tree.store";
 import { useEditorStore } from "@/store/editor.store";
@@ -7,6 +13,12 @@ import { CodeResult } from "@/types";
 import type { GitStatus, GitBranch, GitCommitOptions } from "@/types";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  buildGitFileTree,
+  getGitStatusBadge,
+  getVisibleGitFilePaths,
+} from "../lib/git-status-view";
+import type { GitFileTreeNode, GitStatusBadge } from "../lib/git-status-view";
 import {
   GitBranch as GitBranchIcon,
   GitCommit,
@@ -34,9 +46,30 @@ interface GitPanelProps {
   onClose: () => void;
 }
 
-// 所有需要展示的文件（去重后）
-interface FileItem {
-  path: string;
+const normalizePanelGitPath = (filePath: string) =>
+  filePath.replace(/\\/g, "/");
+
+function GitPanelTooltip({
+  label,
+  children,
+  side = "top",
+  align = "center",
+}: {
+  label: string;
+  children: ReactNode;
+  side?: "top" | "bottom";
+  align?: "center" | "end";
+}) {
+  return (
+    <span
+      className={`git-panel-tooltip git-panel-tooltip--${side} git-panel-tooltip--align-${align}`}
+    >
+      {children}
+      <span className="git-panel-tooltip__content" role="tooltip">
+        {label}
+      </span>
+    </span>
+  );
 }
 
 export function GitPanel({ isOpen, onClose }: GitPanelProps) {
@@ -79,6 +112,10 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     filePath: string;
   }>({ open: false, filePath: "" });
   const [treeView, setTreeView] = useState(false);
+  const [expandedSections, setExpandedSections] = useState({
+    staged: true,
+    unstaged: true,
+  });
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
   const { openDiff, closeDiff, updateContent } = useDiffStore();
 
@@ -93,11 +130,11 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     try {
       setLoading(true);
       const detectResult = await detectGitRepo(dir);
-      if (detectResult.code === CodeResult.Success && detectResult.data) {
+      if (detectResult?.code === CodeResult.Success && detectResult.data) {
         setIsGitRepo(detectResult.data.isGitRepo);
         if (detectResult.data.isGitRepo) {
           const branchResult = await getBranches(dir);
-          if (branchResult.code === CodeResult.Success && branchResult.data) {
+          if (branchResult?.code === CodeResult.Success && branchResult.data) {
             setBranches(branchResult.data);
             const current = branchResult.data.find((b) => b.current);
             if (current) {
@@ -106,7 +143,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           }
 
           const statusResult = await getGitStatus(dir);
-          if (statusResult.code === CodeResult.Success && statusResult.data) {
+          if (statusResult?.code === CodeResult.Success && statusResult.data) {
             setGitStatus(statusResult.data);
             setStagedFiles(new Set(statusResult.data.staged));
           }
@@ -125,65 +162,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     }
   }, [isOpen, loadGitInfo]);
 
-  // 合并所有文件，去重
-  const getAllFiles = useCallback((): FileItem[] => {
-    if (!gitStatus) return [];
-
-    const fileSet = new Set<string>();
-
-    // 添加所有文件到集合中去重
-    gitStatus.staged.forEach((filePath) => fileSet.add(filePath));
-    gitStatus.modified.forEach((filePath) => fileSet.add(filePath));
-    gitStatus.not_added.forEach((filePath) => fileSet.add(filePath));
-    gitStatus.deleted.forEach((filePath) => fileSet.add(filePath));
-
-    return Array.from(fileSet).map((path) => ({ path }));
-  }, [gitStatus]);
-
-  // 树节点类型
-  interface TreeNode {
-    name: string;
-    path: string;
-    isFile: boolean;
-    children: TreeNode[];
-  }
-
-  // 将扁平文件路径转换为树形结构
-  const buildFileTree = useCallback((files: FileItem[]): TreeNode[] => {
-    const root: TreeNode[] = [];
-
-    files.forEach(({ path }) => {
-      const parts = path.split(/[/\\]/);
-      let current = root;
-
-      parts.forEach((part, index) => {
-        const isFile = index === parts.length - 1;
-        const existing = current.find((n) => n.name === part);
-
-        if (existing) {
-          if (!isFile) {
-            current = existing.children;
-          }
-        } else {
-          // 使用原始路径中的分隔符
-          const sep = path.includes("\\") ? "\\" : "/";
-          const node: TreeNode = {
-            name: part,
-            path: isFile ? path : parts.slice(0, index + 1).join(sep),
-            isFile,
-            children: [],
-          };
-          current.push(node);
-          if (!isFile) {
-            current = node.children;
-          }
-        }
-      });
-    });
-
-    return root;
-  }, []);
-
   // 切换目录展开状态
   const toggleDir = useCallback((dirPath: string) => {
     setExpandedDirs((prev) => {
@@ -197,13 +175,24 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     });
   }, []);
 
+  const toggleSection = useCallback((section: "staged" | "unstaged") => {
+    setExpandedSections((prev) => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
+  }, []);
+
   // 切换文件暂存状态
   const toggleFileStaging = useCallback(
     async (filePath: string) => {
       const dir = getCurrentDir();
       if (!dir) return;
 
-      const isCurrentlyStaged = stagedFiles.has(filePath);
+      const isCurrentlyStaged = Array.from(stagedFiles).some(
+        (stagedFilePath) =>
+          normalizePanelGitPath(stagedFilePath) ===
+          normalizePanelGitPath(filePath),
+      );
 
       try {
         if (isCurrentlyStaged) {
@@ -234,6 +223,10 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     async (branchName: string) => {
       const dir = getCurrentDir();
       if (!dir) return;
+      if (branchName === currentBranch) {
+        setShowBranchList(false);
+        return;
+      }
 
       try {
         setLoading(true);
@@ -252,7 +245,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         setLoading(false);
       }
     },
-    [getCurrentDir, switchBranch, loadGitInfo],
+    [getCurrentDir, currentBranch, switchBranch, loadGitInfo],
   );
 
   const handleCreateBranch = useCallback(async () => {
@@ -278,41 +271,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       setLoading(false);
     }
   }, [getCurrentDir, createBranch, loadGitInfo, newBranchName]);
-
-  const handleCommit = useCallback(
-    async (pushAfterCommit: boolean = false) => {
-      const dir = getCurrentDir();
-      if (!dir) return;
-
-      const message =
-        commitMessage.trim() || new Date().toLocaleString("zh-CN");
-
-      try {
-        setLoading(true);
-        const options: GitCommitOptions = {
-          message,
-          push: pushAfterCommit,
-        };
-        const result = await commitChanges(dir, options);
-        if (result.code === CodeResult.Success) {
-          setCommitMessage("");
-          await loadGitInfo();
-          await loadTree(dir);
-          showMessage(
-            "success",
-            pushAfterCommit ? "提交并推送成功" : "提交成功",
-          );
-        } else {
-          showMessage("error", result.message || "提交失败");
-        }
-      } catch (error) {
-        showMessage("error", "提交失败");
-      } finally {
-        setLoading(false);
-      }
-    },
-    [getCurrentDir, commitMessage, commitChanges, loadGitInfo, loadTree],
-  );
 
   const handlePush = useCallback(async () => {
     const dir = getCurrentDir();
@@ -446,41 +404,126 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     setConfirmDialog({ open: true, filePath });
   }, []);
 
-  const allFiles = getAllFiles();
-  const modifiedCount = gitStatus?.modified.length || 0;
-  const untrackedCount = gitStatus?.not_added.length || 0;
+  const allFiles = useMemo(() => {
+    if (!gitStatus) return [];
+
+    return getVisibleGitFilePaths(gitStatus).map((path) => ({
+      path,
+      badge: getGitStatusBadge(gitStatus, path),
+    }));
+  }, [gitStatus]);
+  const allFilePaths = useMemo(
+    () => allFiles.map((file) => file.path),
+    [allFiles],
+  );
+  const stagedFilePathSet = useMemo(
+    () => new Set(Array.from(stagedFiles).map(normalizePanelGitPath)),
+    [stagedFiles],
+  );
+  const isFileStaged = useCallback(
+    (filePath: string) =>
+      stagedFilePathSet.has(normalizePanelGitPath(filePath)),
+    [stagedFilePathSet],
+  );
+  const stagedFilePaths = useMemo(
+    () => allFilePaths.filter((path) => isFileStaged(path)),
+    [allFilePaths, isFileStaged],
+  );
+  const unstagedFilePaths = useMemo(
+    () => allFilePaths.filter((path) => !isFileStaged(path)),
+    [allFilePaths, isFileStaged],
+  );
+  const modifiedCount =
+    allFiles.filter((file) => file.badge?.kind === "modified").length || 0;
+  const addedCount =
+    allFiles.filter((file) => file.badge?.kind === "added").length || 0;
+  const deletedCount =
+    allFiles.filter((file) => file.badge?.kind === "deleted").length || 0;
+  const fileBadgeMap = useMemo(() => {
+    const badgeMap = new Map<string, GitStatusBadge | null>();
+    allFiles.forEach((file) => {
+      badgeMap.set(file.path, file.badge);
+      badgeMap.set(normalizePanelGitPath(file.path), file.badge);
+    });
+    return badgeMap;
+  }, [allFiles]);
+  const canCommit =
+    !loading &&
+    allFiles.length > 0 &&
+    (includeUntracked || stagedFilePaths.length > 0);
+
+  const handleCommit = useCallback(
+    async (pushAfterCommit: boolean = false) => {
+      const dir = getCurrentDir();
+      if (!dir) return;
+
+      const message =
+        commitMessage.trim() || new Date().toLocaleString("zh-CN");
+
+      try {
+        setLoading(true);
+        const options: GitCommitOptions = {
+          message,
+          push: pushAfterCommit,
+          files: includeUntracked ? undefined : stagedFilePaths,
+        };
+        const result = await commitChanges(dir, options);
+        if (result.code === CodeResult.Success) {
+          setCommitMessage("");
+          await loadGitInfo();
+          await loadTree(dir);
+          showMessage(
+            "success",
+            pushAfterCommit ? "提交并推送成功" : "提交成功",
+          );
+        } else {
+          showMessage("error", result.message || "提交失败");
+        }
+      } catch (error) {
+        showMessage("error", "提交失败");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [
+      getCurrentDir,
+      commitMessage,
+      includeUntracked,
+      stagedFilePaths,
+      commitChanges,
+      loadGitInfo,
+      loadTree,
+    ],
+  );
 
   // 获取目录下所有文件路径
   const getFilesInDir = useCallback(
     (dirPath: string): string[] => {
-      return allFiles
-        .filter(
-          (f) =>
-            f.path.startsWith(dirPath + "/") ||
-            f.path.startsWith(dirPath + "\\"),
-        )
-        .map((f) => f.path);
+      const normalizedDir = normalizePanelGitPath(dirPath);
+      return allFilePaths.filter((filePath) =>
+        normalizePanelGitPath(filePath).startsWith(normalizedDir + "/"),
+      );
     },
-    [allFiles],
+    [allFilePaths],
   );
 
   // 检查目录下所有文件是否都已暂存
   const isDirFullyStaged = useCallback(
     (dirPath: string): boolean => {
       const files = getFilesInDir(dirPath);
-      return files.length > 0 && files.every((f) => stagedFiles.has(f));
+      return files.length > 0 && files.every((f) => isFileStaged(f));
     },
-    [getFilesInDir, stagedFiles],
+    [getFilesInDir, isFileStaged],
   );
 
   // 检查目录下是否有部分文件已暂存
   const isDirPartiallyStaged = useCallback(
     (dirPath: string): boolean => {
       const files = getFilesInDir(dirPath);
-      const stagedCount = files.filter((f) => stagedFiles.has(f)).length;
+      const stagedCount = files.filter((f) => isFileStaged(f)).length;
       return stagedCount > 0 && stagedCount < files.length;
     },
-    [getFilesInDir, stagedFiles],
+    [getFilesInDir, isFileStaged],
   );
 
   // 切换目录下所有文件的暂存状态
@@ -529,6 +572,52 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     ],
   );
 
+  const stageFiles = useCallback(
+    async (files: string[]) => {
+      const dir = getCurrentDir();
+      if (!dir || files.length === 0) return;
+
+      try {
+        const result = await addFilesToStaging(dir, files);
+        if (result.code === CodeResult.Success) {
+          setStagedFiles((prev) => {
+            const next = new Set(prev);
+            files.forEach((filePath) => next.add(filePath));
+            return next;
+          });
+        } else {
+          showMessage("error", result.message || "暂存失败");
+        }
+      } catch (error) {
+        showMessage("error", "暂存失败");
+      }
+    },
+    [addFilesToStaging, getCurrentDir],
+  );
+
+  const unstageSelectedFiles = useCallback(
+    async (files: string[]) => {
+      const dir = getCurrentDir();
+      if (!dir || files.length === 0) return;
+
+      try {
+        const result = await unstageFiles(dir, files);
+        if (result.code === CodeResult.Success) {
+          setStagedFiles((prev) => {
+            const next = new Set(prev);
+            files.forEach((filePath) => next.delete(filePath));
+            return next;
+          });
+        } else {
+          showMessage("error", result.message || "取消暂存失败");
+        }
+      } catch (error) {
+        showMessage("error", "取消暂存失败");
+      }
+    },
+    [getCurrentDir, unstageFiles],
+  );
+
   // 放弃目录下所有文件的更改
   const handleDiscardDirChanges = useCallback(
     (dirPath: string) => {
@@ -557,7 +646,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         const files = getFilesInDir(dirPath);
 
         // 先取消暂存目录下的所有已暂存文件
-        const stagedInDir = files.filter((f) => stagedFiles.has(f));
+        const stagedInDir = files.filter((f) => isFileStaged(f));
         if (stagedInDir.length > 0) {
           await unstageFiles(dir, stagedInDir);
           setStagedFiles((prev) => {
@@ -603,7 +692,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         }
       } else {
         // 单文件：先取消暂存（如果已暂存），再放弃更改
-        if (stagedFiles.has(filePath)) {
+        if (isFileStaged(filePath)) {
           await unstageFiles(dir, [filePath]);
           setStagedFiles((prev) => {
             const next = new Set(prev);
@@ -647,9 +736,288 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     loadTree,
     getFilesInDir,
     stagedFiles,
+    isFileStaged,
     unstageFiles,
     openFileInEditor,
   ]);
+
+  const renderStatusBadge = (badge: GitStatusBadge | null | undefined) => {
+    if (!badge) return <span className="w-4 shrink-0" aria-hidden="true" />;
+
+    return (
+      <span
+        className="w-4 shrink-0 text-center text-xs font-semibold"
+        style={{ color: badge.color }}
+        title={`${badge.label}: ${badge.title}`}
+        aria-label={badge.title}
+      >
+        {badge.label}
+      </span>
+    );
+  };
+
+  const renderFileActions = (
+    filePath: string,
+    badge?: GitStatusBadge | null,
+  ) => (
+    <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+      <GitPanelTooltip label="查看差异" side="bottom">
+        <button
+          type="button"
+          onClick={() => handleDiffFile(filePath)}
+          data-theme-control="true"
+          className="rounded p-1 transition-colors hover:bg-[var(--hover-bg)]"
+          style={{ color: "var(--text-muted)" }}
+          title="查看差异"
+          aria-label="查看差异"
+        >
+          <GitCompare className="h-3.5 w-3.5" />
+        </button>
+      </GitPanelTooltip>
+      {badge?.kind !== "deleted" ? (
+        <GitPanelTooltip label="打开文件" side="bottom">
+          <button
+            type="button"
+            onClick={() => handleOpenFile(filePath)}
+            data-theme-control="true"
+            className="rounded p-1 transition-colors hover:bg-[var(--hover-bg)]"
+            style={{ color: "var(--text-muted)" }}
+            title="打开文件"
+            aria-label="打开文件"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+          </button>
+        </GitPanelTooltip>
+      ) : null}
+      <GitPanelTooltip label="放弃更改" side="bottom">
+        <button
+          type="button"
+          onClick={() => handleDiscardChanges(filePath)}
+          data-theme-control="true"
+          className="rounded p-1 transition-colors hover:bg-[var(--hover-bg)]"
+          style={{ color: "var(--text-muted)" }}
+          title="放弃更改"
+          aria-label="放弃更改"
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+        </button>
+      </GitPanelTooltip>
+    </div>
+  );
+
+  const renderFileRow = (
+    filePath: string,
+    label: string,
+    depth = 0,
+    showTreeGuide = false,
+  ) => {
+    const badge = fileBadgeMap.get(filePath);
+    const isDeleted = badge?.kind === "deleted";
+
+    return (
+      <div
+        key={filePath}
+        className="group flex h-8 items-center border-b text-sm transition-colors hover:bg-[var(--hover-bg)]"
+        style={{
+          borderColor: "var(--border-color)",
+          paddingLeft: `${12 + depth * 18}px`,
+        }}
+      >
+        {showTreeGuide ? <span className="w-3.5 shrink-0" /> : null}
+        <input
+          type="checkbox"
+          checked={isFileStaged(filePath)}
+          onChange={() => toggleFileStaging(filePath)}
+          className="mr-2 h-3.5 w-3.5 shrink-0 cursor-pointer rounded"
+          style={{ accentColor: "var(--accent-color)" }}
+          title={isFileStaged(filePath) ? "取消暂存" : "暂存更改"}
+        />
+        <File
+          className="mr-2 h-4 w-4 shrink-0"
+          style={{ color: "var(--text-muted)" }}
+        />
+        <span
+          className="min-w-0 flex-1 truncate"
+          style={{
+            color: isDeleted ? "var(--text-muted)" : "var(--text-primary)",
+            textDecoration: isDeleted ? "line-through" : "none",
+          }}
+          title={filePath}
+        >
+          {label}
+        </span>
+        <div className="ml-2 flex shrink-0 items-center gap-1">
+          {renderFileActions(filePath, badge)}
+          {renderStatusBadge(badge)}
+        </div>
+      </div>
+    );
+  };
+
+  const renderTreeNode = (node: GitFileTreeNode, depth = 0) => {
+    if (node.isFile) {
+      return renderFileRow(node.path, node.name, depth, true);
+    }
+
+    const isExpanded = expandedDirs.has(node.path);
+    const allStaged = isDirFullyStaged(node.path);
+    const partialStaged = isDirPartiallyStaged(node.path);
+
+    return (
+      <div key={node.path}>
+        <div
+          className="group flex h-8 items-center border-b text-sm transition-colors hover:bg-[var(--hover-bg)]"
+          style={{
+            borderColor: "var(--border-color)",
+            paddingLeft: `${12 + depth * 18}px`,
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => toggleDir(node.path)}
+            data-theme-control="true"
+            className="mr-1 rounded transition-colors hover:bg-[var(--hover-bg)]"
+            style={{ color: "var(--text-muted)" }}
+            aria-label={isExpanded ? "收起目录" : "展开目录"}
+          >
+            <ChevronRight
+              className="h-3.5 w-3.5 transition-transform"
+              style={{
+                transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
+              }}
+            />
+          </button>
+          <input
+            type="checkbox"
+            checked={allStaged}
+            ref={(el) => {
+              if (el) el.indeterminate = partialStaged;
+            }}
+            onChange={() => toggleDirStaging(node.path)}
+            className="mr-2 h-3.5 w-3.5 shrink-0 cursor-pointer rounded"
+            style={{ accentColor: "var(--accent-color)" }}
+            title={allStaged ? "取消暂存目录" : "暂存目录更改"}
+          />
+          {isExpanded ? (
+            <FolderOpen
+              className="mr-2 h-4 w-4 shrink-0"
+              style={{ color: "var(--text-muted)" }}
+            />
+          ) : (
+            <Folder
+              className="mr-2 h-4 w-4 shrink-0"
+              style={{ color: "var(--text-muted)" }}
+            />
+          )}
+          <span
+            className="min-w-0 flex-1 truncate"
+            style={{ color: "var(--text-primary)" }}
+            title={node.path}
+          >
+            {node.name}
+          </span>
+          <GitPanelTooltip label="放弃目录更改" side="bottom">
+            <button
+              type="button"
+              onClick={() => handleDiscardDirChanges(node.path)}
+              data-theme-control="true"
+              className="ml-2 rounded p-1 opacity-0 transition-colors transition-opacity hover:bg-[var(--hover-bg)] group-hover:opacity-100 group-focus-within:opacity-100"
+              style={{ color: "var(--text-muted)" }}
+              title="放弃目录更改"
+              aria-label="放弃目录更改"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+            </button>
+          </GitPanelTooltip>
+          <span className="w-4 shrink-0" />
+        </div>
+        {isExpanded
+          ? node.children.map((child) => renderTreeNode(child, depth + 1))
+          : null}
+      </div>
+    );
+  };
+
+  const renderFileSection = (
+    title: string,
+    files: string[],
+    variant: "staged" | "unstaged",
+  ) => {
+    if (files.length === 0) return null;
+
+    const isStagedSection = variant === "staged";
+    const isExpanded = expandedSections[variant];
+    const sectionActionTitle = isExpanded ? `收起${title}` : `展开${title}`;
+
+    return (
+      <section>
+        <div
+          className="flex h-8 items-center justify-between border-b px-3 text-sm"
+          style={{
+            backgroundColor: "var(--bg-secondary)",
+            borderColor: "var(--border-color)",
+            color: "var(--text-secondary)",
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => toggleSection(variant)}
+            data-theme-control="true"
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-sm text-left"
+            style={{ color: "inherit" }}
+            aria-label={sectionActionTitle}
+          >
+            <ChevronDown
+              className="h-3.5 w-3.5 shrink-0 transition-transform"
+              style={{
+                transform: isExpanded ? "rotate(0deg)" : "rotate(-90deg)",
+              }}
+            />
+            <span className="truncate font-medium">{title}</span>
+            <span
+              className="rounded-full px-2 py-0.5 text-xs"
+              style={{
+                backgroundColor: "var(--bg-tertiary)",
+                color: "var(--text-muted)",
+              }}
+            >
+              {files.length}
+            </span>
+          </button>
+          <GitPanelTooltip
+            label={isStagedSection ? "全部取消暂存" : "全部暂存"}
+            side="bottom"
+            align="end"
+          >
+            <button
+              type="button"
+              onClick={() =>
+                isStagedSection
+                  ? unstageSelectedFiles(files)
+                  : stageFiles(files)
+              }
+              data-theme-control="true"
+              className="rounded p-1 transition-colors hover:bg-[var(--hover-bg)]"
+              style={{ color: "var(--text-muted)" }}
+              title={isStagedSection ? "全部取消暂存" : "全部暂存"}
+              aria-label={isStagedSection ? "全部取消暂存" : "全部暂存"}
+            >
+              {isStagedSection ? (
+                <MinusSquare className="h-3.5 w-3.5" />
+              ) : (
+                <PlusSquare className="h-3.5 w-3.5" />
+              )}
+            </button>
+          </GitPanelTooltip>
+        </div>
+        {isExpanded
+          ? treeView
+            ? buildGitFileTree(files).map((node) => renderTreeNode(node))
+            : files.map((filePath) => renderFileRow(filePath, filePath))
+          : null}
+      </section>
+    );
+  };
 
   if (!isOpen) return null;
 
@@ -682,6 +1050,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
               </span>
             </div>
             <button
+              type="button"
               onClick={onClose}
               data-theme-control="true"
               className="rounded-lg p-1"
@@ -714,7 +1083,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       onClick={onClose}
     >
       <div
-        className="w-[480px] max-h-[80vh] rounded-xl shadow-2xl overflow-hidden flex flex-col"
+        className="w-[560px] max-h-[80vh] rounded-xl shadow-2xl overflow-hidden flex flex-col"
         style={{ backgroundColor: "var(--bg-secondary)" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -735,14 +1104,19 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
               Git 操作
             </span>
           </div>
-          <button
-            onClick={onClose}
-            data-theme-control="true"
-            className="p-1 rounded-lg"
-            style={{ color: "var(--text-muted)" }}
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <GitPanelTooltip label="关闭">
+            <button
+              type="button"
+              onClick={onClose}
+              data-theme-control="true"
+              className="p-1 rounded-lg"
+              style={{ color: "var(--text-muted)" }}
+              title="关闭"
+              aria-label="关闭"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </GitPanelTooltip>
         </div>
 
         {/* 消息提示 */}
@@ -778,33 +1152,42 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
               当前分支
             </span>
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowBranchList(!showBranchList)}
-                data-theme-control="true"
-                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm"
-                style={{
-                  backgroundColor: "var(--bg-tertiary)",
-                  color: "var(--text-primary)",
-                }}
-                disabled={loading}
-              >
-                <GitBranchIcon className="h-3.5 w-3.5" />
-                {currentBranch || "未选择"}
-                {showBranchList ? (
-                  <ChevronUp className="h-3 w-3" />
-                ) : (
-                  <ChevronDown className="h-3 w-3" />
-                )}
-              </button>
-              <button
-                onClick={() => setShowCreateBranch(!showCreateBranch)}
-                data-theme-control="true"
-                className="rounded-lg p-1.5"
-                style={{ color: "var(--text-muted)" }}
-                title="创建新分支"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
+              <GitPanelTooltip label="切换分支">
+                <button
+                  type="button"
+                  onClick={() => setShowBranchList(!showBranchList)}
+                  data-theme-control="true"
+                  className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm"
+                  style={{
+                    backgroundColor: "var(--bg-tertiary)",
+                    color: "var(--text-primary)",
+                  }}
+                  disabled={loading}
+                  title="切换分支"
+                  aria-label={`切换分支，当前分支 ${currentBranch || "未选择"}`}
+                >
+                  <GitBranchIcon className="h-3.5 w-3.5" />
+                  {currentBranch || "未选择"}
+                  {showBranchList ? (
+                    <ChevronUp className="h-3 w-3" />
+                  ) : (
+                    <ChevronDown className="h-3 w-3" />
+                  )}
+                </button>
+              </GitPanelTooltip>
+              <GitPanelTooltip label="创建新分支">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateBranch(!showCreateBranch)}
+                  data-theme-control="true"
+                  className="rounded-lg p-1.5"
+                  style={{ color: "var(--text-muted)" }}
+                  title="创建新分支"
+                  aria-label="创建新分支"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </GitPanelTooltip>
             </div>
           </div>
 
@@ -819,6 +1202,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             >
               {branches.map((branch) => (
                 <button
+                  type="button"
                   key={branch.name}
                   onClick={() => handleSwitchBranch(branch.name)}
                   data-theme-control="true"
@@ -843,6 +1227,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                 </button>
               ))}
               <button
+                type="button"
                 onClick={() => {
                   setShowBranchList(false);
                   setShowCreateBranch(true);
@@ -912,8 +1297,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
               value={commitMessage}
               onChange={(e) => setCommitMessage(e.target.value)}
               placeholder="提交信息（留空将自动生成）..."
-              rows={2}
-              className="w-full px-3 py-1.5 text-sm rounded-lg resize-none outline-none"
+              rows={1}
+              className="w-full h-9 overflow-hidden px-3 py-2 text-sm rounded-md resize-none outline-none"
               style={{
                 backgroundColor: "var(--bg-primary)",
                 border: "1px solid var(--border-color)",
@@ -926,7 +1311,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                 e.currentTarget.style.borderColor = "var(--border-color)";
               }}
             />
-            <div className="flex items-center gap-2 mt-1.5">
+            <div className="mt-1 flex items-center gap-2">
               <input
                 type="checkbox"
                 id="includeUntracked"
@@ -937,7 +1322,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
               />
               <label
                 htmlFor="includeUntracked"
-                className="text-sm cursor-pointer"
+                className="cursor-pointer text-xs"
                 style={{ color: "var(--text-muted)" }}
               >
                 包含未暂存的更改
@@ -953,21 +1338,22 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
               </span>
               <div className="flex items-center gap-3 text-xs">
                 {modifiedCount > 0 && (
-                  <span style={{ color: "#e2c08d" }}>
-                    ~{modifiedCount} 已修改
-                  </span>
+                  <span style={{ color: "#3794ff" }}>M {modifiedCount}</span>
                 )}
-                {untrackedCount > 0 && (
-                  <span style={{ color: "#73c991" }}>
-                    +{untrackedCount} 未跟踪
-                  </span>
+                {addedCount > 0 && (
+                  <span style={{ color: "#73c991" }}>A {addedCount}</span>
+                )}
+                {deletedCount > 0 && (
+                  <span style={{ color: "#f85149" }}>D {deletedCount}</span>
                 )}
                 <button
+                  type="button"
                   onClick={() => setTreeView(!treeView)}
                   data-theme-control="true"
                   className="rounded p-1"
                   style={{ color: "var(--text-muted)" }}
-                  title={treeView ? "列表视图" : "树形视图"}
+                  title={treeView ? "切换为列表视图" : "切换为树形视图"}
+                  aria-label={treeView ? "切换为列表视图" : "切换为树形视图"}
                 >
                   {treeView ? (
                     <List className="h-3.5 w-3.5" />
@@ -983,197 +1369,11 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         {/* 文件列表 - 可滚动区域 */}
         {allFiles.length > 0 && (
           <div
-            className="flex-1 overflow-y-auto"
+            className="flex-1 overflow-x-hidden overflow-y-auto"
             style={{ backgroundColor: "var(--bg-primary)" }}
           >
-            {treeView
-              ? // 树形视图 - 基于路径深度计算缩进
-                (() => {
-                  const tree = buildFileTree(allFiles);
-                  const renderNode = (node: TreeNode, depth: number = 0) => {
-                    // 根据路径中的分隔符数量计算真实深度
-                    const realDepth = node.path.split(/[/\\]/).length - 1;
-
-                    if (node.isFile) {
-                      return (
-                        <div
-                          key={node.path}
-                          className="flex items-center justify-between px-4 py-2 text-sm group"
-                          style={{
-                            borderBottom: "1px solid var(--border-color)",
-                            paddingLeft: `${16 + realDepth * 20}px`,
-                          }}
-                        >
-                          <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <input
-                              type="checkbox"
-                              checked={stagedFiles.has(node.path)}
-                              onChange={() => toggleFileStaging(node.path)}
-                              className="rounded w-3.5 h-3.5 cursor-pointer"
-                              style={{
-                                accentColor: "var(--accent-color)",
-                                outline: "none",
-                              }}
-                            />
-                            <span
-                              className="truncate"
-                              style={{ color: "var(--text-primary)" }}
-                            >
-                              {node.name}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={() => handleDiffFile(node.path)}
-                              data-theme-control="true"
-                              className="rounded p-1"
-                              style={{ color: "var(--text-muted)" }}
-                              title="查看差异"
-                            >
-                              <GitCompare className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleOpenFile(node.path)}
-                              data-theme-control="true"
-                              className="rounded p-1"
-                              style={{ color: "var(--text-muted)" }}
-                              title="打开文件"
-                            >
-                              <ExternalLink className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDiscardChanges(node.path)}
-                              data-theme-control="true"
-                              className="rounded p-1"
-                              style={{ color: "var(--text-muted)" }}
-                              title="放弃更改"
-                            >
-                              <RotateCcw className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    const isExpanded = expandedDirs.has(node.path);
-                    const allStaged = isDirFullyStaged(node.path);
-                    const partialStaged = isDirPartiallyStaged(node.path);
-
-                    return (
-                      <div key={node.path}>
-                        <div
-                          className="flex items-center justify-between px-4 py-2 text-sm group"
-                          style={{
-                            borderBottom: "1px solid var(--border-color)",
-                            paddingLeft: `${16 + realDepth * 20}px`,
-                          }}
-                        >
-                          <div
-                            className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer"
-                            onClick={() => toggleDir(node.path)}
-                          >
-                            <ChevronRight
-                              className="h-3.5 w-3.5 transition-transform"
-                              style={{
-                                color: "var(--text-muted)",
-                                transform: isExpanded
-                                  ? "rotate(90deg)"
-                                  : "rotate(0deg)",
-                              }}
-                            />
-                            <input
-                              type="checkbox"
-                              checked={allStaged}
-                              ref={(el) => {
-                                if (el) el.indeterminate = partialStaged;
-                              }}
-                              onChange={() => toggleDirStaging(node.path)}
-                              className="rounded w-3.5 h-3.5 cursor-pointer"
-                              style={{
-                                accentColor: "var(--accent-color)",
-                                outline: "none",
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                            <span style={{ color: "var(--text-primary)" }}>
-                              {node.name}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={() => handleDiscardDirChanges(node.path)}
-                              data-theme-control="true"
-                              className="rounded p-1"
-                              style={{ color: "var(--text-muted)" }}
-                              title="放弃目录更改"
-                            >
-                              <RotateCcw className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                        {isExpanded &&
-                          node.children.map((child) =>
-                            renderNode(child, depth + 1),
-                          )}
-                      </div>
-                    );
-                  };
-
-                  return tree.map((node) => renderNode(node));
-                })()
-              : // 列表视图
-                allFiles.map((file) => (
-                  <div
-                    key={file.path}
-                    className="flex items-center justify-between px-4 py-2 text-sm group"
-                    style={{ borderBottom: "1px solid var(--border-color)" }}
-                  >
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <input
-                        type="checkbox"
-                        checked={stagedFiles.has(file.path)}
-                        onChange={() => toggleFileStaging(file.path)}
-                        className="rounded w-3.5 h-3.5 cursor-pointer"
-                        style={{ accentColor: "var(--accent-color)" }}
-                      />
-                      <span
-                        className="truncate"
-                        style={{ color: "var(--text-primary)" }}
-                      >
-                        {file.path}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => handleDiffFile(file.path)}
-                        data-theme-control="true"
-                        className="rounded p-1"
-                        style={{ color: "var(--text-muted)" }}
-                        title="查看差异"
-                      >
-                        <GitCompare className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleOpenFile(file.path)}
-                        data-theme-control="true"
-                        className="rounded p-1"
-                        style={{ color: "var(--text-muted)" }}
-                        title="打开文件"
-                      >
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDiscardChanges(file.path)}
-                        data-theme-control="true"
-                        className="rounded p-1"
-                        style={{ color: "var(--text-muted)" }}
-                        title="放弃更改"
-                      >
-                        <RotateCcw className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+            {renderFileSection("已暂存的更改", stagedFilePaths, "staged")}
+            {renderFileSection("更改", unstagedFilePaths, "unstaged")}
           </div>
         )}
 
@@ -1196,13 +1396,23 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           style={{ borderTop: "1px solid var(--border-color)" }}
         >
           <div className="flex items-center gap-2">
-            <Button onClick={handlePull} disabled={loading} className="gap-1.5">
+            <Button
+              onClick={handlePull}
+              disabled={loading}
+              className="gap-1.5"
+              title="从远程拉取"
+            >
               <RefreshCw
                 className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
               />
               拉取
             </Button>
-            <Button onClick={handlePush} disabled={loading} className="gap-1.5">
+            <Button
+              onClick={handlePush}
+              disabled={loading}
+              className="gap-1.5"
+              title="推送到远程"
+            >
               <GitCommit className="h-3.5 w-3.5" />
               推送
             </Button>
@@ -1210,7 +1420,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           <div className="flex items-center gap-2">
             <Button
               onClick={() => handleCommit(false)}
-              disabled={loading}
+              disabled={!canCommit}
               variant="secondary"
               className="px-4"
             >
@@ -1218,7 +1428,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             </Button>
             <Button
               onClick={() => handleCommit(true)}
-              disabled={loading}
+              disabled={!canCommit}
               className="px-4"
             >
               提交并推送
