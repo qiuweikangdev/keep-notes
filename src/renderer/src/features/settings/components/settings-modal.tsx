@@ -301,7 +301,7 @@ export function SettingsModal() {
             {/* 标题栏快速打开器 */}
             <div style={{ borderBottom: "1px solid var(--border-color)" }}>
               <SettingRow
-                label="标题栏快速打开器"
+                label="应用打开器入口"
                 description="在标题栏显示默认应用与快捷下拉入口"
               >
                 <Switch
