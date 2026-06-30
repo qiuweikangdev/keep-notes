@@ -2,6 +2,7 @@ import { BrowserWindow, ipcMain } from "electron";
 import { IPC_CHANNELS } from "../../shared/constants";
 import type { ExportConfig } from "../../shared/types";
 import { exportConfigManager } from "../export-config";
+import { exportFile } from "../export-service";
 
 /** 向所有窗口广播导出配置变更 */
 function broadcastConfig(config: ExportConfig): void {
@@ -32,4 +33,9 @@ export function registerExportIpc(): void {
       broadcastConfig(exportConfigManager.getConfig());
     },
   );
+
+  // 按当前导出配置把指定文件导出到目标目录。
+  ipcMain.handle(IPC_CHANNELS.EXPORT.FILE, async (_, filePath: string) => {
+    return exportFile(filePath, exportConfigManager.getConfig());
+  });
 }

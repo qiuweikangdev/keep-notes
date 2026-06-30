@@ -9,7 +9,9 @@ let userDataPath = "";
 
 vi.mock("electron", () => ({
   app: {
-    getPath: vi.fn(() => userDataPath),
+    getPath: vi.fn((name: string) =>
+      name === "downloads" ? "/Users/test/Downloads" : userDataPath,
+    ),
   },
 }));
 
@@ -26,9 +28,13 @@ describe("ExportConfigManager", () => {
   it("uses the default export config when no config file exists", async () => {
     const { ExportConfigManager } = await import("./export-config");
     const manager = new ExportConfigManager();
+    const expectedConfig = {
+      ...DEFAULT_EXPORT_CONFIG,
+      customDirectoryPath: "/Users/test/Downloads",
+    };
 
-    await expect(manager.loadConfig()).resolves.toEqual(DEFAULT_EXPORT_CONFIG);
-    expect(manager.getConfig()).toEqual(DEFAULT_EXPORT_CONFIG);
+    await expect(manager.loadConfig()).resolves.toEqual(expectedConfig);
+    expect(manager.getConfig()).toEqual(expectedConfig);
     expect(manager.getConfig().enabledFormats).toEqual(["pdf"]);
   });
 

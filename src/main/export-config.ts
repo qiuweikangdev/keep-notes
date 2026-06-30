@@ -17,7 +17,11 @@ const EXPORT_DIRECTORY_MODES = new Set<ExportDirectoryMode>([
 ]);
 
 export class ExportConfigManager {
-  private config: ExportConfig = DEFAULT_EXPORT_CONFIG;
+  private config: ExportConfig;
+
+  constructor() {
+    this.config = this.getDefaultConfig();
+  }
 
   /** 获取当前导出配置副本，避免外部直接修改内存状态 */
   getConfig(): ExportConfig {
@@ -63,31 +67,40 @@ export class ExportConfigManager {
 
   /** 合并默认配置，并过滤不支持的导出格式 */
   private normalizeConfig(config: Partial<ExportConfig>): ExportConfig {
+    const defaultConfig = this.getDefaultConfig();
     const enabledFormats = Array.isArray(config.enabledFormats)
       ? config.enabledFormats.filter((format): format is ExportFormat =>
           EXPORT_FORMAT_VALUES.has(format as ExportFormat),
         )
-      : DEFAULT_EXPORT_CONFIG.enabledFormats;
+      : defaultConfig.enabledFormats;
     const defaultDirectoryMode = EXPORT_DIRECTORY_MODES.has(
       config.defaultDirectoryMode as ExportDirectoryMode,
     )
       ? (config.defaultDirectoryMode as ExportDirectoryMode)
-      : DEFAULT_EXPORT_CONFIG.defaultDirectoryMode;
+      : defaultConfig.defaultDirectoryMode;
 
     return {
       enabledFormats:
         enabledFormats.length > 0
           ? enabledFormats
-          : DEFAULT_EXPORT_CONFIG.enabledFormats,
+          : defaultConfig.enabledFormats,
       defaultDirectoryMode,
       customDirectoryPath:
         typeof config.customDirectoryPath === "string"
-          ? config.customDirectoryPath
-          : DEFAULT_EXPORT_CONFIG.customDirectoryPath,
+          ? config.customDirectoryPath || defaultConfig.customDirectoryPath
+          : defaultConfig.customDirectoryPath,
       openDirectoryAfterExport:
         typeof config.openDirectoryAfterExport === "boolean"
           ? config.openDirectoryAfterExport
-          : DEFAULT_EXPORT_CONFIG.openDirectoryAfterExport,
+          : defaultConfig.openDirectoryAfterExport,
+    };
+  }
+
+  /** 自定义目录默认指向系统下载目录，保证首次选择自定义时有可用路径 */
+  private getDefaultConfig(): ExportConfig {
+    return {
+      ...DEFAULT_EXPORT_CONFIG,
+      customDirectoryPath: app.getPath("downloads"),
     };
   }
 

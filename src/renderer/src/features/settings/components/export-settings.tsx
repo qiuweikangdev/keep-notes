@@ -2,8 +2,13 @@ import { useEffect } from "react";
 import { Check, ChevronDown, FolderOpen } from "lucide-react";
 import { useExportStore } from "@/store/export.store";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
+import { Switch } from "@/components/ui/switch";
 import { EXPORT_FORMATS } from "@/types";
 import type { ExportDirectoryMode, ExportFormat } from "@/types";
+
+interface ExportSettingsProps {
+  portalContainer?: HTMLElement | null;
+}
 
 const directoryOptions: Array<{
   value: ExportDirectoryMode;
@@ -17,6 +22,7 @@ const DROPDOWN_CONTENT_CLASS =
   "z-[60] min-w-[220px] rounded-md border p-1 shadow-lg bg-[var(--bg-primary)] border-[var(--border-color)] text-[var(--text-primary)]";
 const DROPDOWN_ITEM_CLASS =
   "flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-[var(--hover-bg)]";
+const EXPORT_SETTING_ROW_CLASS = "grid grid-cols-[180px_1fr] gap-4 py-3.5";
 
 function getFormatSummary(enabledFormats: ExportFormat[]): string {
   const labels = EXPORT_FORMATS.filter((format) =>
@@ -35,7 +41,7 @@ function getDirectoryLabel(mode: ExportDirectoryMode): string {
   );
 }
 
-export function ExportSettings() {
+export function ExportSettings({ portalContainer }: ExportSettingsProps) {
   const { config, loadConfig, updateConfig, subscribeToChanges } =
     useExportStore();
 
@@ -68,11 +74,11 @@ export function ExportSettings() {
 
   return (
     <div className="space-y-0">
-      <div
-        className="py-3.5"
-        style={{ borderBottom: "1px solid var(--border-color)" }}
-      >
-        <div className="flex items-start justify-between gap-4">
+      <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+        <div
+          data-testid="export-format-row"
+          className={`${EXPORT_SETTING_ROW_CLASS} items-start`}
+        >
           <div className="flex flex-col gap-0.5">
             <span className="text-sm" style={{ color: "var(--text-primary)" }}>
               导出格式
@@ -81,12 +87,12 @@ export function ExportSettings() {
               选择后续导出功能可用的文件格式
             </span>
           </div>
-          <DropdownMenu.Root>
+          <DropdownMenu.Root modal={false}>
             <DropdownMenu.Trigger asChild>
               <button
                 type="button"
                 aria-label="导出格式"
-                className="flex h-8 min-w-[300px] items-center justify-between gap-2 rounded-md px-2.5 text-sm outline-none transition-colors"
+                className="flex h-8 w-full items-center justify-between gap-2 rounded-md px-2.5 text-sm outline-none transition-colors"
                 style={{
                   backgroundColor: "var(--bg-tertiary)",
                   border: "1px solid var(--border-color)",
@@ -102,8 +108,10 @@ export function ExportSettings() {
                 />
               </button>
             </DropdownMenu.Trigger>
-            <DropdownMenu.Portal>
+            <DropdownMenu.Portal container={portalContainer}>
               <DropdownMenu.Content
+                aria-label="导出格式"
+                data-export-settings-dropdown
                 align="end"
                 sideOffset={6}
                 className={DROPDOWN_CONTENT_CLASS}
@@ -132,16 +140,16 @@ export function ExportSettings() {
         </div>
       </div>
 
-      <div
-        className="py-3.5"
-        style={{ borderBottom: "1px solid var(--border-color)" }}
-      >
-        <div className="grid grid-cols-[180px_1fr] gap-4">
+      <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+        <div
+          data-testid="export-directory-row"
+          className={`${EXPORT_SETTING_ROW_CLASS} items-start`}
+        >
           <label className="text-sm" style={{ color: "var(--text-primary)" }}>
             默认的导出文件夹
           </label>
           <div className="space-y-2">
-            <DropdownMenu.Root>
+            <DropdownMenu.Root modal={false}>
               <DropdownMenu.Trigger asChild>
                 <button
                   type="button"
@@ -162,8 +170,10 @@ export function ExportSettings() {
                   />
                 </button>
               </DropdownMenu.Trigger>
-              <DropdownMenu.Portal>
+              <DropdownMenu.Portal container={portalContainer}>
                 <DropdownMenu.Content
+                  aria-label="默认的导出文件夹"
+                  data-export-settings-dropdown
                   align="end"
                   sideOffset={6}
                   className={DROPDOWN_CONTENT_CLASS}
@@ -172,7 +182,7 @@ export function ExportSettings() {
                     <DropdownMenu.Item
                       key={option.value}
                       className={DROPDOWN_ITEM_CLASS}
-                      onClick={() =>
+                      onSelect={() =>
                         void updateConfig({
                           defaultDirectoryMode: option.value,
                         })
@@ -225,8 +235,11 @@ export function ExportSettings() {
         </div>
       </div>
 
-      <div className="py-3.5">
-        <div className="grid grid-cols-[180px_1fr] items-center gap-4">
+      <div>
+        <div
+          data-testid="export-after-row"
+          className={`${EXPORT_SETTING_ROW_CLASS} items-center`}
+        >
           <span className="text-sm" style={{ color: "var(--text-primary)" }}>
             导出后
           </span>
@@ -234,16 +247,13 @@ export function ExportSettings() {
             className="flex items-center gap-2 text-sm"
             style={{ color: "var(--text-primary)" }}
           >
-            <input
-              type="checkbox"
+            <Switch
               checked={config.openDirectoryAfterExport}
-              onChange={(event) =>
+              onCheckedChange={(checked) =>
                 void updateConfig({
-                  openDirectoryAfterExport: event.target.checked,
+                  openDirectoryAfterExport: checked,
                 })
               }
-              className="h-3.5 w-3.5"
-              style={{ accentColor: "var(--accent-color)" }}
             />
             打开导出文件所在目录
           </label>

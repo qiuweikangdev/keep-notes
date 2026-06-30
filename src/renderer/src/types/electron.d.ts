@@ -17,6 +17,7 @@ import type {
   NotificationChannelType,
   NotificationConfig,
   ExportConfig,
+  ExportFileResult,
 } from "@shared/types";
 
 export interface ElectronAPI {
@@ -121,6 +122,7 @@ export interface ElectronAPI {
   // Export
   getExportConfig: () => Promise<ExportConfig>;
   setExportConfig: (config: ExportConfig) => Promise<void>;
+  exportFile: (filePath: string) => Promise<ExportFileResult>;
   onExportConfigChanged: (
     callback: (config: ExportConfig) => void,
   ) => () => void;

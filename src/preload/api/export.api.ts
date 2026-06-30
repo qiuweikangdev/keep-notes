@@ -1,6 +1,6 @@
 import { ipcRenderer, type IpcRendererEvent } from "electron";
 import { IPC_CHANNELS } from "../../shared/constants";
-import type { ExportConfig } from "../../shared/types";
+import type { ExportConfig, ExportFileResult } from "../../shared/types";
 
 export const exportApi = {
   /** 获取当前导出配置 */
@@ -10,6 +10,10 @@ export const exportApi = {
   /** 保存导出配置 */
   setExportConfig: (config: ExportConfig): Promise<void> =>
     ipcRenderer.invoke(IPC_CHANNELS.EXPORT.SET_CONFIG, config),
+
+  /** 按当前配置导出指定文件 */
+  exportFile: (filePath: string): Promise<ExportFileResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.EXPORT.FILE, filePath),
 
   /** 监听导出配置变更事件，返回取消监听函数 */
   onExportConfigChanged: (callback: (config: ExportConfig) => void) => {

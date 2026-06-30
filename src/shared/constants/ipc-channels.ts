@@ -59,6 +59,7 @@ export const IPC_CHANNELS = {
   EXPORT: {
     GET_CONFIG: "export:get-config",
     SET_CONFIG: "export:set-config",
+    FILE: "export:file",
     ON_CONFIG_CHANGED: "export:on-config-changed",
   },
   TREE: {

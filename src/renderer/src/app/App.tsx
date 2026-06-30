@@ -8,6 +8,7 @@ import {
   ReminderListDialog,
   ReminderNotificationToast,
 } from "@/features/reminders";
+import { ExportController, ExportSuccessToast } from "@/features/export";
 import { HomePage } from "@/pages/home";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useUIStore } from "@/store/ui.store";
@@ -136,6 +137,8 @@ export function App() {
         <ReminderEditorDialog />
         <ReminderListDialog />
         <ReminderNotificationToast />
+        <ExportController />
+        <ExportSuccessToast />
       </div>
     </Tooltip.Provider>
   );

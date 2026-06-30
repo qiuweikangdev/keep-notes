@@ -92,6 +92,25 @@ function getRepositoryLabel(repositoryUrl: string): string {
     .replace(/\.git$/, "");
 }
 
+function isExportSettingsDropdownTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    Boolean(target.closest("[data-export-settings-dropdown]"))
+  );
+}
+
+function isExportSettingsDropdownEvent(event: Event): boolean {
+  const originalEvent = (event as CustomEvent<{ originalEvent?: Event }>).detail
+    ?.originalEvent;
+  const path = originalEvent?.composedPath?.() ?? event.composedPath?.() ?? [];
+
+  return (
+    isExportSettingsDropdownTarget(event.target) ||
+    isExportSettingsDropdownTarget(originalEvent?.target ?? null) ||
+    path.some(isExportSettingsDropdownTarget)
+  );
+}
+
 export function SettingsModal() {
   const { isSettingsOpen, setSettingsOpen } = useUIStore();
   const { appearance, setAppearance } = useEditorStore();
@@ -100,6 +119,8 @@ export function SettingsModal() {
   const [appInfo, setAppInfo] = useState<AppInfo>(defaultAppInfo);
   const [updateState, setUpdateState] =
     useState<AppUpdateState>(defaultUpdateState);
+  const [exportDropdownPortalContainer, setExportDropdownPortalContainer] =
+    useState<HTMLDivElement | null>(null);
   const [externalOpenApps, setExternalOpenApps] = useState<ExternalOpenApp[]>(
     [],
   );
@@ -487,7 +508,9 @@ export function SettingsModal() {
       case "notifications":
         return <NotificationSettings />;
       case "export":
-        return <ExportSettings />;
+        return (
+          <ExportSettings portalContainer={exportDropdownPortalContainer} />
+        );
       case "about":
         return (
           <div className="space-y-5 py-2">
@@ -686,7 +709,21 @@ export function SettingsModal() {
 
   return (
     <Dialog.Root open={isSettingsOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[780px] sm:max-h-[640px] overflow-hidden p-0">
+      <DialogContent
+        className="sm:max-w-[780px] sm:max-h-[640px] overflow-visible p-0"
+        onInteractOutside={(event) => {
+          // 导出设置的下拉内容使用 Portal，避免被弹窗滚动区域裁切。
+          if (isExportSettingsDropdownEvent(event)) {
+            event.preventDefault();
+          }
+        }}
+        onFocusOutside={(event) => {
+          // 菜单关闭时焦点会从 Portal 回到触发器，不能因此关闭设置弹窗。
+          if (isExportSettingsDropdownEvent(event)) {
+            event.preventDefault();
+          }
+        }}
+      >
         <DialogHeader className="px-8 pt-8 pb-0">
           <Dialog.Title style={{ color: "var(--text-primary)" }}>
             设置
@@ -748,6 +785,7 @@ export function SettingsModal() {
             {renderContent()}
           </div>
         </div>
+        <div ref={setExportDropdownPortalContainer} className="contents" />
       </DialogContent>
     </Dialog.Root>
   );

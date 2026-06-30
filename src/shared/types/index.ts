@@ -267,6 +267,11 @@ export interface ExportConfig {
   openDirectoryAfterExport: boolean;
 }
 
+export interface ExportFileResult {
+  directoryPath: string;
+  filePaths: string[];
+}
+
 export const EXPORT_FORMATS: Array<{
   value: ExportFormat;
   label: string;
