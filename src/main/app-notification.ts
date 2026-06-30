@@ -204,9 +204,9 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       position: relative;
       width: 30px;
       height: 30px;
-      border: 2px solid currentColor;
+      border: 1.8px solid currentColor;
       border-radius: 999px;
-      opacity: 0.9;
+      opacity: 0.92;
     }
     .clock-icon::before,
     .clock-icon::after {
@@ -214,18 +214,28 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       position: absolute;
       left: 50%;
       top: 50%;
-      width: 2px;
+      width: 1.8px;
       border-radius: 999px;
       background: currentColor;
-      transform-origin: 50% 0;
+      transform-origin: 50% 100%;
     }
     .clock-icon::before {
       height: 8px;
-      transform: translate(-50%, -1px) rotate(0deg);
+      transform: translate(-50%, -100%) rotate(0deg);
     }
     .clock-icon::after {
-      height: 9px;
-      transform: translate(-50%, -1px) rotate(90deg);
+      height: 7px;
+      transform: translate(-50%, -100%) rotate(90deg);
+    }
+    .clock-icon-dot {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 3px;
+      height: 3px;
+      border-radius: 999px;
+      background: currentColor;
+      transform: translate(-50%, -50%);
     }
     .platform-mac .notification {
       border: 1px solid rgba(255, 255, 255, 0.5);
@@ -417,7 +427,7 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       </div>
     </div>
     <div class="actions">
-      <a class="button" href="${snoozeAction}"><span class="clock-icon" aria-hidden="true"></span><span>${confirmLabel}</span></a>
+      <a class="button" href="${snoozeAction}"><span class="clock-icon" aria-hidden="true"><span class="clock-icon-dot"></span></span><span>${confirmLabel}</span></a>
       ${options.openLabel ? `<a class="button primary" href="${openAction}">${openLabel}</a>` : ""}
     </div>
   </section>

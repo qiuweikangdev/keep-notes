@@ -186,6 +186,7 @@ describe("createAppNotification", () => {
     expect(html).toContain("稍后提醒");
     expect(html).toContain("查看详情");
     expect(html).toContain('class="clock-icon"');
+    expect(html).toContain('class="clock-icon-dot"');
     expect(html).not.toContain("•••");
   });
 });
