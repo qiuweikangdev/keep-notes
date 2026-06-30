@@ -13,6 +13,17 @@ export function normalizeTreePath(path: string) {
   return path.replace(/\\/g, "/").replace(/\/+$/, "");
 }
 
+// 生成新建节点的完整 key，保持与主进程创建路径规则一致。
+export function buildCreatedNodeKey(
+  parentKey: string,
+  title: string,
+  type: "file" | "folder",
+) {
+  const sep = parentKey.includes("\\") ? "\\" : "/";
+  const nodeTitle = type === "file" ? `${title}.md` : title;
+  return `${parentKey}${sep}${nodeTitle}`;
+}
+
 export function canMoveNodeToFolder(
   sourcePath: string,
   targetFolderPath: string,

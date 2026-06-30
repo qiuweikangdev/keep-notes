@@ -1,11 +1,26 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildCreatedNodeKey,
   canMoveNodeToFolder,
   findAncestorKeys,
   flattenTree,
   getRevealInFileManagerLabel,
   shouldRevealFileTreeOnViewChange,
 } from "./utils";
+
+describe("buildCreatedNodeKey", () => {
+  it("adds the markdown extension for a created file", () => {
+    expect(buildCreatedNodeKey("D:\\notes\\work", "todo", "file")).toBe(
+      "D:\\notes\\work\\todo.md",
+    );
+  });
+
+  it("keeps folder names without a file extension", () => {
+    expect(buildCreatedNodeKey("/notes/work", "archive", "folder")).toBe(
+      "/notes/work/archive",
+    );
+  });
+});
 
 describe("getRevealInFileManagerLabel", () => {
   it("returns Finder copy on macOS", () => {

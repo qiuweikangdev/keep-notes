@@ -43,6 +43,7 @@ import { CodeResult } from "@/types";
 import { cn } from "@/lib/cn";
 import { KEEP_NOTES_FILE_DRAG_TYPE, setDraggedFilePath } from "@/lib/file-drag";
 import {
+  buildCreatedNodeKey,
   canMoveNodeToFolder,
   findAncestorKeys,
   findNodeByKey,
@@ -151,6 +152,24 @@ export function FileTree() {
     [setActiveHeadingId],
   );
 
+  const revealCreatedNode = useCallback(
+    (parentKey: string, newKey: string) => {
+      const currentExpandedKeys = useTreeStore.getState().expandedKeys;
+      if (!currentExpandedKeys.has(parentKey)) {
+        const nextExpandedKeys = new Set(currentExpandedKeys);
+        nextExpandedKeys.add(parentKey);
+        setExpandedKeys(nextExpandedKeys);
+      }
+
+      setSelectedKey(newKey);
+      setFileTreeRevealRequest({
+        key: newKey,
+        id: ++revealRequestIdRef.current,
+      });
+    },
+    [setExpandedKeys, setSelectedKey],
+  );
+
   useEffect(() => {
     if (isRootCreating && createInputRef.current) {
       requestAnimationFrame(() => createInputRef.current?.focus());
@@ -226,7 +245,13 @@ export function FileTree() {
     const fn = creatingInfo.type === "file" ? createFile : createFolder;
     const r = await fn(treeRoot.key, title, treeData);
     if (r.code === CodeResult.Success && r.data) {
+      const newKey = buildCreatedNodeKey(
+        treeRoot.key,
+        title,
+        creatingInfo.type,
+      );
       setTreeData(r.data.treeData);
+      revealCreatedNode(treeRoot.key, newKey);
     }
     setCreateValue("");
     setCreatingInfo(null);
@@ -238,6 +263,7 @@ export function FileTree() {
     createFile,
     createFolder,
     setTreeData,
+    revealCreatedNode,
   ]);
 
   const handleRootCreateKeyDown = useCallback(
@@ -805,6 +831,7 @@ export function FileTree() {
                     isRootCreating={isRootCreating}
                     onClick={handleNodeClick}
                     onCreateInFolder={handleCreateInFolder}
+                    onNodeCreated={revealCreatedNode}
                     onDeleteNode={handleDeleteNode}
                     openFile={openFile}
                     openInExplorer={openInExplorer}
@@ -917,6 +944,7 @@ interface VirtualizedTreeListProps {
     type: "file" | "folder",
     level: number,
   ) => void;
+  onNodeCreated: (parentKey: string, newKey: string) => void;
   onDeleteNode: (key: string, title: string) => void;
   openFile: (filePath: string) => Promise<void>;
   openInExplorer: (targetPath: string) => Promise<boolean>;
@@ -933,6 +961,7 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
   isRootCreating,
   onClick,
   onCreateInFolder,
+  onNodeCreated,
   onDeleteNode,
   openFile,
   openInExplorer,
@@ -1035,6 +1064,7 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
             creatingInfo={creatingInfo!}
             parentKey={creatingInfo!.parentKey}
             top={creatingInsertIndex * ROW_HEIGHT}
+            onCreated={onNodeCreated}
             onCancel={() => onCreateInFolder("", "file", 0)}
           />
         ) : null}
@@ -1496,19 +1526,18 @@ function CreateInput({
   parentKey,
   top,
   onCancel,
+  onCreated,
 }: {
   creatingInfo: CreatingInfo;
   parentKey: string;
   top: number;
+  onCreated: (parentKey: string, newKey: string) => void;
   onCancel: () => void;
 }) {
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const confirmedRef = useRef(false);
   const setTreeData = useTreeStore((state) => state.setTreeData);
-  const setSelectedKey = useTreeStore((state) => state.setSelectedKey);
-  const toggleExpandedKey = useTreeStore((state) => state.toggleExpandedKey);
-  const expandedKeys = useTreeStore((state) => state.expandedKeys);
   const { createFile, createFolder } = useElectron();
 
   useEffect(() => {
@@ -1529,18 +1558,9 @@ function CreateInput({
     const treeData = useTreeStore.getState().treeData;
     const result = await fn(parentKey, title, treeData);
     if (result.code === CodeResult.Success && result.data) {
+      const newKey = buildCreatedNodeKey(parentKey, title, creatingInfo.type);
       setTreeData(result.data.treeData);
-      // 展开父节点
-      if (!expandedKeys.has(parentKey)) {
-        toggleExpandedKey(parentKey);
-      }
-      // 选中新创建的节点
-      const sep = parentKey.includes("\\") ? "\\" : "/";
-      const newKey =
-        creatingInfo.type === "file"
-          ? `${parentKey}${sep}${title}.md`
-          : `${parentKey}${sep}${title}`;
-      setSelectedKey(newKey);
+      onCreated(parentKey, newKey);
     }
     onCancel();
   }, [
@@ -1550,9 +1570,7 @@ function CreateInput({
     createFile,
     createFolder,
     setTreeData,
-    setSelectedKey,
-    expandedKeys,
-    toggleExpandedKey,
+    onCreated,
     onCancel,
   ]);
 
@@ -1578,11 +1596,12 @@ function CreateInput({
         position: "absolute",
         top: 0,
         left: 0,
-        width: "100%",
+        width: "calc(100% - 16px)",
         height: `${ROW_HEIGHT}px`,
         transform: `translateY(${top}px)`,
         paddingLeft: `${creatingInfo.level * 14 + 8}px`,
         paddingRight: "8px",
+        marginLeft: "8px",
         zIndex: 10,
       }}
     >
