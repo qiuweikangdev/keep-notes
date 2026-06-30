@@ -66,7 +66,7 @@ describe("createAppNotification", () => {
     vi.clearAllMocks();
   });
 
-  it("keeps persistent notifications visible after opening until confirm is clicked", async () => {
+  it("closes persistent notifications after opening details", async () => {
     const onOpen = vi.fn();
     const notification = createAppNotification(
       {
@@ -88,15 +88,35 @@ describe("createAppNotification", () => {
     );
 
     expect(onOpen).toHaveBeenCalledTimes(1);
-    expect(win.close).not.toHaveBeenCalled();
+    expect(win.close).toHaveBeenCalledTimes(1);
     expect(event.preventDefault).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls snooze action and closes the notification", async () => {
+    const onSnooze = vi.fn();
+    const notification = createAppNotification(
+      {
+        title: "Read notes",
+        body: "today.md",
+        openLabel: "打开",
+        requireInteraction: true,
+      },
+      vi.fn(),
+      onSnooze,
+    );
+
+    await notification.show();
+    const win = electronMocks.getLastWindow();
+    const event = { preventDefault: vi.fn() };
 
     win.webContentsHandlers.get("will-navigate")?.(
       event,
-      "keep-notes-notification://confirm",
+      "keep-notes-notification://snooze",
     );
 
+    expect(onSnooze).toHaveBeenCalledTimes(1);
     expect(win.close).toHaveBeenCalledTimes(1);
+    expect(event.preventDefault).toHaveBeenCalledTimes(1);
   });
 
   it("closes non-persistent notifications after opening", async () => {
@@ -152,9 +172,9 @@ describe("createAppNotification", () => {
       expect(html).toContain('class="platform-mac"');
     } else {
       expect(windowOptions).toMatchObject({
-        width: 632,
-        height: 344,
-        y: 532,
+        width: 420,
+        height: 214,
+        y: 662,
       });
       expect(html).toContain('class="platform-windows"');
     }
@@ -166,5 +186,6 @@ describe("createAppNotification", () => {
     expect(html).toContain("稍后提醒");
     expect(html).toContain("查看详情");
     expect(html).toContain('class="clock-icon"');
+    expect(html).not.toContain("•••");
   });
 });

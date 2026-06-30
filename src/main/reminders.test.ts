@@ -235,8 +235,37 @@ describe("ReminderService", () => {
     expect(showNotification).toHaveBeenCalledWith(
       expect.objectContaining({ title: "Read notes" }),
       expect.any(Function),
+      expect.any(Function),
       expect.objectContaining({ requireInteraction: true }),
     );
+  });
+
+  it("snoozes due reminders for five minutes from the current time", async () => {
+    let snoozeReminder: (() => void) | undefined;
+    const showNotification = vi.fn(
+      (_reminder: Reminder, _onClick: () => void, onSnooze: () => void) => {
+        snoozeReminder = onSnooze;
+        return { show: vi.fn() };
+      },
+    );
+    const { service, saved } = createTestService({
+      now: new Date("2026-06-21T09:01:00.000Z"),
+      showNotification,
+    });
+    await service.load();
+    await service.create(baseInput);
+
+    await service.processDueReminders();
+    await snoozeReminder?.();
+
+    expect(service.getSnapshot()[0]).toMatchObject({
+      scheduledAt: "2026-06-21T09:06:00.000Z",
+      lastNotifiedAt: "2026-06-21T09:00:00.000Z",
+      updatedAt: "2026-06-21T09:01:00.000Z",
+    });
+    expect(saved.at(-1)?.[0]).toMatchObject({
+      scheduledAt: "2026-06-21T09:06:00.000Z",
+    });
   });
 
   it("schedules newly created overdue reminders to notify immediately", async () => {

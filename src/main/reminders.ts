@@ -14,6 +14,7 @@ import { createAppNotification } from "./app-notification";
 import { openPathInNewWindow } from "./window";
 
 const MAX_TIMER_DELAY = 2_147_483_647;
+const SNOOZE_DELAY = 5 * 60 * 1000;
 
 export interface TimerHandle {
   dispose: () => void;
@@ -36,6 +37,7 @@ interface ReminderServiceDeps {
   showNotification?: (
     reminder: Reminder,
     onClick: () => void,
+    onSnooze: () => void,
     options: ReminderNotificationOptions,
   ) => NotificationHandle;
   getNotificationConfig?: () => NotificationConfig;
@@ -141,6 +143,7 @@ export function calculateNextReminderDate(
 function createDefaultNotification(
   reminder: Reminder,
   onClick: () => void,
+  onSnooze: () => void,
   options: ReminderNotificationOptions,
 ): NotificationHandle {
   return createAppNotification(
@@ -152,6 +155,7 @@ function createDefaultNotification(
       requireInteraction: options.requireInteraction,
     },
     onClick,
+    onSnooze,
   );
 }
 
@@ -176,6 +180,7 @@ export class ReminderService {
   private readonly showNotification: (
     reminder: Reminder,
     onClick: () => void,
+    onSnooze: () => void,
     options: ReminderNotificationOptions,
   ) => NotificationHandle;
   private readonly getNotificationConfig: () => NotificationConfig;
@@ -336,6 +341,9 @@ export class ReminderService {
               void this.openFileInNewWindow(reminder.filePath);
             }
           },
+          () => {
+            void this.snoozeReminder(reminder.id);
+          },
           {
             requireInteraction: config.desktop.requireInteraction,
           },
@@ -348,6 +356,27 @@ export class ReminderService {
 
     // 发送远程通知（邮件等）
     await notificationChannelManager.sendAll(reminder);
+  }
+
+  private async snoozeReminder(id: string): Promise<void> {
+    const now = this.now();
+    const snoozedAt = new Date(now.getTime() + SNOOZE_DELAY).toISOString();
+    let changed = false;
+
+    // 稍后提醒只移动当前提醒的下一次触发时间，不改标题、关联文件和重复配置。
+    this.reminders = this.reminders.map((reminder) => {
+      if (reminder.id !== id || reminder.completed) return reminder;
+      changed = true;
+      return {
+        ...reminder,
+        scheduledAt: snoozedAt,
+        updatedAt: now.toISOString(),
+      };
+    });
+
+    if (changed) {
+      await this.persistAndNotify();
+    }
   }
 
   private async persistAndNotify(): Promise<void> {

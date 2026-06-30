@@ -8,8 +8,8 @@ import iconPath from "../../resources/icon.png?asset";
 const IS_MAC = process.platform === "darwin";
 const MAC_NOTIFICATION_WIDTH = 356;
 const MAC_NOTIFICATION_HEIGHT = 130;
-const WINDOWS_NOTIFICATION_WIDTH = 632;
-const WINDOWS_NOTIFICATION_HEIGHT = 344;
+const WINDOWS_NOTIFICATION_WIDTH = 420;
+const WINDOWS_NOTIFICATION_HEIGHT = 214;
 const NOTIFICATION_MARGIN = 24;
 const AUTO_CLOSE_DELAY = 12_000;
 const NOTIFICATION_ACTION_PROTOCOL = "keep-notes-notification:";
@@ -38,7 +38,7 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
-function createActionUrl(action: "confirm" | "open"): string {
+function createActionUrl(action: "close" | "open" | "snooze"): string {
   return `${NOTIFICATION_ACTION_PROTOCOL}//${action}`;
 }
 
@@ -75,7 +75,8 @@ function createNotificationHtml(options: AppNotificationOptions): string {
   const confirmLabel = "稍后提醒";
   const openLabel = escapeHtml(options.openLabel || "查看详情");
   const openAction = createActionUrl("open");
-  const confirmAction = createActionUrl("confirm");
+  const closeAction = createActionUrl("close");
+  const snoozeAction = createActionUrl("snooze");
   const platformClass = IS_MAC ? "platform-mac" : "platform-windows";
   const iconUrl = escapeHtml(getIconDataUrl());
 
@@ -306,26 +307,29 @@ function createNotificationHtml(options: AppNotificationOptions): string {
     }
     .platform-windows .notification {
       border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 10px;
+      border-radius: 8px;
       background:
         radial-gradient(circle at 18% 0%, rgba(69, 82, 96, 0.28), rgba(69, 82, 96, 0) 34%),
         linear-gradient(135deg, rgba(25, 33, 41, 0.98) 0%, rgba(13, 20, 28, 0.98) 100%);
-      box-shadow: 0 18px 34px rgba(0, 0, 0, 0.35);
+      box-shadow: 0 14px 28px rgba(0, 0, 0, 0.32);
       color: rgba(255, 255, 255, 0.96);
     }
     .platform-windows .content {
-      grid-template-columns: 48px 1fr;
-      gap: 24px;
-      padding: 27px 28px 0;
+      grid-template-columns: 38px 1fr;
+      gap: 14px;
+      padding: 22px 20px 0;
     }
     .platform-windows .app-icon {
-      width: 48px;
-      height: 48px;
+      width: 38px;
+      height: 38px;
       border-radius: 9px;
     }
+    .platform-windows .meta {
+      margin-bottom: 0;
+    }
     .platform-windows .app-name {
-      font-size: 28px;
-      line-height: 36px;
+      font-size: 17px;
+      line-height: 24px;
       font-weight: 600;
     }
     .platform-windows .time {
@@ -333,33 +337,39 @@ function createNotificationHtml(options: AppNotificationOptions): string {
     }
     .platform-windows .window-actions {
       display: flex;
-      padding-top: 2px;
-      font-size: 28px;
+      padding-top: 0;
+      font-size: 22px;
     }
     .platform-windows .title {
-      margin-top: 31px;
-      font-size: 32px;
-      line-height: 40px;
-      font-weight: 700;
+      margin-top: 25px;
+      font-size: 24px;
+      line-height: 30px;
+      font-weight: 650;
     }
     .platform-windows .body {
       margin-top: 2px;
+      font-size: 17px;
+      line-height: 23px;
       color: rgba(255, 255, 255, 0.72);
     }
     .platform-windows .detail {
+      margin-top: 8px;
+      font-size: 15px;
+      line-height: 20px;
       color: rgba(255, 255, 255, 0.54);
     }
     .platform-windows .actions {
-      padding: 18px 30px 25px;
+      gap: 10px;
+      padding: 12px 20px 20px;
     }
     .platform-windows .button {
       flex: 1;
-      height: 66px;
-      border-radius: 8px;
+      height: 40px;
+      border-radius: 6px;
       border: 1px solid rgba(255, 255, 255, 0.04);
       background: rgba(255, 255, 255, 0.12);
       color: rgba(255, 255, 255, 0.94);
-      font-size: 27px;
+      font-size: 16px;
       font-weight: 500;
     }
     .platform-windows .button.primary {
@@ -368,6 +378,9 @@ function createNotificationHtml(options: AppNotificationOptions): string {
     }
     .platform-windows .clock-icon {
       display: inline-block;
+      width: 20px;
+      height: 20px;
+      border-width: 1.5px;
     }
     @media (prefers-reduced-motion: no-preference) {
       .notification {
@@ -395,8 +408,7 @@ function createNotificationHtml(options: AppNotificationOptions): string {
           <div class="app-name">Keep Notes</div>
           <div class="time">现在</div>
           <div class="window-actions" aria-hidden="true">
-            <span class="window-action more">•••</span>
-            <a class="window-action" href="${confirmAction}" aria-label="关闭">×</a>
+            <a class="window-action" href="${closeAction}" aria-label="关闭">×</a>
           </div>
         </div>
         <div class="title">${title}</div>
@@ -405,7 +417,7 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       </div>
     </div>
     <div class="actions">
-      <a class="button" href="${confirmAction}"><span class="clock-icon" aria-hidden="true"></span><span>${confirmLabel}</span></a>
+      <a class="button" href="${snoozeAction}"><span class="clock-icon" aria-hidden="true"></span><span>${confirmLabel}</span></a>
       ${options.openLabel ? `<a class="button primary" href="${openAction}">${openLabel}</a>` : ""}
     </div>
   </section>
@@ -441,6 +453,7 @@ export function isAppNotificationSupported(): boolean {
 export function createAppNotification(
   options: AppNotificationOptions,
   onOpen?: () => void,
+  onSnooze?: () => void,
 ): AppNotificationHandle {
   return {
     show: () =>
@@ -514,13 +527,17 @@ export function createAppNotification(
 
           if (action === "open") {
             onOpen?.();
-            if (!options.requireInteraction) {
-              closeWindow();
-            }
+            closeWindow();
             return true;
           }
 
-          if (action === "confirm") {
+          if (action === "snooze") {
+            onSnooze?.();
+            closeWindow();
+            return true;
+          }
+
+          if (action === "close") {
             closeWindow();
             return true;
           }
