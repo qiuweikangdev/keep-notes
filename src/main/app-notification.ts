@@ -3,11 +3,12 @@ import fs from "node:fs";
 import { join } from "node:path";
 import process from "node:process";
 import { BrowserWindow, screen } from "electron";
+import { APP_NAME } from "../shared/constants";
 import iconPath from "../../resources/icon.png?asset";
 
 const IS_MAC = process.platform === "darwin";
 const MAC_NOTIFICATION_WIDTH = 356;
-const MAC_NOTIFICATION_HEIGHT = 130;
+const MAC_NOTIFICATION_HEIGHT = 144;
 const MAC_NOTIFICATION_MARGIN = 24;
 const WINDOWS_NOTIFICATION_WIDTH = 384;
 const WINDOWS_NOTIFICATION_HEIGHT = 188;
@@ -16,6 +17,7 @@ const AUTO_CLOSE_DELAY = 12_000;
 const NOTIFICATION_ACTION_PROTOCOL = "keep-notes-notification:";
 
 export interface AppNotificationOptions {
+  appName?: string;
   title: string;
   body?: string;
   detail?: string;
@@ -70,8 +72,9 @@ function getIconDataUrl(): string {
 }
 
 function createNotificationHtml(options: AppNotificationOptions): string {
+  const appName = escapeHtml(options.appName?.trim() || APP_NAME);
   const title = escapeHtml(options.title);
-  const body = escapeHtml(options.body || "提醒事项");
+  const body = options.body?.trim() ? escapeHtml(options.body) : "";
   const detail = options.detail ? escapeHtml(options.detail) : "";
   const confirmLabel = "稍后提醒";
   const openLabel = escapeHtml(options.openLabel || "查看详情");
@@ -223,7 +226,7 @@ function createNotificationHtml(options: AppNotificationOptions): string {
     .platform-mac .content {
       grid-template-columns: 36px 1fr;
       gap: 12px;
-      padding: 17px 18px 1px 18px;
+      padding: 10px 18px 0 18px;
     }
     .platform-mac .app-icon {
       width: 36px;
@@ -231,6 +234,7 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       border-radius: 8px;
     }
     .platform-mac .meta {
+      min-height: 36px;
       margin-bottom: 1px;
     }
     .platform-mac .app-name {
@@ -265,7 +269,7 @@ function createNotificationHtml(options: AppNotificationOptions): string {
     .platform-mac .actions {
       gap: 8px;
       justify-content: flex-end;
-      padding: 3px 16px 13px 66px;
+      padding: 4px 16px 10px 66px;
     }
     .platform-mac .button {
       min-width: 78px;
@@ -307,6 +311,7 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       border-radius: 8px;
     }
     .platform-windows .meta {
+      min-height: 34px;
       margin-bottom: 0;
     }
     .platform-windows .app-name {
@@ -381,19 +386,19 @@ function createNotificationHtml(options: AppNotificationOptions): string {
   </style>
 </head>
 <body class="${platformClass}">
-  <section class="notification" aria-label="Keep Notes 提醒通知">
+  <section class="notification" aria-label="${appName} 提醒通知">
     <div class="content">
       <img class="app-icon" src="${iconUrl}" alt="" aria-hidden="true" />
       <div class="text">
         <div class="meta">
-          <div class="app-name">Keep Notes</div>
+          <div class="app-name">${appName}</div>
           <div class="time">现在</div>
           <div class="window-actions" aria-hidden="true">
             <a class="window-action" href="${closeAction}" aria-label="关闭">×</a>
           </div>
         </div>
         <div class="title">${title}</div>
-        <div class="body">${body}</div>
+        ${body ? `<div class="body">${body}</div>` : ""}
         ${detail ? `<div class="detail">${detail}</div>` : ""}
       </div>
     </div>

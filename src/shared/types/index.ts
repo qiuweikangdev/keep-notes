@@ -1,4 +1,5 @@
 import type React from "react";
+import { APP_NAME } from "../constants/app-info";
 
 export interface ApiResponse<T = void> {
   code: CodeResult;
@@ -228,6 +229,7 @@ export type NotificationChannelType = "desktop" | "email" | "feishu";
 export interface DesktopChannelConfig {
   enabled: boolean;
   requireInteraction: boolean;
+  appName: string;
 }
 
 export interface EmailChannelConfig {
@@ -245,7 +247,7 @@ export interface NotificationConfig {
 }
 
 export const DEFAULT_NOTIFICATION_CONFIG: NotificationConfig = {
-  desktop: { enabled: true, requireInteraction: false },
+  desktop: { enabled: true, requireInteraction: false, appName: APP_NAME },
   email: {
     enabled: false,
     smtpHost: "smtp.qq.com",

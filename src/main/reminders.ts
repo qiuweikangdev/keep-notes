@@ -25,6 +25,7 @@ interface NotificationHandle {
 }
 
 interface ReminderNotificationOptions {
+  appName: string;
   requireInteraction: boolean;
 }
 
@@ -148,8 +149,9 @@ function createDefaultNotification(
 ): NotificationHandle {
   return createAppNotification(
     {
+      appName: options.appName,
       title: reminder.title,
-      body: reminder.fileName || "提醒事项",
+      body: reminder.fileName || undefined,
       detail: new Date(reminder.scheduledAt).toLocaleString("zh-CN"),
       openLabel: reminder.filePath ? "查看详情" : undefined,
       requireInteraction: options.requireInteraction,
@@ -345,6 +347,7 @@ export class ReminderService {
             void this.snoozeReminder(reminder.id);
           },
           {
+            appName: config.desktop.appName,
             requireInteraction: config.desktop.requireInteraction,
           },
         );
