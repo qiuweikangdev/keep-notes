@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useReminderStore } from "@/store/reminder.store";
@@ -7,6 +7,7 @@ import { ReminderEditorDialog } from "./reminder-editor-dialog";
 describe("ReminderEditorDialog", () => {
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
   });
 
   beforeEach(() => {
@@ -75,5 +76,26 @@ describe("ReminderEditorDialog", () => {
         }),
       );
     });
+  });
+
+  it("refreshes the default time every time the create dialog opens", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-21T08:02:00"));
+    useReminderStore.setState({
+      draftFilePath: null,
+    });
+    render(<ReminderEditorDialog />);
+
+    expect(screen.getByRole("button", { name: /08:02/ })).toBeInTheDocument();
+
+    act(() => {
+      useReminderStore.getState().closeEditor();
+    });
+    vi.setSystemTime(new Date("2026-06-21T09:17:00"));
+    act(() => {
+      useReminderStore.getState().openCreateDialog();
+    });
+
+    expect(screen.getByRole("button", { name: /09:17/ })).toBeInTheDocument();
   });
 });
