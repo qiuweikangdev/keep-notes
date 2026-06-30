@@ -97,16 +97,9 @@ export function getDefaultReminderDateTime(now = new Date()): {
   date: string;
   time: string;
 } {
-  const next = new Date(now);
-  next.setMinutes(next.getMinutes() + 30);
-  const remainder = next.getMinutes() % 5;
-  if (remainder > 0) {
-    next.setMinutes(next.getMinutes() + (5 - remainder));
-  }
-  next.setSeconds(0, 0);
   return {
-    date: toDateInputValue(next),
-    time: toTimeInputValue(next),
+    date: toDateInputValue(now),
+    time: toTimeInputValue(now),
   };
 }
 

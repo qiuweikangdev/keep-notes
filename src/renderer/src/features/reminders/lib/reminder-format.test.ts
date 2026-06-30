@@ -95,11 +95,11 @@ describe("filterReminders", () => {
 });
 
 describe("getDefaultReminderDateTime", () => {
-  it("rounds the default time to the next five minutes after thirty minutes", () => {
+  it("uses the current local time as the default reminder time", () => {
     expect(getDefaultReminderDateTime(new Date("2026-06-21T08:02:00"))).toEqual(
       {
         date: "2026-06-21",
-        time: "08:35",
+        time: "08:02",
       },
     );
   });

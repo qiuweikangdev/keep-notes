@@ -180,18 +180,19 @@ export function ReminderEditorDialog() {
 
   useEffect(() => {
     if (!isEditorOpen) return;
-    setTitle(initialState.title);
-    setDate(initialState.date);
-    setTime(initialState.time);
-    setRepeat(initialState.repeat);
-    setCustomRepeat(initialState.customRepeat);
+    const nextInitialState = getInitialState(editingReminder, draftFilePath);
+    setTitle(nextInitialState.title);
+    setDate(nextInitialState.date);
+    setTime(nextInitialState.time);
+    setRepeat(nextInitialState.repeat);
+    setCustomRepeat(nextInitialState.customRepeat);
     setIsDateEnabled(true);
     setIsTimeEnabled(true);
     setOpenPicker(null);
-    setDisplayMonth(parseDateValue(initialState.date));
-  }, [initialState, isEditorOpen]);
+    setDisplayMonth(parseDateValue(nextInitialState.date));
+  }, [draftFilePath, editingReminder, isEditorOpen]);
 
-  const filePath = initialState.filePath;
+  const filePath = editingReminder?.filePath ?? draftFilePath ?? "";
   const fileName = getFileName(filePath);
   const canSave =
     title.trim().length > 0 &&
