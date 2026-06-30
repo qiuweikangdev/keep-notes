@@ -16,6 +16,7 @@ import type {
   ReminderInput,
   NotificationChannelType,
   NotificationConfig,
+  ExportConfig,
 } from "@shared/types";
 
 export interface ElectronAPI {
@@ -116,6 +117,12 @@ export interface ElectronAPI {
   ) => Promise<{ success: boolean; error?: string }>;
   onNotificationConfigChanged: (
     callback: (config: NotificationConfig) => void,
+  ) => () => void;
+  // Export
+  getExportConfig: () => Promise<ExportConfig>;
+  setExportConfig: (config: ExportConfig) => Promise<void>;
+  onExportConfigChanged: (
+    callback: (config: ExportConfig) => void,
   ) => () => void;
 }
 

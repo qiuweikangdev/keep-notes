@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsModal } from "./settings-modal";
 import { useEditorStore } from "@/store/editor.store";
 import { useUIStore } from "@/store/ui.store";
+import { useExportStore } from "@/store/export.store";
+import { DEFAULT_EXPORT_CONFIG } from "@/types";
 
 describe("SettingsModal about tab", () => {
   const electronAPI = {
@@ -28,6 +30,15 @@ describe("SettingsModal about tab", () => {
     installUpdate: vi.fn(),
     openRepository: vi.fn(),
     onUpdateState: vi.fn(() => vi.fn()),
+    getExportConfig: vi.fn(async () => ({
+      enabledFormats: ["pdf"],
+      defaultDirectoryMode: "same-as-source",
+      customDirectoryPath: "",
+      openDirectoryAfterExport: false,
+    })),
+    setExportConfig: vi.fn(async () => undefined),
+    onExportConfigChanged: vi.fn(() => vi.fn()),
+    getSelectedPath: vi.fn(async () => "/Users/test/Documents"),
   };
 
   beforeEach(() => {
@@ -42,6 +53,10 @@ describe("SettingsModal about tab", () => {
       value: electronAPI,
     });
     useUIStore.setState({ isSettingsOpen: true });
+    useExportStore.setState({
+      config: DEFAULT_EXPORT_CONFIG,
+      isLoading: false,
+    });
   });
 
   it("shows app metadata and triggers update checks from the about tab", async () => {
@@ -132,6 +147,47 @@ describe("SettingsModal about tab", () => {
     expect(setAppearance).toHaveBeenCalledWith({
       fontSize: 18,
       uiFontSize: 18,
+    });
+  });
+
+  it("configures export folder and post-export behavior from the export tab", async () => {
+    render(<SettingsModal />);
+
+    fireEvent.click(screen.getByRole("button", { name: /导出/ }));
+
+    expect(await screen.findByText("导出格式")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "导出格式" })).toHaveTextContent(
+      "PDF",
+    );
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "导出格式" }), {
+      key: "Enter",
+    });
+    expect(
+      await screen.findByRole("menuitemcheckbox", { name: "PDF" }),
+    ).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Word" }));
+    fireEvent.keyDown(screen.getByRole("menu", { name: "导出格式" }), {
+      key: "Escape",
+    });
+
+    fireEvent.keyDown(
+      screen.getByRole("button", { name: "默认的导出文件夹" }),
+      { key: "Enter" },
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "自定义" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "选择自定义导出文件夹" }),
+    );
+    fireEvent.click(screen.getByLabelText("打开导出文件所在目录"));
+
+    await waitFor(() => {
+      expect(window.electronAPI.setExportConfig).toHaveBeenLastCalledWith({
+        enabledFormats: ["pdf", "word"],
+        defaultDirectoryMode: "custom",
+        customDirectoryPath: "/Users/test/Documents",
+        openDirectoryAfterExport: true,
+      });
     });
   });
 });

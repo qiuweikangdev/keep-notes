@@ -22,6 +22,9 @@ export type {
   NotificationChannelType,
   DesktopChannelConfig,
   NotificationConfig,
+  ExportConfig,
+  ExportDirectoryMode,
+  ExportFormat,
 } from "@shared/types";
 
 export {
@@ -29,6 +32,8 @@ export {
   LeftAreaEnum,
   DirColorEnum,
   DEFAULT_NOTIFICATION_CONFIG,
+  DEFAULT_EXPORT_CONFIG,
+  EXPORT_FORMATS,
 } from "@shared/types";
 
 export type { ElectronAPI, GitAPI } from "./electron.d";
