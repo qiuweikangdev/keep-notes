@@ -201,41 +201,12 @@ function createNotificationHtml(options: AppNotificationOptions): string {
     }
     .clock-icon {
       display: none;
-      position: relative;
       width: 30px;
       height: 30px;
-      border: 1.8px solid currentColor;
-      border-radius: 999px;
+      flex: 0 0 auto;
       opacity: 0.92;
-    }
-    .clock-icon::before,
-    .clock-icon::after {
-      content: "";
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      width: 1.8px;
-      border-radius: 999px;
-      background: currentColor;
-      transform-origin: 50% 100%;
-    }
-    .clock-icon::before {
-      height: 8px;
-      transform: translate(-50%, -100%) rotate(0deg);
-    }
-    .clock-icon::after {
-      height: 7px;
-      transform: translate(-50%, -100%) rotate(90deg);
-    }
-    .clock-icon-dot {
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      width: 3px;
-      height: 3px;
-      border-radius: 999px;
-      background: currentColor;
-      transform: translate(-50%, -50%);
+      overflow: visible;
+      shape-rendering: geometricPrecision;
     }
     .platform-mac .notification {
       border: 1px solid rgba(255, 255, 255, 0.5);
@@ -387,10 +358,9 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       color: white;
     }
     .platform-windows .clock-icon {
-      display: inline-block;
+      display: block;
       width: 20px;
       height: 20px;
-      border-width: 1.5px;
     }
     @media (prefers-reduced-motion: no-preference) {
       .notification {
@@ -427,7 +397,7 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       </div>
     </div>
     <div class="actions">
-      <a class="button" href="${snoozeAction}"><span class="clock-icon" aria-hidden="true"><span class="clock-icon-dot"></span></span><span>${confirmLabel}</span></a>
+      <a class="button" href="${snoozeAction}"><svg class="clock-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8.6" stroke="currentColor" stroke-width="1.8" /><path d="M12 7.2V12l3.4 2.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /><circle cx="12" cy="12" r="1.15" fill="currentColor" /></svg><span>${confirmLabel}</span></a>
       ${options.openLabel ? `<a class="button primary" href="${openAction}">${openLabel}</a>` : ""}
     </div>
   </section>
