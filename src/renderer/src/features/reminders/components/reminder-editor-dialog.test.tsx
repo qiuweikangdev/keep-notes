@@ -1,4 +1,11 @@
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useReminderStore } from "@/store/reminder.store";
@@ -97,5 +104,30 @@ describe("ReminderEditorDialog", () => {
     });
 
     expect(screen.getByRole("button", { name: /09:17/ })).toBeInTheDocument();
+  });
+
+  it("scrolls the time picker columns to the current time when opened", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-21T11:05:00"));
+    const scrollIntoView = vi.fn();
+    const originalScrollIntoView = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrollIntoView;
+
+    try {
+      useReminderStore.setState({
+        draftFilePath: null,
+      });
+      render(<ReminderEditorDialog />);
+
+      fireEvent.click(screen.getByRole("button", { name: /11:05/ }));
+
+      expect(scrollIntoView).toHaveBeenCalledTimes(2);
+      expect(scrollIntoView).toHaveBeenCalledWith({
+        block: "center",
+        behavior: "auto",
+      });
+    } finally {
+      Element.prototype.scrollIntoView = originalScrollIntoView;
+    }
   });
 });

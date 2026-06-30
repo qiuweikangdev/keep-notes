@@ -228,7 +228,7 @@ vi.mock("@/store/shortcuts.store", () => ({
     ) => {
       const state = {
         shortcuts: [
-          { id: "toggleSidebar", keys: ["CmdOrCtrl+B"] },
+          { id: "toggleSidebar", keys: ["CmdOrCtrl+Shift+B"] },
           { id: "toggleTheme", keys: ["CmdOrCtrl+Shift+L"] },
           { id: "openSearch", keys: ["CmdOrCtrl+P"] },
           { id: "openSearchAlt", keys: ["CmdOrCtrl+Shift+F"] },
@@ -239,7 +239,7 @@ vi.mock("@/store/shortcuts.store", () => ({
     {
       getState: () => ({
         shortcuts: [
-          { id: "toggleSidebar", keys: ["CmdOrCtrl+B"] },
+          { id: "toggleSidebar", keys: ["CmdOrCtrl+Shift+B"] },
           { id: "toggleTheme", keys: ["CmdOrCtrl+Shift+L"] },
           { id: "openSearch", keys: ["CmdOrCtrl+P"] },
           { id: "openSearchAlt", keys: ["CmdOrCtrl+Shift+F"] },
@@ -289,15 +289,27 @@ describe("App shortcuts", () => {
     );
   });
 
-  it("toggles the same sidebar when pressing Cmd+B", () => {
+  it("toggles the same sidebar when pressing Cmd+Shift+B", () => {
     render(<App />);
 
-    fireEvent.keyDown(window, { key: "b", metaKey: true });
+    fireEvent.keyDown(window, { key: "b", metaKey: true, shiftKey: true });
 
     expect(screen.getByTestId("sidebar-state")).toHaveTextContent("collapsed");
     expect(screen.getByTestId("sidebar-panel")).toHaveAttribute(
       "data-collapsed",
       "true",
+    );
+  });
+
+  it("leaves Cmd+B available for editor bold formatting", () => {
+    render(<App />);
+
+    fireEvent.keyDown(window, { key: "b", metaKey: true });
+
+    expect(screen.getByTestId("sidebar-state")).toHaveTextContent("expanded");
+    expect(screen.getByTestId("sidebar-panel")).toHaveAttribute(
+      "data-collapsed",
+      "false",
     );
   });
 

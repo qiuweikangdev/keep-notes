@@ -52,12 +52,9 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
   const titleBarRef = useRef<HTMLDivElement>(null);
   const { detectGitRepo, openFile } = useElectron();
 
-  const { treeRoot, selectedKey } = useTreeStore();
+  const { treeRoot } = useTreeStore();
   const openReminderList = useReminderStore((state) => state.openList);
-  const externalOpenTargetPath = resolveExternalOpenTargetPath(
-    selectedKey,
-    treeRoot?.key,
-  );
+  const externalOpenTargetPath = resolveExternalOpenTargetPath(treeRoot?.key);
   const effectiveExternalOpenApp = resolveEffectiveExternalOpenApp(
     externalOpenApps,
     appearance.defaultExternalOpenApp,

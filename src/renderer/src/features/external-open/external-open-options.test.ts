@@ -18,16 +18,12 @@ const apps: ExternalOpenApp[] = [
 ];
 
 describe("external open options", () => {
-  it("uses selected path before workspace root", () => {
-    expect(resolveExternalOpenTargetPath("/workspace/a.md", "/workspace")).toBe(
-      "/workspace/a.md",
-    );
+  it("uses workspace root as the external open target", () => {
+    expect(resolveExternalOpenTargetPath("/workspace")).toBe("/workspace");
   });
 
-  it("falls back to workspace root when no path is selected", () => {
-    expect(resolveExternalOpenTargetPath(null, "/workspace")).toBe(
-      "/workspace",
-    );
+  it("returns null when no workspace root is available", () => {
+    expect(resolveExternalOpenTargetPath(null)).toBeNull();
   });
 
   it("uses the saved default when it is available", () => {

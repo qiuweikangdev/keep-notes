@@ -93,7 +93,7 @@ export function registerAppMenu(): void {
       submenu: [
         {
           label: "切换侧边栏",
-          accelerator: "Cmd+B",
+          accelerator: "Shift+Cmd+B",
           click: () => sendMenuAction("toggleSidebar"),
         },
         {

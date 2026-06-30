@@ -32,11 +32,21 @@ const legacyMacNavigationShortcutMap = {
   navigateForward: ["Alt+ArrowRight", "CmdOrCtrl+Alt+ArrowRight"],
 } as const;
 
+const legacySidebarToggleKeys = ["CmdOrCtrl+B"];
+const defaultSidebarToggleKeys = ["CmdOrCtrl+Shift+B"];
+
 function getShortcutPlatform(): ShortcutPlatform {
   if (typeof window === "undefined") return "other";
 
   const platform = window.electronAPI?.getPlatform?.();
   return platform === "darwin" ? "darwin" : "other";
+}
+
+function hasSameKeys(keys: string[], expectedKeys: readonly string[]): boolean {
+  return (
+    keys.length === expectedKeys.length &&
+    expectedKeys.every((key) => keys.includes(key))
+  );
 }
 
 function normalizeNavigationKeysForPlatform(
@@ -47,9 +57,7 @@ function normalizeNavigationKeysForPlatform(
 
   if (shortcut.id === "navigateBack") {
     const legacyKeys = legacyMacNavigationShortcutMap.navigateBack;
-    const isLegacyBinding =
-      shortcut.keys.length === legacyKeys.length &&
-      legacyKeys.every((key) => shortcut.keys.includes(key));
+    const isLegacyBinding = hasSameKeys(shortcut.keys, legacyKeys);
 
     if (isLegacyBinding) {
       return { ...shortcut, keys: ["CmdOrCtrl+Alt+ArrowLeft"] };
@@ -58,13 +66,22 @@ function normalizeNavigationKeysForPlatform(
 
   if (shortcut.id === "navigateForward") {
     const legacyKeys = legacyMacNavigationShortcutMap.navigateForward;
-    const isLegacyBinding =
-      shortcut.keys.length === legacyKeys.length &&
-      legacyKeys.every((key) => shortcut.keys.includes(key));
+    const isLegacyBinding = hasSameKeys(shortcut.keys, legacyKeys);
 
     if (isLegacyBinding) {
       return { ...shortcut, keys: ["CmdOrCtrl+Alt+ArrowRight"] };
     }
+  }
+
+  return shortcut;
+}
+
+function normalizeSidebarToggleKeys(shortcut: ShortcutConfig): ShortcutConfig {
+  if (shortcut.id !== "toggleSidebar") return shortcut;
+
+  // 将旧的侧边栏默认快捷键迁移走，避免和编辑器加粗命令冲突。
+  if (hasSameKeys(shortcut.keys, legacySidebarToggleKeys)) {
+    return { ...shortcut, keys: [...defaultSidebarToggleKeys] };
   }
 
   return shortcut;
@@ -75,7 +92,9 @@ function normalizeShortcutListForPlatform(
   platform: ShortcutPlatform,
 ): ShortcutConfig[] {
   return shortcuts.map((shortcut) =>
-    normalizeNavigationKeysForPlatform(shortcut, platform),
+    normalizeSidebarToggleKeys(
+      normalizeNavigationKeysForPlatform(shortcut, platform),
+    ),
   );
 }
 
@@ -105,7 +124,7 @@ function createDefaultShortcuts(
       id: "toggleSidebar",
       name: "切换侧边栏",
       description: "展开或收起左侧边栏",
-      keys: ["CmdOrCtrl+B"],
+      keys: [...defaultSidebarToggleKeys],
     },
     {
       id: "toggleTheme",
@@ -221,7 +240,7 @@ export const useShortcutsStore = create<ShortcutsState>()(
     }),
     {
       name: "shortcuts-storage",
-      version: 1,
+      version: 2,
       migrate: (persistedState) =>
         normalizePersistedShortcutsState(
           persistedState as Partial<ShortcutsState> | undefined,

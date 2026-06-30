@@ -1,10 +1,9 @@
 import type { ExternalOpenApp, ExternalOpenAppId } from "@shared/types";
 
 export function resolveExternalOpenTargetPath(
-  selectedPath: string | null | undefined,
   rootPath: string | null | undefined,
 ): string | null {
-  return selectedPath || rootPath || null;
+  return rootPath || null;
 }
 
 export function resolveEffectiveExternalOpenApp(
