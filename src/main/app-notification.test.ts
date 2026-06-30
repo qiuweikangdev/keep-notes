@@ -170,7 +170,9 @@ describe("createAppNotification", () => {
         vibrancy: "popover",
       });
       expect(html).toContain('class="platform-mac"');
-      expect(html).toContain("padding: 10px 18px 0 18px;");
+      expect(html).toContain("padding: 8px 18px 0 18px;");
+      expect(html).toContain("font-size: 17px;");
+      expect(html).toContain("line-height: 22px;");
       expect(html).toContain("padding: 4px 16px 10px 66px;");
     } else {
       expect(windowOptions).toMatchObject({

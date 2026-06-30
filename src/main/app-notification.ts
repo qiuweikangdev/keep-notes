@@ -226,7 +226,7 @@ function createNotificationHtml(options: AppNotificationOptions): string {
     .platform-mac .content {
       grid-template-columns: 36px 1fr;
       gap: 12px;
-      padding: 10px 18px 0 18px;
+      padding: 8px 18px 0 18px;
     }
     .platform-mac .app-icon {
       width: 36px;
@@ -238,9 +238,10 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       margin-bottom: 1px;
     }
     .platform-mac .app-name {
-      font-size: 14px;
+      font-size: 18px;
       line-height: 18px;
       font-weight: 700;
+      transform: translateY(-2px);
     }
     .platform-mac .time {
       font-size: 13px;
@@ -315,9 +316,10 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       margin-bottom: 0;
     }
     .platform-windows .app-name {
-      font-size: 15px;
+      font-size: 18px;
       line-height: 21px;
       font-weight: 600;
+      transform: translateY(-2px);
     }
     .platform-windows .time {
       display: none;
