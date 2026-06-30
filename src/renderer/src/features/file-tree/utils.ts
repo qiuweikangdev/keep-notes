@@ -9,6 +9,10 @@ export interface FlatNode {
   parentKey: string | null;
 }
 
+export type FileTreeRow =
+  | { type: "node"; key: string; node: FlatNode }
+  | { type: "create"; key: string; parentKey: string };
+
 export function normalizeTreePath(path: string) {
   return path.replace(/\\/g, "/").replace(/\/+$/, "");
 }
@@ -86,6 +90,27 @@ export function findNodeByKey(nodes: TreeNode[], key: string): TreeNode | null {
   return null;
 }
 
+export function buildFileTreeRows(
+  flatNodes: FlatNode[],
+  creatingParentKey?: string | null,
+): FileTreeRow[] {
+  const rows: FileTreeRow[] = [];
+
+  for (const node of flatNodes) {
+    rows.push({ type: "node", key: node.key, node });
+
+    if (creatingParentKey && node.key === creatingParentKey) {
+      rows.push({
+        type: "create",
+        key: `create:${creatingParentKey}`,
+        parentKey: creatingParentKey,
+      });
+    }
+  }
+
+  return rows;
+}
+
 /**
  * 查找目标节点的祖先文件夹 key，用于在文件树中自动展开当前文件路径。
  */
@@ -117,6 +142,13 @@ export function shouldRevealFileTreeOnViewChange(
   nextView: "file" | "outline",
 ) {
   return previousView !== "file" && nextView === "file";
+}
+
+export function shouldSyncSelectionToActiveFile(
+  previousView: "file" | "outline",
+  nextView: "file" | "outline",
+) {
+  return shouldRevealFileTreeOnViewChange(previousView, nextView);
 }
 
 /**

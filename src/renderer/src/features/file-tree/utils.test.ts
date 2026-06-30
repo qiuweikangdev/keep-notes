@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCreatedNodeKey,
+  buildFileTreeRows,
   canMoveNodeToFolder,
   findAncestorKeys,
   flattenTree,
   getRevealInFileManagerLabel,
   shouldRevealFileTreeOnViewChange,
+  shouldSyncSelectionToActiveFile,
 } from "./utils";
 
 describe("buildCreatedNodeKey", () => {
@@ -83,6 +85,46 @@ describe("flattenTree", () => {
   });
 });
 
+describe("buildFileTreeRows", () => {
+  const flatNodes = [
+    {
+      key: "D:/notes/work",
+      title: "work",
+      level: 1,
+      isFolder: true,
+      hasChildren: false,
+      parentKey: "D:/notes",
+    },
+    {
+      key: "D:/notes/work/daily.md",
+      title: "daily.md",
+      level: 2,
+      isFolder: false,
+      hasChildren: false,
+      parentKey: "D:/notes/work",
+    },
+  ];
+
+  it("inserts the create row directly after its parent folder", () => {
+    expect(buildFileTreeRows(flatNodes, "D:/notes/work")).toEqual([
+      { type: "node", key: "D:/notes/work", node: flatNodes[0] },
+      {
+        type: "create",
+        key: "create:D:/notes/work",
+        parentKey: "D:/notes/work",
+      },
+      { type: "node", key: "D:/notes/work/daily.md", node: flatNodes[1] },
+    ]);
+  });
+
+  it("keeps only real nodes when there is no visible parent for the create row", () => {
+    expect(buildFileTreeRows(flatNodes, "D:/notes/missing")).toEqual([
+      { type: "node", key: "D:/notes/work", node: flatNodes[0] },
+      { type: "node", key: "D:/notes/work/daily.md", node: flatNodes[1] },
+    ]);
+  });
+});
+
 describe("findAncestorKeys", () => {
   it("returns folder ancestors for a nested file", () => {
     const ancestors = findAncestorKeys(
@@ -122,5 +164,15 @@ describe("shouldRevealFileTreeOnViewChange", () => {
 
   it("keeps the current scroll position when staying in the file tree", () => {
     expect(shouldRevealFileTreeOnViewChange("file", "file")).toBe(false);
+  });
+});
+
+describe("shouldSyncSelectionToActiveFile", () => {
+  it("syncs the active file when switching back to the file tree", () => {
+    expect(shouldSyncSelectionToActiveFile("outline", "file")).toBe(true);
+  });
+
+  it("keeps manually selected or newly created nodes while staying in the file tree", () => {
+    expect(shouldSyncSelectionToActiveFile("file", "file")).toBe(false);
   });
 });

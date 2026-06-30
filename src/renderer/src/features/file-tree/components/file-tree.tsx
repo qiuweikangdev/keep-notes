@@ -44,6 +44,7 @@ import { cn } from "@/lib/cn";
 import { KEEP_NOTES_FILE_DRAG_TYPE, setDraggedFilePath } from "@/lib/file-drag";
 import {
   buildCreatedNodeKey,
+  buildFileTreeRows,
   canMoveNodeToFolder,
   findAncestorKeys,
   findNodeByKey,
@@ -51,6 +52,7 @@ import {
   getRevealInFileManagerLabel,
   normalizeTreePath,
   shouldRevealFileTreeOnViewChange,
+  shouldSyncSelectionToActiveFile,
   type FlatNode,
 } from "../utils";
 
@@ -72,6 +74,7 @@ interface CreatingInfo {
 interface FileTreeRevealRequest {
   key: string;
   id: number;
+  align?: "auto" | "center";
 }
 
 export function FileTree() {
@@ -165,6 +168,7 @@ export function FileTree() {
       setFileTreeRevealRequest({
         key: newKey,
         id: ++revealRequestIdRef.current,
+        align: "auto",
       });
     },
     [setExpandedKeys, setSelectedKey],
@@ -189,21 +193,25 @@ export function FileTree() {
       return;
     }
 
-    const targetNode = findNodeByKey(treeData, revealKey);
-    if (!targetNode) {
-      return;
-    }
-
-    if (activeFilePath && selectedKey !== activeFilePath) {
-      setSelectedKey(activeFilePath);
-    }
-
     const shouldReveal = shouldRevealFileTreeOnViewChange(
       previousSidebarView,
       sidebarView,
     );
     if (!shouldReveal) {
       return;
+    }
+
+    const targetNode = findNodeByKey(treeData, revealKey);
+    if (!targetNode) {
+      return;
+    }
+
+    if (
+      activeFilePath &&
+      selectedKey !== activeFilePath &&
+      shouldSyncSelectionToActiveFile(previousSidebarView, sidebarView)
+    ) {
+      setSelectedKey(activeFilePath);
     }
 
     const nextExpandedKeys = new Set(useTreeStore.getState().expandedKeys);
@@ -224,6 +232,7 @@ export function FileTree() {
     setFileTreeRevealRequest({
       key: revealKey,
       id: ++revealRequestIdRef.current,
+      align: "center",
     });
   }, [
     activeFilePath,
@@ -251,7 +260,10 @@ export function FileTree() {
         creatingInfo.type,
       );
       setTreeData(r.data.treeData);
+      setCreateValue("");
+      setCreatingInfo(null);
       revealCreatedNode(treeRoot.key, newKey);
+      return;
     }
     setCreateValue("");
     setCreatingInfo(null);
@@ -431,6 +443,11 @@ export function FileTree() {
     (flatNode: FlatNode) => {
       setSelectedKey(flatNode.key);
       if (flatNode.isFolder) {
+        setFileTreeRevealRequest({
+          key: flatNode.key,
+          id: ++revealRequestIdRef.current,
+          align: "auto",
+        });
         toggleExpandedKey(flatNode.key);
       } else if (flatNode.title.endsWith(".md")) {
         // 调用标题栏的 addToHistory
@@ -617,7 +634,14 @@ export function FileTree() {
             </Tooltip.Provider>
           </div>
 
-          <div className="flex-1 overflow-auto py-2 pb-12">
+          <div
+            className={cn(
+              "flex-1 py-2 pb-12",
+              sidebarView === "file"
+                ? "flex min-h-0 flex-col overflow-hidden"
+                : "overflow-auto",
+            )}
+          >
             {sidebarView === "file" ? (
               <>
                 {showSearch ? (
@@ -828,7 +852,6 @@ export function FileTree() {
                     selectedKey={selectedKey}
                     revealRequest={fileTreeRevealRequest}
                     creatingInfo={creatingInfo}
-                    isRootCreating={isRootCreating}
                     onClick={handleNodeClick}
                     onCreateInFolder={handleCreateInFolder}
                     onNodeCreated={revealCreatedNode}
@@ -937,7 +960,6 @@ interface VirtualizedTreeListProps {
   selectedKey: string | null;
   revealRequest: FileTreeRevealRequest | null;
   creatingInfo: CreatingInfo | null;
-  isRootCreating: boolean;
   onClick: (flatNode: FlatNode) => void;
   onCreateInFolder: (
     parentKey: string,
@@ -958,7 +980,6 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
   selectedKey,
   revealRequest,
   creatingInfo,
-  isRootCreating,
   onClick,
   onCreateInFolder,
   onNodeCreated,
@@ -970,15 +991,19 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
   openCreateReminder,
 }: VirtualizedTreeListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
+  const rows = useMemo(
+    () => buildFileTreeRows(flatNodes, creatingInfo?.parentKey),
+    [creatingInfo?.parentKey, flatNodes],
+  );
 
   const getItemKey = useCallback(
-    (index: number) => flatNodes[index]?.key ?? index,
-    [flatNodes],
+    (index: number) => rows[index]?.key ?? index,
+    [rows],
   );
 
   // 虚拟滚动状态隔离在列表组件内，避免滚动时带动整个侧边栏重渲。
   const virtualizer = useVirtualizer({
-    count: flatNodes.length,
+    count: rows.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => ROW_HEIGHT,
     getItemKey,
@@ -987,64 +1012,86 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
 
   const revealIndex = useMemo(() => {
     if (!revealRequest) return -1;
-    return flatNodes.findIndex((node) => node.key === revealRequest.key);
-  }, [flatNodes, revealRequest]);
+    return rows.findIndex(
+      (row) => row.type === "node" && row.key === revealRequest.key,
+    );
+  }, [revealRequest, rows]);
+
+  const creatingRowIndex = useMemo(() => {
+    if (!creatingInfo) return -1;
+    return rows.findIndex(
+      (row) =>
+        row.type === "create" && row.parentKey === creatingInfo.parentKey,
+    );
+  }, [creatingInfo, rows]);
 
   useEffect(() => {
     if (!revealRequest || revealIndex < 0) return;
 
     const frame = requestAnimationFrame(() => {
-      virtualizer.scrollToIndex(revealIndex, { align: "center" });
+      virtualizer.scrollToIndex(revealIndex, {
+        align: revealRequest.align ?? "center",
+      });
     });
 
     return () => cancelAnimationFrame(frame);
   }, [revealIndex, revealRequest, virtualizer]);
 
-  // 查找正在创建的节点位置（使用 useMemo 缓存计算结果）
-  const { creatingInsertIndex, extraHeight } = useMemo(() => {
-    if (!creatingInfo) {
-      return { creatingInsertIndex: -1, extraHeight: 0 };
-    }
-    const idx = flatNodes.findIndex((n) => n.key === creatingInfo.parentKey);
-    const insertIdx = idx >= 0 ? idx + 1 : -1;
-    return {
-      creatingInsertIndex: insertIdx,
-      extraHeight: insertIdx >= 0 ? ROW_HEIGHT : 0,
-    };
-  }, [creatingInfo, flatNodes]);
+  useEffect(() => {
+    if (creatingRowIndex < 0) return;
+
+    const frame = requestAnimationFrame(() => {
+      virtualizer.scrollToIndex(creatingRowIndex, { align: "auto" });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [creatingRowIndex, virtualizer]);
 
   return (
     <div
       ref={parentRef}
-      className="overflow-auto"
+      className="min-h-0 flex-1 overflow-auto"
       style={{
-        height: `calc(100% - ${isRootCreating ? 36 : 0}px - 28px)`,
-        contain: "strict",
+        contain: "layout paint style",
+        overflowAnchor: "none",
       }}
     >
       <div
         style={{
-          height: `${virtualizer.getTotalSize() + extraHeight}px`,
+          height: `${virtualizer.getTotalSize()}px`,
           width: "100%",
           position: "relative",
         }}
       >
         {virtualizer.getVirtualItems().map((virtualItem) => {
-          const flatNode = flatNodes[virtualItem.index];
-          if (!flatNode) return null;
+          const row = rows[virtualItem.index];
+          if (!row) return null;
 
-          // 如果当前节点在插入位置之后，需要向下偏移输入框的高度
-          const adjustedStart =
-            creatingInsertIndex >= 0 && virtualItem.index >= creatingInsertIndex
-              ? virtualItem.start + ROW_HEIGHT
-              : virtualItem.start;
+          if (row.type === "create") {
+            if (!creatingInfo || row.parentKey !== creatingInfo.parentKey) {
+              return null;
+            }
+
+            return (
+              <CreateInput
+                key={row.key}
+                creatingInfo={creatingInfo}
+                parentKey={row.parentKey}
+                top={virtualItem.start}
+                onCreated={onNodeCreated}
+                onCancel={() => onCreateInFolder("", "file", 0)}
+              />
+            );
+          }
+
+          const flatNode = row.node;
 
           return (
             <VirtualTreeNode
               key={flatNode.key}
               flatNode={flatNode}
               size={virtualItem.size}
-              start={adjustedStart}
+              start={virtualItem.start}
               isSelected={selectedKey === flatNode.key}
               onClick={onClick}
               onCreateInFolder={onCreateInFolder}
@@ -1057,17 +1104,6 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
             />
           );
         })}
-
-        {/* 单独渲染创建输入框 */}
-        {creatingInsertIndex >= 0 ? (
-          <CreateInput
-            creatingInfo={creatingInfo!}
-            parentKey={creatingInfo!.parentKey}
-            top={creatingInsertIndex * ROW_HEIGHT}
-            onCreated={onNodeCreated}
-            onCancel={() => onCreateInFolder("", "file", 0)}
-          />
-        ) : null}
       </div>
     </div>
   );
@@ -1121,6 +1157,9 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
   const setTreeData = useTreeStore((state) => state.setTreeData);
   const expandedKeys = useTreeStore((state) => state.expandedKeys);
   const toggleExpandedKey = useTreeStore((state) => state.toggleExpandedKey);
+  const isExpanded = useTreeStore((state) =>
+    state.expandedKeys.has(flatNode.key),
+  );
   const { renameItem, moveItem } = useElectron();
   const dropTargetFolderPath = flatNode.isFolder
     ? flatNode.key
@@ -1345,6 +1384,7 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
                     <ChevronRight
                       className={cn(
                         "h-3 w-3 transition-transform duration-100",
+                        isExpanded && "rotate-90",
                       )}
                       style={{ color: "var(--text-muted)" }}
                     />
@@ -1560,7 +1600,9 @@ function CreateInput({
     if (result.code === CodeResult.Success && result.data) {
       const newKey = buildCreatedNodeKey(parentKey, title, creatingInfo.type);
       setTreeData(result.data.treeData);
+      onCancel();
       onCreated(parentKey, newKey);
+      return;
     }
     onCancel();
   }, [
