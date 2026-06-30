@@ -682,6 +682,16 @@ interface TimePickerColumnProps {
 }
 
 function TimePickerColumn({ options, value, onSelect }: TimePickerColumnProps) {
+  const selectedOptionRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    // 下拉每次打开时列会重新挂载，自动把当前选中的时/分滚动到可见位置。
+    selectedOptionRef.current?.scrollIntoView({
+      block: "center",
+      behavior: "auto",
+    });
+  }, [value]);
+
   return (
     <div
       className="max-h-[216px] space-y-1 overflow-y-auto rounded-md p-1"
@@ -693,6 +703,7 @@ function TimePickerColumn({ options, value, onSelect }: TimePickerColumnProps) {
           <button
             key={option}
             type="button"
+            ref={isSelected ? selectedOptionRef : undefined}
             data-theme-control="true"
             data-selected={isSelected ? "true" : undefined}
             className="flex h-8 w-full items-center justify-center rounded-md text-[13px] font-medium"
