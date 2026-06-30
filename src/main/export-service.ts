@@ -1,6 +1,8 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join } from "node:path";
-import { shell } from "electron";
+import { BrowserWindow, shell } from "electron";
+import htmlToDocx from "html-to-docx";
+import MarkdownIt from "markdown-it";
 import type {
   ExportConfig,
   ExportFileResult,
@@ -9,11 +11,18 @@ import type {
 
 const EXPORT_EXTENSIONS: Record<ExportFormat, string> = {
   pdf: ".pdf",
-  word: ".doc",
+  word: ".docx",
   md: ".md",
   html: ".html",
-  image: ".svg",
+  image: ".png",
 };
+
+const markdownRenderer = new MarkdownIt({
+  html: false,
+  linkify: true,
+  typographer: true,
+  breaks: true,
+});
 
 function escapeHtml(value: string): string {
   return value
@@ -37,111 +46,193 @@ function getExportDirectory(filePath: string, config: ExportConfig): string {
   return dirname(filePath);
 }
 
-function createHtmlDocument(markdown: string, title: string): string {
+function createDocumentStyles(): string {
+  return `
+    :root { color-scheme: light; }
+    body {
+      box-sizing: border-box;
+      margin: 0 auto;
+      max-width: 900px;
+      padding: 40px;
+      color: #1f2328;
+      background: #ffffff;
+      font: 14px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin: 1.35em 0 0.65em;
+      line-height: 1.25;
+      color: #111827;
+    }
+    h1 { font-size: 28px; border-bottom: 1px solid #d8dee4; padding-bottom: 0.35em; }
+    h2 { font-size: 22px; border-bottom: 1px solid #d8dee4; padding-bottom: 0.25em; }
+    h3 { font-size: 18px; }
+    p, blockquote, ul, ol, table, pre { margin: 0 0 16px; }
+    ul, ol { padding-left: 1.5em; }
+    li + li { margin-top: 0.25em; }
+    blockquote {
+      padding: 0 1em;
+      color: #57606a;
+      border-left: 4px solid #d0d7de;
+    }
+    table {
+      display: table;
+      width: 100%;
+      border-spacing: 0;
+      border-collapse: collapse;
+      overflow: visible;
+    }
+    th, td {
+      padding: 6px 13px;
+      border: 1px solid #d0d7de;
+      vertical-align: top;
+    }
+    th { font-weight: 600; background: #f6f8fa; }
+    tr:nth-child(2n) td { background: #f6f8fa; }
+    code {
+      padding: 0.2em 0.4em;
+      border-radius: 6px;
+      background: rgba(175, 184, 193, 0.2);
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 85%;
+    }
+    pre {
+      overflow: auto;
+      padding: 16px;
+      border-radius: 6px;
+      background: #f6f8fa;
+    }
+    pre code { padding: 0; background: transparent; font-size: 100%; }
+    img { max-width: 100%; height: auto; }
+    a { color: #0969da; text-decoration: none; }
+    hr { height: 0.25em; padding: 0; margin: 24px 0; background: #d0d7de; border: 0; }
+  `;
+}
+
+export function createHtmlDocument(markdown: string, title: string): string {
+  const bodyContent = markdownRenderer.render(markdown);
+
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
   <title>${escapeHtml(title)}</title>
-  <style>
-    body { margin: 40px; font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    pre { white-space: pre-wrap; word-break: break-word; }
-  </style>
+  <style>${createDocumentStyles()}</style>
 </head>
 <body>
-  <pre>${escapeHtml(markdown)}</pre>
+${bodyContent}
 </body>
 </html>
 `;
 }
 
-function escapePdfText(value: string): string {
-  return value
-    .replace(/[^\x09\x0a\x0d\x20-\x7e]/g, "?")
-    .replace(/\\/g, "\\\\")
-    .replace(/\(/g, "\\(")
-    .replace(/\)/g, "\\)");
+function createRendererDataUrl(html: string): string {
+  return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
 }
 
-function createPdfDocument(markdown: string): string {
-  const lines = markdown.split(/\r?\n/).slice(0, 48);
-  const textCommands = lines
-    .map((line, index) => {
-      const escapedLine = escapePdfText(line);
-      return index === 0
-        ? `50 780 Td (${escapedLine}) Tj`
-        : `0 -16 Td (${escapedLine}) Tj`;
-    })
-    .join("\n");
-  const stream = `BT
-/F1 12 Tf
-${textCommands}
-ET`;
-  const objects = [
-    "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-    `<< /Length ${Buffer.byteLength(stream, "utf8")} >>\nstream\n${stream}\nendstream`,
-  ];
-  let pdf = "%PDF-1.4\n";
-  const offsets = [0];
+async function withRenderedWindow<T>(
+  html: string,
+  width: number,
+  height: number,
+  render: (window: BrowserWindow) => Promise<T>,
+): Promise<T> {
+  const window = new BrowserWindow({
+    show: false,
+    width,
+    height,
+    webPreferences: {
+      offscreen: true,
+    },
+  });
 
-  for (const [index, object] of objects.entries()) {
-    offsets.push(Buffer.byteLength(pdf, "utf8"));
-    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  try {
+    await window.loadURL(createRendererDataUrl(html));
+    return await render(window);
+  } finally {
+    if (!window.isDestroyed()) {
+      window.destroy();
+    }
+  }
+}
+
+async function createPdfDocument(html: string): Promise<Buffer> {
+  return withRenderedWindow(html, 960, 1200, (window) => {
+    // 通过 Chromium 打印管线生成 PDF，避免手写 PDF 导致中文编码和表格布局问题。
+    return window.webContents.printToPDF({
+      printBackground: true,
+      margins: {
+        marginType: "default",
+      },
+    });
+  });
+}
+
+async function getDocumentHeight(window: BrowserWindow): Promise<number> {
+  const height = await window.webContents.executeJavaScript(
+    `Math.ceil(Math.max(
+      document.body.scrollHeight,
+      document.body.offsetHeight,
+      document.documentElement.clientHeight,
+      document.documentElement.scrollHeight,
+      document.documentElement.offsetHeight
+    ))`,
+    true,
+  );
+
+  if (typeof height !== "number" || !Number.isFinite(height)) {
+    return 1200;
   }
 
-  const xrefOffset = Buffer.byteLength(pdf, "utf8");
-  pdf += `xref
-0 ${objects.length + 1}
-0000000000 65535 f 
-${offsets
-  .slice(1)
-  .map((offset) => `${String(offset).padStart(10, "0")} 00000 n `)
-  .join("\n")}
-trailer
-<< /Size ${objects.length + 1} /Root 1 0 R >>
-startxref
-${xrefOffset}
-%%EOF
-`;
-  return pdf;
+  return Math.min(Math.max(height, 320), 12000);
 }
 
-function createSvgDocument(markdown: string, title: string): string {
-  const lines = markdown.split(/\r?\n/).slice(0, 36);
-  const width = 960;
-  const height = Math.max(240, lines.length * 24 + 96);
-  const text = lines
-    .map((line, index) => {
-      return `<text x="48" y="${80 + index * 24}">${escapeHtml(line)}</text>`;
-    })
-    .join("\n  ");
-
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <rect width="100%" height="100%" fill="#ffffff"/>
-  <text x="48" y="42" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="20" font-weight="600" fill="#111827">${escapeHtml(title)}</text>
-  <g font-family="-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="16" fill="#1f2937">
-  ${text}
-  </g>
-</svg>
-`;
+async function createPngDocument(html: string): Promise<Buffer> {
+  return withRenderedWindow(html, 960, 1200, async (window) => {
+    // 截图前按页面实际高度调整窗口，避免长表格只导出首屏。
+    const documentHeight = await getDocumentHeight(window);
+    window.setContentSize(960, documentHeight);
+    const image = await window.capturePage();
+    return image.toPNG();
+  });
 }
 
-function createExportContent(
+async function createWordDocument(
+  html: string,
+  title: string,
+): Promise<Buffer> {
+  const output = await htmlToDocx(html, undefined, {
+    title,
+    lang: "zh-CN",
+    font: "Microsoft YaHei",
+    table: {
+      row: {
+        cantSplit: true,
+      },
+    },
+  });
+
+  return Buffer.isBuffer(output) ? output : Buffer.from(output);
+}
+
+async function createExportContent(
   format: ExportFormat,
   markdown: string,
   title: string,
-): string {
+): Promise<string | Buffer> {
+  if (format === "md") {
+    return markdown;
+  }
+
+  const html = createHtmlDocument(markdown, title);
+
   switch (format) {
     case "html":
+      return html;
     case "word":
-      return createHtmlDocument(markdown, title);
+      return createWordDocument(html, title);
     case "pdf":
-      return createPdfDocument(markdown);
+      return createPdfDocument(html);
     case "image":
-      return createSvgDocument(markdown, title);
+      return createPngDocument(html);
     case "md":
     default:
       return markdown;
@@ -159,17 +250,20 @@ export async function exportFile(
 
   await mkdir(outputDirectory, { recursive: true });
 
-  // 按用户配置的格式逐个落盘，确保右键导出产生真实文件。
+  // 按用户配置的格式逐个落盘，确保每种格式都基于同一份渲染后的文档内容。
   for (const format of config.enabledFormats) {
     const outputPath = join(
       outputDirectory,
       `${baseName}${EXPORT_EXTENSIONS[format]}`,
     );
-    await writeFile(
-      outputPath,
-      createExportContent(format, markdown, baseName),
-      "utf8",
-    );
+    const content = await createExportContent(format, markdown, baseName);
+
+    if (typeof content === "string") {
+      await writeFile(outputPath, content, "utf8");
+    } else {
+      await writeFile(outputPath, content);
+    }
+
     filePaths.push(outputPath);
   }
 
