@@ -34,6 +34,52 @@ describe("useShortcutsStore", () => {
     ).toEqual(["CmdOrCtrl+Alt+ArrowRight"]);
   });
 
+  it("uses CmdOrCtrl+Shift+B for toggling the sidebar by default", async () => {
+    const { useShortcutsStore } = await loadShortcutsStore("darwin");
+    const shortcuts = useShortcutsStore.getState().shortcuts;
+
+    expect(shortcuts.find((item) => item.id === "toggleSidebar")?.keys).toEqual(
+      ["CmdOrCtrl+Shift+B"],
+    );
+  });
+
+  it("migrates the legacy sidebar toggle shortcut away from editor bold", async () => {
+    localStorage.setItem(
+      "shortcuts-storage",
+      JSON.stringify({
+        state: {
+          shortcuts: [
+            {
+              id: "toggleSidebar",
+              name: "切换侧边栏",
+              description: "展开或收起左侧边栏",
+              keys: ["CmdOrCtrl+B"],
+            },
+          ],
+          defaultShortcuts: [
+            {
+              id: "toggleSidebar",
+              name: "切换侧边栏",
+              description: "展开或收起左侧边栏",
+              keys: ["CmdOrCtrl+B"],
+            },
+          ],
+        },
+        version: 1,
+      }),
+    );
+
+    const { useShortcutsStore } = await loadShortcutsStore("darwin");
+    const state = useShortcutsStore.getState();
+
+    expect(
+      state.shortcuts.find((item) => item.id === "toggleSidebar")?.keys,
+    ).toEqual(["CmdOrCtrl+Shift+B"]);
+    expect(
+      state.defaultShortcuts.find((item) => item.id === "toggleSidebar")?.keys,
+    ).toEqual(["CmdOrCtrl+Shift+B"]);
+  });
+
   it("migrates legacy macOS navigation bindings to a single Cmd+Option shortcut", async () => {
     localStorage.setItem(
       "shortcuts-storage",
