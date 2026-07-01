@@ -1471,26 +1471,6 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
               </ContextMenu.Item>
             ) : null}
 
-            {!flatNode.isFolder ? (
-              <ContextMenu.Item
-                className={MENU_ITEM_CLASS}
-                onClick={handleExport}
-              >
-                <FileOutput className="h-4 w-4" /> 导出
-              </ContextMenu.Item>
-            ) : null}
-
-            {flatNode.title.endsWith(".md") ? (
-              <ContextMenu.Item
-                className={MENU_ITEM_CLASS}
-                onClick={() => {
-                  // diff 功能保持原有逻辑
-                }}
-              >
-                <GitCompare className="h-4 w-4" /> 比较差异
-              </ContextMenu.Item>
-            ) : null}
-
             <ContextMenu.Item
               className={MENU_ITEM_CLASS}
               onClick={() => {
@@ -1531,6 +1511,27 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
             >
               <FolderPlus className="h-4 w-4" /> 新建文件夹
             </ContextMenu.Item>
+
+            {!flatNode.isFolder ? (
+              <ContextMenu.Item
+                className={MENU_ITEM_CLASS}
+                onClick={handleExport}
+              >
+                <FileOutput className="h-4 w-4" /> 导出
+              </ContextMenu.Item>
+            ) : null}
+
+            {flatNode.title.endsWith(".md") ? (
+              <ContextMenu.Item
+                className={MENU_ITEM_CLASS}
+                onClick={() => {
+                  // diff 功能保持原有逻辑
+                }}
+              >
+                <GitCompare className="h-4 w-4" /> 比较差异
+              </ContextMenu.Item>
+            ) : null}
+
             <ContextMenu.Separator className={MENU_SEPARATOR_CLASS} />
             <ContextMenu.Item
               className={MENU_ITEM_CLASS}
