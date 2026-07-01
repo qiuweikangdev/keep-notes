@@ -93,6 +93,18 @@ function typeString(editor: BlockNoteEditor, value: string) {
   }
 }
 
+function getInlineText(block: { content: unknown }) {
+  return (block.content as Array<{ type: string; text: string }>)
+    .map((content) => content.text)
+    .join("");
+}
+
+function pressKey(editor: BlockNoteEditor, key: string) {
+  const view = editor.prosemirrorView;
+  const event = new KeyboardEvent("keydown", { key });
+  view.someProp("handleKeyDown", (handler) => handler(view, event));
+}
+
 function getCodeMirrorView(container: HTMLElement) {
   const editorElement = container.querySelector<HTMLElement>(
     ".editor-code-block__codemirror .cm-editor",
@@ -197,6 +209,55 @@ describe("editor BlockNote schema", () => {
     expect("createEditorCodeBlockHighlighter" in blocknoteSchemaModule).toBe(
       false,
     );
+  });
+
+  it("keeps Enter-created line breaks inside quote blocks", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "quote",
+          content: "这是引用",
+        },
+      ],
+    });
+    render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[0].id, "end");
+    pressKey(editor, "Enter");
+    typeString(editor, "这是引用换行");
+
+    expect(editor.document).toHaveLength(1);
+    expect(editor.document[0].type).toBe("quote");
+    expect(getInlineText(editor.document[0])).toBe("这是引用\n这是引用换行");
+  });
+
+  it("exits quote blocks after pressing Enter twice on an empty quote line", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "quote",
+          content: "这是引用",
+        },
+      ],
+    });
+    render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[0].id, "end");
+    pressKey(editor, "Enter");
+    typeString(editor, "这是引用换行");
+    pressKey(editor, "Enter");
+    pressKey(editor, "Enter");
+    typeString(editor, "跳出引用");
+
+    expect(editor.document).toHaveLength(2);
+    expect(editor.document[0].type).toBe("quote");
+    expect(getInlineText(editor.document[0])).toBe("这是引用\n这是引用换行");
+    expect(editor.document[1].type).toBe("paragraph");
+    expect(getInlineText(editor.document[1])).toBe("跳出引用");
   });
 
   it("renders JavaScript code blocks with CodeMirror", async () => {
