@@ -77,6 +77,26 @@ const editorCodeBlockSpec = createBlockSpec(
   editorCodeBlockExtensions,
 )();
 
+function getInlineContentText(content: unknown) {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+
+  return content
+    .map((item) => {
+      if (!item || typeof item !== "object") return "";
+      const text = (item as { text?: unknown }).text;
+      return typeof text === "string" ? text : "";
+    })
+    .join("");
+}
+
+// 通过 >  输入规则创建出的空引用块，现在按 Backspace 会直接回退成空的普通段落，不再残留 > 触发文本
+function isEmptyQuoteBackspaceContent(content: unknown) {
+  const text = getInlineContentText(content).trim();
+
+  return text === "" || text === ">";
+}
+
 const baseQuoteBlockSpec = createQuoteBlockSpec();
 
 const editorQuoteBlockSpec = {
@@ -94,6 +114,23 @@ const editorQuoteBlockSpec = {
       key: "editor-quote-enter",
       runsBefore: ["default"],
       keyboardShortcuts: {
+        Backspace: ({ editor }) => {
+          const { block } = editor.getTextCursorPosition();
+          const { selection } = editor.prosemirrorState;
+
+          if (block.type !== "quote") return false;
+          if (!selection.empty) return false;
+          if (!isEmptyQuoteBackspaceContent(block.content)) return false;
+
+          // 空引用块回退为普通段落，同时丢弃输入规则残留的 > 触发文本。
+          editor.updateBlock(block, {
+            type: "paragraph",
+            content: "",
+            props: {},
+          });
+
+          return true;
+        },
         Enter: ({ editor }) => {
           return editor.transact((tr) => {
             const { block } = editor.getTextCursorPosition();

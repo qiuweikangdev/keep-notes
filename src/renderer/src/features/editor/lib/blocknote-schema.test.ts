@@ -260,6 +260,30 @@ describe("editor BlockNote schema", () => {
     expect(getInlineText(editor.document[1])).toBe("跳出引用");
   });
 
+  it("turns an input-rule-created empty quote block into a paragraph after Backspace", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "paragraph",
+          content: "",
+        },
+      ],
+    });
+    render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[0].id, "start");
+    typeString(editor, "> ");
+    expect(editor.document[0].type).toBe("quote");
+
+    pressKey(editor, "Backspace");
+
+    expect(editor.document).toHaveLength(1);
+    expect(editor.document[0].type).toBe("paragraph");
+    expect(getInlineText(editor.document[0])).toBe("");
+  });
+
   it("renders JavaScript code blocks with CodeMirror", async () => {
     setupMatchMedia();
     const editor = BlockNoteEditor.create({
