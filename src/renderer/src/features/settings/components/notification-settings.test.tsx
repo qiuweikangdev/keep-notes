@@ -63,4 +63,128 @@ describe("NotificationSettings", () => {
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
+
+  it("updates desktop notification icon visibility", async () => {
+    render(<NotificationSettings />);
+
+    fireEvent.click(await screen.findByLabelText("显示应用图标"));
+
+    await waitFor(() => {
+      expect(window.electronAPI.setNotificationConfig).toHaveBeenCalledWith({
+        ...DEFAULT_NOTIFICATION_CONFIG,
+        desktop: {
+          ...DEFAULT_NOTIFICATION_CONFIG.desktop,
+          showAppIcon: false,
+        },
+      });
+    });
+  });
+
+  it("updates desktop notification title font size", async () => {
+    render(<NotificationSettings />);
+
+    const input = await screen.findByLabelText("标题字号");
+    fireEvent.change(input, { target: { value: "22" } });
+    fireEvent.blur(input);
+
+    await waitFor(() => {
+      expect(window.electronAPI.setNotificationConfig).toHaveBeenCalledWith({
+        ...DEFAULT_NOTIFICATION_CONFIG,
+        desktop: {
+          ...DEFAULT_NOTIFICATION_CONFIG.desktop,
+          appNameFontSize: 22,
+        },
+      });
+    });
+  });
+
+  it("updates desktop notification title and background colors", async () => {
+    render(<NotificationSettings />);
+
+    expect(screen.getByLabelText("选择标题颜色取色器")).toHaveAttribute(
+      "type",
+      "color",
+    );
+    expect(screen.getByLabelText("选择标题颜色取色器")).toHaveClass("sr-only");
+    expect(screen.getByLabelText("选择通知背景色取色器")).toHaveAttribute(
+      "type",
+      "color",
+    );
+    expect(screen.getByLabelText("选择通知背景色取色器")).toHaveClass(
+      "sr-only",
+    );
+    expect(
+      screen.getByRole("button", { name: "选择标题颜色" }),
+    ).toHaveAttribute("data-color-swatch", "true");
+
+    fireEvent.change(await screen.findByLabelText("标题颜色"), {
+      target: { value: "#ffcc66" },
+    });
+
+    await waitFor(() => {
+      expect(window.electronAPI.setNotificationConfig).toHaveBeenCalledWith({
+        ...DEFAULT_NOTIFICATION_CONFIG,
+        desktop: {
+          ...DEFAULT_NOTIFICATION_CONFIG.desktop,
+          appNameColor: "#ffcc66",
+        },
+      });
+    });
+
+    fireEvent.change(screen.getByLabelText("通知背景色"), {
+      target: { value: "#223344" },
+    });
+
+    await waitFor(() => {
+      expect(window.electronAPI.setNotificationConfig).toHaveBeenLastCalledWith(
+        {
+          ...DEFAULT_NOTIFICATION_CONFIG,
+          desktop: {
+            ...DEFAULT_NOTIFICATION_CONFIG.desktop,
+            appNameColor: "#ffcc66",
+            backgroundColor: "#223344",
+          },
+        },
+      );
+    });
+  });
+
+  it("does not render QQ mail push controls in app notification settings", async () => {
+    render(<NotificationSettings />);
+
+    expect(await screen.findByText("桌面通知")).toBeInTheDocument();
+    expect(screen.queryByText("QQ 邮箱推送")).not.toBeInTheDocument();
+  });
+
+  it("updates bottom action visibility and notification size preset", async () => {
+    render(<NotificationSettings />);
+
+    fireEvent.click(await screen.findByLabelText("显示底部操作"));
+
+    await waitFor(() => {
+      expect(window.electronAPI.setNotificationConfig).toHaveBeenCalledWith({
+        ...DEFAULT_NOTIFICATION_CONFIG,
+        desktop: {
+          ...DEFAULT_NOTIFICATION_CONFIG.desktop,
+          showActions: false,
+        },
+      });
+    });
+
+    fireEvent.click(screen.getByLabelText("弹窗大小"));
+    fireEvent.click(screen.getByRole("option", { name: "大" }));
+
+    await waitFor(() => {
+      expect(window.electronAPI.setNotificationConfig).toHaveBeenLastCalledWith(
+        {
+          ...DEFAULT_NOTIFICATION_CONFIG,
+          desktop: {
+            ...DEFAULT_NOTIFICATION_CONFIG.desktop,
+            showActions: false,
+            sizePreset: "large",
+          },
+        },
+      );
+    });
+  });
 });

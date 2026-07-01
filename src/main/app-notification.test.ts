@@ -61,6 +61,16 @@ vi.mock("electron", () => ({
 }));
 
 describe("createAppNotification", () => {
+  function getLastNotificationHtml(): string {
+    const win = electronMocks.getLastWindow();
+    const [dataUrl] = win.loadURL.mock.calls[0] as [string];
+
+    return Buffer.from(
+      dataUrl.replace("data:text/html;base64,", ""),
+      "base64",
+    ).toString("utf-8");
+  }
+
   beforeEach(() => {
     electronMocks.windows.length = 0;
     vi.clearAllMocks();
@@ -156,11 +166,7 @@ describe("createAppNotification", () => {
       y: number;
       vibrancy?: string;
     };
-    const [dataUrl] = win.loadURL.mock.calls[0] as [string];
-    const html = Buffer.from(
-      dataUrl.replace("data:text/html;base64,", ""),
-      "base64",
-    ).toString("utf-8");
+    const html = getLastNotificationHtml();
 
     if (process.platform === "darwin") {
       expect(windowOptions).toMatchObject({
@@ -202,15 +208,96 @@ describe("createAppNotification", () => {
     });
 
     await notification.show();
-    const win = electronMocks.getLastWindow();
-    const [dataUrl] = win.loadURL.mock.calls[0] as [string];
-    const html = Buffer.from(
-      dataUrl.replace("data:text/html;base64,", ""),
-      "base64",
-    ).toString("utf-8");
+    const html = getLastNotificationHtml();
 
     expect(html).toContain('<div class="app-name">个人提醒</div>');
     expect(html).toContain('aria-label="个人提醒 提醒通知"');
     expect(html).not.toContain('<div class="body">提醒事项</div>');
+  });
+
+  it("applies notification visual customization options", async () => {
+    const notification = createAppNotification({
+      appName: "Keep Notes Pro",
+      title: "Important reminder",
+      body: "Sync your notes",
+      openLabel: "View Details",
+      showAppIcon: false,
+      appNameFontSize: 22,
+      appNameColor: "#ffcc66",
+      showActions: false,
+      backgroundColor: "#223344",
+      sizePreset: "large",
+    });
+
+    await notification.show();
+    const html = getLastNotificationHtml();
+
+    expect(html).not.toContain('class="app-icon"');
+    expect(html).toContain("--app-name-font-size: 22px;");
+    expect(html).toContain("--app-name-color: #ffcc66;");
+    expect(html).toContain("--notification-bg: #223344;");
+    expect(html).toContain("grid-template-columns: 1fr;");
+    expect(html).not.toContain('<div class="actions">');
+    expect(html).not.toContain("View Details");
+  });
+
+  it("uses the requested large notification size preset", async () => {
+    const notification = createAppNotification({
+      title: "Important reminder",
+      sizePreset: "large",
+    });
+
+    await notification.show();
+    const win = electronMocks.getLastWindow();
+    const windowOptions = win.options as {
+      width: number;
+      height: number;
+      y: number;
+    };
+
+    if (process.platform === "darwin") {
+      expect(windowOptions).toMatchObject({
+        width: 400,
+        height: 168,
+        y: 24,
+      });
+    } else {
+      expect(windowOptions).toMatchObject({
+        width: 440,
+        height: 220,
+        y: 672,
+      });
+    }
+  });
+
+  it("keeps the small preset tall enough for visible actions", async () => {
+    const notification = createAppNotification({
+      title: "Important reminder",
+      body: "Read the latest note",
+      openLabel: "View Details",
+      sizePreset: "small",
+    });
+
+    await notification.show();
+    const win = electronMocks.getLastWindow();
+    const windowOptions = win.options as {
+      width: number;
+      height: number;
+      y: number;
+    };
+
+    if (process.platform === "darwin") {
+      expect(windowOptions).toMatchObject({
+        width: 336,
+        height: 156,
+        y: 24,
+      });
+    } else {
+      expect(windowOptions).toMatchObject({
+        width: 360,
+        height: 190,
+        y: 702,
+      });
+    }
   });
 });

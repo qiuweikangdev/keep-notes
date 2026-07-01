@@ -4,19 +4,46 @@ import { join } from "node:path";
 import process from "node:process";
 import { BrowserWindow, screen } from "electron";
 import { APP_NAME } from "../shared/constants";
+import type {
+  DesktopChannelConfig,
+  NotificationSizePreset,
+} from "../shared/types";
 import iconPath from "../../resources/icon.png?asset";
 
 const IS_MAC = process.platform === "darwin";
-const MAC_NOTIFICATION_WIDTH = 356;
-const MAC_NOTIFICATION_HEIGHT = 144;
 const MAC_NOTIFICATION_MARGIN = 24;
-const WINDOWS_NOTIFICATION_WIDTH = 384;
-const WINDOWS_NOTIFICATION_HEIGHT = 188;
 const WINDOWS_NOTIFICATION_MARGIN = 8;
 const AUTO_CLOSE_DELAY = 12_000;
 const NOTIFICATION_ACTION_PROTOCOL = "keep-notes-notification:";
+const DEFAULT_APP_NAME_FONT_SIZE = 18;
+const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/;
+const NOTIFICATION_SIZE_PRESETS: Record<
+  "mac" | "windows",
+  Record<NotificationSizePreset, { width: number; height: number }>
+> = {
+  windows: {
+    small: { width: 360, height: 190 },
+    medium: { width: 384, height: 188 },
+    large: { width: 440, height: 220 },
+  },
+  mac: {
+    small: { width: 336, height: 156 },
+    medium: { width: 356, height: 144 },
+    large: { width: 400, height: 168 },
+  },
+};
 
-export interface AppNotificationOptions {
+type NotificationVisualOptions = Pick<
+  DesktopChannelConfig,
+  | "showAppIcon"
+  | "appNameFontSize"
+  | "appNameColor"
+  | "showActions"
+  | "backgroundColor"
+  | "sizePreset"
+>;
+
+export interface AppNotificationOptions extends Partial<NotificationVisualOptions> {
   appName?: string;
   title: string;
   body?: string;
@@ -27,6 +54,16 @@ export interface AppNotificationOptions {
 
 interface AppNotificationHandle {
   show: () => Promise<void>;
+}
+
+interface NormalizedNotificationVisualOptions {
+  showAppIcon: boolean;
+  appNameFontSize: number;
+  appNameLineHeight: number;
+  appNameColor: string;
+  showActions: boolean;
+  backgroundColor?: string;
+  sizePreset: NotificationSizePreset;
 }
 
 const activeNotificationWindows = new Set<BrowserWindow>();
@@ -43,6 +80,43 @@ function escapeHtml(value: string): string {
 
 function createActionUrl(action: "close" | "open" | "snooze"): string {
   return `${NOTIFICATION_ACTION_PROTOCOL}//${action}`;
+}
+
+function normalizeHexColor(value: string | undefined): string | undefined {
+  return value && HEX_COLOR_PATTERN.test(value) ? value : undefined;
+}
+
+function normalizeSizePreset(
+  sizePreset: NotificationSizePreset | undefined,
+): NotificationSizePreset {
+  return sizePreset === "small" || sizePreset === "large"
+    ? sizePreset
+    : "medium";
+}
+
+function normalizeNotificationVisualOptions(
+  options: AppNotificationOptions,
+): NormalizedNotificationVisualOptions {
+  const rawFontSize =
+    typeof options.appNameFontSize === "number" &&
+    Number.isFinite(options.appNameFontSize)
+      ? options.appNameFontSize
+      : DEFAULT_APP_NAME_FONT_SIZE;
+  const appNameFontSize = Math.min(28, Math.max(12, rawFontSize));
+
+  // 先把可视配置收敛到安全值，避免用户输入直接进入 CSS 或窗口尺寸计算。
+  return {
+    showAppIcon: options.showAppIcon !== false,
+    appNameFontSize,
+    appNameLineHeight:
+      IS_MAC && appNameFontSize === DEFAULT_APP_NAME_FONT_SIZE
+        ? DEFAULT_APP_NAME_FONT_SIZE
+        : Math.round(appNameFontSize * 1.2),
+    appNameColor: normalizeHexColor(options.appNameColor) ?? "currentColor",
+    showActions: options.showActions !== false,
+    backgroundColor: normalizeHexColor(options.backgroundColor),
+    sizePreset: normalizeSizePreset(options.sizePreset),
+  };
 }
 
 function resolveIconPath(): string {
@@ -72,6 +146,7 @@ function getIconDataUrl(): string {
 }
 
 function createNotificationHtml(options: AppNotificationOptions): string {
+  const visualOptions = normalizeNotificationVisualOptions(options);
   const appName = escapeHtml(options.appName?.trim() || APP_NAME);
   const title = escapeHtml(options.title);
   const body = options.body?.trim() ? escapeHtml(options.body) : "";
@@ -82,7 +157,28 @@ function createNotificationHtml(options: AppNotificationOptions): string {
   const closeAction = createActionUrl("close");
   const snoozeAction = createActionUrl("snooze");
   const platformClass = IS_MAC ? "platform-mac" : "platform-windows";
-  const iconUrl = escapeHtml(getIconDataUrl());
+  const iconMarkup = visualOptions.showAppIcon
+    ? `<img class="app-icon" src="${escapeHtml(getIconDataUrl())}" alt="" aria-hidden="true" />`
+    : "";
+  const contentStyle = visualOptions.showAppIcon
+    ? ""
+    : ' style="grid-template-columns: 1fr;"';
+  const notificationStyles = [
+    `--app-name-font-size: ${visualOptions.appNameFontSize}px;`,
+    `--app-name-line-height: ${visualOptions.appNameLineHeight}px;`,
+    `--app-name-color: ${visualOptions.appNameColor};`,
+    visualOptions.backgroundColor
+      ? `--notification-bg: ${visualOptions.backgroundColor};`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const actionsMarkup = visualOptions.showActions
+    ? `<div class="actions">
+      <a class="button" href="${snoozeAction}"><svg class="clock-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8.6" stroke="currentColor" stroke-width="1.8" /><path d="M12 7.2V12l3.4 2.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /><circle cx="12" cy="12" r="1.15" fill="currentColor" /></svg><span>${confirmLabel}</span></a>
+      ${options.openLabel ? `<a class="button primary" href="${openAction}">${openLabel}</a>` : ""}
+    </div>`
+    : "";
 
   return `<!doctype html>
 <html lang="zh-CN">
@@ -137,9 +233,10 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: 26px;
+      color: var(--app-name-color);
+      font-size: var(--app-name-font-size);
       font-weight: 700;
-      line-height: 32px;
+      line-height: var(--app-name-line-height);
     }
     .time {
       font-size: 24px;
@@ -213,11 +310,12 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       shape-rendering: geometricPrecision;
     }
     .platform-mac .notification {
-      border: 1px solid rgba(255, 255, 255, 0.5);
-      border-radius: 16px;
-      background:
+      --notification-bg:
         radial-gradient(circle at 15% 0%, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0) 38%),
         linear-gradient(135deg, rgba(252, 239, 247, 0.88) 0%, rgba(241, 229, 250, 0.82) 48%, rgba(226, 217, 248, 0.78) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.5);
+      border-radius: 16px;
+      background: var(--notification-bg);
       box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, 0.52),
         0 18px 40px rgba(54, 43, 72, 0.24);
@@ -238,8 +336,8 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       margin-bottom: 1px;
     }
     .platform-mac .app-name {
-      font-size: 18px;
-      line-height: 18px;
+      font-size: var(--app-name-font-size);
+      line-height: var(--app-name-line-height);
       font-weight: 700;
       transform: translateY(-2px);
     }
@@ -293,11 +391,12 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
     }
     .platform-windows .notification {
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 8px;
-      background:
+      --notification-bg:
         radial-gradient(circle at 18% 0%, rgba(69, 82, 96, 0.28), rgba(69, 82, 96, 0) 34%),
         linear-gradient(135deg, rgba(25, 33, 41, 0.98) 0%, rgba(13, 20, 28, 0.98) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      background: var(--notification-bg);
       box-shadow: 0 14px 28px rgba(0, 0, 0, 0.32);
       color: rgba(255, 255, 255, 0.96);
     }
@@ -316,8 +415,8 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       margin-bottom: 0;
     }
     .platform-windows .app-name {
-      font-size: 18px;
-      line-height: 21px;
+      font-size: var(--app-name-font-size);
+      line-height: var(--app-name-line-height);
       font-weight: 600;
       transform: translateY(-2px);
     }
@@ -330,7 +429,7 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       font-size: 20px;
     }
     .platform-windows .title {
-      margin-top: 20px;
+      margin-top: 14px;
       font-size: 21px;
       line-height: 27px;
       font-weight: 650;
@@ -349,7 +448,7 @@ function createNotificationHtml(options: AppNotificationOptions): string {
     }
     .platform-windows .actions {
       gap: 10px;
-      padding: 10px 18px 16px;
+      padding: 8px 18px 14px;
     }
     .platform-windows .button {
       flex: 1;
@@ -388,9 +487,9 @@ function createNotificationHtml(options: AppNotificationOptions): string {
   </style>
 </head>
 <body class="${platformClass}">
-  <section class="notification" aria-label="${appName} 提醒通知">
-    <div class="content">
-      <img class="app-icon" src="${iconUrl}" alt="" aria-hidden="true" />
+  <section class="notification" aria-label="${appName} 提醒通知" style="${notificationStyles}">
+    <div class="content"${contentStyle}>
+      ${iconMarkup}
       <div class="text">
         <div class="meta">
           <div class="app-name">${appName}</div>
@@ -404,10 +503,7 @@ function createNotificationHtml(options: AppNotificationOptions): string {
         ${detail ? `<div class="detail">${detail}</div>` : ""}
       </div>
     </div>
-    <div class="actions">
-      <a class="button" href="${snoozeAction}"><svg class="clock-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8.6" stroke="currentColor" stroke-width="1.8" /><path d="M12 7.2V12l3.4 2.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /><circle cx="12" cy="12" r="1.15" fill="currentColor" /></svg><span>${confirmLabel}</span></a>
-      ${options.openLabel ? `<a class="button primary" href="${openAction}">${openLabel}</a>` : ""}
-    </div>
+    ${actionsMarkup}
   </section>
 </body>
 </html>`;
@@ -417,11 +513,15 @@ function createDataUrl(html: string): string {
   return `data:text/html;base64,${Buffer.from(html, "utf-8").toString("base64")}`;
 }
 
-function getNotificationBounds(): Electron.Rectangle {
+function getNotificationBounds(
+  sizePreset: NotificationSizePreset | undefined,
+): Electron.Rectangle {
   const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
   const { workArea } = display;
-  const width = IS_MAC ? MAC_NOTIFICATION_WIDTH : WINDOWS_NOTIFICATION_WIDTH;
-  const height = IS_MAC ? MAC_NOTIFICATION_HEIGHT : WINDOWS_NOTIFICATION_HEIGHT;
+  const { width, height } =
+    NOTIFICATION_SIZE_PRESETS[IS_MAC ? "mac" : "windows"][
+      normalizeSizePreset(sizePreset)
+    ];
   const margin = IS_MAC ? MAC_NOTIFICATION_MARGIN : WINDOWS_NOTIFICATION_MARGIN;
   const y = IS_MAC
     ? workArea.y + margin
@@ -448,7 +548,7 @@ export function createAppNotification(
     show: () =>
       new Promise((resolve, reject) => {
         const win = new BrowserWindow({
-          ...getNotificationBounds(),
+          ...getNotificationBounds(options.sizePreset),
           show: false,
           frame: false,
           transparent: true,

@@ -13,6 +13,7 @@ import {
   ChevronDown,
   Keyboard,
   Bell,
+  Mail,
   FileOutput,
   Info,
   RefreshCw,
@@ -23,6 +24,7 @@ import {
 } from "lucide-react";
 import { ShortcutsSettings } from "./shortcuts-settings";
 import { NotificationSettings } from "./notification-settings";
+import { NotificationPushSettings } from "./notification-push-settings";
 import { ExportSettings } from "./export-settings";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { ExternalOpenAppIcon } from "@/features/external-open/external-open-icons";
@@ -37,13 +39,15 @@ type SettingsTab =
   | "appearance"
   | "shortcuts"
   | "notifications"
+  | "notificationPush"
   | "export"
   | "about";
 
 const settingsMenuItems = [
   { id: "appearance" as SettingsTab, label: "外观", icon: Palette },
   { id: "shortcuts" as SettingsTab, label: "键盘快捷键", icon: Keyboard },
-  { id: "notifications" as SettingsTab, label: "通知推送", icon: Bell },
+  { id: "notifications" as SettingsTab, label: "应用通知配置", icon: Bell },
+  { id: "notificationPush" as SettingsTab, label: "通知推送", icon: Mail },
   { id: "export" as SettingsTab, label: "导出", icon: FileOutput },
   { id: "about" as SettingsTab, label: "关于", icon: Info },
 ];
@@ -507,6 +511,8 @@ export function SettingsModal() {
         return <ShortcutsSettings />;
       case "notifications":
         return <NotificationSettings />;
+      case "notificationPush":
+        return <NotificationPushSettings />;
       case "export":
         return (
           <ExportSettings portalContainer={exportDropdownPortalContainer} />
@@ -729,7 +735,7 @@ export function SettingsModal() {
             设置
           </Dialog.Title>
           <Dialog.Description className="sr-only">
-            配置应用外观、快捷键、通知推送、导出选项和关于信息。
+            配置应用外观、快捷键、应用通知、导出选项和关于信息。
           </Dialog.Description>
         </DialogHeader>
 

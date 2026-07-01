@@ -268,10 +268,18 @@ export interface MenuActionOptions {
 
 export type NotificationChannelType = "desktop" | "email" | "feishu";
 
+export type NotificationSizePreset = "small" | "medium" | "large";
+
 export interface DesktopChannelConfig {
   enabled: boolean;
   requireInteraction: boolean;
   appName: string;
+  showAppIcon: boolean;
+  appNameFontSize: number;
+  appNameColor: string;
+  showActions: boolean;
+  backgroundColor: string;
+  sizePreset: NotificationSizePreset;
 }
 
 export interface EmailChannelConfig {
@@ -289,7 +297,17 @@ export interface NotificationConfig {
 }
 
 export const DEFAULT_NOTIFICATION_CONFIG: NotificationConfig = {
-  desktop: { enabled: true, requireInteraction: false, appName: APP_NAME },
+  desktop: {
+    enabled: true,
+    requireInteraction: false,
+    appName: APP_NAME,
+    showAppIcon: true,
+    appNameFontSize: 18,
+    appNameColor: "",
+    showActions: true,
+    backgroundColor: "#111820",
+    sizePreset: "medium",
+  },
   email: {
     enabled: false,
     smtpHost: "smtp.qq.com",

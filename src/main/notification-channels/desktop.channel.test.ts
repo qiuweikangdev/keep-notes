@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Reminder } from "../../shared/types";
+import { DEFAULT_NOTIFICATION_CONFIG } from "../../shared/types";
 import { createAppNotification } from "../app-notification";
 import { DesktopChannel } from "./desktop.channel";
 
@@ -50,6 +51,17 @@ const reminder: Reminder = {
   updatedAt: "2026-06-21T08:00:00.000Z",
 };
 
+const customizedDesktopConfig = {
+  ...DEFAULT_NOTIFICATION_CONFIG.desktop,
+  appName: "Custom Keep Notes",
+  showAppIcon: false,
+  appNameFontSize: 20,
+  appNameColor: "#f8fafc",
+  showActions: false,
+  backgroundColor: "#0f172a",
+  sizePreset: "large" as const,
+};
+
 describe("DesktopChannel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -60,11 +72,13 @@ describe("DesktopChannel", () => {
 
   it("shows a test desktop notification with the custom notification window", async () => {
     const channel = new DesktopChannel();
+    channel.updateConfig(customizedDesktopConfig);
 
     await expect(channel.test()).resolves.toEqual({ success: true });
 
     expect(appNotificationMocks.show).toHaveBeenCalledTimes(1);
     expect(createAppNotification).toHaveBeenCalledWith({
+      ...customizedDesktopConfig,
       title: "Keep Notes 测试通知",
       body: "系统桌面通知已触发",
       openLabel: "查看详情",
@@ -96,11 +110,13 @@ describe("DesktopChannel", () => {
 
   it("sends reminder desktop notifications", async () => {
     const channel = new DesktopChannel();
+    channel.updateConfig(customizedDesktopConfig);
 
     await channel.send(reminder);
 
     expect(appNotificationMocks.show).toHaveBeenCalledTimes(1);
     expect(createAppNotification).toHaveBeenCalledWith({
+      ...customizedDesktopConfig,
       title: "Read notes",
       body: "today.md",
       openLabel: "查看详情",

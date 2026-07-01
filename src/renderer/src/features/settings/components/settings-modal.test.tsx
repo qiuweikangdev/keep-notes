@@ -115,6 +115,17 @@ describe("SettingsModal about tab", () => {
     });
   });
 
+  it("renames the notification settings menu item to app notification config", () => {
+    render(<SettingsModal />);
+
+    expect(
+      screen.getByRole("button", { name: /应用通知配置/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /通知推送/ }),
+    ).toBeInTheDocument();
+  });
+
   it("shows an icon-only cancel button while an update is downloading", async () => {
     electronAPI.getUpdateState.mockResolvedValueOnce({
       status: "downloading",
