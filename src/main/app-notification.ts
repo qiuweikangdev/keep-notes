@@ -22,12 +22,12 @@ const NOTIFICATION_SIZE_PRESETS: Record<
   Record<NotificationSizePreset, { width: number; height: number }>
 > = {
   windows: {
-    small: { width: 340, height: 160 },
+    small: { width: 360, height: 190 },
     medium: { width: 384, height: 188 },
     large: { width: 440, height: 220 },
   },
   mac: {
-    small: { width: 320, height: 128 },
+    small: { width: 336, height: 156 },
     medium: { width: 356, height: 144 },
     large: { width: 400, height: 168 },
   },
@@ -429,7 +429,7 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       font-size: 20px;
     }
     .platform-windows .title {
-      margin-top: 20px;
+      margin-top: 14px;
       font-size: 21px;
       line-height: 27px;
       font-weight: 650;
@@ -448,7 +448,7 @@ function createNotificationHtml(options: AppNotificationOptions): string {
     }
     .platform-windows .actions {
       gap: 10px;
-      padding: 10px 18px 16px;
+      padding: 8px 18px 14px;
     }
     .platform-windows .button {
       flex: 1;

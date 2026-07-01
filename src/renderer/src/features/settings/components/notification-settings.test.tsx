@@ -101,6 +101,15 @@ describe("NotificationSettings", () => {
   it("updates desktop notification title and background colors", async () => {
     render(<NotificationSettings />);
 
+    expect(screen.getByLabelText("选择标题颜色")).toHaveAttribute(
+      "type",
+      "color",
+    );
+    expect(screen.getByLabelText("选择通知背景色")).toHaveAttribute(
+      "type",
+      "color",
+    );
+
     fireEvent.change(await screen.findByLabelText("标题颜色"), {
       target: { value: "#ffcc66" },
     });
@@ -133,6 +142,23 @@ describe("NotificationSettings", () => {
     });
   });
 
+  it("groups QQ mail settings under notification push", async () => {
+    render(<NotificationSettings />);
+
+    const appConfigLabel = await screen.findByText("应用通知配置");
+    const pushLabel = screen.getByText("通知推送");
+    const qqMailLabel = screen.getByText("QQ 邮箱推送");
+
+    expect(
+      appConfigLabel.compareDocumentPosition(pushLabel) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      pushLabel.compareDocumentPosition(qqMailLabel) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("updates bottom action visibility and notification size preset", async () => {
     render(<NotificationSettings />);
 
@@ -148,9 +174,8 @@ describe("NotificationSettings", () => {
       });
     });
 
-    fireEvent.change(screen.getByLabelText("弹窗大小"), {
-      target: { value: "large" },
-    });
+    fireEvent.click(screen.getByLabelText("弹窗大小"));
+    fireEvent.click(screen.getByRole("option", { name: "大" }));
 
     await waitFor(() => {
       expect(window.electronAPI.setNotificationConfig).toHaveBeenLastCalledWith(

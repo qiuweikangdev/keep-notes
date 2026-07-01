@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ColorPicker } from "@/components/ui/color-picker";
 import type { NotificationSizePreset } from "@/types";
 import { DEFAULT_NOTIFICATION_CONFIG } from "@/types";
-import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, ChevronDown } from "lucide-react";
 
 /** QQ 邮箱 SMTP 固定配置 */
 const QQ_MAIL_SMTP_HOST = "smtp.qq.com";
@@ -22,6 +22,7 @@ export function NotificationSettings() {
   const [appNameFontSize, setAppNameFontSize] = useState(
     String(config.desktop.appNameFontSize),
   );
+  const [isSizePresetOpen, setIsSizePresetOpen] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [isTestingDesktop, setIsTestingDesktop] = useState(false);
   const [desktopTestResult, setDesktopTestResult] = useState<{
@@ -140,9 +141,27 @@ export function NotificationSettings() {
   };
 
   const isValid = email && code;
+  const sizePresetLabels: Record<NotificationSizePreset, string> = {
+    small: "小",
+    medium: "默认",
+    large: "大",
+  };
+
+  const handleChangeSizePreset = async (sizePreset: NotificationSizePreset) => {
+    setIsSizePresetOpen(false);
+    if (sizePreset === config.desktop.sizePreset) return;
+    await updateDesktopConfig({ sizePreset });
+  };
 
   return (
     <div className="space-y-0">
+      <div
+        className="px-0 pb-2 pt-1 text-xs font-medium"
+        style={{ color: "var(--text-muted)" }}
+      >
+        应用通知配置
+      </div>
+
       {/* 桌面通知 */}
       <div style={{ borderBottom: "1px solid var(--border-color)" }}>
         <SettingRow label="桌面通知" description="提醒到期时显示应用通知弹窗">
@@ -289,6 +308,7 @@ export function NotificationSettings() {
         <SettingRow label="标题颜色" description="应用标题名称的文字颜色">
           <ColorPicker
             value={config.desktop.appNameColor || "#ffffff"}
+            disabled={!config.desktop.enabled}
             inputAriaLabel="标题颜色"
             swatchAriaLabel="选择标题颜色"
             onChange={(color) => {
@@ -318,6 +338,7 @@ export function NotificationSettings() {
         <SettingRow label="通知背景色" description="应用通知弹窗的背景颜色">
           <ColorPicker
             value={config.desktop.backgroundColor}
+            disabled={!config.desktop.enabled}
             inputAriaLabel="通知背景色"
             swatchAriaLabel="选择通知背景色"
             onChange={(color) => {
@@ -329,28 +350,78 @@ export function NotificationSettings() {
 
       <div style={{ borderBottom: "1px solid var(--border-color)" }}>
         <SettingRow label="弹窗大小" description="应用通知弹窗的预设尺寸">
-          <select
-            aria-label="弹窗大小"
-            value={config.desktop.sizePreset}
-            disabled={!config.desktop.enabled}
-            onChange={(e) => {
-              void updateDesktopConfig({
-                sizePreset: e.target.value as NotificationSizePreset,
-              });
-            }}
-            className="h-8 w-28 rounded-md px-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-            style={{
-              backgroundColor: "var(--bg-tertiary)",
-              border: "1px solid var(--border-color)",
-              color: "var(--text-primary)",
-              outline: "none",
+          <div
+            className="relative"
+            onBlur={() => {
+              window.setTimeout(() => setIsSizePresetOpen(false), 120);
             }}
           >
-            <option value="small">小</option>
-            <option value="medium">默认</option>
-            <option value="large">大</option>
-          </select>
+            <button
+              type="button"
+              aria-label="弹窗大小"
+              aria-haspopup="listbox"
+              aria-expanded={isSizePresetOpen}
+              disabled={!config.desktop.enabled}
+              onClick={() => setIsSizePresetOpen((open) => !open)}
+              className="flex h-8 w-32 items-center justify-between rounded-md px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+              style={{
+                backgroundColor: "var(--bg-tertiary)",
+                border: "1px solid var(--border-color)",
+                color: "var(--text-primary)",
+                outline: "none",
+              }}
+            >
+              <span>{sizePresetLabels[config.desktop.sizePreset]}</span>
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+            {isSizePresetOpen ? (
+              <div
+                role="listbox"
+                className="absolute bottom-9 right-0 z-50 w-32 overflow-hidden rounded-md py-1 shadow-lg"
+                style={{
+                  backgroundColor: "var(--bg-secondary)",
+                  border: "1px solid var(--border-color)",
+                }}
+              >
+                {(
+                  [
+                    ["small", "小"],
+                    ["medium", "默认"],
+                    ["large", "大"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="option"
+                    aria-selected={config.desktop.sizePreset === value}
+                    className="block h-8 w-full px-3 text-left text-sm"
+                    style={{
+                      backgroundColor:
+                        config.desktop.sizePreset === value
+                          ? "var(--active-bg)"
+                          : "transparent",
+                      color: "var(--text-primary)",
+                    }}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => {
+                      void handleChangeSizePreset(value);
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </SettingRow>
+      </div>
+
+      <div
+        className="px-0 pb-2 pt-5 text-xs font-medium"
+        style={{ color: "var(--text-muted)" }}
+      >
+        通知推送
       </div>
 
       {/* 邮箱推送开关 */}

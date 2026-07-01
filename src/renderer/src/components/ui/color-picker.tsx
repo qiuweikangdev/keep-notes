@@ -5,6 +5,7 @@ interface ColorPickerProps {
   value: string;
   onChange: (color: string) => void;
   className?: string;
+  disabled?: boolean;
   inputAriaLabel?: string;
   swatchAriaLabel?: string;
 }
@@ -13,6 +14,7 @@ export function ColorPicker({
   value,
   onChange,
   className,
+  disabled = false,
   inputAriaLabel,
   swatchAriaLabel,
 }: ColorPickerProps) {
@@ -52,21 +54,20 @@ export function ColorPicker({
 
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      {/* Color swatch */}
-      <button
-        type="button"
+      {/* 通过原生取色器快速选择颜色，同时保留右侧 HEX 手动输入。 */}
+      <input
         aria-label={swatchAriaLabel}
-        className="relative w-8 h-8 rounded-full border-2 overflow-hidden flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-[var(--accent-color)] transition-all"
+        type="color"
+        value={/^#[0-9A-Fa-f]{6}$/.test(value) ? value : "#ffffff"}
+        disabled={disabled}
+        onChange={(e) => {
+          onChange(e.target.value);
+        }}
+        className="h-8 w-8 flex-shrink-0 cursor-pointer rounded-full border-2 bg-transparent p-0 transition-all hover:ring-2 hover:ring-[var(--accent-color)] disabled:cursor-not-allowed disabled:opacity-50"
         style={{
           borderColor: "var(--border-color)",
         }}
-        onClick={() => {
-          setShowInput(!showInput);
-          setTimeout(() => inputRef.current?.focus(), 100);
-        }}
-      >
-        <div className="absolute inset-0" style={{ backgroundColor: value }} />
-      </button>
+      />
 
       {/* Hex input */}
       <input
@@ -74,11 +75,12 @@ export function ColorPicker({
         aria-label={inputAriaLabel}
         type="text"
         value={showInput ? inputValue : value}
+        disabled={disabled}
         onChange={handleInputChange}
         onFocus={() => setShowInput(true)}
         onBlur={handleInputBlur}
         onKeyDown={handleInputKeyDown}
-        className="w-[90px] h-9 px-3 text-sm rounded-lg font-mono transition-all"
+        className="w-[90px] h-9 px-3 text-sm rounded-lg font-mono transition-all disabled:cursor-not-allowed disabled:opacity-50"
         style={{
           backgroundColor: "var(--bg-tertiary)",
           border: showInput

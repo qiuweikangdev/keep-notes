@@ -269,4 +269,35 @@ describe("createAppNotification", () => {
       });
     }
   });
+
+  it("keeps the small preset tall enough for visible actions", async () => {
+    const notification = createAppNotification({
+      title: "Important reminder",
+      body: "Read the latest note",
+      openLabel: "View Details",
+      sizePreset: "small",
+    });
+
+    await notification.show();
+    const win = electronMocks.getLastWindow();
+    const windowOptions = win.options as {
+      width: number;
+      height: number;
+      y: number;
+    };
+
+    if (process.platform === "darwin") {
+      expect(windowOptions).toMatchObject({
+        width: 336,
+        height: 156,
+        y: 24,
+      });
+    } else {
+      expect(windowOptions).toMatchObject({
+        width: 360,
+        height: 190,
+        y: 702,
+      });
+    }
+  });
 });

@@ -43,7 +43,7 @@ type SettingsTab =
 const settingsMenuItems = [
   { id: "appearance" as SettingsTab, label: "外观", icon: Palette },
   { id: "shortcuts" as SettingsTab, label: "键盘快捷键", icon: Keyboard },
-  { id: "notifications" as SettingsTab, label: "通知推送", icon: Bell },
+  { id: "notifications" as SettingsTab, label: "应用通知配置", icon: Bell },
   { id: "export" as SettingsTab, label: "导出", icon: FileOutput },
   { id: "about" as SettingsTab, label: "关于", icon: Info },
 ];
@@ -729,7 +729,7 @@ export function SettingsModal() {
             设置
           </Dialog.Title>
           <Dialog.Description className="sr-only">
-            配置应用外观、快捷键、通知推送、导出选项和关于信息。
+            配置应用外观、快捷键、应用通知、导出选项和关于信息。
           </Dialog.Description>
         </DialogHeader>
 
