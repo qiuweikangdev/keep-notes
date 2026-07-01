@@ -7,6 +7,8 @@ import type {
   GitBranch,
   GitCommitOptions,
   GitCommitDetail,
+  GitCommitFileContent,
+  GitCommitFileStatus,
   GitCommitLogItem,
   GitDetectResult,
   WindowOpenTarget,
@@ -166,6 +168,13 @@ export interface GitAPI {
     dirPath: string,
     hash: string,
   ) => Promise<ApiResponse<GitCommitDetail>>;
+  getCommitFileContent: (
+    dirPath: string,
+    hash: string,
+    filePath: string,
+    status: GitCommitFileStatus,
+    oldPath?: string,
+  ) => Promise<ApiResponse<GitCommitFileContent>>;
 }
 
 declare global {

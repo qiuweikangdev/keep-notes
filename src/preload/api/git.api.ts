@@ -8,6 +8,8 @@ import type {
   GitCommitOptions,
   GitDetectResult,
   GitCommitDetail,
+  GitCommitFileContent,
+  GitCommitFileStatus,
   GitCommitLogItem,
 } from "../../shared/types";
 
@@ -153,6 +155,24 @@ export const gitApi = {
       IPC_CHANNELS.GIT.GET_COMMIT_DETAIL,
       dirPath,
       hash,
+    );
+  },
+
+  // 获取提交文件内容
+  getCommitFileContent: (
+    dirPath: string,
+    hash: string,
+    filePath: string,
+    status: GitCommitFileStatus,
+    oldPath?: string,
+  ): Promise<ApiResponse<GitCommitFileContent>> => {
+    return ipcRenderer.invoke(
+      IPC_CHANNELS.GIT.GET_COMMIT_FILE_CONTENT,
+      dirPath,
+      hash,
+      filePath,
+      status,
+      oldPath,
     );
   },
 };

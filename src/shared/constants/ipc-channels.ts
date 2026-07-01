@@ -91,6 +91,7 @@ export const IPC_CHANNELS = {
     OPEN_FILE: "git:open-file", // 打开文件
     GET_COMMIT_HISTORY: "git:get-commit-history", // 获取提交历史
     GET_COMMIT_DETAIL: "git:get-commit-detail", // 获取提交详情
+    GET_COMMIT_FILE_CONTENT: "git:get-commit-file-content", // 获取提交文件内容
   },
   // 菜单动作通道
   MENU: {

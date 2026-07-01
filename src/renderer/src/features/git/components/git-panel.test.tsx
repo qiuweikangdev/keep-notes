@@ -27,6 +27,7 @@ const electronMocks = vi.hoisted(() => ({
   getFileHeadContent: vi.fn(),
   getCommitHistory: vi.fn(),
   getCommitDetail: vi.fn(),
+  getCommitFileContent: vi.fn(),
 }));
 
 const treeStoreMock = vi.hoisted(() => ({
@@ -34,6 +35,12 @@ const treeStoreMock = vi.hoisted(() => ({
   setSelectedKey: vi.fn(),
   expandedKeys: new Set<string>(),
   setExpandedKeys: vi.fn(),
+}));
+
+const diffStoreMock = vi.hoisted(() => ({
+  openDiff: vi.fn(),
+  closeDiff: vi.fn(),
+  updateContent: vi.fn(),
 }));
 
 vi.mock("@/hooks/use-electron", () => ({
@@ -54,11 +61,7 @@ vi.mock("@/store/editor.store", () => ({
 }));
 
 vi.mock("@/store/diff.store", () => ({
-  useDiffStore: () => ({
-    openDiff: vi.fn(),
-    closeDiff: vi.fn(),
-    updateContent: vi.fn(),
-  }),
+  useDiffStore: () => diffStoreMock,
 }));
 
 describe("GitPanel", () => {
@@ -74,7 +77,7 @@ describe("GitPanel", () => {
   };
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     electronMocks.detectGitRepo.mockResolvedValue({
       code: CodeResult.Success,
       data: { isGitRepo: true },
@@ -139,6 +142,13 @@ describe("GitPanel", () => {
             deletions: 3,
           },
         ],
+      },
+    });
+    electronMocks.getCommitFileContent.mockResolvedValue({
+      code: CodeResult.Success,
+      data: {
+        oldContent: "old content",
+        newContent: "new content",
       },
     });
   });
@@ -270,6 +280,7 @@ describe("GitPanel", () => {
     expect(
       await screen.findByText("feat: add git history"),
     ).toBeInTheDocument();
+    expect(screen.queryByText("1111111")).not.toBeInTheDocument();
     expect(electronMocks.getCommitHistory).toHaveBeenCalledWith("/notes", 0, 5);
     expect(electronMocks.getCommitDetail).not.toHaveBeenCalled();
     expect(
@@ -288,6 +299,31 @@ describe("GitPanel", () => {
     expect(screen.getByText("+12")).toBeInTheDocument();
     expect(screen.getByText("-3")).toBeInTheDocument();
 
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "查看 src/renderer/src/features/git/components/git-panel.tsx 的提交差异",
+      }),
+    );
+
+    expect(diffStoreMock.openDiff).toHaveBeenCalledWith(
+      "src/renderer/src/features/git/components/git-panel.tsx",
+      "",
+      "",
+    );
+    expect(electronMocks.getCommitFileContent).toHaveBeenCalledWith(
+      "/notes",
+      "1111111111111111111111111111111111111111",
+      "src/renderer/src/features/git/components/git-panel.tsx",
+      "M",
+      undefined,
+    );
+    await waitFor(() => {
+      expect(diffStoreMock.updateContent).toHaveBeenCalledWith(
+        "old content",
+        "new content",
+      );
+    });
+
     fireEvent.click(screen.getByTitle("加载更多历史"));
 
     await screen.findByText("fix: load more history");
@@ -295,6 +331,39 @@ describe("GitPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "查看文件状态" }));
     expect(await screen.findByText("changed.md")).toBeInTheDocument();
+  });
+
+  it("resets transient state whenever the Git panel opens", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const { rerender } = render(<GitPanel isOpen onClose={onClose} />);
+
+    await screen.findByText("changed.md");
+    await user.type(
+      screen.getByPlaceholderText("提交信息（留空将自动生成）..."),
+      "draft message",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "查看 Git 历史" }));
+    expect(
+      await screen.findByText("feat: add git history"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByText("feat: add git history"));
+    expect(
+      await screen.findByText(
+        "src/renderer/src/features/git/components/git-panel.tsx",
+      ),
+    ).toBeInTheDocument();
+
+    rerender(<GitPanel isOpen={false} onClose={onClose} />);
+    rerender(<GitPanel isOpen onClose={onClose} />);
+
+    await screen.findByText("changed.md");
+    expect(screen.getByText("文件状态")).toBeInTheDocument();
+    expect(screen.queryByText("feat: add git history")).not.toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText("提交信息（留空将自动生成）..."),
+    ).toHaveValue("");
+    expect(diffStoreMock.closeDiff).toHaveBeenCalled();
   });
 
   it("hides the view switch tip after toggling between file status and git history", async () => {

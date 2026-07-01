@@ -15,6 +15,7 @@ export type {
   GitCommitOptions,
   GitCommitLogItem,
   GitCommitChangedFile,
+  GitCommitFileContent,
   GitCommitDetail,
   GitDetectResult,
   Reminder,

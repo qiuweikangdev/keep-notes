@@ -85,6 +85,12 @@ export interface GitCommitChangedFile {
   oldPath?: string;
 }
 
+// Git 历史提交中文件在父提交和当前提交中的内容
+export interface GitCommitFileContent {
+  oldContent: string;
+  newContent: string;
+}
+
 // Git 历史提交详情
 export interface GitCommitDetail {
   hash: string;

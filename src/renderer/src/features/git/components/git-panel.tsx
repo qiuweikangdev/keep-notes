@@ -14,6 +14,7 @@ import type {
   GitStatus,
   GitBranch,
   GitCommitOptions,
+  GitCommitChangedFile,
   GitCommitDetail,
   GitCommitLogItem,
 } from "@/types";
@@ -88,6 +89,9 @@ const getCommitFileStatusMeta = (status: string) => {
   }
 };
 
+const getCommitFileDisplayPath = (file: GitCommitChangedFile) =>
+  file.oldPath ? `${file.oldPath} -> ${file.path}` : file.path;
+
 function GitPanelTooltip({
   label,
   children,
@@ -158,6 +162,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     getFileHeadContent,
     getCommitHistory,
     getCommitDetail,
+    getCommitFileContent,
   } = useElectron();
   const { treeRoot, setSelectedKey, expandedKeys, setExpandedKeys } =
     useTreeStore();
@@ -201,6 +206,33 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     return treeRoot?.key || "";
   }, [treeRoot]);
 
+  const resetPanelState = useCallback(() => {
+    setIsGitRepo(false);
+    setCurrentBranch("");
+    setBranches([]);
+    setGitStatus(null);
+    setCommitMessage("");
+    setIncludeUntracked(true);
+    setLoading(false);
+    setShowBranchList(false);
+    setShowCreateBranch(false);
+    setNewBranchName("");
+    setMessage(null);
+    setStagedFiles(new Set());
+    setConfirmDialog({ open: false, filePath: "" });
+    setTreeView(false);
+    setActiveTab("changes");
+    setCommitHistory([]);
+    setHistoryLoading(false);
+    setHistoryHasMore(true);
+    setSelectedCommitHash("");
+    setSelectedCommitDetail(null);
+    setCommitDetailLoading(false);
+    setExpandedSections({ staged: true, unstaged: true });
+    setExpandedDirs(new Set());
+    closeDiff();
+  }, [closeDiff]);
+
   const loadGitInfo = useCallback(async () => {
     const dir = getCurrentDir();
     if (!dir) return;
@@ -236,9 +268,10 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
 
   useEffect(() => {
     if (isOpen) {
+      resetPanelState();
       loadGitInfo();
     }
-  }, [isOpen, loadGitInfo]);
+  }, [isOpen, resetPanelState, loadGitInfo]);
 
   const loadCommitHistory = useCallback(
     async (mode: "reset" | "append" = "reset") => {
@@ -560,6 +593,44 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       }
     },
     [getCurrentDir, openDiff, updateContent, closeDiff, getFileHeadContent],
+  );
+
+  const handleDiffCommitFile = useCallback(
+    async (file: GitCommitChangedFile) => {
+      const dir = getCurrentDir();
+      if (!dir || !selectedCommitHash) return;
+
+      const displayPath = getCommitFileDisplayPath(file);
+      openDiff(displayPath, "", "");
+
+      try {
+        const result = await getCommitFileContent(
+          dir,
+          selectedCommitHash,
+          file.path,
+          file.status,
+          file.oldPath,
+        );
+        if (result.code === CodeResult.Success && result.data) {
+          updateContent(result.data.oldContent, result.data.newContent);
+        } else {
+          closeDiff();
+          showMessage("error", result.message || "加载提交文件差异失败");
+        }
+      } catch (error) {
+        console.error("Failed to read commit file for diff:", error);
+        closeDiff();
+        showMessage("error", "加载提交文件差异失败");
+      }
+    },
+    [
+      getCurrentDir,
+      selectedCommitHash,
+      openDiff,
+      getCommitFileContent,
+      updateContent,
+      closeDiff,
+    ],
   );
 
   // 放弃更改 - 打开确认弹窗
@@ -1221,12 +1292,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             title={commit.subject}
           >
             <span className="min-w-0 truncate">
-              <span
-                className="mr-2 font-mono text-xs"
-                style={{ color: "var(--accent-color)" }}
-              >
-                {commit.shortHash}
-              </span>
               {commit.subject || "(无提交信息)"}
             </span>
             <span
@@ -1316,10 +1381,15 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                 {selectedCommitDetail.files.length > 0 ? (
                   selectedCommitDetail.files.map((file) => {
                     const statusMeta = getCommitFileStatusMeta(file.status);
+                    const displayPath = getCommitFileDisplayPath(file);
                     return (
-                      <div
+                      <button
                         key={`${file.status}:${file.oldPath || ""}:${file.path}`}
-                        className="flex h-8 items-center border-b px-3 text-sm last:border-b-0"
+                        type="button"
+                        onClick={() => handleDiffCommitFile(file)}
+                        data-theme-control="true"
+                        aria-label={`查看 ${displayPath} 的提交差异`}
+                        className="flex h-8 w-full items-center border-b px-3 text-left text-sm transition-colors last:border-b-0 hover:bg-[var(--hover-bg)]"
                         style={{ borderColor: "var(--border-color)" }}
                       >
                         <File
@@ -1329,15 +1399,9 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                         <span
                           className="min-w-0 flex-1 truncate"
                           style={{ color: "var(--text-primary)" }}
-                          title={
-                            file.oldPath
-                              ? `${file.oldPath} -> ${file.path}`
-                              : file.path
-                          }
+                          title={displayPath}
                         >
-                          {file.oldPath
-                            ? `${file.oldPath} -> ${file.path}`
-                            : file.path}
+                          {displayPath}
                         </span>
                         <span
                           className="ml-3 font-mono text-xs"
@@ -1358,7 +1422,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                         >
                           {statusMeta.label}
                         </span>
-                      </div>
+                      </button>
                     );
                   })
                 ) : (

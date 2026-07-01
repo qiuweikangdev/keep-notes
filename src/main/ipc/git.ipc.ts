@@ -20,8 +20,13 @@ import {
   openFile,
   getCommitHistory,
   getCommitDetail,
+  getCommitFileContent,
 } from "../git";
-import type { GitConfig, GitCommitOptions } from "../../shared/types";
+import type {
+  GitConfig,
+  GitCommitOptions,
+  GitCommitFileStatus,
+} from "../../shared/types";
 
 export function registerGitIpc(): void {
   // 原有的下载和上传通道
@@ -153,6 +158,21 @@ export function registerGitIpc(): void {
     IPC_CHANNELS.GIT.GET_COMMIT_DETAIL,
     async (_, dirPath: string, hash: string) => {
       return getCommitDetail(dirPath, hash);
+    },
+  );
+
+  // 获取提交文件内容
+  ipcMain.handle(
+    IPC_CHANNELS.GIT.GET_COMMIT_FILE_CONTENT,
+    async (
+      _,
+      dirPath: string,
+      hash: string,
+      filePath: string,
+      status: GitCommitFileStatus,
+      oldPath?: string,
+    ) => {
+      return getCommitFileContent(dirPath, hash, filePath, status, oldPath);
     },
   );
 }

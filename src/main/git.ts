@@ -11,6 +11,7 @@ import type {
   GitDetectResult,
   GitCommitChangedFile,
   GitCommitDetail,
+  GitCommitFileContent,
   GitCommitFileStatus,
   GitCommitLogItem,
 } from "../shared/types";
@@ -38,6 +39,18 @@ const toCommitFileStatus = (statusCode: string): GitCommitFileStatus => {
     return status;
   }
   return "M";
+};
+
+const readCommitFileContent = async (
+  git: SimpleGit,
+  ref: string,
+  filePath: string,
+) => {
+  try {
+    return await git.raw(["show", `${ref}:${normalizeGitPath(filePath)}`]);
+  } catch {
+    return "";
+  }
 };
 
 // 检测是否为 Git 仓库
@@ -482,6 +495,51 @@ export async function getCommitDetail(
         subject,
         body: body.trim(),
         files,
+      },
+    };
+  } catch (e: unknown) {
+    return {
+      code: CodeResult.Fail,
+      message: getGitErrorMessage(e),
+    };
+  }
+}
+
+// 获取提交中文件变更前后的内容
+export async function getCommitFileContent(
+  dirPath: string,
+  hash: string,
+  filePath: string,
+  status: GitCommitFileStatus,
+  oldPath?: string,
+): Promise<ApiResponse<GitCommitFileContent>> {
+  try {
+    const git = getGitInstance(dirPath);
+    await git.addConfig("core.quotepath", "false");
+    const parentsOutput = await git.raw([
+      "rev-list",
+      "--parents",
+      "-n",
+      "1",
+      hash,
+    ]);
+    const [, firstParent] = parentsOutput.trim().split(/\s+/);
+    const contentPath = normalizeGitPath(filePath);
+    const previousPath = normalizeGitPath(oldPath || filePath);
+
+    // 历史记录对比以第一父提交为基准；新增/删除文件分别用空内容表示另一侧。
+    const oldContent =
+      firstParent && status !== "A"
+        ? await readCommitFileContent(git, firstParent, previousPath)
+        : "";
+    const newContent =
+      status !== "D" ? await readCommitFileContent(git, hash, contentPath) : "";
+
+    return {
+      code: CodeResult.Success,
+      data: {
+        oldContent,
+        newContent,
       },
     };
   } catch (e: unknown) {
