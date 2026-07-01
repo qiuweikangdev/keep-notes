@@ -2,6 +2,8 @@ import fs from "node:fs";
 import { app } from "electron";
 import { join } from "node:path";
 import type {
+  DesktopChannelConfig,
+  EmailChannelConfig,
   NotificationConfig,
   NotificationChannelType,
   Reminder,
@@ -19,10 +21,12 @@ export class NotificationChannelManager {
   private emailChannel: EmailChannel;
 
   constructor() {
-    this.desktopChannel = new DesktopChannel();
+    this.config = this.normalizeConfig(DEFAULT_NOTIFICATION_CONFIG);
+    this.desktopChannel = new DesktopChannel(this.config.desktop);
     this.emailChannel = new EmailChannel(this.config.email);
     this.channels.set("desktop", this.desktopChannel);
     this.channels.set("email", this.emailChannel);
+    this.syncChannelConfig();
   }
 
   /** 获取当前通知配置的副本 */
@@ -36,7 +40,7 @@ export class NotificationChannelManager {
   /** 更新通知配置并同步到邮件渠道 */
   updateConfig(config: NotificationConfig): void {
     this.config = this.normalizeConfig(config);
-    this.emailChannel.updateConfig(this.config.email);
+    this.syncChannelConfig();
   }
 
   /** 从 JSON 文件加载通知配置，文件不存在时使用默认配置 */
@@ -48,7 +52,7 @@ export class NotificationChannelManager {
         this.config = this.normalizeConfig(
           parsed as Partial<NotificationConfig>,
         );
-        this.emailChannel.updateConfig(this.config.email);
+        this.syncChannelConfig();
       }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
@@ -100,9 +104,18 @@ export class NotificationChannelManager {
     return join(app.getPath("userData"), "notification-config.json");
   }
 
+  /** 同步标准化后的配置到各通知渠道，确保测试与发送都读取同一份最新配置。 */
+  private syncChannelConfig(): void {
+    this.desktopChannel.updateConfig(this.config.desktop);
+    this.emailChannel.updateConfig(this.config.email);
+  }
+
   /** 合并默认配置，兼容旧版本缺少的新字段。 */
   private normalizeConfig(
-    config: Partial<NotificationConfig>,
+    config: Partial<{
+      desktop: Partial<DesktopChannelConfig>;
+      email: Partial<EmailChannelConfig>;
+    }>,
   ): NotificationConfig {
     return {
       desktop: {

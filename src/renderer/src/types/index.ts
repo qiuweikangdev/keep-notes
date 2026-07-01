@@ -20,6 +20,7 @@ export type {
   ReminderRepeatPreset,
   ReminderRepeatUnit,
   NotificationChannelType,
+  NotificationSizePreset,
   DesktopChannelConfig,
   NotificationConfig,
   ExportConfig,
