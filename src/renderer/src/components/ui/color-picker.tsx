@@ -5,9 +5,17 @@ interface ColorPickerProps {
   value: string;
   onChange: (color: string) => void;
   className?: string;
+  inputAriaLabel?: string;
+  swatchAriaLabel?: string;
 }
 
-export function ColorPicker({ value, onChange, className }: ColorPickerProps) {
+export function ColorPicker({
+  value,
+  onChange,
+  className,
+  inputAriaLabel,
+  swatchAriaLabel,
+}: ColorPickerProps) {
   const [showInput, setShowInput] = React.useState(false);
   const [inputValue, setInputValue] = React.useState(value);
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -47,6 +55,7 @@ export function ColorPicker({ value, onChange, className }: ColorPickerProps) {
       {/* Color swatch */}
       <button
         type="button"
+        aria-label={swatchAriaLabel}
         className="relative w-8 h-8 rounded-full border-2 overflow-hidden flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-[var(--accent-color)] transition-all"
         style={{
           borderColor: "var(--border-color)",
@@ -62,6 +71,7 @@ export function ColorPicker({ value, onChange, className }: ColorPickerProps) {
       {/* Hex input */}
       <input
         ref={inputRef}
+        aria-label={inputAriaLabel}
         type="text"
         value={showInput ? inputValue : value}
         onChange={handleInputChange}

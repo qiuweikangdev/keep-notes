@@ -3,6 +3,8 @@ import { useNotificationStore } from "@/store/notification.store";
 import { SettingRow } from "@/components/ui/setting-row";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { ColorPicker } from "@/components/ui/color-picker";
+import type { NotificationSizePreset } from "@/types";
 import { DEFAULT_NOTIFICATION_CONFIG } from "@/types";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 
@@ -17,6 +19,9 @@ export function NotificationSettings() {
   const [email, setEmail] = useState(config.email.senderEmail);
   const [code, setCode] = useState(config.email.authorizationCode);
   const [appName, setAppName] = useState(config.desktop.appName);
+  const [appNameFontSize, setAppNameFontSize] = useState(
+    String(config.desktop.appNameFontSize),
+  );
   const [isTesting, setIsTesting] = useState(false);
   const [isTestingDesktop, setIsTestingDesktop] = useState(false);
   const [desktopTestResult, setDesktopTestResult] = useState<{
@@ -39,11 +44,21 @@ export function NotificationSettings() {
     setEmail(config.email.senderEmail);
     setCode(config.email.authorizationCode);
     setAppName(config.desktop.appName);
+    setAppNameFontSize(String(config.desktop.appNameFontSize));
   }, [
     config.desktop.appName,
+    config.desktop.appNameFontSize,
     config.email.authorizationCode,
     config.email.senderEmail,
   ]);
+
+  /** 更新桌面通知配置后清空上一次测试结果，避免旧结果误导当前配置。 */
+  const updateDesktopConfig = async (
+    desktop: Partial<typeof config.desktop>,
+  ) => {
+    await updateConfig({ desktop });
+    setDesktopTestResult(null);
+  };
 
   /** 保存应用通知弹窗顶部标题，空值恢复默认应用名 */
   const handleSaveAppName = async () => {
@@ -51,8 +66,18 @@ export function NotificationSettings() {
       appName.trim() || DEFAULT_NOTIFICATION_CONFIG.desktop.appName;
     setAppName(nextAppName);
     if (nextAppName === config.desktop.appName) return;
-    await updateConfig({ desktop: { appName: nextAppName } });
-    setDesktopTestResult(null);
+    await updateDesktopConfig({ appName: nextAppName });
+  };
+
+  /** 保存应用标题字号，限制在通知窗口可读范围内。 */
+  const handleSaveAppNameFontSize = async () => {
+    const nextFontSize = Math.min(
+      28,
+      Math.max(12, Number(appNameFontSize) || 18),
+    );
+    setAppNameFontSize(String(nextFontSize));
+    if (nextFontSize === config.desktop.appNameFontSize) return;
+    await updateDesktopConfig({ appNameFontSize: nextFontSize });
   };
 
   /** 切换邮箱推送开关 */
@@ -137,10 +162,10 @@ export function NotificationSettings() {
               )}
             </Button>
             <Switch
+              ariaLabel="桌面通知"
               checked={config.desktop.enabled}
               onCheckedChange={(checked) => {
-                void updateConfig({ desktop: { enabled: checked } });
-                setDesktopTestResult(null);
+                void updateDesktopConfig({ enabled: checked });
               }}
             />
           </div>
@@ -186,13 +211,11 @@ export function NotificationSettings() {
           description="提醒通知保持显示，直到点击确认"
         >
           <Switch
+            ariaLabel="持续显示"
             checked={config.desktop.requireInteraction}
             disabled={!config.desktop.enabled}
             onCheckedChange={(checked) => {
-              void updateConfig({
-                desktop: { requireInteraction: checked },
-              });
-              setDesktopTestResult(null);
+              void updateDesktopConfig({ requireInteraction: checked });
             }}
           />
         </SettingRow>
@@ -219,6 +242,114 @@ export function NotificationSettings() {
               outline: "none",
             }}
           />
+        </SettingRow>
+      </div>
+
+      <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+        <SettingRow
+          label="显示应用图标"
+          description="控制通知左侧应用图标是否显示"
+        >
+          <Switch
+            ariaLabel="显示应用图标"
+            checked={config.desktop.showAppIcon}
+            disabled={!config.desktop.enabled}
+            onCheckedChange={(checked) => {
+              void updateDesktopConfig({ showAppIcon: checked });
+            }}
+          />
+        </SettingRow>
+      </div>
+
+      <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+        <SettingRow label="标题字号" description="应用标题名称的字体大小">
+          <input
+            aria-label="标题字号"
+            type="number"
+            min={12}
+            max={28}
+            value={appNameFontSize}
+            disabled={!config.desktop.enabled}
+            onChange={(e) => setAppNameFontSize(e.target.value)}
+            onBlur={() => {
+              void handleSaveAppNameFontSize();
+            }}
+            className="h-8 w-24 rounded-md px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            style={{
+              backgroundColor: "var(--bg-tertiary)",
+              border: "1px solid var(--border-color)",
+              color: "var(--text-primary)",
+              outline: "none",
+            }}
+          />
+        </SettingRow>
+      </div>
+
+      <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+        <SettingRow label="标题颜色" description="应用标题名称的文字颜色">
+          <ColorPicker
+            value={config.desktop.appNameColor || "#ffffff"}
+            inputAriaLabel="标题颜色"
+            swatchAriaLabel="选择标题颜色"
+            onChange={(color) => {
+              void updateDesktopConfig({ appNameColor: color });
+            }}
+          />
+        </SettingRow>
+      </div>
+
+      <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+        <SettingRow
+          label="显示底部操作"
+          description="控制稍后提醒和查看详情按钮是否显示"
+        >
+          <Switch
+            ariaLabel="显示底部操作"
+            checked={config.desktop.showActions}
+            disabled={!config.desktop.enabled}
+            onCheckedChange={(checked) => {
+              void updateDesktopConfig({ showActions: checked });
+            }}
+          />
+        </SettingRow>
+      </div>
+
+      <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+        <SettingRow label="通知背景色" description="应用通知弹窗的背景颜色">
+          <ColorPicker
+            value={config.desktop.backgroundColor}
+            inputAriaLabel="通知背景色"
+            swatchAriaLabel="选择通知背景色"
+            onChange={(color) => {
+              void updateDesktopConfig({ backgroundColor: color });
+            }}
+          />
+        </SettingRow>
+      </div>
+
+      <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+        <SettingRow label="弹窗大小" description="应用通知弹窗的预设尺寸">
+          <select
+            aria-label="弹窗大小"
+            value={config.desktop.sizePreset}
+            disabled={!config.desktop.enabled}
+            onChange={(e) => {
+              void updateDesktopConfig({
+                sizePreset: e.target.value as NotificationSizePreset,
+              });
+            }}
+            className="h-8 w-28 rounded-md px-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            style={{
+              backgroundColor: "var(--bg-tertiary)",
+              border: "1px solid var(--border-color)",
+              color: "var(--text-primary)",
+              outline: "none",
+            }}
+          >
+            <option value="small">小</option>
+            <option value="medium">默认</option>
+            <option value="large">大</option>
+          </select>
         </SettingRow>
       </div>
 
