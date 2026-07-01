@@ -1153,14 +1153,24 @@ select {
   transform: translateY(3px) rotate(45deg);
 }
 
-.git-panel-tooltip:hover > .git-panel-tooltip__content,
-.git-panel-tooltip:focus-within > .git-panel-tooltip__content {
+.git-panel-tooltip--visible > .git-panel-tooltip__content {
   opacity: 1;
   transform: translate(-50%, 0);
   visibility: visible;
 }
 
-.git-panel-tooltip--align-end:hover > .git-panel-tooltip__content,
-.git-panel-tooltip--align-end:focus-within > .git-panel-tooltip__content {
+.git-panel-tooltip--align-end.git-panel-tooltip--visible
+  > .git-panel-tooltip__content {
   transform: translateY(0);
+}
+
+.git-panel-tooltip.git-panel-tooltip--hidden > .git-panel-tooltip__content {
+  opacity: 0;
+  transform: translate(-50%, 2px);
+  visibility: hidden;
+}
+
+.git-panel-tooltip--align-end.git-panel-tooltip--hidden
+  > .git-panel-tooltip__content {
+  transform: translateY(2px);
 }

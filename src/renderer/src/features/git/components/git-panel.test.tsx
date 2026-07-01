@@ -265,12 +265,18 @@ describe("GitPanel", () => {
 
     await screen.findByText("changed.md");
     expect(screen.queryByRole("tab", { name: "历史" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTitle("查看 Git 历史"));
+    fireEvent.click(screen.getByRole("button", { name: "查看 Git 历史" }));
 
     expect(
       await screen.findByText("feat: add git history"),
     ).toBeInTheDocument();
     expect(electronMocks.getCommitHistory).toHaveBeenCalledWith("/notes", 0, 5);
+    expect(electronMocks.getCommitDetail).not.toHaveBeenCalled();
+    expect(
+      screen.queryByText(
+        "src/renderer/src/features/git/components/git-panel.tsx",
+      ),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByText("feat: add git history"));
 
@@ -287,7 +293,42 @@ describe("GitPanel", () => {
     await screen.findByText("fix: load more history");
     expect(electronMocks.getCommitHistory).toHaveBeenCalledWith("/notes", 5, 5);
 
-    fireEvent.click(screen.getByTitle("查看文件状态"));
+    fireEvent.click(screen.getByRole("button", { name: "查看文件状态" }));
+    expect(await screen.findByText("changed.md")).toBeInTheDocument();
+  });
+
+  it("hides the view switch tip after toggling between file status and git history", async () => {
+    const user = userEvent.setup();
+    render(<GitPanel isOpen onClose={vi.fn()} />);
+
+    await screen.findByText("changed.md");
+
+    const historyButton = screen.getByRole("button", { name: "查看 Git 历史" });
+    expect(historyButton).not.toHaveAttribute("title");
+    await user.hover(historyButton);
+    await expectTooltipContent("查看 Git 历史");
+    expect(historyButton.closest(".git-panel-tooltip")).toHaveClass(
+      "git-panel-tooltip--visible",
+    );
+    await user.click(historyButton);
+
+    expect(historyButton.closest(".git-panel-tooltip")).toHaveClass(
+      "git-panel-tooltip--hidden",
+    );
+    expect(
+      await screen.findByText("feat: add git history"),
+    ).toBeInTheDocument();
+
+    const fileStatusButton = screen.getByRole("button", {
+      name: "查看文件状态",
+    });
+    expect(fileStatusButton).not.toHaveAttribute("title");
+    await user.hover(fileStatusButton);
+    await user.click(fileStatusButton);
+
+    expect(fileStatusButton.closest(".git-panel-tooltip")).toHaveClass(
+      "git-panel-tooltip--hidden",
+    );
     expect(await screen.findByText("changed.md")).toBeInTheDocument();
   });
 });

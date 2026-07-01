@@ -93,15 +93,44 @@ function GitPanelTooltip({
   children,
   side = "top",
   align = "center",
+  suppressOnClick = false,
 }: {
   label: string;
   children: ReactNode;
   side?: "top" | "bottom";
   align?: "center" | "end";
+  suppressOnClick?: boolean;
 }) {
+  const [isVisible, setIsVisible] = useState(false);
+  const [isSuppressed, setIsSuppressed] = useState(false);
+
+  const handleShow = () => {
+    if (!isSuppressed) {
+      setIsVisible(true);
+    }
+  };
+
+  const handleSuppress = () => {
+    if (suppressOnClick) {
+      setIsVisible(false);
+      setIsSuppressed(true);
+    }
+  };
+
+  const handleHide = () => {
+    setIsVisible(false);
+    setIsSuppressed(false);
+  };
+
   return (
     <span
-      className={`git-panel-tooltip git-panel-tooltip--${side} git-panel-tooltip--align-${align}`}
+      className={`git-panel-tooltip git-panel-tooltip--${side} git-panel-tooltip--align-${align}${isVisible && !isSuppressed ? " git-panel-tooltip--visible" : ""}${isSuppressed ? " git-panel-tooltip--hidden" : ""}`}
+      onMouseEnter={handleShow}
+      onFocus={handleShow}
+      onPointerDown={handleSuppress}
+      onClick={handleSuppress}
+      onMouseLeave={handleHide}
+      onBlur={handleHide}
     >
       {children}
       <span className="git-panel-tooltip__content" role="tooltip">
@@ -286,6 +315,15 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     },
     [getCurrentDir, selectedCommitHash, selectedCommitDetail, getCommitDetail],
   );
+
+  const handleSwitchTab = useCallback((nextTab: GitPanelTab) => {
+    setActiveTab(nextTab);
+    if (nextTab === "history") {
+      setSelectedCommitHash("");
+      setSelectedCommitDetail(null);
+      setCommitDetailLoading(false);
+    }
+  }, []);
 
   // 切换目录展开状态
   const toggleDir = useCallback((dirPath: string) => {
@@ -1652,10 +1690,14 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                 {activeTab === "history" ? "Git 历史" : "文件状态"}
               </span>
               <div className="flex items-center gap-0.5">
-                <GitPanelTooltip label="查看文件状态" side="bottom">
+                <GitPanelTooltip
+                  label="查看文件状态"
+                  side="bottom"
+                  suppressOnClick
+                >
                   <button
                     type="button"
-                    onClick={() => setActiveTab("changes")}
+                    onClick={() => handleSwitchTab("changes")}
                     data-theme-control="true"
                     className="rounded p-1 transition-colors hover:bg-[var(--hover-bg)]"
                     style={{
@@ -1668,16 +1710,19 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                           ? "var(--accent-color)"
                           : "var(--text-muted)",
                     }}
-                    title="查看文件状态"
                     aria-label="查看文件状态"
                   >
                     <List className="h-3.5 w-3.5" />
                   </button>
                 </GitPanelTooltip>
-                <GitPanelTooltip label="查看 Git 历史" side="bottom">
+                <GitPanelTooltip
+                  label="查看 Git 历史"
+                  side="bottom"
+                  suppressOnClick
+                >
                   <button
                     type="button"
-                    onClick={() => setActiveTab("history")}
+                    onClick={() => handleSwitchTab("history")}
                     data-theme-control="true"
                     className="rounded p-1 transition-colors hover:bg-[var(--hover-bg)]"
                     style={{
@@ -1690,7 +1735,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                           ? "var(--accent-color)"
                           : "var(--text-muted)",
                     }}
-                    title="查看 Git 历史"
                     aria-label="查看 Git 历史"
                   >
                     <GitCommit className="h-3.5 w-3.5" />
