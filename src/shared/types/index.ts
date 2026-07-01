@@ -64,6 +64,42 @@ export interface GitCommitOptions {
   push?: boolean; // 提交后是否推送
 }
 
+// Git 历史提交列表项
+export interface GitCommitLogItem {
+  hash: string;
+  shortHash: string;
+  subject: string;
+  authorName: string;
+  authorEmail: string;
+  date: string;
+}
+
+export type GitCommitFileStatus = "A" | "M" | "D" | "R" | "C" | "U";
+
+// Git 历史提交中的文件变更
+export interface GitCommitChangedFile {
+  path: string;
+  status: GitCommitFileStatus;
+  additions: number;
+  deletions: number;
+  oldPath?: string;
+}
+
+// Git 历史提交详情
+export interface GitCommitDetail {
+  hash: string;
+  shortHash: string;
+  parents: string[];
+  authorName: string;
+  authorEmail: string;
+  committerName: string;
+  committerEmail: string;
+  date: string;
+  subject: string;
+  body: string;
+  files: GitCommitChangedFile[];
+}
+
 // Git 检测结果
 export interface GitDetectResult {
   isGitRepo: boolean;

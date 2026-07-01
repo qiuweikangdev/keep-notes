@@ -10,7 +10,13 @@ import { useTreeStore } from "@/store/tree.store";
 import { useEditorStore } from "@/store/editor.store";
 import { useDiffStore } from "@/store/diff.store";
 import { CodeResult } from "@/types";
-import type { GitStatus, GitBranch, GitCommitOptions } from "@/types";
+import type {
+  GitStatus,
+  GitBranch,
+  GitCommitOptions,
+  GitCommitDetail,
+  GitCommitLogItem,
+} from "@/types";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -48,6 +54,39 @@ interface GitPanelProps {
 
 const normalizePanelGitPath = (filePath: string) =>
   filePath.replace(/\\/g, "/");
+
+const GIT_HISTORY_PAGE_SIZE = 5;
+
+type GitPanelTab = "changes" | "history";
+
+const formatGitHistoryDate = (date: string) => {
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return date;
+
+  return parsed.toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const getCommitFileStatusMeta = (status: string) => {
+  switch (status) {
+    case "A":
+      return { label: "A", title: "新增文件", color: "#73c991" };
+    case "D":
+      return { label: "D", title: "文件被删除", color: "#f85149" };
+    case "R":
+      return { label: "R", title: "文件被重命名", color: "#d29922" };
+    case "C":
+      return { label: "C", title: "文件被复制", color: "#d29922" };
+    case "U":
+      return { label: "U", title: "文件有冲突", color: "#f85149" };
+    default:
+      return { label: "M", title: "文件被修改", color: "#3794ff" };
+  }
+};
 
 function GitPanelTooltip({
   label,
@@ -88,6 +127,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     openFile: openFileInEditor,
     loadTree,
     getFileHeadContent,
+    getCommitHistory,
+    getCommitDetail,
   } = useElectron();
   const { treeRoot, setSelectedKey, expandedKeys, setExpandedKeys } =
     useTreeStore();
@@ -112,6 +153,14 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     filePath: string;
   }>({ open: false, filePath: "" });
   const [treeView, setTreeView] = useState(false);
+  const [activeTab, setActiveTab] = useState<GitPanelTab>("changes");
+  const [commitHistory, setCommitHistory] = useState<GitCommitLogItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyHasMore, setHistoryHasMore] = useState(true);
+  const [selectedCommitHash, setSelectedCommitHash] = useState("");
+  const [selectedCommitDetail, setSelectedCommitDetail] =
+    useState<GitCommitDetail | null>(null);
+  const [commitDetailLoading, setCommitDetailLoading] = useState(false);
   const [expandedSections, setExpandedSections] = useState({
     staged: true,
     unstaged: true,
@@ -161,6 +210,82 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       loadGitInfo();
     }
   }, [isOpen, loadGitInfo]);
+
+  const loadCommitHistory = useCallback(
+    async (mode: "reset" | "append" = "reset") => {
+      const dir = getCurrentDir();
+      if (!dir || historyLoading) return;
+
+      const skip = mode === "append" ? commitHistory.length : 0;
+
+      try {
+        setHistoryLoading(true);
+        const result = await getCommitHistory(dir, skip, GIT_HISTORY_PAGE_SIZE);
+        if (result.code === CodeResult.Success && result.data) {
+          setCommitHistory((prev) =>
+            mode === "append" ? [...prev, ...result.data!] : result.data!,
+          );
+          setHistoryHasMore(result.data.length === GIT_HISTORY_PAGE_SIZE);
+          if (mode === "reset") {
+            setSelectedCommitHash("");
+            setSelectedCommitDetail(null);
+          }
+        } else {
+          showMessage("error", result.message || "加载 Git 历史失败");
+        }
+      } catch (error) {
+        showMessage("error", "加载 Git 历史失败");
+      } finally {
+        setHistoryLoading(false);
+      }
+    },
+    [getCurrentDir, historyLoading, commitHistory.length, getCommitHistory],
+  );
+
+  useEffect(() => {
+    if (
+      isOpen &&
+      isGitRepo &&
+      activeTab === "history" &&
+      commitHistory.length === 0 &&
+      !historyLoading
+    ) {
+      loadCommitHistory("reset");
+    }
+  }, [
+    isOpen,
+    isGitRepo,
+    activeTab,
+    commitHistory.length,
+    historyLoading,
+    loadCommitHistory,
+  ]);
+
+  const handleSelectCommit = useCallback(
+    async (commit: GitCommitLogItem) => {
+      const dir = getCurrentDir();
+      if (!dir) return;
+      if (selectedCommitHash === commit.hash && selectedCommitDetail) return;
+
+      setSelectedCommitHash(commit.hash);
+      setCommitDetailLoading(true);
+      setSelectedCommitDetail(null);
+
+      try {
+        const result = await getCommitDetail(dir, commit.hash);
+        if (result.code === CodeResult.Success && result.data) {
+          setSelectedCommitDetail(result.data);
+        } else {
+          showMessage("error", result.message || "加载提交详情失败");
+        }
+      } catch (error) {
+        showMessage("error", "加载提交详情失败");
+      } finally {
+        setCommitDetailLoading(false);
+      }
+    },
+    [getCurrentDir, selectedCommitHash, selectedCommitDetail, getCommitDetail],
+  );
 
   // 切换目录展开状态
   const toggleDir = useCallback((dirPath: string) => {
@@ -470,6 +595,10 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         const result = await commitChanges(dir, options);
         if (result.code === CodeResult.Success) {
           setCommitMessage("");
+          setCommitHistory([]);
+          setHistoryHasMore(true);
+          setSelectedCommitHash("");
+          setSelectedCommitDetail(null);
           await loadGitInfo();
           await loadTree(dir);
           showMessage(
@@ -1019,6 +1148,197 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     );
   };
 
+  const renderHistoryContent = () => (
+    <div
+      className="flex-1 overflow-x-hidden overflow-y-auto"
+      style={{ backgroundColor: "var(--bg-primary)" }}
+    >
+      <div
+        className="grid grid-cols-[minmax(0,1fr)_96px_88px] border-b px-4 py-2 text-xs font-medium"
+        style={{
+          borderColor: "var(--border-color)",
+          color: "var(--text-muted)",
+        }}
+      >
+        <span>提交信息</span>
+        <span>时间</span>
+        <span>作者</span>
+      </div>
+
+      {commitHistory.map((commit) => {
+        const selected = selectedCommitHash === commit.hash;
+
+        return (
+          <button
+            key={commit.hash}
+            type="button"
+            onClick={() => handleSelectCommit(commit)}
+            data-theme-control="true"
+            className="grid h-9 w-full grid-cols-[minmax(0,1fr)_96px_88px] items-center border-b px-4 text-left text-sm transition-colors"
+            style={{
+              backgroundColor: selected ? "var(--active-bg)" : "transparent",
+              borderColor: "var(--border-color)",
+              color: "var(--text-primary)",
+            }}
+            title={commit.subject}
+          >
+            <span className="min-w-0 truncate">
+              <span
+                className="mr-2 font-mono text-xs"
+                style={{ color: "var(--accent-color)" }}
+              >
+                {commit.shortHash}
+              </span>
+              {commit.subject || "(无提交信息)"}
+            </span>
+            <span
+              className="truncate text-xs"
+              style={{ color: "var(--text-muted)" }}
+            >
+              {formatGitHistoryDate(commit.date)}
+            </span>
+            <span
+              className="truncate text-xs"
+              style={{ color: "var(--text-muted)" }}
+            >
+              {commit.authorName}
+            </span>
+          </button>
+        );
+      })}
+
+      {historyLoading && (
+        <div
+          className="px-4 py-6 text-center text-sm"
+          style={{ color: "var(--text-muted)" }}
+        >
+          加载中...
+        </div>
+      )}
+
+      {!historyLoading && commitHistory.length === 0 && (
+        <div
+          className="flex items-center justify-center px-4 py-10 text-sm"
+          style={{ color: "var(--text-muted)" }}
+        >
+          暂无提交记录
+        </div>
+      )}
+
+      {(selectedCommitDetail || commitDetailLoading || selectedCommitHash) && (
+        <div className="px-4 py-3">
+          {commitDetailLoading ? (
+            <div
+              className="py-6 text-center text-sm"
+              style={{ color: "var(--text-muted)" }}
+            >
+              加载提交详情...
+            </div>
+          ) : selectedCommitDetail ? (
+            <div
+              className="rounded-lg border"
+              style={{
+                borderColor: "var(--border-color)",
+                backgroundColor: "var(--bg-secondary)",
+              }}
+            >
+              <div
+                className="border-b p-3"
+                style={{ borderColor: "var(--border-color)" }}
+              >
+                <div
+                  className="mb-2 truncate text-sm font-medium"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  {selectedCommitDetail.subject || "(无提交信息)"}
+                </div>
+                <div
+                  className="grid gap-1 text-xs"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  <span>
+                    Commit:{" "}
+                    <span
+                      className="font-mono"
+                      style={{ color: "var(--accent-color)" }}
+                    >
+                      {selectedCommitDetail.hash}
+                    </span>
+                  </span>
+                  <span>
+                    Author: {selectedCommitDetail.authorName} &lt;
+                    {selectedCommitDetail.authorEmail}&gt;
+                  </span>
+                  <span>
+                    Date: {formatGitHistoryDate(selectedCommitDetail.date)}
+                  </span>
+                </div>
+              </div>
+              <div>
+                {selectedCommitDetail.files.length > 0 ? (
+                  selectedCommitDetail.files.map((file) => {
+                    const statusMeta = getCommitFileStatusMeta(file.status);
+                    return (
+                      <div
+                        key={`${file.status}:${file.oldPath || ""}:${file.path}`}
+                        className="flex h-8 items-center border-b px-3 text-sm last:border-b-0"
+                        style={{ borderColor: "var(--border-color)" }}
+                      >
+                        <File
+                          className="mr-2 h-4 w-4 shrink-0"
+                          style={{ color: "var(--text-muted)" }}
+                        />
+                        <span
+                          className="min-w-0 flex-1 truncate"
+                          style={{ color: "var(--text-primary)" }}
+                          title={
+                            file.oldPath
+                              ? `${file.oldPath} -> ${file.path}`
+                              : file.path
+                          }
+                        >
+                          {file.oldPath
+                            ? `${file.oldPath} -> ${file.path}`
+                            : file.path}
+                        </span>
+                        <span
+                          className="ml-3 font-mono text-xs"
+                          style={{ color: "#73c991" }}
+                        >
+                          +{file.additions}
+                        </span>
+                        <span
+                          className="ml-2 font-mono text-xs"
+                          style={{ color: "#f85149" }}
+                        >
+                          -{file.deletions}
+                        </span>
+                        <span
+                          className="ml-3 w-4 shrink-0 text-center text-xs font-semibold"
+                          style={{ color: statusMeta.color }}
+                          title={statusMeta.title}
+                        >
+                          {statusMeta.label}
+                        </span>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div
+                    className="px-3 py-6 text-center text-sm"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    此提交没有文件变更
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
+
   if (!isOpen) return null;
 
   if (!isGitRepo) {
@@ -1083,7 +1403,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       onClick={onClose}
     >
       <div
-        className="w-[560px] max-h-[80vh] rounded-xl shadow-2xl overflow-hidden flex flex-col"
+        className="w-[680px] max-h-[82vh] rounded-xl shadow-2xl overflow-hidden flex flex-col"
         style={{ backgroundColor: "var(--bg-secondary)" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -1326,11 +1646,59 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           </div>
 
           {/* 文件状态标题 */}
-          {allFiles.length > 0 && (
-            <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
               <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-                文件状态
+                {activeTab === "history" ? "Git 历史" : "文件状态"}
               </span>
+              <div className="flex items-center gap-0.5">
+                <GitPanelTooltip label="查看文件状态" side="bottom">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("changes")}
+                    data-theme-control="true"
+                    className="rounded p-1 transition-colors hover:bg-[var(--hover-bg)]"
+                    style={{
+                      backgroundColor:
+                        activeTab === "changes"
+                          ? "var(--active-bg)"
+                          : "transparent",
+                      color:
+                        activeTab === "changes"
+                          ? "var(--accent-color)"
+                          : "var(--text-muted)",
+                    }}
+                    title="查看文件状态"
+                    aria-label="查看文件状态"
+                  >
+                    <List className="h-3.5 w-3.5" />
+                  </button>
+                </GitPanelTooltip>
+                <GitPanelTooltip label="查看 Git 历史" side="bottom">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("history")}
+                    data-theme-control="true"
+                    className="rounded p-1 transition-colors hover:bg-[var(--hover-bg)]"
+                    style={{
+                      backgroundColor:
+                        activeTab === "history"
+                          ? "var(--active-bg)"
+                          : "transparent",
+                      color:
+                        activeTab === "history"
+                          ? "var(--accent-color)"
+                          : "var(--text-muted)",
+                    }}
+                    title="查看 Git 历史"
+                    aria-label="查看 Git 历史"
+                  >
+                    <GitCommit className="h-3.5 w-3.5" />
+                  </button>
+                </GitPanelTooltip>
+              </div>
+            </div>
+            {activeTab === "changes" ? (
               <div className="flex items-center gap-3 text-xs">
                 {modifiedCount > 0 && (
                   <span style={{ color: "#3794ff" }}>M {modifiedCount}</span>
@@ -1341,28 +1709,57 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                 {deletedCount > 0 && (
                   <span style={{ color: "#f85149" }}>D {deletedCount}</span>
                 )}
-                <button
-                  type="button"
-                  onClick={() => setTreeView(!treeView)}
-                  data-theme-control="true"
-                  className="rounded p-1"
-                  style={{ color: "var(--text-muted)" }}
-                  title={treeView ? "切换为列表视图" : "切换为树形视图"}
-                  aria-label={treeView ? "切换为列表视图" : "切换为树形视图"}
+                <GitPanelTooltip
+                  label={treeView ? "切换为列表视图" : "切换为树形视图"}
+                  side="bottom"
+                  align="end"
                 >
-                  {treeView ? (
-                    <List className="h-3.5 w-3.5" />
-                  ) : (
-                    <FolderTree className="h-3.5 w-3.5" />
-                  )}
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setTreeView(!treeView)}
+                    data-theme-control="true"
+                    className="rounded p-1"
+                    style={{ color: "var(--text-muted)" }}
+                    title={treeView ? "切换为列表视图" : "切换为树形视图"}
+                    aria-label={treeView ? "切换为列表视图" : "切换为树形视图"}
+                  >
+                    {treeView ? (
+                      <List className="h-3.5 w-3.5" />
+                    ) : (
+                      <FolderTree className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                </GitPanelTooltip>
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="flex items-center gap-1 text-xs">
+                {historyHasMore && commitHistory.length > 0 ? (
+                  <GitPanelTooltip
+                    label="加载更多历史"
+                    side="bottom"
+                    align="end"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => loadCommitHistory("append")}
+                      disabled={historyLoading}
+                      data-theme-control="true"
+                      className="rounded p-1 transition-colors hover:bg-[var(--hover-bg)] disabled:opacity-50"
+                      style={{ color: "var(--text-muted)" }}
+                      title="加载更多历史"
+                      aria-label="加载更多历史"
+                    >
+                      <PlusSquare className="h-3.5 w-3.5" />
+                    </button>
+                  </GitPanelTooltip>
+                ) : null}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* 文件列表 - 可滚动区域 */}
-        {allFiles.length > 0 && (
+        {activeTab === "changes" && allFiles.length > 0 && (
           <div
             className="flex-1 overflow-x-hidden overflow-y-auto"
             style={{ backgroundColor: "var(--bg-primary)" }}
@@ -1373,7 +1770,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         )}
 
         {/* 无更改提示 */}
-        {allFiles.length === 0 && (
+        {activeTab === "changes" && allFiles.length === 0 && (
           <div
             className="flex-1 flex items-center justify-center py-6"
             style={{ color: "var(--text-muted)" }}
@@ -1385,51 +1782,55 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           </div>
         )}
 
+        {activeTab === "history" && renderHistoryContent()}
+
         {/* 底部按钮 */}
-        <div
-          className="flex items-center justify-between p-4"
-          style={{ borderTop: "1px solid var(--border-color)" }}
-        >
-          <div className="flex items-center gap-2">
-            <Button
-              onClick={handlePull}
-              disabled={loading}
-              className="gap-1.5"
-              title="从远程拉取"
-            >
-              <RefreshCw
-                className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
-              />
-              拉取
-            </Button>
-            <Button
-              onClick={handlePush}
-              disabled={loading}
-              className="gap-1.5"
-              title="推送到远程"
-            >
-              <GitCommit className="h-3.5 w-3.5" />
-              推送
-            </Button>
+        {activeTab === "changes" && (
+          <div
+            className="flex items-center justify-between p-4"
+            style={{ borderTop: "1px solid var(--border-color)" }}
+          >
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={handlePull}
+                disabled={loading}
+                className="gap-1.5"
+                title="从远程拉取"
+              >
+                <RefreshCw
+                  className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
+                />
+                拉取
+              </Button>
+              <Button
+                onClick={handlePush}
+                disabled={loading}
+                className="gap-1.5"
+                title="推送到远程"
+              >
+                <GitCommit className="h-3.5 w-3.5" />
+                推送
+              </Button>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={() => handleCommit(false)}
+                disabled={!canCommit}
+                variant="secondary"
+                className="px-4"
+              >
+                提交
+              </Button>
+              <Button
+                onClick={() => handleCommit(true)}
+                disabled={!canCommit}
+                className="px-4"
+              >
+                提交并推送
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              onClick={() => handleCommit(false)}
-              disabled={!canCommit}
-              variant="secondary"
-              className="px-4"
-            >
-              提交
-            </Button>
-            <Button
-              onClick={() => handleCommit(true)}
-              disabled={!canCommit}
-              className="px-4"
-            >
-              提交并推送
-            </Button>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* 确认放弃更改弹窗 */}

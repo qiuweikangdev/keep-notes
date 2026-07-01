@@ -397,6 +397,19 @@ export function useElectron() {
     return window.gitAPI.openFile(dirPath, filePath);
   }, []);
 
+  // 获取提交历史
+  const getCommitHistory = useCallback(
+    async (dirPath: string, skip?: number, limit?: number) => {
+      return window.gitAPI.getCommitHistory(dirPath, skip, limit);
+    },
+    [],
+  );
+
+  // 获取提交详情
+  const getCommitDetail = useCallback(async (dirPath: string, hash: string) => {
+    return window.gitAPI.getCommitDetail(dirPath, hash);
+  }, []);
+
   return {
     openFolder,
     loadTree,
@@ -434,5 +447,7 @@ export function useElectron() {
     getFileHeadContent,
     discardChanges,
     openGitFile,
+    getCommitHistory,
+    getCommitDetail,
   };
 }

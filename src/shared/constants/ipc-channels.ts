@@ -89,6 +89,8 @@ export const IPC_CHANNELS = {
     GET_FILE_HEAD_CONTENT: "git:get-file-head-content", // 获取 HEAD 中的文件内容
     DISCARD_CHANGES: "git:discard-changes", // 放弃更改
     OPEN_FILE: "git:open-file", // 打开文件
+    GET_COMMIT_HISTORY: "git:get-commit-history", // 获取提交历史
+    GET_COMMIT_DETAIL: "git:get-commit-detail", // 获取提交详情
   },
   // 菜单动作通道
   MENU: {

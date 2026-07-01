@@ -9,12 +9,36 @@ import type {
   GitBranch,
   GitCommitOptions,
   GitDetectResult,
+  GitCommitChangedFile,
+  GitCommitDetail,
+  GitCommitFileStatus,
+  GitCommitLogItem,
 } from "../shared/types";
 
 // 获取 Git 实例
 function getGitInstance(baseDir: string): SimpleGit {
   return simpleGit({ baseDir, binary: "git" });
 }
+
+const normalizeGitPath = (p: string) => p.replace(/\\/g, "/");
+
+const getGitErrorMessage = (e: unknown) =>
+  e instanceof Error ? e.toString() : String(e);
+
+const toCommitFileStatus = (statusCode: string): GitCommitFileStatus => {
+  const status = statusCode.charAt(0);
+  if (
+    status === "A" ||
+    status === "M" ||
+    status === "D" ||
+    status === "R" ||
+    status === "C" ||
+    status === "U"
+  ) {
+    return status;
+  }
+  return "M";
+};
 
 // 检测是否为 Git 仓库
 export async function detectGitRepo(
@@ -286,6 +310,184 @@ export async function pull(dirPath: string): Promise<ApiResponse> {
     return {
       code: CodeResult.Fail,
       message: e.toString(),
+    };
+  }
+}
+
+// 获取 Git 提交历史
+export async function getCommitHistory(
+  dirPath: string,
+  skip = 0,
+  limit = 5,
+): Promise<ApiResponse<GitCommitLogItem[]>> {
+  try {
+    const git = getGitInstance(dirPath);
+    await git.addConfig("core.quotepath", "false");
+    const safeSkip = Math.max(0, skip);
+    const safeLimit = Math.max(1, limit);
+    const output = await git.raw([
+      "log",
+      `--skip=${safeSkip}`,
+      `--max-count=${safeLimit}`,
+      "--date=iso-strict",
+      "--pretty=format:%H%x1f%h%x1f%an%x1f%ae%x1f%ad%x1f%s",
+    ]);
+
+    // 使用不可见分隔符解析，避免提交信息中的空格影响字段拆分。
+    const commits = output
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [hash, shortHash, authorName, authorEmail, date, subject] =
+          line.split("\x1f");
+        return {
+          hash,
+          shortHash,
+          authorName,
+          authorEmail,
+          date,
+          subject,
+        };
+      });
+
+    return {
+      code: CodeResult.Success,
+      data: commits,
+    };
+  } catch (e: unknown) {
+    const message = getGitErrorMessage(e);
+    if (
+      message.includes("does not have any commits") ||
+      message.includes("your current branch") ||
+      message.includes("ambiguous argument 'HEAD'")
+    ) {
+      return {
+        code: CodeResult.Success,
+        data: [],
+      };
+    }
+
+    return {
+      code: CodeResult.Fail,
+      message,
+    };
+  }
+}
+
+// 获取 Git 提交详情
+export async function getCommitDetail(
+  dirPath: string,
+  hash: string,
+): Promise<ApiResponse<GitCommitDetail>> {
+  try {
+    const git = getGitInstance(dirPath);
+    await git.addConfig("core.quotepath", "false");
+    const metadataOutput = await git.raw([
+      "show",
+      "--quiet",
+      "--date=iso-strict",
+      "--pretty=format:%H%x1f%h%x1f%P%x1f%an%x1f%ae%x1f%cn%x1f%ce%x1f%ad%x1f%s%x1e%B",
+      hash,
+    ]);
+    const [metadataRaw, body = ""] = metadataOutput.split("\x1e");
+    const [
+      fullHash,
+      shortHash,
+      parentsRaw,
+      authorName,
+      authorEmail,
+      committerName,
+      committerEmail,
+      date,
+      subject,
+    ] = metadataRaw.split("\x1f");
+    const statusOutput = await git.raw([
+      "show",
+      "--name-status",
+      "--format=",
+      "--find-renames",
+      hash,
+    ]);
+    const numstatOutput = await git.raw([
+      "show",
+      "--numstat",
+      "--format=",
+      "--find-renames",
+      hash,
+    ]);
+    const statsByPath = new Map<
+      string,
+      Pick<GitCommitChangedFile, "additions" | "deletions">
+    >();
+
+    // numstat 提供每个文件的增删行数，二进制文件会返回 "-"，统一按 0 处理。
+    numstatOutput
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .forEach((line) => {
+        const parts = line.split("\t");
+        if (parts.length < 3) return;
+
+        const additions = Number.parseInt(parts[0], 10);
+        const deletions = Number.parseInt(parts[1], 10);
+        const filePath = normalizeGitPath(parts[parts.length - 1]);
+        statsByPath.set(filePath, {
+          additions: Number.isFinite(additions) ? additions : 0,
+          deletions: Number.isFinite(deletions) ? deletions : 0,
+        });
+      });
+
+    // name-status 负责识别 A/M/D/R 等状态，重命名记录包含 old/new 两个路径。
+    const files: GitCommitChangedFile[] = statusOutput
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const parts = line.split("\t");
+        const status = toCommitFileStatus(parts[0] || "M");
+        const oldPath =
+          status === "R" || status === "C"
+            ? normalizeGitPath(parts[1] || "")
+            : undefined;
+        const filePath = normalizeGitPath(
+          status === "R" || status === "C" ? parts[2] || "" : parts[1] || "",
+        );
+        const stats = statsByPath.get(filePath) || {
+          additions: 0,
+          deletions: 0,
+        };
+
+        return {
+          path: filePath,
+          oldPath,
+          status,
+          additions: stats.additions,
+          deletions: stats.deletions,
+        };
+      });
+
+    return {
+      code: CodeResult.Success,
+      data: {
+        hash: fullHash,
+        shortHash,
+        parents: parentsRaw ? parentsRaw.split(" ").filter(Boolean) : [],
+        authorName,
+        authorEmail,
+        committerName,
+        committerEmail,
+        date,
+        subject,
+        body: body.trim(),
+        files,
+      },
+    };
+  } catch (e: unknown) {
+    return {
+      code: CodeResult.Fail,
+      message: getGitErrorMessage(e),
     };
   }
 }

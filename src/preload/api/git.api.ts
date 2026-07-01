@@ -7,6 +7,8 @@ import type {
   GitBranch,
   GitCommitOptions,
   GitDetectResult,
+  GitCommitDetail,
+  GitCommitLogItem,
 } from "../../shared/types";
 
 export const gitApi = {
@@ -126,5 +128,31 @@ export const gitApi = {
     filePath: string,
   ): Promise<ApiResponse<string>> => {
     return ipcRenderer.invoke(IPC_CHANNELS.GIT.OPEN_FILE, dirPath, filePath);
+  },
+
+  // 获取提交历史
+  getCommitHistory: (
+    dirPath: string,
+    skip?: number,
+    limit?: number,
+  ): Promise<ApiResponse<GitCommitLogItem[]>> => {
+    return ipcRenderer.invoke(
+      IPC_CHANNELS.GIT.GET_COMMIT_HISTORY,
+      dirPath,
+      skip,
+      limit,
+    );
+  },
+
+  // 获取提交详情
+  getCommitDetail: (
+    dirPath: string,
+    hash: string,
+  ): Promise<ApiResponse<GitCommitDetail>> => {
+    return ipcRenderer.invoke(
+      IPC_CHANNELS.GIT.GET_COMMIT_DETAIL,
+      dirPath,
+      hash,
+    );
   },
 };

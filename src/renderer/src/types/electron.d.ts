@@ -6,6 +6,8 @@ import type {
   GitStatus,
   GitBranch,
   GitCommitOptions,
+  GitCommitDetail,
+  GitCommitLogItem,
   GitDetectResult,
   WindowOpenTarget,
   AppInfo,
@@ -155,6 +157,15 @@ export interface GitAPI {
   ) => Promise<ApiResponse<string>>;
   discardChanges: (dirPath: string, filePath: string) => Promise<ApiResponse>;
   openFile: (dirPath: string, filePath: string) => Promise<ApiResponse<string>>;
+  getCommitHistory: (
+    dirPath: string,
+    skip?: number,
+    limit?: number,
+  ) => Promise<ApiResponse<GitCommitLogItem[]>>;
+  getCommitDetail: (
+    dirPath: string,
+    hash: string,
+  ) => Promise<ApiResponse<GitCommitDetail>>;
 }
 
 declare global {

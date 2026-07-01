@@ -25,6 +25,15 @@ const electronMocks = vi.hoisted(() => ({
   openFile: vi.fn(),
   loadTree: vi.fn(),
   getFileHeadContent: vi.fn(),
+  getCommitHistory: vi.fn(),
+  getCommitDetail: vi.fn(),
+}));
+
+const treeStoreMock = vi.hoisted(() => ({
+  treeRoot: { key: "/notes", title: "notes" },
+  setSelectedKey: vi.fn(),
+  expandedKeys: new Set<string>(),
+  setExpandedKeys: vi.fn(),
 }));
 
 vi.mock("@/hooks/use-electron", () => ({
@@ -32,12 +41,7 @@ vi.mock("@/hooks/use-electron", () => ({
 }));
 
 vi.mock("@/store/tree.store", () => ({
-  useTreeStore: () => ({
-    treeRoot: { key: "/notes", title: "notes" },
-    setSelectedKey: vi.fn(),
-    expandedKeys: new Set<string>(),
-    setExpandedKeys: vi.fn(),
-  }),
+  useTreeStore: () => treeStoreMock,
 }));
 
 vi.mock("@/store/editor.store", () => ({
@@ -101,6 +105,42 @@ describe("GitPanel", () => {
     });
     electronMocks.loadTree.mockResolvedValue(undefined);
     electronMocks.openFile.mockResolvedValue(undefined);
+    electronMocks.getCommitHistory.mockResolvedValue({
+      code: CodeResult.Success,
+      data: [
+        {
+          hash: "1111111111111111111111111111111111111111",
+          shortHash: "1111111",
+          subject: "feat: add git history",
+          authorName: "qiuweikang",
+          authorEmail: "qiuweikang@example.com",
+          date: "2026-07-01T10:00:00+08:00",
+        },
+      ],
+    });
+    electronMocks.getCommitDetail.mockResolvedValue({
+      code: CodeResult.Success,
+      data: {
+        hash: "1111111111111111111111111111111111111111",
+        shortHash: "1111111",
+        parents: ["0000000000000000000000000000000000000000"],
+        authorName: "qiuweikang",
+        authorEmail: "qiuweikang@example.com",
+        committerName: "qiuweikang",
+        committerEmail: "qiuweikang@example.com",
+        date: "2026-07-01T10:00:00+08:00",
+        subject: "feat: add git history",
+        body: "feat: add git history",
+        files: [
+          {
+            path: "src/renderer/src/features/git/components/git-panel.tsx",
+            status: "M",
+            additions: 12,
+            deletions: 3,
+          },
+        ],
+      },
+    });
   });
 
   afterEach(() => {
@@ -153,7 +193,7 @@ describe("GitPanel", () => {
 
     await screen.findByText("changed.md");
     expect(screen.queryByTitle("收起更改")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByText("更改"));
+    fireEvent.click(screen.getByRole("button", { name: "收起更改" }));
 
     expect(screen.queryByText("changed.md")).not.toBeInTheDocument();
   });
@@ -173,7 +213,9 @@ describe("GitPanel", () => {
       "git-panel-tooltip--align-end",
     );
     expect(
-      screen.getByText("更改").closest(".overflow-x-hidden"),
+      screen
+        .getByRole("button", { name: "收起更改" })
+        .closest(".overflow-x-hidden"),
     ).toBeInTheDocument();
     expect(screen.getAllByTitle("查看差异").length).toBeGreaterThan(0);
     expect(screen.getAllByTitle("打开文件").length).toBeGreaterThan(0);
@@ -189,5 +231,63 @@ describe("GitPanel", () => {
     expect(
       screen.getByPlaceholderText("提交信息（留空将自动生成）..."),
     ).toHaveClass("overflow-hidden");
+  });
+
+  it("switches between file status and git history with compact icon controls", async () => {
+    electronMocks.getCommitHistory
+      .mockResolvedValueOnce({
+        code: CodeResult.Success,
+        data: Array.from({ length: 5 }, (_, index) => ({
+          hash: `${index + 1}`.repeat(40).slice(0, 40),
+          shortHash: `${index + 1}`.repeat(7).slice(0, 7),
+          subject:
+            index === 0 ? "feat: add git history" : `docs: history ${index}`,
+          authorName: "qiuweikang",
+          authorEmail: "qiuweikang@example.com",
+          date: "2026-07-01T10:00:00+08:00",
+        })),
+      })
+      .mockResolvedValueOnce({
+        code: CodeResult.Success,
+        data: [
+          {
+            hash: "6666666666666666666666666666666666666666",
+            shortHash: "6666666",
+            subject: "fix: load more history",
+            authorName: "qiuweikang",
+            authorEmail: "qiuweikang@example.com",
+            date: "2026-07-01T11:00:00+08:00",
+          },
+        ],
+      });
+
+    render(<GitPanel isOpen onClose={vi.fn()} />);
+
+    await screen.findByText("changed.md");
+    expect(screen.queryByRole("tab", { name: "历史" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTitle("查看 Git 历史"));
+
+    expect(
+      await screen.findByText("feat: add git history"),
+    ).toBeInTheDocument();
+    expect(electronMocks.getCommitHistory).toHaveBeenCalledWith("/notes", 0, 5);
+
+    fireEvent.click(screen.getByText("feat: add git history"));
+
+    expect(
+      await screen.findByText(
+        "src/renderer/src/features/git/components/git-panel.tsx",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("+12")).toBeInTheDocument();
+    expect(screen.getByText("-3")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTitle("加载更多历史"));
+
+    await screen.findByText("fix: load more history");
+    expect(electronMocks.getCommitHistory).toHaveBeenCalledWith("/notes", 5, 5);
+
+    fireEvent.click(screen.getByTitle("查看文件状态"));
+    expect(await screen.findByText("changed.md")).toBeInTheDocument();
   });
 });
