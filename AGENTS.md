@@ -8,6 +8,15 @@ This is an Electron + Vite + React TypeScript desktop app. Main-process code liv
 
 Use `pnpm` for dependency management because the repository includes `pnpm-lock.yaml`.
 
+Dependency installation policy:
+
+- Reuse the existing local `node_modules` whenever it is present and complete.
+- Do not run `pnpm install`, `npm install`, `yarn install`, or equivalent dependency installation commands for ordinary code changes.
+- Do not delete, move, prune, or recreate `node_modules` unless the user explicitly asks for it.
+- Do not regenerate or modify `pnpm-lock.yaml` unless `package.json` dependency declarations intentionally change.
+- If a command fails because dependencies are missing or broken, stop and explain the issue before installing anything. Ask the user for approval unless the user has already requested dependency installation.
+- Prefer running project scripts directly with the existing installation, such as `pnpm typecheck`, `pnpm lint`, `pnpm test`, and `pnpm build`.
+
 - `pnpm dev`: run the Electron app with `electron-vite dev` and `nodemon`.
 - `pnpm start`: preview the built app with `electron-vite preview`.
 - `pnpm build`: run TypeScript checks, then build the app.
