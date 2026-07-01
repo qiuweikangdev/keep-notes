@@ -1104,19 +1104,17 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
               Git 操作
             </span>
           </div>
-          <GitPanelTooltip label="关闭">
-            <button
-              type="button"
-              onClick={onClose}
-              data-theme-control="true"
-              className="p-1 rounded-lg"
-              style={{ color: "var(--text-muted)" }}
-              title="关闭"
-              aria-label="关闭"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </GitPanelTooltip>
+
+          <button
+            type="button"
+            onClick={onClose}
+            data-theme-control="true"
+            className="p-1 rounded-lg"
+            style={{ color: "var(--text-muted)" }}
+            aria-label="关闭"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
         {/* 消息提示 */}
@@ -1152,42 +1150,39 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
               当前分支
             </span>
             <div className="flex items-center gap-2">
-              <GitPanelTooltip label="切换分支">
-                <button
-                  type="button"
-                  onClick={() => setShowBranchList(!showBranchList)}
-                  data-theme-control="true"
-                  className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm"
-                  style={{
-                    backgroundColor: "var(--bg-tertiary)",
-                    color: "var(--text-primary)",
-                  }}
-                  disabled={loading}
-                  title="切换分支"
-                  aria-label={`切换分支，当前分支 ${currentBranch || "未选择"}`}
-                >
-                  <GitBranchIcon className="h-3.5 w-3.5" />
-                  {currentBranch || "未选择"}
-                  {showBranchList ? (
-                    <ChevronUp className="h-3 w-3" />
-                  ) : (
-                    <ChevronDown className="h-3 w-3" />
-                  )}
-                </button>
-              </GitPanelTooltip>
-              <GitPanelTooltip label="创建新分支">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateBranch(!showCreateBranch)}
-                  data-theme-control="true"
-                  className="rounded-lg p-1.5"
-                  style={{ color: "var(--text-muted)" }}
-                  title="创建新分支"
-                  aria-label="创建新分支"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-              </GitPanelTooltip>
+              <button
+                type="button"
+                onClick={() => setShowBranchList(!showBranchList)}
+                data-theme-control="true"
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm"
+                style={{
+                  backgroundColor: "var(--bg-tertiary)",
+                  color: "var(--text-primary)",
+                }}
+                disabled={loading}
+                title="切换分支"
+                aria-label={`切换分支，当前分支 ${currentBranch || "未选择"}`}
+              >
+                <GitBranchIcon className="h-3.5 w-3.5" />
+                {currentBranch || "未选择"}
+                {showBranchList ? (
+                  <ChevronUp className="h-3 w-3" />
+                ) : (
+                  <ChevronDown className="h-3 w-3" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowCreateBranch(!showCreateBranch)}
+                data-theme-control="true"
+                className="rounded-lg p-1.5"
+                style={{ color: "var(--text-muted)" }}
+                title="创建新分支"
+                aria-label="创建新分支"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
             </div>
           </div>
 
