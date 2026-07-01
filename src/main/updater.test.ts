@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { prepareMacUpdatePackage } from "./update-installer";
 import { AppUpdateController } from "./updater";
 import type { AppUpdateState } from "../shared/types";
 
@@ -23,6 +24,11 @@ vi.mock("electron-updater", () => ({
   },
 }));
 
+vi.mock("./update-installer", () => ({
+  prepareMacUpdatePackage: vi.fn(),
+  replaceAppWithPreparedUpdate: vi.fn(),
+}));
+
 class FakeUpdater extends EventEmitter {
   autoDownload = true;
   autoInstallOnAppQuit = true;
@@ -38,6 +44,8 @@ describe("AppUpdateController", () => {
   beforeEach(() => {
     updater = new FakeUpdater();
     cancel = vi.fn();
+    vi.mocked(prepareMacUpdatePackage).mockReset();
+    vi.mocked(prepareMacUpdatePackage).mockResolvedValue("/tmp/Keep Notes.app");
   });
 
   const createController = () =>
@@ -45,13 +53,18 @@ describe("AppUpdateController", () => {
       app: {
         getVersion: () => "2.0.0",
         isPackaged: true,
-        getPath: () => "/Applications/Keep Notes.app/Contents/MacOS/Keep Notes",
+        getPath: (name) =>
+          name === "temp"
+            ? "/tmp"
+            : "/Applications/Keep Notes.app/Contents/MacOS/Keep Notes",
+        quit: vi.fn(),
       },
       updater: updater as never,
       shell: {
         openExternal: vi.fn(),
       },
       createCancellationToken: () => ({ cancel }) as never,
+      platform: "darwin",
     });
 
   it("checks for updates and downloads a GitHub release with progress", async () => {
@@ -109,6 +122,28 @@ describe("AppUpdateController", () => {
     expect(state).toMatchObject({
       status: "canceled",
       version: "2.1.0",
+    });
+  });
+
+  it("prepares downloaded macOS zip updates before installation", async () => {
+    updater.checkForUpdates.mockImplementation(async () => {
+      updater.emit("update-available", { version: "2.1.0" });
+      return {
+        isUpdateAvailable: true,
+        updateInfo: { version: "2.1.0" },
+      };
+    });
+    updater.downloadUpdate.mockResolvedValue([
+      "/cache/keep-notes-2.1.0-arm64-mac.zip",
+    ]);
+    const controller = createController();
+
+    await controller.checkForUpdates();
+    await controller.downloadUpdate();
+
+    expect(prepareMacUpdatePackage).toHaveBeenCalledWith({
+      downloadedFiles: ["/cache/keep-notes-2.1.0-arm64-mac.zip"],
+      tempRoot: "/tmp",
     });
   });
 });

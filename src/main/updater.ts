@@ -1,6 +1,4 @@
-import { spawn } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
 import { app, shell } from "electron";
 import electronUpdater from "electron-updater";
 import type {
@@ -10,6 +8,10 @@ import type {
 } from "electron-updater";
 import { APP_AUTHOR, APP_REPOSITORY_URL } from "../shared/constants";
 import type { AppInfo, AppUpdateState } from "../shared/types";
+import {
+  prepareMacUpdatePackage,
+  replaceAppWithPreparedUpdate,
+} from "./update-installer";
 
 const { autoUpdater, CancellationToken: CancellationTokenCtor } =
   electronUpdater;
@@ -34,6 +36,7 @@ interface AppLike {
   getVersion: () => string;
   isPackaged: boolean;
   getPath: (name: string) => string;
+  quit?: () => void;
 }
 
 interface ShellLike {
@@ -45,52 +48,7 @@ interface AppUpdateControllerOptions {
   updater?: UpdaterLike;
   shell?: ShellLike;
   createCancellationToken?: () => ElectronUpdaterCancellationToken;
-}
-
-/**
- * 绕过 ShipIt 签名验证，直接替换应用包。
- *
- * 背景：macOS 上 electron-updater 默认通过 ShipIt 替换应用，
- * ShipIt 在替换前会验证代码签名。ad-hoc 签名打包进 zip 后跨机器失效。
- *
- * 方案：不调用 quitAndInstall()（那是 ShipIt 路径），而是生成一个
- * 独立的 shell 脚本——等旧应用退出后直接 rm + cp 替换 .app，再 open 新版本。
- */
-function spawnReplaceScript(
-  updateAppPath: string,
-  currentAppPath: string,
-): void {
-  const tmpDir = join(app.getPath("temp"), "keep-notes-update");
-  rmSync(tmpDir, { recursive: true, force: true });
-  mkdirSync(tmpDir, { recursive: true });
-
-  const scriptPath = join(tmpDir, "replace.sh");
-  // 注意：单引号包裹路径，防止路径包含空格时出错
-  const script = `#!/bin/bash
-set -e
-
-# 等待旧应用完全退出
-sleep 2
-
-# 删除旧版本
-rm -rf '${currentAppPath}'
-
-# 把新应用拷贝到 Applications
-cp -R '${updateAppPath}' '${currentAppPath}'
-
-# 启动新版本
-open '${currentAppPath}'
-
-# 清理临时目录
-rm -rf '${tmpDir}'
-`;
-  writeFileSync(scriptPath, script, { mode: 0o755 });
-
-  spawn("/bin/sh", [scriptPath], {
-    detached: true,
-    stdio: "ignore",
-    cwd: "/",
-  }).unref();
+  platform?: NodeJS.Platform;
 }
 
 export class AppUpdateController {
@@ -98,6 +56,7 @@ export class AppUpdateController {
   private readonly updater: UpdaterLike;
   private readonly shell: ShellLike;
   private readonly createCancellationToken: () => ElectronUpdaterCancellationToken;
+  private readonly platform: NodeJS.Platform;
   private readonly listeners = new Set<UpdateListener>();
   private cancellationToken: ElectronUpdaterCancellationToken | null = null;
   private state: AppUpdateState;
@@ -110,6 +69,7 @@ export class AppUpdateController {
     this.shell = options.shell ?? shell;
     this.createCancellationToken =
       options.createCancellationToken ?? (() => new CancellationTokenCtor());
+    this.platform = options.platform ?? process.platform;
     this.state = {
       status: "idle",
       currentVersion: this.app.getVersion(),
@@ -226,12 +186,11 @@ export class AppUpdateController {
         this.cancellationToken,
       );
 
-      // 记录下载后的 .app 路径，installUpdate 时绕过 ShipIt 直接替换
-      if (process.platform === "darwin" && downloadedFiles.length > 0) {
-        const firstApp = downloadedFiles.find((f) => f.endsWith(".app"));
-        if (firstApp) {
-          this.pendingUpdateAppPath = firstApp;
-        }
+      if (this.platform === "darwin" && downloadedFiles.length > 0) {
+        this.pendingUpdateAppPath = await prepareMacUpdatePackage({
+          downloadedFiles,
+          tempRoot: this.app.getPath("temp"),
+        });
       }
     } catch (error) {
       if (this.state.status === "canceled") return this.getState();
@@ -248,14 +207,28 @@ export class AppUpdateController {
   }
 
   installUpdate(): void {
-    if (process.platform === "darwin" && this.pendingUpdateAppPath) {
-      // macOS: 绕过 ShipIt 签名验证，用独立脚本直接替换 .app
+    if (this.platform === "darwin") {
+      if (!this.pendingUpdateAppPath) {
+        this.setState({
+          status: "error",
+          currentVersion: this.app.getVersion(),
+          version: this.state.version,
+          message: "更新包尚未准备完成，请重新下载更新。",
+        });
+        return;
+      }
+
       const currentAppPath = this.getAppBundlePath();
-      spawnReplaceScript(this.pendingUpdateAppPath, currentAppPath);
-      app.quit();
-    } else {
-      this.updater.quitAndInstall(false, true);
+      replaceAppWithPreparedUpdate({
+        updateAppPath: this.pendingUpdateAppPath,
+        currentAppPath,
+        tempRoot: this.app.getPath("temp"),
+      });
+      this.app.quit?.() ?? app.quit();
+      return;
     }
+
+    this.updater.quitAndInstall(false, true);
   }
 
   async openRepository(): Promise<boolean> {
