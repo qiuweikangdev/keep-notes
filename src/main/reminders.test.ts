@@ -224,9 +224,16 @@ describe("ReminderService", () => {
       notificationConfig: {
         ...DEFAULT_NOTIFICATION_CONFIG,
         desktop: {
+          ...DEFAULT_NOTIFICATION_CONFIG.desktop,
           enabled: true,
           requireInteraction: true,
           appName: "个人提醒",
+          showAppIcon: false,
+          appNameFontSize: 22,
+          appNameColor: "#ffcc66",
+          showActions: false,
+          backgroundColor: "#223344",
+          sizePreset: "large",
         },
       },
       showNotification,
@@ -243,6 +250,12 @@ describe("ReminderService", () => {
       expect.objectContaining({
         appName: "个人提醒",
         requireInteraction: true,
+        showAppIcon: false,
+        appNameFontSize: 22,
+        appNameColor: "#ffcc66",
+        showActions: false,
+        backgroundColor: "#223344",
+        sizePreset: "large",
       }),
     );
   });

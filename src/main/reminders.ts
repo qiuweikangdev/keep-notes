@@ -24,10 +24,7 @@ interface NotificationHandle {
   show: () => void | Promise<void>;
 }
 
-interface ReminderNotificationOptions {
-  appName: string;
-  requireInteraction: boolean;
-}
+type ReminderNotificationOptions = NotificationConfig["desktop"];
 
 interface ReminderServiceDeps {
   readReminders?: () => Promise<Reminder[]>;
@@ -149,12 +146,11 @@ function createDefaultNotification(
 ): NotificationHandle {
   return createAppNotification(
     {
-      appName: options.appName,
+      ...options,
       title: reminder.title,
       body: reminder.fileName || undefined,
       detail: new Date(reminder.scheduledAt).toLocaleString("zh-CN"),
       openLabel: reminder.filePath ? "查看详情" : undefined,
-      requireInteraction: options.requireInteraction,
     },
     onClick,
     onSnooze,
@@ -346,10 +342,7 @@ export class ReminderService {
           () => {
             void this.snoozeReminder(reminder.id);
           },
-          {
-            appName: config.desktop.appName,
-            requireInteraction: config.desktop.requireInteraction,
-          },
+          config.desktop,
         );
         await notification.show();
       } catch (error) {
