@@ -26,6 +26,7 @@ import {
   Trash2,
   GitCompare,
   BellPlus,
+  FileOutput,
 } from "lucide-react";
 import { useEditorStore } from "@/store/editor.store";
 import { OutlinePanel } from "./outline-panel";
@@ -1306,6 +1307,15 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
     [dropTargetFolderPath, isTreeFileDrag],
   );
 
+  /** 触发文件导出入口，后续导出流程监听该事件继续处理 */
+  const handleExport = useCallback(() => {
+    window.dispatchEvent(
+      new CustomEvent("keep-notes:export-file", {
+        detail: { filePath: flatNode.key },
+      }),
+    );
+  }, [flatNode.key]);
+
   const handleMoveConfirm = useCallback(async () => {
     if (!moveConfirm.sourcePath || !moveConfirm.targetPath) return;
 
@@ -1458,6 +1468,15 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
                 onClick={() => openCreateReminder(flatNode.key)}
               >
                 <BellPlus className="h-4 w-4" /> 新建提醒事项
+              </ContextMenu.Item>
+            ) : null}
+
+            {!flatNode.isFolder ? (
+              <ContextMenu.Item
+                className={MENU_ITEM_CLASS}
+                onClick={handleExport}
+              >
+                <FileOutput className="h-4 w-4" /> 导出
               </ContextMenu.Item>
             ) : null}
 

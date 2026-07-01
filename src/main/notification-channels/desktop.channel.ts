@@ -7,7 +7,7 @@ import type { NotificationChannel } from "./channel.interface";
 
 async function showDesktopNotification(
   title: string,
-  body: string,
+  body?: string,
 ): Promise<void> {
   await createAppNotification({ title, body, openLabel: "查看详情" }).show();
 }
@@ -19,7 +19,7 @@ export class DesktopChannel implements NotificationChannel {
   async send(reminder: Reminder): Promise<void> {
     await showDesktopNotification(
       reminder.title,
-      reminder.fileName || "提醒事项",
+      reminder.fileName || undefined,
     );
   }
 

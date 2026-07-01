@@ -3,6 +3,7 @@ import { useNotificationStore } from "@/store/notification.store";
 import { SettingRow } from "@/components/ui/setting-row";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { DEFAULT_NOTIFICATION_CONFIG } from "@/types";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 
 /** QQ 邮箱 SMTP 固定配置 */
@@ -15,6 +16,7 @@ export function NotificationSettings() {
 
   const [email, setEmail] = useState(config.email.senderEmail);
   const [code, setCode] = useState(config.email.authorizationCode);
+  const [appName, setAppName] = useState(config.desktop.appName);
   const [isTesting, setIsTesting] = useState(false);
   const [isTestingDesktop, setIsTestingDesktop] = useState(false);
   const [desktopTestResult, setDesktopTestResult] = useState<{
@@ -36,7 +38,22 @@ export function NotificationSettings() {
   useEffect(() => {
     setEmail(config.email.senderEmail);
     setCode(config.email.authorizationCode);
-  }, [config.email.senderEmail, config.email.authorizationCode]);
+    setAppName(config.desktop.appName);
+  }, [
+    config.desktop.appName,
+    config.email.authorizationCode,
+    config.email.senderEmail,
+  ]);
+
+  /** 保存应用通知弹窗顶部标题，空值恢复默认应用名 */
+  const handleSaveAppName = async () => {
+    const nextAppName =
+      appName.trim() || DEFAULT_NOTIFICATION_CONFIG.desktop.appName;
+    setAppName(nextAppName);
+    if (nextAppName === config.desktop.appName) return;
+    await updateConfig({ desktop: { appName: nextAppName } });
+    setDesktopTestResult(null);
+  };
 
   /** 切换邮箱推送开关 */
   const handleToggleEmail = async (checked: boolean) => {
@@ -176,6 +193,30 @@ export function NotificationSettings() {
                 desktop: { requireInteraction: checked },
               });
               setDesktopTestResult(null);
+            }}
+          />
+        </SettingRow>
+      </div>
+
+      <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+        <SettingRow label="通知标题" description="应用通知弹窗顶部显示的名称">
+          <input
+            id="desktop-notification-app-name"
+            aria-label="通知标题"
+            type="text"
+            value={appName}
+            disabled={!config.desktop.enabled}
+            onChange={(e) => setAppName(e.target.value)}
+            onBlur={() => {
+              void handleSaveAppName();
+            }}
+            placeholder={DEFAULT_NOTIFICATION_CONFIG.desktop.appName}
+            className="h-8 w-40 rounded-md px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            style={{
+              backgroundColor: "var(--bg-tertiary)",
+              border: "1px solid var(--border-color)",
+              color: "var(--text-primary)",
+              outline: "none",
             }}
           />
         </SettingRow>

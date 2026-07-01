@@ -8,6 +8,7 @@ import { registerAllIpc } from "./ipc";
 import { registerAppMenu } from "./menu";
 import { initializeReminderIpc } from "./ipc/reminder.ipc";
 import { initializeNotificationIpc } from "./ipc/notification.ipc";
+import { initializeExportIpc } from "./ipc/export.ipc";
 
 const APP_ID = "com.keep-notes";
 const APP_NAME = "Keep Notes";
@@ -53,6 +54,7 @@ app.whenReady().then(async () => {
   registerAllIpc();
   await initializeReminderIpc();
   await initializeNotificationIpc();
+  await initializeExportIpc();
   createWindow();
 
   app.on("activate", () => {

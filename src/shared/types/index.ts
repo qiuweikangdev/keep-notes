@@ -1,4 +1,5 @@
 import type React from "react";
+import { APP_NAME } from "../constants/app-info";
 
 export interface ApiResponse<T = void> {
   code: CodeResult;
@@ -228,6 +229,7 @@ export type NotificationChannelType = "desktop" | "email" | "feishu";
 export interface DesktopChannelConfig {
   enabled: boolean;
   requireInteraction: boolean;
+  appName: string;
 }
 
 export interface EmailChannelConfig {
@@ -245,7 +247,7 @@ export interface NotificationConfig {
 }
 
 export const DEFAULT_NOTIFICATION_CONFIG: NotificationConfig = {
-  desktop: { enabled: true, requireInteraction: false },
+  desktop: { enabled: true, requireInteraction: false, appName: APP_NAME },
   email: {
     enabled: false,
     smtpHost: "smtp.qq.com",
@@ -254,4 +256,38 @@ export const DEFAULT_NOTIFICATION_CONFIG: NotificationConfig = {
     authorizationCode: "",
     receiverEmail: "",
   },
+};
+
+export type ExportFormat = "pdf" | "word" | "md" | "html" | "image";
+
+export type ExportDirectoryMode = "same-as-source" | "custom";
+
+export interface ExportConfig {
+  enabledFormats: ExportFormat[];
+  defaultDirectoryMode: ExportDirectoryMode;
+  customDirectoryPath: string;
+  openDirectoryAfterExport: boolean;
+}
+
+export interface ExportFileResult {
+  directoryPath: string;
+  filePaths: string[];
+}
+
+export const EXPORT_FORMATS: Array<{
+  value: ExportFormat;
+  label: string;
+}> = [
+  { value: "pdf", label: "PDF" },
+  { value: "word", label: "Word" },
+  { value: "md", label: "Markdown" },
+  { value: "html", label: "HTML" },
+  { value: "image", label: "图片" },
+];
+
+export const DEFAULT_EXPORT_CONFIG: ExportConfig = {
+  enabledFormats: ["pdf"],
+  defaultDirectoryMode: "same-as-source",
+  customDirectoryPath: "",
+  openDirectoryAfterExport: false,
 };

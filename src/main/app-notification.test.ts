@@ -165,11 +165,15 @@ describe("createAppNotification", () => {
     if (process.platform === "darwin") {
       expect(windowOptions).toMatchObject({
         width: 356,
-        height: 130,
+        height: 144,
         y: 24,
         vibrancy: "popover",
       });
       expect(html).toContain('class="platform-mac"');
+      expect(html).toContain("padding: 8px 18px 0 18px;");
+      expect(html).toContain("font-size: 17px;");
+      expect(html).toContain("line-height: 22px;");
+      expect(html).toContain("padding: 4px 16px 10px 66px;");
     } else {
       expect(windowOptions).toMatchObject({
         width: 384,
@@ -189,5 +193,24 @@ describe("createAppNotification", () => {
     expect(html).toContain('viewBox="0 0 24 24"');
     expect(html).toContain('stroke-linecap="round"');
     expect(html).not.toContain("•••");
+  });
+
+  it("renders a custom app name and omits an empty body", async () => {
+    const notification = createAppNotification({
+      appName: "个人提醒",
+      title: "任务提醒",
+    });
+
+    await notification.show();
+    const win = electronMocks.getLastWindow();
+    const [dataUrl] = win.loadURL.mock.calls[0] as [string];
+    const html = Buffer.from(
+      dataUrl.replace("data:text/html;base64,", ""),
+      "base64",
+    ).toString("utf-8");
+
+    expect(html).toContain('<div class="app-name">个人提醒</div>');
+    expect(html).toContain('aria-label="个人提醒 提醒通知"');
+    expect(html).not.toContain('<div class="body">提醒事项</div>');
   });
 });

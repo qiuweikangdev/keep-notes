@@ -6,6 +6,7 @@ import { gitApi } from "./api/git.api";
 import { appApi } from "./api/app.api";
 import { reminderApi } from "./api/reminder.api";
 import { notificationApi } from "./api/notification.api";
+import { exportApi } from "./api/export.api";
 
 const api = {
   ...appApi,
@@ -14,6 +15,7 @@ const api = {
   ...treeApi,
   ...reminderApi,
   ...notificationApi,
+  ...exportApi,
 };
 
 const git = {

@@ -13,6 +13,7 @@ import {
   ChevronDown,
   Keyboard,
   Bell,
+  FileOutput,
   Info,
   RefreshCw,
   ExternalLink,
@@ -22,22 +23,28 @@ import {
 } from "lucide-react";
 import { ShortcutsSettings } from "./shortcuts-settings";
 import { NotificationSettings } from "./notification-settings";
+import { ExportSettings } from "./export-settings";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { ExternalOpenAppIcon } from "@/features/external-open/external-open-icons";
 import type {
   AppInfo,
   AppUpdateState,
-  AppUpdateStatus,
   ExternalOpenApp,
   ExternalOpenAppId,
 } from "@shared/types";
 
-type SettingsTab = "appearance" | "shortcuts" | "notifications" | "about";
+type SettingsTab =
+  | "appearance"
+  | "shortcuts"
+  | "notifications"
+  | "export"
+  | "about";
 
 const settingsMenuItems = [
   { id: "appearance" as SettingsTab, label: "外观", icon: Palette },
   { id: "shortcuts" as SettingsTab, label: "键盘快捷键", icon: Keyboard },
   { id: "notifications" as SettingsTab, label: "通知推送", icon: Bell },
+  { id: "export" as SettingsTab, label: "导出", icon: FileOutput },
   { id: "about" as SettingsTab, label: "关于", icon: Info },
 ];
 
@@ -85,6 +92,25 @@ function getRepositoryLabel(repositoryUrl: string): string {
     .replace(/\.git$/, "");
 }
 
+function isExportSettingsDropdownTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    Boolean(target.closest("[data-export-settings-dropdown]"))
+  );
+}
+
+function isExportSettingsDropdownEvent(event: Event): boolean {
+  const originalEvent = (event as CustomEvent<{ originalEvent?: Event }>).detail
+    ?.originalEvent;
+  const path = originalEvent?.composedPath?.() ?? event.composedPath?.() ?? [];
+
+  return (
+    isExportSettingsDropdownTarget(event.target) ||
+    isExportSettingsDropdownTarget(originalEvent?.target ?? null) ||
+    path.some(isExportSettingsDropdownTarget)
+  );
+}
+
 export function SettingsModal() {
   const { isSettingsOpen, setSettingsOpen } = useUIStore();
   const { appearance, setAppearance } = useEditorStore();
@@ -93,6 +119,8 @@ export function SettingsModal() {
   const [appInfo, setAppInfo] = useState<AppInfo>(defaultAppInfo);
   const [updateState, setUpdateState] =
     useState<AppUpdateState>(defaultUpdateState);
+  const [exportDropdownPortalContainer, setExportDropdownPortalContainer] =
+    useState<HTMLDivElement | null>(null);
   const [externalOpenApps, setExternalOpenApps] = useState<ExternalOpenApp[]>(
     [],
   );
@@ -479,6 +507,10 @@ export function SettingsModal() {
         return <ShortcutsSettings />;
       case "notifications":
         return <NotificationSettings />;
+      case "export":
+        return (
+          <ExportSettings portalContainer={exportDropdownPortalContainer} />
+        );
       case "about":
         return (
           <div className="space-y-5 py-2">
@@ -677,13 +709,27 @@ export function SettingsModal() {
 
   return (
     <Dialog.Root open={isSettingsOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[780px] sm:max-h-[640px] overflow-hidden p-0">
+      <DialogContent
+        className="sm:max-w-[780px] sm:max-h-[640px] overflow-visible p-0"
+        onInteractOutside={(event) => {
+          // 导出设置的下拉内容使用 Portal，避免被弹窗滚动区域裁切。
+          if (isExportSettingsDropdownEvent(event)) {
+            event.preventDefault();
+          }
+        }}
+        onFocusOutside={(event) => {
+          // 菜单关闭时焦点会从 Portal 回到触发器，不能因此关闭设置弹窗。
+          if (isExportSettingsDropdownEvent(event)) {
+            event.preventDefault();
+          }
+        }}
+      >
         <DialogHeader className="px-8 pt-8 pb-0">
           <Dialog.Title style={{ color: "var(--text-primary)" }}>
             设置
           </Dialog.Title>
           <Dialog.Description className="sr-only">
-            配置应用外观、快捷键、通知推送和关于信息。
+            配置应用外观、快捷键、通知推送、导出选项和关于信息。
           </Dialog.Description>
         </DialogHeader>
 
@@ -739,6 +785,7 @@ export function SettingsModal() {
             {renderContent()}
           </div>
         </div>
+        <div ref={setExportDropdownPortalContainer} className="contents" />
       </DialogContent>
     </Dialog.Root>
   );

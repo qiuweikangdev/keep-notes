@@ -18,6 +18,7 @@ import {
   ExternalLink,
   Copy,
   GitCompare,
+  FileOutput,
 } from "lucide-react";
 import { useTreeStore } from "@/store/tree.store";
 import { useElectron } from "@/hooks/use-electron";
@@ -457,6 +458,15 @@ export const TreeNode = memo(function TreeNode({
     }
   }, [closeDiff, getFileHeadContent, node.key, openDiff, updateContent]);
 
+  /** 触发文件导出入口，实际导出流程由后续导出功能监听并处理 */
+  const handleExport = useCallback(() => {
+    window.dispatchEvent(
+      new CustomEvent("keep-notes:export-file", {
+        detail: { filePath: node.key },
+      }),
+    );
+  }, [node.key]);
+
   const icon = isFolder ? (
     isExpanded ? (
       <FolderOpen
@@ -630,6 +640,15 @@ export const TreeNode = memo(function TreeNode({
                 onClick={handleOpen}
               >
                 <File className="h-4 w-4" /> 打开
+              </ContextMenu.Item>
+            ) : null}
+
+            {!isFolder ? (
+              <ContextMenu.Item
+                className={MENU_ITEM_CLASS}
+                onClick={handleExport}
+              >
+                <FileOutput className="h-4 w-4" /> 导出
               </ContextMenu.Item>
             ) : null}
 

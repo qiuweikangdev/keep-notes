@@ -223,7 +223,11 @@ describe("ReminderService", () => {
       now: new Date("2026-06-21T09:01:00.000Z"),
       notificationConfig: {
         ...DEFAULT_NOTIFICATION_CONFIG,
-        desktop: { enabled: true, requireInteraction: true },
+        desktop: {
+          enabled: true,
+          requireInteraction: true,
+          appName: "个人提醒",
+        },
       },
       showNotification,
     });
@@ -236,7 +240,10 @@ describe("ReminderService", () => {
       expect.objectContaining({ title: "Read notes" }),
       expect.any(Function),
       expect.any(Function),
-      expect.objectContaining({ requireInteraction: true }),
+      expect.objectContaining({
+        appName: "个人提醒",
+        requireInteraction: true,
+      }),
     );
   });
 
