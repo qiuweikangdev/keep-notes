@@ -274,6 +274,9 @@ describe("GitPanel", () => {
     render(<GitPanel isOpen onClose={vi.fn()} />);
 
     await screen.findByText("changed.md");
+    expect(screen.getByText("Git 操作").closest(".shadow-2xl")).toHaveClass(
+      "h-[82vh]",
+    );
     expect(screen.queryByRole("tab", { name: "历史" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "查看 Git 历史" }));
 
@@ -309,6 +312,7 @@ describe("GitPanel", () => {
       "src/renderer/src/features/git/components/git-panel.tsx",
       "",
       "",
+      { source: "history" },
     );
     expect(electronMocks.getCommitFileContent).toHaveBeenCalledWith(
       "/notes",

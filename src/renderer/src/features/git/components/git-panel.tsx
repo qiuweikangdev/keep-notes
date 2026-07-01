@@ -601,7 +601,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       if (!dir || !selectedCommitHash) return;
 
       const displayPath = getCommitFileDisplayPath(file);
-      openDiff(displayPath, "", "");
+      openDiff(displayPath, "", "", { source: "history" });
 
       try {
         const result = await getCommitFileContent(
@@ -1259,7 +1259,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
 
   const renderHistoryContent = () => (
     <div
-      className="flex-1 overflow-x-hidden overflow-y-auto"
+      className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
       style={{ backgroundColor: "var(--bg-primary)" }}
     >
       <div
@@ -1505,7 +1505,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       onClick={onClose}
     >
       <div
-        className="w-[680px] max-h-[82vh] rounded-xl shadow-2xl overflow-hidden flex flex-col"
+        className="w-[680px] h-[82vh] max-h-[82vh] rounded-xl shadow-2xl overflow-hidden flex flex-col"
         style={{ backgroundColor: "var(--bg-secondary)" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -1869,7 +1869,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         {/* 文件列表 - 可滚动区域 */}
         {activeTab === "changes" && allFiles.length > 0 && (
           <div
-            className="flex-1 overflow-x-hidden overflow-y-auto"
+            className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
             style={{ backgroundColor: "var(--bg-primary)" }}
           >
             {renderFileSection("已暂存的更改", stagedFilePaths, "staged")}
@@ -1880,7 +1880,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         {/* 无更改提示 */}
         {activeTab === "changes" && allFiles.length === 0 && (
           <div
-            className="flex-1 flex items-center justify-center py-6"
+            className="flex min-h-0 flex-1 items-center justify-center py-6"
             style={{ color: "var(--text-muted)" }}
           >
             <div className="text-center">
