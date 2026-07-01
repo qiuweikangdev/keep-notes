@@ -101,14 +101,21 @@ describe("NotificationSettings", () => {
   it("updates desktop notification title and background colors", async () => {
     render(<NotificationSettings />);
 
-    expect(screen.getByLabelText("选择标题颜色")).toHaveAttribute(
+    expect(screen.getByLabelText("选择标题颜色取色器")).toHaveAttribute(
       "type",
       "color",
     );
-    expect(screen.getByLabelText("选择通知背景色")).toHaveAttribute(
+    expect(screen.getByLabelText("选择标题颜色取色器")).toHaveClass("sr-only");
+    expect(screen.getByLabelText("选择通知背景色取色器")).toHaveAttribute(
       "type",
       "color",
     );
+    expect(screen.getByLabelText("选择通知背景色取色器")).toHaveClass(
+      "sr-only",
+    );
+    expect(
+      screen.getByRole("button", { name: "选择标题颜色" }),
+    ).toHaveAttribute("data-color-swatch", "true");
 
     fireEvent.change(await screen.findByLabelText("标题颜色"), {
       target: { value: "#ffcc66" },
@@ -142,21 +149,11 @@ describe("NotificationSettings", () => {
     });
   });
 
-  it("groups QQ mail settings under notification push", async () => {
+  it("does not render QQ mail push controls in app notification settings", async () => {
     render(<NotificationSettings />);
 
-    const appConfigLabel = await screen.findByText("应用通知配置");
-    const pushLabel = screen.getByText("通知推送");
-    const qqMailLabel = screen.getByText("QQ 邮箱推送");
-
-    expect(
-      appConfigLabel.compareDocumentPosition(pushLabel) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(
-      pushLabel.compareDocumentPosition(qqMailLabel) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    expect(await screen.findByText("桌面通知")).toBeInTheDocument();
+    expect(screen.queryByText("QQ 邮箱推送")).not.toBeInTheDocument();
   });
 
   it("updates bottom action visibility and notification size preset", async () => {

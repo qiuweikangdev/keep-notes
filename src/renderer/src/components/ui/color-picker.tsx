@@ -21,6 +21,11 @@ export function ColorPicker({
   const [showInput, setShowInput] = React.useState(false);
   const [inputValue, setInputValue] = React.useState(value);
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const colorInputRef = React.useRef<HTMLInputElement>(null);
+  const normalizedColor = /^#[0-9A-Fa-f]{6}$/.test(value) ? value : "#ffffff";
+  const pickerAriaLabel = swatchAriaLabel
+    ? `${swatchAriaLabel}取色器`
+    : undefined;
 
   React.useEffect(() => {
     setInputValue(value);
@@ -54,20 +59,39 @@ export function ColorPicker({
 
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      {/* 通过原生取色器快速选择颜色，同时保留右侧 HEX 手动输入。 */}
+      {/* 隐藏浏览器原生色块外观，只借用原生取色器能力。 */}
       <input
-        aria-label={swatchAriaLabel}
+        ref={colorInputRef}
+        aria-label={pickerAriaLabel}
         type="color"
-        value={/^#[0-9A-Fa-f]{6}$/.test(value) ? value : "#ffffff"}
+        value={normalizedColor}
         disabled={disabled}
         onChange={(e) => {
           onChange(e.target.value);
         }}
-        className="h-8 w-8 flex-shrink-0 cursor-pointer rounded-full border-2 bg-transparent p-0 transition-all hover:ring-2 hover:ring-[var(--accent-color)] disabled:cursor-not-allowed disabled:opacity-50"
-        style={{
-          borderColor: "var(--border-color)",
-        }}
+        className="sr-only"
       />
+      <button
+        type="button"
+        aria-label={swatchAriaLabel}
+        data-color-swatch="true"
+        disabled={disabled}
+        onClick={() => colorInputRef.current?.click()}
+        className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-all hover:ring-2 hover:ring-[var(--accent-color)] disabled:cursor-not-allowed disabled:opacity-50"
+        style={{
+          backgroundColor: "var(--bg-tertiary)",
+          border: "1px solid var(--border-color)",
+          boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.06)",
+        }}
+      >
+        <span
+          className="h-5 w-5 rounded-sm"
+          style={{
+            backgroundColor: normalizedColor,
+            border: "1px solid rgba(255, 255, 255, 0.28)",
+          }}
+        />
+      </button>
 
       {/* Hex input */}
       <input
