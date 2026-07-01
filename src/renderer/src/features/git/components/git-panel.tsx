@@ -57,6 +57,7 @@ const normalizePanelGitPath = (filePath: string) =>
   filePath.replace(/\\/g, "/");
 
 const GIT_HISTORY_PAGE_SIZE = 5;
+const DISCARD_ALL_CHANGES = "__ALL_GIT_CHANGES__";
 
 type GitPanelTab = "changes" | "history";
 
@@ -202,9 +203,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
   const { openDiff, closeDiff, updateContent } = useDiffStore();
 
-  const getCurrentDir = useCallback(() => {
-    return treeRoot?.key || "";
-  }, [treeRoot]);
+  const currentDir = treeRoot?.key || "";
+  const getCurrentDir = useCallback(() => currentDir, [currentDir]);
 
   const resetPanelState = useCallback(() => {
     setIsGitRepo(false);
@@ -866,6 +866,11 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     [getFilesInDir],
   );
 
+  const handleDiscardAllChanges = useCallback(() => {
+    if (unstagedFilePaths.length === 0) return;
+    setConfirmDialog({ open: true, filePath: DISCARD_ALL_CHANGES });
+  }, [unstagedFilePaths.length]);
+
   // 确认放弃更改
   const confirmDiscardChanges = useCallback(async () => {
     const filePath = confirmDialog.filePath;
@@ -878,18 +883,23 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     const { filePath: editorFilePath } = useEditorStore.getState();
 
     try {
-      // 处理目录级别的放弃更改
-      if (filePath.endsWith("/*")) {
-        const dirPath = filePath.slice(0, -2);
-        const files = getFilesInDir(dirPath);
+      // 处理目录级别或全部未暂存文件的放弃更改
+      if (filePath === DISCARD_ALL_CHANGES || filePath.endsWith("/*")) {
+        const files =
+          filePath === DISCARD_ALL_CHANGES
+            ? unstagedFilePaths
+            : getFilesInDir(filePath.slice(0, -2));
 
-        // 先取消暂存目录下的所有已暂存文件
-        const stagedInDir = files.filter((f) => isFileStaged(f));
-        if (stagedInDir.length > 0) {
-          await unstageFiles(dir, stagedInDir);
+        // 目录级放弃需要先取消暂存目录内文件；全局放弃只处理未暂存文件，不触碰已暂存内容。
+        const stagedInScope =
+          filePath === DISCARD_ALL_CHANGES
+            ? []
+            : files.filter((f) => isFileStaged(f));
+        if (stagedInScope.length > 0) {
+          await unstageFiles(dir, stagedInScope);
           setStagedFiles((prev) => {
             const next = new Set(prev);
-            stagedInDir.forEach((f) => next.delete(f));
+            stagedInScope.forEach((f) => next.delete(f));
             return next;
           });
         }
@@ -903,7 +913,12 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         }
 
         if (successCount === files.length) {
-          showMessage("success", "已放弃目录下所有更改");
+          showMessage(
+            "success",
+            filePath === DISCARD_ALL_CHANGES
+              ? "已放弃所有更改"
+              : "已放弃目录下所有更改",
+          );
         } else {
           showMessage(
             "success",
@@ -973,6 +988,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     loadGitInfo,
     loadTree,
     getFilesInDir,
+    unstagedFilePaths,
     stagedFiles,
     isFileStaged,
     unstageFiles,
@@ -1222,31 +1238,48 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
               {files.length}
             </span>
           </button>
-          <GitPanelTooltip
-            label={isStagedSection ? "全部取消暂存" : "全部暂存"}
-            side="bottom"
-            align="end"
-          >
-            <button
-              type="button"
-              onClick={() =>
-                isStagedSection
-                  ? unstageSelectedFiles(files)
-                  : stageFiles(files)
-              }
-              data-theme-control="true"
-              className="rounded p-1 transition-colors hover:bg-[var(--hover-bg)]"
-              style={{ color: "var(--text-muted)" }}
-              title={isStagedSection ? "全部取消暂存" : "全部暂存"}
-              aria-label={isStagedSection ? "全部取消暂存" : "全部暂存"}
+          <div className="flex shrink-0 items-center gap-1">
+            {!isStagedSection && (
+              <GitPanelTooltip label="放弃所有更改" side="bottom" align="end">
+                <button
+                  type="button"
+                  onClick={handleDiscardAllChanges}
+                  data-theme-control="true"
+                  className="rounded p-1 transition-colors hover:bg-[var(--hover-bg)]"
+                  style={{ color: "var(--text-muted)" }}
+                  title="放弃所有更改"
+                  aria-label="放弃所有更改"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </button>
+              </GitPanelTooltip>
+            )}
+            <GitPanelTooltip
+              label={isStagedSection ? "取消暂存所有更改" : "全部暂存"}
+              side="bottom"
+              align="end"
             >
-              {isStagedSection ? (
-                <MinusSquare className="h-3.5 w-3.5" />
-              ) : (
-                <PlusSquare className="h-3.5 w-3.5" />
-              )}
-            </button>
-          </GitPanelTooltip>
+              <button
+                type="button"
+                onClick={() =>
+                  isStagedSection
+                    ? unstageSelectedFiles(files)
+                    : stageFiles(files)
+                }
+                data-theme-control="true"
+                className="rounded p-1 transition-colors hover:bg-[var(--hover-bg)]"
+                style={{ color: "var(--text-muted)" }}
+                title={isStagedSection ? "取消暂存所有更改" : "全部暂存"}
+                aria-label={isStagedSection ? "取消暂存所有更改" : "全部暂存"}
+              >
+                {isStagedSection ? (
+                  <MinusSquare className="h-3.5 w-3.5" />
+                ) : (
+                  <PlusSquare className="h-3.5 w-3.5" />
+                )}
+              </button>
+            </GitPanelTooltip>
+          </div>
         </div>
         {isExpanded
           ? treeView
@@ -1948,11 +1981,15 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           setConfirmDialog({ open, filePath: confirmDialog.filePath })
         }
         title="确认放弃更改"
-        description={`确定要放弃 ${
-          confirmDialog.filePath.endsWith("/*")
-            ? `目录 "${confirmDialog.filePath.slice(0, -2)}" 下的所有更改`
-            : `"${confirmDialog.filePath}" 的更改`
-        } 吗？`}
+        description={
+          confirmDialog.filePath === DISCARD_ALL_CHANGES
+            ? "确定要放弃所有更改吗？"
+            : `确定要放弃 ${
+                confirmDialog.filePath.endsWith("/*")
+                  ? `目录 "${confirmDialog.filePath.slice(0, -2)}" 下的所有更改`
+                  : `"${confirmDialog.filePath}" 的更改`
+              } 吗？`
+        }
         confirmText="确定"
         onConfirm={confirmDiscardChanges}
       />

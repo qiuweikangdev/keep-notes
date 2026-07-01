@@ -78,6 +78,8 @@ describe("GitPanel", () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+    treeStoreMock.treeRoot = { key: "/notes", title: "notes" };
+    treeStoreMock.expandedKeys = new Set<string>();
     electronMocks.detectGitRepo.mockResolvedValue({
       code: CodeResult.Success,
       data: { isGitRepo: true },
@@ -104,6 +106,12 @@ describe("GitPanel", () => {
       },
     });
     electronMocks.discardChanges.mockResolvedValue({
+      code: CodeResult.Success,
+    });
+    electronMocks.addFilesToStaging.mockResolvedValue({
+      code: CodeResult.Success,
+    });
+    electronMocks.unstageFiles.mockResolvedValue({
       code: CodeResult.Success,
     });
     electronMocks.loadTree.mockResolvedValue(undefined);
@@ -243,6 +251,51 @@ describe("GitPanel", () => {
     ).toHaveClass("overflow-hidden");
   });
 
+  it("adds section actions for discarding and unstaging all changes", async () => {
+    electronMocks.getGitStatus.mockResolvedValue({
+      code: CodeResult.Success,
+      data: {
+        current: "main",
+        tracking: "origin/main",
+        files: [],
+        ahead: 0,
+        behind: 0,
+        created: [],
+        not_added: ["new.md"],
+        modified: ["changed.md"],
+        deleted: [],
+        renamed: [],
+        staged: ["changed.md"],
+        conflicted: [],
+      },
+    });
+
+    render(<GitPanel isOpen onClose={vi.fn()} />);
+
+    await screen.findByText("changed.md");
+
+    expect(screen.getByTitle("取消暂存所有更改")).toBeInTheDocument();
+    expect(screen.getByTitle("放弃所有更改")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTitle("放弃所有更改"));
+    expect(await screen.findByText("确认放弃更改")).toBeInTheDocument();
+    expect(screen.getByText("确定要放弃所有更改吗？")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "确定" }));
+
+    await waitFor(() => {
+      expect(electronMocks.discardChanges).toHaveBeenCalledWith(
+        "/notes",
+        "new.md",
+      );
+    });
+    expect(electronMocks.unstageFiles).not.toHaveBeenCalled();
+    expect(electronMocks.discardChanges).not.toHaveBeenCalledWith(
+      "/notes",
+      "changed.md",
+    );
+  });
+
   it("switches between file status and git history with compact icon controls", async () => {
     electronMocks.getCommitHistory
       .mockResolvedValueOnce({
@@ -368,6 +421,25 @@ describe("GitPanel", () => {
       screen.getByPlaceholderText("提交信息（留空将自动生成）..."),
     ).toHaveValue("");
     expect(diffStoreMock.closeDiff).toHaveBeenCalled();
+  });
+
+  it("keeps panel state when the workspace tree refreshes without changing root path", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<GitPanel isOpen onClose={vi.fn()} />);
+
+    await screen.findByText("changed.md");
+    await user.type(
+      screen.getByPlaceholderText("提交信息（留空将自动生成）..."),
+      "draft message",
+    );
+
+    treeStoreMock.treeRoot = { key: "/notes", title: "notes refreshed" };
+    rerender(<GitPanel isOpen onClose={vi.fn()} />);
+
+    expect(
+      screen.getByPlaceholderText("提交信息（留空将自动生成）..."),
+    ).toHaveValue("draft message");
+    expect(screen.getByText("changed.md")).toBeInTheDocument();
   });
 
   it("hides the view switch tip after toggling between file status and git history", async () => {
