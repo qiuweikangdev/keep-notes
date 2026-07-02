@@ -65,6 +65,7 @@ export interface EditorState {
   // 多面板组状态
   panelGroups: EditorPanelGroup[];
   activeGroupId: string;
+  recentEditedFilePaths: string[];
 
   // 全局状态（保持兼容）
   content: string;
@@ -120,6 +121,7 @@ export interface EditorState {
     message: string | null,
   ) => void;
   setTabScrollTop: (groupId: string, tabId: string, scrollTop: number) => void;
+  recordRecentEditedFile: (path: string) => void;
   setFileSaveState: (
     path: string,
     status: EditorSaveStatus,
@@ -166,6 +168,14 @@ const defaultAppearance: EditorAppearance = {
 // 生成唯一ID
 let idCounter = 0;
 const generateId = () => `id-${++idCounter}`;
+const RECENT_EDITED_FILE_LIMIT = 20;
+
+function pushRecentEditedFilePath(paths: string[], path: string): string[] {
+  return [path, ...paths.filter((item) => item !== path)].slice(
+    0,
+    RECENT_EDITED_FILE_LIMIT,
+  );
+}
 
 // 创建默认标签页
 const createDefaultTab = (filePath?: string | null): EditorTab => ({
@@ -204,6 +214,7 @@ export const useEditorStore = create<EditorState>()(
         // 多面板组状态
         panelGroups: [defaultGroup],
         activeGroupId: defaultGroup.id,
+        recentEditedFilePaths: [],
 
         // 全局状态（保持兼容）
         content: "",
@@ -402,32 +413,45 @@ export const useEditorStore = create<EditorState>()(
 
         // 设置标签页内容
         setTabContent: (groupId: string, tabId: string, content: string) => {
-          set((state) => ({
-            panelGroups: state.panelGroups.map((g) =>
-              g.id === groupId
-                ? {
-                    ...g,
-                    tabs: g.tabs.map((t) => {
-                      if (t.id !== tabId) return t;
+          set((state) => {
+            let editedFilePath: string | null = null;
+            return {
+              panelGroups: state.panelGroups.map((g) =>
+                g.id === groupId
+                  ? {
+                      ...g,
+                      tabs: g.tabs.map((t) => {
+                        if (t.id !== tabId) return t;
 
-                      // 未命名标签页恢复为空内容时，不应继续触发退出保存提示。
-                      const isDirty = t.filePath
-                        ? true
-                        : content.trim().length > 0;
+                        if (t.filePath && t.content !== content) {
+                          editedFilePath = t.filePath;
+                        }
 
-                      return {
-                        ...t,
-                        content,
-                        wordCount: content.length,
-                        isDirty,
-                        saveStatus: isDirty ? "dirty" : "clean",
-                        errorMessage: null,
-                      };
-                    }),
-                  }
-                : g,
-            ),
-          }));
+                        // 未命名标签页恢复为空内容时，不应继续触发退出保存提示。
+                        const isDirty = t.filePath
+                          ? true
+                          : content.trim().length > 0;
+
+                        return {
+                          ...t,
+                          content,
+                          wordCount: content.length,
+                          isDirty,
+                          saveStatus: isDirty ? "dirty" : "clean",
+                          errorMessage: null,
+                        };
+                      }),
+                    }
+                  : g,
+              ),
+              recentEditedFilePaths: editedFilePath
+                ? pushRecentEditedFilePath(
+                    state.recentEditedFilePaths,
+                    editedFilePath,
+                  )
+                : state.recentEditedFilePaths,
+            };
+          });
         },
 
         // 设置标签页文件路径
@@ -611,6 +635,15 @@ export const useEditorStore = create<EditorState>()(
           }));
         },
 
+        recordRecentEditedFile: (path) => {
+          set((state) => ({
+            recentEditedFilePaths: pushRecentEditedFilePath(
+              state.recentEditedFilePaths,
+              path,
+            ),
+          }));
+        },
+
         setFileSaveState: (path, status, message) => {
           set((state) => ({
             panelGroups: state.panelGroups.map((group) => ({
@@ -714,6 +747,7 @@ export const useEditorStore = create<EditorState>()(
       name: "editor-storage",
       partialize: (state) => ({
         appearance: state.appearance,
+        recentEditedFilePaths: state.recentEditedFilePaths,
       }),
       merge: (persistedState: unknown, currentState: EditorState) => {
         // 确保 panelGroups 始终有值
@@ -727,6 +761,13 @@ export const useEditorStore = create<EditorState>()(
         const persistedAppearance = persisted?.appearance as
           | Partial<EditorAppearance>
           | undefined;
+        const persistedRecentEditedFilePaths = Array.isArray(
+          persisted?.recentEditedFilePaths,
+        )
+          ? persisted.recentEditedFilePaths.filter(
+              (path): path is string => typeof path === "string",
+            )
+          : currentState.recentEditedFilePaths;
 
         return {
           ...currentState,
@@ -736,6 +777,7 @@ export const useEditorStore = create<EditorState>()(
             currentState.appearance,
             persistedAppearance,
           ),
+          recentEditedFilePaths: persistedRecentEditedFilePaths,
           panelGroups:
             persistedPanelGroups && persistedPanelGroups.length > 0
               ? normalizePersistedPanelGroups(persistedPanelGroups)

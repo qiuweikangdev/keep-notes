@@ -1,92 +1,198 @@
-import { useState, useCallback, useEffect, useRef } from "react";
-import { Search, X, File, ChevronRight } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FileText, Search, X } from "lucide-react";
 import { useTreeStore } from "@/store/tree.store";
+import { useEditorStore } from "@/store/editor.store";
 import { useElectron } from "@/hooks/use-electron";
 import type { TreeNode } from "@/types";
+import type { EditorPanelGroup } from "@/store/editor.store";
 
 interface SearchModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+const RECENT_RESULT_LIMIT = 5;
+const SEARCHABLE_EXTENSIONS = new Set([".md", ".txt"]);
+
+function getFileExtension(title: string): string {
+  const index = title.lastIndexOf(".");
+  return index === -1 ? "" : title.slice(index).toLowerCase();
+}
+
+function isSearchableFile(node: TreeNode): boolean {
+  return (
+    !node.children && SEARCHABLE_EXTENSIONS.has(getFileExtension(node.title))
+  );
+}
+
+function collectSearchableFiles(nodes: TreeNode[]): TreeNode[] {
+  const files: TreeNode[] = [];
+
+  const walk = (items: TreeNode[]) => {
+    for (const item of items) {
+      if (item.children) {
+        walk(item.children);
+        continue;
+      }
+
+      if (isSearchableFile(item)) {
+        files.push(item);
+      }
+    }
+  };
+
+  walk(nodes);
+  return files;
+}
+
+function normalizePath(path: string): string {
+  return path.replaceAll("\\", "/");
+}
+
+function getDisplayDirectory(filePath: string, rootPath?: string): string {
+  const normalizedFilePath = normalizePath(filePath);
+  const fileNameStart = normalizedFilePath.lastIndexOf("/");
+  const parentPath =
+    fileNameStart === -1
+      ? ""
+      : normalizedFilePath.slice(0, Math.max(0, fileNameStart));
+
+  if (!rootPath) return parentPath;
+
+  const normalizedRootPath = normalizePath(rootPath).replace(/\/$/, "");
+  if (!parentPath.startsWith(normalizedRootPath)) return parentPath;
+
+  const relativePath = parentPath.slice(normalizedRootPath.length);
+  return relativePath.replace(/^\//, "") || ".";
+}
+
+function getRecentEditedFiles(
+  files: TreeNode[],
+  candidateFilePaths: string[],
+): TreeNode[] {
+  const fileByPath = new Map(files.map((file) => [file.key, file]));
+  const seen = new Set<string>();
+  const recentFiles: TreeNode[] = [];
+
+  for (const filePath of candidateFilePaths) {
+    if (seen.has(filePath)) continue;
+
+    const file = fileByPath.get(filePath);
+    if (!file) continue;
+
+    seen.add(filePath);
+    recentFiles.push(file);
+
+    if (recentFiles.length >= RECENT_RESULT_LIMIT) break;
+  }
+
+  return recentFiles;
+}
+
+function getOpenFilePaths(panelGroups: EditorPanelGroup[]): string[] {
+  const paths: string[] = [];
+
+  for (const group of panelGroups) {
+    const activeTab = group.tabs.find((tab) => tab.id === group.activeTabId);
+    if (activeTab?.filePath) paths.push(activeTab.filePath);
+
+    for (const tab of group.tabs) {
+      if (tab.filePath && tab.filePath !== activeTab?.filePath) {
+        paths.push(tab.filePath);
+      }
+    }
+  }
+
+  return paths;
+}
+
 export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<TreeNode[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { treeData } = useTreeStore();
+  const treeData = useTreeStore((state) => state.treeData);
+  const treeRoot = useTreeStore((state) => state.treeRoot);
+  const selectedKey = useTreeStore((state) => state.selectedKey);
+  const panelGroups = useEditorStore((state) => state.panelGroups);
+  const recentEditedFilePaths = useEditorStore(
+    (state) => state.recentEditedFilePaths,
+  );
   const { openFile } = useElectron();
 
-  // 搜索文件（只搜索 md 和 txt 文件，不包含文件夹）
-  const searchFiles = useCallback(
-    (nodes: TreeNode[], query: string): TreeNode[] => {
-      const results: TreeNode[] = [];
-      const allowedExtensions = [".md", ".txt"];
-
-      const search = (nodes: TreeNode[]) => {
-        for (const node of nodes) {
-          // 跳过文件夹（有 children 的节点）
-          if (node.children) {
-            search(node.children);
-            continue;
-          }
-
-          // 检查文件扩展名是否为 md 或 txt
-          const ext = node.title
-            .toLowerCase()
-            .slice(node.title.lastIndexOf("."));
-          if (
-            allowedExtensions.includes(ext) &&
-            node.title.toLowerCase().includes(query.toLowerCase())
-          ) {
-            results.push(node);
-          }
-        }
-      };
-
-      search(nodes);
-      return results;
-    },
-    [],
+  const searchableFiles = useMemo(
+    () => collectSearchableFiles(treeData),
+    [treeData],
   );
 
-  // 处理搜索
-  useEffect(() => {
-    if (query.trim()) {
-      const results = searchFiles(treeData, query);
-      setResults(results);
-      setSelectedIndex(0);
-    } else {
-      setResults([]);
-    }
-  }, [query, treeData, searchFiles]);
+  const defaultCandidateFilePaths = useMemo(
+    () => [
+      ...recentEditedFilePaths,
+      ...getOpenFilePaths(panelGroups),
+      ...(selectedKey ? [selectedKey] : []),
+    ],
+    [panelGroups, recentEditedFilePaths, selectedKey],
+  );
 
-  // 处理键盘事件
+  const results = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    if (!normalizedQuery) {
+      return getRecentEditedFiles(searchableFiles, defaultCandidateFilePaths);
+    }
+
+    return searchableFiles.filter((file) => {
+      const title = file.title.toLowerCase();
+      const path = file.key.toLowerCase();
+      return title.includes(normalizedQuery) || path.includes(normalizedQuery);
+    });
+  }, [defaultCandidateFilePaths, query, searchableFiles]);
+
+  const openSelectedFile = useCallback(
+    (file: TreeNode) => {
+      openFile(file.key);
+      onClose();
+    },
+    [openFile, onClose],
+  );
+
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Escape") {
+    (event: React.KeyboardEvent) => {
+      if (event.key === "Escape") {
         onClose();
-      } else if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setSelectedIndex((prev) => Math.min(prev + 1, results.length - 1));
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setSelectedIndex((prev) => Math.max(prev - 1, 0));
-      } else if (e.key === "Enter" && results[selectedIndex]) {
-        e.preventDefault();
-        const selected = results[selectedIndex];
-        openFile(selected.key);
-        onClose();
+        return;
+      }
+
+      if (results.length === 0) return;
+
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setSelectedIndex((index) => (index + 1) % results.length);
+        return;
+      }
+
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setSelectedIndex(
+          (index) => (index - 1 + results.length) % results.length,
+        );
+        return;
+      }
+
+      if (event.key === "Enter") {
+        event.preventDefault();
+        openSelectedFile(results[selectedIndex]);
       }
     },
-    [results, selectedIndex, openFile, onClose],
+    [onClose, openSelectedFile, results, selectedIndex],
   );
 
-  // 自动聚焦
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [results]);
+
   useEffect(() => {
     if (!isOpen) {
       setQuery("");
-      setResults([]);
       setSelectedIndex(0);
       return;
     }
@@ -96,147 +202,93 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20%]">
-      {/* 背景遮罩 */}
-      <div
-        className="absolute inset-0"
-        style={{
-          backgroundColor: "rgba(0, 0, 0, 0.5)",
-          backdropFilter: "blur(4px)",
-        }}
-        onClick={onClose}
-      />
+  const hasQuery = query.trim().length > 0;
 
-      {/* 搜索框 */}
-      <div
-        className="relative w-[500px] max-w-[90%] rounded-xl shadow-2xl overflow-hidden"
-        style={{
-          backgroundColor: "var(--bg-primary)",
-          border: "1px solid var(--border-color)",
-        }}
-      >
-        {/* 输入框 */}
-        <div
-          className="flex items-center gap-3 px-4 py-3"
-          style={{ borderBottom: "1px solid var(--border-color)" }}
-        >
+  return (
+    <div className="pointer-events-none fixed inset-x-0 top-0 z-50 flex items-start justify-center pt-[12vh]">
+      <div className="pointer-events-auto relative w-[520px] max-w-[calc(100vw-32px)] overflow-hidden rounded-xl border border-[var(--border-color)] bg-[var(--bg-primary)] shadow-2xl">
+        <div className="flex h-9 items-center gap-2 px-3">
           <Search
-            className="h-5 w-5 flex-shrink-0"
-            style={{ color: "var(--text-muted)" }}
+            aria-hidden="true"
+            className="h-4 w-4 shrink-0 text-[var(--text-muted)]"
           />
           <input
             ref={inputRef}
+            aria-activedescendant={
+              results[selectedIndex]
+                ? `search-result-${selectedIndex}`
+                : undefined
+            }
+            aria-controls="search-results"
+            className="h-full min-w-0 flex-1 appearance-none border-0 bg-transparent p-0 text-sm text-[var(--text-primary)] shadow-none outline-none ring-0 placeholder:text-[var(--text-muted)] focus:border-0 focus:border-transparent focus:outline-none focus:ring-0"
+            placeholder="搜索文件"
+            role="searchbox"
+            style={{ border: 0, boxShadow: "none" }}
             type="text"
-            placeholder="搜索文件..."
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(event) => setQuery(event.target.value)}
             onKeyDown={handleKeyDown}
-            className="flex-1 bg-transparent text-base outline-none"
-            style={{
-              color: "var(--text-primary)",
-            }}
           />
-          {query && (
+          {query ? (
             <button
+              aria-label="清空搜索"
+              className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)]"
+              type="button"
               onClick={() => setQuery("")}
-              className="p-1 rounded-md transition-all"
-              style={{ color: "var(--text-muted)" }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                e.currentTarget.style.color = "var(--text-primary)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "transparent";
-                e.currentTarget.style.color = "var(--text-muted)";
-              }}
             >
-              <X className="h-4 w-4" />
+              <X aria-hidden="true" className="h-3.5 w-3.5" />
             </button>
-          )}
+          ) : null}
         </div>
 
-        {/* 搜索结果 */}
-        {results.length > 0 && (
-          <div className="max-h-[300px] overflow-y-auto py-2">
-            {results.map((result, index) => (
-              <button
-                key={result.key}
-                onClick={() => {
-                  openFile(result.key);
-                  onClose();
-                }}
-                className="w-full flex items-center gap-3 px-4 py-2 text-left transition-colors"
-                style={{
-                  backgroundColor:
-                    index === selectedIndex
-                      ? "var(--active-bg)"
-                      : "transparent",
-                }}
-                onMouseEnter={(e) => {
-                  if (index !== selectedIndex) {
-                    e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (index !== selectedIndex) {
-                    e.currentTarget.style.backgroundColor = "transparent";
-                  }
-                }}
-              >
-                <File
-                  className="h-4 w-4 flex-shrink-0"
-                  style={{ color: "var(--accent-color)" }}
-                />
-                <div className="flex-1 min-w-0">
-                  <p
-                    className="text-sm font-medium truncate"
-                    style={{ color: "var(--text-primary)" }}
-                  >
-                    {result.title}
-                  </p>
-                  <p
-                    className="text-xs truncate"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    {result.key}
-                  </p>
-                </div>
-                <ChevronRight
-                  className="h-4 w-4 flex-shrink-0"
-                  style={{ color: "var(--text-muted)" }}
-                />
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="px-3 pb-1 pt-0 text-xs text-[var(--text-muted)]">
+          文件
+        </div>
 
-        {/* 空状态 */}
-        {query && results.length === 0 && (
-          <div className="px-4 py-8 text-center">
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              没有找到匹配的文件
-            </p>
-          </div>
-        )}
-
-        {/* 提示 */}
-        <div
-          className="px-4 py-2"
-          style={{
-            borderTop: "1px solid var(--border-color)",
-            backgroundColor: "var(--bg-secondary)",
-          }}
-        >
+        {results.length > 0 ? (
           <div
-            className="flex items-center gap-4 text-xs"
-            style={{ color: "var(--text-muted)" }}
+            id="search-results"
+            aria-label={hasQuery ? "搜索结果" : "最近编辑文件"}
+            className="max-h-[320px] overflow-y-auto px-1.5 pb-2"
+            role="listbox"
           >
-            <span>↑↓ 导航</span>
-            <span>↵ 打开</span>
-            <span>ESC 关闭</span>
+            {results.map((result, index) => {
+              const selected = index === selectedIndex;
+
+              return (
+                <button
+                  id={`search-result-${index}`}
+                  key={result.key}
+                  aria-selected={selected}
+                  className={`flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm transition-colors ${
+                    selected
+                      ? "bg-[var(--active-bg)] text-[var(--text-primary)]"
+                      : "text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)]"
+                  }`}
+                  role="option"
+                  type="button"
+                  onClick={() => openSelectedFile(result)}
+                  onMouseEnter={() => setSelectedIndex(index)}
+                >
+                  <FileText
+                    aria-hidden="true"
+                    className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]"
+                  />
+                  <span className="min-w-0 flex-1 truncate font-medium">
+                    {result.title}
+                  </span>
+                  <span className="min-w-[120px] max-w-[240px] truncate text-right text-xs text-[var(--text-muted)]">
+                    {getDisplayDirectory(result.key, treeRoot?.key)}
+                  </span>
+                </button>
+              );
+            })}
           </div>
-        </div>
+        ) : (
+          <div className="px-4 pb-5 pt-2 text-[13px] text-[var(--text-muted)]">
+            {hasQuery ? "没有找到匹配文件" : "暂无最近编辑文件"}
+          </div>
+        )}
       </div>
     </div>
   );
