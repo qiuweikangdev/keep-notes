@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -204,6 +204,25 @@ describe("SearchModal", () => {
     await user.keyboard("{ArrowDown}{ArrowDown}{ArrowUp}{Enter}");
 
     expect(openFile).toHaveBeenCalledWith("C:\\notes\\docs\\second.txt");
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("keeps enter for IME composition before opening the active result", () => {
+    const onClose = vi.fn();
+    render(<SearchModal isOpen onClose={onClose} />);
+
+    const searchInput = screen.getByRole("searchbox");
+
+    fireEvent.compositionStart(searchInput);
+    fireEvent.keyDown(searchInput, { key: "Enter" });
+
+    expect(openFile).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.compositionEnd(searchInput);
+    fireEvent.keyDown(searchInput, { key: "Enter" });
+
+    expect(openFile).toHaveBeenCalledWith("C:\\notes\\docs\\first.md");
     expect(onClose).toHaveBeenCalledOnce();
   });
 

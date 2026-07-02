@@ -128,6 +128,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const resultRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const isComposingRef = useRef(false);
   const treeData = useTreeStore((state) => state.treeData);
   const treeRoot = useTreeStore((state) => state.treeRoot);
   const selectedKey = useTreeStore((state) => state.selectedKey);
@@ -213,6 +214,14 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
+      const isComposing =
+        isComposingRef.current ||
+        event.nativeEvent.isComposing ||
+        event.keyCode === 229;
+
+      // 输入法组合态下的按键用于确认候选词，避免误触发搜索结果动作。
+      if (isComposing) return;
+
       if (event.key === "Escape") {
         onClose();
         return;
@@ -242,6 +251,14 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
     [onClose, openSelectedResult, results, selectedIndex],
   );
 
+  const handleCompositionStart = useCallback(() => {
+    isComposingRef.current = true;
+  }, []);
+
+  const handleCompositionEnd = useCallback(() => {
+    isComposingRef.current = false;
+  }, []);
+
   useEffect(() => {
     setSelectedIndex(0);
   }, [results]);
@@ -255,6 +272,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
     if (!isOpen) {
       setQuery("");
       setSelectedIndex(0);
+      isComposingRef.current = false;
       return;
     }
 
@@ -307,6 +325,8 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
             type="text"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
+            onCompositionEnd={handleCompositionEnd}
+            onCompositionStart={handleCompositionStart}
             onKeyDown={handleKeyDown}
           />
           {query ? (
