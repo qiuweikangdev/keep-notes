@@ -344,8 +344,7 @@
   display: block;
   background: var(--editor-code-block-bg) !important;
   min-width: max-content;
-  font-family:
-    "SF Mono", "Fira Code", Consolas, "Courier New", monospace;
+  font-family: "SF Mono", "Fira Code", Consolas, "Courier New", monospace;
   font-size: 0.88em;
   line-height: 1.6rem;
   color: var(--prosemirror-highlight, var(--editor-code-block-text));
@@ -407,9 +406,14 @@
 }
 
 .editor-code-block__codemirror .cm-foldPlaceholder {
-  border: 1px solid color-mix(in srgb, var(--editor-code-block-fold-text) 36%, transparent);
+  border: 1px solid
+    color-mix(in srgb, var(--editor-code-block-fold-text) 36%, transparent);
   border-radius: 3px;
-  background: color-mix(in srgb, var(--editor-code-block-fold-bg) 68%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--editor-code-block-fold-bg) 68%,
+    transparent
+  );
   color: var(--editor-code-block-fold-text);
   font-size: 0.72em;
   font-weight: 700;

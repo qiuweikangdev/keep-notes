@@ -31,8 +31,9 @@ const DialogFooter = ({
 );
 DialogFooter.displayName = "DialogFooter";
 
-interface DialogContentProps
-  extends React.ComponentPropsWithoutRef<typeof Dialog.Content> {
+interface DialogContentProps extends React.ComponentPropsWithoutRef<
+  typeof Dialog.Content
+> {
   showCloseButton?: boolean;
 }
 

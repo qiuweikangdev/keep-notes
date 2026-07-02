@@ -79,12 +79,20 @@ button {
   transition: none !important;
 }
 
-button:not(:disabled):not([aria-disabled="true"]):not([role="switch"]):not([data-selected="true"]):not(.quick-open-folder button):not(.sidebar-bottom-bar):not(.update-button):hover {
+button:not(:disabled):not([aria-disabled="true"]):not([role="switch"]):not(
+  [data-selected="true"]
+):not(.quick-open-folder button):not(.sidebar-bottom-bar):not(
+  .update-button
+):hover {
   background-color: var(--button-hover-bg) !important;
   color: var(--text-primary) !important;
 }
 
-button:not(:disabled):not([aria-disabled="true"]):not([role="switch"]):not([data-selected="true"]):not(.quick-open-folder button):not(.sidebar-bottom-bar):not(.update-button):active {
+button:not(:disabled):not([aria-disabled="true"]):not([role="switch"]):not(
+  [data-selected="true"]
+):not(.quick-open-folder button):not(.sidebar-bottom-bar):not(
+  .update-button
+):active {
   background-color: var(--button-active-bg) !important;
 }
 
@@ -97,11 +105,19 @@ button:not(:disabled):not([aria-disabled="true"]):not([role="switch"]):not([data
 }
 
 .update-button[style*="var(--accent-color)"]:hover {
-  background-color: color-mix(in srgb, var(--accent-color) 85%, black) !important;
+  background-color: color-mix(
+    in srgb,
+    var(--accent-color) 85%,
+    black
+  ) !important;
 }
 
 .update-button[style*="var(--accent-color)"]:active {
-  background-color: color-mix(in srgb, var(--accent-color) 75%, black) !important;
+  background-color: color-mix(
+    in srgb,
+    var(--accent-color) 75%,
+    black
+  ) !important;
 }
 
 button[data-ui-button="true"] {
@@ -131,7 +147,9 @@ button[data-ui-button="true"][data-variant="default"] {
   color: var(--text-primary);
 }
 
-button[data-ui-button="true"][data-variant="default"]:not(:disabled):not([aria-disabled="true"]):hover {
+button[data-ui-button="true"][data-variant="default"]:not(:disabled):not(
+  [aria-disabled="true"]
+):hover {
   background-color: color-mix(
     in srgb,
     var(--bg-tertiary) 76%,
@@ -141,7 +159,9 @@ button[data-ui-button="true"][data-variant="default"]:not(:disabled):not([aria-d
   color: var(--text-primary) !important;
 }
 
-button[data-ui-button="true"][data-variant="default"]:not(:disabled):not([aria-disabled="true"]):active {
+button[data-ui-button="true"][data-variant="default"]:not(:disabled):not(
+  [aria-disabled="true"]
+):active {
   background-color: color-mix(
     in srgb,
     var(--hover-bg) 70%,
@@ -153,11 +173,7 @@ button[data-ui-button="true"][data-variant="default"]:not(:disabled):not([aria-d
 
 button[data-ui-button="true"][data-variant="default"]:disabled,
 button[data-ui-button="true"][data-variant="default"][aria-disabled="true"] {
-  background-color: color-mix(
-    in srgb,
-    var(--bg-tertiary) 84%,
-    transparent
-  );
+  background-color: color-mix(in srgb, var(--bg-tertiary) 84%, transparent);
   border-color: color-mix(in srgb, var(--border-color) 70%, transparent);
   color: var(--text-muted);
   opacity: 0.55;
@@ -176,10 +192,22 @@ button[data-ui-button="true"][data-variant="default"][aria-disabled="true"] {
   color: var(--text-primary);
 }
 
-.dark button[data-ui-button="true"][data-variant="default"]:not(:disabled):not([aria-disabled="true"]):hover,
-.nord button[data-ui-button="true"][data-variant="default"]:not(:disabled):not([aria-disabled="true"]):hover,
-.dracula button[data-ui-button="true"][data-variant="default"]:not(:disabled):not([aria-disabled="true"]):hover,
-.solarized button[data-ui-button="true"][data-variant="default"]:not(:disabled):not([aria-disabled="true"]):hover {
+.dark
+  button[data-ui-button="true"][data-variant="default"]:not(:disabled):not(
+    [aria-disabled="true"]
+  ):hover,
+.nord
+  button[data-ui-button="true"][data-variant="default"]:not(:disabled):not(
+    [aria-disabled="true"]
+  ):hover,
+.dracula
+  button[data-ui-button="true"][data-variant="default"]:not(:disabled):not(
+    [aria-disabled="true"]
+  ):hover,
+.solarized
+  button[data-ui-button="true"][data-variant="default"]:not(:disabled):not(
+    [aria-disabled="true"]
+  ):hover {
   background-color: color-mix(
     in srgb,
     var(--bg-tertiary) 86%,
@@ -189,10 +217,22 @@ button[data-ui-button="true"][data-variant="default"][aria-disabled="true"] {
   color: var(--text-primary) !important;
 }
 
-.dark button[data-ui-button="true"][data-variant="default"]:not(:disabled):not([aria-disabled="true"]):active,
-.nord button[data-ui-button="true"][data-variant="default"]:not(:disabled):not([aria-disabled="true"]):active,
-.dracula button[data-ui-button="true"][data-variant="default"]:not(:disabled):not([aria-disabled="true"]):active,
-.solarized button[data-ui-button="true"][data-variant="default"]:not(:disabled):not([aria-disabled="true"]):active {
+.dark
+  button[data-ui-button="true"][data-variant="default"]:not(:disabled):not(
+    [aria-disabled="true"]
+  ):active,
+.nord
+  button[data-ui-button="true"][data-variant="default"]:not(:disabled):not(
+    [aria-disabled="true"]
+  ):active,
+.dracula
+  button[data-ui-button="true"][data-variant="default"]:not(:disabled):not(
+    [aria-disabled="true"]
+  ):active,
+.solarized
+  button[data-ui-button="true"][data-variant="default"]:not(:disabled):not(
+    [aria-disabled="true"]
+  ):active {
   background-color: color-mix(
     in srgb,
     var(--active-bg) 18%,
@@ -203,18 +243,18 @@ button[data-ui-button="true"][data-variant="default"][aria-disabled="true"] {
 }
 
 .dark button[data-ui-button="true"][data-variant="default"]:disabled,
-.dark button[data-ui-button="true"][data-variant="default"][aria-disabled="true"],
+.dark
+  button[data-ui-button="true"][data-variant="default"][aria-disabled="true"],
 .nord button[data-ui-button="true"][data-variant="default"]:disabled,
-.nord button[data-ui-button="true"][data-variant="default"][aria-disabled="true"],
+.nord
+  button[data-ui-button="true"][data-variant="default"][aria-disabled="true"],
 .dracula button[data-ui-button="true"][data-variant="default"]:disabled,
-.dracula button[data-ui-button="true"][data-variant="default"][aria-disabled="true"],
+.dracula
+  button[data-ui-button="true"][data-variant="default"][aria-disabled="true"],
 .solarized button[data-ui-button="true"][data-variant="default"]:disabled,
-.solarized button[data-ui-button="true"][data-variant="default"][aria-disabled="true"] {
-  background-color: color-mix(
-    in srgb,
-    var(--bg-secondary) 80%,
-    transparent
-  );
+.solarized
+  button[data-ui-button="true"][data-variant="default"][aria-disabled="true"] {
+  background-color: color-mix(in srgb, var(--bg-secondary) 80%, transparent);
   border-color: color-mix(in srgb, var(--border-color) 54%, transparent);
   color: var(--text-muted);
 }
@@ -225,9 +265,15 @@ button[data-ui-button="true"][data-variant="secondary"] {
   color: var(--text-primary);
 }
 
-button[data-ui-button="true"][data-variant="secondary"]:not(:disabled):not([aria-disabled="true"]):hover,
-button[data-ui-button="true"][data-variant="outline"]:not(:disabled):not([aria-disabled="true"]):hover,
-button[data-ui-button="true"][data-variant="ghost"]:not(:disabled):not([aria-disabled="true"]):hover {
+button[data-ui-button="true"][data-variant="secondary"]:not(:disabled):not(
+  [aria-disabled="true"]
+):hover,
+button[data-ui-button="true"][data-variant="outline"]:not(:disabled):not(
+  [aria-disabled="true"]
+):hover,
+button[data-ui-button="true"][data-variant="ghost"]:not(:disabled):not(
+  [aria-disabled="true"]
+):hover {
   background-color: color-mix(
     in srgb,
     var(--hover-bg) 82%,
@@ -237,9 +283,15 @@ button[data-ui-button="true"][data-variant="ghost"]:not(:disabled):not([aria-dis
   color: var(--text-primary) !important;
 }
 
-button[data-ui-button="true"][data-variant="secondary"]:not(:disabled):not([aria-disabled="true"]):active,
-button[data-ui-button="true"][data-variant="outline"]:not(:disabled):not([aria-disabled="true"]):active,
-button[data-ui-button="true"][data-variant="ghost"]:not(:disabled):not([aria-disabled="true"]):active {
+button[data-ui-button="true"][data-variant="secondary"]:not(:disabled):not(
+  [aria-disabled="true"]
+):active,
+button[data-ui-button="true"][data-variant="outline"]:not(:disabled):not(
+  [aria-disabled="true"]
+):active,
+button[data-ui-button="true"][data-variant="ghost"]:not(:disabled):not(
+  [aria-disabled="true"]
+):active {
   background-color: color-mix(
     in srgb,
     var(--active-bg) 42%,
@@ -254,11 +306,7 @@ button[data-ui-button="true"][data-variant="outline"]:disabled,
 button[data-ui-button="true"][data-variant="outline"][aria-disabled="true"],
 button[data-ui-button="true"][data-variant="ghost"]:disabled,
 button[data-ui-button="true"][data-variant="ghost"][aria-disabled="true"] {
-  background-color: color-mix(
-    in srgb,
-    var(--bg-secondary) 70%,
-    transparent
-  );
+  background-color: color-mix(in srgb, var(--bg-secondary) 70%, transparent);
   border-color: color-mix(in srgb, var(--border-color) 55%, transparent);
   color: var(--text-muted);
 }
@@ -280,17 +328,27 @@ button[data-ui-button="true"][data-variant="destructive"] {
     var(--danger-color) 16%,
     var(--bg-primary)
   );
-  border-color: color-mix(in srgb, var(--danger-color) 30%, var(--border-color));
+  border-color: color-mix(
+    in srgb,
+    var(--danger-color) 30%,
+    var(--border-color)
+  );
   color: var(--danger-color);
 }
 
-button[data-ui-button="true"][data-variant="destructive"]:not(:disabled):not([aria-disabled="true"]):hover {
+button[data-ui-button="true"][data-variant="destructive"]:not(:disabled):not(
+  [aria-disabled="true"]
+):hover {
   background-color: color-mix(
     in srgb,
     var(--danger-color) 24%,
     var(--bg-primary)
   ) !important;
-  border-color: color-mix(in srgb, var(--danger-color) 46%, var(--border-color));
+  border-color: color-mix(
+    in srgb,
+    var(--danger-color) 46%,
+    var(--border-color)
+  );
   color: color-mix(
     in srgb,
     var(--danger-color) 88%,
@@ -298,7 +356,9 @@ button[data-ui-button="true"][data-variant="destructive"]:not(:disabled):not([ar
   ) !important;
 }
 
-button[data-ui-button="true"][data-variant="destructive"]:not(:disabled):not([aria-disabled="true"]):active {
+button[data-ui-button="true"][data-variant="destructive"]:not(:disabled):not(
+  [aria-disabled="true"]
+):active {
   background-color: color-mix(
     in srgb,
     var(--danger-color) 30%,
@@ -314,7 +374,11 @@ button[data-ui-button="true"][data-variant="destructive"][aria-disabled="true"] 
     var(--danger-color) 18%,
     var(--bg-secondary)
   );
-  border-color: color-mix(in srgb, var(--danger-color) 16%, var(--border-color));
+  border-color: color-mix(
+    in srgb,
+    var(--danger-color) 16%,
+    var(--border-color)
+  );
   color: var(--text-muted);
 }
 
@@ -325,9 +389,15 @@ button[data-ui-button="true"][data-variant="link"] {
   text-underline-offset: 4px;
 }
 
-button[data-ui-button="true"][data-variant="link"]:not(:disabled):not([aria-disabled="true"]):hover {
+button[data-ui-button="true"][data-variant="link"]:not(:disabled):not(
+  [aria-disabled="true"]
+):hover {
   background-color: transparent !important;
-  color: color-mix(in srgb, var(--accent-color) 82%, var(--text-primary)) !important;
+  color: color-mix(
+    in srgb,
+    var(--accent-color) 82%,
+    var(--text-primary)
+  ) !important;
 }
 
 button[data-theme-control="true"]:not(:disabled):hover {
@@ -862,7 +932,9 @@ button:focus-visible {
   position: relative;
   background-color: transparent !important;
   border-left: 1px solid #e0e0e0;
-  transition: border-style 0.2s, border-color 0.2s;
+  transition:
+    border-style 0.2s,
+    border-color 0.2s;
 }
 
 [data-panel-resize-handle-id]:hover {

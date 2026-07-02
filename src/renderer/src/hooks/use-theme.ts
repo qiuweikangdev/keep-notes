@@ -82,7 +82,6 @@ export function useTheme() {
     if (savedTheme && savedTheme !== theme) {
       setTheme(savedTheme);
     }
-    // eslint-disable-next-line
   }, []);
 
   const changeTheme = useCallback(

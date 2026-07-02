@@ -1,20 +1,20 @@
 {
   "name": "keep-notes",
-  "productName": "Keep Notes",
-  "type": "module",
   "version": "2.8.0",
   "description": "Markdown编辑器笔记软件",
-  "author": "qiuweikangdev",
   "homepage": "https://github.com/qiuweikangdev/keep-notes",
+  "author": "qiuweikangdev",
   "repository": {
     "type": "git",
     "url": "https://github.com/qiuweikangdev/keep-notes.git"
   },
+  "type": "module",
   "main": "./out/main/index.js",
   "scripts": {
-    "format": "prettier --write .",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
+    "format": "oxfmt --write",
+    "format:check": "oxfmt --check",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
@@ -81,8 +81,6 @@
     "zustand": "^4.5.7"
   },
   "devDependencies": {
-    "@electron-toolkit/eslint-config": "^1.0.2",
-    "@electron-toolkit/eslint-config-ts": "^1.0.1",
     "@electron-toolkit/tsconfig": "^1.0.1",
     "@tailwindcss/forms": "^0.5.11",
     "@tailwindcss/typography": "^0.5.20",
@@ -102,13 +100,13 @@
     "electron": "^42.5.0",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
-    "eslint": "^8.57.1",
     "husky": "^9.1.7",
     "jsdom": "25.0.1",
     "lint-staged": "^15.5.2",
     "nodemon": "^3.1.14",
+    "oxfmt": "^0.57.0",
+    "oxlint": "^1.72.0",
     "postcss": "^8.5.15",
-    "prettier": "^3.8.4",
     "tailwindcss": "^3.4.19",
     "typescript": "^5.9.3",
     "vite": "^7.3.6",
@@ -116,13 +114,14 @@
   },
   "lint-staged": {
     "*.{js,ts,jsx,tsx}": [
-      "prettier --write",
-      "eslint --fix"
+      "oxfmt --write",
+      "oxlint --fix"
     ]
   },
   "config": {
     "commitizen": {
       "path": "node_modules/cz-git"
     }
-  }
+  },
+  "productName": "Keep Notes"
 }
