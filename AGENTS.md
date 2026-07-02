@@ -22,14 +22,14 @@ Dependency installation policy:
 - `pnpm build`: run TypeScript checks, then build the app.
 - `pnpm typecheck`: run all TypeScript checks.
 - `pnpm typecheck:node` / `pnpm typecheck:web`: check Node-side or renderer-side configs.
-- `pnpm lint`: lint TypeScript and TSX files.
-- `pnpm lint:fix`: apply ESLint fixes.
-- `pnpm format`: format the repository with Prettier.
+- `pnpm lint`: lint the repository with Oxlint.
+- `pnpm lint:fix`: apply Oxlint fixes.
+- `pnpm format`: format the repository with Oxfmt.
 - `pnpm build:win`, `pnpm build:mac`, `pnpm build:linux`: create platform packages with `electron-builder`.
 
 ## Coding Style & Naming Conventions
 
-Follow `.editorconfig`: UTF-8, LF endings, final newline, trimmed trailing whitespace, and 2-space indentation. Use TypeScript for app code and TSX for React components. Prefer kebab-case filenames such as `file-tree.tsx`, `use-keyboard-shortcuts.ts`, and `settings-modal.tsx`. Keep feature UI in `src/renderer/src/features/<feature>/components`; put reusable primitives in `src/renderer/src/components/ui`. ESLint warns on `any` and unused variables; prefix intentionally unused parameters with `_`.
+Follow `.editorconfig`: UTF-8, LF endings, final newline, trimmed trailing whitespace, and 2-space indentation. Use TypeScript for app code and TSX for React components. Prefer kebab-case filenames such as `file-tree.tsx`, `use-keyboard-shortcuts.ts`, and `settings-modal.tsx`. Keep feature UI in `src/renderer/src/features/<feature>/components`; put reusable primitives in `src/renderer/src/components/ui`. Oxlint warns on `any` and unused variables; prefix intentionally unused parameters with `_`.
 
 ## Testing Guidelines
 
@@ -51,7 +51,7 @@ Write Chinese comments for core method logic to improve team collaboration and c
 
 ## Code Formatting
 
-Use the project's ESLint configuration for code formatting. Run `pnpm lint` to check and `pnpm lint:fix` to auto-fix formatting issues.
+Use the project's Oxc configuration for linting and formatting. Run `pnpm lint` to check code, `pnpm lint:fix` to auto-fix lint issues, and `pnpm format` to apply Oxfmt formatting.
 
 ## Working Principles
 
