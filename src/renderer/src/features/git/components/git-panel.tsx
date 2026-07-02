@@ -1022,7 +1022,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           data-theme-control="true"
           className="rounded p-1 transition-colors hover:bg-[var(--hover-bg)]"
           style={{ color: "var(--text-muted)" }}
-          title="查看差异"
           aria-label="查看差异"
         >
           <GitCompare className="h-3.5 w-3.5" />
@@ -1036,7 +1035,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             data-theme-control="true"
             className="rounded p-1 transition-colors hover:bg-[var(--hover-bg)]"
             style={{ color: "var(--text-muted)" }}
-            title="打开文件"
             aria-label="打开文件"
           >
             <ExternalLink className="h-3.5 w-3.5" />
@@ -1050,7 +1048,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           data-theme-control="true"
           className="rounded p-1 transition-colors hover:bg-[var(--hover-bg)]"
           style={{ color: "var(--text-muted)" }}
-          title="放弃更改"
           aria-label="放弃更改"
         >
           <RotateCcw className="h-3.5 w-3.5" />
@@ -1247,7 +1244,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                   data-theme-control="true"
                   className="rounded p-1 transition-colors hover:bg-[var(--hover-bg)]"
                   style={{ color: "var(--text-muted)" }}
-                  title="放弃所有更改"
                   aria-label="放弃所有更改"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
@@ -1269,7 +1265,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                 data-theme-control="true"
                 className="rounded p-1 transition-colors hover:bg-[var(--hover-bg)]"
                 style={{ color: "var(--text-muted)" }}
-                title={isStagedSection ? "取消暂存所有更改" : "全部暂存"}
                 aria-label={isStagedSection ? "取消暂存所有更改" : "全部暂存"}
               >
                 {isStagedSection ? (
@@ -1633,7 +1628,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                 data-theme-control="true"
                 className="rounded-lg p-1.5"
                 style={{ color: "var(--text-muted)" }}
-                title="创建新分支"
                 aria-label="创建新分支"
               >
                 <Plus className="h-4 w-4" />
