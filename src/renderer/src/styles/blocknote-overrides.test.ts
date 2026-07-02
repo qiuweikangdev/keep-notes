@@ -200,7 +200,7 @@ describe("blocknote overrides stylesheet", () => {
     expect(
       getRule(".editor-code-block__codemirror .cm-foldPlaceholder"),
     ).toMatch(
-      /background:\s*color-mix\(in srgb,\s*var\(--editor-code-block-fold-bg\) 68%,\s*transparent\);/,
+      /background:\s*color-mix\(\s*in srgb,\s*var\(--editor-code-block-fold-bg\) 68%,\s*transparent\s*\);/,
     );
     expect(stylesheet).not.toMatch(
       /\.editor-code-block__content \.shiki\s*\{[\s\S]*color:/,
@@ -234,6 +234,20 @@ describe("blocknote overrides stylesheet", () => {
     expect(stylesheet).toMatch(
       /\.editor-code-block-language-empty\s*\{[\s\S]*text-align:\s*center;/,
     );
+  });
+
+  it("raises an open code language popover above adjacent code blocks", () => {
+    expect(stylesheet).toMatch(
+      /\.bn-block-content\[data-content-type="codeBlock"\]:has\(\s*\.editor-code-block-language-popover\s*\)\s*\{[\s\S]*position:\s*relative;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.bn-block-content\[data-content-type="codeBlock"\]:has\(\s*\.editor-code-block-language-popover\s*\)\s*\{[\s\S]*z-index:\s*20;/,
+    );
+    expect(
+      getRule(
+        ".editor-code-block__toolbar:has(.editor-code-block-language-popover)",
+      ),
+    ).toMatch(/z-index:\s*60;/);
   });
 
   it("keeps the code block copy action hidden until hover", () => {

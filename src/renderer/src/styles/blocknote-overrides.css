@@ -257,6 +257,18 @@
   pointer-events: none;
 }
 
+/* 语言弹窗打开时提升当前代码块层级，避免被后续代码块覆盖。 */
+.bn-block-content[data-content-type="codeBlock"]:has(
+  .editor-code-block-language-popover
+) {
+  position: relative;
+  z-index: 20;
+}
+
+.editor-code-block__toolbar:has(.editor-code-block-language-popover) {
+  z-index: 60;
+}
+
 .editor-code-block-language-trigger {
   position: absolute;
   left: 0;
