@@ -82,34 +82,55 @@ describe("NotificationSettings", () => {
     });
   });
 
-  it("updates desktop notification title font size", async () => {
+  it("updates desktop notification title font size in custom appearance mode", async () => {
     render(<NotificationSettings />);
 
-    const input = await screen.findByLabelText("标题字号");
+    fireEvent.click(await screen.findByLabelText("样式使用自定义"));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("标题字号")).not.toBeDisabled();
+    });
+
+    const input = screen.getByLabelText("标题字号");
     fireEvent.change(input, { target: { value: "22" } });
     fireEvent.blur(input);
 
     await waitFor(() => {
-      expect(window.electronAPI.setNotificationConfig).toHaveBeenCalledWith({
-        ...DEFAULT_NOTIFICATION_CONFIG,
-        desktop: {
-          ...DEFAULT_NOTIFICATION_CONFIG.desktop,
-          appNameFontSize: 22,
+      expect(window.electronAPI.setNotificationConfig).toHaveBeenLastCalledWith(
+        {
+          ...DEFAULT_NOTIFICATION_CONFIG,
+          desktop: {
+            ...DEFAULT_NOTIFICATION_CONFIG.desktop,
+            useCustomAppearance: true,
+            appNameFontSize: 22,
+          },
         },
-      });
+      );
     });
   });
 
-  it("switches title and background colors between default and custom modes", async () => {
+  it("switches between default and custom appearance modes", async () => {
     render(<NotificationSettings />);
 
+    expect(screen.getByLabelText("样式使用默认值")).toBeChecked();
+    expect(screen.queryByLabelText("标题字号")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("标题颜色")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("通知背景色")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("弹窗大小")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText("样式使用自定义"));
+    await waitFor(() => {
+      expect(screen.getByLabelText("样式使用自定义")).toBeChecked();
+      expect(screen.getByLabelText("标题字号")).toBeInTheDocument();
+      expect(screen.getByLabelText("标题颜色")).toBeInTheDocument();
+      expect(screen.getByLabelText("通知背景色")).toBeInTheDocument();
+      expect(screen.getByLabelText("弹窗大小")).toBeInTheDocument();
+    });
     expect(screen.getByLabelText("选择标题颜色取色器")).toHaveAttribute(
       "type",
       "color",
     );
     expect(screen.getByLabelText("选择标题颜色取色器")).toHaveClass("sr-only");
-    expect(screen.getByLabelText("标题颜色使用默认值")).toBeChecked();
-    expect(screen.getByLabelText("标题颜色")).toBeDisabled();
     expect(screen.getByLabelText("选择通知背景色取色器")).toHaveAttribute(
       "type",
       "color",
@@ -117,16 +138,26 @@ describe("NotificationSettings", () => {
     expect(screen.getByLabelText("选择通知背景色取色器")).toHaveClass(
       "sr-only",
     );
-    expect(screen.getByLabelText("通知背景色使用默认值")).toBeChecked();
-    expect(screen.getByLabelText("通知背景色")).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "选择标题颜色" }),
     ).toHaveAttribute("data-color-swatch", "true");
 
-    fireEvent.click(screen.getByLabelText("标题颜色使用自定义"));
-    await waitFor(() => {
-      expect(screen.getByLabelText("标题颜色")).not.toBeDisabled();
+    fireEvent.change(screen.getByLabelText("标题字号"), {
+      target: { value: "22" },
     });
+    fireEvent.blur(screen.getByLabelText("标题字号"));
+
+    await waitFor(() => {
+      expect(window.electronAPI.setNotificationConfig).toHaveBeenCalledWith({
+        ...DEFAULT_NOTIFICATION_CONFIG,
+        desktop: {
+          ...DEFAULT_NOTIFICATION_CONFIG.desktop,
+          useCustomAppearance: true,
+          appNameFontSize: 22,
+        },
+      });
+    });
+
     fireEvent.change(await screen.findByLabelText("标题颜色"), {
       target: { value: "#ffcc66" },
     });
@@ -137,17 +168,14 @@ describe("NotificationSettings", () => {
           ...DEFAULT_NOTIFICATION_CONFIG,
           desktop: {
             ...DEFAULT_NOTIFICATION_CONFIG.desktop,
+            useCustomAppearance: true,
+            appNameFontSize: 22,
             appNameColor: "#ffcc66",
-            useDefaultAppNameColor: false,
           },
         },
       );
     });
 
-    fireEvent.click(screen.getByLabelText("通知背景色使用自定义"));
-    await waitFor(() => {
-      expect(screen.getByLabelText("通知背景色")).not.toBeDisabled();
-    });
     fireEvent.change(screen.getByLabelText("通知背景色"), {
       target: { value: "#223344" },
     });
@@ -158,16 +186,17 @@ describe("NotificationSettings", () => {
           ...DEFAULT_NOTIFICATION_CONFIG,
           desktop: {
             ...DEFAULT_NOTIFICATION_CONFIG.desktop,
+            useCustomAppearance: true,
+            appNameFontSize: 22,
             appNameColor: "#ffcc66",
             backgroundColor: "#223344",
-            useDefaultAppNameColor: false,
-            useDefaultBackgroundColor: false,
           },
         },
       );
     });
 
-    fireEvent.click(screen.getByLabelText("标题颜色使用默认值"));
+    fireEvent.click(screen.getByLabelText("弹窗大小"));
+    fireEvent.click(screen.getByRole("option", { name: "大" }));
 
     await waitFor(() => {
       expect(window.electronAPI.setNotificationConfig).toHaveBeenLastCalledWith(
@@ -175,16 +204,17 @@ describe("NotificationSettings", () => {
           ...DEFAULT_NOTIFICATION_CONFIG,
           desktop: {
             ...DEFAULT_NOTIFICATION_CONFIG.desktop,
-            appNameColor: "",
+            useCustomAppearance: true,
+            appNameFontSize: 22,
+            appNameColor: "#ffcc66",
             backgroundColor: "#223344",
-            useDefaultAppNameColor: true,
-            useDefaultBackgroundColor: false,
+            sizePreset: "large",
           },
         },
       );
     });
 
-    fireEvent.click(screen.getByLabelText("通知背景色使用默认值"));
+    fireEvent.click(screen.getByLabelText("样式使用默认值"));
 
     await waitFor(() => {
       expect(window.electronAPI.setNotificationConfig).toHaveBeenLastCalledWith(
@@ -192,14 +222,17 @@ describe("NotificationSettings", () => {
           ...DEFAULT_NOTIFICATION_CONFIG,
           desktop: {
             ...DEFAULT_NOTIFICATION_CONFIG.desktop,
-            appNameColor: "",
-            backgroundColor:
-              DEFAULT_NOTIFICATION_CONFIG.desktop.backgroundColor,
-            useDefaultAppNameColor: true,
-            useDefaultBackgroundColor: true,
+            useCustomAppearance: false,
           },
         },
       );
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText("标题字号")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("标题颜色")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("通知背景色")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("弹窗大小")).not.toBeInTheDocument();
     });
   });
 
@@ -225,6 +258,10 @@ describe("NotificationSettings", () => {
       });
     });
 
+    fireEvent.click(screen.getByLabelText("样式使用自定义"));
+    await waitFor(() => {
+      expect(screen.getByLabelText("弹窗大小")).toBeInTheDocument();
+    });
     fireEvent.click(screen.getByLabelText("弹窗大小"));
     fireEvent.click(screen.getByRole("option", { name: "大" }));
 
@@ -235,6 +272,7 @@ describe("NotificationSettings", () => {
           desktop: {
             ...DEFAULT_NOTIFICATION_CONFIG.desktop,
             showActions: false,
+            useCustomAppearance: true,
             sizePreset: "large",
           },
         },

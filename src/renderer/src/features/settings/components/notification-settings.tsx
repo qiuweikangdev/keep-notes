@@ -87,21 +87,20 @@ export function NotificationSettings() {
     await updateDesktopConfig({ sizePreset });
   };
 
-  /** 切换标题颜色模式，默认模式恢复系统默认文字色，自定义模式启用取色器。 */
-  const handleChangeAppNameColorMode = async (useDefault: boolean) => {
+  /** 切换通知样式模式，默认模式统一回到预设值，自定义模式开放字号、颜色和尺寸配置。 */
+  const handleChangeAppearanceMode = async (useCustomAppearance: boolean) => {
     await updateDesktopConfig({
-      useDefaultAppNameColor: useDefault,
-      appNameColor: useDefault ? "" : config.desktop.appNameColor || "#ffffff",
-    });
-  };
-
-  /** 切换通知背景色模式，默认模式恢复预设背景色，自定义模式启用取色器。 */
-  const handleChangeBackgroundColorMode = async (useDefault: boolean) => {
-    await updateDesktopConfig({
-      useDefaultBackgroundColor: useDefault,
-      backgroundColor: useDefault
-        ? DEFAULT_NOTIFICATION_CONFIG.desktop.backgroundColor
-        : config.desktop.backgroundColor,
+      useCustomAppearance,
+      ...(useCustomAppearance
+        ? {}
+        : {
+            appNameFontSize:
+              DEFAULT_NOTIFICATION_CONFIG.desktop.appNameFontSize,
+            appNameColor: DEFAULT_NOTIFICATION_CONFIG.desktop.appNameColor,
+            backgroundColor:
+              DEFAULT_NOTIFICATION_CONFIG.desktop.backgroundColor,
+            sizePreset: DEFAULT_NOTIFICATION_CONFIG.desktop.sizePreset,
+          }),
     });
   };
 
@@ -186,6 +185,38 @@ export function NotificationSettings() {
       </div>
 
       <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+        <SettingRow
+          label="显示应用图标"
+          description="控制通知左侧应用图标是否显示"
+        >
+          <Switch
+            ariaLabel="显示应用图标"
+            checked={config.desktop.showAppIcon}
+            disabled={!config.desktop.enabled}
+            onCheckedChange={(checked) => {
+              void updateDesktopConfig({ showAppIcon: checked });
+            }}
+          />
+        </SettingRow>
+      </div>
+
+      <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+        <SettingRow
+          label="显示底部操作"
+          description="控制稍后提醒和查看详情按钮是否显示"
+        >
+          <Switch
+            ariaLabel="显示底部操作"
+            checked={config.desktop.showActions}
+            disabled={!config.desktop.enabled}
+            onCheckedChange={(checked) => {
+              void updateDesktopConfig({ showActions: checked });
+            }}
+          />
+        </SettingRow>
+      </div>
+
+      <div style={{ borderBottom: "1px solid var(--border-color)" }}>
         <SettingRow label="通知标题" description="应用通知弹窗顶部显示的名称">
           <input
             id="desktop-notification-app-name"
@@ -211,235 +242,174 @@ export function NotificationSettings() {
 
       <div style={{ borderBottom: "1px solid var(--border-color)" }}>
         <SettingRow
-          label="显示应用图标"
-          description="控制通知左侧应用图标是否显示"
+          label="样式配置"
+          description="统一切换默认样式或开放自定义字号、颜色和弹窗大小"
         >
-          <Switch
-            ariaLabel="显示应用图标"
-            checked={config.desktop.showAppIcon}
-            disabled={!config.desktop.enabled}
-            onCheckedChange={(checked) => {
-              void updateDesktopConfig({ showAppIcon: checked });
-            }}
-          />
-        </SettingRow>
-      </div>
-
-      <div style={{ borderBottom: "1px solid var(--border-color)" }}>
-        <SettingRow label="标题字号" description="应用标题名称的字体大小">
-          <input
-            aria-label="标题字号"
-            type="number"
-            min={12}
-            max={28}
-            value={appNameFontSize}
-            disabled={!config.desktop.enabled}
-            onChange={(e) => setAppNameFontSize(e.target.value)}
-            onBlur={() => {
-              void handleSaveAppNameFontSize();
-            }}
-            className="h-8 w-24 rounded-md px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-            style={{
-              backgroundColor: "var(--bg-tertiary)",
-              border: "1px solid var(--border-color)",
-              color: "var(--text-primary)",
-              outline: "none",
-            }}
-          />
-        </SettingRow>
-      </div>
-
-      <div style={{ borderBottom: "1px solid var(--border-color)" }}>
-        <SettingRow label="标题颜色" description="应用标题名称的文字颜色">
           <div className="flex items-center gap-3">
             <label
               className="flex items-center gap-1.5 text-xs"
               style={{ color: "var(--text-secondary)" }}
             >
               <input
-                aria-label="标题颜色使用默认值"
+                aria-label="样式使用默认值"
                 type="radio"
-                name="app-name-color-mode"
-                checked={config.desktop.useDefaultAppNameColor}
+                name="desktop-appearance-mode"
+                checked={!config.desktop.useCustomAppearance}
                 disabled={!config.desktop.enabled}
                 onChange={() => {
-                  void handleChangeAppNameColorMode(true);
+                  void handleChangeAppearanceMode(false);
                 }}
               />
-              默认值
+              默认样式
             </label>
             <label
               className="flex items-center gap-1.5 text-xs"
               style={{ color: "var(--text-secondary)" }}
             >
               <input
-                aria-label="标题颜色使用自定义"
+                aria-label="样式使用自定义"
                 type="radio"
-                name="app-name-color-mode"
-                checked={!config.desktop.useDefaultAppNameColor}
+                name="desktop-appearance-mode"
+                checked={config.desktop.useCustomAppearance}
                 disabled={!config.desktop.enabled}
                 onChange={() => {
-                  void handleChangeAppNameColorMode(false);
+                  void handleChangeAppearanceMode(true);
                 }}
               />
-              自定义
+              自定义样式
             </label>
-            <ColorPicker
-              value={config.desktop.appNameColor || "#ffffff"}
-              disabled={
-                !config.desktop.enabled || config.desktop.useDefaultAppNameColor
-              }
-              inputAriaLabel="标题颜色"
-              swatchAriaLabel="选择标题颜色"
-              onChange={(color) => {
-                void updateDesktopConfig({
-                  useDefaultAppNameColor: false,
-                  appNameColor: color,
-                });
-              }}
-            />
           </div>
         </SettingRow>
       </div>
 
-      <div style={{ borderBottom: "1px solid var(--border-color)" }}>
-        <SettingRow
-          label="显示底部操作"
-          description="控制稍后提醒和查看详情按钮是否显示"
-        >
-          <Switch
-            ariaLabel="显示底部操作"
-            checked={config.desktop.showActions}
-            disabled={!config.desktop.enabled}
-            onCheckedChange={(checked) => {
-              void updateDesktopConfig({ showActions: checked });
-            }}
-          />
-        </SettingRow>
-      </div>
-
-      <div style={{ borderBottom: "1px solid var(--border-color)" }}>
-        <SettingRow label="通知背景色" description="应用通知弹窗的背景颜色">
-          <div className="flex items-center gap-3">
-            <label
-              className="flex items-center gap-1.5 text-xs"
-              style={{ color: "var(--text-secondary)" }}
-            >
+      {config.desktop.useCustomAppearance ? (
+        <>
+          <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+            <SettingRow label="标题字号" description="应用标题名称的字体大小">
               <input
-                aria-label="通知背景色使用默认值"
-                type="radio"
-                name="background-color-mode"
-                checked={config.desktop.useDefaultBackgroundColor}
+                aria-label="标题字号"
+                type="number"
+                min={12}
+                max={28}
+                value={appNameFontSize}
                 disabled={!config.desktop.enabled}
-                onChange={() => {
-                  void handleChangeBackgroundColorMode(true);
+                onChange={(e) => setAppNameFontSize(e.target.value)}
+                onBlur={() => {
+                  void handleSaveAppNameFontSize();
                 }}
-              />
-              默认值
-            </label>
-            <label
-              className="flex items-center gap-1.5 text-xs"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              <input
-                aria-label="通知背景色使用自定义"
-                type="radio"
-                name="background-color-mode"
-                checked={!config.desktop.useDefaultBackgroundColor}
-                disabled={!config.desktop.enabled}
-                onChange={() => {
-                  void handleChangeBackgroundColorMode(false);
-                }}
-              />
-              自定义
-            </label>
-            <ColorPicker
-              value={config.desktop.backgroundColor}
-              disabled={
-                !config.desktop.enabled ||
-                config.desktop.useDefaultBackgroundColor
-              }
-              inputAriaLabel="通知背景色"
-              swatchAriaLabel="选择通知背景色"
-              onChange={(color) => {
-                void updateDesktopConfig({
-                  useDefaultBackgroundColor: false,
-                  backgroundColor: color,
-                });
-              }}
-            />
-          </div>
-        </SettingRow>
-      </div>
-
-      <div style={{ borderBottom: "1px solid var(--border-color)" }}>
-        <SettingRow label="弹窗大小" description="应用通知弹窗的预设尺寸">
-          <div
-            className="relative"
-            onBlur={() => {
-              window.setTimeout(() => setIsSizePresetOpen(false), 120);
-            }}
-          >
-            <button
-              type="button"
-              aria-label="弹窗大小"
-              aria-haspopup="listbox"
-              aria-expanded={isSizePresetOpen}
-              disabled={!config.desktop.enabled}
-              onClick={() => setIsSizePresetOpen((open) => !open)}
-              className="flex h-8 w-32 items-center justify-between rounded-md px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-              style={{
-                backgroundColor: "var(--bg-tertiary)",
-                border: "1px solid var(--border-color)",
-                color: "var(--text-primary)",
-                outline: "none",
-              }}
-            >
-              <span>{sizePresetLabels[config.desktop.sizePreset]}</span>
-              <ChevronDown className="h-3.5 w-3.5" />
-            </button>
-            {isSizePresetOpen ? (
-              <div
-                role="listbox"
-                className="absolute bottom-9 right-0 z-50 w-32 overflow-hidden rounded-md py-1 shadow-lg"
+                className="h-8 w-24 rounded-md px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
                 style={{
-                  backgroundColor: "var(--bg-secondary)",
+                  backgroundColor: "var(--bg-tertiary)",
                   border: "1px solid var(--border-color)",
+                  color: "var(--text-primary)",
+                  outline: "none",
+                }}
+              />
+            </SettingRow>
+          </div>
+
+          <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+            <SettingRow label="标题颜色" description="应用标题名称的文字颜色">
+              <ColorPicker
+                value={config.desktop.appNameColor || "#ffffff"}
+                disabled={!config.desktop.enabled}
+                inputAriaLabel="标题颜色"
+                swatchAriaLabel="选择标题颜色"
+                onChange={(color) => {
+                  void updateDesktopConfig({ appNameColor: color });
+                }}
+              />
+            </SettingRow>
+          </div>
+        </>
+      ) : null}
+
+      {config.desktop.useCustomAppearance ? (
+        <>
+          <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+            <SettingRow label="通知背景色" description="应用通知弹窗的背景颜色">
+              <ColorPicker
+                value={config.desktop.backgroundColor}
+                disabled={!config.desktop.enabled}
+                inputAriaLabel="通知背景色"
+                swatchAriaLabel="选择通知背景色"
+                onChange={(color) => {
+                  void updateDesktopConfig({ backgroundColor: color });
+                }}
+              />
+            </SettingRow>
+          </div>
+
+          <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+            <SettingRow label="弹窗大小" description="应用通知弹窗的预设尺寸">
+              <div
+                className="relative"
+                onBlur={() => {
+                  window.setTimeout(() => setIsSizePresetOpen(false), 120);
                 }}
               >
-                {(
-                  [
-                    ["small", "小"],
-                    ["medium", "默认"],
-                    ["large", "大"],
-                  ] as const
-                ).map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    role="option"
-                    aria-selected={config.desktop.sizePreset === value}
-                    className="block h-8 w-full px-3 text-left text-sm"
+                <button
+                  type="button"
+                  aria-label="弹窗大小"
+                  aria-haspopup="listbox"
+                  aria-expanded={isSizePresetOpen}
+                  disabled={!config.desktop.enabled}
+                  onClick={() => setIsSizePresetOpen((open) => !open)}
+                  className="flex h-8 w-32 items-center justify-between rounded-md px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{
+                    backgroundColor: "var(--bg-tertiary)",
+                    border: "1px solid var(--border-color)",
+                    color: "var(--text-primary)",
+                    outline: "none",
+                  }}
+                >
+                  <span>{sizePresetLabels[config.desktop.sizePreset]}</span>
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </button>
+                {isSizePresetOpen ? (
+                  <div
+                    role="listbox"
+                    className="absolute bottom-9 right-0 z-50 w-32 overflow-hidden rounded-md py-1 shadow-lg"
                     style={{
-                      backgroundColor:
-                        config.desktop.sizePreset === value
-                          ? "var(--active-bg)"
-                          : "transparent",
-                      color: "var(--text-primary)",
-                    }}
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => {
-                      void handleChangeSizePreset(value);
+                      backgroundColor: "var(--bg-secondary)",
+                      border: "1px solid var(--border-color)",
                     }}
                   >
-                    {label}
-                  </button>
-                ))}
+                    {(
+                      [
+                        ["small", "小"],
+                        ["medium", "默认"],
+                        ["large", "大"],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        role="option"
+                        aria-selected={config.desktop.sizePreset === value}
+                        className="block h-8 w-full px-3 text-left text-sm"
+                        style={{
+                          backgroundColor:
+                            config.desktop.sizePreset === value
+                              ? "var(--active-bg)"
+                              : "transparent",
+                          color: "var(--text-primary)",
+                        }}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => {
+                          void handleChangeSizePreset(value);
+                        }}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
               </div>
-            ) : null}
+            </SettingRow>
           </div>
-        </SettingRow>
-      </div>
+        </>
+      ) : null}
     </div>
   );
 }
