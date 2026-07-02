@@ -6,6 +6,7 @@ import {
   readFileContent,
   writeFileContent,
   loadImageAsDataUrl,
+  saveImageAttachment,
   saveAsDialog,
   openDialog,
   getSelectedPath,
@@ -15,6 +16,7 @@ import {
   listAvailableExternalOpenApps,
   openPathWithExternalApp,
 } from "../file";
+import type { SaveImageAttachmentInput } from "../../shared/types";
 import { openPathInNewWindow } from "../window";
 import {
   FileContentWatchRegistry,
@@ -41,6 +43,13 @@ export function registerFileIpc(): void {
     IPC_CHANNELS.FILE.LOAD_IMAGE_AS_DATA_URL,
     async (_, source: string) => {
       return loadImageAsDataUrl(source);
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.FILE.SAVE_IMAGE_ATTACHMENT,
+    async (_, input: SaveImageAttachmentInput) => {
+      return saveImageAttachment(input);
     },
   );
 

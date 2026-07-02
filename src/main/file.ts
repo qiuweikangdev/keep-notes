@@ -2,7 +2,12 @@ import fs from "node:fs";
 import path, { basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { clipboard, dialog, net, shell } from "electron";
-import { CodeResult, type ExternalOpenAppId } from "../shared/types";
+import {
+  CodeResult,
+  type ExternalOpenAppId,
+  type SaveImageAttachmentInput,
+  type SaveImageAttachmentResult,
+} from "../shared/types";
 import { listExternalOpenApps, openWithExternalApp } from "./external-open";
 import { shouldIgnoreFsWatchPath } from "./file-watch";
 
@@ -18,6 +23,7 @@ const IMAGE_MIME_BY_EXTENSION = new Map([
   [".webp", "image/webp"],
 ]);
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+const ATTACHMENTS_DIR_NAME = "attachments";
 
 interface ImageFetchResponse {
   ok: boolean;
@@ -31,6 +37,12 @@ interface ImageFetchResponse {
 interface LoadImageDeps {
   fetchImage?: (url: string) => Promise<ImageFetchResponse>;
   readFile?: typeof fs.promises.readFile;
+}
+
+interface SaveImageAttachmentDeps {
+  now?: () => number;
+  mkdir?: typeof fs.promises.mkdir;
+  writeFile?: typeof fs.promises.writeFile;
 }
 
 export async function readDirectory(directoryPath: string) {
@@ -108,6 +120,45 @@ function getImageMimeFromPath(sourcePath: string) {
   return IMAGE_MIME_BY_EXTENSION.get(path.extname(sourcePath).toLowerCase());
 }
 
+function getImageExtensionFromMime(mimeType: string) {
+  for (const [extension, mime] of IMAGE_MIME_BY_EXTENSION) {
+    if (mime === mimeType.toLowerCase()) return extension;
+  }
+
+  return ".png";
+}
+
+function getSafeImageFileName(fileName: string, mimeType: string) {
+  const baseName = path.basename(fileName || "image");
+  const extension = path.extname(baseName).toLowerCase();
+  const imageExtension = IMAGE_MIME_BY_EXTENSION.has(extension)
+    ? extension
+    : getImageExtensionFromMime(mimeType);
+  const stem = path
+    .basename(baseName, extension)
+    .trim()
+    .replace(/[^\w.-]+/gu, "-")
+    .replace(/^-+|-+$/gu, "");
+
+  return `${stem || "image"}${imageExtension}`;
+}
+
+function isPathInsideDirectory(rootPath: string, targetPath: string) {
+  const relativePath = path.relative(rootPath, targetPath);
+
+  return (
+    relativePath === "" ||
+    (!relativePath.startsWith("..") && !path.isAbsolute(relativePath))
+  );
+}
+
+function toMarkdownRelativePath(fromFilePath: string, targetPath: string) {
+  return path
+    .relative(path.dirname(fromFilePath), targetPath)
+    .split(path.sep)
+    .join("/");
+}
+
 function getImageMimeFromResponse(source: string, contentType: string | null) {
   const mime = contentType?.split(";")[0]?.trim().toLowerCase();
   if (mime?.startsWith("image/")) return mime;
@@ -179,6 +230,63 @@ export async function loadImageAsDataUrl(
   } catch (error) {
     console.error("Error while loading image:", error);
     return null;
+  }
+}
+
+export async function saveImageAttachment(
+  input: SaveImageAttachmentInput,
+  deps: SaveImageAttachmentDeps = {},
+): Promise<{ code: CodeResult; data?: SaveImageAttachmentResult }> {
+  try {
+    const workspaceRootPath = path.resolve(input.workspaceRootPath);
+    const markdownFilePath = path.resolve(input.markdownFilePath);
+    const mimeType = input.mimeType.toLowerCase();
+    const originalExtension = path
+      .extname(path.basename(input.fileName || ""))
+      .toLowerCase();
+    const isImageInput =
+      mimeType.startsWith("image/") ||
+      IMAGE_MIME_BY_EXTENSION.has(originalExtension);
+    const safeFileName = getSafeImageFileName(input.fileName, mimeType);
+
+    if (!isPathInsideDirectory(workspaceRootPath, markdownFilePath)) {
+      return { code: CodeResult.Fail };
+    }
+    if (!isImageInput) {
+      return { code: CodeResult.Fail };
+    }
+
+    const buffer = Buffer.from(input.data);
+    if (buffer.byteLength === 0 || buffer.byteLength > MAX_IMAGE_BYTES) {
+      return { code: CodeResult.Fail };
+    }
+
+    const now = deps.now ?? Date.now;
+    const mkdir = deps.mkdir ?? fs.promises.mkdir;
+    const writeFile = deps.writeFile ?? fs.promises.writeFile;
+    const attachmentDirectory = path.join(
+      workspaceRootPath,
+      ATTACHMENTS_DIR_NAME,
+    );
+    const attachmentFilePath = path.join(
+      attachmentDirectory,
+      `${now()}-${safeFileName}`,
+    );
+
+    // 粘贴图片保存到工作区根目录 attachments，Markdown 中仅保留相对路径，避免写入大段 base64。
+    await mkdir(attachmentDirectory, { recursive: true });
+    await writeFile(attachmentFilePath, buffer);
+
+    return {
+      code: CodeResult.Success,
+      data: {
+        filePath: attachmentFilePath,
+        url: toMarkdownRelativePath(markdownFilePath, attachmentFilePath),
+      },
+    };
+  } catch (error) {
+    console.error("Error while saving image attachment:", error);
+    return { code: CodeResult.Fail };
   }
 }
 

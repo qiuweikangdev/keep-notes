@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { loadImageAsDataUrl } from "./file";
+import { loadImageAsDataUrl, saveImageAttachment } from "./file";
 
 vi.mock("electron", () => ({
   clipboard: {
@@ -78,5 +78,78 @@ describe("loadImageAsDataUrl", () => {
     await fs.promises.writeFile(textPath, "secret");
 
     await expect(loadImageAsDataUrl(textPath)).resolves.toBeNull();
+  });
+});
+
+describe("saveImageAttachment", () => {
+  const tempRoots: string[] = [];
+
+  afterEach(async () => {
+    await Promise.all(
+      tempRoots.map((root) =>
+        fs.promises.rm(root, { recursive: true, force: true }),
+      ),
+    );
+    tempRoots.length = 0;
+  });
+
+  it("saves pasted image bytes into the workspace attachments directory", async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "keep-notes-attachment-"),
+    );
+    tempRoots.push(root);
+    const markdownFilePath = path.join(root, "daily.md");
+    await fs.promises.writeFile(markdownFilePath, "# Daily");
+
+    const result = await saveImageAttachment(
+      {
+        workspaceRootPath: root,
+        markdownFilePath,
+        fileName: "image.png",
+        mimeType: "image/png",
+        data: Uint8Array.from([1, 2, 3]).buffer,
+      },
+      {
+        now: () => 1782999636770,
+      },
+    );
+
+    expect(result.code).toBe(1);
+    expect(result.data).toEqual({
+      filePath: path.join(root, "attachments", "1782999636770-image.png"),
+      url: "attachments/1782999636770-image.png",
+    });
+    await expect(
+      fs.promises.readFile(
+        path.join(root, "attachments", "1782999636770-image.png"),
+      ),
+    ).resolves.toEqual(Buffer.from([1, 2, 3]));
+  });
+
+  it("rejects non-image attachment payloads", async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "keep-notes-attachment-"),
+    );
+    tempRoots.push(root);
+    const markdownFilePath = path.join(root, "daily.md");
+    await fs.promises.writeFile(markdownFilePath, "# Daily");
+
+    const result = await saveImageAttachment(
+      {
+        workspaceRootPath: root,
+        markdownFilePath,
+        fileName: "note.txt",
+        mimeType: "text/plain",
+        data: Uint8Array.from([1, 2, 3]).buffer,
+      },
+      {
+        now: () => 1782999636770,
+      },
+    );
+
+    expect(result.code).toBe(0);
+    await expect(
+      fs.promises.stat(path.join(root, "attachments")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
   });
 });

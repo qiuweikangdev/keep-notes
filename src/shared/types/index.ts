@@ -122,6 +122,19 @@ export interface TreeInfo {
   treeRoot: TreeRoot;
 }
 
+export interface SaveImageAttachmentInput {
+  workspaceRootPath: string;
+  markdownFilePath: string;
+  fileName: string;
+  mimeType: string;
+  data: ArrayBuffer;
+}
+
+export interface SaveImageAttachmentResult {
+  filePath: string;
+  url: string;
+}
+
 export interface WindowOpenTarget {
   rootPath: string;
   filePath?: string;

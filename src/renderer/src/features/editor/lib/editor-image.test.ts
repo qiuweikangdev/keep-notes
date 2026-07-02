@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { readImageFileAsDataUrl } from "./editor-image";
+import {
+  readImageFileAsArrayBuffer,
+  readImageFileAsDataUrl,
+} from "./editor-image";
 
 describe("readImageFileAsDataUrl", () => {
   it("converts pasted image files to data URLs", async () => {
@@ -19,5 +22,15 @@ describe("readImageFileAsDataUrl", () => {
     });
 
     await expect(readImageFileAsDataUrl(file)).resolves.toBeNull();
+  });
+
+  it("converts pasted image files to array buffers", async () => {
+    const file = new File([Uint8Array.from([1, 2, 3])], "clip.png", {
+      type: "image/png",
+    });
+
+    await expect(readImageFileAsArrayBuffer(file)).resolves.toEqual(
+      Uint8Array.from([1, 2, 3]).buffer,
+    );
   });
 });

@@ -18,6 +18,8 @@ import type {
   ExternalOpenAppId,
   Reminder,
   ReminderInput,
+  SaveImageAttachmentInput,
+  SaveImageAttachmentResult,
   NotificationChannelType,
   NotificationConfig,
   ExportConfig,
@@ -49,6 +51,9 @@ export interface ElectronAPI {
   readFile: (filePath: string) => Promise<string>;
   writeFile: (filePath: string, content: string) => Promise<void>;
   loadImageAsDataUrl: (source: string) => Promise<string | null>;
+  saveImageAttachment: (
+    input: SaveImageAttachmentInput,
+  ) => Promise<ApiResponse<SaveImageAttachmentResult>>;
   saveAs: (content: string) => Promise<ApiResponse<{ filePath: string }>>;
   openDialog: () => Promise<
     ApiResponse<{

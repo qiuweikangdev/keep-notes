@@ -26,6 +26,21 @@ describe("fileApi", () => {
     );
   });
 
+  it("invokes the save-image-attachment channel", async () => {
+    const { fileApi } = await import("./file.api");
+    const payload = {
+      workspaceRootPath: "/workspace/notes",
+      markdownFilePath: "/workspace/notes/daily.md",
+      fileName: "image.png",
+      mimeType: "image/png",
+      data: Uint8Array.from([1, 2, 3]).buffer,
+    };
+
+    await fileApi.saveImageAttachment(payload);
+
+    expect(invoke).toHaveBeenCalledWith("file:save-image-attachment", payload);
+  });
+
   it("invokes the open-in-new-window channel", async () => {
     const { fileApi } = await import("./file.api");
 

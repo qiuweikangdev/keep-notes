@@ -5,6 +5,8 @@ import type {
   ApiResponse,
   ExternalOpenApp,
   ExternalOpenAppId,
+  SaveImageAttachmentInput,
+  SaveImageAttachmentResult,
   TreeInfo,
   TreeNode,
 } from "../../shared/types";
@@ -20,6 +22,12 @@ export const fileApi = {
 
   loadImageAsDataUrl: (source: string): Promise<string | null> => {
     return ipcRenderer.invoke(IPC_CHANNELS.FILE.LOAD_IMAGE_AS_DATA_URL, source);
+  },
+
+  saveImageAttachment: (
+    input: SaveImageAttachmentInput,
+  ): Promise<ApiResponse<SaveImageAttachmentResult>> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.FILE.SAVE_IMAGE_ATTACHMENT, input);
   },
 
   saveAs: (

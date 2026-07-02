@@ -6,6 +6,7 @@ import {
   handleRichEditorHeadingShortcut,
   handleRichEditorSelectAllShortcut,
   moveCursorAfterUploadedImage,
+  uploadEditorImageFileAsAttachment,
   selectEntireRichEditorContent,
   shouldLetCodeMirrorHandleKeyboardEvent,
   shouldMarkRichEditorPointerIntent,
@@ -169,6 +170,39 @@ describe("BlockNoteEditor pasted image selection", () => {
 
     expect(editor.insertBlocks).not.toHaveBeenCalled();
     expect(editor.setTextCursorPosition).not.toHaveBeenCalled();
+  });
+});
+
+describe("BlockNoteEditor pasted image upload", () => {
+  it("uses the latest workspace path when saving pasted images", async () => {
+    let workspaceRootPath: string | null = null;
+    const saveImageAttachment = vi.fn(async () => ({
+      code: 1,
+      data: {
+        filePath: "/workspace/notes/attachments/1782999636770-image.png",
+        url: "attachments/1782999636770-image.png",
+      },
+    }));
+    const file = new File([Uint8Array.from([1, 2, 3])], "image.png", {
+      type: "image/png",
+    });
+
+    workspaceRootPath = "/workspace/notes";
+    const url = await uploadEditorImageFileAsAttachment(file, {
+      getWorkspaceRootPath: () => workspaceRootPath,
+      getMarkdownFilePath: () => "/workspace/notes/daily.md",
+      saveImageAttachment,
+      moveCursorAfterUpload: vi.fn(),
+    });
+
+    expect(url).toBe("attachments/1782999636770-image.png");
+    expect(saveImageAttachment).toHaveBeenCalledWith({
+      workspaceRootPath: "/workspace/notes",
+      markdownFilePath: "/workspace/notes/daily.md",
+      fileName: "image.png",
+      mimeType: "image/png",
+      data: Uint8Array.from([1, 2, 3]).buffer,
+    });
   });
 });
 

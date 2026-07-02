@@ -13,6 +13,7 @@ import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { useTheme } from "@/hooks/use-theme";
 import { useDiffStore } from "@/store/diff.store";
 import { useEditorStore } from "@/store/editor.store";
+import { useTreeStore } from "@/store/tree.store";
 import {
   editorCache,
   editorSaveCoordinator,
@@ -33,7 +34,10 @@ import {
   restoreEditorScrollTop,
 } from "../lib/editor-viewport";
 import { createParseFallback } from "../lib/editor-parse-fallback";
-import { readImageFileAsDataUrl } from "../lib/editor-image";
+import {
+  readImageFileAsArrayBuffer,
+  readImageFileAsDataUrl,
+} from "../lib/editor-image";
 import { editorSchema } from "../lib/blocknote-schema";
 import { selectCodeBlockContent } from "./editor-code-block";
 
@@ -85,6 +89,13 @@ interface UploadedImageCursorEditor {
     placement: "after",
   ) => Array<{ id: string }>;
   setTextCursorPosition: (blockId: string, placement: "start") => void;
+}
+
+interface UploadedImageAttachmentContext {
+  getWorkspaceRootPath: () => string | null;
+  getMarkdownFilePath: () => string | null;
+  saveImageAttachment: typeof window.electronAPI.saveImageAttachment;
+  moveCursorAfterUpload: () => void;
 }
 
 interface BlockNoteEditorInnerProps {
@@ -276,6 +287,44 @@ export function moveCursorAfterUploadedImage(
   return true;
 }
 
+export async function uploadEditorImageFileAsAttachment(
+  file: File,
+  context: UploadedImageAttachmentContext,
+): Promise<string> {
+  const workspaceRootPath = context.getWorkspaceRootPath();
+  const markdownFilePath = context.getMarkdownFilePath();
+
+  if (workspaceRootPath && markdownFilePath) {
+    const imageBuffer = await readImageFileAsArrayBuffer(file);
+    if (imageBuffer) {
+      try {
+        const result = await context.saveImageAttachment({
+          workspaceRootPath,
+          markdownFilePath,
+          fileName: file.name || "image.png",
+          mimeType: file.type || "image/png",
+          data: imageBuffer,
+        });
+
+        if (result.data?.url) {
+          context.moveCursorAfterUpload();
+          return result.data.url;
+        }
+      } catch {
+        // 附件写盘失败时回退到 data URL，保证粘贴动作本身不会丢图。
+      }
+    }
+  }
+
+  const dataUrl = await readImageFileAsDataUrl(file);
+  if (!dataUrl) {
+    throw new Error("Only image files can be uploaded from the editor");
+  }
+
+  context.moveCursorAfterUpload();
+  return dataUrl;
+}
+
 function BlockNoteEditorInner({
   groupId,
   tabId,
@@ -288,6 +337,9 @@ function BlockNoteEditorInner({
   onParseStateChange,
 }: BlockNoteEditorInnerProps) {
   const appearance = useEditorStore((state) => state.appearance);
+  const workspaceRootPath = useTreeStore(
+    (state) => state.treeRoot?.key ?? null,
+  );
   const { isDark } = useTheme();
   const suppressChangeRef = useRef(false);
   const changeGateRef = useRef(new EditorChangeGate());
@@ -302,6 +354,7 @@ function BlockNoteEditorInner({
   );
   const applyTokenRef = useRef(0);
   const editorRef = useRef<CoreBlockNoteEditor | null>(null);
+  const workspaceRootPathRef = useRef(workspaceRootPath);
   const loadEditorImageUrl = useCallback(async (url: string) => {
     try {
       return (await window.electronAPI.loadImageAsDataUrl(url)) ?? url;
@@ -309,18 +362,21 @@ function BlockNoteEditorInner({
       return url;
     }
   }, []);
-  const uploadEditorImageFile = useCallback(async (file: File, blockId?: string) => {
-    const dataUrl = await readImageFileAsDataUrl(file);
-    if (!dataUrl) {
-      throw new Error("Only image files can be uploaded from the editor");
-    }
-
-    window.setTimeout(() => {
-      moveCursorAfterUploadedImage(editorRef.current, blockId);
-    }, 0);
-
-    return dataUrl;
-  }, []);
+  const uploadEditorImageFile = useCallback(
+    async (file: File, blockId?: string) => {
+      return uploadEditorImageFileAsAttachment(file, {
+        getWorkspaceRootPath: () => workspaceRootPathRef.current,
+        getMarkdownFilePath: () => pathRef.current,
+        saveImageAttachment: window.electronAPI.saveImageAttachment,
+        moveCursorAfterUpload: () => {
+          window.setTimeout(() => {
+            moveCursorAfterUploadedImage(editorRef.current, blockId);
+          }, 0);
+        },
+      });
+    },
+    [],
+  );
   const editor = useCreateBlockNote({
     initialContent: undefined,
     resolveFileUrl: (url) => {
@@ -470,6 +526,10 @@ function BlockNoteEditorInner({
   useEffect(() => {
     pathRef.current = path;
   }, [path]);
+
+  useEffect(() => {
+    workspaceRootPathRef.current = workspaceRootPath;
+  }, [workspaceRootPath]);
 
   const cacheAppliedDocument = useCallback(() => {
     const appliedPath = appliedPathRef.current;

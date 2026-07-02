@@ -39,6 +39,12 @@ function readFileAsArrayBuffer(file: File) {
   });
 }
 
+export async function readImageFileAsArrayBuffer(file: File) {
+  if (!isImageFile(file)) return null;
+
+  return readFileAsArrayBuffer(file);
+}
+
 export async function readImageFileAsDataUrl(file: File) {
   if (!isImageFile(file)) return null;
 
