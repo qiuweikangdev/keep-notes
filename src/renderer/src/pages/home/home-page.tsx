@@ -54,8 +54,15 @@ function HomePageContent() {
     handleDidMount,
   } = usePanel();
   const [isMaximized] = useState(false);
-  const { isOpen, isLoading, oldContent, newContent, filePath, closeDiff } =
-    useDiffStore();
+  const {
+    isOpen,
+    isLoading,
+    oldContent,
+    newContent,
+    filePath,
+    source: diffSource,
+    closeDiff,
+  } = useDiffStore();
   const diffPanel = useDiffPanelStore();
   const { contentRef, resizeHandleProps, resetSize } = useResizableDialog();
 
@@ -210,6 +217,7 @@ function HomePageContent() {
         newContent={newContent}
         filePath={filePath}
         repositoryRoot={repositoryRoot}
+        showMutableActions={diffSource !== "history"}
         onDiscard={() => setConfirmDiscardOpen(true)}
         onMoveToPanel={handleMoveToPanel}
       />
@@ -240,6 +248,7 @@ function DiffDialog({
   newContent,
   filePath,
   repositoryRoot,
+  showMutableActions,
   onDiscard,
   onMoveToPanel,
 }: {
@@ -253,6 +262,7 @@ function DiffDialog({
   newContent: string;
   filePath: string | null;
   repositoryRoot: string | null;
+  showMutableActions: boolean;
   onDiscard: () => void;
   onMoveToPanel: () => void;
 }) {
@@ -404,38 +414,40 @@ function DiffDialog({
           <Dialog.Title className="min-w-0 flex-1 truncate text-left text-sm font-semibold">
             {fileName || "文件"}差异
           </Dialog.Title>
-          <div className="flex flex-shrink-0 items-center gap-1">
-            <button
-              type="button"
-              aria-label="放弃当前文件更改"
-              title="放弃当前文件更改"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDiscard();
-              }}
-              onPointerDown={stopPropagation}
-              disabled={!Boolean(filePath && repositoryRoot)}
-              className="rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 disabled:opacity-40"
-              style={{ color: "var(--danger-color, #dc2626)" }}
-            >
-              <Undo2 className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              aria-label="将差异移到右侧面板"
-              title="将差异移到右侧面板"
-              onClick={(e) => {
-                e.stopPropagation();
-                onMoveToPanel();
-              }}
-              onPointerDown={stopPropagation}
-              disabled={!Boolean(filePath)}
-              className="rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 disabled:opacity-40"
-              style={{ color: "var(--text-muted)" }}
-            >
-              <PanelRightOpen className="h-4 w-4" />
-            </button>
-          </div>
+          {showMutableActions && (
+            <div className="flex flex-shrink-0 items-center gap-1">
+              <button
+                type="button"
+                aria-label="放弃当前文件更改"
+                title="放弃当前文件更改"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDiscard();
+                }}
+                onPointerDown={stopPropagation}
+                disabled={!Boolean(filePath && repositoryRoot)}
+                className="rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 disabled:opacity-40"
+                style={{ color: "var(--danger-color, #dc2626)" }}
+              >
+                <Undo2 className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                aria-label="将差异移到右侧面板"
+                title="将差异移到右侧面板"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMoveToPanel();
+                }}
+                onPointerDown={stopPropagation}
+                disabled={!Boolean(filePath)}
+                className="rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 disabled:opacity-40"
+                style={{ color: "var(--text-muted)" }}
+              >
+                <PanelRightOpen className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </div>
 
         <button

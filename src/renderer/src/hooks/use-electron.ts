@@ -1,6 +1,11 @@
 import { useCallback } from "react";
 import { CodeResult } from "@/types";
-import type { TreeNode, GitConfig, GitCommitOptions } from "@/types";
+import type {
+  TreeNode,
+  GitConfig,
+  GitCommitOptions,
+  GitCommitFileStatus,
+} from "@/types";
 import type { ReminderInput } from "@shared/types";
 import { useTreeStore } from "@/store/tree.store";
 import { useEditorStore } from "@/store/editor.store";
@@ -397,6 +402,39 @@ export function useElectron() {
     return window.gitAPI.openFile(dirPath, filePath);
   }, []);
 
+  // 获取提交历史
+  const getCommitHistory = useCallback(
+    async (dirPath: string, skip?: number, limit?: number) => {
+      return window.gitAPI.getCommitHistory(dirPath, skip, limit);
+    },
+    [],
+  );
+
+  // 获取提交详情
+  const getCommitDetail = useCallback(async (dirPath: string, hash: string) => {
+    return window.gitAPI.getCommitDetail(dirPath, hash);
+  }, []);
+
+  // 获取提交文件内容
+  const getCommitFileContent = useCallback(
+    async (
+      dirPath: string,
+      hash: string,
+      filePath: string,
+      status: GitCommitFileStatus,
+      oldPath?: string,
+    ) => {
+      return window.gitAPI.getCommitFileContent(
+        dirPath,
+        hash,
+        filePath,
+        status,
+        oldPath,
+      );
+    },
+    [],
+  );
+
   return {
     openFolder,
     loadTree,
@@ -434,5 +472,8 @@ export function useElectron() {
     getFileHeadContent,
     discardChanges,
     openGitFile,
+    getCommitHistory,
+    getCommitDetail,
+    getCommitFileContent,
   };
 }

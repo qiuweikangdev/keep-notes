@@ -6,6 +6,10 @@ import type {
   GitStatus,
   GitBranch,
   GitCommitOptions,
+  GitCommitDetail,
+  GitCommitFileContent,
+  GitCommitFileStatus,
+  GitCommitLogItem,
   GitDetectResult,
   WindowOpenTarget,
   AppInfo,
@@ -44,6 +48,7 @@ export interface ElectronAPI {
   onMenuAction: (callback: (action: string) => void) => () => void;
   readFile: (filePath: string) => Promise<string>;
   writeFile: (filePath: string, content: string) => Promise<void>;
+  loadImageAsDataUrl: (source: string) => Promise<string | null>;
   saveAs: (content: string) => Promise<ApiResponse<{ filePath: string }>>;
   openDialog: () => Promise<
     ApiResponse<{
@@ -155,6 +160,22 @@ export interface GitAPI {
   ) => Promise<ApiResponse<string>>;
   discardChanges: (dirPath: string, filePath: string) => Promise<ApiResponse>;
   openFile: (dirPath: string, filePath: string) => Promise<ApiResponse<string>>;
+  getCommitHistory: (
+    dirPath: string,
+    skip?: number,
+    limit?: number,
+  ) => Promise<ApiResponse<GitCommitLogItem[]>>;
+  getCommitDetail: (
+    dirPath: string,
+    hash: string,
+  ) => Promise<ApiResponse<GitCommitDetail>>;
+  getCommitFileContent: (
+    dirPath: string,
+    hash: string,
+    filePath: string,
+    status: GitCommitFileStatus,
+    oldPath?: string,
+  ) => Promise<ApiResponse<GitCommitFileContent>>;
 }
 
 declare global {

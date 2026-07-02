@@ -1,9 +1,37 @@
 import fs from "node:fs";
 import path, { basename } from "node:path";
-import { clipboard, dialog, shell } from "electron";
+import { fileURLToPath } from "node:url";
+import { clipboard, dialog, net, shell } from "electron";
 import { CodeResult, type ExternalOpenAppId } from "../shared/types";
 import { listExternalOpenApps, openWithExternalApp } from "./external-open";
 import { shouldIgnoreFsWatchPath } from "./file-watch";
+
+const IMAGE_MIME_BY_EXTENSION = new Map([
+  [".avif", "image/avif"],
+  [".bmp", "image/bmp"],
+  [".gif", "image/gif"],
+  [".ico", "image/x-icon"],
+  [".jpeg", "image/jpeg"],
+  [".jpg", "image/jpeg"],
+  [".png", "image/png"],
+  [".svg", "image/svg+xml"],
+  [".webp", "image/webp"],
+]);
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+
+interface ImageFetchResponse {
+  ok: boolean;
+  status: number;
+  headers: {
+    get: (name: string) => string | null;
+  };
+  arrayBuffer: () => Promise<ArrayBuffer>;
+}
+
+interface LoadImageDeps {
+  fetchImage?: (url: string) => Promise<ImageFetchResponse>;
+  readFile?: typeof fs.promises.readFile;
+}
 
 export async function readDirectory(directoryPath: string) {
   try {
@@ -73,6 +101,84 @@ export async function writeFileContent(filePath: string, content: string) {
     console.error("Error while writing file:", error);
     // 保存状态由渲染进程统一管理，因此写盘异常必须继续向上抛出。
     throw error;
+  }
+}
+
+function getImageMimeFromPath(sourcePath: string) {
+  return IMAGE_MIME_BY_EXTENSION.get(path.extname(sourcePath).toLowerCase());
+}
+
+function getImageMimeFromResponse(source: string, contentType: string | null) {
+  const mime = contentType?.split(";")[0]?.trim().toLowerCase();
+  if (mime?.startsWith("image/")) return mime;
+
+  return getImageMimeFromPath(new URL(source).pathname);
+}
+
+function bufferToDataUrl(buffer: Buffer, mime: string) {
+  if (buffer.byteLength > MAX_IMAGE_BYTES) return null;
+
+  return `data:${mime};base64,${buffer.toString("base64")}`;
+}
+
+async function loadLocalImageAsDataUrl(
+  source: string,
+  readFile: typeof fs.promises.readFile,
+) {
+  const sourcePath = source.startsWith("file://")
+    ? fileURLToPath(source)
+    : source;
+  const mime = getImageMimeFromPath(sourcePath);
+  if (!mime) return null;
+
+  // 本地图片只按图片扩展名读取并转为 data URL，避免渲染进程直接访问 file://。
+  const buffer = await readFile(sourcePath);
+  return bufferToDataUrl(buffer, mime);
+}
+
+async function loadRemoteImageAsDataUrl(
+  source: string,
+  fetchImage: (url: string) => Promise<ImageFetchResponse>,
+) {
+  const url = source.startsWith("//") ? `https:${source}` : source;
+  const response = await fetchImage(url);
+  if (!response.ok) {
+    throw new Error(`Image request failed with status ${response.status}`);
+  }
+
+  const mime = getImageMimeFromResponse(
+    url,
+    response.headers.get("content-type"),
+  );
+  if (!mime) return null;
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  return bufferToDataUrl(buffer, mime);
+}
+
+export async function loadImageAsDataUrl(
+  source: string,
+  deps: LoadImageDeps = {},
+) {
+  const trimmedSource = source.trim();
+  if (!trimmedSource) return null;
+  if (trimmedSource.startsWith("data:image/")) return trimmedSource;
+
+  const fetchImage = deps.fetchImage ?? net.fetch;
+  const readFile = deps.readFile ?? fs.promises.readFile;
+
+  try {
+    if (
+      /^https?:\/\//iu.test(trimmedSource) ||
+      trimmedSource.startsWith("//")
+    ) {
+      return await loadRemoteImageAsDataUrl(trimmedSource, fetchImage);
+    }
+
+    return await loadLocalImageAsDataUrl(trimmedSource, readFile);
+  } catch (error) {
+    console.error("Error while loading image:", error);
+    return null;
   }
 }
 

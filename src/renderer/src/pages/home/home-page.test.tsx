@@ -1,8 +1,11 @@
 import type { PropsWithChildren } from "react";
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const closeDiff = vi.fn();
+const diffStateMock = vi.hoisted(() => ({
+  source: "worktree" as "worktree" | "history",
+}));
 
 vi.mock("react-resizable-panels", () => ({
   Panel: ({ children }: PropsWithChildren) => <div>{children}</div>,
@@ -61,9 +64,11 @@ vi.mock("@/components/ui/confirm-dialog", () => ({
 vi.mock("@/store/diff.store", () => ({
   useDiffStore: () => ({
     isOpen: true,
+    isLoading: false,
     oldContent: "# old",
     newContent: "# new",
     filePath: "D:\\notes\\readme.md",
+    source: diffStateMock.source,
     closeDiff,
   }),
 }));
@@ -71,7 +76,8 @@ vi.mock("@/store/diff.store", () => ({
 import { HomePage } from "./home-page";
 
 describe("HomePage", () => {
-  it("renders the diff popup through the Radix dialog root", () => {
+  beforeEach(() => {
+    diffStateMock.source = "worktree";
     Object.defineProperty(window, "electronAPI", {
       configurable: true,
       value: {
@@ -80,7 +86,13 @@ describe("HomePage", () => {
         onWindowOpenTarget: () => () => undefined,
       },
     });
+  });
 
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("renders the diff popup through the Radix dialog root", () => {
     render(<HomePage />);
 
     expect(screen.getByTestId("dialog-root")).toBeInTheDocument();
@@ -88,5 +100,22 @@ describe("HomePage", () => {
       screen.getByRole("heading", { name: "readme.md差异" }),
     ).toBeInTheDocument();
     expect(screen.getByText("DiffViewer")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "放弃当前文件更改" }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides mutable actions for history diff popups", () => {
+    diffStateMock.source = "history";
+
+    render(<HomePage />);
+
+    expect(
+      screen.queryByRole("button", { name: "放弃当前文件更改" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "将差异移到右侧面板" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "关闭" })).toBeInTheDocument();
   });
 });

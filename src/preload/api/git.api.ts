@@ -7,6 +7,10 @@ import type {
   GitBranch,
   GitCommitOptions,
   GitDetectResult,
+  GitCommitDetail,
+  GitCommitFileContent,
+  GitCommitFileStatus,
+  GitCommitLogItem,
 } from "../../shared/types";
 
 export const gitApi = {
@@ -126,5 +130,49 @@ export const gitApi = {
     filePath: string,
   ): Promise<ApiResponse<string>> => {
     return ipcRenderer.invoke(IPC_CHANNELS.GIT.OPEN_FILE, dirPath, filePath);
+  },
+
+  // 获取提交历史
+  getCommitHistory: (
+    dirPath: string,
+    skip?: number,
+    limit?: number,
+  ): Promise<ApiResponse<GitCommitLogItem[]>> => {
+    return ipcRenderer.invoke(
+      IPC_CHANNELS.GIT.GET_COMMIT_HISTORY,
+      dirPath,
+      skip,
+      limit,
+    );
+  },
+
+  // 获取提交详情
+  getCommitDetail: (
+    dirPath: string,
+    hash: string,
+  ): Promise<ApiResponse<GitCommitDetail>> => {
+    return ipcRenderer.invoke(
+      IPC_CHANNELS.GIT.GET_COMMIT_DETAIL,
+      dirPath,
+      hash,
+    );
+  },
+
+  // 获取提交文件内容
+  getCommitFileContent: (
+    dirPath: string,
+    hash: string,
+    filePath: string,
+    status: GitCommitFileStatus,
+    oldPath?: string,
+  ): Promise<ApiResponse<GitCommitFileContent>> => {
+    return ipcRenderer.invoke(
+      IPC_CHANNELS.GIT.GET_COMMIT_FILE_CONTENT,
+      dirPath,
+      hash,
+      filePath,
+      status,
+      oldPath,
+    );
   },
 };

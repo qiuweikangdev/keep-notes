@@ -8,6 +8,11 @@ export interface MarkdownSerializer<TBlock> {
   blocksToMarkdownLossy(blocks: TBlock[]): Promise<string> | string;
 }
 
+export interface MarkdownParseOptions {
+  markdownFilePath?: string | null;
+  resolveImageUrl?: (url: string) => Promise<string | null> | string | null;
+}
+
 export function markdownEquals(left: string, right: string): boolean {
   return left === right;
 }
@@ -258,13 +263,148 @@ export function ensureEditableBlocks<TBlock>(
   return blocks.length > 0 ? blocks : [createBlankBlock()];
 }
 
+function hasUrlProtocol(url: string) {
+  return /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(url);
+}
+
+function normalizeLocalPath(path: string) {
+  const normalized = path.replace(/\\/g, "/");
+  const prefix = normalized.match(/^[A-Za-z]:/)?.[0] ?? "";
+  const isAbsolute = normalized.startsWith("/") || Boolean(prefix);
+  const parts = normalized.split("/");
+  const result: string[] = [];
+
+  for (const part of parts) {
+    if (!part || part === ".") continue;
+    if (part === "..") {
+      if (result.length > 0 && result[result.length - 1] !== "..") {
+        result.pop();
+      } else if (!isAbsolute) {
+        result.push(part);
+      }
+      continue;
+    }
+    result.push(part);
+  }
+
+  const joined = result.join("/");
+  if (prefix) return joined;
+  return isAbsolute ? `/${joined}` : joined;
+}
+
+function getLocalDirname(path: string) {
+  const normalized = path.replace(/\\/g, "/");
+  const slashIndex = normalized.lastIndexOf("/");
+  if (slashIndex < 0) return "";
+  if (slashIndex === 0) return "/";
+  return normalized.slice(0, slashIndex);
+}
+
+function joinLocalPath(baseDir: string, relativePath: string) {
+  if (!baseDir) return normalizeLocalPath(relativePath);
+  return normalizeLocalPath(`${baseDir.replace(/\/$/u, "")}/${relativePath}`);
+}
+
+function toFileUrl(path: string) {
+  const normalized = normalizeLocalPath(path);
+  const encodedPath = normalized
+    .split("/")
+    .map((part) => encodeURIComponent(part).replace(/^([A-Za-z])%3A$/u, "$1:"))
+    .join("/");
+
+  if (/^[A-Za-z]:/u.test(normalized)) {
+    return `file:///${encodedPath}`;
+  }
+
+  return `file://${encodedPath}`;
+}
+
+export function resolveEditorImageUrl(
+  url: string,
+  markdownFilePath: string | null,
+): string {
+  const trimmedUrl = url.trim();
+  if (!trimmedUrl) return url;
+  if (hasUrlProtocol(trimmedUrl) || trimmedUrl.startsWith("//")) {
+    return url;
+  }
+
+  if (trimmedUrl.startsWith("/") || /^[A-Za-z]:[\\/]/u.test(trimmedUrl)) {
+    return toFileUrl(trimmedUrl);
+  }
+
+  if (!markdownFilePath) return url;
+
+  return toFileUrl(
+    joinLocalPath(getLocalDirname(markdownFilePath), trimmedUrl),
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object";
+}
+
+async function resolveImageBlockUrls<TBlock>(
+  blocks: TBlock[],
+  options: MarkdownParseOptions,
+): Promise<TBlock[]> {
+  if (!options.resolveImageUrl) return blocks;
+
+  return Promise.all(
+    blocks.map(async (block) => {
+      if (!isRecord(block)) return block;
+
+      let nextBlock: Record<string, unknown> = block;
+      const props = isRecord(block.props) ? block.props : null;
+      const sourceUrl =
+        props && typeof props.url === "string" ? props.url : null;
+
+      if (block.type === "image" && sourceUrl) {
+        const resolvedUrl = resolveEditorImageUrl(
+          sourceUrl,
+          options.markdownFilePath ?? null,
+        );
+        const imageDataUrl = await options.resolveImageUrl(resolvedUrl);
+
+        if (imageDataUrl && imageDataUrl !== sourceUrl) {
+          // BlockNote 的图片节点直接使用 props.url 渲染，提前转为 data URL 可避开 Electron 资源来源限制。
+          nextBlock = {
+            ...nextBlock,
+            props: {
+              ...props,
+              url: imageDataUrl,
+            },
+          };
+        }
+      }
+
+      if (Array.isArray(nextBlock.children)) {
+        const children = await resolveImageBlockUrls(
+          nextBlock.children,
+          options,
+        );
+        if (children !== nextBlock.children) {
+          nextBlock = {
+            ...nextBlock,
+            children,
+          };
+        }
+      }
+
+      return nextBlock as TBlock;
+    }),
+  );
+}
+
 export async function parseMarkdown<TBlock>(
   parser: MarkdownParser<TBlock>,
   markdown: string,
+  options: MarkdownParseOptions = {},
 ): Promise<TBlock[]> {
   // 仅规范化传给 BlockNote 的解析副本；原始源码仍用于编辑、比较和保存。
   const parseInput = markdown.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
-  return parser.tryParseMarkdownToBlocks(parseInput);
+  const blocks = await parser.tryParseMarkdownToBlocks(parseInput);
+  return resolveImageBlockUrls(blocks, options);
 }
 
 export async function serializeMarkdown<TBlock>(
