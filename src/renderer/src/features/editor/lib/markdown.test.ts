@@ -57,6 +57,53 @@ describe("Markdown source preservation", () => {
     ]);
   });
 
+  it("promotes markdown image syntax paragraphs to image blocks", async () => {
+    const sourceUrl =
+      "https://file-cdn.example.com/image.jpg?image_process=resize,w_702/quality,Q_70/format,webp/w_1920/sharpen,60";
+
+    await expect(
+      parseMarkdown(
+        {
+          tryParseMarkdownToBlocks: () => [
+            {
+              type: "paragraph",
+              content: [
+                {
+                  type: "text",
+                  text: "!",
+                  styles: {},
+                },
+                {
+                  type: "link",
+                  href: sourceUrl,
+                  content: [
+                    {
+                      type: "text",
+                      text: "image-20260702141804557",
+                      styles: {},
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        `![image-20260702141804557](${sourceUrl})`,
+        {
+          resolveImageUrl: async (url) => `data:${url}`,
+        },
+      ),
+    ).resolves.toEqual([
+      {
+        type: "image",
+        props: {
+          name: "image-20260702141804557",
+          url: `data:${sourceUrl}`,
+        },
+      },
+    ]);
+  });
+
   it("returns the serializer output without rewriting whitespace", async () => {
     const serialized = "# Title  \r\n\r\n* item\t \r\n";
 
