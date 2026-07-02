@@ -5,6 +5,7 @@ import { editorSchema } from "../lib/blocknote-schema";
 import {
   handleRichEditorHeadingShortcut,
   handleRichEditorSelectAllShortcut,
+  moveCursorAfterUploadedImage,
   selectEntireRichEditorContent,
   shouldLetCodeMirrorHandleKeyboardEvent,
   shouldMarkRichEditorPointerIntent,
@@ -106,6 +107,68 @@ describe("BlockNoteEditor heading shortcuts", () => {
     expect(event.stopPropagation).toHaveBeenCalled();
     expect(editor.document[0].type).toBe("heading");
     expect(editor.document[0].props.level).toBe(2);
+  });
+});
+
+describe("BlockNoteEditor pasted image selection", () => {
+  it("moves the cursor to the following text block after an uploaded image", () => {
+    const editor = {
+      document: [
+        { id: "image-1", type: "image" },
+        { id: "paragraph-1", type: "paragraph" },
+      ],
+      getBlock: vi.fn((id: string) =>
+        id === "image-1" ? { id: "image-1", type: "image" } : undefined,
+      ),
+      insertBlocks: vi.fn(),
+      setTextCursorPosition: vi.fn(),
+    };
+
+    expect(moveCursorAfterUploadedImage(editor, "image-1")).toBe(true);
+
+    expect(editor.insertBlocks).not.toHaveBeenCalled();
+    expect(editor.setTextCursorPosition).toHaveBeenCalledWith(
+      "paragraph-1",
+      "start",
+    );
+  });
+
+  it("creates a following text block when the uploaded image is last", () => {
+    const insertedBlock = { id: "paragraph-2", type: "paragraph" };
+    const editor = {
+      document: [{ id: "image-1", type: "image" }],
+      getBlock: vi.fn((id: string) =>
+        id === "image-1" ? { id: "image-1", type: "image" } : undefined,
+      ),
+      insertBlocks: vi.fn(() => [insertedBlock]),
+      setTextCursorPosition: vi.fn(),
+    };
+
+    expect(moveCursorAfterUploadedImage(editor, "image-1")).toBe(true);
+
+    expect(editor.insertBlocks).toHaveBeenCalledWith(
+      [{ type: "paragraph", content: "" }],
+      "image-1",
+      "after",
+    );
+    expect(editor.setTextCursorPosition).toHaveBeenCalledWith(
+      "paragraph-2",
+      "start",
+    );
+  });
+
+  it("does not move the cursor for non-image upload blocks", () => {
+    const editor = {
+      document: [{ id: "paragraph-1", type: "paragraph" }],
+      getBlock: vi.fn(() => ({ id: "paragraph-1", type: "paragraph" })),
+      insertBlocks: vi.fn(),
+      setTextCursorPosition: vi.fn(),
+    };
+
+    expect(moveCursorAfterUploadedImage(editor, "paragraph-1")).toBe(false);
+
+    expect(editor.insertBlocks).not.toHaveBeenCalled();
+    expect(editor.setTextCursorPosition).not.toHaveBeenCalled();
   });
 });
 

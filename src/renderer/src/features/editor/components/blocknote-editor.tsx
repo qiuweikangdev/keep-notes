@@ -76,6 +76,17 @@ interface RichEditorHeadingShortcutEvent {
   stopPropagation: () => void;
 }
 
+interface UploadedImageCursorEditor {
+  document: Array<{ id: string; type: string }>;
+  getBlock: (blockId: string) => { id: string; type: string } | undefined;
+  insertBlocks: (
+    blocksToInsert: Array<{ type: "paragraph"; content: string }>,
+    referenceBlock: string,
+    placement: "after",
+  ) => Array<{ id: string }>;
+  setTextCursorPosition: (blockId: string, placement: "start") => void;
+}
+
 interface BlockNoteEditorInnerProps {
   groupId: string;
   tabId: string;
@@ -238,6 +249,33 @@ export function handleRichEditorHeadingShortcut(
   return true;
 }
 
+export function moveCursorAfterUploadedImage(
+  editor: UploadedImageCursorEditor | null,
+  blockId: string | undefined,
+): boolean {
+  if (!editor || !blockId) return false;
+
+  const uploadedBlock = editor.getBlock(blockId);
+  if (uploadedBlock?.type !== "image") return false;
+
+  const blockIndex = editor.document.findIndex((block) => block.id === blockId);
+  const nextBlock = blockIndex >= 0 ? editor.document[blockIndex + 1] : null;
+  const targetBlock =
+    nextBlock?.type === "paragraph"
+      ? nextBlock
+      : editor.insertBlocks(
+          [{ type: "paragraph", content: "" }],
+          blockId,
+          "after",
+        )[0];
+
+  if (!targetBlock?.id) return false;
+
+  // 粘贴图片后把光标移到图片后的文本块，避免图片块保持选中并立即弹出文件操作栏。
+  editor.setTextCursorPosition(targetBlock.id, "start");
+  return true;
+}
+
 function BlockNoteEditorInner({
   groupId,
   tabId,
@@ -263,6 +301,7 @@ function BlockNoteEditorInner({
     null,
   );
   const applyTokenRef = useRef(0);
+  const editorRef = useRef<CoreBlockNoteEditor | null>(null);
   const loadEditorImageUrl = useCallback(async (url: string) => {
     try {
       return (await window.electronAPI.loadImageAsDataUrl(url)) ?? url;
@@ -270,11 +309,15 @@ function BlockNoteEditorInner({
       return url;
     }
   }, []);
-  const uploadEditorImageFile = useCallback(async (file: File) => {
+  const uploadEditorImageFile = useCallback(async (file: File, blockId?: string) => {
     const dataUrl = await readImageFileAsDataUrl(file);
     if (!dataUrl) {
       throw new Error("Only image files can be uploaded from the editor");
     }
+
+    window.setTimeout(() => {
+      moveCursorAfterUploadedImage(editorRef.current, blockId);
+    }, 0);
 
     return dataUrl;
   }, []);
@@ -286,6 +329,7 @@ function BlockNoteEditorInner({
     schema: editorSchema,
     uploadFile: uploadEditorImageFile,
   });
+  editorRef.current = editor;
 
   // 获取 store 中的方法
   const setOutlineHeadings = useEditorStore(
