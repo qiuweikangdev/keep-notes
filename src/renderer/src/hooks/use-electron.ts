@@ -91,6 +91,9 @@ export function useElectron() {
   const setContent = useEditorStore(selectSetContent);
   const setFilePath = useEditorStore(selectSetFilePath);
   const incrementReloadKey = useEditorStore(selectIncrementReloadKey);
+  const recordRecentOpenedFile = useEditorStore(
+    (state) => state.recordRecentOpenedFile,
+  );
   const githubInfo = useUserStore((state) => state.githubInfo);
 
   const openFolder = useCallback(async () => {
@@ -152,6 +155,7 @@ export function useElectron() {
         ) {
           state.setActiveTab(targetGroup.id, tabId);
           useTreeStore.getState().setSelectedKey(filePath);
+          state.recordRecentOpenedFile(filePath);
           return;
         }
 
@@ -197,9 +201,10 @@ export function useElectron() {
         setContent(content);
         setFilePath(filePath);
         incrementReloadKey();
+        recordRecentOpenedFile(filePath);
       }
     },
-    [setContent, setFilePath, incrementReloadKey],
+    [setContent, setFilePath, incrementReloadKey, recordRecentOpenedFile],
   );
 
   const saveFile = useCallback(async (content: string) => {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FileText, Search, X } from "lucide-react";
+import { FileText, FolderOpen, Search, X } from "lucide-react";
 import { useTreeStore } from "@/store/tree.store";
 import { useEditorStore } from "@/store/editor.store";
 import { useElectron } from "@/hooks/use-electron";
@@ -11,7 +11,14 @@ interface SearchModalProps {
   onClose: () => void;
 }
 
-const RECENT_RESULT_LIMIT = 5;
+interface SearchResult {
+  kind: "file" | "folder";
+  key: string;
+  title: string;
+  subtitle: string;
+}
+
+const RECENT_RESULT_LIMIT = 10;
 const SEARCHABLE_EXTENSIONS = new Set([".md", ".txt"]);
 
 function getFileExtension(title: string): string {
@@ -66,7 +73,7 @@ function getDisplayDirectory(filePath: string, rootPath?: string): string {
   return relativePath.replace(/^\//, "") || ".";
 }
 
-function getRecentEditedFiles(
+function getRecentOpenedFiles(
   files: TreeNode[],
   candidateFilePaths: string[],
 ): TreeNode[] {
@@ -106,18 +113,31 @@ function getOpenFilePaths(panelGroups: EditorPanelGroup[]): string[] {
   return paths;
 }
 
+function createFileResult(file: TreeNode, rootPath?: string): SearchResult {
+  return {
+    kind: "file",
+    key: file.key,
+    title: file.title,
+    subtitle: getDisplayDirectory(file.key, rootPath),
+  };
+}
+
 export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const resultRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const treeData = useTreeStore((state) => state.treeData);
   const treeRoot = useTreeStore((state) => state.treeRoot);
   const selectedKey = useTreeStore((state) => state.selectedKey);
+  const recentFolders = useTreeStore((state) => state.recentFolders);
   const panelGroups = useEditorStore((state) => state.panelGroups);
-  const recentEditedFilePaths = useEditorStore(
-    (state) => state.recentEditedFilePaths,
+  const recentOpenedFilePaths = useEditorStore(
+    (state) => state.recentOpenedFilePaths,
   );
-  const { openFile } = useElectron();
+  const { loadTree, openFile } = useElectron();
+  const hasWorkspace = Boolean(treeRoot);
 
   const searchableFiles = useMemo(
     () => collectSearchableFiles(treeData),
@@ -126,33 +146,69 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
 
   const defaultCandidateFilePaths = useMemo(
     () => [
-      ...recentEditedFilePaths,
+      ...recentOpenedFilePaths,
       ...getOpenFilePaths(panelGroups),
       ...(selectedKey ? [selectedKey] : []),
     ],
-    [panelGroups, recentEditedFilePaths, selectedKey],
+    [panelGroups, recentOpenedFilePaths, selectedKey],
   );
 
-  const results = useMemo(() => {
+  const results = useMemo<SearchResult[]>(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
-    if (!normalizedQuery) {
-      return getRecentEditedFiles(searchableFiles, defaultCandidateFilePaths);
+    if (!hasWorkspace) {
+      return recentFolders
+        .filter((folder) => {
+          if (!normalizedQuery) return true;
+          return (
+            folder.title.toLowerCase().includes(normalizedQuery) ||
+            folder.path.toLowerCase().includes(normalizedQuery)
+          );
+        })
+        .slice(0, RECENT_RESULT_LIMIT)
+        .map((folder) => ({
+          kind: "folder",
+          key: folder.path,
+          title: folder.title,
+          subtitle: folder.path,
+        }));
     }
 
-    return searchableFiles.filter((file) => {
-      const title = file.title.toLowerCase();
-      const path = file.key.toLowerCase();
-      return title.includes(normalizedQuery) || path.includes(normalizedQuery);
-    });
-  }, [defaultCandidateFilePaths, query, searchableFiles]);
+    if (!normalizedQuery) {
+      return getRecentOpenedFiles(
+        searchableFiles,
+        defaultCandidateFilePaths,
+      ).map((file) => createFileResult(file, treeRoot?.key));
+    }
 
-  const openSelectedFile = useCallback(
-    (file: TreeNode) => {
-      openFile(file.key);
+    return searchableFiles
+      .filter((file) => {
+        const title = file.title.toLowerCase();
+        const path = file.key.toLowerCase();
+        return (
+          title.includes(normalizedQuery) || path.includes(normalizedQuery)
+        );
+      })
+      .map((file) => createFileResult(file, treeRoot?.key));
+  }, [
+    defaultCandidateFilePaths,
+    hasWorkspace,
+    query,
+    recentFolders,
+    searchableFiles,
+    treeRoot?.key,
+  ]);
+
+  const openSelectedResult = useCallback(
+    (result: SearchResult) => {
+      if (result.kind === "folder") {
+        loadTree(result.key);
+      } else {
+        openFile(result.key);
+      }
       onClose();
     },
-    [openFile, onClose],
+    [loadTree, openFile, onClose],
   );
 
   const handleKeyDown = useCallback(
@@ -180,15 +236,20 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
 
       if (event.key === "Enter") {
         event.preventDefault();
-        openSelectedFile(results[selectedIndex]);
+        openSelectedResult(results[selectedIndex]);
       }
     },
-    [onClose, openSelectedFile, results, selectedIndex],
+    [onClose, openSelectedResult, results, selectedIndex],
   );
 
   useEffect(() => {
     setSelectedIndex(0);
   }, [results]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    resultRefs.current[selectedIndex]?.scrollIntoView?.({ block: "nearest" });
+  }, [isOpen, results, selectedIndex]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -200,13 +261,32 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
     inputRef.current?.focus();
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const modal = modalRef.current;
+      if (!modal || modal.contains(event.target as Node)) return;
+      onClose();
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const hasQuery = query.trim().length > 0;
+  const resultTypeLabel = hasWorkspace ? "文件" : "目录";
 
   return (
     <div className="pointer-events-none fixed inset-x-0 top-0 z-50 flex items-start justify-center pt-[12vh]">
-      <div className="pointer-events-auto relative w-[520px] max-w-[calc(100vw-32px)] overflow-hidden rounded-xl border border-[var(--border-color)] bg-[var(--bg-primary)] shadow-2xl">
+      <div
+        ref={modalRef}
+        className="pointer-events-auto relative w-[520px] max-w-[calc(100vw-32px)] overflow-hidden rounded-xl border border-[var(--border-color)] bg-[var(--bg-primary)] shadow-2xl"
+      >
         <div className="flex h-9 items-center gap-2 px-3">
           <Search
             aria-hidden="true"
@@ -221,7 +301,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
             }
             aria-controls="search-results"
             className="h-full min-w-0 flex-1 appearance-none border-0 bg-transparent p-0 text-sm text-[var(--text-primary)] shadow-none outline-none ring-0 placeholder:text-[var(--text-muted)] focus:border-0 focus:border-transparent focus:outline-none focus:ring-0"
-            placeholder="搜索文件"
+            placeholder={`搜索${resultTypeLabel}`}
             role="searchbox"
             style={{ border: 0, boxShadow: "none" }}
             type="text"
@@ -242,13 +322,13 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
         </div>
 
         <div className="px-3 pb-1 pt-0 text-xs text-[var(--text-muted)]">
-          文件
+          {resultTypeLabel}
         </div>
 
         {results.length > 0 ? (
           <div
             id="search-results"
-            aria-label={hasQuery ? "搜索结果" : "最近编辑文件"}
+            aria-label={hasQuery ? "搜索结果" : `最近打开${resultTypeLabel}`}
             className="max-h-[320px] overflow-y-auto px-1.5 pb-2"
             role="listbox"
           >
@@ -259,6 +339,9 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                 <button
                   id={`search-result-${index}`}
                   key={result.key}
+                  ref={(element) => {
+                    resultRefs.current[index] = element;
+                  }}
                   aria-selected={selected}
                   className={`flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm transition-colors ${
                     selected
@@ -267,18 +350,25 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                   }`}
                   role="option"
                   type="button"
-                  onClick={() => openSelectedFile(result)}
+                  onClick={() => openSelectedResult(result)}
                   onMouseEnter={() => setSelectedIndex(index)}
                 >
-                  <FileText
-                    aria-hidden="true"
-                    className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]"
-                  />
+                  {result.kind === "folder" ? (
+                    <FolderOpen
+                      aria-hidden="true"
+                      className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]"
+                    />
+                  ) : (
+                    <FileText
+                      aria-hidden="true"
+                      className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]"
+                    />
+                  )}
                   <span className="min-w-0 flex-1 truncate font-medium">
                     {result.title}
                   </span>
                   <span className="min-w-[120px] max-w-[240px] truncate text-right text-xs text-[var(--text-muted)]">
-                    {getDisplayDirectory(result.key, treeRoot?.key)}
+                    {result.subtitle}
                   </span>
                 </button>
               );
@@ -286,7 +376,9 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
           </div>
         ) : (
           <div className="px-4 pb-5 pt-2 text-[13px] text-[var(--text-muted)]">
-            {hasQuery ? "没有找到匹配文件" : "暂无最近编辑文件"}
+            {hasQuery
+              ? `没有找到匹配${resultTypeLabel}`
+              : `暂无最近打开${resultTypeLabel}`}
           </div>
         )}
       </div>

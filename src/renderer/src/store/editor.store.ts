@@ -65,7 +65,7 @@ export interface EditorState {
   // 多面板组状态
   panelGroups: EditorPanelGroup[];
   activeGroupId: string;
-  recentEditedFilePaths: string[];
+  recentOpenedFilePaths: string[];
 
   // 全局状态（保持兼容）
   content: string;
@@ -121,7 +121,7 @@ export interface EditorState {
     message: string | null,
   ) => void;
   setTabScrollTop: (groupId: string, tabId: string, scrollTop: number) => void;
-  recordRecentEditedFile: (path: string) => void;
+  recordRecentOpenedFile: (path: string) => void;
   setFileSaveState: (
     path: string,
     status: EditorSaveStatus,
@@ -168,12 +168,12 @@ const defaultAppearance: EditorAppearance = {
 // 生成唯一ID
 let idCounter = 0;
 const generateId = () => `id-${++idCounter}`;
-const RECENT_EDITED_FILE_LIMIT = 20;
+const RECENT_OPENED_FILE_LIMIT = 10;
 
-function pushRecentEditedFilePath(paths: string[], path: string): string[] {
+function pushRecentOpenedFilePath(paths: string[], path: string): string[] {
   return [path, ...paths.filter((item) => item !== path)].slice(
     0,
-    RECENT_EDITED_FILE_LIMIT,
+    RECENT_OPENED_FILE_LIMIT,
   );
 }
 
@@ -214,7 +214,7 @@ export const useEditorStore = create<EditorState>()(
         // 多面板组状态
         panelGroups: [defaultGroup],
         activeGroupId: defaultGroup.id,
-        recentEditedFilePaths: [],
+        recentOpenedFilePaths: [],
 
         // 全局状态（保持兼容）
         content: "",
@@ -414,7 +414,6 @@ export const useEditorStore = create<EditorState>()(
         // 设置标签页内容
         setTabContent: (groupId: string, tabId: string, content: string) => {
           set((state) => {
-            let editedFilePath: string | null = null;
             return {
               panelGroups: state.panelGroups.map((g) =>
                 g.id === groupId
@@ -422,10 +421,6 @@ export const useEditorStore = create<EditorState>()(
                       ...g,
                       tabs: g.tabs.map((t) => {
                         if (t.id !== tabId) return t;
-
-                        if (t.filePath && t.content !== content) {
-                          editedFilePath = t.filePath;
-                        }
 
                         // 未命名标签页恢复为空内容时，不应继续触发退出保存提示。
                         const isDirty = t.filePath
@@ -444,12 +439,6 @@ export const useEditorStore = create<EditorState>()(
                     }
                   : g,
               ),
-              recentEditedFilePaths: editedFilePath
-                ? pushRecentEditedFilePath(
-                    state.recentEditedFilePaths,
-                    editedFilePath,
-                  )
-                : state.recentEditedFilePaths,
             };
           });
         },
@@ -558,6 +547,10 @@ export const useEditorStore = create<EditorState>()(
                   }
                 : group,
             ),
+            recentOpenedFilePaths: pushRecentOpenedFilePath(
+              state.recentOpenedFilePaths,
+              path,
+            ),
           }));
         },
 
@@ -635,10 +628,10 @@ export const useEditorStore = create<EditorState>()(
           }));
         },
 
-        recordRecentEditedFile: (path) => {
+        recordRecentOpenedFile: (path) => {
           set((state) => ({
-            recentEditedFilePaths: pushRecentEditedFilePath(
-              state.recentEditedFilePaths,
+            recentOpenedFilePaths: pushRecentOpenedFilePath(
+              state.recentOpenedFilePaths,
               path,
             ),
           }));
@@ -747,7 +740,7 @@ export const useEditorStore = create<EditorState>()(
       name: "editor-storage",
       partialize: (state) => ({
         appearance: state.appearance,
-        recentEditedFilePaths: state.recentEditedFilePaths,
+        recentOpenedFilePaths: state.recentOpenedFilePaths,
       }),
       merge: (persistedState: unknown, currentState: EditorState) => {
         // 确保 panelGroups 始终有值
@@ -761,13 +754,17 @@ export const useEditorStore = create<EditorState>()(
         const persistedAppearance = persisted?.appearance as
           | Partial<EditorAppearance>
           | undefined;
-        const persistedRecentEditedFilePaths = Array.isArray(
-          persisted?.recentEditedFilePaths,
+        const persistedRecentOpenedFilePaths = Array.isArray(
+          persisted?.recentOpenedFilePaths,
         )
-          ? persisted.recentEditedFilePaths.filter(
+          ? persisted.recentOpenedFilePaths.filter(
               (path): path is string => typeof path === "string",
             )
-          : currentState.recentEditedFilePaths;
+          : Array.isArray(persisted?.recentEditedFilePaths)
+            ? persisted.recentEditedFilePaths.filter(
+                (path): path is string => typeof path === "string",
+              )
+            : currentState.recentOpenedFilePaths;
 
         return {
           ...currentState,
@@ -777,7 +774,10 @@ export const useEditorStore = create<EditorState>()(
             currentState.appearance,
             persistedAppearance,
           ),
-          recentEditedFilePaths: persistedRecentEditedFilePaths,
+          recentOpenedFilePaths: persistedRecentOpenedFilePaths.slice(
+            0,
+            RECENT_OPENED_FILE_LIMIT,
+          ),
           panelGroups:
             persistedPanelGroups && persistedPanelGroups.length > 0
               ? normalizePersistedPanelGroups(persistedPanelGroups)
