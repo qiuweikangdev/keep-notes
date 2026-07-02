@@ -5,6 +5,7 @@ import {
   markdownEquals,
   parseMarkdown,
   preserveMarkdownSource,
+  resolveEditorImageUrl,
   serializeMarkdown,
 } from "./markdown";
 
@@ -25,6 +26,35 @@ describe("Markdown source preservation", () => {
 
     expect(received).toBe("# Title  \n\n* item\t \n\n");
     expect(source).toBe("\uFEFF# Title  \r\n\r\n* item\t \r\n\r\n");
+  });
+
+  it("hydrates parsed image block URLs for editor rendering", async () => {
+    await expect(
+      parseMarkdown(
+        {
+          tryParseMarkdownToBlocks: () => [
+            {
+              type: "image",
+              props: {
+                url: "images/demo.webp",
+              },
+            },
+          ],
+        },
+        "![img](images/demo.webp)",
+        {
+          markdownFilePath: "/Users/me/notes/a.md",
+          resolveImageUrl: async (url) => `data:${url}`,
+        },
+      ),
+    ).resolves.toEqual([
+      {
+        type: "image",
+        props: {
+          url: "data:file:///Users/me/notes/images/demo.webp",
+        },
+      },
+    ]);
   });
 
   it("returns the serializer output without rewriting whitespace", async () => {
@@ -152,5 +182,32 @@ describe("ensureEditableBlocks", () => {
     expect(ensureEditableBlocks(["heading"], () => "paragraph")).toEqual([
       "heading",
     ]);
+  });
+});
+
+describe("resolveEditorImageUrl", () => {
+  it("keeps absolute and data URLs unchanged", () => {
+    expect(
+      resolveEditorImageUrl("https://example.com/a.png", "/notes/a.md"),
+    ).toBe("https://example.com/a.png");
+    expect(
+      resolveEditorImageUrl("data:image/png;base64,abc", "/notes/a.md"),
+    ).toBe("data:image/png;base64,abc");
+  });
+
+  it("resolves relative image URLs against the markdown file directory", () => {
+    expect(
+      resolveEditorImageUrl("images/demo image.png", "/Users/me/notes/a.md"),
+    ).toBe("file:///Users/me/notes/images/demo%20image.png");
+  });
+
+  it("converts absolute local paths to file URLs", () => {
+    expect(
+      resolveEditorImageUrl("/Users/me/Pictures/a.png", "/notes/a.md"),
+    ).toBe("file:///Users/me/Pictures/a.png");
+  });
+
+  it("leaves relative URLs unchanged when the markdown file path is unknown", () => {
+    expect(resolveEditorImageUrl("images/a.png", null)).toBe("images/a.png");
   });
 });

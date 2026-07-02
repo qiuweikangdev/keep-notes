@@ -23,6 +23,7 @@ import {
   markdownEquals,
   parseMarkdown,
   preserveMarkdownSource,
+  resolveEditorImageUrl,
   serializeMarkdown,
 } from "../lib/markdown";
 import { EditorChangeGate } from "../lib/editor-change-gate";
@@ -86,7 +87,7 @@ interface BlockNoteEditorInnerProps {
   onParseStateChange: (message: string | null) => void;
 }
 
-const MARKDOWN_PARSER_VERSION = "blocknote-v2";
+const MARKDOWN_PARSER_VERSION = "blocknote-v3";
 
 function isSelectAllShortcut(event: RichEditorSelectAllEvent) {
   return (
@@ -252,6 +253,7 @@ function BlockNoteEditorInner({
   const suppressChangeRef = useRef(false);
   const changeGateRef = useRef(new EditorChangeGate());
   const contentRef = useRef(content);
+  const pathRef = useRef(path);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const appliedPathRef = useRef<string | null>(null);
   const appliedSourceRef = useRef(content);
@@ -260,8 +262,18 @@ function BlockNoteEditorInner({
     null,
   );
   const applyTokenRef = useRef(0);
+  const loadEditorImageUrl = useCallback(async (url: string) => {
+    try {
+      return (await window.electronAPI.loadImageAsDataUrl(url)) ?? url;
+    } catch {
+      return url;
+    }
+  }, []);
   const editor = useCreateBlockNote({
     initialContent: undefined,
+    resolveFileUrl: (url) => {
+      return loadEditorImageUrl(resolveEditorImageUrl(url, pathRef.current));
+    },
     schema: editorSchema,
   });
 
@@ -401,6 +413,10 @@ function BlockNoteEditorInner({
     contentRef.current = content;
   }, [content]);
 
+  useEffect(() => {
+    pathRef.current = path;
+  }, [path]);
+
   const cacheAppliedDocument = useCallback(() => {
     const appliedPath = appliedPathRef.current;
     if (!appliedPath) return;
@@ -492,7 +508,11 @@ function BlockNoteEditorInner({
           ? editorCache.getBlocks(path, source, MARKDOWN_PARSER_VERSION)
           : null;
         const parsedBlocks =
-          cached?.blocks ?? (await parseMarkdown(editor, source || ""));
+          cached?.blocks ??
+          (await parseMarkdown(editor, source || "", {
+            markdownFilePath: path,
+            resolveImageUrl: loadEditorImageUrl,
+          }));
         const blocks = ensureEditableBlocks(parsedBlocks, () => {
           return { type: "paragraph", content: [] } as Block;
         });
@@ -544,7 +564,14 @@ function BlockNoteEditorInner({
       applyTokenRef.current += 1;
     };
     // 普通输入只更新 contentRef；仅文件切换或显式重载时替换整篇文档。
-  }, [cacheAppliedDocument, editor, onParseStateChange, path, reloadKey]);
+  }, [
+    cacheAppliedDocument,
+    editor,
+    loadEditorImageUrl,
+    onParseStateChange,
+    path,
+    reloadKey,
+  ]);
 
   useEffect(
     () =>

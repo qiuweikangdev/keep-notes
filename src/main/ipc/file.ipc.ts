@@ -5,6 +5,7 @@ import { getBrowserWindow } from "../utils";
 import {
   readFileContent,
   writeFileContent,
+  loadImageAsDataUrl,
   saveAsDialog,
   openDialog,
   getSelectedPath,
@@ -33,6 +34,13 @@ export function registerFileIpc(): void {
     IPC_CHANNELS.FILE.WRITE,
     async (_, filePath: string, content: string) => {
       return writeFileContent(filePath, content);
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.FILE.LOAD_IMAGE_AS_DATA_URL,
+    async (_, source: string) => {
+      return loadImageAsDataUrl(source);
     },
   );
 

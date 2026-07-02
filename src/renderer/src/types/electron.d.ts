@@ -48,6 +48,7 @@ export interface ElectronAPI {
   onMenuAction: (callback: (action: string) => void) => () => void;
   readFile: (filePath: string) => Promise<string>;
   writeFile: (filePath: string, content: string) => Promise<void>;
+  loadImageAsDataUrl: (source: string) => Promise<string | null>;
   saveAs: (content: string) => Promise<ApiResponse<{ filePath: string }>>;
   openDialog: () => Promise<
     ApiResponse<{

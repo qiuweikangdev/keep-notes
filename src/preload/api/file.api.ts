@@ -18,6 +18,10 @@ export const fileApi = {
     return ipcRenderer.invoke(IPC_CHANNELS.FILE.WRITE, filePath, content);
   },
 
+  loadImageAsDataUrl: (source: string): Promise<string | null> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.FILE.LOAD_IMAGE_AS_DATA_URL, source);
+  },
+
   saveAs: (
     content: string,
   ): Promise<{ code: number; data?: { filePath: string } }> => {
