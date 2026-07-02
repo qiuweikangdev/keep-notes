@@ -38,6 +38,8 @@ type NotificationVisualOptions = Pick<
   | "showAppIcon"
   | "appNameFontSize"
   | "appNameColor"
+  | "titleFontSize"
+  | "titleColor"
   | "showActions"
   | "backgroundColor"
   | "sizePreset"
@@ -61,6 +63,9 @@ interface NormalizedNotificationVisualOptions {
   appNameFontSize: number;
   appNameLineHeight: number;
   appNameColor: string;
+  titleFontSize: number;
+  titleLineHeight: number;
+  titleColor: string;
   showActions: boolean;
   backgroundColor?: string;
   sizePreset: NotificationSizePreset;
@@ -103,6 +108,12 @@ function normalizeNotificationVisualOptions(
       ? options.appNameFontSize
       : DEFAULT_APP_NAME_FONT_SIZE;
   const appNameFontSize = Math.min(28, Math.max(12, rawFontSize));
+  const rawTitleFontSize =
+    typeof options.titleFontSize === "number" &&
+    Number.isFinite(options.titleFontSize)
+      ? options.titleFontSize
+      : 21;
+  const titleFontSize = Math.min(30, Math.max(14, rawTitleFontSize));
 
   // 先把可视配置收敛到安全值，避免用户输入直接进入 CSS 或窗口尺寸计算。
   return {
@@ -113,6 +124,11 @@ function normalizeNotificationVisualOptions(
         ? DEFAULT_APP_NAME_FONT_SIZE
         : Math.round(appNameFontSize * 1.2),
     appNameColor: normalizeHexColor(options.appNameColor) ?? "currentColor",
+    titleFontSize,
+    titleLineHeight: IS_MAC
+      ? Math.round(titleFontSize * 1.31)
+      : Math.round(titleFontSize * 1.29),
+    titleColor: normalizeHexColor(options.titleColor) ?? "currentColor",
     showActions: options.showActions !== false,
     backgroundColor: normalizeHexColor(options.backgroundColor),
     sizePreset: normalizeSizePreset(options.sizePreset),
@@ -167,6 +183,9 @@ function createNotificationHtml(options: AppNotificationOptions): string {
     `--app-name-font-size: ${visualOptions.appNameFontSize}px;`,
     `--app-name-line-height: ${visualOptions.appNameLineHeight}px;`,
     `--app-name-color: ${visualOptions.appNameColor};`,
+    `--title-font-size: ${visualOptions.titleFontSize}px;`,
+    `--title-line-height: ${visualOptions.titleLineHeight}px;`,
+    `--title-color: ${visualOptions.titleColor};`,
     visualOptions.backgroundColor
       ? `--notification-bg: ${visualOptions.backgroundColor};`
       : "",
@@ -262,9 +281,10 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: 31px;
+      font-size: var(--title-font-size);
       font-weight: 750;
-      line-height: 38px;
+      line-height: var(--title-line-height);
+      color: var(--title-color);
     }
     .body {
       margin-top: 2px;
@@ -347,8 +367,8 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       font-weight: 600;
     }
     .platform-mac .title {
-      font-size: 16px;
-      line-height: 21px;
+      font-size: var(--title-font-size);
+      line-height: var(--title-line-height);
       font-weight: 750;
     }
     .platform-mac .body {
@@ -430,8 +450,8 @@ function createNotificationHtml(options: AppNotificationOptions): string {
     }
     .platform-windows .title {
       margin-top: 14px;
-      font-size: 21px;
-      line-height: 27px;
+      font-size: var(--title-font-size);
+      line-height: var(--title-line-height);
       font-weight: 650;
     }
     .platform-windows .body {

@@ -39,7 +39,7 @@ describe("NotificationSettings", () => {
 
     expect(screen.queryByText("应用通知配置")).not.toBeInTheDocument();
 
-    const input = await screen.findByLabelText("通知标题");
+    const input = await screen.findByLabelText("应用名");
     fireEvent.change(input, { target: { value: "个人提醒" } });
     fireEvent.blur(input);
 
@@ -54,11 +54,11 @@ describe("NotificationSettings", () => {
     });
   });
 
-  it("places the notification title setting below persistent display", async () => {
+  it("places the app name setting below persistent display", async () => {
     render(<NotificationSettings />);
 
     const persistentLabel = await screen.findByText("持续显示");
-    const titleLabel = screen.getByText("通知标题");
+    const titleLabel = screen.getByText("应用名");
 
     expect(
       persistentLabel.compareDocumentPosition(titleLabel) &
@@ -82,16 +82,16 @@ describe("NotificationSettings", () => {
     });
   });
 
-  it("updates desktop notification title font size in custom appearance mode", async () => {
+  it("updates desktop notification app name font size in custom appearance mode", async () => {
     render(<NotificationSettings />);
 
     fireEvent.click(await screen.findByLabelText("样式使用自定义"));
 
     await waitFor(() => {
-      expect(screen.getByLabelText("标题字号")).not.toBeDisabled();
+      expect(screen.getByLabelText("应用名大小")).not.toBeDisabled();
     });
 
-    const input = screen.getByLabelText("标题字号");
+    const input = screen.getByLabelText("应用名大小");
     fireEvent.change(input, { target: { value: "22" } });
     fireEvent.blur(input);
 
@@ -113,7 +113,9 @@ describe("NotificationSettings", () => {
     render(<NotificationSettings />);
 
     expect(screen.getByLabelText("样式使用默认值")).toBeChecked();
-    expect(screen.queryByLabelText("标题字号")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("应用名大小")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("应用标题颜色")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("标题大小")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("标题颜色")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("通知背景色")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("弹窗大小")).not.toBeInTheDocument();
@@ -121,11 +123,20 @@ describe("NotificationSettings", () => {
     fireEvent.click(screen.getByLabelText("样式使用自定义"));
     await waitFor(() => {
       expect(screen.getByLabelText("样式使用自定义")).toBeChecked();
-      expect(screen.getByLabelText("标题字号")).toBeInTheDocument();
+      expect(screen.getByLabelText("应用名大小")).toBeInTheDocument();
+      expect(screen.getByLabelText("应用标题颜色")).toBeInTheDocument();
+      expect(screen.getByLabelText("标题大小")).toBeInTheDocument();
       expect(screen.getByLabelText("标题颜色")).toBeInTheDocument();
       expect(screen.getByLabelText("通知背景色")).toBeInTheDocument();
       expect(screen.getByLabelText("弹窗大小")).toBeInTheDocument();
     });
+    expect(screen.getByLabelText("选择应用标题颜色取色器")).toHaveAttribute(
+      "type",
+      "color",
+    );
+    expect(screen.getByLabelText("选择应用标题颜色取色器")).toHaveClass(
+      "sr-only",
+    );
     expect(screen.getByLabelText("选择标题颜色取色器")).toHaveAttribute(
       "type",
       "color",
@@ -139,13 +150,13 @@ describe("NotificationSettings", () => {
       "sr-only",
     );
     expect(
-      screen.getByRole("button", { name: "选择标题颜色" }),
+      screen.getByRole("button", { name: "选择应用标题颜色" }),
     ).toHaveAttribute("data-color-swatch", "true");
 
-    fireEvent.change(screen.getByLabelText("标题字号"), {
+    fireEvent.change(screen.getByLabelText("应用名大小"), {
       target: { value: "22" },
     });
-    fireEvent.blur(screen.getByLabelText("标题字号"));
+    fireEvent.blur(screen.getByLabelText("应用名大小"));
 
     await waitFor(() => {
       expect(window.electronAPI.setNotificationConfig).toHaveBeenCalledWith({
@@ -158,7 +169,7 @@ describe("NotificationSettings", () => {
       });
     });
 
-    fireEvent.change(await screen.findByLabelText("标题颜色"), {
+    fireEvent.change(await screen.findByLabelText("应用标题颜色"), {
       target: { value: "#ffcc66" },
     });
 
@@ -171,6 +182,46 @@ describe("NotificationSettings", () => {
             useCustomAppearance: true,
             appNameFontSize: 22,
             appNameColor: "#ffcc66",
+          },
+        },
+      );
+    });
+
+    fireEvent.change(screen.getByLabelText("标题大小"), {
+      target: { value: "24" },
+    });
+    fireEvent.blur(screen.getByLabelText("标题大小"));
+
+    await waitFor(() => {
+      expect(window.electronAPI.setNotificationConfig).toHaveBeenLastCalledWith(
+        {
+          ...DEFAULT_NOTIFICATION_CONFIG,
+          desktop: {
+            ...DEFAULT_NOTIFICATION_CONFIG.desktop,
+            useCustomAppearance: true,
+            appNameFontSize: 22,
+            appNameColor: "#ffcc66",
+            titleFontSize: 24,
+          },
+        },
+      );
+    });
+
+    fireEvent.change(screen.getByLabelText("标题颜色"), {
+      target: { value: "#66ccff" },
+    });
+
+    await waitFor(() => {
+      expect(window.electronAPI.setNotificationConfig).toHaveBeenLastCalledWith(
+        {
+          ...DEFAULT_NOTIFICATION_CONFIG,
+          desktop: {
+            ...DEFAULT_NOTIFICATION_CONFIG.desktop,
+            useCustomAppearance: true,
+            appNameFontSize: 22,
+            appNameColor: "#ffcc66",
+            titleFontSize: 24,
+            titleColor: "#66ccff",
           },
         },
       );
@@ -189,6 +240,8 @@ describe("NotificationSettings", () => {
             useCustomAppearance: true,
             appNameFontSize: 22,
             appNameColor: "#ffcc66",
+            titleFontSize: 24,
+            titleColor: "#66ccff",
             backgroundColor: "#223344",
           },
         },
@@ -207,6 +260,8 @@ describe("NotificationSettings", () => {
             useCustomAppearance: true,
             appNameFontSize: 22,
             appNameColor: "#ffcc66",
+            titleFontSize: 24,
+            titleColor: "#66ccff",
             backgroundColor: "#223344",
             sizePreset: "large",
           },
@@ -229,7 +284,9 @@ describe("NotificationSettings", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByLabelText("标题字号")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("应用名大小")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("应用标题颜色")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("标题大小")).not.toBeInTheDocument();
       expect(screen.queryByLabelText("标题颜色")).not.toBeInTheDocument();
       expect(screen.queryByLabelText("通知背景色")).not.toBeInTheDocument();
       expect(screen.queryByLabelText("弹窗大小")).not.toBeInTheDocument();

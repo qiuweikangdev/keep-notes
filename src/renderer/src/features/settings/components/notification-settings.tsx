@@ -16,6 +16,9 @@ export function NotificationSettings() {
   const [appNameFontSize, setAppNameFontSize] = useState(
     String(config.desktop.appNameFontSize),
   );
+  const [titleFontSize, setTitleFontSize] = useState(
+    String(config.desktop.titleFontSize),
+  );
   const [isSizePresetOpen, setIsSizePresetOpen] = useState(false);
   const [isTestingDesktop, setIsTestingDesktop] = useState(false);
   const [desktopTestResult, setDesktopTestResult] = useState<{
@@ -33,7 +36,12 @@ export function NotificationSettings() {
   useEffect(() => {
     setAppName(config.desktop.appName);
     setAppNameFontSize(String(config.desktop.appNameFontSize));
-  }, [config.desktop.appName, config.desktop.appNameFontSize]);
+    setTitleFontSize(String(config.desktop.titleFontSize));
+  }, [
+    config.desktop.appName,
+    config.desktop.appNameFontSize,
+    config.desktop.titleFontSize,
+  ]);
 
   /** 更新桌面通知配置后清空上一次测试结果，避免旧结果误导当前配置。 */
   const updateDesktopConfig = async (
@@ -61,6 +69,17 @@ export function NotificationSettings() {
     setAppNameFontSize(String(nextFontSize));
     if (nextFontSize === config.desktop.appNameFontSize) return;
     await updateDesktopConfig({ appNameFontSize: nextFontSize });
+  };
+
+  /** 保存通知标题字号，控制主标题在弹窗中的显示边界。 */
+  const handleSaveTitleFontSize = async () => {
+    const nextFontSize = Math.min(
+      30,
+      Math.max(14, Number(titleFontSize) || 21),
+    );
+    setTitleFontSize(String(nextFontSize));
+    if (nextFontSize === config.desktop.titleFontSize) return;
+    await updateDesktopConfig({ titleFontSize: nextFontSize });
   };
 
   /** 发送自定义桌面通知测试，确认主进程通知窗口可用 */
@@ -97,6 +116,8 @@ export function NotificationSettings() {
             appNameFontSize:
               DEFAULT_NOTIFICATION_CONFIG.desktop.appNameFontSize,
             appNameColor: DEFAULT_NOTIFICATION_CONFIG.desktop.appNameColor,
+            titleFontSize: DEFAULT_NOTIFICATION_CONFIG.desktop.titleFontSize,
+            titleColor: DEFAULT_NOTIFICATION_CONFIG.desktop.titleColor,
             backgroundColor:
               DEFAULT_NOTIFICATION_CONFIG.desktop.backgroundColor,
             sizePreset: DEFAULT_NOTIFICATION_CONFIG.desktop.sizePreset,
@@ -217,10 +238,10 @@ export function NotificationSettings() {
       </div>
 
       <div style={{ borderBottom: "1px solid var(--border-color)" }}>
-        <SettingRow label="通知标题" description="应用通知弹窗顶部显示的名称">
+        <SettingRow label="应用名" description="应用通知弹窗顶部显示的名称">
           <input
             id="desktop-notification-app-name"
-            aria-label="通知标题"
+            aria-label="应用名"
             type="text"
             value={appName}
             disabled={!config.desktop.enabled}
@@ -285,9 +306,9 @@ export function NotificationSettings() {
       {config.desktop.useCustomAppearance ? (
         <>
           <div style={{ borderBottom: "1px solid var(--border-color)" }}>
-            <SettingRow label="标题字号" description="应用标题名称的字体大小">
+            <SettingRow label="应用名大小" description="应用名称的字体大小">
               <input
-                aria-label="标题字号"
+                aria-label="应用名大小"
                 type="number"
                 min={12}
                 max={28}
@@ -309,14 +330,52 @@ export function NotificationSettings() {
           </div>
 
           <div style={{ borderBottom: "1px solid var(--border-color)" }}>
-            <SettingRow label="标题颜色" description="应用标题名称的文字颜色">
+            <SettingRow label="应用标题颜色" description="应用名称的文字颜色">
               <ColorPicker
                 value={config.desktop.appNameColor || "#ffffff"}
+                disabled={!config.desktop.enabled}
+                inputAriaLabel="应用标题颜色"
+                swatchAriaLabel="选择应用标题颜色"
+                onChange={(color) => {
+                  void updateDesktopConfig({ appNameColor: color });
+                }}
+              />
+            </SettingRow>
+          </div>
+
+          <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+            <SettingRow label="标题大小" description="通知标题的字体大小">
+              <input
+                aria-label="标题大小"
+                type="number"
+                min={14}
+                max={30}
+                value={titleFontSize}
+                disabled={!config.desktop.enabled}
+                onChange={(e) => setTitleFontSize(e.target.value)}
+                onBlur={() => {
+                  void handleSaveTitleFontSize();
+                }}
+                className="h-8 w-24 rounded-md px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                style={{
+                  backgroundColor: "var(--bg-tertiary)",
+                  border: "1px solid var(--border-color)",
+                  color: "var(--text-primary)",
+                  outline: "none",
+                }}
+              />
+            </SettingRow>
+          </div>
+
+          <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+            <SettingRow label="标题颜色" description="通知标题的文字颜色">
+              <ColorPicker
+                value={config.desktop.titleColor || "#ffffff"}
                 disabled={!config.desktop.enabled}
                 inputAriaLabel="标题颜色"
                 swatchAriaLabel="选择标题颜色"
                 onChange={(color) => {
-                  void updateDesktopConfig({ appNameColor: color });
+                  void updateDesktopConfig({ titleColor: color });
                 }}
               />
             </SettingRow>

@@ -224,6 +224,8 @@ describe("createAppNotification", () => {
       showAppIcon: false,
       appNameFontSize: 22,
       appNameColor: "#ffcc66",
+      titleFontSize: 24,
+      titleColor: "#66ccff",
       showActions: false,
       backgroundColor: "#223344",
       sizePreset: "large",
@@ -235,6 +237,8 @@ describe("createAppNotification", () => {
     expect(html).not.toContain('class="app-icon"');
     expect(html).toContain("--app-name-font-size: 22px;");
     expect(html).toContain("--app-name-color: #ffcc66;");
+    expect(html).toContain("--title-font-size: 24px;");
+    expect(html).toContain("--title-color: #66ccff;");
     expect(html).toContain("--notification-bg: #223344;");
     expect(html).toContain("grid-template-columns: 1fr;");
     expect(html).not.toContain('<div class="actions">');
