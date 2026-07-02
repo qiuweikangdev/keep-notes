@@ -207,6 +207,29 @@ describe("SearchModal", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  it("keeps hover separate from keyboard active selection", async () => {
+    const user = userEvent.setup();
+    render(<SearchModal isOpen onClose={vi.fn()} />);
+
+    const searchInput = screen.getByRole("searchbox");
+    const options = screen.getAllByRole("option");
+    await user.hover(options[1]);
+
+    expect(options[0]).toHaveAttribute("aria-selected", "true");
+    expect(options[1]).toHaveAttribute("aria-selected", "false");
+
+    await user.click(searchInput);
+    await user.keyboard("{ArrowDown}");
+
+    expect(options[0]).toHaveAttribute("aria-selected", "false");
+    expect(options[1]).toHaveAttribute("aria-selected", "true");
+    expect(options[1]).toHaveClass("bg-[var(--active-bg)]");
+
+    await user.keyboard("{Enter}");
+
+    expect(openFile).toHaveBeenCalledWith("C:\\notes\\docs\\second.txt");
+  });
+
   it("scrolls the active result into view when keyboard selection changes", async () => {
     const user = userEvent.setup();
     const scrollIntoView = vi.fn();

@@ -351,7 +351,6 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                   role="option"
                   type="button"
                   onClick={() => openSelectedResult(result)}
-                  onMouseEnter={() => setSelectedIndex(index)}
                 >
                   {result.kind === "folder" ? (
                     <FolderOpen
