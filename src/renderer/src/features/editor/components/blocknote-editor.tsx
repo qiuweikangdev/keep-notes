@@ -33,6 +33,7 @@ import {
   restoreEditorScrollTop,
 } from "../lib/editor-viewport";
 import { createParseFallback } from "../lib/editor-parse-fallback";
+import { readImageFileAsDataUrl } from "../lib/editor-image";
 import { editorSchema } from "../lib/blocknote-schema";
 import { selectCodeBlockContent } from "./editor-code-block";
 
@@ -87,7 +88,7 @@ interface BlockNoteEditorInnerProps {
   onParseStateChange: (message: string | null) => void;
 }
 
-const MARKDOWN_PARSER_VERSION = "blocknote-v3";
+const MARKDOWN_PARSER_VERSION = "blocknote-v4";
 
 function isSelectAllShortcut(event: RichEditorSelectAllEvent) {
   return (
@@ -269,12 +270,21 @@ function BlockNoteEditorInner({
       return url;
     }
   }, []);
+  const uploadEditorImageFile = useCallback(async (file: File) => {
+    const dataUrl = await readImageFileAsDataUrl(file);
+    if (!dataUrl) {
+      throw new Error("Only image files can be uploaded from the editor");
+    }
+
+    return dataUrl;
+  }, []);
   const editor = useCreateBlockNote({
     initialContent: undefined,
     resolveFileUrl: (url) => {
       return loadEditorImageUrl(resolveEditorImageUrl(url, pathRef.current));
     },
     schema: editorSchema,
+    uploadFile: uploadEditorImageFile,
   });
 
   // 获取 store 中的方法

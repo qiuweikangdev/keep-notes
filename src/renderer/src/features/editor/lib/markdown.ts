@@ -244,7 +244,7 @@ export function preserveMarkdownSource(
   }
 
   let result = source;
-  for (const edit of mappedEdits.reverse()) {
+  for (const edit of mappedEdits.toReversed()) {
     // 映射异常时回退到编辑器结果，避免生成内容错位或重复。
     if (edit.start < 0 || edit.end < edit.start || edit.end > result.length) {
       return edited;
@@ -344,22 +344,101 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object";
 }
 
+function getInlineText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+
+  return content
+    .map((item) => {
+      if (!isRecord(item)) return "";
+      if (typeof item.text === "string") return item.text;
+      return getInlineText(item.content);
+    })
+    .join("");
+}
+
+function getMarkdownImageFromPlainText(content: unknown) {
+  const text = getInlineText(content).trim();
+  const match = text.match(/^!\[([^\]]*)\]\(([^)\s]+)\)$/u);
+  if (!match) return null;
+
+  return {
+    name: match[1],
+    url: match[2],
+  };
+}
+
+function getMarkdownImageFromLinkContent(content: unknown) {
+  if (!Array.isArray(content) || content.length !== 2) return null;
+
+  const [prefix, link] = content;
+  if (!isRecord(prefix) || prefix.type !== "text" || prefix.text !== "!") {
+    return null;
+  }
+  if (
+    !isRecord(link) ||
+    link.type !== "link" ||
+    typeof link.href !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    name: getInlineText(link.content),
+    url: link.href,
+  };
+}
+
+function createImageBlockFromParagraph<TBlock>(
+  block: Record<string, unknown>,
+  image: { name: string; url: string },
+): TBlock {
+  const nextBlock: Record<string, unknown> = {
+    type: "image",
+    props: {
+      ...(isRecord(block.props) ? block.props : {}),
+      name: image.name,
+      url: image.url,
+    },
+  };
+
+  if (Array.isArray(block.children)) {
+    nextBlock.children = block.children;
+  }
+
+  return nextBlock as TBlock;
+}
+
+function promoteMarkdownImageParagraph<TBlock>(block: TBlock): TBlock {
+  if (!isRecord(block) || block.type !== "paragraph") return block;
+
+  const image =
+    getMarkdownImageFromLinkContent(block.content) ??
+    getMarkdownImageFromPlainText(block.content);
+  if (!image) return block;
+
+  return createImageBlockFromParagraph(block, image);
+}
+
 async function resolveImageBlockUrls<TBlock>(
   blocks: TBlock[],
   options: MarkdownParseOptions,
 ): Promise<TBlock[]> {
-  if (!options.resolveImageUrl) return blocks;
-
   return Promise.all(
     blocks.map(async (block) => {
-      if (!isRecord(block)) return block;
+      const promotedBlock = promoteMarkdownImageParagraph(block);
+      if (!isRecord(promotedBlock)) return promotedBlock;
 
-      let nextBlock: Record<string, unknown> = block;
-      const props = isRecord(block.props) ? block.props : null;
+      let nextBlock: Record<string, unknown> = promotedBlock;
+      const props = isRecord(promotedBlock.props) ? promotedBlock.props : null;
       const sourceUrl =
         props && typeof props.url === "string" ? props.url : null;
 
-      if (block.type === "image" && sourceUrl) {
+      if (
+        options.resolveImageUrl &&
+        promotedBlock.type === "image" &&
+        sourceUrl
+      ) {
         const resolvedUrl = resolveEditorImageUrl(
           sourceUrl,
           options.markdownFilePath ?? null,
