@@ -87,15 +87,26 @@ export function NotificationSettings() {
     await updateDesktopConfig({ sizePreset });
   };
 
+  /** 切换标题颜色模式，默认模式恢复系统默认文字色，自定义模式启用取色器。 */
+  const handleChangeAppNameColorMode = async (useDefault: boolean) => {
+    await updateDesktopConfig({
+      useDefaultAppNameColor: useDefault,
+      appNameColor: useDefault ? "" : config.desktop.appNameColor || "#ffffff",
+    });
+  };
+
+  /** 切换通知背景色模式，默认模式恢复预设背景色，自定义模式启用取色器。 */
+  const handleChangeBackgroundColorMode = async (useDefault: boolean) => {
+    await updateDesktopConfig({
+      useDefaultBackgroundColor: useDefault,
+      backgroundColor: useDefault
+        ? DEFAULT_NOTIFICATION_CONFIG.desktop.backgroundColor
+        : config.desktop.backgroundColor,
+    });
+  };
+
   return (
     <div className="space-y-0">
-      <div
-        className="px-0 pb-2 pt-1 text-xs font-medium"
-        style={{ color: "var(--text-muted)" }}
-      >
-        应用通知配置
-      </div>
-
       {/* 桌面通知 */}
       <div style={{ borderBottom: "1px solid var(--border-color)" }}>
         <SettingRow label="桌面通知" description="提醒到期时显示应用通知弹窗">
@@ -240,15 +251,54 @@ export function NotificationSettings() {
 
       <div style={{ borderBottom: "1px solid var(--border-color)" }}>
         <SettingRow label="标题颜色" description="应用标题名称的文字颜色">
-          <ColorPicker
-            value={config.desktop.appNameColor || "#ffffff"}
-            disabled={!config.desktop.enabled}
-            inputAriaLabel="标题颜色"
-            swatchAriaLabel="选择标题颜色"
-            onChange={(color) => {
-              void updateDesktopConfig({ appNameColor: color });
-            }}
-          />
+          <div className="flex items-center gap-3">
+            <label
+              className="flex items-center gap-1.5 text-xs"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              <input
+                aria-label="标题颜色使用默认值"
+                type="radio"
+                name="app-name-color-mode"
+                checked={config.desktop.useDefaultAppNameColor}
+                disabled={!config.desktop.enabled}
+                onChange={() => {
+                  void handleChangeAppNameColorMode(true);
+                }}
+              />
+              默认值
+            </label>
+            <label
+              className="flex items-center gap-1.5 text-xs"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              <input
+                aria-label="标题颜色使用自定义"
+                type="radio"
+                name="app-name-color-mode"
+                checked={!config.desktop.useDefaultAppNameColor}
+                disabled={!config.desktop.enabled}
+                onChange={() => {
+                  void handleChangeAppNameColorMode(false);
+                }}
+              />
+              自定义
+            </label>
+            <ColorPicker
+              value={config.desktop.appNameColor || "#ffffff"}
+              disabled={
+                !config.desktop.enabled || config.desktop.useDefaultAppNameColor
+              }
+              inputAriaLabel="标题颜色"
+              swatchAriaLabel="选择标题颜色"
+              onChange={(color) => {
+                void updateDesktopConfig({
+                  useDefaultAppNameColor: false,
+                  appNameColor: color,
+                });
+              }}
+            />
+          </div>
         </SettingRow>
       </div>
 
@@ -270,15 +320,55 @@ export function NotificationSettings() {
 
       <div style={{ borderBottom: "1px solid var(--border-color)" }}>
         <SettingRow label="通知背景色" description="应用通知弹窗的背景颜色">
-          <ColorPicker
-            value={config.desktop.backgroundColor}
-            disabled={!config.desktop.enabled}
-            inputAriaLabel="通知背景色"
-            swatchAriaLabel="选择通知背景色"
-            onChange={(color) => {
-              void updateDesktopConfig({ backgroundColor: color });
-            }}
-          />
+          <div className="flex items-center gap-3">
+            <label
+              className="flex items-center gap-1.5 text-xs"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              <input
+                aria-label="通知背景色使用默认值"
+                type="radio"
+                name="background-color-mode"
+                checked={config.desktop.useDefaultBackgroundColor}
+                disabled={!config.desktop.enabled}
+                onChange={() => {
+                  void handleChangeBackgroundColorMode(true);
+                }}
+              />
+              默认值
+            </label>
+            <label
+              className="flex items-center gap-1.5 text-xs"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              <input
+                aria-label="通知背景色使用自定义"
+                type="radio"
+                name="background-color-mode"
+                checked={!config.desktop.useDefaultBackgroundColor}
+                disabled={!config.desktop.enabled}
+                onChange={() => {
+                  void handleChangeBackgroundColorMode(false);
+                }}
+              />
+              自定义
+            </label>
+            <ColorPicker
+              value={config.desktop.backgroundColor}
+              disabled={
+                !config.desktop.enabled ||
+                config.desktop.useDefaultBackgroundColor
+              }
+              inputAriaLabel="通知背景色"
+              swatchAriaLabel="选择通知背景色"
+              onChange={(color) => {
+                void updateDesktopConfig({
+                  useDefaultBackgroundColor: false,
+                  backgroundColor: color,
+                });
+              }}
+            />
+          </div>
         </SettingRow>
       </div>
 

@@ -37,6 +37,8 @@ describe("NotificationSettings", () => {
   it("updates the desktop notification app name", async () => {
     render(<NotificationSettings />);
 
+    expect(screen.queryByText("应用通知配置")).not.toBeInTheDocument();
+
     const input = await screen.findByLabelText("通知标题");
     fireEvent.change(input, { target: { value: "个人提醒" } });
     fireEvent.blur(input);
@@ -98,7 +100,7 @@ describe("NotificationSettings", () => {
     });
   });
 
-  it("updates desktop notification title and background colors", async () => {
+  it("switches title and background colors between default and custom modes", async () => {
     render(<NotificationSettings />);
 
     expect(screen.getByLabelText("选择标题颜色取色器")).toHaveAttribute(
@@ -106,6 +108,8 @@ describe("NotificationSettings", () => {
       "color",
     );
     expect(screen.getByLabelText("选择标题颜色取色器")).toHaveClass("sr-only");
+    expect(screen.getByLabelText("标题颜色使用默认值")).toBeChecked();
+    expect(screen.getByLabelText("标题颜色")).toBeDisabled();
     expect(screen.getByLabelText("选择通知背景色取色器")).toHaveAttribute(
       "type",
       "color",
@@ -113,24 +117,37 @@ describe("NotificationSettings", () => {
     expect(screen.getByLabelText("选择通知背景色取色器")).toHaveClass(
       "sr-only",
     );
+    expect(screen.getByLabelText("通知背景色使用默认值")).toBeChecked();
+    expect(screen.getByLabelText("通知背景色")).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "选择标题颜色" }),
     ).toHaveAttribute("data-color-swatch", "true");
 
+    fireEvent.click(screen.getByLabelText("标题颜色使用自定义"));
+    await waitFor(() => {
+      expect(screen.getByLabelText("标题颜色")).not.toBeDisabled();
+    });
     fireEvent.change(await screen.findByLabelText("标题颜色"), {
       target: { value: "#ffcc66" },
     });
 
     await waitFor(() => {
-      expect(window.electronAPI.setNotificationConfig).toHaveBeenCalledWith({
-        ...DEFAULT_NOTIFICATION_CONFIG,
-        desktop: {
-          ...DEFAULT_NOTIFICATION_CONFIG.desktop,
-          appNameColor: "#ffcc66",
+      expect(window.electronAPI.setNotificationConfig).toHaveBeenLastCalledWith(
+        {
+          ...DEFAULT_NOTIFICATION_CONFIG,
+          desktop: {
+            ...DEFAULT_NOTIFICATION_CONFIG.desktop,
+            appNameColor: "#ffcc66",
+            useDefaultAppNameColor: false,
+          },
         },
-      });
+      );
     });
 
+    fireEvent.click(screen.getByLabelText("通知背景色使用自定义"));
+    await waitFor(() => {
+      expect(screen.getByLabelText("通知背景色")).not.toBeDisabled();
+    });
     fireEvent.change(screen.getByLabelText("通知背景色"), {
       target: { value: "#223344" },
     });
@@ -143,6 +160,43 @@ describe("NotificationSettings", () => {
             ...DEFAULT_NOTIFICATION_CONFIG.desktop,
             appNameColor: "#ffcc66",
             backgroundColor: "#223344",
+            useDefaultAppNameColor: false,
+            useDefaultBackgroundColor: false,
+          },
+        },
+      );
+    });
+
+    fireEvent.click(screen.getByLabelText("标题颜色使用默认值"));
+
+    await waitFor(() => {
+      expect(window.electronAPI.setNotificationConfig).toHaveBeenLastCalledWith(
+        {
+          ...DEFAULT_NOTIFICATION_CONFIG,
+          desktop: {
+            ...DEFAULT_NOTIFICATION_CONFIG.desktop,
+            appNameColor: "",
+            backgroundColor: "#223344",
+            useDefaultAppNameColor: true,
+            useDefaultBackgroundColor: false,
+          },
+        },
+      );
+    });
+
+    fireEvent.click(screen.getByLabelText("通知背景色使用默认值"));
+
+    await waitFor(() => {
+      expect(window.electronAPI.setNotificationConfig).toHaveBeenLastCalledWith(
+        {
+          ...DEFAULT_NOTIFICATION_CONFIG,
+          desktop: {
+            ...DEFAULT_NOTIFICATION_CONFIG.desktop,
+            appNameColor: "",
+            backgroundColor:
+              DEFAULT_NOTIFICATION_CONFIG.desktop.backgroundColor,
+            useDefaultAppNameColor: true,
+            useDefaultBackgroundColor: true,
           },
         },
       );

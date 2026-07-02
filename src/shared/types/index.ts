@@ -234,8 +234,10 @@ export interface DesktopChannelConfig {
   appName: string;
   showAppIcon: boolean;
   appNameFontSize: number;
+  useDefaultAppNameColor: boolean;
   appNameColor: string;
   showActions: boolean;
+  useDefaultBackgroundColor: boolean;
   backgroundColor: string;
   sizePreset: NotificationSizePreset;
 }
@@ -261,8 +263,10 @@ export const DEFAULT_NOTIFICATION_CONFIG: NotificationConfig = {
     appName: APP_NAME,
     showAppIcon: true,
     appNameFontSize: 18,
+    useDefaultAppNameColor: true,
     appNameColor: "",
     showActions: true,
+    useDefaultBackgroundColor: true,
     backgroundColor: "#111820",
     sizePreset: "medium",
   },
