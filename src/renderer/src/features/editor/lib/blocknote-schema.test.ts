@@ -75,6 +75,17 @@ function setupMatchMedia() {
   });
 }
 
+function setupClipboardEvent() {
+  Object.defineProperty(window, "ClipboardEvent", {
+    configurable: true,
+    value: Event,
+  });
+  Object.defineProperty(globalThis, "ClipboardEvent", {
+    configurable: true,
+    value: Event,
+  });
+}
+
 function simulateTextInput(editor: BlockNoteEditor, text: string) {
   const view = editor.prosemirrorView;
   const { from, to } = view.state.selection;
@@ -98,6 +109,13 @@ function getInlineText(block: { content: unknown }) {
   return (block.content as Array<{ type: string; text: string }>)
     .map((content) => content.text)
     .join("");
+}
+
+function getDocumentSummary(editor: BlockNoteEditor) {
+  return editor.document.map((block) => ({
+    text: getInlineText(block),
+    type: block.type,
+  }));
 }
 
 function pressKey(editor: BlockNoteEditor, key: string) {
@@ -244,6 +262,90 @@ describe("editor BlockNote schema", () => {
     expect("createEditorCodeBlockHighlighter" in blocknoteSchemaModule).toBe(
       false,
     );
+  });
+
+  it("parses markdown bullet lines as sibling bullet list items", async () => {
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    const blocks = await editor.tryParseMarkdownToBlocks("* 1\n* 2\n* List");
+
+    expect(
+      blocks.map((block) => ({
+        text: getInlineText(block),
+        type: block.type,
+      })),
+    ).toEqual([
+      { type: "bulletListItem", text: "1" },
+      { type: "bulletListItem", text: "2" },
+      { type: "bulletListItem", text: "List" },
+    ]);
+    expect(blocks.map(getInlineText).join("")).not.toContain("*");
+  });
+
+  it("continues typed bullet lists without leaving markdown markers in text", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[0].id, "start");
+    typeString(editor, "* ");
+    typeString(editor, "1");
+    pressKey(editor, "Enter");
+    typeString(editor, "2");
+    pressKey(editor, "Enter");
+    typeString(editor, "List");
+
+    expect(getDocumentSummary(editor)).toEqual([
+      { type: "bulletListItem", text: "1" },
+      { type: "bulletListItem", text: "2" },
+      { type: "bulletListItem", text: "List" },
+    ]);
+    expect(editor.document.map(getInlineText).join("")).not.toContain("*");
+  });
+
+  it("pastes markdown bullet text as sibling bullet items instead of inline marker residue", () => {
+    setupMatchMedia();
+    setupClipboardEvent();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[0].id, "start");
+    editor.pasteMarkdown("* 1\n* 2\n* List");
+
+    expect(getDocumentSummary(editor)).toEqual([
+      { type: "bulletListItem", text: "1" },
+      { type: "bulletListItem", text: "2" },
+      { type: "bulletListItem", text: "List" },
+    ]);
+    expect(editor.document.map(getInlineText).join("")).not.toContain("*");
+  });
+
+  it("pastes plain text bullet lines as sibling bullet items instead of inline marker residue", () => {
+    setupMatchMedia();
+    setupClipboardEvent();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[0].id, "start");
+    editor.pasteText("* 1\n* 2\n* List");
+
+    expect(getDocumentSummary(editor)).toEqual([
+      { type: "bulletListItem", text: "1" },
+      { type: "bulletListItem", text: "2" },
+      { type: "bulletListItem", text: "List" },
+    ]);
+    expect(editor.document.map(getInlineText).join("")).not.toContain("*");
   });
 
   it("keeps Enter-created line breaks inside quote blocks", () => {

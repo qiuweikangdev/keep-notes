@@ -13,7 +13,8 @@ import {
   createCodeBlockSpec,
   createQuoteBlockSpec,
 } from "@blocknote/core/blocks";
-import { TextSelection } from "@tiptap/pm/state";
+import { Plugin, TextSelection } from "@tiptap/pm/state";
+import type { Slice } from "@tiptap/pm/model";
 
 import {
   createEditorCodeBlockExternalHTML,
@@ -76,6 +77,68 @@ const editorCodeBlockSpec = createBlockSpec(
   },
   editorCodeBlockExtensions,
 )();
+
+function getPlainParagraphTextsFromPasteSlice(slice: Slice): string[] | null {
+  const texts: string[] = [];
+
+  slice.content.forEach((blockContainer) => {
+    const blockContent = blockContainer.firstChild;
+    if (blockContent?.type.name !== "paragraph") {
+      return;
+    }
+    texts.push(blockContent.textContent);
+  });
+
+  return texts.length === slice.content.childCount ? texts : null;
+}
+
+function getPlainBulletListPasteBlocks(slice: Slice) {
+  const paragraphTexts = getPlainParagraphTextsFromPasteSlice(slice);
+  if (!paragraphTexts) return null;
+
+  const nonEmptyLines = paragraphTexts
+    .map((text) => text.trim())
+    .filter(Boolean);
+  if (nonEmptyLines.length < 2) return null;
+
+  const blocks = nonEmptyLines.map((line) => {
+    const match = line.match(/^[-+*]\s+(.+)$/u);
+    if (!match) return null;
+
+    return {
+      type: "bulletListItem" as const,
+      content: match[1],
+    };
+  });
+
+  return blocks.every((block) => block !== null) ? blocks : null;
+}
+
+const plainBulletListPasteExtension = createExtension(({ editor }) => ({
+  key: "editor-plain-bullet-list-paste",
+  prosemirrorPlugins: [
+    new Plugin({
+      props: {
+        handlePaste(_view, event, slice) {
+          const blocks = getPlainBulletListPasteBlocks(slice);
+          if (!blocks) return false;
+
+          const { block } = editor.getTextCursorPosition();
+          const isEmptyInlineBlock = getInlineContentText(block.content) === "";
+
+          // 纯文本粘贴的 Markdown 列表应进入块结构，避免 * 作为普通正文残留。
+          if (isEmptyInlineBlock) {
+            editor.replaceBlocks([block], blocks);
+          } else {
+            editor.insertBlocks(blocks, block, "after");
+          }
+          event.preventDefault();
+          return true;
+        },
+      },
+    }),
+  ],
+}));
 
 function getInlineContentText(content: unknown) {
   if (typeof content === "string") return content;
@@ -177,8 +240,17 @@ const editorQuoteBlockSpec = {
   ],
 };
 
+const editorBulletListItemSpec = {
+  ...defaultBlockSpecs.bulletListItem,
+  extensions: [
+    ...(defaultBlockSpecs.bulletListItem.extensions ?? []),
+    plainBulletListPasteExtension(),
+  ],
+};
+
 export const editorBlockSpecs = {
   ...defaultBlockSpecs,
+  bulletListItem: editorBulletListItemSpec,
   codeBlock: editorCodeBlockSpec,
   quote: editorQuoteBlockSpec,
 };
