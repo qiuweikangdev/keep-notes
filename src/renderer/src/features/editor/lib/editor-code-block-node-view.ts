@@ -276,6 +276,21 @@ function stopCodeMirrorBubbleEvent(event: Event) {
   event.stopPropagation();
 }
 
+export function shouldStopEditorCodeBlockNodeViewEvent(event: Event): boolean {
+  const target = event.target instanceof Element ? event.target : null;
+  const isCodeMirrorContent = Boolean(target?.closest(".cm-content"));
+
+  // 外层编辑器拖选经过代码内容区时，需要继续接收移动和释放事件来扩展块级选区。
+  if (
+    isCodeMirrorContent &&
+    ["mousemove", "mouseup", "pointermove", "pointerup"].includes(event.type)
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
 function toggleCodeMirrorFoldAtLine(
   view: CodeMirrorView,
   line: BlockInfo,
@@ -552,9 +567,8 @@ class EditorCodeBlockNodeView {
     this.dom.addEventListener("mousedown", this.focusCodeMirrorFromShell);
   }
 
-  public stopEvent = () => {
-    return true;
-  };
+  public stopEvent = (event: Event) =>
+    shouldStopEditorCodeBlockNodeViewEvent(event);
 
   public ignoreMutation = () => {
     return true;

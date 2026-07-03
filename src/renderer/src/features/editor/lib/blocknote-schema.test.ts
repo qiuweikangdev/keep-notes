@@ -11,6 +11,7 @@ import {
   editorCodeBlockSupportedLanguages,
   editorSchema,
 } from "./blocknote-schema";
+import { shouldStopEditorCodeBlockNodeViewEvent } from "./editor-code-block-node-view";
 import * as blocknoteSchemaModule from "./blocknote-schema";
 
 afterEach(() => {
@@ -117,6 +118,25 @@ function getCodeMirrorView(container: HTMLElement) {
   return view as EditorView;
 }
 
+function readCodeBlockNodeViewStopDecision(target: Element, eventType: string) {
+  let decision: boolean | undefined;
+  target.addEventListener(
+    eventType,
+    (event) => {
+      decision = shouldStopEditorCodeBlockNodeViewEvent(event);
+    },
+    { once: true },
+  );
+  target.dispatchEvent(
+    new MouseEvent(eventType, {
+      bubbles: true,
+      cancelable: true,
+    }),
+  );
+
+  return decision;
+}
+
 describe("editor BlockNote schema", () => {
   it("replaces the default code block while preserving common blocks", () => {
     expect(Object.keys(editorBlockSpecs)).toContain("paragraph");
@@ -142,6 +162,21 @@ describe("editor BlockNote schema", () => {
     expect(editorBlockSpecs.codeBlock.implementation.toExternalHTML).toBeTypeOf(
       "function",
     );
+  });
+
+  it("lets parent editor continue selection drags over CodeMirror node views", () => {
+    const codeMirror = document.createElement("div");
+    codeMirror.className = "editor-code-block__codemirror";
+    const content = document.createElement("div");
+    content.className = "cm-content";
+    const gutter = document.createElement("div");
+    gutter.className = "cm-gutters";
+    codeMirror.append(content, gutter);
+
+    expect(readCodeBlockNodeViewStopDecision(content, "mousemove")).toBe(false);
+    expect(readCodeBlockNodeViewStopDecision(content, "mouseup")).toBe(false);
+    expect(readCodeBlockNodeViewStopDecision(content, "mousedown")).toBe(true);
+    expect(readCodeBlockNodeViewStopDecision(gutter, "mousemove")).toBe(true);
   });
 
   it("isolates code block DOM events from the outer ProseMirror editor like Milkdown", () => {

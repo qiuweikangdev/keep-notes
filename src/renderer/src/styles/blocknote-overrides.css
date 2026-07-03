@@ -605,6 +605,12 @@
 .bn-side-menu {
   color: var(--text-muted) !important;
   margin-right: 8px !important;
+  /* 透明容器不参与拖选命中，避免正文选择时误触发块级选择。 */
+  pointer-events: none;
+}
+
+.bn-side-menu .mantine-UnstyledButton-root {
+  pointer-events: auto;
 }
 
 /* 修复标题块的 side-menu 高度对齐

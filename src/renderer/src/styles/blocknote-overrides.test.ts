@@ -306,6 +306,13 @@ describe("blocknote overrides stylesheet", () => {
     ).toMatch(/pointer-events:\s*auto;/);
   });
 
+  it("keeps the transparent block side menu hitbox from catching text selection drags", () => {
+    expect(getRule(".bn-side-menu")).toMatch(/pointer-events:\s*none;/);
+    expect(getRule(".bn-side-menu .mantine-UnstyledButton-root")).toMatch(
+      /pointer-events:\s*auto;/,
+    );
+  });
+
   it("aligns the quote block side menu with the quote content", () => {
     expect(getRule('.bn-side-menu[data-block-type="quote"]')).toMatch(
       /display:\s*flex;/,
