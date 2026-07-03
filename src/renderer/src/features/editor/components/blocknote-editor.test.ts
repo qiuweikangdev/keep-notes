@@ -15,8 +15,8 @@ import {
 } from "./blocknote-editor";
 
 describe("BlockNoteEditor rich text selection", () => {
-  it("disables the default block side menu to avoid accidental block multi-selection", () => {
-    expect(richEditorDefaultUIProps.sideMenu).toBe(false);
+  it("enables the default block side menu for block insert and drag controls", () => {
+    expect(richEditorDefaultUIProps.sideMenu).toBe(true);
   });
 
   it("selects the entire ProseMirror document", () => {

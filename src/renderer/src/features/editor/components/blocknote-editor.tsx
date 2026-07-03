@@ -130,7 +130,7 @@ interface BlockNoteEditorInnerProps {
 const MARKDOWN_PARSER_VERSION = "blocknote-v4";
 
 export const richEditorDefaultUIProps = {
-  sideMenu: false,
+  sideMenu: true,
 } as const;
 
 function isSelectAllShortcut(event: RichEditorSelectAllEvent) {
