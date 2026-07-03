@@ -65,4 +65,18 @@ describe("editor store", () => {
     expect(tab?.isDirty).toBe(false);
     expect(tab?.saveStatus).toBe("clean");
   });
+
+  it("keeps outline heading state stable when extracted headings are unchanged", () => {
+    const headings = [
+      { id: "heading-1", text: "Intro", level: 1 },
+      { id: "heading-2", text: "Details", level: 2 },
+    ];
+
+    useEditorStore.getState().setOutlineHeadings(headings);
+    const previousState = useEditorStore.getState();
+
+    useEditorStore.getState().setOutlineHeadings([...headings]);
+
+    expect(useEditorStore.getState()).toBe(previousState);
+  });
 });

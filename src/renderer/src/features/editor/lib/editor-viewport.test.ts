@@ -4,6 +4,7 @@ import {
   chooseRestoredEditorScrollTop,
   readEditorScrollTop,
   restoreEditorScrollTop,
+  scrollEditorBlockIntoView,
 } from "./editor-viewport";
 
 describe("editor viewport", () => {
@@ -45,5 +46,31 @@ describe("editor viewport", () => {
         cachedScrollTop: 88,
       }),
     ).toBe(0);
+  });
+
+  it("scrolls a target block by updating the editor scroll container", () => {
+    const container = {
+      scrollTop: 200,
+      getBoundingClientRect: () => ({ top: 100 }),
+    };
+    const target = {
+      getBoundingClientRect: () => ({ top: 360 }),
+      scrollIntoView: vi.fn(),
+    };
+
+    expect(scrollEditorBlockIntoView(container, target)).toBe(true);
+
+    expect(container.scrollTop).toBe(460);
+    expect(target.scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it("reports when a target block cannot be found", () => {
+    const container = {
+      scrollTop: 200,
+      getBoundingClientRect: () => ({ top: 100 }),
+    };
+
+    expect(scrollEditorBlockIntoView(container, null)).toBe(false);
+    expect(container.scrollTop).toBe(200);
   });
 });

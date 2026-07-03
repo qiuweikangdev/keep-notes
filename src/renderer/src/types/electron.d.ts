@@ -190,6 +190,5 @@ declare global {
     __addFileToHistory?: (filePath: string) => void;
     __navigateBack?: () => void;
     __navigateForward?: () => void;
-    __scrollToBlock?: (id: string) => void;
   }
 }

@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { useEditorStore } from "@/store/editor.store";
 import { OutlinePanel } from "./outline-panel";
+import { scrollEditorOutlineBlock } from "@/features/editor/lib/editor-outline-navigation";
 import { useTreeStore } from "@/store/tree.store";
 import { useElectron } from "@/hooks/use-electron";
 import { useReminderStore } from "@/store/reminder.store";
@@ -150,8 +151,16 @@ export function FileTree() {
   // 处理大纲标题点击，滚动到对应位置
   const handleHeadingClick = useCallback(
     (id: string) => {
-      setActiveHeadingId(id);
-      window.__scrollToBlock?.(id);
+      const state = useEditorStore.getState();
+      const activeGroup = state.panelGroups.find(
+        (group) => group.id === state.activeGroupId,
+      );
+      if (activeGroup) {
+        scrollEditorOutlineBlock(activeGroup.id, activeGroup.activeTabId, id);
+      }
+      startTransition(() => {
+        setActiveHeadingId(id);
+      });
     },
     [setActiveHeadingId],
   );

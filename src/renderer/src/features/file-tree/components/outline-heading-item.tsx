@@ -1,4 +1,4 @@
-import { forwardRef, useCallback } from "react";
+import { forwardRef, memo, useCallback } from "react";
 
 interface OutlineHeadingItemProps {
   id: string;
@@ -8,7 +8,7 @@ interface OutlineHeadingItemProps {
   onClick: (id: string) => void;
 }
 
-export const OutlineHeadingItem = forwardRef<
+const OutlineHeadingItemBase = forwardRef<
   HTMLButtonElement,
   OutlineHeadingItemProps
 >(function OutlineHeadingItem({ id, text, level, isActive, onClick }, ref) {
@@ -53,3 +53,5 @@ export const OutlineHeadingItem = forwardRef<
     </button>
   );
 });
+
+export const OutlineHeadingItem = memo(OutlineHeadingItemBase);

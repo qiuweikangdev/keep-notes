@@ -2,6 +2,14 @@ interface EditorScrollHost {
   scrollTop: number;
 }
 
+interface EditorScrollContainer extends EditorScrollHost {
+  getBoundingClientRect: () => Pick<DOMRect, "top">;
+}
+
+interface EditorScrollTarget {
+  getBoundingClientRect: () => Pick<DOMRect, "top">;
+}
+
 type FrameScheduler = (callback: () => void) => void;
 
 interface RestoredScrollTopOptions {
@@ -37,6 +45,23 @@ export function restoreEditorScrollTop(
   schedule(() => {
     element.scrollTop = nextScrollTop;
   });
+}
+
+export function scrollEditorBlockIntoView(
+  container: EditorScrollContainer | null,
+  target: EditorScrollTarget | null,
+): boolean {
+  if (!container || !target) return false;
+
+  const containerTop = container.getBoundingClientRect().top;
+  const targetTop = target.getBoundingClientRect().top;
+  const nextScrollTop = container.scrollTop + targetTop - containerTop;
+
+  // 只移动编辑器自身滚动容器，避免 scrollIntoView 级联滚动外层布局。
+  container.scrollTop = Number.isFinite(nextScrollTop)
+    ? Math.max(0, nextScrollTop)
+    : 0;
+  return true;
 }
 
 function scheduleNextFrame(callback: () => void): void {

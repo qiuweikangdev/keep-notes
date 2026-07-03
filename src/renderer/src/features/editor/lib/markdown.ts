@@ -28,6 +28,8 @@ interface MarkdownEdit {
   replacement: string;
 }
 
+const SOURCE_PRESERVATION_DIFF_CHAR_LIMIT = 24_000;
+
 function createSourceBoundaryMap(
   baseline: string,
   source: string,
@@ -221,6 +223,14 @@ export function preserveMarkdownSource(
   edited: string,
 ): string {
   if (baseline === edited) return source;
+
+  if (
+    source.length + baseline.length + edited.length >
+    SOURCE_PRESERVATION_DIFF_CHAR_LIMIT
+  ) {
+    // 大文档避免字符级 diff 阻塞输入；保留文件结尾即可，正文采用编辑器序列化结果。
+    return preserveSourceEnding(source, edited);
+  }
 
   const boundaryMap = createSourceBoundaryMap(baseline, source);
   const edits = collectMarkdownEdits(diffChars(baseline, edited));

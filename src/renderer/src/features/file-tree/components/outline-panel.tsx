@@ -18,13 +18,13 @@ export function OutlinePanel({
   activeHeadingId,
   onHeadingClick,
 }: OutlinePanelProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const activeItemRef = useRef<HTMLButtonElement>(null);
 
   // 当活跃标题变化时，自动滚动到对应位置
   useEffect(() => {
-    if (activeItemRef.current && containerRef.current) {
-      const container = containerRef.current;
+    if (activeItemRef.current && scrollContainerRef.current) {
+      const container = scrollContainerRef.current;
       const item = activeItemRef.current;
 
       // 计算元素相对于容器的位置
@@ -37,17 +37,18 @@ export function OutlinePanel({
 
       if (isAbove || isBelow) {
         // 平滑滚动到元素位置
-        item.scrollIntoView({
-          behavior: "smooth",
-          block: "center",
-        });
+        container.scrollTop +=
+          itemRect.top -
+          containerRect.top -
+          container.clientHeight / 2 +
+          item.clientHeight / 2;
       }
     }
   }, [activeHeadingId]);
 
   return (
-    <div ref={containerRef} className="flex h-full flex-col">
-      <div className="flex-1 overflow-auto py-2">
+    <div className="flex h-full flex-col">
+      <div ref={scrollContainerRef} className="flex-1 overflow-auto py-2">
         {headings.length === 0 ? (
           <div
             className="px-3 py-2 text-[13px]"
