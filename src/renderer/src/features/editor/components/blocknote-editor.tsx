@@ -112,6 +112,10 @@ interface BlockNoteEditorInnerProps {
 
 const MARKDOWN_PARSER_VERSION = "blocknote-v4";
 
+export const richEditorDefaultUIProps = {
+  sideMenu: false,
+} as const;
+
 function isSelectAllShortcut(event: RichEditorSelectAllEvent) {
   return (
     event.key.toLowerCase() === "a" &&
@@ -827,6 +831,7 @@ function BlockNoteEditorInner({
       }}
     >
       <BlockNoteView
+        {...richEditorDefaultUIProps}
         editor={editor}
         theme={isDark ? "dark" : "light"}
         spellCheck={false}

@@ -6,6 +6,7 @@ import {
   handleRichEditorHeadingShortcut,
   handleRichEditorSelectAllShortcut,
   moveCursorAfterUploadedImage,
+  richEditorDefaultUIProps,
   uploadEditorImageFileAsAttachment,
   selectEntireRichEditorContent,
   shouldLetCodeMirrorHandleKeyboardEvent,
@@ -13,6 +14,10 @@ import {
 } from "./blocknote-editor";
 
 describe("BlockNoteEditor rich text selection", () => {
+  it("disables the default block side menu to avoid accidental block multi-selection", () => {
+    expect(richEditorDefaultUIProps.sideMenu).toBe(false);
+  });
+
   it("selects the entire ProseMirror document", () => {
     const editor = CoreBlockNoteEditor.create({
       schema: editorSchema,
