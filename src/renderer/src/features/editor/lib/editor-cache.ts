@@ -8,7 +8,6 @@ interface CachedEditorEntry<TBlocks> {
     source: string;
     parserVersion?: string;
     blocks: TBlocks;
-    scrollTop: number;
   } | null;
 }
 
@@ -35,7 +34,7 @@ export class EditorCache<TBlocks> {
     path: string,
     source: string,
     parserVersion?: string,
-  ): { blocks: TBlocks; scrollTop: number } | null {
+  ): { blocks: TBlocks } | null {
     const entry = this.touch(path);
     if (
       !entry?.parsed ||
@@ -47,7 +46,6 @@ export class EditorCache<TBlocks> {
 
     return {
       blocks: entry.parsed.blocks,
-      scrollTop: entry.parsed.scrollTop,
     };
   }
 
@@ -55,26 +53,17 @@ export class EditorCache<TBlocks> {
     path: string,
     source: string,
     blocks: TBlocks,
-    scrollTop: number,
     parserVersion?: string,
   ): void {
     const entry = this.entries.get(path);
     this.write(path, {
       content: entry?.content ?? source,
-      parsed: { source, parserVersion, blocks, scrollTop },
+      parsed: { source, parserVersion, blocks },
     });
   }
 
-  setScrollTop(path: string, scrollTop: number): void {
-    const entry = this.entries.get(path);
-    if (!entry?.parsed) {
-      return;
-    }
-
-    this.write(path, {
-      ...entry,
-      parsed: { ...entry.parsed, scrollTop },
-    });
+  setScrollTop(_path: string, _scrollTop: number): void {
+    // 编辑器打开文件时始终从顶部开始，解析缓存不再记录滚动位置。
   }
 
   delete(path: string): void {

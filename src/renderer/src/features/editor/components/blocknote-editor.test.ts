@@ -5,6 +5,7 @@ import { editorSchema } from "../lib/blocknote-schema";
 import {
   handleRichEditorHeadingShortcut,
   handleRichEditorSelectAllShortcut,
+  focusEditorOutlineBlock,
   moveCursorAfterUploadedImage,
   uploadEditorImageFileAsAttachment,
   selectEntireRichEditorContent,
@@ -108,6 +109,31 @@ describe("BlockNoteEditor heading shortcuts", () => {
     expect(event.stopPropagation).toHaveBeenCalled();
     expect(editor.document[0].type).toBe("heading");
     expect(editor.document[0].props.level).toBe(2);
+  });
+});
+
+describe("BlockNoteEditor outline navigation focus", () => {
+  it("focuses the editor before moving the cursor to an outline block", () => {
+    const calls: string[] = [];
+    const editor = {
+      getBlock: vi.fn(() => ({ id: "heading-1", type: "heading" })),
+      focus: vi.fn(() => calls.push("focus")),
+      setTextCursorPosition: vi.fn(() => calls.push("set-cursor")),
+    };
+    const scrollSelection = vi.fn(() => {
+      calls.push("scroll-selection");
+      return true;
+    });
+
+    expect(focusEditorOutlineBlock(editor, "heading-1", scrollSelection)).toBe(
+      true,
+    );
+
+    expect(calls).toEqual(["focus", "set-cursor", "scroll-selection"]);
+    expect(editor.setTextCursorPosition).toHaveBeenCalledWith(
+      "heading-1",
+      "start",
+    );
   });
 });
 

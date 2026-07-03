@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type CSSProperties,
+} from "react";
 import { useCreateBlockNote, useEditorChange } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
 import { EditorView as CodeMirrorView } from "@codemirror/view";
@@ -32,7 +38,7 @@ import {
   chooseRestoredEditorScrollTop,
   readEditorScrollTop,
   restoreEditorScrollTop,
-  scrollEditorBlockIntoView,
+  scheduleStableEditorBlockScroll,
 } from "../lib/editor-viewport";
 import {
   flushPendingEditorOutlineNavigation,
@@ -93,6 +99,12 @@ interface UploadedImageCursorEditor {
     referenceBlock: string,
     placement: "after",
   ) => Array<{ id: string }>;
+  setTextCursorPosition: (blockId: string, placement: "start") => void;
+}
+
+interface OutlineNavigationCursorEditor {
+  getBlock: (blockId: string) => unknown;
+  focus: () => void;
   setTextCursorPosition: (blockId: string, placement: "start") => void;
 }
 
@@ -167,11 +179,6 @@ function findEditorBlockElement(root: Element | null, blockId: string) {
   );
 }
 
-function scheduleNextFrame(callback: () => void) {
-  const frame = requestAnimationFrame(callback);
-  return () => cancelAnimationFrame(frame);
-}
-
 function scheduleEditorIdleTask(callback: () => void, timeout = 1200) {
   const idleWindow = window as Window & {
     requestIdleCallback?: (
@@ -196,6 +203,29 @@ function scrollCurrentEditorSelectionIntoView(editor: CoreBlockNoteEditor) {
 
   view.dispatch(view.state.tr.scrollIntoView());
   return true;
+}
+
+export function focusEditorOutlineBlock(
+  editor: OutlineNavigationCursorEditor,
+  blockId: string,
+  scrollSelection: (editor: OutlineNavigationCursorEditor) => boolean = (
+    currentEditor,
+  ) =>
+    scrollCurrentEditorSelectionIntoView(
+      currentEditor as unknown as CoreBlockNoteEditor,
+    ),
+) {
+  if (!editor.getBlock(blockId)) return false;
+
+  try {
+    // 首次从大纲跳转时编辑器可能未聚焦；先聚焦再设置光标，避免第一次点击只激活编辑器不滚动。
+    editor.focus();
+    editor.setTextCursorPosition(blockId, "start");
+    scrollSelection(editor);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function selectCodeMirrorCodeBlockContent(root: Element | null) {
@@ -500,44 +530,24 @@ function BlockNoteEditorInner({
       const scrollContainer = scrollContainerRef.current;
       if (!scrollContainer) return false;
 
-      // 首次打开文件时，大纲可能先于 BlockNote 文档完成替换；此时保留导航请求，等内容就绪后再执行。
-      if (!editor.getBlock(blockId)) return false;
-
       const scrollToken = outlineScrollTokenRef.current + 1;
       outlineScrollTokenRef.current = scrollToken;
 
-      try {
-        // 点击大纲后同步移动光标，避免滚动到目标后输入仍落在旧位置。
-        editor.setTextCursorPosition(blockId, "start");
-        scrollCurrentEditorSelectionIntoView(editor);
-        editor.focus();
-      } catch {
+      if (!focusEditorOutlineBlock(editor, blockId)) {
         return false;
       }
 
-      const tryScroll = () => {
-        if (outlineScrollTokenRef.current !== scrollToken) return true;
-        const blockElement = findEditorBlockElement(editor.domElement, blockId);
-        return scrollEditorBlockIntoView(scrollContainer, blockElement);
-      };
+      const getTarget = () =>
+        findEditorBlockElement(editor.domElement, blockId);
+      if (!getTarget()) {
+        return false;
+      }
 
-      if (tryScroll()) return;
-
-      let attempts = 0;
-      let cancelFrame: (() => void) | null = null;
-      const retryScroll = () => {
-        cancelFrame = null;
-        if (tryScroll()) return;
-        attempts += 1;
-        if (attempts < 6) {
-          cancelFrame = scheduleNextFrame(retryScroll);
-        }
-      };
-
-      cancelFrame = scheduleNextFrame(retryScroll);
-      window.setTimeout(() => {
-        cancelFrame?.();
-      }, 250);
+      scheduleStableEditorBlockScroll({
+        container: scrollContainer,
+        getTarget,
+        shouldContinue: () => outlineScrollTokenRef.current === scrollToken,
+      });
 
       return true;
     },
@@ -563,6 +573,14 @@ function BlockNoteEditorInner({
     workspaceRootPathRef.current = workspaceRootPath;
   }, [workspaceRootPath]);
 
+  useLayoutEffect(() => {
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+
+    // 文件切换或重载开始时立即回到顶部，不等待 Markdown 解析和 BlockNote 替换完成。
+    scrollContainer.scrollTop = 0;
+  }, [path, reloadKey]);
+
   const cacheAppliedDocument = useCallback(() => {
     const appliedPath = appliedPathRef.current;
     if (!appliedPath) return;
@@ -572,7 +590,6 @@ function BlockNoteEditorInner({
       appliedPath,
       appliedSourceRef.current,
       editor.document,
-      readEditorScrollTop(scrollContainerRef.current),
       MARKDOWN_PARSER_VERSION,
     );
   }, [editor]);
@@ -620,7 +637,6 @@ function BlockNoteEditorInner({
           path,
           markdown,
           editor.document,
-          readEditorScrollTop(scrollContainerRef.current),
           MARKDOWN_PARSER_VERSION,
         );
       }
@@ -716,18 +732,12 @@ function BlockNoteEditorInner({
           currentPath,
           nextPath: path,
           currentScrollTop,
-          cachedScrollTop: cached?.scrollTop,
+          cachedScrollTop: undefined,
         });
         serializedBaselineRef.current = serializedBaseline;
         if (path) {
           editorCache.setContent(path, source);
-          editorCache.setBlocks(
-            path,
-            source,
-            blocks,
-            restoredScrollTop,
-            MARKDOWN_PARSER_VERSION,
-          );
+          editorCache.setBlocks(path, source, blocks, MARKDOWN_PARSER_VERSION);
         }
         restoreEditorScrollTop(scrollContainerRef.current, restoredScrollTop);
         onParseStateChange(null);
@@ -895,15 +905,6 @@ function BlockNoteEditorInner({
       onDropCapture={(event) => {
         markUserIntent();
         blockExternalFileDrop(event);
-      }}
-      onScroll={(event) => {
-        const appliedPath = appliedPathRef.current;
-        if (appliedPath) {
-          editorCache.setScrollTop(
-            appliedPath,
-            readEditorScrollTop(event.currentTarget),
-          );
-        }
       }}
     >
       <BlockNoteView

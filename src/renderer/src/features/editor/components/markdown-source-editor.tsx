@@ -1,6 +1,8 @@
 import {
   forwardRef,
   useCallback,
+  useLayoutEffect,
+  useRef,
   type CSSProperties,
   type ForwardedRef,
   type KeyboardEvent,
@@ -13,6 +15,7 @@ interface MarkdownSourceEditorProps {
   value: string;
   onChange: (value: string) => void;
   onScrollTopChange: (scrollTop: number) => void;
+  resetKey?: string | null;
   scrollTop?: number;
 }
 
@@ -102,10 +105,13 @@ export const MarkdownSourceEditor = forwardRef<
     value,
     onChange,
     onScrollTopChange,
+    resetKey = null,
     scrollTop = 0,
   },
   ref,
 ) {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLTextAreaElement>) => {
       const textarea = event.currentTarget;
@@ -149,6 +155,7 @@ export const MarkdownSourceEditor = forwardRef<
 
   const setTextareaRef = useCallback(
     (element: HTMLTextAreaElement | null) => {
+      textareaRef.current = element;
       assignForwardedRef(ref, element);
       if (element && element.scrollTop !== scrollTop) {
         element.scrollTop = scrollTop;
@@ -156,6 +163,14 @@ export const MarkdownSourceEditor = forwardRef<
     },
     [ref, scrollTop],
   );
+
+  useLayoutEffect(() => {
+    const element = textareaRef.current;
+    if (!element) return;
+
+    // 文件切换时源码编辑器必须同步回到顶部，避免先显示旧滚动位置再慢慢回弹。
+    element.scrollTop = 0;
+  }, [resetKey]);
 
   const editorStyle: CSSProperties = {
     fontFamily,

@@ -69,4 +69,30 @@ describe("MarkdownSourceEditor", () => {
       lineHeight: "1.9",
     });
   });
+
+  it("resets scroll position immediately when the reset key changes", async () => {
+    const { rerender } = render(
+      <MarkdownSourceEditor
+        value={"# A\n\nBody"}
+        resetKey="a.md"
+        scrollTop={320}
+        onChange={vi.fn()}
+        onScrollTopChange={vi.fn()}
+      />,
+    );
+    const editor = screen.getByRole("textbox", { name: /Markdown/ });
+    editor.scrollTop = 320;
+
+    rerender(
+      <MarkdownSourceEditor
+        value={"# B\n\nBody"}
+        resetKey="b.md"
+        scrollTop={320}
+        onChange={vi.fn()}
+        onScrollTopChange={vi.fn()}
+      />,
+    );
+
+    expect(editor.scrollTop).toBe(0);
+  });
 });

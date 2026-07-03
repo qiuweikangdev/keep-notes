@@ -79,4 +79,29 @@ describe("editor store", () => {
 
     expect(useEditorStore.getState()).toBe(previousState);
   });
+
+  it("clears outline state when opening another file", () => {
+    useEditorStore.setState({
+      outlineHeadings: [
+        { id: "heading-1", text: "Intro", level: 1 },
+        { id: "heading-2", text: "Details", level: 2 },
+      ],
+      activeHeadingId: "heading-2",
+    });
+
+    useEditorStore.getState().beginTabLoad("group-1", "tab-1", "next.md");
+
+    const state = useEditorStore.getState();
+    expect(state.outlineHeadings).toEqual([]);
+    expect(state.activeHeadingId).toBeNull();
+  });
+
+  it("resets tab scroll offset as soon as another file starts opening", () => {
+    useEditorStore.getState().setTabScrollTop("group-1", "tab-1", 480);
+
+    useEditorStore.getState().beginTabLoad("group-1", "tab-1", "next.md");
+
+    const tab = useEditorStore.getState().panelGroups[0].tabs[0];
+    expect(tab.scrollTop).toBe(0);
+  });
 });

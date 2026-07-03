@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   flushPendingEditorOutlineNavigation,
@@ -7,6 +7,10 @@ import {
 } from "./editor-outline-navigation";
 
 describe("editor outline navigation", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("routes outline jumps to the matching editor instance", () => {
     const first = vi.fn(() => true);
     const second = vi.fn(() => true);
@@ -70,6 +74,53 @@ describe("editor outline navigation", () => {
     expect(flushPendingEditorOutlineNavigation("group-1", "tab-1")).toBe(true);
 
     expect(navigate).toHaveBeenCalledTimes(2);
+    expect(navigate).toHaveBeenLastCalledWith("heading-1");
+
+    unregister();
+  });
+
+  it("retries a pending outline jump after the navigator becomes ready", () => {
+    vi.useFakeTimers();
+    const navigate = vi
+      .fn()
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(true);
+    const unregister = registerEditorOutlineNavigator(
+      "group-1",
+      "tab-1",
+      navigate,
+    );
+
+    expect(scrollEditorOutlineBlock("group-1", "tab-1", "heading-1")).toBe(
+      false,
+    );
+
+    vi.runOnlyPendingTimers();
+
+    expect(navigate).toHaveBeenCalledTimes(2);
+    expect(navigate).toHaveBeenLastCalledWith("heading-1");
+
+    unregister();
+  });
+
+  it("keeps retrying long enough for large documents to render the target block", () => {
+    vi.useFakeTimers();
+    const navigate = vi.fn(() => navigate.mock.calls.length > 20);
+    const unregister = registerEditorOutlineNavigator(
+      "group-1",
+      "tab-1",
+      navigate,
+    );
+
+    expect(scrollEditorOutlineBlock("group-1", "tab-1", "heading-1")).toBe(
+      false,
+    );
+
+    for (let frame = 0; frame < 20; frame += 1) {
+      vi.runOnlyPendingTimers();
+    }
+
+    expect(navigate).toHaveBeenCalledTimes(21);
     expect(navigate).toHaveBeenLastCalledWith("heading-1");
 
     unregister();

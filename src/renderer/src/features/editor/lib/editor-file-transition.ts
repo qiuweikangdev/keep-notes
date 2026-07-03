@@ -7,6 +7,7 @@ export function beginFileTransition(tab: EditorTab, path: string): EditorTab {
     loadStatus: "loading",
     errorMessage: null,
     parseErrorMessage: null,
+    scrollTop: 0,
   };
 }
 
@@ -19,8 +20,6 @@ export function completeFileTransition(
     return tab;
   }
 
-  const isSameFileRefresh = tab.filePath === path && !tab.pendingFilePath;
-
   return {
     ...tab,
     filePath: path,
@@ -32,7 +31,7 @@ export function completeFileTransition(
     isDirty: false,
     errorMessage: null,
     parseErrorMessage: null,
-    scrollTop: isSameFileRefresh ? tab.scrollTop : 0,
+    scrollTop: 0,
     reloadKey: tab.reloadKey + 1,
   };
 }

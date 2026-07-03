@@ -885,6 +885,7 @@ export function FileTree() {
               <OutlinePanel
                 headings={headings}
                 activeHeadingId={activeHeadingId}
+                resetKey={activeFilePath}
                 onHeadingClick={handleHeadingClick}
               />
             )}

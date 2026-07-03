@@ -12,6 +12,15 @@ interface EditorScrollTarget {
 
 type FrameScheduler = (callback: () => void) => void;
 
+interface StableEditorBlockScrollOptions {
+  container: EditorScrollContainer;
+  getTarget: () => EditorScrollTarget | null;
+  schedule?: FrameScheduler;
+  maxAttempts?: number;
+  settleFrames?: number;
+  shouldContinue?: () => boolean;
+}
+
 interface RestoredScrollTopOptions {
   currentPath: string | null;
   nextPath: string | null;
@@ -24,14 +33,10 @@ export function readEditorScrollTop(element: EditorScrollHost | null): number {
   return Math.max(0, element.scrollTop);
 }
 
-export function chooseRestoredEditorScrollTop({
-  currentPath,
-  nextPath,
-  currentScrollTop,
-}: RestoredScrollTopOptions): number {
-  if (currentPath && currentPath === nextPath) {
-    return Math.max(0, currentScrollTop);
-  }
+export function chooseRestoredEditorScrollTop(
+  _options: RestoredScrollTopOptions,
+): number {
+  // 文件加载和刷新都从顶部开始，避免跨文件或历史会话恢复旧滚动位置。
   return 0;
 }
 
@@ -62,6 +67,36 @@ export function scrollEditorBlockIntoView(
     ? Math.max(0, nextScrollTop)
     : 0;
   return true;
+}
+
+export function scheduleStableEditorBlockScroll({
+  container,
+  getTarget,
+  schedule = scheduleNextFrame,
+  maxAttempts = 8,
+  settleFrames = 2,
+  shouldContinue,
+}: StableEditorBlockScrollOptions): boolean {
+  const safeMaxAttempts = Math.max(1, maxAttempts);
+  const safeSettleFrames = Math.max(1, settleFrames);
+  let attempts = 0;
+  let stableFrames = 0;
+
+  const align = (): boolean => {
+    if (shouldContinue && !shouldContinue()) return true;
+
+    attempts += 1;
+    const didScroll = scrollEditorBlockIntoView(container, getTarget());
+    stableFrames = didScroll ? stableFrames + 1 : 0;
+
+    if (attempts < safeMaxAttempts && stableFrames < safeSettleFrames) {
+      schedule(align);
+    }
+
+    return didScroll;
+  };
+
+  return align();
 }
 
 function scheduleNextFrame(callback: () => void): void {

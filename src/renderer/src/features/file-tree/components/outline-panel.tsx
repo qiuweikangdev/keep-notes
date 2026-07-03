@@ -10,16 +10,25 @@ interface Heading {
 interface OutlinePanelProps {
   headings: Heading[];
   activeHeadingId: string | null;
+  resetKey: string | null;
   onHeadingClick: (id: string) => void;
 }
 
 export function OutlinePanel({
   headings,
   activeHeadingId,
+  resetKey,
   onHeadingClick,
 }: OutlinePanelProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const activeItemRef = useRef<HTMLButtonElement>(null);
+
+  // 打开或切换文件时，大纲列表始终从顶部开始，不复用上一个文件的滚动位置。
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+    }
+  }, [resetKey]);
 
   // 当活跃标题变化时，自动滚动到对应位置
   useEffect(() => {

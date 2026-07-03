@@ -4,6 +4,7 @@ import {
   chooseRestoredEditorScrollTop,
   readEditorScrollTop,
   restoreEditorScrollTop,
+  scheduleStableEditorBlockScroll,
   scrollEditorBlockIntoView,
 } from "./editor-viewport";
 
@@ -26,7 +27,7 @@ describe("editor viewport", () => {
     expect(element.scrollTop).toBe(96);
   });
 
-  it("keeps the current viewport when refreshing the same file", () => {
+  it("starts at the top when refreshing the same file", () => {
     expect(
       chooseRestoredEditorScrollTop({
         currentPath: "a.md",
@@ -34,7 +35,7 @@ describe("editor viewport", () => {
         currentScrollTop: 420,
         cachedScrollTop: null,
       }),
-    ).toBe(420);
+    ).toBe(0);
   });
 
   it("starts at the top when switching to another cached file", () => {
@@ -72,5 +73,32 @@ describe("editor viewport", () => {
 
     expect(scrollEditorBlockIntoView(container, null)).toBe(false);
     expect(container.scrollTop).toBe(200);
+  });
+
+  it("keeps a target block aligned on the next frame after scroll restoration", () => {
+    const scheduledFrames: Array<() => void> = [];
+    const container = {
+      scrollTop: 0,
+      getBoundingClientRect: () => ({ top: 0 }),
+    };
+    const target = {
+      getBoundingClientRect: () => ({ top: 400 - container.scrollTop }),
+    };
+
+    expect(
+      scheduleStableEditorBlockScroll({
+        container,
+        getTarget: () => target,
+        schedule: (callback) => {
+          scheduledFrames.push(callback);
+        },
+      }),
+    ).toBe(true);
+    expect(container.scrollTop).toBe(400);
+
+    container.scrollTop = 0;
+    scheduledFrames.shift()?.();
+
+    expect(container.scrollTop).toBe(400);
   });
 });

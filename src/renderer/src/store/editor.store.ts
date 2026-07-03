@@ -541,18 +541,30 @@ export const useEditorStore = create<EditorState>()(
         },
 
         beginTabLoad: (groupId, tabId, path) => {
-          set((state) => ({
-            panelGroups: state.panelGroups.map((group) =>
-              group.id === groupId
-                ? {
-                    ...group,
-                    tabs: group.tabs.map((tab) =>
-                      tab.id === tabId ? beginFileTransition(tab, path) : tab,
-                    ),
-                  }
-                : group,
-            ),
-          }));
+          set((state) => {
+            const isActiveTarget = state.panelGroups.some(
+              (group) =>
+                group.id === groupId &&
+                group.id === state.activeGroupId &&
+                group.activeTabId === tabId,
+            );
+
+            return {
+              panelGroups: state.panelGroups.map((group) =>
+                group.id === groupId
+                  ? {
+                      ...group,
+                      tabs: group.tabs.map((tab) =>
+                        tab.id === tabId ? beginFileTransition(tab, path) : tab,
+                      ),
+                    }
+                  : group,
+              ),
+              ...(isActiveTarget
+                ? { outlineHeadings: [], activeHeadingId: null }
+                : null),
+            };
+          });
         },
 
         completeTabLoad: (groupId, tabId, path, content) => {
@@ -641,9 +653,12 @@ export const useEditorStore = create<EditorState>()(
               group.id === groupId
                 ? {
                     ...group,
-                    tabs: group.tabs.map((tab) =>
-                      tab.id === tabId ? { ...tab, scrollTop } : tab,
-                    ),
+                    tabs: group.tabs.map((tab) => {
+                      if (tab.id !== tabId) return tab;
+                      if (tab.loadStatus === "loading") return tab;
+
+                      return { ...tab, scrollTop };
+                    }),
                   }
                 : group,
             ),
