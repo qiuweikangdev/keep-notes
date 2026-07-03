@@ -34,7 +34,10 @@ import {
   restoreEditorScrollTop,
   scrollEditorBlockIntoView,
 } from "../lib/editor-viewport";
-import { registerEditorOutlineNavigator } from "../lib/editor-outline-navigation";
+import {
+  flushPendingEditorOutlineNavigation,
+  registerEditorOutlineNavigator,
+} from "../lib/editor-outline-navigation";
 import { createParseFallback } from "../lib/editor-parse-fallback";
 import {
   readImageFileAsArrayBuffer,
@@ -495,7 +498,10 @@ function BlockNoteEditorInner({
   const scrollToBlock = useCallback(
     (blockId: string) => {
       const scrollContainer = scrollContainerRef.current;
-      if (!scrollContainer) return;
+      if (!scrollContainer) return false;
+
+      // 首次打开文件时，大纲可能先于 BlockNote 文档完成替换；此时保留导航请求，等内容就绪后再执行。
+      if (!editor.getBlock(blockId)) return false;
 
       const scrollToken = outlineScrollTokenRef.current + 1;
       outlineScrollTokenRef.current = scrollToken;
@@ -506,7 +512,7 @@ function BlockNoteEditorInner({
         scrollCurrentEditorSelectionIntoView(editor);
         editor.focus();
       } catch {
-        // 大纲可能短暂晚于编辑器文档状态；后续 DOM 重试仍会尽力完成滚动。
+        return false;
       }
 
       const tryScroll = () => {
@@ -532,6 +538,8 @@ function BlockNoteEditorInner({
       window.setTimeout(() => {
         cancelFrame?.();
       }, 250);
+
+      return true;
     },
     [editor],
   );
@@ -727,6 +735,7 @@ function BlockNoteEditorInner({
         // 内容加载完成后更新大纲标题列表
         if (isActiveEditorRef.current) {
           updateOutlineHeadings();
+          flushPendingEditorOutlineNavigation(groupId, tabId);
         }
       } catch (error) {
         if (applyToken !== applyTokenRef.current) return;
