@@ -36,6 +36,7 @@ const NOTIFICATION_SIZE_PRESETS: Record<
 type NotificationVisualOptions = Pick<
   DesktopChannelConfig,
   | "showAppIcon"
+  | "useCustomAppearance"
   | "appNameFontSize"
   | "appNameColor"
   | "titleFontSize"
@@ -102,13 +103,16 @@ function normalizeSizePreset(
 function normalizeNotificationVisualOptions(
   options: AppNotificationOptions,
 ): NormalizedNotificationVisualOptions {
+  const useCustomAppearance = options.useCustomAppearance !== false;
   const rawFontSize =
+    useCustomAppearance &&
     typeof options.appNameFontSize === "number" &&
     Number.isFinite(options.appNameFontSize)
       ? options.appNameFontSize
       : DEFAULT_APP_NAME_FONT_SIZE;
   const appNameFontSize = Math.min(28, Math.max(12, rawFontSize));
   const rawTitleFontSize =
+    useCustomAppearance &&
     typeof options.titleFontSize === "number" &&
     Number.isFinite(options.titleFontSize)
       ? options.titleFontSize
@@ -123,15 +127,23 @@ function normalizeNotificationVisualOptions(
       IS_MAC && appNameFontSize === DEFAULT_APP_NAME_FONT_SIZE
         ? DEFAULT_APP_NAME_FONT_SIZE
         : Math.round(appNameFontSize * 1.2),
-    appNameColor: normalizeHexColor(options.appNameColor) ?? "currentColor",
+    appNameColor: useCustomAppearance
+      ? (normalizeHexColor(options.appNameColor) ?? "currentColor")
+      : "currentColor",
     titleFontSize,
     titleLineHeight: IS_MAC
       ? Math.round(titleFontSize * 1.31)
       : Math.round(titleFontSize * 1.29),
-    titleColor: normalizeHexColor(options.titleColor) ?? "currentColor",
+    titleColor: useCustomAppearance
+      ? (normalizeHexColor(options.titleColor) ?? "currentColor")
+      : "currentColor",
     showActions: options.showActions !== false,
-    backgroundColor: normalizeHexColor(options.backgroundColor),
-    sizePreset: normalizeSizePreset(options.sizePreset),
+    backgroundColor: useCustomAppearance
+      ? normalizeHexColor(options.backgroundColor)
+      : undefined,
+    sizePreset: normalizeSizePreset(
+      useCustomAppearance ? options.sizePreset : undefined,
+    ),
   };
 }
 
@@ -534,10 +546,12 @@ function createDataUrl(html: string): string {
 }
 
 function getNotificationBounds(
-  sizePreset: NotificationSizePreset | undefined,
+  options: AppNotificationOptions,
 ): Electron.Rectangle {
   const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
   const { workArea } = display;
+  const sizePreset =
+    options.useCustomAppearance === false ? undefined : options.sizePreset;
   const { width, height } =
     NOTIFICATION_SIZE_PRESETS[IS_MAC ? "mac" : "windows"][
       normalizeSizePreset(sizePreset)
@@ -568,7 +582,7 @@ export function createAppNotification(
     show: () =>
       new Promise((resolve, reject) => {
         const win = new BrowserWindow({
-          ...getNotificationBounds(options.sizePreset),
+          ...getNotificationBounds(options),
           show: false,
           frame: false,
           transparent: true,
