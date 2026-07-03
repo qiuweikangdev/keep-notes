@@ -314,6 +314,7 @@ export function EditorWorkspace({
                 fontSize={appearance.fontSize}
                 lineHeight={appearance.lineHeight}
                 value={tab.content}
+                resetKey={tab.pendingFilePath ?? tab.filePath ?? tab.id}
                 scrollTop={tab.scrollTop}
                 onChange={handleSourceChange}
                 onScrollTopChange={(scrollTop) =>

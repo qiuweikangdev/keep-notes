@@ -218,6 +218,17 @@ describe("preserveMarkdownSource", () => {
       source.replace("Before", "Before edit"),
     );
   });
+
+  it("skips character-level source preservation for large documents", () => {
+    const text = "a".repeat(9_000);
+    const source = `* ${text}\r\n`;
+    const baseline = `- ${text}\n`;
+    const edited = `- ${text}b\n`;
+
+    expect(preserveMarkdownSource(source, baseline, edited)).toBe(
+      `- ${text}b\r\n`,
+    );
+  });
 });
 
 describe("ensureEditableBlocks", () => {

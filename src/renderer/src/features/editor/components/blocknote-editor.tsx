@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type CSSProperties,
+} from "react";
 import { useCreateBlockNote, useEditorChange } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
 import { EditorView as CodeMirrorView } from "@codemirror/view";
@@ -32,7 +38,12 @@ import {
   chooseRestoredEditorScrollTop,
   readEditorScrollTop,
   restoreEditorScrollTop,
+  scheduleStableEditorBlockScroll,
 } from "../lib/editor-viewport";
+import {
+  flushPendingEditorOutlineNavigation,
+  registerEditorOutlineNavigator,
+} from "../lib/editor-outline-navigation";
 import { createParseFallback } from "../lib/editor-parse-fallback";
 import {
   readImageFileAsArrayBuffer,
@@ -88,6 +99,12 @@ interface UploadedImageCursorEditor {
     referenceBlock: string,
     placement: "after",
   ) => Array<{ id: string }>;
+  setTextCursorPosition: (blockId: string, placement: "start") => void;
+}
+
+interface OutlineNavigationCursorEditor {
+  getBlock: (blockId: string) => unknown;
+  focus: () => void;
   setTextCursorPosition: (blockId: string, placement: "start") => void;
 }
 
@@ -153,6 +170,66 @@ function getCodeElementFromSelectionRoot(root: Element | null) {
       ?.querySelector<HTMLElement>(".editor-code-block__content") ??
     null
   );
+}
+
+function createBlockIdSelector(blockId: string) {
+  const escapedBlockId = blockId.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  return `[data-id="${escapedBlockId}"]`;
+}
+
+function findEditorBlockElement(root: Element | null, blockId: string) {
+  return (
+    root?.querySelector<HTMLElement>(createBlockIdSelector(blockId)) ?? null
+  );
+}
+
+function scheduleEditorIdleTask(callback: () => void, timeout = 1200) {
+  const idleWindow = window as Window & {
+    requestIdleCallback?: (
+      callback: IdleRequestCallback,
+      options?: IdleRequestOptions,
+    ) => number;
+    cancelIdleCallback?: (handle: number) => void;
+  };
+
+  if (typeof idleWindow.requestIdleCallback === "function") {
+    const handle = idleWindow.requestIdleCallback(callback, { timeout });
+    return () => idleWindow.cancelIdleCallback?.(handle);
+  }
+
+  const timer = window.setTimeout(callback, timeout);
+  return () => window.clearTimeout(timer);
+}
+
+function scrollCurrentEditorSelectionIntoView(editor: CoreBlockNoteEditor) {
+  const view = editor.prosemirrorView;
+  if (!view) return false;
+
+  view.dispatch(view.state.tr.scrollIntoView());
+  return true;
+}
+
+export function focusEditorOutlineBlock(
+  editor: OutlineNavigationCursorEditor,
+  blockId: string,
+  scrollSelection: (editor: OutlineNavigationCursorEditor) => boolean = (
+    currentEditor,
+  ) =>
+    scrollCurrentEditorSelectionIntoView(
+      currentEditor as unknown as CoreBlockNoteEditor,
+    ),
+) {
+  if (!editor.getBlock(blockId)) return false;
+
+  try {
+    // 首次从大纲跳转时编辑器可能未聚焦；先聚焦再设置光标，避免第一次点击只激活编辑器不滚动。
+    editor.focus();
+    editor.setTextCursorPosition(blockId, "start");
+    scrollSelection(editor);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function selectCodeMirrorCodeBlockContent(root: Element | null) {
@@ -341,6 +418,14 @@ function BlockNoteEditorInner({
   onParseStateChange,
 }: BlockNoteEditorInnerProps) {
   const appearance = useEditorStore((state) => state.appearance);
+  const isActiveEditor = useEditorStore((state) => {
+    const activeGroup = state.panelGroups.find(
+      (group) => group.id === state.activeGroupId,
+    );
+    return (
+      state.activeGroupId === groupId && activeGroup?.activeTabId === tabId
+    );
+  });
   const workspaceRootPath = useTreeStore(
     (state) => state.treeRoot?.key ?? null,
   );
@@ -353,9 +438,13 @@ function BlockNoteEditorInner({
   const appliedPathRef = useRef<string | null>(null);
   const appliedSourceRef = useRef(content);
   const serializedBaselineRef = useRef<string | null>(null);
-  const serializationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
+  const serializationCancelRef = useRef<(() => void) | null>(null);
+  const serializationInFlightRef = useRef<Promise<void> | null>(null);
+  const serializationQueuedRef = useRef(false);
+  const serializeChangeRef = useRef<() => Promise<void>>(async () => {});
+  const outlineUpdateCancelRef = useRef<(() => void) | null>(null);
+  const outlineScrollTokenRef = useRef(0);
+  const isActiveEditorRef = useRef(isActiveEditor);
   const applyTokenRef = useRef(0);
   const editorRef = useRef<CoreBlockNoteEditor | null>(null);
   const workspaceRootPathRef = useRef(workspaceRootPath);
@@ -426,103 +515,56 @@ function BlockNoteEditorInner({
   // 更新大纲标题列表到 store
   const updateOutlineHeadings = useCallback(() => {
     const headings = extractHeadings();
-    setOutlineHeadings(headings);
+    if (isActiveEditorRef.current) {
+      setOutlineHeadings(headings);
+    }
+    return headings;
   }, [extractHeadings, setOutlineHeadings]);
+
+  useEffect(() => {
+    isActiveEditorRef.current = isActiveEditor;
+    if (!isActiveEditor) return;
+
+    updateOutlineHeadings();
+  }, [isActiveEditor, updateOutlineHeadings]);
 
   // 跳转到指定块的函数
   const scrollToBlock = useCallback(
     (blockId: string) => {
-      const blockElement = editor.domElement?.querySelector(
-        `[data-id="${blockId}"]`,
-      );
-      if (blockElement) {
-        blockElement.scrollIntoView({ behavior: "smooth", block: "start" });
+      const scrollContainer = scrollContainerRef.current;
+      if (!scrollContainer) return false;
+
+      const scrollToken = outlineScrollTokenRef.current + 1;
+      outlineScrollTokenRef.current = scrollToken;
+
+      if (!focusEditorOutlineBlock(editor, blockId)) {
+        return false;
       }
+
+      const getTarget = () =>
+        findEditorBlockElement(editor.domElement, blockId);
+      if (!getTarget()) {
+        return false;
+      }
+
+      scheduleStableEditorBlockScroll({
+        container: scrollContainer,
+        getTarget,
+        shouldContinue: () => outlineScrollTokenRef.current === scrollToken,
+      });
+
+      return true;
     },
     [editor],
   );
 
   // 通过 store 暴露跳转函数给侧边栏
-  useEffect(() => {
-    window.__scrollToBlock = scrollToBlock;
-  }, [scrollToBlock]);
+  useEffect(
+    () => registerEditorOutlineNavigator(groupId, tabId, scrollToBlock),
+    [groupId, scrollToBlock, tabId],
+  );
 
-  // 监听编辑器滚动，更新当前活跃的标题（参考 Typora 的体验）
-  useEffect(() => {
-    const scrollContainer = scrollContainerRef.current;
-    if (!scrollContainer) return;
-
-    let ticking = false;
-    let lastActiveId: string | null = null;
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const updateActiveHeading = () => {
-      // 从 store 获取大纲标题列表
-      const headings = useEditorStore.getState().outlineHeadings;
-      if (headings.length === 0) return;
-
-      // 找到当前可见的标题
-      const viewportHeight = scrollContainer.clientHeight;
-      let activeId: string | null = null;
-
-      // 从后往前遍历，找到第一个在视口上方的标题
-      for (let i = headings.length - 1; i >= 0; i--) {
-        const heading = headings[i];
-        const blockElement = editor.domElement?.querySelector(
-          `[data-id="${heading.id}"]`,
-        );
-        if (blockElement) {
-          const rect = blockElement.getBoundingClientRect();
-          const containerRect = scrollContainer.getBoundingClientRect();
-          const relativeTop = rect.top - containerRect.top;
-
-          // 如果标题在视口上方 30% 的位置，认为是当前活跃标题
-          if (relativeTop <= viewportHeight * 0.3) {
-            activeId = heading.id;
-            break;
-          }
-        }
-      }
-
-      // 只在活跃标题变化时才更新 store
-      if (activeId && activeId !== lastActiveId) {
-        lastActiveId = activeId;
-        useEditorStore.getState().setActiveHeadingId(activeId);
-      }
-    };
-
-    const handleScroll = () => {
-      if (ticking) return;
-      ticking = true;
-
-      requestAnimationFrame(() => {
-        ticking = false;
-
-        // 清除之前的防抖定时器
-        if (debounceTimer) {
-          clearTimeout(debounceTimer);
-        }
-
-        // 使用防抖来减少状态更新频率，避免闪烁
-        debounceTimer = setTimeout(() => {
-          updateActiveHeading();
-        }, 100);
-      });
-    };
-
-    scrollContainer.addEventListener("scroll", handleScroll, { passive: true });
-
-    // 初始加载时也更新一次
-    updateActiveHeading();
-
-    return () => {
-      scrollContainer.removeEventListener("scroll", handleScroll);
-      if (debounceTimer) {
-        clearTimeout(debounceTimer);
-      }
-    };
-  }, [editor]);
-
+  // 同步最新内容引用，避免异步保存读取到旧 props。
   useEffect(() => {
     contentRef.current = content;
   }, [content]);
@@ -535,6 +577,14 @@ function BlockNoteEditorInner({
     workspaceRootPathRef.current = workspaceRootPath;
   }, [workspaceRootPath]);
 
+  useLayoutEffect(() => {
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+
+    // 文件切换或重载开始时立即回到顶部，不等待 Markdown 解析和 BlockNote 替换完成。
+    scrollContainer.scrollTop = 0;
+  }, [path, reloadKey]);
+
   const cacheAppliedDocument = useCallback(() => {
     const appliedPath = appliedPathRef.current;
     if (!appliedPath) return;
@@ -544,68 +594,108 @@ function BlockNoteEditorInner({
       appliedPath,
       appliedSourceRef.current,
       editor.document,
-      readEditorScrollTop(scrollContainerRef.current),
       MARKDOWN_PARSER_VERSION,
     );
   }, [editor]);
 
   const serializeChange = useCallback(async () => {
     if (suppressChangeRef.current) return;
+    if (serializationInFlightRef.current) {
+      serializationQueuedRef.current = true;
+      await serializationInFlightRef.current;
+      return;
+    }
+
     const pendingRevision = changeGateRef.current.capturePendingRevision();
     if (pendingRevision === null) return;
 
-    const serialized = await serializeMarkdown(editor, editor.document);
-    const baseline = serializedBaselineRef.current;
-    if (baseline === null) {
-      serializedBaselineRef.current = serialized;
-      changeGateRef.current.markSerialized(pendingRevision);
-      return;
-    }
-    if (markdownEquals(serialized, baseline)) {
-      changeGateRef.current.markSerialized(pendingRevision);
-      return;
-    }
-    const markdown = preserveMarkdownSource(
-      contentRef.current,
-      baseline,
-      serialized,
-    );
-    serializedBaselineRef.current = serialized;
-    if (markdownEquals(markdown, contentRef.current)) {
-      changeGateRef.current.markSerialized(pendingRevision);
-      return;
-    }
-
-    // 只有当前文档真正序列化成功后，才推进解析缓存对应的源码快照。
-    contentRef.current = markdown;
-    appliedSourceRef.current = markdown;
-    if (path) {
-      editorCache.setContent(path, markdown);
-      editorCache.setBlocks(
-        path,
-        markdown,
-        editor.document,
-        readEditorScrollTop(scrollContainerRef.current),
-        MARKDOWN_PARSER_VERSION,
+    const runSerialization = (async () => {
+      const serialized = await serializeMarkdown(editor, editor.document);
+      const baseline = serializedBaselineRef.current;
+      if (baseline === null) {
+        serializedBaselineRef.current = serialized;
+        changeGateRef.current.markSerialized(pendingRevision);
+        return;
+      }
+      if (markdownEquals(serialized, baseline)) {
+        changeGateRef.current.markSerialized(pendingRevision);
+        return;
+      }
+      const markdown = preserveMarkdownSource(
+        contentRef.current,
+        baseline,
+        serialized,
       );
+      serializedBaselineRef.current = serialized;
+      if (markdownEquals(markdown, contentRef.current)) {
+        changeGateRef.current.markSerialized(pendingRevision);
+        return;
+      }
+
+      // 只有当前文档真正序列化成功后，才推进解析缓存对应的源码快照。
+      contentRef.current = markdown;
+      appliedSourceRef.current = markdown;
+      if (path) {
+        editorCache.setContent(path, markdown);
+        editorCache.setBlocks(
+          path,
+          markdown,
+          editor.document,
+          MARKDOWN_PARSER_VERSION,
+        );
+      }
+      onWordCountChange(markdown.length);
+      onChange(markdown);
+      changeGateRef.current.markSerialized(pendingRevision);
+    })();
+
+    serializationInFlightRef.current = runSerialization;
+    try {
+      await runSerialization;
+    } finally {
+      if (serializationInFlightRef.current === runSerialization) {
+        serializationInFlightRef.current = null;
+      }
+      if (
+        serializationQueuedRef.current &&
+        changeGateRef.current.capturePendingRevision() !== null
+      ) {
+        serializationQueuedRef.current = false;
+        if (serializationCancelRef.current) {
+          serializationCancelRef.current();
+        }
+        serializationCancelRef.current = scheduleEditorIdleTask(() => {
+          serializationCancelRef.current = null;
+          void serializeChangeRef.current();
+        }, 1200);
+      } else {
+        serializationQueuedRef.current = false;
+      }
     }
-    onWordCountChange(markdown.length);
-    onChange(markdown);
-    changeGateRef.current.markSerialized(pendingRevision);
   }, [editor, onChange, onWordCountChange, path]);
+  serializeChangeRef.current = serializeChange;
 
   useEditorChange(() => {
     if (changeGateRef.current.capturePendingRevision() === null) return;
-    if (serializationTimerRef.current) {
-      clearTimeout(serializationTimerRef.current);
+    if (serializationCancelRef.current) {
+      serializationCancelRef.current();
     }
-    serializationTimerRef.current = setTimeout(() => {
-      serializationTimerRef.current = null;
+    serializationCancelRef.current = scheduleEditorIdleTask(() => {
+      serializationCancelRef.current = null;
       void serializeChange();
-    }, 250);
+    }, 1800);
 
     // 更新大纲标题列表到 store
-    updateOutlineHeadings();
+    if (outlineUpdateCancelRef.current) {
+      outlineUpdateCancelRef.current();
+    }
+    outlineUpdateCancelRef.current = scheduleEditorIdleTask(() => {
+      outlineUpdateCancelRef.current = null;
+      if (!isActiveEditorRef.current) return;
+      if (serializationInFlightRef.current) return;
+
+      updateOutlineHeadings();
+    }, 1500);
   }, editor);
 
   useEffect(() => {
@@ -646,24 +736,21 @@ function BlockNoteEditorInner({
           currentPath,
           nextPath: path,
           currentScrollTop,
-          cachedScrollTop: cached?.scrollTop,
+          cachedScrollTop: undefined,
         });
         serializedBaselineRef.current = serializedBaseline;
         if (path) {
           editorCache.setContent(path, source);
-          editorCache.setBlocks(
-            path,
-            source,
-            blocks,
-            restoredScrollTop,
-            MARKDOWN_PARSER_VERSION,
-          );
+          editorCache.setBlocks(path, source, blocks, MARKDOWN_PARSER_VERSION);
         }
         restoreEditorScrollTop(scrollContainerRef.current, restoredScrollTop);
         onParseStateChange(null);
 
         // 内容加载完成后更新大纲标题列表
-        updateOutlineHeadings();
+        if (isActiveEditorRef.current) {
+          updateOutlineHeadings();
+          flushPendingEditorOutlineNavigation(groupId, tabId);
+        }
       } catch (error) {
         if (applyToken !== applyTokenRef.current) return;
         const fallback = createParseFallback(error);
@@ -697,17 +784,17 @@ function BlockNoteEditorInner({
         groupId,
         tabId,
         async () => {
-          if (serializationTimerRef.current) {
-            clearTimeout(serializationTimerRef.current);
-            serializationTimerRef.current = null;
+          if (serializationCancelRef.current) {
+            serializationCancelRef.current();
+            serializationCancelRef.current = null;
           }
           await serializeChange();
         },
         () => {
           // 放弃文件更改时取消尚未执行的序列化，避免旧内容稍后再次进入保存队列。
-          if (serializationTimerRef.current) {
-            clearTimeout(serializationTimerRef.current);
-            serializationTimerRef.current = null;
+          if (serializationCancelRef.current) {
+            serializationCancelRef.current();
+            serializationCancelRef.current = null;
           }
         },
       ),
@@ -716,8 +803,11 @@ function BlockNoteEditorInner({
 
   useEffect(
     () => () => {
-      if (serializationTimerRef.current) {
-        clearTimeout(serializationTimerRef.current);
+      if (serializationCancelRef.current) {
+        serializationCancelRef.current();
+      }
+      if (outlineUpdateCancelRef.current) {
+        outlineUpdateCancelRef.current();
       }
       cacheAppliedDocument();
     },
@@ -819,15 +909,6 @@ function BlockNoteEditorInner({
       onDropCapture={(event) => {
         markUserIntent();
         blockExternalFileDrop(event);
-      }}
-      onScroll={(event) => {
-        const appliedPath = appliedPathRef.current;
-        if (appliedPath) {
-          editorCache.setScrollTop(
-            appliedPath,
-            readEditorScrollTop(event.currentTarget),
-          );
-        }
       }}
     >
       <BlockNoteView

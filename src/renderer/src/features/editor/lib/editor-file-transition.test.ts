@@ -9,7 +9,7 @@ import {
 
 describe("editor file transition", () => {
   it("keeps the current document visible while the next file loads", () => {
-    const current = createTab();
+    const current = { ...createTab(), scrollTop: 280 };
     const loading = beginFileTransition(current, "b.md");
 
     expect(loading).toMatchObject({
@@ -17,6 +17,7 @@ describe("editor file transition", () => {
       content: "# A",
       pendingFilePath: "b.md",
       loadStatus: "loading",
+      scrollTop: 0,
     });
   });
 
@@ -32,14 +33,14 @@ describe("editor file transition", () => {
     });
   });
 
-  it("preserves scroll offset when the current file is refreshed externally", () => {
+  it("resets scroll offset when the current file is refreshed externally", () => {
     const current = { ...createTab(), scrollTop: 320 };
     const completed = completeFileTransition(current, "a.md", "# A updated");
 
     expect(completed).toMatchObject({
       filePath: "a.md",
       content: "# A updated",
-      scrollTop: 320,
+      scrollTop: 0,
       loadStatus: "ready",
     });
   });

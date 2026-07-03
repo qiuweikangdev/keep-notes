@@ -6,12 +6,11 @@ describe("EditorCache", () => {
   it("returns content only when the stored source matches", () => {
     const cache = new EditorCache<string>({ maxEntries: 2 });
     cache.setContent("a.md", "alpha");
-    cache.setBlocks("a.md", "alpha", "parsed-alpha", 24);
+    cache.setBlocks("a.md", "alpha", "parsed-alpha");
 
     expect(cache.getContent("a.md")).toBe("alpha");
     expect(cache.getBlocks("a.md", "alpha")).toEqual({
       blocks: "parsed-alpha",
-      scrollTop: 24,
     });
     expect(cache.getBlocks("a.md", "changed")).toBeNull();
   });
@@ -28,14 +27,14 @@ describe("EditorCache", () => {
     expect(cache.getContent("c.md")).toBe("c");
   });
 
-  it("updates scroll position without affecting another file", () => {
+  it("does not restore scroll position from parsed block cache", () => {
     const cache = new EditorCache<string>({ maxEntries: 2 });
-    cache.setBlocks("a.md", "a", "blocks-a", 12);
-    cache.setBlocks("b.md", "b", "blocks-b", 24);
+    cache.setBlocks("a.md", "a", "blocks-a");
+    cache.setBlocks("b.md", "b", "blocks-b");
 
     cache.setScrollTop("a.md", 96);
 
-    expect(cache.getBlocks("a.md", "a")?.scrollTop).toBe(96);
-    expect(cache.getBlocks("b.md", "b")?.scrollTop).toBe(24);
+    expect(cache.getBlocks("a.md", "a")).toEqual({ blocks: "blocks-a" });
+    expect(cache.getBlocks("b.md", "b")).toEqual({ blocks: "blocks-b" });
   });
 });

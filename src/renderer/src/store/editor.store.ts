@@ -177,6 +177,28 @@ function pushRecentOpenedFilePath(paths: string[], path: string): string[] {
   );
 }
 
+function areOutlineHeadingsEqual(
+  current: OutlineHeading[],
+  next: OutlineHeading[],
+): boolean {
+  if (current === next) return true;
+  if (current.length !== next.length) return false;
+
+  for (let index = 0; index < current.length; index += 1) {
+    const currentHeading = current[index];
+    const nextHeading = next[index];
+    if (
+      currentHeading.id !== nextHeading.id ||
+      currentHeading.text !== nextHeading.text ||
+      currentHeading.level !== nextHeading.level
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 // 创建默认标签页
 const createDefaultTab = (filePath?: string | null): EditorTab => ({
   id: generateId(),
@@ -519,18 +541,30 @@ export const useEditorStore = create<EditorState>()(
         },
 
         beginTabLoad: (groupId, tabId, path) => {
-          set((state) => ({
-            panelGroups: state.panelGroups.map((group) =>
-              group.id === groupId
-                ? {
-                    ...group,
-                    tabs: group.tabs.map((tab) =>
-                      tab.id === tabId ? beginFileTransition(tab, path) : tab,
-                    ),
-                  }
-                : group,
-            ),
-          }));
+          set((state) => {
+            const isActiveTarget = state.panelGroups.some(
+              (group) =>
+                group.id === groupId &&
+                group.id === state.activeGroupId &&
+                group.activeTabId === tabId,
+            );
+
+            return {
+              panelGroups: state.panelGroups.map((group) =>
+                group.id === groupId
+                  ? {
+                      ...group,
+                      tabs: group.tabs.map((tab) =>
+                        tab.id === tabId ? beginFileTransition(tab, path) : tab,
+                      ),
+                    }
+                  : group,
+              ),
+              ...(isActiveTarget
+                ? { outlineHeadings: [], activeHeadingId: null }
+                : null),
+            };
+          });
         },
 
         completeTabLoad: (groupId, tabId, path, content) => {
@@ -619,9 +653,12 @@ export const useEditorStore = create<EditorState>()(
               group.id === groupId
                 ? {
                     ...group,
-                    tabs: group.tabs.map((tab) =>
-                      tab.id === tabId ? { ...tab, scrollTop } : tab,
-                    ),
+                    tabs: group.tabs.map((tab) => {
+                      if (tab.id !== tabId) return tab;
+                      if (tab.loadStatus === "loading") return tab;
+
+                      return { ...tab, scrollTop };
+                    }),
                   }
                 : group,
             ),
@@ -732,7 +769,14 @@ export const useEditorStore = create<EditorState>()(
         activeHeadingId: null,
 
         // 大纲操作
-        setOutlineHeadings: (headings) => set({ outlineHeadings: headings }),
+        setOutlineHeadings: (headings) =>
+          set((state) => {
+            // 大文档输入时会频繁重新提取大纲；内容未变时保持状态引用，避免侧栏整列表重渲染。
+            if (areOutlineHeadingsEqual(state.outlineHeadings, headings)) {
+              return state;
+            }
+            return { outlineHeadings: headings };
+          }),
         setActiveHeadingId: (id) => set({ activeHeadingId: id }),
       };
     },
