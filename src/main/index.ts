@@ -37,7 +37,7 @@ app.whenReady().then(async () => {
   }
 
   app.on("browser-window-created", (_, window) => {
-    optimizer.watchWindowShortcuts(window);
+    optimizer.watchWindowShortcuts(window, { zoom: true });
   });
 
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
