@@ -245,6 +245,51 @@ describe("createAppNotification", () => {
     expect(html).not.toContain("View Details");
   });
 
+  it("ignores custom appearance fields when default appearance is selected", async () => {
+    const notification = createAppNotification({
+      appName: "Keep Notes",
+      title: "Important reminder",
+      useCustomAppearance: false,
+      appNameFontSize: 24,
+      appNameColor: "#ffcc66",
+      titleFontSize: 28,
+      titleColor: "#66ccff",
+      backgroundColor: "#111820",
+      sizePreset: "large",
+    });
+
+    await notification.show();
+    const win = electronMocks.getLastWindow();
+    const windowOptions = win.options as {
+      width: number;
+      height: number;
+      y: number;
+    };
+    const html = getLastNotificationHtml();
+
+    expect(html).toContain("--app-name-font-size: 18px;");
+    expect(html).toContain("--title-font-size: 21px;");
+    expect(html).toContain("--app-name-color: currentColor;");
+    expect(html).toContain("--title-color: currentColor;");
+    expect(html).not.toContain("--notification-bg: #111820;");
+    expect(html).not.toContain("#ffcc66");
+    expect(html).not.toContain("#66ccff");
+
+    if (process.platform === "darwin") {
+      expect(windowOptions).toMatchObject({
+        width: 356,
+        height: 144,
+        y: 24,
+      });
+    } else {
+      expect(windowOptions).toMatchObject({
+        width: 384,
+        height: 188,
+        y: 704,
+      });
+    }
+  });
+
   it("uses the requested large notification size preset", async () => {
     const notification = createAppNotification({
       title: "Important reminder",
