@@ -34,6 +34,7 @@ import { scrollEditorOutlineBlock } from "@/features/editor/lib/editor-outline-n
 import { useTreeStore } from "@/store/tree.store";
 import { useElectron } from "@/hooks/use-electron";
 import { useReminderStore } from "@/store/reminder.store";
+import { useDiffStore } from "@/store/diff.store";
 import { QuickActionsPanel } from "./quick-actions-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,6 +67,8 @@ const MENU_SEPARATOR_CLASS = "my-1 h-px bg-[var(--border-color)]";
 const TOOL_BUTTON_CLASS =
   "flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md transition-colors";
 const ROW_HEIGHT = 28; // 7 * 4 = 28px (h-7)
+const DIFF_EDITOR_CONTENT_WAIT_MS = 2000;
+const DIFF_EDITOR_CONTENT_POLL_MS = 50;
 
 interface CreatingInfo {
   type: "file" | "folder";
@@ -78,6 +81,16 @@ interface FileTreeRevealRequest {
   id: number;
   align?: "auto" | "center";
 }
+
+const toGitRelativePath = (rootPath: string, filePath: string) => {
+  const normalizedRoot = normalizeTreePath(rootPath);
+  const normalizedFile = normalizeTreePath(filePath);
+  if (normalizedFile === normalizedRoot) return "";
+  if (normalizedFile.startsWith(`${normalizedRoot}/`)) {
+    return normalizedFile.slice(normalizedRoot.length + 1);
+  }
+  return normalizedFile;
+};
 
 export function FileTree() {
   const treeData = useTreeStore((state) => state.treeData);
@@ -1171,7 +1184,8 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
   const isExpanded = useTreeStore((state) =>
     state.expandedKeys.has(flatNode.key),
   );
-  const { renameItem, moveItem } = useElectron();
+  const { renameItem, moveItem, getFileHeadContent } = useElectron();
+  const { openDiff, closeDiff, updateContent } = useDiffStore();
   const dropTargetFolderPath = flatNode.isFolder
     ? flatNode.key
     : flatNode.parentKey;
@@ -1316,6 +1330,64 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
     },
     [dropTargetFolderPath, isTreeFileDrag],
   );
+
+  const readEditorContentForDiff = useCallback(async () => {
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < DIFF_EDITOR_CONTENT_WAIT_MS) {
+      const matchedTab = useEditorStore
+        .getState()
+        .panelGroups.flatMap((group) => group.tabs)
+        .find((tab) => tab.filePath === flatNode.key);
+
+      if (!matchedTab) {
+        break;
+      }
+
+      if (matchedTab.content) {
+        return matchedTab.content;
+      }
+
+      await new Promise((resolve) =>
+        setTimeout(resolve, DIFF_EDITOR_CONTENT_POLL_MS),
+      );
+    }
+
+    return window.electronAPI.readFile(flatNode.key);
+  }, [flatNode.key]);
+
+  // 打开文件差异弹窗，并用 HEAD 版本与当前工作区内容填充对比数据。
+  const handleDiff = useCallback(async () => {
+    openDiff(flatNode.key, "", "");
+
+    try {
+      const editorContent = await readEditorContentForDiff();
+      let baseContent = "";
+      const treeRoot = useTreeStore.getState().treeRoot;
+
+      if (treeRoot?.key) {
+        const relativePath = toGitRelativePath(treeRoot.key, flatNode.key);
+        const headResult = await getFileHeadContent(treeRoot.key, relativePath);
+        if (headResult.code === CodeResult.Success) {
+          baseContent = headResult.data ?? "";
+        }
+      } else {
+        baseContent = await window.electronAPI.readFile(flatNode.key);
+      }
+
+      updateContent(baseContent, editorContent);
+    } catch (error) {
+      console.error("Failed to read file for diff:", error);
+      closeDiff();
+    }
+  }, [
+    closeDiff,
+    flatNode.key,
+    getFileHeadContent,
+    openDiff,
+    readEditorContentForDiff,
+    updateContent,
+  ]);
 
   /** 触发文件导出入口，后续导出流程监听该事件继续处理 */
   const handleExport = useCallback(() => {
@@ -1535,7 +1607,7 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
               <ContextMenu.Item
                 className={MENU_ITEM_CLASS}
                 onClick={() => {
-                  // diff 功能保持原有逻辑
+                  setTimeout(() => void handleDiff(), 0);
                 }}
               >
                 <GitCompare className="h-4 w-4" /> 比较差异
