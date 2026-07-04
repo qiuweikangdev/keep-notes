@@ -29,6 +29,13 @@ interface MarkdownEdit {
 }
 
 const SOURCE_PRESERVATION_DIFF_CHAR_LIMIT = 24_000;
+const UNORDERED_LIST_LINE_PATTERN = /^([ \t]{0,3})([-+*])([ \t]+)(.*)$/u;
+const FENCED_CODE_LINE_PATTERN = /^ {0,3}(```+|~~~+)/u;
+
+interface MarkdownLine {
+  ending: string;
+  text: string;
+}
 
 function createSourceBoundaryMap(
   baseline: string,
@@ -217,6 +224,81 @@ function preserveSourceEnding(source: string, edited: string): string {
   return `${edited.replace(/(?:\r\n|\r|\n)+$/g, "")}${sourceEnding}`;
 }
 
+function splitMarkdownLines(markdown: string): MarkdownLine[] {
+  const lines: MarkdownLine[] = [];
+  let start = 0;
+
+  while (start < markdown.length) {
+    let lineBreakIndex = -1;
+    for (let index = start; index < markdown.length; index += 1) {
+      if (markdown[index] === "\r" || markdown[index] === "\n") {
+        lineBreakIndex = index;
+        break;
+      }
+    }
+
+    if (lineBreakIndex < 0) {
+      lines.push({ text: markdown.slice(start), ending: "" });
+      break;
+    }
+
+    let ending = markdown[lineBreakIndex];
+    if (ending === "\r" && markdown[lineBreakIndex + 1] === "\n") {
+      ending = "\r\n";
+    }
+    lines.push({
+      text: markdown.slice(start, lineBreakIndex),
+      ending,
+    });
+    start = lineBreakIndex + ending.length;
+  }
+
+  return lines;
+}
+
+function getClosingFenceMatch(line: string, openingFence: string) {
+  const match = line.match(FENCED_CODE_LINE_PATTERN);
+  if (!match) return null;
+  if (match[1][0] !== openingFence[0]) return null;
+  if (match[1].length < openingFence.length) return null;
+  return match;
+}
+
+function preserveLargeDocumentListMarkers(source: string, edited: string) {
+  const sourceLines = splitMarkdownLines(source);
+  const editedLines = splitMarkdownLines(edited);
+  if (sourceLines.length !== editedLines.length) {
+    return preserveSourceEnding(source, edited);
+  }
+
+  let openingFence: string | null = null;
+  const result = editedLines
+    .map((editedLine, index) => {
+      const sourceLine = sourceLines[index];
+      const isInsideFence = openingFence !== null;
+      const openingFenceMatch = openingFence
+        ? getClosingFenceMatch(sourceLine.text, openingFence)
+        : sourceLine.text.match(FENCED_CODE_LINE_PATTERN);
+      const sourceListMatch = sourceLine.text.match(UNORDERED_LIST_LINE_PATTERN);
+      const editedListMatch = editedLine.text.match(UNORDERED_LIST_LINE_PATTERN);
+      let nextText = editedLine.text;
+
+      if (!isInsideFence && sourceListMatch && editedListMatch) {
+        // 大文档不做字符级 diff，但仍保留源码中已有的无序列表标记。
+        nextText = `${editedListMatch[1]}${sourceListMatch[2]}${editedListMatch[3]}${editedListMatch[4]}`;
+      }
+
+      if (openingFenceMatch) {
+        openingFence = openingFence ? null : openingFenceMatch[1];
+      }
+
+      return `${nextText}${sourceLine.ending || editedLine.ending}`;
+    })
+    .join("");
+
+  return preserveSourceEnding(source, result);
+}
+
 export function preserveMarkdownSource(
   source: string,
   baseline: string,
@@ -228,8 +310,8 @@ export function preserveMarkdownSource(
     source.length + baseline.length + edited.length >
     SOURCE_PRESERVATION_DIFF_CHAR_LIMIT
   ) {
-    // 大文档避免字符级 diff 阻塞输入；保留文件结尾即可，正文采用编辑器序列化结果。
-    return preserveSourceEnding(source, edited);
+    // 大文档避免字符级 diff 阻塞输入；保留行级列表标记和文件结尾，正文采用编辑器序列化结果。
+    return preserveLargeDocumentListMarkers(source, edited);
   }
 
   const boundaryMap = createSourceBoundaryMap(baseline, source);

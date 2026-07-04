@@ -226,7 +226,29 @@ describe("preserveMarkdownSource", () => {
     const edited = `- ${text}b\n`;
 
     expect(preserveMarkdownSource(source, baseline, edited)).toBe(
-      `- ${text}b\r\n`,
+      `* ${text}b\r\n`,
+    );
+  });
+
+  it("preserves dash list markers in large documents when the serializer emits stars", () => {
+    const exportedJson = "a".repeat(9_000);
+    const source = [
+      "## 账户1 【已废】",
+      "",
+      "- 2026/6/18 : <qqqiuwk@gmail.com>",
+      "- cockpit-tools",
+      "- 目前 已废",
+      "",
+      "```json",
+      exportedJson,
+      "```",
+      "",
+    ].join("\n");
+    const baseline = source.replaceAll("- ", "* ");
+    const edited = baseline.replace("cockpit-tools", "cockpit-tools1");
+
+    expect(preserveMarkdownSource(source, baseline, edited)).toBe(
+      source.replace("cockpit-tools", "cockpit-tools1"),
     );
   });
 });

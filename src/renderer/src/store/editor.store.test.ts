@@ -104,4 +104,16 @@ describe("editor store", () => {
     const tab = useEditorStore.getState().panelGroups[0].tabs[0];
     expect(tab.scrollTop).toBe(0);
   });
+
+  it("reloads rich editor content when returning from source mode", () => {
+    const store = useEditorStore.getState();
+
+    store.setTabMode("group-1", "tab-1", "source");
+    store.setTabContent("group-1", "tab-1", "- item\n");
+    store.setTabMode("group-1", "tab-1", "rich");
+
+    const tab = useEditorStore.getState().panelGroups[0].tabs[0];
+    expect(tab.mode).toBe("rich");
+    expect(tab.reloadKey).toBe(1);
+  });
 });

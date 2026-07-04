@@ -612,7 +612,17 @@ export const useEditorStore = create<EditorState>()(
                 ? {
                     ...group,
                     tabs: group.tabs.map((tab) =>
-                      tab.id === tabId ? { ...tab, mode } : tab,
+                      tab.id === tabId
+                        ? {
+                            ...tab,
+                            mode,
+                            // 从源码模式回到富文本时重新解析当前源码，避免沿用旧序列化基线改写列表标记。
+                            reloadKey:
+                              tab.mode === "source" && mode === "rich"
+                                ? tab.reloadKey + 1
+                                : tab.reloadKey,
+                          }
+                        : tab,
                     ),
                   }
                 : group,
