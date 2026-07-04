@@ -24,9 +24,8 @@ const MENU_SEPARATOR_CLASS = "my-1 h-px bg-[var(--border-color)]";
 
 const tabs: Array<{ label: string; value: ReminderListTab }> = [
   { label: "今天", value: "today" },
-  { label: "全部", value: "all" },
   { label: "完成", value: "completed" },
-  { label: "历史", value: "history" },
+  { label: "全部", value: "all" },
 ];
 
 function getLastNotificationAt(reminder: Reminder): string {
@@ -190,7 +189,7 @@ export function ReminderListDialog() {
             onValueChange={(value) => setTab(value as ReminderListTab)}
           >
             <Tabs.List
-              className="grid grid-cols-4 gap-1 px-5 py-3"
+              className="grid grid-cols-3 gap-1 px-5 py-3"
               style={{ backgroundColor: "var(--bg-secondary)" }}
             >
               {tabs.map((item) => (
@@ -209,7 +208,7 @@ export function ReminderListDialog() {
               <Tabs.Content
                 key={item.value}
                 value={item.value}
-                className="max-h-[420px] min-h-[260px] overflow-auto bg-[var(--bg-primary)] px-3 py-3"
+                className="h-[250px] overflow-auto bg-[var(--bg-primary)] px-3 py-3"
               >
                 {visibleReminders.length > 0 ? (
                   <div className="space-y-1">

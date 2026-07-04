@@ -116,6 +116,25 @@ describe("ReminderListDialog", () => {
     expect(screen.getByText(/^通知 /)).toBeInTheDocument();
   });
 
+  it("keeps the reminder list scroll area at 250px", () => {
+    useReminderStore.setState({
+      reminders: [{ ...reminder, scheduledAt: new Date().toISOString() }],
+    });
+    render(<ReminderListDialog />);
+
+    expect(screen.getByRole("tabpanel")).toHaveClass("h-[250px]");
+  });
+
+  it("removes the history tab and keeps all reminders as the last tab", () => {
+    render(<ReminderListDialog />);
+
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "今天",
+      "完成",
+      "全部",
+    ]);
+  });
+
   it("resets local filters every time the list opens", async () => {
     const user = userEvent.setup();
     useReminderStore.setState({

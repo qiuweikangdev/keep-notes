@@ -1,6 +1,6 @@
 import type { Reminder } from "@/types";
 
-export type ReminderListTab = "today" | "all" | "completed" | "history";
+export type ReminderListTab = "today" | "completed" | "all";
 
 export function getRepeatLabel(
   reminder: Pick<Reminder, "repeat" | "customRepeat">,
@@ -65,28 +65,22 @@ export function filterReminders(
 ): Reminder[] {
   const normalizedQuery = query.trim().toLowerCase();
   return reminders.filter((reminder) => {
+    if (normalizedQuery) {
+      return (
+        reminder.title.toLowerCase().includes(normalizedQuery) ||
+        reminder.fileName.toLowerCase().includes(normalizedQuery)
+      );
+    }
     if (
       tab === "today" &&
       (reminder.completed || !isReminderToday(reminder, now))
     ) {
       return false;
     }
-    if (tab === "all" && reminder.completed) {
-      return false;
-    }
     if (tab === "completed" && !reminder.completed) {
       return false;
     }
-    if (tab === "history" && !hasNotificationHistory(reminder)) {
-      return false;
-    }
-    if (!normalizedQuery) {
-      return true;
-    }
-    return (
-      reminder.title.toLowerCase().includes(normalizedQuery) ||
-      reminder.fileName.toLowerCase().includes(normalizedQuery)
-    );
+    return true;
   });
 }
 

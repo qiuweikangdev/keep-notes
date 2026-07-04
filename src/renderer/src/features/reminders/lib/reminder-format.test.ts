@@ -97,15 +97,21 @@ describe("filterReminders", () => {
     ]);
     expect(filterReminders(reminders, "all", "", now)).toEqual([
       baseReminder,
+      completed,
       tomorrow,
       notified,
     ]);
     expect(filterReminders(reminders, "completed", "", now)).toEqual([
       completed,
     ]);
-    expect(filterReminders(reminders, "history", "", now)).toEqual([notified]);
     expect(filterReminders(reminders, "all", "today", now)).toEqual([
       baseReminder,
+    ]);
+    expect(filterReminders(reminders, "today", "finished", now)).toEqual([
+      completed,
+    ]);
+    expect(filterReminders(reminders, "completed", "notified", now)).toEqual([
+      notified,
     ]);
   });
 });
