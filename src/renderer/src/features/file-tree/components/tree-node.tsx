@@ -29,6 +29,7 @@ import { CodeResult } from "@/types";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useDiffStore } from "@/store/diff.store";
 import { useEditorStore } from "@/store/editor.store";
+import { showNoDiffContentToast } from "@/features/diff/lib/diff-toast";
 import { getRevealInFileManagerLabel } from "../utils";
 
 interface CreatingInfo {
@@ -414,8 +415,6 @@ export const TreeNode = memo(function TreeNode({
   // 处理 diff 比较
   const handleDiff = useCallback(async () => {
     const filePath = node.key;
-    // 先打开弹窗占位并标记加载中，避免空内容闪烁为"无差异"。
-    openDiff(filePath, "", "");
 
     try {
       // 条件等待：编辑器首次打开时，parseMarkdown 异步完成后才把内容写回 store。
@@ -451,6 +450,12 @@ export const TreeNode = memo(function TreeNode({
         baseContent = await window.electronAPI.readFile(filePath);
       }
 
+      if (baseContent === editorContent) {
+        showNoDiffContentToast();
+        return;
+      }
+
+      openDiff(filePath, baseContent, editorContent);
       updateContent(baseContent, editorContent);
     } catch (error) {
       console.error("Failed to read file for diff:", error);

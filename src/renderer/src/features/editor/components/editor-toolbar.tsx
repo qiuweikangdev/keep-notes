@@ -7,6 +7,10 @@ import { useDiffStore } from "@/store/diff.store";
 import { useEditorStore, type EditorMode } from "@/store/editor.store";
 import { useTreeStore } from "@/store/tree.store";
 import { CodeResult } from "@/types";
+import {
+  showNoDiffChangesToast,
+  showNoDiffContentToast,
+} from "@/features/diff/lib/diff-toast";
 import { hasNoHeadVersion, toGitRelativePath } from "../lib/editor-git-actions";
 import { flushEditorChange } from "../lib/editor-runtime";
 import { discardFileChanges } from "../lib/discard-file-changes";
@@ -75,8 +79,6 @@ export function EditorToolbar({ groupId }: EditorToolbarProps) {
   const handleDiff = useCallback(async () => {
     if (!tab?.filePath || !repositoryRoot) return;
     const filePath = tab.filePath;
-    // 立即打开弹窗并标记为加载中，避免空内容闪烁成"无差异"。
-    openDiff(filePath, "", "");
 
     // 等待 BlockNote 组件注册的 flusher 把未落盘编辑同步到 store。
     await flushEditorChange(groupId, tab.id);
@@ -117,6 +119,12 @@ export function EditorToolbar({ groupId }: EditorToolbarProps) {
       headContent = "";
     }
 
+    if (headContent === editorContent) {
+      showNoDiffContentToast();
+      return;
+    }
+
+    openDiff(filePath, headContent, editorContent);
     updateContent(headContent, editorContent);
   }, [
     closeDiff,
@@ -131,13 +139,16 @@ export function EditorToolbar({ groupId }: EditorToolbarProps) {
 
   const handleDiscard = useCallback(async () => {
     if (!tab?.filePath || !repositoryRoot) return;
-    await discardFileChanges(repositoryRoot, tab.filePath, {
+    const result = await discardFileChanges(repositoryRoot, tab.filePath, {
       detectGitRepo,
       discardChanges,
       getFileHeadContent,
       getGitStatus,
       loadTree,
     });
+    if (result.noChanges) {
+      showNoDiffChangesToast();
+    }
   }, [
     detectGitRepo,
     discardChanges,

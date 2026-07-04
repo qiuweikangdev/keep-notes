@@ -15,6 +15,12 @@ import {
 } from "@/components/drag-resize-provider";
 import { SettingsModal } from "@/features/settings";
 import { DiffViewer, DiffPanel } from "@/features/diff";
+import {
+  DIFF_TOAST_AUTO_CLOSE_MS,
+  DIFF_TOAST_EVENT,
+  DIFF_NO_CHANGES_MESSAGE,
+  isDiffToastDetail,
+} from "@/features/diff/lib/diff-toast";
 import { useDiffStore } from "@/store/diff.store";
 import { useDiffPanelStore } from "@/features/diff/store/diff-panel.store";
 import { useTreeStore } from "@/store/tree.store";
@@ -70,6 +76,8 @@ function HomePageContent() {
   const { loadTree, openFile } = electron;
   const repositoryRoot = useTreeStore((state) => state.treeRoot?.key ?? null);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
+  const [diffToastMessage, setDiffToastMessage] = useState<string | null>(null);
+  const diffToastTimerRef = useRef<number | null>(null);
 
   const isMac = useMemo(() => {
     return window.electronAPI?.getPlatform() === "darwin";
@@ -107,18 +115,68 @@ function HomePageContent() {
 
   const fileName = filePath?.split(/[\\/]/).pop() || "";
 
+  useEffect(() => {
+    return () => {
+      if (diffToastTimerRef.current !== null) {
+        window.clearTimeout(diffToastTimerRef.current);
+      }
+    };
+  }, []);
+
+  const showDiffToastMessage = useCallback((message: string) => {
+    if (diffToastTimerRef.current !== null) {
+      window.clearTimeout(diffToastTimerRef.current);
+    }
+    setDiffToastMessage(message);
+    diffToastTimerRef.current = window.setTimeout(() => {
+      setDiffToastMessage(null);
+      diffToastTimerRef.current = null;
+    }, DIFF_TOAST_AUTO_CLOSE_MS);
+  }, []);
+
+  useEffect(() => {
+    const handleDiffToast = (event: Event) => {
+      const detail = (event as CustomEvent<unknown>).detail;
+      if (!isDiffToastDetail(detail)) return;
+      showDiffToastMessage(detail.message);
+    };
+
+    window.addEventListener(DIFF_TOAST_EVENT, handleDiffToast);
+    return () => {
+      window.removeEventListener(DIFF_TOAST_EVENT, handleDiffToast);
+    };
+  }, [showDiffToastMessage]);
+
   const handleMoveToPanel = () => {
     if (!filePath) return;
     diffPanel.open({ filePath, oldContent, newContent });
     closeDiff();
   };
 
+  const handleRequestDiscard = useCallback(() => {
+    setConfirmDiscardOpen(true);
+  }, []);
+
   const handleConfirmDiscard = async () => {
+    // 二次确认后再判断是否存在可放弃内容，避免提前跳过确认弹窗。
+    if (oldContent === newContent) {
+      showDiffToastMessage(DIFF_NO_CHANGES_MESSAGE);
+      return;
+    }
+
     if (!filePath || !repositoryRoot) return;
     const result = await discardFileChanges(repositoryRoot, filePath, electron);
-    if (result.success) {
-      closeDiff();
+    if (!result.success) {
+      showDiffToastMessage(DIFF_NO_CHANGES_MESSAGE);
+      return;
     }
+
+    if (result.noChanges) {
+      showDiffToastMessage(DIFF_NO_CHANGES_MESSAGE);
+      return;
+    }
+
+    closeDiff();
   };
 
   return (
@@ -218,7 +276,7 @@ function HomePageContent() {
         filePath={filePath}
         repositoryRoot={repositoryRoot}
         showMutableActions={diffSource !== "history"}
-        onDiscard={() => setConfirmDiscardOpen(true)}
+        onDiscard={handleRequestDiscard}
         onMoveToPanel={handleMoveToPanel}
       />
 
@@ -232,6 +290,25 @@ function HomePageContent() {
         confirmText="确定"
         onConfirm={handleConfirmDiscard}
       />
+
+      {diffToastMessage ? <DiffToast message={diffToastMessage} /> : null}
+    </div>
+  );
+}
+
+function DiffToast({ message }: { message: string }) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="fixed right-5 top-12 z-[100] rounded-md border px-4 py-2 text-sm shadow-lg"
+      style={{
+        backgroundColor: "var(--bg-secondary)",
+        borderColor: "var(--border-color)",
+        color: "var(--text-primary)",
+      }}
+    >
+      {message}
     </div>
   );
 }

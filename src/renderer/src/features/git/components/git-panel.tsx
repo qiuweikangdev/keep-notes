@@ -9,6 +9,7 @@ import { useElectron } from "@/hooks/use-electron";
 import { useTreeStore } from "@/store/tree.store";
 import { useEditorStore } from "@/store/editor.store";
 import { useDiffStore } from "@/store/diff.store";
+import { showNoDiffContentToast } from "@/features/diff/lib/diff-toast";
 import { CodeResult } from "@/types";
 import type {
   GitStatus,
@@ -557,9 +558,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       const dir = getCurrentDir();
       if (!dir) return;
 
-      // 先打开弹窗占位并标记加载中
-      openDiff(filePath, "", "");
-
       try {
         // 构造完整路径，使用与 handleOpenFile 相同的方式
         const sep = dir.includes("\\") ? "\\" : "/";
@@ -586,6 +584,12 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           baseContent = headResult.data ?? "";
         }
 
+        if (baseContent === editorContent) {
+          showNoDiffContentToast();
+          return;
+        }
+
+        openDiff(filePath, baseContent, editorContent);
         updateContent(baseContent, editorContent);
       } catch (error) {
         console.error("Failed to read file for diff:", error);

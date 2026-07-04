@@ -35,6 +35,7 @@ import { useTreeStore } from "@/store/tree.store";
 import { useElectron } from "@/hooks/use-electron";
 import { useReminderStore } from "@/store/reminder.store";
 import { useDiffStore } from "@/store/diff.store";
+import { showNoDiffContentToast } from "@/features/diff/lib/diff-toast";
 import { QuickActionsPanel } from "./quick-actions-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1358,8 +1359,6 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
 
   // 打开文件差异弹窗，并用 HEAD 版本与当前工作区内容填充对比数据。
   const handleDiff = useCallback(async () => {
-    openDiff(flatNode.key, "", "");
-
     try {
       const editorContent = await readEditorContentForDiff();
       let baseContent = "";
@@ -1375,6 +1374,12 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
         baseContent = await window.electronAPI.readFile(flatNode.key);
       }
 
+      if (baseContent === editorContent) {
+        showNoDiffContentToast();
+        return;
+      }
+
+      openDiff(flatNode.key, baseContent, editorContent);
       updateContent(baseContent, editorContent);
     } catch (error) {
       console.error("Failed to read file for diff:", error);

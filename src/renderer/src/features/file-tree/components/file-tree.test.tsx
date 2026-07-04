@@ -10,6 +10,7 @@ import { FileTree } from "./file-tree";
 import { useEditorStore } from "@/store/editor.store";
 import { useTreeStore } from "@/store/tree.store";
 import { CodeResult } from "@/types";
+import { DIFF_TOAST_EVENT } from "@/features/diff/lib/diff-toast";
 
 const electronMocks = vi.hoisted(() => ({
   openFolder: vi.fn(),
@@ -110,8 +111,8 @@ describe("FileTree context menu", () => {
     await waitFor(() => {
       expect(diffStoreMock.openDiff).toHaveBeenCalledWith(
         "/notes/daily.md",
-        "",
-        "",
+        "head content",
+        "worktree content",
       );
     });
     await waitFor(() => {
@@ -120,5 +121,30 @@ describe("FileTree context menu", () => {
         "worktree content",
       );
     });
+  });
+
+  it("shows a no-diff toast instead of opening diff from the virtualized file node menu", async () => {
+    const toastSpy = vi.fn();
+    window.addEventListener(DIFF_TOAST_EVENT, toastSpy);
+    electronMocks.getFileHeadContent.mockResolvedValue({
+      code: CodeResult.Success,
+      data: "worktree content",
+    });
+
+    render(<FileTree />);
+
+    fireEvent.contextMenu(await screen.findByText("daily.md"));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /比较差异/ }));
+
+    await waitFor(() => {
+      expect(toastSpy).toHaveBeenCalled();
+    });
+    const toastEvent = toastSpy.mock.calls[0]?.[0] as CustomEvent<{
+      message: string;
+    }>;
+    expect(toastEvent.detail.message).toBe("暂无差异内容");
+    expect(diffStoreMock.openDiff).not.toHaveBeenCalled();
+
+    window.removeEventListener(DIFF_TOAST_EVENT, toastSpy);
   });
 });
