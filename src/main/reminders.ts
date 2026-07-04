@@ -251,11 +251,19 @@ export class ReminderService {
     this.reminders = this.reminders.map((reminder) => {
       if (reminder.id !== id) return reminder;
       const filePath = input.filePath ?? reminder.filePath;
+      const scheduledAt = input.scheduledAt ?? reminder.scheduledAt;
+      const completed =
+        (input as Partial<Reminder>).completed ?? reminder.completed;
+      const rescheduledToFuture =
+        reminder.completed &&
+        input.scheduledAt !== undefined &&
+        new Date(scheduledAt).getTime() > this.now().getTime();
       updated = {
         ...reminder,
         ...input,
         filePath,
         fileName: filePath ? basename(filePath) : "",
+        completed: rescheduledToFuture ? false : completed,
         updatedAt: timestamp,
       };
       return updated;
@@ -302,7 +310,15 @@ export class ReminderService {
       }
 
       await this.notify(reminder);
+      const scheduledAt = reminder.scheduledAt;
       reminder.lastNotifiedAt = reminder.scheduledAt;
+      reminder.notificationHistory = [
+        ...(reminder.notificationHistory ?? []),
+        {
+          scheduledAt,
+          notifiedAt: now.toISOString(),
+        },
+      ];
 
       if (reminder.repeat !== "never") {
         reminder.scheduledAt = calculateNextReminderDate(

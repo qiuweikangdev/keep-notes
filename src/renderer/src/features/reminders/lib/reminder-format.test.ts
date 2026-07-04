@@ -75,19 +75,35 @@ describe("filterReminders", () => {
       fileName: "tomorrow.md",
       scheduledAt: "2026-06-22T09:00:00.000Z",
     };
-    const reminders = [baseReminder, completed, tomorrow];
+    const notified: Reminder = {
+      ...baseReminder,
+      id: "reminder-4",
+      title: "Notified task",
+      fileName: "notified.md",
+      lastNotifiedAt: "2026-06-21T09:01:00.000Z",
+      notificationHistory: [
+        {
+          scheduledAt: "2026-06-21T09:00:00.000Z",
+          notifiedAt: "2026-06-21T09:01:00.000Z",
+        },
+      ],
+    };
+    const reminders = [baseReminder, completed, tomorrow, notified];
     const now = new Date("2026-06-21T12:00:00.000Z");
 
     expect(filterReminders(reminders, "today", "", now)).toEqual([
       baseReminder,
+      notified,
     ]);
     expect(filterReminders(reminders, "all", "", now)).toEqual([
       baseReminder,
       tomorrow,
+      notified,
     ]);
     expect(filterReminders(reminders, "completed", "", now)).toEqual([
       completed,
     ]);
+    expect(filterReminders(reminders, "history", "", now)).toEqual([notified]);
     expect(filterReminders(reminders, "all", "today", now)).toEqual([
       baseReminder,
     ]);

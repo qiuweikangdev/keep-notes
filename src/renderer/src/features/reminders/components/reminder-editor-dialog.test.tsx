@@ -10,6 +10,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useReminderStore } from "@/store/reminder.store";
 import { ReminderEditorDialog } from "./reminder-editor-dialog";
+import { ReminderListDialog } from "./reminder-list-dialog";
 
 describe("ReminderEditorDialog", () => {
   afterEach(() => {
@@ -85,6 +86,51 @@ describe("ReminderEditorDialog", () => {
     });
   });
 
+  it("only closes the editor when cancelling from an open list", async () => {
+    const user = userEvent.setup();
+    useReminderStore.setState({
+      isListOpen: true,
+      draftFilePath: null,
+    });
+    render(
+      <>
+        <ReminderListDialog />
+        <ReminderEditorDialog />
+      </>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "取消" }));
+
+    expect(useReminderStore.getState()).toMatchObject({
+      isEditorOpen: false,
+      isListOpen: true,
+    });
+  });
+
+  it("only closes the editor when saving from an open list", async () => {
+    const user = userEvent.setup();
+    useReminderStore.setState({
+      isListOpen: true,
+      draftFilePath: null,
+    });
+    render(
+      <>
+        <ReminderListDialog />
+        <ReminderEditorDialog />
+      </>,
+    );
+
+    await user.type(screen.getByPlaceholderText("标题"), "喝水");
+    await user.click(screen.getByRole("button", { name: "保存" }));
+
+    await waitFor(() => {
+      expect(useReminderStore.getState()).toMatchObject({
+        isEditorOpen: false,
+        isListOpen: true,
+      });
+    });
+  });
+
   it("refreshes the default time every time the create dialog opens", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-21T08:02:00"));
@@ -104,6 +150,26 @@ describe("ReminderEditorDialog", () => {
     });
 
     expect(screen.getByRole("button", { name: /09:17/ })).toBeInTheDocument();
+  });
+
+  it("resets nested popup state every time the editor opens", async () => {
+    const user = userEvent.setup();
+    render(<ReminderEditorDialog />);
+
+    await user.click(screen.getByRole("button", { name: /永不/ }));
+    await user.click(screen.getByRole("button", { name: "自定义" }));
+
+    expect(screen.getAllByText("自定义重复").length).toBeGreaterThan(0);
+
+    act(() => {
+      useReminderStore.getState().closeEditor();
+    });
+    act(() => {
+      useReminderStore.getState().openCreateDialog();
+    });
+
+    expect(screen.queryByText("自定义重复")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /永不/ })).toBeInTheDocument();
   });
 
   it("scrolls the time picker columns to the current time when opened", async () => {

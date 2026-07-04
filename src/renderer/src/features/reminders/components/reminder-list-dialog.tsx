@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bell, CheckCircle2, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -12,6 +12,7 @@ import {
   filterReminders,
   formatReminderDateTime,
   getRepeatLabel,
+  hasNotificationHistory,
   type ReminderListTab,
 } from "../lib/reminder-format";
 
@@ -25,11 +26,18 @@ const tabs: Array<{ label: string; value: ReminderListTab }> = [
   { label: "今天", value: "today" },
   { label: "全部", value: "all" },
   { label: "完成", value: "completed" },
+  { label: "历史", value: "history" },
 ];
+
+function getLastNotificationAt(reminder: Reminder): string {
+  const history = reminder.notificationHistory ?? [];
+  return history.at(-1)?.notifiedAt ?? reminder.lastNotifiedAt ?? "";
+}
 
 export function ReminderListDialog() {
   const reminders = useReminderStore((state) => state.reminders);
   const isListOpen = useReminderStore((state) => state.isListOpen);
+  const isEditorOpen = useReminderStore((state) => state.isEditorOpen);
   const closeList = useReminderStore((state) => state.closeList);
   const openCreateDialog = useReminderStore((state) => state.openCreateDialog);
   const openEditDialog = useReminderStore((state) => state.openEditDialog);
@@ -38,6 +46,9 @@ export function ReminderListDialog() {
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<ReminderListTab>("today");
   const [deleteTarget, setDeleteTarget] = useState<Reminder | null>(null);
+  const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
+  const contextMenuInteractionRef = useRef(false);
+  const contextMenuResetTimerRef = useRef<number | null>(null);
 
   const visibleReminders = useMemo(
     () => filterReminders(reminders, tab, query),
@@ -50,15 +61,83 @@ export function ReminderListDialog() {
   };
 
   const handleCreate = () => {
-    closeList();
     openCreateDialog();
   };
 
+  const handleContextMenuOpenChange = useCallback((open: boolean) => {
+    if (contextMenuResetTimerRef.current !== null) {
+      window.clearTimeout(contextMenuResetTimerRef.current);
+      contextMenuResetTimerRef.current = null;
+    }
+
+    contextMenuInteractionRef.current = true;
+    setIsContextMenuOpen(open);
+
+    if (!open) {
+      // ContextMenu 关闭后 Dialog 可能随后收到一次外部交互，延后清理以免误关列表弹窗。
+      contextMenuResetTimerRef.current = window.setTimeout(() => {
+        contextMenuInteractionRef.current = false;
+        contextMenuResetTimerRef.current = null;
+      }, 120);
+    }
+  }, []);
+
+  const preventDialogDismissFromContextMenu = useCallback(
+    (event: { target: EventTarget | null; preventDefault: () => void }) => {
+      const target = event.target;
+      if (
+        contextMenuInteractionRef.current ||
+        (target instanceof Element &&
+          (target.closest("[data-reminder-context-menu]") ||
+            target.closest("[data-reminder-editor-dialog]")))
+      ) {
+        event.preventDefault();
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (contextMenuResetTimerRef.current !== null) {
+        window.clearTimeout(contextMenuResetTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isListOpen) return;
+
+    setQuery("");
+    setTab("today");
+    setDeleteTarget(null);
+    setIsContextMenuOpen(false);
+    contextMenuInteractionRef.current = false;
+    if (contextMenuResetTimerRef.current !== null) {
+      window.clearTimeout(contextMenuResetTimerRef.current);
+      contextMenuResetTimerRef.current = null;
+    }
+  }, [isListOpen]);
+
   return (
     <>
-      <Dialog.Root open={isListOpen} onOpenChange={closeList}>
+      <Dialog.Root
+        modal={!isEditorOpen}
+        open={isListOpen}
+        onOpenChange={(open) => {
+          if (!open && !contextMenuInteractionRef.current) closeList();
+        }}
+      >
         <DialogContent
           className="max-w-[680px] gap-0 overflow-hidden p-0 shadow-2xl"
+          onEscapeKeyDown={(event) => {
+            if (isContextMenuOpen || contextMenuInteractionRef.current) {
+              event.preventDefault();
+            }
+          }}
+          onFocusOutside={preventDialogDismissFromContextMenu}
+          onInteractOutside={preventDialogDismissFromContextMenu}
+          onPointerDownOutside={preventDialogDismissFromContextMenu}
           style={{
             backgroundColor: "var(--bg-secondary)",
             border: "1px solid var(--border-color)",
@@ -111,7 +190,7 @@ export function ReminderListDialog() {
             onValueChange={(value) => setTab(value as ReminderListTab)}
           >
             <Tabs.List
-              className="grid grid-cols-3 gap-1 px-5 py-3"
+              className="grid grid-cols-4 gap-1 px-5 py-3"
               style={{ backgroundColor: "var(--bg-secondary)" }}
             >
               {tabs.map((item) => (
@@ -143,6 +222,7 @@ export function ReminderListDialog() {
                           void completeReminder(target.id)
                         }
                         onDelete={setDeleteTarget}
+                        onContextMenuOpenChange={handleContextMenuOpenChange}
                       />
                     ))}
                   </div>
@@ -185,6 +265,7 @@ interface ReminderListItemProps {
   onEdit: (reminder: Reminder) => void;
   onComplete: (reminder: Reminder) => void;
   onDelete: (reminder: Reminder) => void;
+  onContextMenuOpenChange: (open: boolean) => void;
 }
 
 function ReminderListItem({
@@ -192,39 +273,50 @@ function ReminderListItem({
   onEdit,
   onComplete,
   onDelete,
+  onContextMenuOpenChange,
 }: ReminderListItemProps) {
-  const detail = [
-    reminder.fileName,
-    formatReminderDateTime(reminder.scheduledAt),
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const lastNotificationAt = getLastNotificationAt(reminder);
+  const scheduledAt = formatReminderDateTime(reminder.scheduledAt);
+  const notifiedAt =
+    hasNotificationHistory(reminder) && lastNotificationAt
+      ? formatReminderDateTime(lastNotificationAt)
+      : "暂无";
+  const fileName = reminder.fileName || "无关联文件";
 
   return (
-    <ContextMenu.Root>
+    <ContextMenu.Root modal={false} onOpenChange={onContextMenuOpenChange}>
       <ContextMenu.Trigger asChild>
         <button
           type="button"
-          className="grid w-full grid-cols-[1fr_auto] items-center gap-4 rounded-md px-3 py-2 text-left transition-colors hover:bg-[var(--hover-bg)]"
+          className="grid w-full grid-cols-[minmax(0,1fr)_52px] items-center gap-3 rounded-md px-3 py-2 text-left transition-colors hover:bg-[var(--hover-bg)]"
         >
           <div className="min-w-0">
             <div className="truncate text-[14px] font-medium">
               {reminder.title}
             </div>
             <div
-              className="truncate text-[12px]"
-              style={{ color: "var(--text-muted)" }}
+              className="mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] leading-5"
+              style={{ color: "var(--text-secondary)" }}
             >
-              {detail}
+              <span className="min-w-0 max-w-[180px] truncate">{fileName}</span>
+              <span className="shrink-0">{scheduledAt}</span>
+              <span className="shrink-0">通知 {notifiedAt}</span>
             </div>
           </div>
-          <div className="text-[12px]" style={{ color: "var(--text-muted)" }}>
+          <div
+            className="text-right text-[12px]"
+            style={{ color: "var(--text-muted)" }}
+          >
             {getRepeatLabel(reminder)}
           </div>
         </button>
       </ContextMenu.Trigger>
       <ContextMenu.Portal>
-        <ContextMenu.Content className={MENU_CONTENT_CLASS}>
+        <ContextMenu.Content
+          className={MENU_CONTENT_CLASS}
+          data-reminder-context-menu="true"
+          onCloseAutoFocus={(event) => event.preventDefault()}
+        >
           <ContextMenu.Item
             className={MENU_ITEM_CLASS}
             onClick={() => onEdit(reminder)}

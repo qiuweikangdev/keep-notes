@@ -179,13 +179,18 @@ export function ReminderEditorDialog() {
   );
 
   useEffect(() => {
-    if (!isEditorOpen) return;
+    if (!isEditorOpen) {
+      setIsCustomOpen(false);
+      setOpenPicker(null);
+      return;
+    }
     const nextInitialState = getInitialState(editingReminder, draftFilePath);
     setTitle(nextInitialState.title);
     setDate(nextInitialState.date);
     setTime(nextInitialState.time);
     setRepeat(nextInitialState.repeat);
     setCustomRepeat(nextInitialState.customRepeat);
+    setIsCustomOpen(false);
     setIsDateEnabled(true);
     setIsTimeEnabled(true);
     setOpenPicker(null);
@@ -234,7 +239,8 @@ export function ReminderEditorDialog() {
     <>
       <Dialog.Root open={isEditorOpen} onOpenChange={closeEditor}>
         <DialogContent
-          className="max-w-[480px] gap-0 overflow-visible rounded-xl p-0 shadow-2xl"
+          className="z-[60] max-w-[480px] gap-0 overflow-visible rounded-xl p-0 shadow-2xl"
+          data-reminder-editor-dialog="true"
           showCloseButton={false}
           style={{
             backgroundColor: "var(--bg-secondary)",

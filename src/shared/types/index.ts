@@ -211,6 +211,11 @@ export interface ReminderRepeatCustomRule {
   unit: ReminderRepeatUnit;
 }
 
+export interface ReminderNotificationHistoryItem {
+  scheduledAt: string;
+  notifiedAt: string;
+}
+
 export interface Reminder {
   id: string;
   title: string;
@@ -223,6 +228,7 @@ export interface Reminder {
   createdAt: string;
   updatedAt: string;
   lastNotifiedAt?: string;
+  notificationHistory?: ReminderNotificationHistoryItem[];
 }
 
 export interface ReminderInput {

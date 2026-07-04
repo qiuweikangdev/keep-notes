@@ -198,6 +198,26 @@ describe("ReminderService", () => {
     expect(completed.completed).toBe(true);
   });
 
+  it("reopens completed reminders when rescheduled to a future time", async () => {
+    const { service } = createTestService({
+      now: new Date("2026-06-21T08:00:00.000Z"),
+    });
+    await service.load();
+    const reminder = await service.create(baseInput);
+    await service.complete(reminder.id);
+
+    const updated = await service.update(reminder.id, {
+      scheduledAt: "2026-06-22T09:00:00.000Z",
+    });
+
+    expect(updated.completed).toBe(false);
+    expect(service.getSnapshot()[0]).toMatchObject({
+      id: reminder.id,
+      completed: false,
+      scheduledAt: "2026-06-22T09:00:00.000Z",
+    });
+  });
+
   it("notifies due one-time reminders once for the same scheduled time", async () => {
     const showNotification = vi.fn(() => ({ show: vi.fn() }));
     const { service } = createTestService({
@@ -215,6 +235,25 @@ describe("ReminderService", () => {
       id: reminder.id,
       lastNotifiedAt: "2026-06-21T09:00:00.000Z",
     });
+  });
+
+  it("persists notification history when reminders are triggered", async () => {
+    const showNotification = vi.fn(() => ({ show: vi.fn() }));
+    const { service, saved } = createTestService({
+      now: new Date("2026-06-21T09:01:00.000Z"),
+      showNotification,
+    });
+    await service.load();
+    await service.create(baseInput);
+
+    await service.processDueReminders();
+
+    expect(saved.at(-1)?.[0].notificationHistory).toEqual([
+      {
+        scheduledAt: "2026-06-21T09:00:00.000Z",
+        notifiedAt: "2026-06-21T09:01:00.000Z",
+      },
+    ]);
   });
 
   it("passes persistent desktop notification preference to the notification window", async () => {
