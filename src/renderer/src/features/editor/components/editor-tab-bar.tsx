@@ -3,12 +3,10 @@ import { useElectron } from "@/hooks/use-electron";
 import {
   FileText,
   X,
-  ChevronDown,
   SplitSquareVertical,
   SplitSquareHorizontal,
-  Plus,
 } from "lucide-react";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   editorSaveCoordinator,
   flushEditorChange,
@@ -43,26 +41,12 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
   const group = useEditorStore
     .getState()
     .panelGroups.find((item) => item.id === groupId);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
     tabId: string;
   } | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
-
-  // 点击外部关闭下拉菜单
-  useEffect(() => {
-    if (!isMenuOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setIsMenuOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isMenuOpen]);
 
   // 关闭右键菜单
   useEffect(() => {
@@ -105,17 +89,14 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
 
   const handleNewTab = () => {
     addTab(groupId);
-    setIsMenuOpen(false);
   };
 
   const handleSplitRight = () => {
     addPanelGroup("horizontal");
-    setIsMenuOpen(false);
   };
 
   const handleSplitDown = () => {
     addPanelGroup("vertical");
-    setIsMenuOpen(false);
   };
 
   // 右键菜单
@@ -272,64 +253,12 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
           className="flex h-full flex-shrink-0 items-center gap-1 px-1"
           style={{ borderLeft: "1px solid var(--border-color)" }}
         >
-          <EditorToolbar groupId={groupId} />
-          {/* 下拉菜单按钮 - VSCode 风格的 "+" 和下拉箭头 */}
-          <div className="relative h-full" ref={menuRef}>
-            <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="flex items-center gap-0.5 h-full px-2 transition-all"
-              style={{ color: "var(--text-muted)" }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                e.currentTarget.style.color = "var(--text-primary)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "transparent";
-                e.currentTarget.style.color = "var(--text-muted)";
-              }}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <ChevronDown
-                className="h-3 w-3 transition-transform"
-                style={{
-                  transform: isMenuOpen ? "rotate(180deg)" : "rotate(0deg)",
-                }}
-              />
-            </button>
-
-            {/* 下拉菜单 */}
-            {isMenuOpen && (
-              <div
-                className="absolute right-0 top-full z-50 py-1 min-w-[200px]"
-                style={{
-                  backgroundColor: "var(--bg-secondary)",
-                  border: "1px solid var(--border-color)",
-                  borderRadius: "6px",
-                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
-                }}
-              >
-                <MenuButton
-                  icon={<Plus className="h-3.5 w-3.5" />}
-                  onClick={handleNewTab}
-                >
-                  新建标签页
-                </MenuButton>
-                <MenuDivider />
-                <MenuButton
-                  icon={<SplitSquareVertical className="h-3.5 w-3.5" />}
-                  onClick={handleSplitRight}
-                >
-                  向右拆分
-                </MenuButton>
-                <MenuButton
-                  icon={<SplitSquareHorizontal className="h-3.5 w-3.5" />}
-                  onClick={handleSplitDown}
-                >
-                  向下拆分
-                </MenuButton>
-              </div>
-            )}
-          </div>
+          <EditorToolbar
+            groupId={groupId}
+            onNewTab={handleNewTab}
+            onSplitRight={handleSplitRight}
+            onSplitDown={handleSplitDown}
+          />
         </div>
       )}
 
@@ -366,7 +295,7 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
           </MenuButton>
           <MenuDivider />
           <MenuButton
-            icon={<SplitSquareVertical className="h-3.5 w-3.5" />}
+            icon={<SplitSquareHorizontal className="h-3.5 w-3.5" />}
             onClick={() => {
               addPanelGroup("horizontal");
               setContextMenu(null);
@@ -375,7 +304,7 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
             向右拆分
           </MenuButton>
           <MenuButton
-            icon={<SplitSquareHorizontal className="h-3.5 w-3.5" />}
+            icon={<SplitSquareVertical className="h-3.5 w-3.5" />}
             onClick={() => {
               addPanelGroup("vertical");
               setContextMenu(null);

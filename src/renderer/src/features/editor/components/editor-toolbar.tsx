@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
-import { Code2, FileText, GitCompare, Undo2 } from "lucide-react";
+import {
+  Code2,
+  FileText,
+  GitCompare,
+  MoreHorizontal,
+  Plus,
+  SplitSquareHorizontal,
+  SplitSquareVertical,
+  Undo2,
+} from "lucide-react";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { useElectron } from "@/hooks/use-electron";
 import { useDiffStore } from "@/store/diff.store";
 import { useEditorStore, type EditorMode } from "@/store/editor.store";
@@ -17,9 +27,17 @@ import { discardFileChanges } from "../lib/discard-file-changes";
 
 interface EditorToolbarProps {
   groupId: string;
+  onNewTab: () => void;
+  onSplitRight: () => void;
+  onSplitDown: () => void;
 }
 
-export function EditorToolbar({ groupId }: EditorToolbarProps) {
+export function EditorToolbar({
+  groupId,
+  onNewTab,
+  onSplitRight,
+  onSplitDown,
+}: EditorToolbarProps) {
   const tab = useEditorStore((state) => {
     const group = state.panelGroups.find((item) => item.id === groupId);
     return group?.tabs.find((item) => item.id === group.activeTabId);
@@ -161,6 +179,9 @@ export function EditorToolbar({ groupId }: EditorToolbarProps) {
 
   if (!tab) return null;
 
+  const showGitActions =
+    isGitRepo && Boolean(tab.filePath && !tab.pendingFilePath);
+
   return (
     <>
       {showModeSwitcher ? (
@@ -181,23 +202,65 @@ export function EditorToolbar({ groupId }: EditorToolbarProps) {
           </ModeButton>
         </div>
       ) : null}
-      {isGitRepo && tab.filePath && !tab.pendingFilePath ? (
-        <div className="ml-1 flex items-center">
-          <ToolbarIconButton
-            label="比较当前文件差异"
-            onClick={() => void handleDiff()}
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger asChild>
+          <button
+            type="button"
+            aria-label="标签页操作"
+            title="标签页操作"
+            className="flex h-full w-9 items-center justify-center text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)] data-[state=open]:bg-[var(--hover-bg)] data-[state=open]:text-[var(--text-primary)]"
           >
-            <GitCompare className="h-3.5 w-3.5" />
-          </ToolbarIconButton>
-          <ToolbarIconButton
-            label="放弃当前文件更改"
-            danger
-            onClick={() => setConfirmDiscard(true)}
+            <MoreHorizontal className="h-4 w-4" />
+          </button>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content
+            align="end"
+            sideOffset={6}
+            className="z-[9999] min-w-[176px] rounded-lg border p-1 shadow-lg"
+            style={{
+              backgroundColor: "var(--bg-primary)",
+              borderColor: "var(--border-color)",
+            }}
           >
-            <Undo2 className="h-3.5 w-3.5" />
-          </ToolbarIconButton>
-        </div>
-      ) : null}
+            <EditorActionMenuItem
+              icon={<Plus className="h-3.5 w-3.5" />}
+              onSelect={onNewTab}
+            >
+              新建标签页
+            </EditorActionMenuItem>
+            <EditorActionMenuItem
+              icon={<SplitSquareHorizontal className="h-3.5 w-3.5" />}
+              onSelect={onSplitRight}
+            >
+              向右拆分面板
+            </EditorActionMenuItem>
+            <EditorActionMenuItem
+              icon={<SplitSquareVertical className="h-3.5 w-3.5" />}
+              onSelect={onSplitDown}
+            >
+              向下拆分面板
+            </EditorActionMenuItem>
+            {showGitActions ? (
+              <>
+                <DropdownMenu.Separator className="my-1 h-px bg-[var(--border-color)]" />
+                <EditorActionMenuItem
+                  icon={<GitCompare className="h-3.5 w-3.5" />}
+                  onSelect={() => void handleDiff()}
+                >
+                  比较差异
+                </EditorActionMenuItem>
+                <EditorActionMenuItem
+                  icon={<Undo2 className="h-3.5 w-3.5" />}
+                  onSelect={() => setConfirmDiscard(true)}
+                >
+                  放弃更改
+                </EditorActionMenuItem>
+              </>
+            ) : null}
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Root>
       <ConfirmDialog
         open={confirmDiscard}
         onOpenChange={setConfirmDiscard}
@@ -207,6 +270,30 @@ export function EditorToolbar({ groupId }: EditorToolbarProps) {
         onConfirm={handleDiscard}
       />
     </>
+  );
+}
+
+function EditorActionMenuItem({
+  icon,
+  disabled = false,
+  onSelect,
+  children,
+}: {
+  icon: React.ReactNode;
+  disabled?: boolean;
+  onSelect: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <DropdownMenu.Item
+      disabled={disabled}
+      className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[disabled]:opacity-45 data-[highlighted]:bg-[var(--hover-bg)]"
+      style={{ color: "var(--text-primary)" }}
+      onSelect={onSelect}
+    >
+      <span className="flex h-4 w-4 items-center justify-center">{icon}</span>
+      <span>{children}</span>
+    </DropdownMenu.Item>
   );
 }
 
@@ -234,31 +321,6 @@ function ModeButton({
       onClick={onClick}
     >
       {icon}
-      {children}
-    </button>
-  );
-}
-
-function ToolbarIconButton({
-  label,
-  danger = false,
-  children,
-  onClick,
-}: {
-  label: string;
-  danger?: boolean;
-  children: React.ReactNode;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      title={label}
-      aria-label={label}
-      className="flex h-7 w-7 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)]"
-      style={danger ? { color: "var(--danger-color)" } : undefined}
-      onClick={onClick}
-    >
       {children}
     </button>
   );
