@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Bell, CheckCircle2, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -33,6 +33,14 @@ function getLastNotificationAt(reminder: Reminder): string {
   return history.at(-1)?.notifiedAt ?? reminder.lastNotifiedAt ?? "";
 }
 
+function isReminderNestedPortalTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element &&
+    (target.closest("[data-reminder-context-menu]") !== null ||
+      target.closest("[data-reminder-editor-dialog]") !== null)
+  );
+}
+
 export function ReminderListDialog() {
   const reminders = useReminderStore((state) => state.reminders);
   const isListOpen = useReminderStore((state) => state.isListOpen);
@@ -46,8 +54,6 @@ export function ReminderListDialog() {
   const [tab, setTab] = useState<ReminderListTab>("today");
   const [deleteTarget, setDeleteTarget] = useState<Reminder | null>(null);
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
-  const contextMenuInteractionRef = useRef(false);
-  const contextMenuResetTimerRef = useRef<number | null>(null);
 
   const visibleReminders = useMemo(
     () => filterReminders(reminders, tab, query),
@@ -55,7 +61,6 @@ export function ReminderListDialog() {
   );
 
   const handleEdit = (reminder: Reminder) => {
-    closeList();
     openEditDialog(reminder.id);
   };
 
@@ -64,45 +69,17 @@ export function ReminderListDialog() {
   };
 
   const handleContextMenuOpenChange = useCallback((open: boolean) => {
-    if (contextMenuResetTimerRef.current !== null) {
-      window.clearTimeout(contextMenuResetTimerRef.current);
-      contextMenuResetTimerRef.current = null;
-    }
-
-    contextMenuInteractionRef.current = true;
     setIsContextMenuOpen(open);
-
-    if (!open) {
-      // ContextMenu 关闭后 Dialog 可能随后收到一次外部交互，延后清理以免误关列表弹窗。
-      contextMenuResetTimerRef.current = window.setTimeout(() => {
-        contextMenuInteractionRef.current = false;
-        contextMenuResetTimerRef.current = null;
-      }, 120);
-    }
   }, []);
 
   const preventDialogDismissFromContextMenu = useCallback(
     (event: { target: EventTarget | null; preventDefault: () => void }) => {
-      const target = event.target;
-      if (
-        contextMenuInteractionRef.current ||
-        (target instanceof Element &&
-          (target.closest("[data-reminder-context-menu]") ||
-            target.closest("[data-reminder-editor-dialog]")))
-      ) {
+      if (isReminderNestedPortalTarget(event.target)) {
         event.preventDefault();
       }
     },
     [],
   );
-
-  useEffect(() => {
-    return () => {
-      if (contextMenuResetTimerRef.current !== null) {
-        window.clearTimeout(contextMenuResetTimerRef.current);
-      }
-    };
-  }, []);
 
   useEffect(() => {
     if (!isListOpen) return;
@@ -111,11 +88,6 @@ export function ReminderListDialog() {
     setTab("today");
     setDeleteTarget(null);
     setIsContextMenuOpen(false);
-    contextMenuInteractionRef.current = false;
-    if (contextMenuResetTimerRef.current !== null) {
-      window.clearTimeout(contextMenuResetTimerRef.current);
-      contextMenuResetTimerRef.current = null;
-    }
   }, [isListOpen]);
 
   return (
@@ -124,13 +96,13 @@ export function ReminderListDialog() {
         modal={!isEditorOpen}
         open={isListOpen}
         onOpenChange={(open) => {
-          if (!open && !contextMenuInteractionRef.current) closeList();
+          if (!open) closeList();
         }}
       >
         <DialogContent
           className="max-w-[680px] gap-0 overflow-hidden p-0 shadow-2xl"
           onEscapeKeyDown={(event) => {
-            if (isContextMenuOpen || contextMenuInteractionRef.current) {
+            if (isContextMenuOpen) {
               event.preventDefault();
             }
           }}

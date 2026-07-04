@@ -77,6 +77,28 @@ describe("ReminderListDialog", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps the reminder list open when editing from a row context menu", async () => {
+    const user = userEvent.setup();
+    useReminderStore.setState({
+      reminders: [{ ...reminder, scheduledAt: new Date().toISOString() }],
+    });
+    render(<ReminderListDialog />);
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: /Read notes/ }));
+    expect(await screen.findByText("修改")).toBeInTheDocument();
+
+    await user.click(screen.getByText("修改"));
+
+    expect(useReminderStore.getState()).toMatchObject({
+      isListOpen: true,
+      isEditorOpen: true,
+      editingReminderId: reminder.id,
+    });
+    expect(
+      screen.getByRole("dialog", { name: "提醒事项" }),
+    ).toBeInTheDocument();
+  });
+
   it("keeps the reminder list open when dismissing a row context menu", async () => {
     const user = userEvent.setup();
     useReminderStore.setState({
@@ -94,6 +116,40 @@ describe("ReminderListDialog", () => {
     expect(
       screen.getByRole("dialog", { name: "提醒事项" }),
     ).toBeInTheDocument();
+  });
+
+  it("closes from the close button after dismissing a row context menu", async () => {
+    const user = userEvent.setup();
+    useReminderStore.setState({
+      reminders: [{ ...reminder, scheduledAt: new Date().toISOString() }],
+    });
+    render(<ReminderListDialog />);
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: /Read notes/ }));
+    expect(await screen.findByText("修改")).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "关闭" }));
+
+    expect(useReminderStore.getState().isListOpen).toBe(false);
+  });
+
+  it("closes when clicking outside after dismissing a row context menu", async () => {
+    const user = userEvent.setup();
+    useReminderStore.setState({
+      reminders: [{ ...reminder, scheduledAt: new Date().toISOString() }],
+    });
+    render(<ReminderListDialog />);
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: /Read notes/ }));
+    expect(await screen.findByText("修改")).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    fireEvent.pointerDown(document.body);
+    fireEvent.mouseDown(document.body);
+    fireEvent.click(document.body);
+
+    expect(useReminderStore.getState().isListOpen).toBe(false);
   });
 
   it("renders reminder metadata in a compact row", () => {
