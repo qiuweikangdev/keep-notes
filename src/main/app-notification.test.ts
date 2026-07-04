@@ -102,6 +102,24 @@ describe("createAppNotification", () => {
     expect(event.preventDefault).toHaveBeenCalledTimes(1);
   });
 
+  it("renders a top close icon instead of the timestamp", async () => {
+    const notification = createAppNotification({
+      title: "Read notes",
+      body: "today.md",
+      openLabel: "打开",
+      requireInteraction: true,
+    });
+
+    await notification.show();
+    const html = getLastNotificationHtml();
+
+    expect(html).not.toContain('<div class="time">现在</div>');
+    expect(html).toContain('class="window-action"');
+    expect(html).toContain('class="close-icon"');
+    expect(html).toContain('aria-label="关闭"');
+    expect(html).toContain("keep-notes-notification://close");
+  });
+
   it("calls snooze action and closes the notification", async () => {
     const onSnooze = vi.fn();
     const notification = createAppNotification(
@@ -177,8 +195,8 @@ describe("createAppNotification", () => {
       });
       expect(html).toContain('class="platform-mac"');
       expect(html).toContain("padding: 8px 18px 0 18px;");
-      expect(html).toContain("font-size: 17px;");
-      expect(html).toContain("line-height: 22px;");
+      expect(html).toContain("font-size: var(--app-name-font-size);");
+      expect(html).toContain("line-height: var(--app-name-line-height);");
       expect(html).toContain("padding: 4px 16px 10px 66px;");
     } else {
       expect(windowOptions).toMatchObject({

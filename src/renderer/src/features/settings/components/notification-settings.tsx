@@ -5,7 +5,10 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { ColorPicker } from "@/components/ui/color-picker";
 import type { NotificationSizePreset } from "@/types";
-import { DEFAULT_NOTIFICATION_CONFIG } from "@/types";
+import {
+  DEFAULT_DESKTOP_NOTIFICATION_APPEARANCE,
+  DEFAULT_NOTIFICATION_CONFIG,
+} from "@/types";
 import { Loader2, CheckCircle2, XCircle, ChevronDown } from "lucide-react";
 
 export function NotificationSettings() {
@@ -108,20 +111,10 @@ export function NotificationSettings() {
 
   /** 切换通知样式模式，默认模式统一回到预设值，自定义模式开放字号、颜色和尺寸配置。 */
   const handleChangeAppearanceMode = async (useCustomAppearance: boolean) => {
+    // 开启自定义时也写入显式默认外观，避免旧配置中的空颜色继续显示成占位色。
     await updateDesktopConfig({
       useCustomAppearance,
-      ...(useCustomAppearance
-        ? {}
-        : {
-            appNameFontSize:
-              DEFAULT_NOTIFICATION_CONFIG.desktop.appNameFontSize,
-            appNameColor: DEFAULT_NOTIFICATION_CONFIG.desktop.appNameColor,
-            titleFontSize: DEFAULT_NOTIFICATION_CONFIG.desktop.titleFontSize,
-            titleColor: DEFAULT_NOTIFICATION_CONFIG.desktop.titleColor,
-            backgroundColor:
-              DEFAULT_NOTIFICATION_CONFIG.desktop.backgroundColor,
-            sizePreset: DEFAULT_NOTIFICATION_CONFIG.desktop.sizePreset,
-          }),
+      ...DEFAULT_DESKTOP_NOTIFICATION_APPEARANCE,
     });
   };
 
@@ -332,7 +325,7 @@ export function NotificationSettings() {
           <div style={{ borderBottom: "1px solid var(--border-color)" }}>
             <SettingRow label="应用标题颜色" description="应用名称的文字颜色">
               <ColorPicker
-                value={config.desktop.appNameColor || "#ffffff"}
+                value={config.desktop.appNameColor}
                 disabled={!config.desktop.enabled}
                 inputAriaLabel="应用标题颜色"
                 swatchAriaLabel="选择应用标题颜色"
@@ -370,7 +363,7 @@ export function NotificationSettings() {
           <div style={{ borderBottom: "1px solid var(--border-color)" }}>
             <SettingRow label="标题颜色" description="通知标题的文字颜色">
               <ColorPicker
-                value={config.desktop.titleColor || "#ffffff"}
+                value={config.desktop.titleColor}
                 disabled={!config.desktop.enabled}
                 inputAriaLabel="标题颜色"
                 swatchAriaLabel="选择标题颜色"

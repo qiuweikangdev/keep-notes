@@ -130,6 +130,23 @@ describe("NotificationSettings", () => {
       expect(screen.getByLabelText("通知背景色")).toBeInTheDocument();
       expect(screen.getByLabelText("弹窗大小")).toBeInTheDocument();
     });
+    await waitFor(() => {
+      expect(window.electronAPI.setNotificationConfig).toHaveBeenLastCalledWith(
+        {
+          ...DEFAULT_NOTIFICATION_CONFIG,
+          desktop: {
+            ...DEFAULT_NOTIFICATION_CONFIG.desktop,
+            useCustomAppearance: true,
+            appNameFontSize: 18,
+            appNameColor: "#111827",
+            titleFontSize: 21,
+            titleColor: "#111827",
+            backgroundColor: "#ece6f3",
+            sizePreset: "medium",
+          },
+        },
+      );
+    });
     expect(screen.getByLabelText("选择应用标题颜色取色器")).toHaveAttribute(
       "type",
       "color",

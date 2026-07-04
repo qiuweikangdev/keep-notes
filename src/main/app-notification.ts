@@ -283,11 +283,25 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       line-height: 1;
     }
     .window-action {
+      width: 24px;
+      height: 24px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       color: inherit;
       text-decoration: none;
+      -webkit-app-region: no-drag;
     }
     .window-action.more {
       transform: translateY(-2px);
+    }
+    .close-icon {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      stroke-width: 2.4;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
     .title {
       overflow: hidden;
@@ -374,9 +388,12 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       transform: translateY(-2px);
     }
     .platform-mac .time {
-      font-size: 13px;
-      line-height: 18px;
-      font-weight: 600;
+      display: none;
+    }
+    .platform-mac .window-actions {
+      display: flex;
+      color: rgba(58, 66, 84, 0.74);
+      font-size: 20px;
     }
     .platform-mac .title {
       font-size: var(--title-font-size);
@@ -525,9 +542,8 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       <div class="text">
         <div class="meta">
           <div class="app-name">${appName}</div>
-          <div class="time">现在</div>
           <div class="window-actions" aria-hidden="true">
-            <a class="window-action" href="${closeAction}" aria-label="关闭">×</a>
+            <a class="window-action" href="${closeAction}" aria-label="关闭"><svg class="close-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 6 6 18" /><path d="M6 6l12 12" /></svg></a>
           </div>
         </div>
         <div class="title">${title}</div>

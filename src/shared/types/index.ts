@@ -318,6 +318,23 @@ export interface NotificationConfig {
   email: EmailChannelConfig;
 }
 
+export const DEFAULT_DESKTOP_NOTIFICATION_APPEARANCE: Pick<
+  DesktopChannelConfig,
+  | "appNameFontSize"
+  | "appNameColor"
+  | "titleFontSize"
+  | "titleColor"
+  | "backgroundColor"
+  | "sizePreset"
+> = {
+  appNameFontSize: 18,
+  appNameColor: "#111827",
+  titleFontSize: 21,
+  titleColor: "#111827",
+  backgroundColor: "#ece6f3",
+  sizePreset: "medium",
+};
+
 export const DEFAULT_NOTIFICATION_CONFIG: NotificationConfig = {
   desktop: {
     enabled: true,
@@ -325,13 +342,8 @@ export const DEFAULT_NOTIFICATION_CONFIG: NotificationConfig = {
     appName: APP_NAME,
     showAppIcon: true,
     useCustomAppearance: false,
-    appNameFontSize: 18,
-    appNameColor: "",
-    titleFontSize: 21,
-    titleColor: "",
+    ...DEFAULT_DESKTOP_NOTIFICATION_APPEARANCE,
     showActions: true,
-    backgroundColor: "#111820",
-    sizePreset: "medium",
   },
   email: {
     enabled: false,
