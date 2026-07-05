@@ -116,4 +116,32 @@ describe("editor store", () => {
     expect(tab.mode).toBe("rich");
     expect(tab.reloadKey).toBe(1);
   });
+
+  it("records which panel group is split when adding a target panel", () => {
+    useEditorStore.setState({
+      activeGroupId: "group-1",
+      panelGroups: [
+        useEditorStore.getState().panelGroups[0],
+        {
+          ...useEditorStore.getState().panelGroups[0],
+          id: "group-2",
+          activeTabId: "tab-2",
+          direction: "vertical",
+          tabs: [
+            {
+              ...useEditorStore.getState().panelGroups[0].tabs[0],
+              id: "tab-2",
+            },
+          ],
+        },
+      ],
+    });
+
+    useEditorStore.getState().addPanelGroup("horizontal", "group-1");
+
+    const addedGroup = useEditorStore.getState().panelGroups.at(-1);
+    expect(addedGroup?.direction).toBe("horizontal");
+    expect(addedGroup?.splitParentGroupId).toBe("group-1");
+    expect(useEditorStore.getState().activeGroupId).toBe(addedGroup?.id);
+  });
 });

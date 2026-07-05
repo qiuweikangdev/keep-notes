@@ -80,10 +80,53 @@ describe("Editor split panels", () => {
     render(<Editor />);
 
     expect(screen.getByTestId("panel-group-vertical")).toBeInTheDocument();
-    expect(screen.getByTestId("panel-resize-handle")).toHaveStyle({
+    const handle = screen.getByTestId("panel-resize-handle");
+    expect(handle).toHaveStyle({
       height: "6px",
       minHeight: "6px",
       cursor: "row-resize",
     });
+    expect(handle.getAttribute("style")).toContain("border-left: 0");
+    expect(handle.getAttribute("style")).toContain(
+      "border-top: 1px solid var(--border-color)",
+    );
+  });
+
+  it("keeps the bottom panel below when splitting only the top panel to the right", () => {
+    useEditorStore.setState({
+      panelGroups: [
+        {
+          id: "group-1",
+          activeTabId: "tab-1",
+          direction: "horizontal",
+          tabs: [createTab("tab-1", "/notes/top.md")],
+        },
+        {
+          id: "group-2",
+          activeTabId: "tab-2",
+          direction: "vertical",
+          splitParentGroupId: "group-1",
+          tabs: [createTab("tab-2", "/notes/bottom.md")],
+        },
+        {
+          id: "group-3",
+          activeTabId: "tab-3",
+          direction: "horizontal",
+          splitParentGroupId: "group-1",
+          tabs: [createTab("tab-3", "/notes/right.md")],
+        },
+      ],
+      activeGroupId: "group-3",
+    });
+
+    render(<Editor />);
+
+    const verticalGroup = screen.getByTestId("panel-group-vertical");
+    const horizontalGroup = screen.getByTestId("panel-group-horizontal");
+
+    expect(verticalGroup.firstElementChild).toContainElement(horizontalGroup);
+    expect(horizontalGroup).toHaveTextContent("tab-bar-group-1");
+    expect(horizontalGroup).toHaveTextContent("tab-bar-group-3");
+    expect(horizontalGroup).not.toHaveTextContent("tab-bar-group-2");
   });
 });

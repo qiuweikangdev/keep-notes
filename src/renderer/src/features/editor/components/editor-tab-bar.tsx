@@ -92,11 +92,11 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
   };
 
   const handleSplitRight = () => {
-    addPanelGroup("horizontal");
+    addPanelGroup("horizontal", groupId);
   };
 
   const handleSplitDown = () => {
-    addPanelGroup("vertical");
+    addPanelGroup("vertical", groupId);
   };
 
   // 右键菜单
@@ -297,7 +297,7 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
           <MenuButton
             icon={<SplitSquareHorizontal className="h-3.5 w-3.5" />}
             onClick={() => {
-              addPanelGroup("horizontal");
+              addPanelGroup("horizontal", groupId);
               setContextMenu(null);
             }}
           >
@@ -306,7 +306,7 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
           <MenuButton
             icon={<SplitSquareVertical className="h-3.5 w-3.5" />}
             onClick={() => {
-              addPanelGroup("vertical");
+              addPanelGroup("vertical", groupId);
               setContextMenu(null);
             }}
           >

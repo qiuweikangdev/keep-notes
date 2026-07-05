@@ -53,6 +53,7 @@ export interface EditorPanelGroup {
   tabs: EditorTab[];
   activeTabId: string;
   direction: "horizontal" | "vertical";
+  splitParentGroupId?: string | null;
 }
 
 export interface OutlineHeading {
@@ -80,7 +81,10 @@ export interface EditorState {
   activeHeadingId: string | null;
 
   // 面板组操作
-  addPanelGroup: (direction: "horizontal" | "vertical") => void;
+  addPanelGroup: (
+    direction: "horizontal" | "vertical",
+    targetGroupId?: string,
+  ) => void;
   removePanelGroup: (groupId: string) => void;
   setActiveGroupId: (groupId: string) => void;
 
@@ -247,10 +251,14 @@ export const useEditorStore = create<EditorState>()(
         reloadKey: 0,
 
         // 添加新面板组（拆分）
-        addPanelGroup: (direction: "horizontal" | "vertical") => {
+        addPanelGroup: (
+          direction: "horizontal" | "vertical",
+          targetGroupId?: string,
+        ) => {
           const state = get();
+          const sourceGroupId = targetGroupId ?? state.activeGroupId;
           const activeGroup = state.panelGroups.find(
-            (g) => g.id === state.activeGroupId,
+            (g) => g.id === sourceGroupId,
           );
           if (!activeGroup) return;
 
@@ -267,6 +275,7 @@ export const useEditorStore = create<EditorState>()(
             tabs: [newTab],
             activeTabId: newTab.id,
             direction,
+            splitParentGroupId: activeGroup.id,
           };
 
           set((state) => ({

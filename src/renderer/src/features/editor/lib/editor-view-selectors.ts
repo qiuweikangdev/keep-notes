@@ -2,7 +2,10 @@ import type { EditorState } from "@/store/editor.store";
 
 export function selectEditorLayoutSignature(state: EditorState): string {
   return state.panelGroups
-    .map((group) => `${group.id}:${group.direction}`)
+    .map(
+      (group) =>
+        `${group.id}:${group.direction}:${group.splitParentGroupId ?? ""}`,
+    )
     .join("|");
 }
 
