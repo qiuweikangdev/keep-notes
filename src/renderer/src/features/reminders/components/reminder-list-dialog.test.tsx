@@ -169,7 +169,8 @@ describe("ReminderListDialog", () => {
     expect(screen.queryByText("时间")).not.toBeInTheDocument();
     expect(screen.queryByText("最近通知")).not.toBeInTheDocument();
     expect(screen.getByText("无关联文件")).toBeInTheDocument();
-    expect(screen.getByText(/^通知 /)).toBeInTheDocument();
+    expect(screen.getByText(/^提醒 /)).toBeInTheDocument();
+    expect(screen.queryByText(/^通知 /)).not.toBeInTheDocument();
   });
 
   it("keeps the reminder list scroll area at 250px", () => {

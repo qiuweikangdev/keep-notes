@@ -57,6 +57,11 @@ export function hasNotificationHistory(reminder: Reminder): boolean {
   );
 }
 
+function getReminderScheduledTime(reminder: Reminder): number {
+  const time = new Date(reminder.scheduledAt).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
 export function filterReminders(
   reminders: Reminder[],
   tab: ReminderListTab,
@@ -64,24 +69,29 @@ export function filterReminders(
   now = new Date(),
 ): Reminder[] {
   const normalizedQuery = query.trim().toLowerCase();
-  return reminders.filter((reminder) => {
-    if (normalizedQuery) {
-      return (
-        reminder.title.toLowerCase().includes(normalizedQuery) ||
-        reminder.fileName.toLowerCase().includes(normalizedQuery)
-      );
-    }
-    if (
-      tab === "today" &&
-      (reminder.completed || !isReminderToday(reminder, now))
-    ) {
-      return false;
-    }
-    if (tab === "completed" && !reminder.completed) {
-      return false;
-    }
-    return true;
-  });
+  return reminders
+    .filter((reminder) => {
+      if (normalizedQuery) {
+        return (
+          reminder.title.toLowerCase().includes(normalizedQuery) ||
+          reminder.fileName.toLowerCase().includes(normalizedQuery)
+        );
+      }
+      if (
+        tab === "today" &&
+        (reminder.completed || !isReminderToday(reminder, now))
+      ) {
+        return false;
+      }
+      if (tab === "completed" && !reminder.completed) {
+        return false;
+      }
+      return true;
+    })
+    .toSorted(
+      (left, right) =>
+        getReminderScheduledTime(right) - getReminderScheduledTime(left),
+    );
 }
 
 function toDateInputValue(date: Date): string {

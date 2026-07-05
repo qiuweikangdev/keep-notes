@@ -96,9 +96,9 @@ describe("filterReminders", () => {
       notified,
     ]);
     expect(filterReminders(reminders, "all", "", now)).toEqual([
+      tomorrow,
       baseReminder,
       completed,
-      tomorrow,
       notified,
     ]);
     expect(filterReminders(reminders, "completed", "", now)).toEqual([
@@ -112,6 +112,33 @@ describe("filterReminders", () => {
     ]);
     expect(filterReminders(reminders, "completed", "notified", now)).toEqual([
       notified,
+    ]);
+  });
+
+  it("sorts visible reminders by scheduled time in descending order", () => {
+    const older: Reminder = {
+      ...baseReminder,
+      id: "reminder-older",
+      title: "Older task",
+      scheduledAt: "2026-06-21T08:00:00.000Z",
+    };
+    const latest: Reminder = {
+      ...baseReminder,
+      id: "reminder-latest",
+      title: "Latest task",
+      scheduledAt: "2026-06-23T08:00:00.000Z",
+    };
+    const middle: Reminder = {
+      ...baseReminder,
+      id: "reminder-middle",
+      title: "Middle task",
+      scheduledAt: "2026-06-22T08:00:00.000Z",
+    };
+
+    expect(filterReminders([older, latest, middle], "all", "")).toEqual([
+      latest,
+      middle,
+      older,
     ]);
   });
 });

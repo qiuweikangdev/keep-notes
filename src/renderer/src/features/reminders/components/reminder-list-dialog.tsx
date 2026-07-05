@@ -12,7 +12,6 @@ import {
   filterReminders,
   formatReminderDateTime,
   getRepeatLabel,
-  hasNotificationHistory,
   type ReminderListTab,
 } from "../lib/reminder-format";
 
@@ -27,11 +26,6 @@ const tabs: Array<{ label: string; value: ReminderListTab }> = [
   { label: "完成", value: "completed" },
   { label: "全部", value: "all" },
 ];
-
-function getLastNotificationAt(reminder: Reminder): string {
-  const history = reminder.notificationHistory ?? [];
-  return history.at(-1)?.notifiedAt ?? reminder.lastNotifiedAt ?? "";
-}
 
 function isReminderNestedPortalTarget(target: EventTarget | null): boolean {
   return (
@@ -246,12 +240,7 @@ function ReminderListItem({
   onDelete,
   onContextMenuOpenChange,
 }: ReminderListItemProps) {
-  const lastNotificationAt = getLastNotificationAt(reminder);
   const scheduledAt = formatReminderDateTime(reminder.scheduledAt);
-  const notifiedAt =
-    hasNotificationHistory(reminder) && lastNotificationAt
-      ? formatReminderDateTime(lastNotificationAt)
-      : "暂无";
   const fileName = reminder.fileName || "无关联文件";
 
   return (
@@ -270,8 +259,7 @@ function ReminderListItem({
               style={{ color: "var(--text-secondary)" }}
             >
               <span className="min-w-0 max-w-[180px] truncate">{fileName}</span>
-              <span className="shrink-0">{scheduledAt}</span>
-              <span className="shrink-0">通知 {notifiedAt}</span>
+              <span className="shrink-0">提醒 {scheduledAt}</span>
             </div>
           </div>
           <div
