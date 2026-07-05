@@ -14,6 +14,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { useUIStore } from "@/store/ui.store";
 import { useShortcutsStore } from "@/store/shortcuts.store";
 import { useReminderStore } from "@/store/reminder.store";
+import { APP_BEHAVIOR_CONFIG } from "@/config/app-behavior";
 
 /**
  * 将 KeyboardEvent 转换为内部快捷键字符串
@@ -136,7 +137,9 @@ export function App() {
         />
         <ReminderEditorDialog />
         <ReminderListDialog />
-        <ReminderNotificationToast />
+        {APP_BEHAVIOR_CONFIG.notifications.showInAppReminderNotification ? (
+          <ReminderNotificationToast />
+        ) : null}
         <ExportController />
         <ExportSuccessToast />
       </div>

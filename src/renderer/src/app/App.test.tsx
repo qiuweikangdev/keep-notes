@@ -6,8 +6,22 @@ import {
   screen,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useReminderStore } from "@/store/reminder.store";
+import type { Reminder } from "@/types";
 
 let menuActionHandler: ((action: string) => void) | null = null;
+
+const triggeredReminder: Reminder = {
+  id: "reminder-1",
+  title: "Triggered reminder",
+  filePath: "/workspace/notes/today.md",
+  fileName: "today.md",
+  scheduledAt: "2026-06-21T09:00:00.000Z",
+  repeat: "never",
+  completed: false,
+  createdAt: "2026-06-21T08:00:00.000Z",
+  updatedAt: "2026-06-21T08:00:00.000Z",
+};
 
 vi.mock("react-resizable-panels", () => {
   const React = require("react");
@@ -258,6 +272,14 @@ describe("App shortcuts", () => {
 
   beforeEach(() => {
     menuActionHandler = null;
+    useReminderStore.setState({
+      reminders: [],
+      isEditorOpen: false,
+      editingReminderId: null,
+      draftFilePath: null,
+      isListOpen: false,
+      triggeredReminder: null,
+    });
     Object.defineProperty(window, "electronAPI", {
       configurable: true,
       value: {
@@ -335,5 +357,13 @@ describe("App shortcuts", () => {
 
     expect(document.documentElement.style.fontSize).toBe("");
     expect(document.body.style.fontFamily).toBe("");
+  });
+
+  it("does not render in-app reminder notifications by default", () => {
+    useReminderStore.setState({ triggeredReminder });
+
+    render(<App />);
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });
