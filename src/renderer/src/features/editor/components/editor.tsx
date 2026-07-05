@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, type CSSProperties } from "react";
 import { EditorTabBar } from "./editor-tab-bar";
 import { EditorWorkspace } from "./editor-workspace";
 import { useEditorStore } from "@/store/editor.store";
@@ -19,6 +19,35 @@ const SUPPORTED_EXTENSIONS = [".md", ".txt"];
 // 检查文件是否支持
 function isSupportedFile(filePath: string): boolean {
   return SUPPORTED_EXTENSIONS.some((ext) => filePath.endsWith(ext));
+}
+
+function getPanelResizeHandleStyle(
+  direction: "horizontal" | "vertical",
+): CSSProperties {
+  const baseStyle: CSSProperties = {
+    backgroundColor: "var(--border-color)",
+    position: "relative",
+    flexShrink: 0,
+  };
+
+  // 根据拆分方向切换拖拽手柄尺寸和鼠标样式，保证上下拆分可垂直拖动。
+  if (direction === "vertical") {
+    return {
+      ...baseStyle,
+      width: "100%",
+      height: "6px",
+      minHeight: "6px",
+      cursor: "row-resize",
+    };
+  }
+
+  return {
+    ...baseStyle,
+    width: "6px",
+    minWidth: "6px",
+    height: "100%",
+    cursor: "col-resize",
+  };
 }
 
 // 单个面板组：标签栏 + 编辑器
@@ -201,13 +230,7 @@ function NestedPanelGroups({
         </div>
       </Panel>
       <PanelResizeHandle
-        style={{
-          width: "6px",
-          minWidth: "6px",
-          backgroundColor: "var(--border-color)",
-          cursor: "col-resize",
-          position: "relative",
-        }}
+        style={getPanelResizeHandleStyle(direction)}
         hitAreaMargins={{ coarse: 30, fine: 20 }}
       />
       <Panel minSize={20}>
