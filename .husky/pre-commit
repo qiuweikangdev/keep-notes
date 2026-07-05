@@ -1,4 +1,1 @@
-#!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
-
-pnpm exec lint-staged
+corepack pnpm@11.10.0 --config.verify-deps-before-run=false exec lint-staged
