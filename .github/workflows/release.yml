@@ -8,78 +8,75 @@ on:
 
 permissions:
   contents: write
+  issues: write
+  pull-requests: write
 
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  prepare-release:
-    name: Prepare GitHub Release
+  semantic-release:
+    name: Semantic Release
     runs-on: ubuntu-latest
     outputs:
-      should_release: ${{ steps.version.outputs.should_release }}
-      tag_name: ${{ steps.version.outputs.tag_name }}
-      version: ${{ steps.version.outputs.version }}
+      should_release: ${{ steps.release-result.outputs.should_release }}
+      tag_name: ${{ steps.release-result.outputs.tag_name }}
+      version: ${{ steps.release-result.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Resolve package version
-        id: version
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts --registry=https://registry.npmjs.org/
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Build renderer and main process
+        run: pnpm build
+
+      - name: Run semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm semantic-release
+
+      - name: Resolve semantic-release result
+        id: release-result
         shell: bash
         run: |
-          VERSION="$(node -p "require('./package.json').version")"
-          TAG_NAME="v${VERSION}"
+          if [ ! -f .semantic-release-result.json ]; then
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
+          VERSION="$(node -p "require('./.semantic-release-result.json').version")"
+          TAG_NAME="$(node -p "require('./.semantic-release-result.json').gitTag")"
+
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
 
-          TAG_SHA="$(git rev-list -n 1 "${TAG_NAME}" 2>/dev/null || true)"
-          if [ -z "${TAG_SHA}" ]; then
-            echo "should_release=true" >> "$GITHUB_OUTPUT"
-          elif [ "${TAG_SHA}" = "$GITHUB_SHA" ]; then
-            echo "::notice::${TAG_NAME} already points to this commit. Reusing the existing tag for release assets."
-            echo "should_release=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::error::${TAG_NAME} already points to another commit. Bump package.json version before publishing a new update."
-            echo "should_release=false" >> "$GITHUB_OUTPUT"
-            exit 1
-          fi
-
-      - name: Ensure release tag
-        if: steps.version.outputs.should_release == 'true'
-        shell: bash
-        run: |
-          if git rev-parse "${{ steps.version.outputs.tag_name }}" >/dev/null 2>&1; then
-            echo "${{ steps.version.outputs.tag_name }} already exists."
-          else
-            git tag "${{ steps.version.outputs.tag_name }}" "$GITHUB_SHA"
-            git push origin "${{ steps.version.outputs.tag_name }}"
-          fi
-
-      - name: Ensure GitHub release
-        if: steps.version.outputs.should_release == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          if gh release view "${{ steps.version.outputs.tag_name }}" >/dev/null 2>&1; then
-            gh release edit "${{ steps.version.outputs.tag_name }}" \
-              --title "Keep Notes ${{ steps.version.outputs.tag_name }}" \
-              --notes "Automated release for Keep Notes ${{ steps.version.outputs.version }}."
-          else
-            gh release create "${{ steps.version.outputs.tag_name }}" \
-              --title "Keep Notes ${{ steps.version.outputs.tag_name }}" \
-              --notes "Automated release for Keep Notes ${{ steps.version.outputs.version }}."
-          fi
-
   build-and-publish:
     name: Build ${{ matrix.name }}
-    needs: prepare-release
-    if: needs.prepare-release.outputs.should_release == 'true'
+    needs: semantic-release
+    if: needs.semantic-release.outputs.should_release == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -98,16 +95,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.semantic-release.outputs.tag_name }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: 10.26.1
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
 
       - name: Install dependencies
@@ -127,7 +126,7 @@ jobs:
       - name: Upload installers to GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.prepare-release.outputs.tag_name }}
+          tag_name: ${{ needs.semantic-release.outputs.tag_name }}
           files: |
             dist/**/*.dmg
             dist/**/*.zip
@@ -141,7 +140,7 @@ jobs:
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: keep-notes-${{ needs.prepare-release.outputs.version }}-${{ matrix.name }}
+          name: keep-notes-${{ needs.semantic-release.outputs.version }}-${{ matrix.name }}
           path: |
             dist/**/*.dmg
             dist/**/*.zip

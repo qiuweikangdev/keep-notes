@@ -4,5 +4,6 @@ out
 .DS_Store
 *.log*
 .eslintcache
+.semantic-release-result.json
 .superpowers/
 .worktrees/
