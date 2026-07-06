@@ -1,3 +1,16 @@
+## [2.9.1](https://github.com/qiuweikangdev/keep-notes/compare/v2.9.0...v2.9.1) (2026-07-06)
+
+
+### Bug Fixes
+
+* editor inline code behavior ([a638b41](https://github.com/qiuweikangdev/keep-notes/commit/a638b410b0d48a2485983e32d789464c98539953))
+
+
+## Commit Summary
+
+- Compared with: v2.9.0
+- Total commits: 3
+
 # [2.9.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.8.1...v2.9.0) (2026-07-05)
 
 
