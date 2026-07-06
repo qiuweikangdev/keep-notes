@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useEditorStore } from "@/store/editor.store";
 import { useTreeStore } from "@/store/tree.store";
+import { REVEAL_FILE_TREE_NODE_EVENT } from "@/features/file-tree/utils";
 import { SearchModal } from "./search-modal";
 
 const openFile = vi.fn();
@@ -205,6 +206,30 @@ describe("SearchModal", () => {
 
     expect(openFile).toHaveBeenCalledWith("C:\\notes\\docs\\second.txt");
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("switches to the file tree and requests reveal when opening a file result", async () => {
+    const user = userEvent.setup();
+    const revealListener = vi.fn();
+    window.addEventListener(REVEAL_FILE_TREE_NODE_EVENT, revealListener);
+    useEditorStore.setState({
+      appearance: {
+        ...useEditorStore.getState().appearance,
+        sidebarView: "outline",
+      },
+    });
+
+    render(<SearchModal isOpen onClose={vi.fn()} />);
+
+    await user.click(screen.getByText("first.md"));
+
+    expect(useEditorStore.getState().appearance.sidebarView).toBe("file");
+    expect(revealListener).toHaveBeenCalledOnce();
+    expect(revealListener.mock.calls[0]?.[0]).toMatchObject({
+      detail: { key: "C:\\notes\\docs\\first.md", align: "center" },
+    });
+
+    window.removeEventListener(REVEAL_FILE_TREE_NODE_EVENT, revealListener);
   });
 
   it("keeps enter for IME composition before opening the active result", () => {

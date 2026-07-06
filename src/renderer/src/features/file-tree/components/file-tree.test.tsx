@@ -11,6 +11,7 @@ import { useEditorStore } from "@/store/editor.store";
 import { useTreeStore } from "@/store/tree.store";
 import { CodeResult } from "@/types";
 import { DIFF_TOAST_EVENT } from "@/features/diff/lib/diff-toast";
+import { REVEAL_FILE_TREE_NODE_EVENT } from "../utils";
 
 const electronMocks = vi.hoisted(() => ({
   openFolder: vi.fn(),
@@ -32,6 +33,8 @@ const diffStoreMock = vi.hoisted(() => ({
   updateContent: vi.fn(),
 }));
 
+const virtualizerScrollToIndex = vi.hoisted(() => vi.fn());
+
 vi.mock("@tanstack/react-virtual", () => ({
   useVirtualizer: (options: { count: number }) => ({
     getTotalSize: () => options.count * 28,
@@ -42,7 +45,7 @@ vi.mock("@tanstack/react-virtual", () => ({
         size: 28,
         start: index * 28,
       })),
-    scrollToIndex: vi.fn(),
+    scrollToIndex: virtualizerScrollToIndex,
   }),
 }));
 
@@ -146,5 +149,50 @@ describe("FileTree context menu", () => {
     expect(diffStoreMock.openDiff).not.toHaveBeenCalled();
 
     window.removeEventListener(DIFF_TOAST_EVENT, toastSpy);
+  });
+
+  it("expands ancestors and scrolls to a file tree reveal request", async () => {
+    useTreeStore.setState({
+      treeData: [
+        {
+          title: "projects",
+          key: "/notes/projects",
+          children: [
+            {
+              title: "app",
+              key: "/notes/projects/app",
+              children: [
+                {
+                  title: "readme.md",
+                  key: "/notes/projects/app/readme.md",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      expandedKeys: new Set(["/notes"]),
+    });
+
+    render(<FileTree />);
+
+    fireEvent(
+      window,
+      new CustomEvent(REVEAL_FILE_TREE_NODE_EVENT, {
+        detail: { key: "/notes/projects/app/readme.md", align: "center" },
+      }),
+    );
+
+    await waitFor(() => {
+      expect(useTreeStore.getState().expandedKeys).toEqual(
+        new Set(["/notes", "/notes/projects", "/notes/projects/app"]),
+      );
+    });
+    expect(await screen.findByText("readme.md")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(virtualizerScrollToIndex).toHaveBeenCalledWith(2, {
+        align: "center",
+      });
+    });
   });
 });

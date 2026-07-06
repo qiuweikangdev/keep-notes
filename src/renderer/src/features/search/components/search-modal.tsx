@@ -3,6 +3,7 @@ import { FileText, FolderOpen, Search, X } from "lucide-react";
 import { useTreeStore } from "@/store/tree.store";
 import { useEditorStore } from "@/store/editor.store";
 import { useElectron } from "@/hooks/use-electron";
+import { REVEAL_FILE_TREE_NODE_EVENT } from "@/features/file-tree/utils";
 import type { TreeNode } from "@/types";
 import type { EditorPanelGroup } from "@/store/editor.store";
 
@@ -137,6 +138,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const recentOpenedFilePaths = useEditorStore(
     (state) => state.recentOpenedFilePaths,
   );
+  const setSidebarView = useEditorStore((state) => state.setSidebarView);
   const { loadTree, openFile } = useElectron();
   const hasWorkspace = Boolean(treeRoot);
 
@@ -205,11 +207,17 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
       if (result.kind === "folder") {
         loadTree(result.key);
       } else {
+        setSidebarView("file");
+        window.dispatchEvent(
+          new CustomEvent(REVEAL_FILE_TREE_NODE_EVENT, {
+            detail: { key: result.key, align: "center" },
+          }),
+        );
         openFile(result.key);
       }
       onClose();
     },
-    [loadTree, openFile, onClose],
+    [loadTree, openFile, onClose, setSidebarView],
   );
 
   const handleKeyDown = useCallback(

@@ -1,5 +1,12 @@
 import type { TreeNode } from "@/types";
 
+export const REVEAL_FILE_TREE_NODE_EVENT = "reveal-file-tree-node";
+
+export interface RevealFileTreeNodeEventDetail {
+  key: string;
+  align?: "auto" | "center";
+}
+
 export interface FlatNode {
   key: string;
   title: string;

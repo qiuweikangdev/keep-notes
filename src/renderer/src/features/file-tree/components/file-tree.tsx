@@ -55,9 +55,11 @@ import {
   flattenTree,
   getRevealInFileManagerLabel,
   normalizeTreePath,
+  REVEAL_FILE_TREE_NODE_EVENT,
   shouldRevealFileTreeOnViewChange,
   shouldSyncSelectionToActiveFile,
   type FlatNode,
+  type RevealFileTreeNodeEventDetail,
 } from "../utils";
 
 const MENU_CONTENT_CLASS =
@@ -143,6 +145,7 @@ export function FileTree() {
   const confirmedRef = useRef(false);
   const rootDragDepthRef = useRef(0);
   const previousSidebarViewRef = useRef(sidebarView);
+  const lastSelectedRevealKeyRef = useRef<string | null>(null);
   const revealRequestIdRef = useRef(0);
   const [fileTreeRevealRequest, setFileTreeRevealRequest] =
     useState<FileTreeRevealRequest | null>(null);
@@ -198,6 +201,67 @@ export function FileTree() {
     [setExpandedKeys, setSelectedKey],
   );
 
+  const revealTreeNode = useCallback(
+    (revealKey: string, align: "auto" | "center" = "center") => {
+      if (!treeRootKey || revealKey === treeRootKey) {
+        return false;
+      }
+
+      const targetNode = findNodeByKey(treeData, revealKey);
+      if (!targetNode) {
+        return false;
+      }
+
+      const nextExpandedKeys = new Set(useTreeStore.getState().expandedKeys);
+      let shouldUpdateExpandedKeys = false;
+
+      // 定位外部打开的文件时，先展开根节点和所有祖先目录，确保虚拟列表能渲染目标行。
+      for (const key of [
+        treeRootKey,
+        ...findAncestorKeys(treeData, revealKey),
+      ]) {
+        if (!nextExpandedKeys.has(key)) {
+          nextExpandedKeys.add(key);
+          shouldUpdateExpandedKeys = true;
+        }
+      }
+
+      if (shouldUpdateExpandedKeys) {
+        setExpandedKeys(nextExpandedKeys);
+      }
+
+      setFileTreeRevealRequest({
+        key: revealKey,
+        id: ++revealRequestIdRef.current,
+        align,
+      });
+      return true;
+    },
+    [setExpandedKeys, treeData, treeRootKey],
+  );
+
+  useEffect(() => {
+    const handleRevealFileTreeNode = (event: Event) => {
+      const detail = (event as CustomEvent<RevealFileTreeNodeEventDetail>)
+        .detail;
+      if (!detail?.key) return;
+
+      void revealTreeNode(detail.key, detail.align);
+    };
+
+    window.addEventListener(
+      REVEAL_FILE_TREE_NODE_EVENT,
+      handleRevealFileTreeNode,
+    );
+
+    return () => {
+      window.removeEventListener(
+        REVEAL_FILE_TREE_NODE_EVENT,
+        handleRevealFileTreeNode,
+      );
+    };
+  }, [revealTreeNode]);
+
   useEffect(() => {
     if (isRootCreating && createInputRef.current) {
       requestAnimationFrame(() => createInputRef.current?.focus());
@@ -238,35 +302,31 @@ export function FileTree() {
       setSelectedKey(activeFilePath);
     }
 
-    const nextExpandedKeys = new Set(useTreeStore.getState().expandedKeys);
-    let shouldUpdateExpandedKeys = false;
-
-    // 切回文件树视图时先展开根节点和祖先节点，确保当前文件能被虚拟列表渲染出来。
-    for (const key of [treeRootKey, ...findAncestorKeys(treeData, revealKey)]) {
-      if (!nextExpandedKeys.has(key)) {
-        nextExpandedKeys.add(key);
-        shouldUpdateExpandedKeys = true;
-      }
-    }
-
-    if (shouldUpdateExpandedKeys) {
-      setExpandedKeys(nextExpandedKeys);
-    }
-
-    setFileTreeRevealRequest({
-      key: revealKey,
-      id: ++revealRequestIdRef.current,
-      align: "center",
-    });
+    void revealTreeNode(revealKey, "center");
   }, [
     activeFilePath,
+    revealTreeNode,
     selectedKey,
-    setExpandedKeys,
     setSelectedKey,
     sidebarView,
     treeData,
     treeRootKey,
   ]);
+
+  useEffect(() => {
+    if (
+      sidebarView !== "file" ||
+      !selectedKey ||
+      selectedKey === treeRootKey ||
+      lastSelectedRevealKeyRef.current === selectedKey
+    ) {
+      return;
+    }
+
+    if (revealTreeNode(selectedKey, "center")) {
+      lastSelectedRevealKeyRef.current = selectedKey;
+    }
+  }, [revealTreeNode, selectedKey, sidebarView, treeRootKey]);
 
   const doRootCreate = useCallback(async () => {
     const title = createValue.trim();
