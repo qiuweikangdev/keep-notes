@@ -210,6 +210,21 @@ describe("blocknote overrides stylesheet", () => {
     expect(stylesheet).not.toMatch(/editor-code-block__code-pane--folded/);
   });
 
+  it("styles inline code marks inside rich editor text blocks", () => {
+    const inlineCodeRule = getRule(
+      ".bn-editor code:not(.editor-code-block__content)",
+    );
+
+    expect(inlineCodeRule).toBeDefined();
+    expect(inlineCodeRule).toMatch(
+      /background-color:\s*var\(--bg-tertiary\) !important;/,
+    );
+    expect(inlineCodeRule).toMatch(
+      /color:\s*var\(--accent-color\) !important;/,
+    );
+    expect(inlineCodeRule).toMatch(/font-family:[\s\S]*monospace !important;/);
+  });
+
   it("polishes the custom language search popover", () => {
     const popoverRule = getRule(".editor-code-block-language-popover");
 

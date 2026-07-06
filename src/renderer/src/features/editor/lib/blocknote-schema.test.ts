@@ -284,6 +284,35 @@ describe("editor BlockNote schema", () => {
     expect(blocks.map(getInlineText).join("")).not.toContain("*");
   });
 
+  it("parses markdown inline code as styled text instead of source markers", async () => {
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    const blocks = await editor.tryParseMarkdownToBlocks("这是 `测试` 文本");
+
+    expect(getInlineText(blocks[0])).toBe("这是 测试 文本");
+    expect(blocks[0].content).toEqual([
+      {
+        type: "text",
+        text: "这是 ",
+        styles: {},
+      },
+      {
+        type: "text",
+        text: "测试",
+        styles: {
+          code: true,
+        },
+      },
+      {
+        type: "text",
+        text: " 文本",
+        styles: {},
+      },
+    ]);
+  });
+
   it("continues typed bullet lists without leaving markdown markers in text", () => {
     setupMatchMedia();
     const editor = BlockNoteEditor.create({
@@ -306,6 +335,169 @@ describe("editor BlockNote schema", () => {
       { type: "bulletListItem", text: "List" },
     ]);
     expect(editor.document.map(getInlineText).join("")).not.toContain("*");
+  });
+
+  it("converts typed markdown inline code after Chinese text into styled text", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[0].id, "start");
+    typeString(editor, "直接输入`测试`");
+
+    expect(getInlineText(editor.document[0])).toBe("直接输入测试");
+    expect(editor.document[0].content).toEqual([
+      {
+        type: "text",
+        text: "直接输入",
+        styles: {},
+      },
+      {
+        type: "text",
+        text: "测试",
+        styles: {
+          code: true,
+        },
+      },
+    ]);
+    expect(
+      container.querySelector(
+        ".bn-editor code:not(.editor-code-block__content)",
+      )?.textContent,
+    ).toBe("测试");
+  });
+
+  it("converts keyboard-entered markdown inline code into styled text", async () => {
+    setupMatchMedia();
+    const user = userEvent.setup();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[0].id, "start");
+    editor.focus();
+    await user.keyboard("`test`");
+
+    await waitFor(() => {
+      expect(editor.document[0].content).toEqual([
+        {
+          type: "text",
+          text: "test",
+          styles: {
+            code: true,
+          },
+        },
+      ]);
+      expect(
+        container.querySelector(
+          ".bn-editor code:not(.editor-code-block__content)",
+        )?.textContent,
+      ).toBe("test");
+    });
+  });
+
+  it("normalizes inline code markers inserted outside input rules", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[0].id, "start");
+    const view = editor.prosemirrorView;
+    view.dispatch(view.state.tr.insertText("`test`"));
+
+    expect(editor.document[0].content).toEqual([
+      {
+        type: "text",
+        text: "test",
+        styles: {
+          code: true,
+        },
+      },
+    ]);
+  });
+
+  it("turns inline code back into editable markdown before deleting characters", async () => {
+    setupMatchMedia();
+    const user = userEvent.setup();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "test",
+              styles: {
+                code: true,
+              },
+            },
+          ],
+        },
+      ],
+    });
+    render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[0].id, "end");
+    editor.focus();
+    await user.keyboard("{Backspace}");
+
+    expect(editor.document[0].content).toEqual([
+      {
+        type: "text",
+        text: "`test",
+        styles: {},
+      },
+    ]);
+
+    await user.keyboard("{Backspace}");
+
+    expect(editor.document[0].content).toEqual([
+      {
+        type: "text",
+        text: "`tes",
+        styles: {},
+      },
+    ]);
+  });
+
+  it("does not restore the closing marker when deleting input-rule inline code", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[0].id, "start");
+    typeString(editor, "`test`");
+    pressKey(editor, "Backspace");
+
+    expect(editor.document[0].content).toEqual([
+      {
+        type: "text",
+        text: "`test",
+        styles: {},
+      },
+    ]);
+
+    pressKey(editor, "Backspace");
+
+    expect(editor.document[0].content).toEqual([
+      {
+        type: "text",
+        text: "`tes",
+        styles: {},
+      },
+    ]);
   });
 
   it("pastes markdown bullet text as sibling bullet items instead of inline marker residue", () => {

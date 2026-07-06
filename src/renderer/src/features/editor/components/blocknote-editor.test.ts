@@ -1,8 +1,20 @@
 import { BlockNoteEditor as CoreBlockNoteEditor } from "@blocknote/core";
-import { describe, expect, it, vi } from "vitest";
+import { FormattingToolbarExtension } from "@blocknote/core/extensions";
+import { BlockNoteView } from "@blocknote/mantine";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  waitFor,
+} from "@testing-library/react";
+import { TextSelection } from "@tiptap/pm/state";
+import { createElement } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { editorSchema } from "../lib/blocknote-schema";
 import {
+  EditorFormattingToolbar,
   handleRichEditorHeadingShortcut,
   handleRichEditorSelectAllShortcut,
   focusEditorOutlineBlock,
@@ -13,6 +25,91 @@ import {
   shouldLetCodeMirrorHandleKeyboardEvent,
   shouldMarkRichEditorPointerIntent,
 } from "./blocknote-editor";
+
+afterEach(() => {
+  cleanup();
+});
+
+function createRect() {
+  return {
+    bottom: 0,
+    height: 0,
+    left: 0,
+    right: 0,
+    top: 0,
+    width: 0,
+    x: 0,
+    y: 0,
+    toJSON: () => ({}),
+  } as DOMRect;
+}
+
+function* emptyRectIterator() {
+  yield* [];
+}
+
+function createRectList() {
+  return {
+    length: 0,
+    item: () => null,
+    [Symbol.iterator]: emptyRectIterator,
+  } as DOMRectList;
+}
+
+function setupMatchMedia() {
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    value: () => ({
+      addEventListener: () => undefined,
+      addListener: () => undefined,
+      dispatchEvent: () => false,
+      matches: false,
+      media: "",
+      onchange: null,
+      removeEventListener: () => undefined,
+      removeListener: () => undefined,
+    }),
+  });
+}
+
+function setupDomMeasurements() {
+  Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+    configurable: true,
+    value: createRect,
+  });
+  Object.defineProperty(Range.prototype, "getClientRects", {
+    configurable: true,
+    value: createRectList,
+  });
+  Object.defineProperty(HTMLElement.prototype, "getClientRects", {
+    configurable: true,
+    value: createRectList,
+  });
+}
+
+function selectTextByContent(editor: CoreBlockNoteEditor, text: string) {
+  const view = editor.prosemirrorView;
+  let from: number | null = null;
+  let to: number | null = null;
+
+  view.state.doc.descendants((node, pos) => {
+    if (node.isText && node.text === text) {
+      from = pos;
+      to = pos + node.nodeSize;
+      return false;
+    }
+
+    return true;
+  });
+
+  if (from === null || to === null) {
+    throw new Error(`Could not find text: ${text}`);
+  }
+
+  view.dispatch(
+    view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)),
+  );
+}
 
 describe("BlockNoteEditor rich text selection", () => {
   it("enables the default block side menu for block insert and drag controls", () => {
@@ -114,6 +211,88 @@ describe("BlockNoteEditor heading shortcuts", () => {
     expect(event.stopPropagation).toHaveBeenCalled();
     expect(editor.document[0].type).toBe("heading");
     expect(editor.document[0].props.level).toBe(2);
+  });
+});
+
+describe("BlockNoteEditor formatting toolbar", () => {
+  it("shows an inline code action in the floating formatting toolbar", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const editor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "测试" }],
+    });
+
+    const { container } = render(
+      createElement(
+        BlockNoteView,
+        {
+          editor,
+          formattingToolbar: false,
+        },
+        createElement(EditorFormattingToolbar),
+      ),
+    );
+
+    editor.setTextCursorPosition(editor.document[0].id, "start");
+
+    act(() => {
+      editor.getExtension(FormattingToolbarExtension)?.store.setState(true);
+    });
+
+    await waitFor(() => {
+      expect(
+        container.querySelector(
+          'button[aria-label="Inline code (persists in markdown)"]',
+        ),
+      ).not.toBe(null);
+    });
+  });
+
+  it("turns selected markdown inline code markers into a code style", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const editor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "`test`" }],
+    });
+
+    const { container } = render(
+      createElement(
+        BlockNoteView,
+        {
+          editor,
+          formattingToolbar: false,
+        },
+        createElement(EditorFormattingToolbar),
+      ),
+    );
+
+    selectTextByContent(editor, "`test`");
+
+    act(() => {
+      editor.getExtension(FormattingToolbarExtension)?.store.setState(true);
+    });
+
+    const button = await waitFor(() => {
+      const action = container.querySelector<HTMLButtonElement>(
+        'button[aria-label="Inline code (persists in markdown)"]',
+      );
+      expect(action).not.toBe(null);
+      return action!;
+    });
+
+    fireEvent.click(button);
+
+    expect(editor.document[0].content).toEqual([
+      {
+        type: "text",
+        text: "test",
+        styles: {
+          code: true,
+        },
+      },
+    ]);
   });
 });
 

@@ -2,7 +2,9 @@ import {
   BlockNoteSchema,
   createBlockSpec,
   createExtension,
+  createStyleSpecFromTipTapMark,
   defaultBlockSpecs,
+  defaultStyleSpecs,
   getBlockInfo,
   getNodeById,
   insertBlocks,
@@ -13,6 +15,8 @@ import {
   createCodeBlockSpec,
   createQuoteBlockSpec,
 } from "@blocknote/core/blocks";
+import { InputRule } from "@tiptap/core";
+import Code from "@tiptap/extension-code";
 import { Plugin, TextSelection } from "@tiptap/pm/state";
 import type { Slice } from "@tiptap/pm/model";
 
@@ -38,6 +42,163 @@ const codeBlockOptions: Partial<CodeBlockOptions> = {
   defaultLanguage: "text",
   supportedLanguages: editorCodeBlockSupportedLanguages,
 };
+
+const editorInlineCodeStyleSpec = createStyleSpecFromTipTapMark(
+  Code.extend({
+    addInputRules() {
+      return [
+        new InputRule({
+          find: /(^|[^`])`([^`]+)`(?!`)$/,
+          handler: ({ state, range, match }) => {
+            const { tr, schema } = state;
+            const leadingText = match[1] ?? "";
+            const codeText = match[2] ?? "";
+
+            // 默认 markInputRule 会删除匹配到的前导字符；这里仅替换反引号包裹的片段。
+            tr.replaceWith(range.from + leadingText.length, range.to, [
+              schema.text(codeText, [this.type.create()]),
+            ]);
+          },
+        }),
+        new InputRule({
+          find: /(^|[^`])`([^`]+)`(?!`) $/,
+          handler: ({ state, range, match }) => {
+            const { tr, schema } = state;
+            const leadingText = match[1] ?? "";
+            const codeText = match[2] ?? "";
+
+            // 用户先输入成对反引号再补内容并按空格时，也保留前导字符。
+            tr.replaceWith(range.from + leadingText.length, range.to, [
+              schema.text(codeText, [this.type.create()]),
+              schema.text(" "),
+            ]);
+          },
+        }),
+      ];
+    },
+  }),
+  "boolean",
+);
+
+const INLINE_CODE_NORMALIZER_META = "editor-inline-code-normalizer";
+const inlineCodeMarkerPattern = /`([^`\n]+)`/g;
+
+const inlineCodeNormalizerExtension = createExtension({
+  key: "editor-inline-code-normalizer",
+  prosemirrorPlugins: [
+    new Plugin({
+      appendTransaction(transactions, _oldState, newState) {
+        if (!transactions.some((transaction) => transaction.docChanged)) {
+          return null;
+        }
+        if (
+          transactions.some((transaction) =>
+            transaction.getMeta(INLINE_CODE_NORMALIZER_META),
+          )
+        ) {
+          return null;
+        }
+
+        const codeMark = newState.schema.marks.code;
+        if (!codeMark) return null;
+
+        const replacements: Array<{
+          from: number;
+          marks: ReturnType<typeof codeMark.create>[];
+          text: string;
+          to: number;
+        }> = [];
+
+        newState.doc.descendants((node, pos) => {
+          if (!node.isText || !node.text) return true;
+          if (node.marks.some((mark) => mark.type === codeMark)) return true;
+          if (newState.doc.resolve(pos).parent.type.spec.code) return true;
+
+          for (const match of node.text.matchAll(inlineCodeMarkerPattern)) {
+            const matchIndex = match.index;
+            const codeText = match[1];
+            if (matchIndex === undefined || !codeText) continue;
+
+            replacements.push({
+              from: pos + matchIndex,
+              marks: [...node.marks, codeMark.create()],
+              text: codeText,
+              to: pos + matchIndex + match[0].length,
+            });
+          }
+
+          return true;
+        });
+
+        if (replacements.length === 0) return null;
+
+        const tr = newState.tr;
+        for (let index = replacements.length - 1; index >= 0; index -= 1) {
+          const replacement = replacements[index];
+
+          // 某些输入路径不会触发 input rule，这里在事务尾部兜底清理 Markdown 反引号。
+          tr.replaceWith(
+            replacement.from,
+            replacement.to,
+            newState.schema.text(replacement.text, replacement.marks),
+          );
+        }
+
+        return tr.docChanged
+          ? tr.setMeta(INLINE_CODE_NORMALIZER_META, true)
+          : null;
+      },
+    }),
+  ],
+});
+
+const inlineCodeBackspaceExtension = createExtension({
+  key: "editor-inline-code-backspace",
+  runsBefore: ["default"],
+  keyboardShortcuts: {
+    Backspace: ({ editor }) => {
+      return editor.transact((tr) => {
+        const { selection } = tr;
+        const codeMark = tr.doc.type.schema.marks.code;
+        const nodeBefore = selection.$from.nodeBefore;
+
+        if (!selection.empty) return false;
+        if (!nodeBefore?.isText || !nodeBefore.text) return false;
+
+        const previousCharacter = Array.from(nodeBefore.text).at(-1);
+        if (!previousCharacter) return false;
+
+        if (!nodeBefore.marks.some((mark) => mark.type === codeMark)) {
+          if (!/^`[^`\n]*$/.test(nodeBefore.text)) return false;
+
+          // 行内代码草稿态继续按普通文本逐字删除。
+          tr.delete(
+            selection.from - previousCharacter.length,
+            selection.from,
+          ).scrollIntoView();
+
+          return true;
+        }
+
+        const nodeFrom = selection.from - nodeBefore.nodeSize;
+        const markdownText = `\`${nodeBefore.text}`;
+
+        // 第一次退格先回到可编辑 Markdown 形态，之后再按普通文本逐字删除。
+        tr.replaceWith(
+          nodeFrom,
+          selection.from,
+          tr.doc.type.schema.text(markdownText),
+        )
+          .setSelection(
+            TextSelection.create(tr.doc, nodeFrom + markdownText.length),
+          )
+          .scrollIntoView();
+
+        return true;
+      });
+    },
+  },
+});
 
 const baseCodeBlockSpec = createCodeBlockSpec(codeBlockOptions);
 
@@ -248,13 +409,29 @@ const editorBulletListItemSpec = {
   ],
 };
 
+const editorParagraphSpec = {
+  ...defaultBlockSpecs.paragraph,
+  extensions: [
+    ...(defaultBlockSpecs.paragraph.extensions ?? []),
+    inlineCodeBackspaceExtension(),
+    inlineCodeNormalizerExtension(),
+  ],
+};
+
 export const editorBlockSpecs = {
   ...defaultBlockSpecs,
   bulletListItem: editorBulletListItemSpec,
   codeBlock: editorCodeBlockSpec,
+  paragraph: editorParagraphSpec,
   quote: editorQuoteBlockSpec,
+};
+
+export const editorStyleSpecs = {
+  ...defaultStyleSpecs,
+  code: editorInlineCodeStyleSpec,
 };
 
 export const editorSchema = BlockNoteSchema.create({
   blockSpecs: editorBlockSpecs,
+  styleSpecs: editorStyleSpecs,
 });

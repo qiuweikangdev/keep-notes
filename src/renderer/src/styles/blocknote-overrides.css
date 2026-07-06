@@ -520,7 +520,7 @@
 }
 
 /* 内联代码样式 */
-.bn-inline-content code {
+.bn-editor code:not(.editor-code-block__content) {
   background-color: var(--bg-tertiary) !important;
   color: var(--accent-color) !important;
   padding: 0.15em 0.4em !important;

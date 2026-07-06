@@ -5,9 +5,20 @@ import {
   useRef,
   type CSSProperties,
 } from "react";
-import { useCreateBlockNote, useEditorChange } from "@blocknote/react";
+import {
+  FormattingToolbar,
+  FormattingToolbarController,
+  getFormattingToolbarItems,
+  useBlockNoteEditor,
+  useCreateBlockNote,
+  useEditorState,
+  useEditorChange,
+  useComponentsContext,
+  type FormattingToolbarProps,
+} from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
 import { EditorView as CodeMirrorView } from "@codemirror/view";
+import { CodeXml } from "lucide-react";
 import type {
   Block,
   BlockNoteEditor as CoreBlockNoteEditor,
@@ -128,10 +139,118 @@ interface BlockNoteEditorInnerProps {
 }
 
 const MARKDOWN_PARSER_VERSION = "blocknote-v4";
+const INLINE_CODE_LABEL = "Inline code (persists in markdown)";
+const INLINE_CODE_MARKDOWN_EXAMPLE = "`code`";
+const INLINE_CODE_MARKDOWN_SELECTION = /^`([^`\n]+)`$/;
 
 export const richEditorDefaultUIProps = {
   sideMenu: true,
 } as const;
+
+function applyInlineCodeStyle(editor: CoreBlockNoteEditor) {
+  const view = editor.prosemirrorView;
+  const { state, dispatch } = view;
+  const { from, to, empty } = state.selection;
+
+  if (!empty) {
+    const selectedText = state.doc.textBetween(from, to, "\n", "\n");
+    const match = selectedText.match(INLINE_CODE_MARKDOWN_SELECTION);
+    const codeMark = state.schema.marks.code;
+
+    if (match && codeMark) {
+      const codeText = match[1] ?? "";
+
+      // 选区是 Markdown 行内代码语法时，去掉反引号后再写入 code mark。
+      dispatch(
+        state.tr
+          .replaceWith(
+            from,
+            to,
+            state.schema.text(codeText, [codeMark.create()]),
+          )
+          .scrollIntoView(),
+      );
+      editor.focus();
+      return;
+    }
+  }
+
+  editor.focus();
+  editor.toggleStyles({ code: true });
+}
+
+function InlineCodeStyleButton() {
+  const Components = useComponentsContext()!;
+  const editor = useBlockNoteEditor();
+  const state = useEditorState({
+    editor,
+    selector: ({ editor: currentEditor }) => {
+      if (
+        !currentEditor.isEditable ||
+        !("code" in currentEditor.schema.styleSchema) ||
+        !(
+          currentEditor.getSelection()?.blocks ?? [
+            currentEditor.getTextCursorPosition().block,
+          ]
+        ).find((block) => block.content !== undefined)
+      ) {
+        return undefined;
+      }
+
+      return { active: "code" in currentEditor.getActiveStyles() };
+    },
+  });
+
+  if (state === undefined) {
+    return null;
+  }
+
+  return (
+    <Components.FormattingToolbar.Button
+      className="bn-button"
+      data-test="code"
+      icon={<CodeXml size={18} strokeWidth={2} />}
+      isSelected={state.active}
+      label={INLINE_CODE_LABEL}
+      mainTooltip={INLINE_CODE_LABEL}
+      secondaryTooltip={INLINE_CODE_MARKDOWN_EXAMPLE}
+      onClick={() => applyInlineCodeStyle(editor)}
+    />
+  );
+}
+
+function EditorFormattingToolbarContent(props: FormattingToolbarProps) {
+  const items = getFormattingToolbarItems(props.blockTypeSelectItems);
+  const strikeIndex = items.findIndex(
+    (item) => item.key === "strikeStyleButton",
+  );
+  const inlineCodeButton = <InlineCodeStyleButton key="codeStyleButton" />;
+
+  if (strikeIndex === -1) {
+    return (
+      <FormattingToolbar {...props}>
+        {items}
+        {inlineCodeButton}
+      </FormattingToolbar>
+    );
+  }
+
+  return (
+    <FormattingToolbar {...props}>
+      {items.slice(0, strikeIndex + 1)}
+      {inlineCodeButton}
+      {items.slice(strikeIndex + 1)}
+    </FormattingToolbar>
+  );
+}
+
+export function EditorFormattingToolbar() {
+  return (
+    <FormattingToolbarController
+      formattingToolbar={EditorFormattingToolbarContent}
+    />
+  );
+}
 
 function isSelectAllShortcut(event: RichEditorSelectAllEvent) {
   return (
@@ -914,13 +1033,16 @@ function BlockNoteEditorInner({
       <BlockNoteView
         {...richEditorDefaultUIProps}
         editor={editor}
+        formattingToolbar={false}
         theme={isDark ? "dark" : "light"}
         spellCheck={false}
         style={{
           fontSize: `${appearance.fontSize}px`,
           lineHeight: appearance.lineHeight,
         }}
-      />
+      >
+        <EditorFormattingToolbar />
+      </BlockNoteView>
     </div>
   );
 }
