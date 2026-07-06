@@ -12,6 +12,15 @@ January 2026
 
 ---
 
+## Repository Workflow Rules
+
+- Before creating a commit, inspect the repository's release and commit conventions, including semantic-release, commitlint, Commitizen, or documented Conventional Commits requirements.
+- Commit messages must strictly follow the Conventional Commits format when the repository expects it: `<type>: <description>`.
+- Never omit the colon after the commit type. Valid examples include `fix: correct rendering bug`, `feat: add export action`, and `chore: update release workflow`; invalid examples include `fix correct rendering bug` and `feat add export action`.
+- When a release is expected in semantic-release repositories, verify that the commit type is release-relevant, such as `fix:`, `feat:`, or a commit with `BREAKING CHANGE:`.
+
+---
+
 ## Abstract
 
 Comprehensive performance optimization guide for React and Next.js applications, designed for AI agents and LLMs. Contains 40+ rules across 8 categories, prioritized by impact from critical (eliminating waterfalls, reducing bundle size) to incremental (advanced patterns). Each rule includes detailed explanations, real-world examples comparing incorrect vs. correct implementations, and specific impact metrics to guide automated refactoring and code generation.
