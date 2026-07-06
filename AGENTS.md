@@ -37,7 +37,7 @@ There is no dedicated test script or first-party test folder. Before submitting 
 
 ## Commit & Pull Request Guidelines
 
-Recent history uses short imperative subjects, sometimes with Conventional Commit prefixes, for example `fix editor slash menu interactions` and `feat: unify right-click menu for files and folders`. Keep commits focused and use `pnpm commit` for the configured Commitizen flow. Pull requests should include a concise summary, verification commands, linked issues when applicable, and screenshots or recordings for renderer UI changes.
+Commit messages must follow the Conventional Commits format: `type: subject`. Use a lowercase type such as `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `style`, `perf`, `build`, or `ci`, followed by a colon and a concise imperative subject, for example `fix: reveal searched file in tree` or `feat: unify right-click menu for files and folders`. Keep commits focused and use `pnpm commit` for the configured Commitizen flow. Pull requests should include a concise summary, verification commands, linked issues when applicable, and screenshots or recordings for renderer UI changes.
 
 All commit messages must be written in English.
 
