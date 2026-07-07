@@ -60,17 +60,17 @@ export function EditorBridge() {
     };
 
     // 监听 store 变化，同步脏状态到主进程
-    const unsub = useEditorStore.subscribe((state, prevState) => {
-      const currentTab = getActiveTab(state);
-      const prevTab = getActiveTab(prevState);
-
-      const currentDirty = currentTab ? currentTab.isDirty : state.isDirty;
-      const prevDirty = prevTab ? prevTab.isDirty : prevState.isDirty;
-
-      if (currentDirty !== prevDirty) {
-        window.electronAPI.updateDirtyState(currentDirty);
-      }
-    });
+    const unsub = useEditorStore.subscribe(
+      (state) => {
+        const tab = getActiveTab(state);
+        return tab ? tab.isDirty : state.isDirty;
+      },
+      (currentDirty, prevDirty) => {
+        if (currentDirty !== prevDirty) {
+          window.electronAPI.updateDirtyState(currentDirty);
+        }
+      },
+    );
 
     // 初始同步一次
     const initialState = useEditorStore.getState();

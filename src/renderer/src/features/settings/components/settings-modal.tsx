@@ -117,7 +117,8 @@ function isExportSettingsDropdownEvent(event: Event): boolean {
 
 export function SettingsModal() {
   const { isSettingsOpen, setSettingsOpen } = useUIStore();
-  const { appearance, setAppearance } = useEditorStore();
+  const appearance = useEditorStore((s) => s.appearance);
+  const setAppearance = useEditorStore((s) => s.setAppearance);
   const { theme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<SettingsTab>("appearance");
   const [appInfo, setAppInfo] = useState<AppInfo>(defaultAppInfo);

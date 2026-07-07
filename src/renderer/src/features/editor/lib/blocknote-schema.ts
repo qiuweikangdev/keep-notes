@@ -91,6 +91,9 @@ const inlineCodeNormalizerExtension = createExtension({
         if (!transactions.some((transaction) => transaction.docChanged)) {
           return null;
         }
+        // 大文档跳过全量扫描，避免每笔按键都遍历所有文本节点阻塞主线程。
+        // 用户仍可通过快捷键手动设置行内代码样式。
+        if (newState.doc.textContent.length > 6000) return null;
         if (
           transactions.some((transaction) =>
             transaction.getMeta(INLINE_CODE_NORMALIZER_META),

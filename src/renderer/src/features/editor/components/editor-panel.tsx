@@ -8,19 +8,24 @@ interface EditorPanelProps {
 }
 
 export function EditorPanel({ groupId, tabId }: EditorPanelProps) {
-  const {
-    panelGroups = [],
-    activeGroupId,
-    setActiveTab,
-    removeTab,
-  } = useEditorStore();
+  // 只订阅目标 tab 数据和方法引用，避免每次输入都重渲染整个面板。
+  const tab = useEditorStore((state) =>
+    state.panelGroups
+      .find((g) => g.id === groupId)
+      ?.tabs.find((t) => t.id === tabId),
+  );
+  const isActive = useEditorStore(
+    (state) =>
+      state.activeGroupId === groupId &&
+      state.panelGroups.find((g) => g.id === state.activeGroupId)
+        ?.activeTabId === tabId,
+  );
+  const setActiveTab = useEditorStore((state) => state.setActiveTab);
+  const removeTab = useEditorStore((state) => state.removeTab);
 
-  const group = panelGroups.find((g) => g.id === groupId);
-  const tab = group?.tabs.find((t) => t.id === tabId);
   if (!tab) return null;
 
   const fileName = tab.filePath?.split(/[\\/]/).pop() || "";
-  const isActive = activeGroupId === groupId && group?.activeTabId === tabId;
 
   const handleClose = () => {
     removeTab(groupId, tabId);

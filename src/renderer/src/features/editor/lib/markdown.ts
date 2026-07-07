@@ -28,7 +28,8 @@ interface MarkdownEdit {
   replacement: string;
 }
 
-const SOURCE_PRESERVATION_DIFF_CHAR_LIMIT = 24_000;
+const SOURCE_PRESERVATION_DIFF_CHAR_LIMIT = 16_000;
+const LARGE_DOC_LIST_PRESERVE_LIMIT = 8_000;
 const UNORDERED_LIST_LINE_PATTERN = /^([ \t]{0,3})([-+*])([ \t]+)(.*)$/u;
 const FENCED_CODE_LINE_PATTERN = /^ {0,3}(```+|~~~+)/u;
 
@@ -920,19 +921,26 @@ export function preserveMarkdownSource(
 
   if (baseline === edited) return preservationSource;
 
-  const reorderedListSource = preserveReorderedUnorderedLists(
-    preservationSource,
-    baseline,
-    edited,
-  );
-  if (reorderedListSource !== null) return reorderedListSource;
+  // 大文档跳过列表重排和跨块移动的多次 splitMarkdownLines 扫描，
+  // 直接走字符级或行级的保留路径，避免不必要的 O(n) 开销。
+  const isLargeDocument =
+    preservationSource.length > LARGE_DOC_LIST_PRESERVE_LIMIT;
 
-  const movedListSource = preserveMovedUnorderedListItemsAcrossBlocks(
-    preservationSource,
-    baseline,
-    edited,
-  );
-  if (movedListSource !== null) return movedListSource;
+  if (!isLargeDocument) {
+    const reorderedListSource = preserveReorderedUnorderedLists(
+      preservationSource,
+      baseline,
+      edited,
+    );
+    if (reorderedListSource !== null) return reorderedListSource;
+
+    const movedListSource = preserveMovedUnorderedListItemsAcrossBlocks(
+      preservationSource,
+      baseline,
+      edited,
+    );
+    if (movedListSource !== null) return movedListSource;
+  }
 
   if (
     source.length + baseline.length + edited.length >
@@ -1226,9 +1234,15 @@ export async function parseMarkdown<TBlock>(
   return resolveImageBlockUrls(blocks, options);
 }
 
+function yieldToMain(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 export async function serializeMarkdown<TBlock>(
   serializer: MarkdownSerializer<TBlock>,
   blocks: TBlock[],
 ): Promise<string> {
+  // 大文档序列化可能阻塞数百毫秒；让出主线程确保用户交互不被延迟。
+  await yieldToMain();
   return serializer.blocksToMarkdownLossy(blocks);
 }

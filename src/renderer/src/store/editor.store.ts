@@ -667,21 +667,34 @@ export const useEditorStore = create<EditorState>()(
         },
 
         setTabScrollTop: (groupId, tabId, scrollTop) => {
-          set((state) => ({
-            panelGroups: state.panelGroups.map((group) =>
-              group.id === groupId
-                ? {
-                    ...group,
-                    tabs: group.tabs.map((tab) => {
-                      if (tab.id !== tabId) return tab;
-                      if (tab.loadStatus === "loading") return tab;
+          set((state) => {
+            // 滚动值未变化或正在加载中，跳过状态更新避免不必要的组件重渲染。
+            const group = state.panelGroups.find((g) => g.id === groupId);
+            const tab = group?.tabs.find((t) => t.id === tabId);
+            if (
+              !tab ||
+              tab.scrollTop === scrollTop ||
+              tab.loadStatus === "loading"
+            ) {
+              return state;
+            }
 
-                      return { ...tab, scrollTop };
-                    }),
-                  }
-                : group,
-            ),
-          }));
+            return {
+              panelGroups: state.panelGroups.map((group) =>
+                group.id === groupId
+                  ? {
+                      ...group,
+                      tabs: group.tabs.map((tab) => {
+                        if (tab.id !== tabId) return tab;
+                        if (tab.loadStatus === "loading") return tab;
+
+                        return { ...tab, scrollTop };
+                      }),
+                    }
+                  : group,
+              ),
+            };
+          });
         },
 
         recordRecentOpenedFile: (path) => {

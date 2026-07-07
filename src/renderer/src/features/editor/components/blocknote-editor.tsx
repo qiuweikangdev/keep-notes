@@ -317,6 +317,10 @@ function findEditorBlockElement(root: Element | null, blockId: string) {
   );
 }
 
+function yieldToMain(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 function scheduleEditorIdleTask(callback: () => void, timeout = 1200) {
   const idleWindow = window as Window & {
     requestIdleCallback?: (
@@ -754,6 +758,8 @@ function BlockNoteEditorInner({
 
   const serializeChange = useCallback(async () => {
     if (suppressChangeRef.current) return;
+    // 页面不可见时跳过序列化，避免后台窗口占用 CPU 阻塞用户交互。
+    if (document.visibilityState === "hidden") return;
     if (serializationInFlightRef.current) {
       serializationQueuedRef.current = true;
       await serializationInFlightRef.current;
@@ -771,6 +777,8 @@ function BlockNoteEditorInner({
         changeGateRef.current.markSerialized(pendingRevision);
         return;
       }
+      // 在序列化和源码保留之间让出主线程，确保用户交互（弹窗/菜单点击）不被阻塞。
+      await yieldToMain();
       const markdown = resolveSerializedMarkdownChange(
         contentRef.current,
         baseline,
@@ -831,10 +839,14 @@ function BlockNoteEditorInner({
     if (serializationCancelRef.current) {
       serializationCancelRef.current();
     }
+    // 大文档自适应延长序列化间隔，降低主线程阻塞频率。
+    const docLength = contentRef.current.length;
+    const idleTimeout =
+      docLength > 12000 ? 5000 : docLength > 6000 ? 3000 : 1800;
     serializationCancelRef.current = scheduleEditorIdleTask(() => {
       serializationCancelRef.current = null;
       void serializeChange();
-    }, 1800);
+    }, idleTimeout);
 
     // 更新大纲标题列表到 store
     if (outlineUpdateCancelRef.current) {
