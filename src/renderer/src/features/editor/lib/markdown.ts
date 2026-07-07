@@ -37,6 +37,20 @@ interface MarkdownLine {
   text: string;
 }
 
+interface UnorderedListItemLine {
+  content: string;
+  indent: string;
+  lineIndex: number;
+  marker: string;
+  spacing: string;
+}
+
+interface UnorderedListRun {
+  endLineIndex: number;
+  items: UnorderedListItemLine[];
+  startLineIndex: number;
+}
+
 function createSourceBoundaryMap(
   baseline: string,
   source: string,
@@ -264,6 +278,520 @@ function getClosingFenceMatch(line: string, openingFence: string) {
   return match;
 }
 
+function findNextListLineIndex(
+  lines: MarkdownLine[],
+  startIndex: number,
+): number | null {
+  for (let index = startIndex; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (line.text.trim() === "") continue;
+    return line.text.match(UNORDERED_LIST_LINE_PATTERN) ? index : null;
+  }
+
+  return null;
+}
+
+function collectUnorderedListRuns(lines: MarkdownLine[]): UnorderedListRun[] {
+  const runs: UnorderedListRun[] = [];
+  let openingFence: string | null = null;
+  let index = 0;
+
+  while (index < lines.length) {
+    const line = lines[index];
+    const fenceMatch = openingFence
+      ? getClosingFenceMatch(line.text, openingFence)
+      : line.text.match(FENCED_CODE_LINE_PATTERN);
+    if (fenceMatch) {
+      openingFence = openingFence ? null : fenceMatch[1];
+      index += 1;
+      continue;
+    }
+
+    const match = openingFence
+      ? null
+      : line.text.match(UNORDERED_LIST_LINE_PATTERN);
+    if (!match) {
+      index += 1;
+      continue;
+    }
+
+    const run: UnorderedListRun = {
+      endLineIndex: index + 1,
+      items: [],
+      startLineIndex: index,
+    };
+
+    while (index < lines.length) {
+      const currentLine = lines[index];
+      const currentMatch = currentLine.text.match(UNORDERED_LIST_LINE_PATTERN);
+      if (currentMatch) {
+        run.items.push({
+          content: currentMatch[4],
+          indent: currentMatch[1],
+          lineIndex: index,
+          marker: currentMatch[2],
+          spacing: currentMatch[3],
+        });
+        index += 1;
+        run.endLineIndex = index;
+        continue;
+      }
+
+      if (
+        currentLine.text.trim() === "" &&
+        findNextListLineIndex(lines, index + 1) !== null
+      ) {
+        index += 1;
+        run.endLineIndex = index;
+        continue;
+      }
+
+      break;
+    }
+
+    runs.push(run);
+  }
+
+  return runs;
+}
+
+function getListRunContents(run: UnorderedListRun): string[] {
+  return run.items.map((item) => item.content);
+}
+
+function getListItemContents(items: UnorderedListItemLine[]): string[] {
+  return items.map((item) => item.content);
+}
+
+function collectUnorderedListItems(
+  lines: MarkdownLine[],
+): UnorderedListItemLine[] {
+  return collectUnorderedListRuns(lines).flatMap((run) => run.items);
+}
+
+function hasSameContentOrder(left: string[], right: string[]): boolean {
+  return (
+    left.length === right.length &&
+    left.every((item, index) => {
+      return item === right[index];
+    })
+  );
+}
+
+function hasSameContentMultiset(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) return false;
+
+  const counts = new Map<string, number>();
+  for (const item of left) {
+    counts.set(item, (counts.get(item) ?? 0) + 1);
+  }
+  for (const item of right) {
+    const count = counts.get(item);
+    if (!count) return false;
+    if (count === 1) {
+      counts.delete(item);
+    } else {
+      counts.set(item, count - 1);
+    }
+  }
+
+  return counts.size === 0;
+}
+
+function getListItemFormatBuckets(items: UnorderedListItemLine[]) {
+  const buckets = new Map<string, UnorderedListItemLine[]>();
+
+  for (const item of items) {
+    const bucket = buckets.get(item.content);
+    if (bucket) {
+      bucket.push(item);
+    } else {
+      buckets.set(item.content, [item]);
+    }
+  }
+
+  return buckets;
+}
+
+function takeListItemFormat(
+  buckets: Map<string, UnorderedListItemLine[]>,
+  fallbackItems: UnorderedListItemLine[],
+  content: string,
+  fallbackIndex: number,
+) {
+  const bucket = buckets.get(content);
+  const matchedItem = bucket?.shift();
+  if (matchedItem) return matchedItem;
+  return fallbackItems[Math.min(fallbackIndex, fallbackItems.length - 1)];
+}
+
+function escapeRegExpText(value: string): string {
+  return value.replaceAll(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+function hasJoinedListRunContent(
+  sourceRun: UnorderedListRun,
+  sourceContents: string[],
+  contents: string[],
+): boolean {
+  const sourceItem = sourceRun.items[0];
+  if (!sourceItem || sourceContents.length !== 1) return false;
+  if (contents.length <= sourceRun.items.length) return false;
+
+  const markerPattern = escapeRegExpText(sourceItem.marker);
+  const contentPattern = contents
+    .map(escapeRegExpText)
+    .join(`${markerPattern}[ \\t]+`);
+  return new RegExp(`^${contentPattern}$`, "u").test(sourceContents[0]);
+}
+
+function normalizeListMarkerSpacing(spacing: string): string {
+  return spacing.includes("\t") ? spacing : " ";
+}
+
+function createListRunLinesFromSourceFormat(
+  sourceLines: MarkdownLine[],
+  sourceRun: UnorderedListRun,
+  editedRun: UnorderedListRun,
+): MarkdownLine[] {
+  const lines: MarkdownLine[] = [];
+
+  for (let index = 0; index < editedRun.items.length; index += 1) {
+    const sourceItem =
+      sourceRun.items[Math.min(index, sourceRun.items.length - 1)];
+    const editedItem = editedRun.items[index];
+    const sourceLine = sourceLines[sourceItem.lineIndex];
+    lines.push({
+      ending: sourceLine.ending,
+      text: `${sourceItem.indent}${sourceItem.marker}${normalizeListMarkerSpacing(sourceItem.spacing)}${editedItem.content}`,
+    });
+
+    const nextSourceItem = sourceRun.items[index + 1];
+    if (!nextSourceItem) continue;
+
+    for (
+      let lineIndex = sourceItem.lineIndex + 1;
+      lineIndex < nextSourceItem.lineIndex;
+      lineIndex += 1
+    ) {
+      lines.push(sourceLines[lineIndex]);
+    }
+  }
+
+  return lines;
+}
+
+function repairJoinedUnorderedListSource(
+  source: string,
+  baseline: string,
+): string | null {
+  const sourceLines = splitMarkdownLines(source);
+  const baselineLines = splitMarkdownLines(baseline);
+  const sourceRuns = collectUnorderedListRuns(sourceLines);
+  const baselineRuns = collectUnorderedListRuns(baselineLines);
+
+  if (sourceRuns.length === 0 || sourceRuns.length !== baselineRuns.length) {
+    return null;
+  }
+
+  const replacements: Array<{
+    lines: MarkdownLine[];
+    startLineIndex: number;
+    endLineIndex: number;
+  }> = [];
+
+  for (let index = 0; index < sourceRuns.length; index += 1) {
+    const sourceRun = sourceRuns[index];
+    const baselineRun = baselineRuns[index];
+    const sourceContents = getListRunContents(sourceRun);
+    const baselineContents = getListRunContents(baselineRun);
+    if (!hasJoinedListRunContent(sourceRun, sourceContents, baselineContents)) {
+      continue;
+    }
+
+    // 历史错误可能把多个列表项保存到同一行；富文本顺序未变时也要把源码拆回多行。
+    replacements.push({
+      endLineIndex: sourceRun.endLineIndex,
+      lines: createListRunLinesFromSourceFormat(
+        sourceLines,
+        sourceRun,
+        baselineRun,
+      ),
+      startLineIndex: sourceRun.startLineIndex,
+    });
+  }
+
+  if (replacements.length === 0) return null;
+
+  const nextLines = [...sourceLines];
+  for (const replacement of replacements.toReversed()) {
+    nextLines.splice(
+      replacement.startLineIndex,
+      replacement.endLineIndex - replacement.startLineIndex,
+      ...replacement.lines,
+    );
+  }
+
+  return preserveSourceEnding(
+    source,
+    nextLines.map((line) => `${line.text}${line.ending}`).join(""),
+  );
+}
+
+function splitJoinedUnorderedListLine(
+  line: MarkdownLine,
+): MarkdownLine[] | null {
+  const match = line.text.match(UNORDERED_LIST_LINE_PATTERN);
+  if (!match) return null;
+
+  const [, indent, marker, spacing, content] = match;
+  const markerPattern = new RegExp(`${escapeRegExpText(marker)}[ \\t]+`, "gu");
+  const segments: string[] = [];
+  let segmentStart = 0;
+
+  for (const markerMatch of content.matchAll(markerPattern)) {
+    const markerIndex = markerMatch.index;
+    if (markerIndex === undefined || markerIndex === 0) continue;
+    if (!/\S/u.test(content[markerIndex - 1])) continue;
+
+    segments.push(content.slice(segmentStart, markerIndex));
+    segmentStart = markerIndex + markerMatch[0].length;
+  }
+
+  if (segments.length === 0) return null;
+
+  segments.push(content.slice(segmentStart));
+  const markerSpacing = normalizeListMarkerSpacing(spacing);
+
+  return segments.map((segment, index) => ({
+    ending: index === segments.length - 1 ? line.ending : "\n",
+    text: `${indent}${marker}${markerSpacing}${segment}`,
+  }));
+}
+
+function repairJoinedUnorderedListMarkers(markdown: string): string | null {
+  const lines = splitMarkdownLines(markdown);
+  let openingFence: string | null = null;
+  let changed = false;
+  const nextLines: MarkdownLine[] = [];
+
+  for (const line of lines) {
+    const fenceMatch = openingFence
+      ? getClosingFenceMatch(line.text, openingFence)
+      : line.text.match(FENCED_CODE_LINE_PATTERN);
+    if (fenceMatch) {
+      openingFence = openingFence ? null : fenceMatch[1];
+      nextLines.push(line);
+      continue;
+    }
+
+    const repairedLines = openingFence
+      ? null
+      : splitJoinedUnorderedListLine(line);
+    if (!repairedLines) {
+      nextLines.push(line);
+      continue;
+    }
+
+    changed = true;
+    nextLines.push(...repairedLines);
+  }
+
+  if (!changed) return null;
+
+  return preserveSourceEnding(
+    markdown,
+    nextLines.map((line) => `${line.text}${line.ending}`).join(""),
+  );
+}
+
+export function repairMarkdownSourceBeforeParse(markdown: string): string {
+  return repairJoinedUnorderedListMarkers(markdown) ?? markdown;
+}
+
+function preserveReorderedUnorderedLists(
+  source: string,
+  baseline: string,
+  edited: string,
+): string | null {
+  const sourceLines = splitMarkdownLines(source);
+  const baselineLines = splitMarkdownLines(baseline);
+  const editedLines = splitMarkdownLines(edited);
+  const sourceRuns = collectUnorderedListRuns(sourceLines);
+  const baselineRuns = collectUnorderedListRuns(baselineLines);
+  const editedRuns = collectUnorderedListRuns(editedLines);
+
+  if (
+    sourceRuns.length === 0 ||
+    sourceRuns.length !== baselineRuns.length ||
+    baselineRuns.length !== editedRuns.length
+  ) {
+    return null;
+  }
+
+  const replacements: Array<{
+    lines: MarkdownLine[];
+    startLineIndex: number;
+    endLineIndex: number;
+  }> = [];
+
+  for (let index = 0; index < sourceRuns.length; index += 1) {
+    const sourceRun = sourceRuns[index];
+    const baselineRun = baselineRuns[index];
+    const editedRun = editedRuns[index];
+    const sourceContents = getListRunContents(sourceRun);
+    const baselineContents = getListRunContents(baselineRun);
+    const editedContents = getListRunContents(editedRun);
+    const sourceMatchesBaseline = hasSameContentOrder(
+      sourceContents,
+      baselineContents,
+    );
+    const sourceMatchesEdited = hasSameContentOrder(
+      sourceContents,
+      editedContents,
+    );
+    const sourceMatchesJoinedBaseline = hasJoinedListRunContent(
+      sourceRun,
+      sourceContents,
+      baselineContents,
+    );
+    const sourceMatchesJoinedEdited = hasJoinedListRunContent(
+      sourceRun,
+      sourceContents,
+      editedContents,
+    );
+
+    if (!hasSameContentMultiset(baselineContents, editedContents)) {
+      return null;
+    }
+    if (
+      !sourceMatchesBaseline &&
+      !sourceMatchesEdited &&
+      !sourceMatchesJoinedBaseline &&
+      !sourceMatchesJoinedEdited
+    ) {
+      return null;
+    }
+    if (
+      sourceMatchesBaseline &&
+      hasSameContentOrder(baselineContents, editedContents)
+    ) {
+      continue;
+    }
+
+    // 拖拽保存可能和上一轮 baseline 交错；只要三方列表项集合一致，就用块级顺序重建，避免字符级 diff 把换行/标记映射错位。
+    replacements.push({
+      endLineIndex: editedRun.endLineIndex,
+      lines: createListRunLinesFromSourceFormat(
+        sourceLines,
+        sourceRun,
+        editedRun,
+      ),
+      startLineIndex: editedRun.startLineIndex,
+    });
+  }
+
+  if (replacements.length === 0) return null;
+
+  const nextLines = [...editedLines];
+  for (const replacement of replacements.toReversed()) {
+    nextLines.splice(
+      replacement.startLineIndex,
+      replacement.endLineIndex - replacement.startLineIndex,
+      ...replacement.lines,
+    );
+  }
+
+  return preserveSourceEnding(
+    source,
+    nextLines.map((line) => `${line.text}${line.ending}`).join(""),
+  );
+}
+
+function preserveMovedUnorderedListItemsAcrossBlocks(
+  source: string,
+  baseline: string,
+  edited: string,
+): string | null {
+  const sourceLines = splitMarkdownLines(source);
+  const baselineLines = splitMarkdownLines(baseline);
+  const editedLines = splitMarkdownLines(edited);
+  const sourceItems = collectUnorderedListItems(sourceLines);
+  const baselineItems = collectUnorderedListItems(baselineLines);
+  const editedItems = collectUnorderedListItems(editedLines);
+  const sourceContents = getListItemContents(sourceItems);
+  const baselineContents = getListItemContents(baselineItems);
+  const editedContents = getListItemContents(editedItems);
+  const listShapeChanged =
+    !hasSameContentOrder(baselineContents, editedContents) ||
+    baselineItems.some((item, index) => {
+      return item.lineIndex !== editedItems[index]?.lineIndex;
+    });
+
+  if (baselineItems.length < 2 || editedItems.length !== baselineItems.length) {
+    return null;
+  }
+  if (
+    sourceItems.length !== baselineItems.length ||
+    !hasSameContentMultiset(baselineContents, editedContents)
+  ) {
+    return null;
+  }
+  if (
+    !hasSameContentMultiset(sourceContents, baselineContents) &&
+    !hasSameContentMultiset(sourceContents, editedContents)
+  ) {
+    return null;
+  }
+
+  const formatBuckets = getListItemFormatBuckets(sourceItems);
+  let openingFence: string | null = null;
+  let changed = false;
+  let editedItemIndex = 0;
+  const nextLines = editedLines.map((line) => {
+    const isInsideFence = openingFence !== null;
+    const fenceMatch = openingFence
+      ? getClosingFenceMatch(line.text, openingFence)
+      : line.text.match(FENCED_CODE_LINE_PATTERN);
+    const editedMatch = isInsideFence
+      ? null
+      : line.text.match(UNORDERED_LIST_LINE_PATTERN);
+    let nextText = line.text;
+
+    if (editedMatch) {
+      const sourceItem = takeListItemFormat(
+        formatBuckets,
+        sourceItems,
+        editedMatch[4],
+        editedItemIndex,
+      );
+      const sourceMarkerSpacing = normalizeListMarkerSpacing(
+        sourceItem.spacing,
+      );
+      nextText = `${editedMatch[1]}${sourceItem.marker}${sourceMarkerSpacing}${editedMatch[4]}`;
+      changed ||= nextText !== line.text;
+      editedItemIndex += 1;
+    }
+
+    if (fenceMatch) {
+      openingFence = openingFence ? null : fenceMatch[1];
+    }
+
+    return {
+      ending: line.ending,
+      text: nextText,
+    };
+  });
+
+  if (!changed && !listShapeChanged) return null;
+
+  // 列表跨标题/普通块拖动时 run 数会变化，不能再用字符级 diff 映射源码。
+  return preserveSourceEnding(
+    source,
+    nextLines.map((line) => `${line.text}${line.ending}`).join(""),
+  );
+}
+
 function preserveLargeDocumentListMarkers(source: string, edited: string) {
   const sourceLines = splitMarkdownLines(source);
   const editedLines = splitMarkdownLines(edited);
@@ -279,8 +807,12 @@ function preserveLargeDocumentListMarkers(source: string, edited: string) {
       const openingFenceMatch = openingFence
         ? getClosingFenceMatch(sourceLine.text, openingFence)
         : sourceLine.text.match(FENCED_CODE_LINE_PATTERN);
-      const sourceListMatch = sourceLine.text.match(UNORDERED_LIST_LINE_PATTERN);
-      const editedListMatch = editedLine.text.match(UNORDERED_LIST_LINE_PATTERN);
+      const sourceListMatch = sourceLine.text.match(
+        UNORDERED_LIST_LINE_PATTERN,
+      );
+      const editedListMatch = editedLine.text.match(
+        UNORDERED_LIST_LINE_PATTERN,
+      );
       let nextText = editedLine.text;
 
       if (!isInsideFence && sourceListMatch && editedListMatch) {
@@ -299,28 +831,73 @@ function preserveLargeDocumentListMarkers(source: string, edited: string) {
   return preserveSourceEnding(source, result);
 }
 
+function repairMarkdownSourceAfterPreserve(source: string, markdown: string) {
+  return repairMarkdownSourceBeforeParse(
+    preserveSourceEnding(source, markdown),
+  );
+}
+
 export function preserveMarkdownSource(
   source: string,
   baseline: string,
   edited: string,
 ): string {
-  if (baseline === edited) return source;
+  const repairedJoinedListSource = repairJoinedUnorderedListSource(
+    source,
+    baseline,
+  );
+  const repairedListMarkerSource =
+    repairedJoinedListSource ?? repairMarkdownSourceBeforeParse(source);
+  const preservationSource = repairedListMarkerSource;
+
+  if (baseline === edited) return preservationSource;
+
+  const reorderedListSource = preserveReorderedUnorderedLists(
+    preservationSource,
+    baseline,
+    edited,
+  );
+  if (reorderedListSource !== null) return reorderedListSource;
+
+  const movedListSource = preserveMovedUnorderedListItemsAcrossBlocks(
+    preservationSource,
+    baseline,
+    edited,
+  );
+  if (movedListSource !== null) return movedListSource;
 
   if (
     source.length + baseline.length + edited.length >
     SOURCE_PRESERVATION_DIFF_CHAR_LIMIT
   ) {
     // 大文档避免字符级 diff 阻塞输入；保留行级列表标记和文件结尾，正文采用编辑器序列化结果。
-    return preserveLargeDocumentListMarkers(source, edited);
+    return repairMarkdownSourceAfterPreserve(
+      preservationSource,
+      preserveLargeDocumentListMarkers(preservationSource, edited),
+    );
   }
 
-  const boundaryMap = createSourceBoundaryMap(baseline, source);
+  const boundaryMap = createSourceBoundaryMap(baseline, preservationSource);
   const edits = collectMarkdownEdits(diffChars(baseline, edited));
   const mappedEdits = edits.map((edit) => {
     const oldText = baseline.slice(edit.start, edit.end);
-    let start = chooseSourceBoundary(baseline, source, boundaryMap, edit.start);
-    let end = chooseSourceBoundary(baseline, source, boundaryMap, edit.end);
-    const exactStart = locateExactChangedText(source, oldText, start);
+    let start = chooseSourceBoundary(
+      baseline,
+      preservationSource,
+      boundaryMap,
+      edit.start,
+    );
+    let end = chooseSourceBoundary(
+      baseline,
+      preservationSource,
+      boundaryMap,
+      edit.end,
+    );
+    const exactStart = locateExactChangedText(
+      preservationSource,
+      oldText,
+      start,
+    );
 
     if (exactStart !== null) {
       start = exactStart;
@@ -335,17 +912,17 @@ export function preserveMarkdownSource(
     }
   }
 
-  let result = source;
+  let result = preservationSource;
   for (const edit of mappedEdits.toReversed()) {
     // 映射异常时回退到编辑器结果，避免生成内容错位或重复。
     if (edit.start < 0 || edit.end < edit.start || edit.end > result.length) {
-      return edited;
+      return repairMarkdownSourceAfterPreserve(preservationSource, edited);
     }
     result =
       result.slice(0, edit.start) + edit.replacement + result.slice(edit.end);
   }
 
-  return preserveSourceEnding(source, result);
+  return repairMarkdownSourceAfterPreserve(preservationSource, result);
 }
 
 export function ensureEditableBlocks<TBlock>(
@@ -573,7 +1150,10 @@ export async function parseMarkdown<TBlock>(
   options: MarkdownParseOptions = {},
 ): Promise<TBlock[]> {
   // 仅规范化传给 BlockNote 的解析副本；原始源码仍用于编辑、比较和保存。
-  const parseInput = markdown.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
+  const repairedMarkdown = repairMarkdownSourceBeforeParse(markdown);
+  const parseInput = repairedMarkdown
+    .replace(/^\uFEFF/, "")
+    .replace(/\r\n?/g, "\n");
   const blocks = await parser.tryParseMarkdownToBlocks(parseInput);
   return resolveImageBlockUrls(blocks, options);
 }

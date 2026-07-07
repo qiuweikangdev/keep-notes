@@ -41,6 +41,7 @@ import {
   markdownEquals,
   parseMarkdown,
   preserveMarkdownSource,
+  repairMarkdownSourceBeforeParse,
   resolveEditorImageUrl,
   serializeMarkdown,
 } from "../lib/markdown";
@@ -138,7 +139,21 @@ interface BlockNoteEditorInnerProps {
   onParseStateChange: (message: string | null) => void;
 }
 
-const MARKDOWN_PARSER_VERSION = "blocknote-v4";
+const MARKDOWN_PARSER_VERSION = "blocknote-v5";
+
+export function getMarkdownParserCacheVersion(reloadKey: number) {
+  return `${MARKDOWN_PARSER_VERSION}:${reloadKey}`;
+}
+
+export function resolveSerializedMarkdownChange(
+  source: string,
+  baseline: string,
+  serialized: string,
+): string | null {
+  const markdown = preserveMarkdownSource(source, baseline, serialized);
+  return markdownEquals(markdown, source) ? null : markdown;
+}
+
 const INLINE_CODE_LABEL = "Inline code (persists in markdown)";
 const INLINE_CODE_MARKDOWN_EXAMPLE = "`code`";
 const INLINE_CODE_MARKDOWN_SELECTION = /^`([^`\n]+)`$/;
@@ -382,6 +397,15 @@ export function shouldMarkRichEditorPointerIntent(target: EventTarget | null) {
   );
 }
 
+export function shouldMarkRichEditorFloatingDragIntent(
+  target: EventTarget | null,
+) {
+  const targetElement = getElementFromEventTarget(target);
+  if (!targetElement) return false;
+
+  return Boolean(targetElement.closest(".bn-side-menu"));
+}
+
 export function shouldLetCodeMirrorHandleKeyboardEvent(
   target: EventTarget | null,
 ) {
@@ -552,6 +576,8 @@ function BlockNoteEditorInner({
   const suppressChangeRef = useRef(false);
   const changeGateRef = useRef(new EditorChangeGate());
   const contentRef = useRef(content);
+  const onChangeRef = useRef(onChange);
+  const onWordCountChangeRef = useRef(onWordCountChange);
   const pathRef = useRef(path);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const appliedPathRef = useRef<string | null>(null);
@@ -689,6 +715,14 @@ function BlockNoteEditorInner({
   }, [content]);
 
   useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  useEffect(() => {
+    onWordCountChangeRef.current = onWordCountChange;
+  }, [onWordCountChange]);
+
+  useEffect(() => {
     pathRef.current = path;
   }, [path]);
 
@@ -708,14 +742,15 @@ function BlockNoteEditorInner({
     const appliedPath = appliedPathRef.current;
     if (!appliedPath) return;
 
+    const parserCacheVersion = getMarkdownParserCacheVersion(reloadKey);
     editorCache.setContent(appliedPath, appliedSourceRef.current);
     editorCache.setBlocks(
       appliedPath,
       appliedSourceRef.current,
       editor.document,
-      MARKDOWN_PARSER_VERSION,
+      parserCacheVersion,
     );
-  }, [editor]);
+  }, [editor, reloadKey]);
 
   const serializeChange = useCallback(async () => {
     if (suppressChangeRef.current) return;
@@ -736,17 +771,13 @@ function BlockNoteEditorInner({
         changeGateRef.current.markSerialized(pendingRevision);
         return;
       }
-      if (markdownEquals(serialized, baseline)) {
-        changeGateRef.current.markSerialized(pendingRevision);
-        return;
-      }
-      const markdown = preserveMarkdownSource(
+      const markdown = resolveSerializedMarkdownChange(
         contentRef.current,
         baseline,
         serialized,
       );
       serializedBaselineRef.current = serialized;
-      if (markdownEquals(markdown, contentRef.current)) {
+      if (markdown === null) {
         changeGateRef.current.markSerialized(pendingRevision);
         return;
       }
@@ -755,16 +786,17 @@ function BlockNoteEditorInner({
       contentRef.current = markdown;
       appliedSourceRef.current = markdown;
       if (path) {
+        const parserCacheVersion = getMarkdownParserCacheVersion(reloadKey);
         editorCache.setContent(path, markdown);
         editorCache.setBlocks(
           path,
           markdown,
           editor.document,
-          MARKDOWN_PARSER_VERSION,
+          parserCacheVersion,
         );
       }
-      onWordCountChange(markdown.length);
-      onChange(markdown);
+      onWordCountChangeRef.current(markdown.length);
+      onChangeRef.current(markdown);
       changeGateRef.current.markSerialized(pendingRevision);
     })();
 
@@ -791,7 +823,7 @@ function BlockNoteEditorInner({
         serializationQueuedRef.current = false;
       }
     }
-  }, [editor, onChange, onWordCountChange, path]);
+  }, [editor, path, reloadKey]);
   serializeChangeRef.current = serializeChange;
 
   useEditorChange(() => {
@@ -825,14 +857,21 @@ function BlockNoteEditorInner({
 
     const applyContent = async () => {
       try {
-        const source = contentRef.current;
+        const rawSource = contentRef.current;
+        const source = repairMarkdownSourceBeforeParse(rawSource);
+        const sourceWasRepaired = !markdownEquals(source, rawSource);
+        if (sourceWasRepaired) {
+          // 打开历史异常文件时先修复已拼接的列表源码，避免富文本和源码继续分叉。
+          contentRef.current = source;
+        }
         const currentPath = appliedPathRef.current;
         const currentScrollTop = readEditorScrollTop(
           scrollContainerRef.current,
         );
         // 解析规则升级后不能复用旧块缓存，否则会继续显示错误的列表或代码块结构。
+        const parserCacheVersion = getMarkdownParserCacheVersion(reloadKey);
         const cached = path
-          ? editorCache.getBlocks(path, source, MARKDOWN_PARSER_VERSION)
+          ? editorCache.getBlocks(path, source, parserCacheVersion)
           : null;
         const parsedBlocks =
           cached?.blocks ??
@@ -847,6 +886,10 @@ function BlockNoteEditorInner({
 
         // Markdown 解析可能晚于下一次切换完成，旧结果不得再写入编辑器。
         if (applyToken !== applyTokenRef.current) return;
+        if (sourceWasRepaired) {
+          onWordCountChangeRef.current(source.length);
+          onChangeRef.current(source);
+        }
         window.getSelection()?.removeAllRanges();
         editor.replaceBlocks(editor.document, blocks);
         appliedPathRef.current = path;
@@ -860,7 +903,7 @@ function BlockNoteEditorInner({
         serializedBaselineRef.current = serializedBaseline;
         if (path) {
           editorCache.setContent(path, source);
-          editorCache.setBlocks(path, source, blocks, MARKDOWN_PARSER_VERSION);
+          editorCache.setBlocks(path, source, blocks, parserCacheVersion);
         }
         restoreEditorScrollTop(scrollContainerRef.current, restoredScrollTop);
         onParseStateChange(null);
@@ -996,16 +1039,33 @@ function BlockNoteEditorInner({
         markUserIntent();
       }
     };
+    const handleFloatingControlDragStart = (event: DragEvent) => {
+      if (!isActiveEditorRef.current) return;
+      if (shouldMarkRichEditorFloatingDragIntent(event.target)) {
+        // BlockNote 的块拖拽句柄可能在浮层内，需显式记录拖拽也是一次用户编辑。
+        markUserIntent();
+      }
+    };
 
     document.addEventListener(
       "pointerdown",
       handleFloatingControlPointerDown,
       true,
     );
+    document.addEventListener(
+      "dragstart",
+      handleFloatingControlDragStart,
+      true,
+    );
     return () => {
       document.removeEventListener(
         "pointerdown",
         handleFloatingControlPointerDown,
+        true,
+      );
+      document.removeEventListener(
+        "dragstart",
+        handleFloatingControlDragStart,
         true,
       );
     };
@@ -1024,6 +1084,7 @@ function BlockNoteEditorInner({
       onPasteCapture={markUserIntent}
       onCutCapture={markUserIntent}
       onCompositionStartCapture={markUserIntent}
+      onDragStartCapture={markUserIntent}
       onDragOverCapture={blockExternalFileDrop}
       onDropCapture={(event) => {
         markUserIntent();

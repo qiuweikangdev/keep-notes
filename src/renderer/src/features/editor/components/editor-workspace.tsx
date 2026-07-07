@@ -15,6 +15,7 @@ import {
   subscribeToEditorFile,
 } from "../lib/editor-runtime";
 import { shouldApplyExternalFileChange } from "../lib/editor-external-change";
+import { repairMarkdownSourceBeforeParse } from "../lib/markdown";
 import {
   findTextMatches,
   getSteppedMatchIndex,
@@ -161,6 +162,18 @@ export function EditorWorkspace({
     },
     [groupId, setTabContent, syncFileContent, tab, tabId],
   );
+
+  useEffect(() => {
+    if (!tab || tab.mode !== "source") return;
+    const repairedContent = repairMarkdownSourceBeforeParse(tab.content);
+    if (repairedContent === tab.content) return;
+
+    // 源码模式也要修复历史拖拽导致的粘连列表，避免富文本解析正常但源码面板仍显示坏内容。
+    setTabContent(groupId, tabId, repairedContent);
+    if (!tab.filePath) return;
+    syncFileContent(tab.filePath, repairedContent, tabId);
+    editorSaveCoordinator.schedule(tab.filePath, repairedContent);
+  }, [groupId, setTabContent, syncFileContent, tab, tabId]);
 
   const openFindWidget = useCallback(() => {
     setIsFindOpen(true);
