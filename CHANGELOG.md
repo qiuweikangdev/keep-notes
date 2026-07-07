@@ -1,3 +1,16 @@
+## [2.9.2](https://github.com/qiuweikangdev/keep-notes/compare/v2.9.1...v2.9.2) (2026-07-07)
+
+
+### Bug Fixes
+
+* editor list show ([8ef78e2](https://github.com/qiuweikangdev/keep-notes/commit/8ef78e2ae2bd18505732c1a647999c0034bcc5fe))
+
+
+## Commit Summary
+
+- Compared with: v2.9.1
+- Total commits: 4
+
 ## [2.9.1](https://github.com/qiuweikangdev/keep-notes/compare/v2.9.0...v2.9.1) (2026-07-06)
 
 
