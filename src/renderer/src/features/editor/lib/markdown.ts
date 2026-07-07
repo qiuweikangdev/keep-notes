@@ -832,9 +832,77 @@ function preserveLargeDocumentListMarkers(source: string, edited: string) {
 }
 
 function repairMarkdownSourceAfterPreserve(source: string, markdown: string) {
-  return repairMarkdownSourceBeforeParse(
-    preserveSourceEnding(source, markdown),
+  return normalizeUnorderedListMarkers(
+    source,
+    repairMarkdownSourceBeforeParse(preserveSourceEnding(source, markdown)),
   );
+}
+
+/**
+ * 规范化无序列表标记，解决 BlockNote 序列化器硬编码 marker = "* " 的问题。
+ * 当源文件只使用 - 或 + 作为列表标记时，将结果中被 BlockNote 改写的 * 还原为源文件的标记。
+ * 如果源文件混合使用了多种标记，不做规范化以避免误改。
+ */
+function normalizeUnorderedListMarkers(source: string, result: string): string {
+  const sourceLines = splitMarkdownLines(source);
+  let hasDash = false;
+  let hasStar = false;
+  let hasPlus = false;
+  let openingFence: string | null = null;
+
+  for (const line of sourceLines) {
+    const fenceMatch = openingFence
+      ? getClosingFenceMatch(line.text, openingFence)
+      : line.text.match(FENCED_CODE_LINE_PATTERN);
+    if (fenceMatch) {
+      openingFence = openingFence ? null : fenceMatch[1];
+      continue;
+    }
+    if (openingFence) continue;
+
+    const match = line.text.match(UNORDERED_LIST_LINE_PATTERN);
+    if (!match) continue;
+    if (match[2] === "-") hasDash = true;
+    else if (match[2] === "*") hasStar = true;
+    else if (match[2] === "+") hasPlus = true;
+  }
+
+  // 确定源文件的主导标记。
+  // 只使用 - → 规范化 * 为 -
+  // 只使用 + → 规范化 * 为 +
+  // 使用 * 或混合标记 → 不处理（避免误改用户有意使用的 *）
+  let preferredMarker: string | null = null;
+  if (hasDash && !hasStar && !hasPlus) {
+    preferredMarker = "-";
+  } else if (hasPlus && !hasStar && !hasDash) {
+    preferredMarker = "+";
+  }
+
+  if (preferredMarker === null) return result;
+
+  const resultLines = splitMarkdownLines(result);
+  openingFence = null;
+  const normalized = resultLines.map((line) => {
+    const fenceMatch = openingFence
+      ? getClosingFenceMatch(line.text, openingFence)
+      : line.text.match(FENCED_CODE_LINE_PATTERN);
+    if (fenceMatch) {
+      openingFence = openingFence ? null : fenceMatch[1];
+      return line;
+    }
+    if (openingFence) return line;
+
+    const match = line.text.match(UNORDERED_LIST_LINE_PATTERN);
+    if (match && match[2] !== preferredMarker) {
+      return {
+        ...line,
+        text: `${match[1]}${preferredMarker}${match[3]}${match[4]}`,
+      };
+    }
+    return line;
+  });
+
+  return normalized.map((line) => `${line.text}${line.ending}`).join("");
 }
 
 export function preserveMarkdownSource(
