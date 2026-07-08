@@ -30,6 +30,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useDiffStore } from "@/store/diff.store";
 import { useEditorStore } from "@/store/editor.store";
 import { showNoDiffContentToast } from "@/features/diff/lib/diff-toast";
+import { areDiffContentsEqual } from "@/features/diff/lib/diff-content";
 import { getRevealInFileManagerLabel } from "../utils";
 
 interface CreatingInfo {
@@ -450,7 +451,7 @@ export const TreeNode = memo(function TreeNode({
         baseContent = await window.electronAPI.readFile(filePath);
       }
 
-      if (baseContent === editorContent) {
+      if (areDiffContentsEqual(baseContent, editorContent)) {
         showNoDiffContentToast();
         return;
       }

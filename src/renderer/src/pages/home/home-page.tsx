@@ -21,6 +21,7 @@ import {
   DIFF_NO_CHANGES_MESSAGE,
   isDiffToastDetail,
 } from "@/features/diff/lib/diff-toast";
+import { areDiffContentsEqual } from "@/features/diff/lib/diff-content";
 import { useDiffStore } from "@/store/diff.store";
 import { useTreeStore } from "@/store/tree.store";
 import { discardFileChanges } from "@/features/editor/lib/discard-file-changes";
@@ -158,7 +159,7 @@ function HomePageContent() {
 
   const handleConfirmDiscard = async () => {
     // 二次确认后再判断是否存在可放弃内容，避免提前跳过确认弹窗。
-    if (oldContent === newContent) {
+    if (areDiffContentsEqual(oldContent, newContent)) {
       showDiffToastMessage(DIFF_NO_CHANGES_MESSAGE);
       return;
     }

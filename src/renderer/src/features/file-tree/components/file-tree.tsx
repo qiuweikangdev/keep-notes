@@ -36,6 +36,7 @@ import { useElectron } from "@/hooks/use-electron";
 import { useReminderStore } from "@/store/reminder.store";
 import { useDiffStore } from "@/store/diff.store";
 import { showNoDiffContentToast } from "@/features/diff/lib/diff-toast";
+import { areDiffContentsEqual } from "@/features/diff/lib/diff-content";
 import { QuickActionsPanel } from "./quick-actions-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1440,7 +1441,7 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
         baseContent = await window.electronAPI.readFile(flatNode.key);
       }
 
-      if (baseContent === editorContent) {
+      if (areDiffContentsEqual(baseContent, editorContent)) {
         showNoDiffContentToast();
         return;
       }

@@ -10,6 +10,7 @@ import { useTreeStore } from "@/store/tree.store";
 import { useEditorStore } from "@/store/editor.store";
 import { useDiffStore } from "@/store/diff.store";
 import { showNoDiffContentToast } from "@/features/diff/lib/diff-toast";
+import { areDiffContentsEqual } from "@/features/diff/lib/diff-content";
 import { CodeResult } from "@/types";
 import type {
   GitStatus,
@@ -584,7 +585,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           baseContent = headResult.data ?? "";
         }
 
-        if (baseContent === editorContent) {
+        if (areDiffContentsEqual(baseContent, editorContent)) {
           showNoDiffContentToast();
           return;
         }

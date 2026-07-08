@@ -7,6 +7,7 @@ import {
   type FileDiffMetadata,
 } from "@pierre/diffs";
 import { useTheme } from "@/hooks/use-theme";
+import { normalizeDiffContent } from "../lib/diff-content";
 
 interface DiffViewerProps {
   oldContent: string;
@@ -120,38 +121,50 @@ export function DiffViewer({
   className = "",
 }: DiffViewerProps) {
   const { theme, isDark } = useTheme();
+  const normalizedOldContent = useMemo(
+    () => normalizeDiffContent(oldContent),
+    [oldContent],
+  );
+  const normalizedNewContent = useMemo(
+    () => normalizeDiffContent(newContent),
+    [newContent],
+  );
 
   const oldFile = useMemo<FileContents>(
     () => ({
       name: fileName,
-      contents: oldContent,
+      contents: normalizedOldContent,
       header: "磁盘",
-      cacheKey: createCacheKey(fileName, oldContent, "old"),
+      cacheKey: createCacheKey(fileName, normalizedOldContent, "old"),
     }),
-    [fileName, oldContent],
+    [fileName, normalizedOldContent],
   );
 
   const newFile = useMemo<FileContents>(
     () => ({
       name: fileName,
-      contents: newContent,
+      contents: normalizedNewContent,
       header: "编辑器",
-      cacheKey: createCacheKey(fileName, newContent, "new"),
+      cacheKey: createCacheKey(fileName, normalizedNewContent, "new"),
     }),
-    [fileName, newContent],
+    [fileName, normalizedNewContent],
   );
 
   const fileDiff = useMemo(() => {
+    if (normalizedOldContent === normalizedNewContent) {
+      return null;
+    }
+
     try {
       // 使用 @pierre/diffs 官方解析器生成渲染元数据，避免依赖不存在的 diffLines 导出。
       return parseDiffFromFile(oldFile, newFile, undefined, true);
     } catch (error) {
-      if (oldContent !== newContent) {
+      if (normalizedOldContent !== normalizedNewContent) {
         console.error("Failed to compute diff:", error);
       }
       return null;
     }
-  }, [newFile, newContent, oldFile, oldContent]);
+  }, [newFile, normalizedNewContent, oldFile, normalizedOldContent]);
 
   const stats = useMemo(() => getDiffStats(fileDiff), [fileDiff]);
 

@@ -1,8 +1,18 @@
 import { render } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DiffViewer } from "./diff-viewer";
 
-const fileDiffSpy = vi.fn();
+const fileDiffSpy = vi.hoisted(() => vi.fn());
+const parseDiffFromFileSpy = vi.hoisted(() =>
+  vi.fn(() => ({
+    hunks: [
+      {
+        additionLines: 2,
+        deletionLines: 1,
+      },
+    ],
+  })),
+);
 
 vi.mock("@/hooks/use-theme", () => ({
   useTheme: () => ({
@@ -19,17 +29,28 @@ vi.mock("@pierre/diffs/react", () => ({
 }));
 
 vi.mock("@pierre/diffs", () => ({
-  parseDiffFromFile: vi.fn(() => ({
-    hunks: [
-      {
-        additionLines: 2,
-        deletionLines: 1,
-      },
-    ],
-  })),
+  parseDiffFromFile: parseDiffFromFileSpy,
 }));
 
 describe("DiffViewer", () => {
+  beforeEach(() => {
+    fileDiffSpy.mockClear();
+    parseDiffFromFileSpy.mockClear();
+  });
+
+  it("does not render a diff when content only differs by line endings", () => {
+    render(
+      <DiffViewer
+        oldContent={"# same\n- item\n"}
+        newContent={"# same\r\n- item\r\n"}
+        fileName="readme.md"
+      />,
+    );
+
+    expect(parseDiffFromFileSpy).not.toHaveBeenCalled();
+    expect(fileDiffSpy).not.toHaveBeenCalled();
+  });
+
   it("passes dark-theme surface overrides into pierre diff unsafe CSS", () => {
     render(
       <DiffViewer

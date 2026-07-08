@@ -21,6 +21,7 @@ import {
   showNoDiffChangesToast,
   showNoDiffContentToast,
 } from "@/features/diff/lib/diff-toast";
+import { areDiffContentsEqual } from "@/features/diff/lib/diff-content";
 import { hasNoHeadVersion, toGitRelativePath } from "../lib/editor-git-actions";
 import { flushEditorChange } from "../lib/editor-runtime";
 import { discardFileChanges } from "../lib/discard-file-changes";
@@ -137,7 +138,7 @@ export function EditorToolbar({
       headContent = "";
     }
 
-    if (headContent === editorContent) {
+    if (areDiffContentsEqual(headContent, editorContent)) {
       showNoDiffContentToast();
       return;
     }
