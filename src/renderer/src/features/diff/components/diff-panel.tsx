@@ -1,9 +1,12 @@
 import { X } from "lucide-react";
-import { useDiffPanelStore } from "../store/diff-panel.store";
+import { useDiffStore } from "@/store/diff.store";
 import { DiffViewer } from "./diff-viewer";
 
 export function DiffPanel() {
-  const { filePath, oldContent, newContent, close } = useDiffPanelStore();
+  const filePath = useDiffStore((s) => s.filePath);
+  const oldContent = useDiffStore((s) => s.oldContent);
+  const newContent = useDiffStore((s) => s.newContent);
+  const close = useDiffStore((s) => s.closeDiff);
 
   if (!filePath) return null;
 

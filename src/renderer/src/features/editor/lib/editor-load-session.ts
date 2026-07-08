@@ -1,4 +1,4 @@
-export interface EditorLoadToken {
+﻿export interface EditorLoadToken {
   groupId: string;
   tabId: string;
   path: string;
@@ -67,6 +67,7 @@ export function createFileOpenController(options: FileOpenControllerOptions) {
 
         // 读取期间标签可能已经切换文件，过期结果必须静默丢弃。
         if (!session.isCurrent(token)) {
+          request.onError?.(new Error("expired"));
           return;
         }
 
@@ -76,6 +77,7 @@ export function createFileOpenController(options: FileOpenControllerOptions) {
         }
       } catch (error) {
         if (!session.isCurrent(token)) {
+          request.onError?.(new Error("expired"));
           return;
         }
         request.onError?.(

@@ -1,4 +1,4 @@
-import {
+﻿import {
   useState,
   useCallback,
   useMemo,
@@ -1399,7 +1399,13 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
       const matchedTab = useEditorStore
         .getState()
         .panelGroups.flatMap((group) => group.tabs)
-        .find((tab) => tab.filePath === flatNode.key);
+        .find(
+          (tab) =>
+            tab.filePath === flatNode.key ||
+            (tab.filePath &&
+              normalizeTreePath(tab.filePath) ===
+                normalizeTreePath(flatNode.key)),
+        );
 
       if (!matchedTab) {
         break;

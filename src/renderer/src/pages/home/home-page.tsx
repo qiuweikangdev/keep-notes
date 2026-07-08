@@ -1,4 +1,4 @@
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+﻿import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { PanelRightOpen, Undo2, X } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -22,7 +22,6 @@ import {
   isDiffToastDetail,
 } from "@/features/diff/lib/diff-toast";
 import { useDiffStore } from "@/store/diff.store";
-import { useDiffPanelStore } from "@/features/diff/store/diff-panel.store";
 import { useTreeStore } from "@/store/tree.store";
 import { discardFileChanges } from "@/features/editor/lib/discard-file-changes";
 import {
@@ -69,7 +68,7 @@ function HomePageContent() {
     source: diffSource,
     closeDiff,
   } = useDiffStore();
-  const diffPanel = useDiffPanelStore();
+  const diffStore = useDiffStore();
   const { contentRef, resizeHandleProps, resetSize } = useResizableDialog();
 
   const electron = useElectron();
@@ -149,7 +148,7 @@ function HomePageContent() {
 
   const handleMoveToPanel = () => {
     if (!filePath) return;
-    diffPanel.open({ filePath, oldContent, newContent });
+    diffStore.openDiff(filePath, oldContent, newContent);
     closeDiff();
   };
 
@@ -244,7 +243,7 @@ function HomePageContent() {
             </div>
           </Panel>
 
-          {diffPanel.isOpen && (
+          {diffStore.isOpen && (
             <>
               <PanelResizeHandle
                 style={{
@@ -502,7 +501,7 @@ function DiffDialog({
                   onDiscard();
                 }}
                 onPointerDown={stopPropagation}
-                disabled={!Boolean(filePath && repositoryRoot)}
+                disabled={!(filePath && repositoryRoot)}
                 className="rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 disabled:opacity-40"
                 style={{ color: "var(--danger-color, #dc2626)" }}
               >
@@ -517,7 +516,7 @@ function DiffDialog({
                   onMoveToPanel();
                 }}
                 onPointerDown={stopPropagation}
-                disabled={!Boolean(filePath)}
+                disabled={!filePath}
                 className="rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 disabled:opacity-40"
                 style={{ color: "var(--text-muted)" }}
               >
