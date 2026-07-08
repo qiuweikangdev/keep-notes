@@ -1,3 +1,21 @@
+## [2.9.3](https://github.com/qiuweikangdev/keep-notes/compare/v2.9.2...v2.9.3) (2026-07-08)
+
+
+### Bug Fixes
+
+* normalized unordered list markup ([75b93d0](https://github.com/qiuweikangdev/keep-notes/commit/75b93d00d5a271d51afbff8cdfd5149b44b583a0))
+
+
+### Performance Improvements
+
+* optimize editor performance for large documents ([fedec5d](https://github.com/qiuweikangdev/keep-notes/commit/fedec5d176940dfddca327fd6fcc7adf85e372da))
+
+
+## Commit Summary
+
+- Compared with: v2.9.2
+- Total commits: 2
+
 ## [2.9.2](https://github.com/qiuweikangdev/keep-notes/compare/v2.9.1...v2.9.2) (2026-07-07)
 
 
