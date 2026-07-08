@@ -167,8 +167,10 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     getCommitDetail,
     getCommitFileContent,
   } = useElectron();
-  const { treeRoot, setSelectedKey, expandedKeys, setExpandedKeys } =
-    useTreeStore();
+  const treeRoot = useTreeStore((state) => state.treeRoot);
+  const setSelectedKey = useTreeStore((state) => state.setSelectedKey);
+  const expandedKeys = useTreeStore((state) => state.expandedKeys);
+  const setExpandedKeys = useTreeStore((state) => state.setExpandedKeys);
 
   const [isGitRepo, setIsGitRepo] = useState(false);
   const [currentBranch, setCurrentBranch] = useState("");
@@ -203,7 +205,9 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     unstaged: true,
   });
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
-  const { openDiff, closeDiff, updateContent } = useDiffStore();
+  const openDiff = useDiffStore((state) => state.openDiff);
+  const closeDiff = useDiffStore((state) => state.closeDiff);
+  const updateContent = useDiffStore((state) => state.updateContent);
 
   const currentDir = treeRoot?.key || "";
   const getCurrentDir = useCallback(() => currentDir, [currentDir]);

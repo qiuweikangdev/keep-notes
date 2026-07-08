@@ -13,7 +13,6 @@ import {
   DragResizeProvider,
   useDragResize,
 } from "@/components/drag-resize-provider";
-import { SettingsModal } from "@/features/settings";
 import { DiffViewer, DiffPanel } from "@/features/diff";
 import {
   DIFF_TOAST_AUTO_CLOSE_MS,
@@ -60,16 +59,14 @@ function HomePageContent() {
     handleDidMount,
   } = usePanel();
   const [isMaximized] = useState(false);
-  const {
-    isOpen,
-    isLoading,
-    oldContent,
-    newContent,
-    filePath,
-    source: diffSource,
-    closeDiff,
-  } = useDiffStore();
-  const diffStore = useDiffStore();
+  const isOpen = useDiffStore((state) => state.isOpen);
+  const isLoading = useDiffStore((state) => state.isLoading);
+  const oldContent = useDiffStore((state) => state.oldContent);
+  const newContent = useDiffStore((state) => state.newContent);
+  const filePath = useDiffStore((state) => state.filePath);
+  const diffSource = useDiffStore((state) => state.source);
+  const closeDiff = useDiffStore((state) => state.closeDiff);
+  const openDiff = useDiffStore((state) => state.openDiff);
   const { contentRef, resizeHandleProps, resetSize } = useResizableDialog();
 
   const electron = useElectron();
@@ -149,7 +146,7 @@ function HomePageContent() {
 
   const handleMoveToPanel = () => {
     if (!filePath) return;
-    diffStore.openDiff(filePath, oldContent, newContent);
+    openDiff(filePath, oldContent, newContent);
     closeDiff();
   };
 
@@ -244,7 +241,7 @@ function HomePageContent() {
             </div>
           </Panel>
 
-          {diffStore.isOpen && (
+          {isOpen && (
             <>
               <PanelResizeHandle
                 style={{
@@ -279,8 +276,6 @@ function HomePageContent() {
         onDiscard={handleRequestDiscard}
         onMoveToPanel={handleMoveToPanel}
       />
-
-      <SettingsModal />
 
       <ConfirmDialog
         open={confirmDiscardOpen}

@@ -41,7 +41,7 @@ function eventToKeyString(e: KeyboardEvent): string | null {
 export function App() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const appearance = useEditorStore((s) => s.appearance);
-  const { isSettingsOpen } = useUIStore();
+  const isSettingsOpen = useUIStore((state) => state.isSettingsOpen);
   const shortcuts = useShortcutsStore((s) => s.shortcuts);
   const loadReminders = useReminderStore((s) => s.loadReminders);
   const subscribeToReminderChanges = useReminderStore(

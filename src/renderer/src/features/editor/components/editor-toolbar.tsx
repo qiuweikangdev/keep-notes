@@ -25,6 +25,7 @@ import { areDiffContentsEqual } from "@/features/diff/lib/diff-content";
 import { hasNoHeadVersion, toGitRelativePath } from "../lib/editor-git-actions";
 import { flushEditorChange } from "../lib/editor-runtime";
 import { discardFileChanges } from "../lib/discard-file-changes";
+import { shouldFlushRichEditorBeforeAction } from "../lib/editor-large-document";
 
 interface EditorToolbarProps {
   groupId: string;
@@ -84,7 +85,11 @@ export function EditorToolbar({
   const handleModeChange = useCallback(
     async (mode: EditorMode) => {
       if (!tab || tab.mode === mode) return;
-      if (tab.mode === "rich" && mode === "source") {
+      if (
+        tab.mode === "rich" &&
+        mode === "source" &&
+        shouldFlushRichEditorBeforeAction(tab.content)
+      ) {
         await flushEditorChange(groupId, tab.id);
       }
       if (mode === "rich") {
@@ -99,26 +104,17 @@ export function EditorToolbar({
     if (!tab?.filePath || !repositoryRoot) return;
     const filePath = tab.filePath;
 
-    // 等待 BlockNote 组件注册的 flusher 把未落盘编辑同步到 store。
-    await flushEditorChange(groupId, tab.id);
+    // 大文档富文本序列化会阻塞主线程；小文档才同步 flush，保证菜单和弹窗先响应。
+    if (tab.mode === "rich" && shouldFlushRichEditorBeforeAction(tab.content)) {
+      await flushEditorChange(groupId, tab.id);
+    }
 
-    // 条件等待：编辑器首次打开时，parseMarkdown 异步完成后才会通过 serializeChange
-    // 把内容写回 store。这里轮询直到所有 group 中匹配 filePath 的 tab.content 非空为止。
-    const startTime = Date.now();
-    const MAX_WAIT_MS = 2000;
-    let matchedTab = useEditorStore
+    // 直接使用当前标签快照；大文档不再为了 diff 弹窗强制等待整文序列化。
+    const matchedTab = useEditorStore
       .getState()
       .panelGroups.flatMap((g) => g.tabs)
-      .find((t) => t.filePath === filePath);
-    while (Date.now() - startTime < MAX_WAIT_MS) {
-      if (matchedTab && matchedTab.content !== "") break;
-      await new Promise((r) => setTimeout(r, 50));
-      matchedTab = useEditorStore
-        .getState()
-        .panelGroups.flatMap((g) => g.tabs)
-        .find((t) => t.filePath === filePath);
-    }
-    const editorContent = matchedTab?.content ?? "";
+      .find((t) => t.id === tab.id);
+    const editorContent = matchedTab?.content ?? tab.content;
 
     const relativePath = toGitRelativePath(repositoryRoot, filePath);
     const result = await getFileHeadContent(repositoryRoot, relativePath);

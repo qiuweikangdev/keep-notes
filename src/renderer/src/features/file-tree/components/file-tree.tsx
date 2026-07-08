@@ -71,9 +71,6 @@ const MENU_SEPARATOR_CLASS = "my-1 h-px bg-[var(--border-color)]";
 const TOOL_BUTTON_CLASS =
   "flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md transition-colors";
 const ROW_HEIGHT = 28; // 7 * 4 = 28px (h-7)
-const DIFF_EDITOR_CONTENT_WAIT_MS = 2000;
-const DIFF_EDITOR_CONTENT_POLL_MS = 50;
-
 interface CreatingInfo {
   type: "file" | "folder";
   parentKey: string;
@@ -1247,7 +1244,9 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
     state.expandedKeys.has(flatNode.key),
   );
   const { renameItem, moveItem, getFileHeadContent } = useElectron();
-  const { openDiff, closeDiff, updateContent } = useDiffStore();
+  const openDiff = useDiffStore((state) => state.openDiff);
+  const closeDiff = useDiffStore((state) => state.closeDiff);
+  const updateContent = useDiffStore((state) => state.updateContent);
   const dropTargetFolderPath = flatNode.isFolder
     ? flatNode.key
     : flatNode.parentKey;
@@ -1394,34 +1393,18 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
   );
 
   const readEditorContentForDiff = useCallback(async () => {
-    const startTime = Date.now();
-
-    while (Date.now() - startTime < DIFF_EDITOR_CONTENT_WAIT_MS) {
-      const matchedTab = useEditorStore
-        .getState()
-        .panelGroups.flatMap((group) => group.tabs)
-        .find(
-          (tab) =>
-            tab.filePath === flatNode.key ||
-            (tab.filePath &&
-              normalizeTreePath(tab.filePath) ===
-                normalizeTreePath(flatNode.key)),
-        );
-
-      if (!matchedTab) {
-        break;
-      }
-
-      if (matchedTab.content) {
-        return matchedTab.content;
-      }
-
-      await new Promise((resolve) =>
-        setTimeout(resolve, DIFF_EDITOR_CONTENT_POLL_MS),
+    const matchedTab = useEditorStore
+      .getState()
+      .panelGroups.flatMap((group) => group.tabs)
+      .find(
+        (tab) =>
+          tab.filePath === flatNode.key ||
+          (tab.filePath &&
+            normalizeTreePath(tab.filePath) ===
+              normalizeTreePath(flatNode.key)),
       );
-    }
 
-    return window.electronAPI.readFile(flatNode.key);
+    return matchedTab?.content || window.electronAPI.readFile(flatNode.key);
   }, [flatNode.key]);
 
   // 打开文件差异弹窗，并用 HEAD 版本与当前工作区内容填充对比数据。

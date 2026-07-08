@@ -6,7 +6,8 @@ import { getThemeConfig, resolveTheme, type ThemeName } from "@/config/themes";
 const THEME_CLASSES = ["light", "dark", "nord", "dracula", "solarized"];
 
 export function useTheme() {
-  const { theme, setTheme } = useUIStore();
+  const theme = useUIStore((state) => state.theme);
+  const setTheme = useUIStore((state) => state.setTheme);
   // 跟踪系统实际应用的主题（用于 system 模式下的 UI 显示）
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">(() =>
     resolveTheme(theme),

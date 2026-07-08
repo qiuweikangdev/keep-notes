@@ -40,8 +40,9 @@ interface TitleBarProps {
 }
 
 export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
-  const { setSettingsOpen } = useUIStore();
-  const { appearance, setAppearance } = useEditorStore();
+  const setSettingsOpen = useUIStore((state) => state.setSettingsOpen);
+  const appearance = useEditorStore((state) => state.appearance);
+  const setAppearance = useEditorStore((state) => state.setAppearance);
   const { isDark, toggleTheme } = useTheme();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isGitOpen, setIsGitOpen] = useState(false);
@@ -52,7 +53,7 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
   const titleBarRef = useRef<HTMLDivElement>(null);
   const { detectGitRepo, openFile } = useElectron();
 
-  const { treeRoot } = useTreeStore();
+  const treeRoot = useTreeStore((state) => state.treeRoot);
   const openReminderList = useReminderStore((state) => state.openList);
   const externalOpenTargetPath = resolveExternalOpenTargetPath(treeRoot?.key);
   const effectiveExternalOpenApp = resolveEffectiveExternalOpenApp(

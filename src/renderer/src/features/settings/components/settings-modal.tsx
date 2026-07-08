@@ -116,7 +116,8 @@ function isExportSettingsDropdownEvent(event: Event): boolean {
 }
 
 export function SettingsModal() {
-  const { isSettingsOpen, setSettingsOpen } = useUIStore();
+  const isSettingsOpen = useUIStore((state) => state.isSettingsOpen);
+  const setSettingsOpen = useUIStore((state) => state.setSettingsOpen);
   const appearance = useEditorStore((s) => s.appearance);
   const setAppearance = useEditorStore((s) => s.setAppearance);
   const { theme, setTheme } = useTheme();

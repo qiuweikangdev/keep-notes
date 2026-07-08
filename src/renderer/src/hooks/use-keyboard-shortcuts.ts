@@ -108,16 +108,13 @@ export function useKeyboardShortcuts() {
   const { openFolder } = useElectron();
   const { toggleCollapse } = usePanel();
   const { toggleTheme } = useTheme();
-  const { treeRoot, treeData } = useTreeStore();
-  const {
-    filePath,
-    setFilePath,
-    resetEditor,
-    panelGroups,
-    activeGroupId,
-    removeTab,
-  } = useEditorStore();
-  const { isSettingsOpen, setSettingsOpen } = useUIStore();
+  const treeRoot = useTreeStore((state) => state.treeRoot);
+  const treeData = useTreeStore((state) => state.treeData);
+  const setFilePath = useEditorStore((state) => state.setFilePath);
+  const resetEditor = useEditorStore((state) => state.resetEditor);
+  const removeTab = useEditorStore((state) => state.removeTab);
+  const isSettingsOpen = useUIStore((state) => state.isSettingsOpen);
+  const setSettingsOpen = useUIStore((state) => state.setSettingsOpen);
   const shortcutMap = useShortcutMap();
 
   const saveActiveEditorAs = useCallback(async () => {
@@ -182,10 +179,13 @@ export function useKeyboardShortcuts() {
 
         case "closeTab": {
           e.preventDefault();
-          const activeGroup = panelGroups.find((g) => g.id === activeGroupId);
+          const state = useEditorStore.getState();
+          const activeGroup = state.panelGroups.find(
+            (g) => g.id === state.activeGroupId,
+          );
           if (activeGroup) {
             removeTab(activeGroup.id, activeGroup.activeTabId);
-          } else if (filePath) {
+          } else if (state.filePath) {
             setFilePath(null);
             resetEditor();
           }
@@ -228,13 +228,10 @@ export function useKeyboardShortcuts() {
       openFolder,
       treeRoot,
       treeData,
-      filePath,
       setFilePath,
       resetEditor,
       toggleCollapse,
       toggleTheme,
-      panelGroups,
-      activeGroupId,
       removeTab,
       isSettingsOpen,
       saveActiveEditorFile,
@@ -277,10 +274,13 @@ export function useKeyboardShortcuts() {
           break;
 
         case "closeTab": {
-          const activeGroup = panelGroups.find((g) => g.id === activeGroupId);
+          const state = useEditorStore.getState();
+          const activeGroup = state.panelGroups.find(
+            (g) => g.id === state.activeGroupId,
+          );
           if (activeGroup) {
             removeTab(activeGroup.id, activeGroup.activeTabId);
-          } else if (filePath) {
+          } else if (state.filePath) {
             setFilePath(null);
             resetEditor();
           }
@@ -310,10 +310,7 @@ export function useKeyboardShortcuts() {
   }, [
     treeRoot,
     treeData,
-    filePath,
     openFolder,
-    panelGroups,
-    activeGroupId,
     removeTab,
     setFilePath,
     resetEditor,

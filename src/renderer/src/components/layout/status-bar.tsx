@@ -1,7 +1,9 @@
 import { useEditorStore } from "@/store/editor.store";
 
 export function StatusBar() {
-  const { wordCount, filePath, isDirty } = useEditorStore();
+  const wordCount = useEditorStore((state) => state.wordCount);
+  const filePath = useEditorStore((state) => state.filePath);
+  const isDirty = useEditorStore((state) => state.isDirty);
 
   return (
     <div

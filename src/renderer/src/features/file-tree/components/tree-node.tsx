@@ -92,7 +92,9 @@ export const TreeNode = memo(function TreeNode({
     openInNewWindow,
     getFileHeadContent,
   } = useElectron();
-  const { openDiff, closeDiff, updateContent } = useDiffStore();
+  const openDiff = useDiffStore((state) => state.openDiff);
+  const closeDiff = useDiffStore((state) => state.closeDiff);
+  const updateContent = useDiffStore((state) => state.updateContent);
 
   const [isHovered, setIsHovered] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
@@ -418,21 +420,11 @@ export const TreeNode = memo(function TreeNode({
     const filePath = node.key;
 
     try {
-      // 条件等待：编辑器首次打开时，parseMarkdown 异步完成后才把内容写回 store。
-      const startTime = Date.now();
-      const MAX_WAIT_MS = 2000;
-      let matchedTab = useEditorStore
+      // 直接读取当前标签快照；没有打开时再回退到磁盘内容。
+      const matchedTab = useEditorStore
         .getState()
         .panelGroups.flatMap((g) => g.tabs)
         .find((t) => t.filePath === filePath);
-      while (Date.now() - startTime < MAX_WAIT_MS) {
-        if (matchedTab && matchedTab.content !== "") break;
-        await new Promise((r) => setTimeout(r, 50));
-        matchedTab = useEditorStore
-          .getState()
-          .panelGroups.flatMap((g) => g.tabs)
-          .find((t) => t.filePath === filePath);
-      }
       let editorContent = matchedTab?.content ?? "";
       // 内存中不存在时回退到磁盘内容（已落盘版本）。
       if (!editorContent) {

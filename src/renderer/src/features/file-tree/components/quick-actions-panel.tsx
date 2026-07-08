@@ -16,7 +16,9 @@ interface QuickActionsPanelProps {
 }
 
 export function QuickActionsPanel({ onClose }: QuickActionsPanelProps) {
-  const { treeRoot, recentFolders, removeRecentFolder } = useTreeStore();
+  const treeRoot = useTreeStore((state) => state.treeRoot);
+  const recentFolders = useTreeStore((state) => state.recentFolders);
+  const removeRecentFolder = useTreeStore((state) => state.removeRecentFolder);
   const { openFolder, loadTree, openInExplorer } = useElectron();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);

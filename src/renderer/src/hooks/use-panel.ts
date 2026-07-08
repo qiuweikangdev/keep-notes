@@ -8,7 +8,8 @@ const sharedPanelRef: MutableRefObject<ImperativePanelHandle | null> = {
 };
 
 export function usePanel() {
-  const { panelSize, setPanelSize } = useUIStore();
+  const panelSize = useUIStore((state) => state.panelSize);
+  const setPanelSize = useUIStore((state) => state.setPanelSize);
   const panelRef = sharedPanelRef;
   const [collapsed, setCollapsed] = useState(false);
 
