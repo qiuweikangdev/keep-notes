@@ -231,7 +231,9 @@ export class EditorInstanceRegistry {
         ...transaction.steps.map((step) => step.toJSON()),
       );
       target.pendingRevision = nextRevision;
-      target.onSynchronizationPending?.();
+      if (target.standby) {
+        target.onSynchronizationPending?.();
+      }
       if (!target.cancelPendingSynchronization) {
         target.cancelPendingSynchronization = this.schedule(() => {
           target.cancelPendingSynchronization = null;

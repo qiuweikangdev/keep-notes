@@ -34,7 +34,6 @@ interface EditorToolbarProps {
   onSplitRight: () => void;
   onSplitDown: () => void;
   splitDisabled?: boolean;
-  splitDisabledReason?: string;
 }
 
 export function EditorToolbar({
@@ -43,7 +42,6 @@ export function EditorToolbar({
   onSplitRight,
   onSplitDown,
   splitDisabled = false,
-  splitDisabledReason,
 }: EditorToolbarProps) {
   useEditorStore(selectEditorToolbarSignature(groupId));
   const group = useEditorStore
@@ -252,11 +250,7 @@ export function EditorToolbar({
             <EditorActionMenuItem
               icon={<SplitSquareHorizontal className="h-3.5 w-3.5" />}
               disabled={splitDisabled}
-              title={
-                splitDisabled
-                  ? (splitDisabledReason ?? "正在准备大文档拆分")
-                  : undefined
-              }
+              title={splitDisabled ? "正在准备大文档拆分" : undefined}
               onSelect={onSplitRight}
             >
               向右拆分面板
@@ -264,11 +258,7 @@ export function EditorToolbar({
             <EditorActionMenuItem
               icon={<SplitSquareVertical className="h-3.5 w-3.5" />}
               disabled={splitDisabled}
-              title={
-                splitDisabled
-                  ? (splitDisabledReason ?? "正在准备大文档拆分")
-                  : undefined
-              }
+              title={splitDisabled ? "正在准备大文档拆分" : undefined}
               onSelect={onSplitDown}
             >
               向下拆分面板

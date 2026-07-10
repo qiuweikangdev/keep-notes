@@ -143,6 +143,42 @@ describe("EditorInstanceRegistry", () => {
     expect(source.document[0].content).toEqual(claimedPeer.document[0].content);
   });
 
+  it("does not publish warmup status for a claimed visible peer", () => {
+    const scheduled: Array<() => void> = [];
+    const registry = new EditorInstanceRegistry({
+      schedule: (callback) => {
+        scheduled.push(callback);
+        return () => {};
+      },
+    });
+    const source = createEditor();
+    const peer = createEditor();
+    const onSynchronizationPending = vi.fn();
+
+    registry.register({
+      groupId: "group-1",
+      tabId: "tab-1",
+      path: "note.md",
+      editor: source,
+    });
+    registry.register({
+      groupId: "group-2",
+      tabId: "tab-2",
+      path: "note.md",
+      editor: peer,
+      standby: true,
+      mirrorSourceGroupId: "group-1",
+      mirrorSourceTabId: "tab-1",
+      onSynchronizationPending,
+    });
+    registry.setStandby("group-2", "tab-2", false);
+
+    source.updateBlock("shared-block", { content: "updated" });
+
+    expect(onSynchronizationPending).not.toHaveBeenCalled();
+    expect(scheduled).toHaveLength(1);
+  });
+
   it("reports a stale peer instead of claiming a divergent document", () => {
     const registry = new EditorInstanceRegistry();
     const source = createEditor("a much longer source document");

@@ -22,7 +22,6 @@ import {
 } from "../lib/editor-drag-session";
 import { EditorPanelSurfaceRegistry } from "../lib/editor-panel-surface-registry";
 import { editorInstanceRegistry } from "../lib/editor-instance-registry";
-import { shouldPrepareSplitWarmup } from "../lib/editor-split-warmup";
 
 // 支持的文件扩展名
 const SUPPORTED_EXTENSIONS = [".md", ".txt"];
@@ -331,13 +330,6 @@ function selectSplitWarmupManagerSignature(
   const activeTab = activeGroup?.tabs.find(
     (tab) => tab.id === activeGroup.activeTabId,
   );
-  const visibleDocumentCopies = activeTab?.filePath
-    ? state.panelGroups.filter((group) => {
-        if (isSplitWarmupGroup(group)) return false;
-        const tab = group.tabs.find((item) => item.id === group.activeTabId);
-        return tab?.filePath === activeTab.filePath && tab.mode === "rich";
-      }).length
-    : 0;
   const warmup = state.panelGroups.find(isSplitWarmupGroup);
   return [
     activeGroup?.id ?? "",
@@ -346,8 +338,6 @@ function selectSplitWarmupManagerSignature(
     activeTab?.mode ?? "",
     activeTab?.loadStatus ?? "",
     activeTab?.reloadKey ?? "",
-    activeTab?.content.length ?? "",
-    visibleDocumentCopies,
     warmup?.id ?? "",
     warmup?.splitWarmup?.sourceGroupId ?? "",
     warmup?.splitWarmup?.sourceTabId ?? "",
@@ -382,13 +372,6 @@ function SplitWarmupManager() {
     const activeTab = activeGroup?.tabs.find(
       (tab) => tab.id === activeGroup.activeTabId,
     );
-    const visibleDocumentCopies = activeTab?.filePath
-      ? state.panelGroups.filter((group) => {
-          if (isSplitWarmupGroup(group)) return false;
-          const tab = group.tabs.find((item) => item.id === group.activeTabId);
-          return tab?.filePath === activeTab.filePath && tab.mode === "rich";
-        }).length
-      : 0;
     const warmup = state.panelGroups.find(isSplitWarmupGroup);
     for (const group of state.panelGroups) {
       if (!isSplitWarmupGroup(group)) {
@@ -399,11 +382,7 @@ function SplitWarmupManager() {
       activeGroup &&
       activeTab?.filePath &&
       activeTab.mode === "rich" &&
-      activeTab.loadStatus === "ready" &&
-      shouldPrepareSplitWarmup({
-        documentLength: activeTab.content.length,
-        visibleDocumentCopies,
-      });
+      activeTab.loadStatus === "ready";
 
     if (!canWarm) {
       if (!warmup) return;

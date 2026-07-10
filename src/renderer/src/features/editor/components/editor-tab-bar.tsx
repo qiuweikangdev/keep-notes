@@ -16,7 +16,6 @@ import {
   isEditorFileDrag,
 } from "../lib/editor-drag-session";
 import { selectTabBarSignature } from "../lib/editor-view-selectors";
-import { shouldPrepareSplitWarmup } from "../lib/editor-split-warmup";
 import { EditorToolbar } from "./editor-toolbar";
 
 // 支持的文件扩展名
@@ -49,19 +48,6 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
     ) {
       return "ready";
     }
-    const visibleDocumentCopies = state.panelGroups.filter((group) => {
-      if (group.splitWarmup) return false;
-      const tab = group.tabs.find((item) => item.id === group.activeTabId);
-      return tab?.filePath === sourceTab.filePath && tab.mode === "rich";
-    }).length;
-    if (
-      !shouldPrepareSplitWarmup({
-        documentLength: sourceTab.content.length,
-        visibleDocumentCopies,
-      })
-    ) {
-      return "limit";
-    }
     return (
       state.panelGroups.find(
         (item) =>
@@ -82,12 +68,7 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
   } | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const splitDisabled = splitWarmupStatus !== "ready";
-  const splitDisabledTitle =
-    splitWarmupStatus === "limit"
-      ? "大文档最多同时打开两个高性能面板"
-      : splitDisabled
-        ? "正在准备大文档拆分"
-        : undefined;
+  const splitDisabledTitle = splitDisabled ? "正在准备大文档拆分" : undefined;
 
   // 关闭右键菜单
   useEffect(() => {
@@ -302,7 +283,6 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
             onSplitRight={handleSplitRight}
             onSplitDown={handleSplitDown}
             splitDisabled={splitDisabled}
-            splitDisabledReason={splitDisabledTitle}
           />
         </div>
       )}
