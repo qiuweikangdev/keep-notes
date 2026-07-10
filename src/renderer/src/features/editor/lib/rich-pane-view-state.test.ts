@@ -26,7 +26,7 @@ describe("RichPaneViewStateRegistry", () => {
     });
   });
 
-  it("returns immutable top-level view state snapshots", () => {
+  it("returns immutable view state snapshots", () => {
     const states = new RichPaneViewStateRegistry();
     states.patch("g1:t1", {
       scrollTop: 120,
@@ -40,9 +40,33 @@ describe("RichPaneViewStateRegistry", () => {
     const snapshot = states.read("g1:t1");
 
     snapshot.scrollTop = 999;
+    if (!snapshot.selection) throw new Error("Expected a selection snapshot");
+    snapshot.selection.headOffset = 99;
 
     expect(states.read("g1:t1").scrollTop).toBe(120);
     expect(states.read("g1:t1").selection?.headOffset).toBe(4);
+  });
+
+  it("isolates a shared selection input between pane states", () => {
+    const states = new RichPaneViewStateRegistry();
+    const selection = {
+      anchorBlockId: "block-a",
+      anchorOffset: 2,
+      headBlockId: "block-b",
+      headOffset: 4,
+    };
+    states.patch("g1:t1", { selection });
+    states.patch("g2:t2", { selection });
+
+    selection.headOffset = 40;
+    const firstSnapshot = states.read("g1:t1");
+    if (!firstSnapshot.selection) {
+      throw new Error("Expected the first pane selection");
+    }
+    firstSnapshot.selection.headOffset = 99;
+
+    expect(states.read("g1:t1").selection?.headOffset).toBe(4);
+    expect(states.read("g2:t2").selection?.headOffset).toBe(4);
   });
 
   it("deletes one pane without changing another pane", () => {
