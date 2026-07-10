@@ -199,7 +199,7 @@ export function EditorToolbar({
           </ModeButton>
         </div>
       ) : null}
-      <DropdownMenu.Root>
+      <DropdownMenu.Root modal={false}>
         <DropdownMenu.Trigger asChild>
           <button
             type="button"

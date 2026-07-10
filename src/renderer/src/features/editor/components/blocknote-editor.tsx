@@ -839,26 +839,34 @@ function BlockNoteEditorInner({
     if (serializationCancelRef.current) {
       serializationCancelRef.current();
     }
-    // 大文档自适应延长序列化间隔，降低主线程阻塞频率。
+    // 大文档序列化会占用主线程；后台保存让位给弹窗、菜单等即时交互。
     const docLength = contentRef.current.length;
     const idleTimeout =
-      docLength > 12000 ? 5000 : docLength > 6000 ? 3000 : 1800;
+      docLength > 20000
+        ? 15000
+        : docLength > 12000
+          ? 9000
+          : docLength > 6000
+            ? 3000
+            : 1800;
     serializationCancelRef.current = scheduleEditorIdleTask(() => {
       serializationCancelRef.current = null;
       void serializeChange();
     }, idleTimeout);
 
-    // 更新大纲标题列表到 store
+    // 大纲提取同样会遍历整棵文档树，大文档下延后执行，避免抢占点击反馈。
     if (outlineUpdateCancelRef.current) {
       outlineUpdateCancelRef.current();
     }
+    const outlineIdleTimeout =
+      docLength > 20000 ? 12000 : docLength > 12000 ? 7000 : 1500;
     outlineUpdateCancelRef.current = scheduleEditorIdleTask(() => {
       outlineUpdateCancelRef.current = null;
       if (!isActiveEditorRef.current) return;
       if (serializationInFlightRef.current) return;
 
       updateOutlineHeadings();
-    }, 1500);
+    }, outlineIdleTimeout);
   }, editor);
 
   useEffect(() => {
