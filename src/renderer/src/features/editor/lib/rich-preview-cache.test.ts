@@ -104,6 +104,38 @@ describe("RichPreviewCache", () => {
     expect(cache.getBlockSnapshot("block-b")?.html).toContain("changed");
   });
 
+  it("refreshes every block affected by a mark-only transaction", () => {
+    const {
+      source,
+      cache,
+      scheduled,
+      exportedIds,
+      getBlock,
+      blocksToFullHTML,
+    } = createHarness();
+
+    // oxlint-disable-next-line eslint/no-underscore-dangle
+    source._tiptapEditor.commands.selectAll();
+    source.addStyles({ bold: true });
+
+    expect(scheduled).toHaveLength(1);
+    expect(cache.getSnapshot().revision).toBe(0);
+    expect(getBlock).not.toHaveBeenCalled();
+    expect(blocksToFullHTML).not.toHaveBeenCalled();
+
+    scheduled[0]();
+
+    expect(exportedIds).toEqual(["block-a", "block-b"]);
+    expect(getBlock).toHaveBeenCalledTimes(2);
+    expect(blocksToFullHTML).toHaveBeenCalledTimes(2);
+    expect(cache.getBlockSnapshot("block-a")?.html).toContain(
+      "<strong>alpha</strong>",
+    );
+    expect(cache.getBlockSnapshot("block-b")?.html).toContain(
+      "<strong>beta</strong>",
+    );
+  });
+
   it("updates order and HTML when a block is inserted", () => {
     const { source, cache, scheduled } = createHarness();
     const documentListener = vi.fn();

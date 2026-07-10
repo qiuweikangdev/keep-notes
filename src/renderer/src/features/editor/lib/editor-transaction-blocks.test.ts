@@ -31,6 +31,16 @@ function captureTransaction(
   return captured;
 }
 
+function hasMappedRange(transaction: Transaction): boolean {
+  return transaction.steps.some((step) => {
+    let hasRange = false;
+    step.getMap().forEach(() => {
+      hasRange = true;
+    });
+    return hasRange;
+  });
+}
+
 describe("collectChangedTopLevelBlocks", () => {
   it("collects the containing block for a text transaction", () => {
     const editor = createEditor();
@@ -45,6 +55,41 @@ describe("collectChangedTopLevelBlocks", () => {
     expect(collectChangedTopLevelBlocks(transaction).changedIds).toEqual(
       new Set(["block-a"]),
     );
+  });
+
+  it("collects all selected blocks for mark-only style transactions", () => {
+    const editor = createEditor();
+    const addMarkTransaction = captureTransaction(editor, () => {
+      // oxlint-disable-next-line eslint/no-underscore-dangle
+      editor._tiptapEditor.commands.selectAll();
+      editor.addStyles({ bold: true });
+    });
+
+    expect(
+      addMarkTransaction.steps.map((step) => step.constructor.name),
+    ).toEqual(["AddMarkStep", "AddMarkStep"]);
+    expect(hasMappedRange(addMarkTransaction)).toBe(false);
+    expect(collectChangedTopLevelBlocks(addMarkTransaction)).toEqual({
+      changedIds: new Set(["block-a", "block-b"]),
+      structureChanged: false,
+      order: ["block-a", "block-b"],
+    });
+
+    const removeMarkTransaction = captureTransaction(editor, () => {
+      // oxlint-disable-next-line eslint/no-underscore-dangle
+      editor._tiptapEditor.commands.selectAll();
+      editor.removeStyles({ bold: true });
+    });
+
+    expect(
+      removeMarkTransaction.steps.map((step) => step.constructor.name),
+    ).toEqual(["RemoveMarkStep"]);
+    expect(hasMappedRange(removeMarkTransaction)).toBe(false);
+    expect(collectChangedTopLevelBlocks(removeMarkTransaction)).toEqual({
+      changedIds: new Set(["block-a", "block-b"]),
+      structureChanged: false,
+      order: ["block-a", "block-b"],
+    });
   });
 
   it("reports the exact final order after inserting a block", () => {

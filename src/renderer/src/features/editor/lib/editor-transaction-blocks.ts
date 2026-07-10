@@ -69,6 +69,22 @@ function blockIdsAcrossRange(
   return ids;
 }
 
+function collectChangedIdsAcrossRange(
+  before: ProseMirrorNode,
+  after: ProseMirrorNode,
+  oldStart: number,
+  oldEnd: number,
+  newStart: number,
+  newEnd: number,
+  changedIds: Set<string>,
+): boolean {
+  const oldIds = blockIdsAcrossRange(before, oldStart, oldEnd);
+  const newIds = blockIdsAcrossRange(after, newStart, newEnd);
+  oldIds.forEach((id) => changedIds.add(id));
+  newIds.forEach((id) => changedIds.add(id));
+  return [...oldIds].join("\u001f") !== [...newIds].join("\u001f");
+}
+
 export function collectChangedTopLevelBlocks(
   transaction: Transaction,
 ): ChangedTopLevelBlocks {
@@ -79,15 +95,43 @@ export function collectChangedTopLevelBlocks(
   transaction.steps.forEach((step, index) => {
     const before = transaction.docs[index];
     const after = transaction.docs[index + 1] ?? transaction.doc;
+    let hasMappedRange = false;
     step.getMap().forEach((oldStart, oldEnd, newStart, newEnd) => {
-      const oldIds = blockIdsAcrossRange(before, oldStart, oldEnd);
-      const newIds = blockIdsAcrossRange(after, newStart, newEnd);
-      oldIds.forEach((id) => changedIds.add(id));
-      newIds.forEach((id) => changedIds.add(id));
-      if ([...oldIds].join("\u001f") !== [...newIds].join("\u001f")) {
+      hasMappedRange = true;
+      if (
+        collectChangedIdsAcrossRange(
+          before,
+          after,
+          oldStart,
+          oldEnd,
+          newStart,
+          newEnd,
+          changedIds,
+        )
+      ) {
         structureChanged = true;
       }
     });
+
+    if (hasMappedRange || before.eq(after)) return;
+
+    // AddMarkStep / RemoveMarkStep 的 StepMap 为空，需从前后 ProseMirror 文档差异定位受影响块。
+    const diffStart = before.content.findDiffStart(after.content);
+    if (diffStart === null) return;
+    const diffEnd = before.content.findDiffEnd(after.content);
+    if (
+      collectChangedIdsAcrossRange(
+        before,
+        after,
+        diffStart,
+        diffEnd?.a ?? diffStart,
+        diffStart,
+        diffEnd?.b ?? diffStart,
+        changedIds,
+      )
+    ) {
+      structureChanged = true;
+    }
   });
 
   return {
