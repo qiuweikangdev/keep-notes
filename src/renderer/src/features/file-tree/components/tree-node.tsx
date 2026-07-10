@@ -537,7 +537,7 @@ export const TreeNode = memo(function TreeNode({
 
   return (
     <>
-      <ContextMenu.Root>
+      <ContextMenu.Root modal={false}>
         <ContextMenu.Trigger asChild>
           <div ref={rowRef} className="px-2">
             <div

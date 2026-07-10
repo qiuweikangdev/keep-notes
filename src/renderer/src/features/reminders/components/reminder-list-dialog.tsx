@@ -38,7 +38,6 @@ function isReminderNestedPortalTarget(target: EventTarget | null): boolean {
 export function ReminderListDialog() {
   const reminders = useReminderStore((state) => state.reminders);
   const isListOpen = useReminderStore((state) => state.isListOpen);
-  const isEditorOpen = useReminderStore((state) => state.isEditorOpen);
   const closeList = useReminderStore((state) => state.closeList);
   const openCreateDialog = useReminderStore((state) => state.openCreateDialog);
   const openEditDialog = useReminderStore((state) => state.openEditDialog);
@@ -87,7 +86,7 @@ export function ReminderListDialog() {
   return (
     <>
       <Dialog.Root
-        modal={!isEditorOpen}
+        modal={false}
         open={isListOpen}
         onOpenChange={(open) => {
           if (!open) closeList();

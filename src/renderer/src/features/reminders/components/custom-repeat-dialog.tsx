@@ -86,7 +86,7 @@ export function CustomRepeatDialog({
   };
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+    <Dialog.Root modal={false} open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay
           className="fixed inset-0 z-[70]"

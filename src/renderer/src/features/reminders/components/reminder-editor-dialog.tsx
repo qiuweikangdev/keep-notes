@@ -237,7 +237,7 @@ export function ReminderEditorDialog() {
 
   return (
     <>
-      <Dialog.Root open={isEditorOpen} onOpenChange={closeEditor}>
+      <Dialog.Root modal={false} open={isEditorOpen} onOpenChange={closeEditor}>
         <DialogContent
           className="z-[60] max-w-[480px] gap-0 overflow-visible rounded-xl p-0 shadow-2xl"
           data-reminder-editor-dialog="true"

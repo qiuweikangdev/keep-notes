@@ -614,7 +614,7 @@ export function FileTree() {
   }
 
   return (
-    <ContextMenu.Root>
+    <ContextMenu.Root modal={false}>
       <ContextMenu.Trigger asChild>
         <div
           className="relative flex h-full flex-col"
@@ -808,7 +808,7 @@ export function FileTree() {
                 ) : null}
 
                 {/* 根节点 */}
-                <ContextMenu.Root>
+                <ContextMenu.Root modal={false}>
                   <ContextMenu.Trigger asChild>
                     <div className="px-2">
                       <div
@@ -1489,7 +1489,7 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
         willChange: "transform",
       }}
     >
-      <ContextMenu.Root>
+      <ContextMenu.Root modal={false}>
         <ContextMenu.Trigger asChild>
           <div className="px-2">
             <div

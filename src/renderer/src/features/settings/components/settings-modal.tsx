@@ -255,7 +255,7 @@ export function SettingsModal() {
                 label="默认打开目标"
                 description="默认打开文件和文件夹的位置"
               >
-                <DropdownMenu.Root>
+                <DropdownMenu.Root modal={false}>
                   <DropdownMenu.Trigger asChild>
                     <button
                       type="button"
@@ -716,7 +716,11 @@ export function SettingsModal() {
   };
 
   return (
-    <Dialog.Root open={isSettingsOpen} onOpenChange={handleOpenChange}>
+    <Dialog.Root
+      modal={false}
+      open={isSettingsOpen}
+      onOpenChange={handleOpenChange}
+    >
       <DialogContent
         className="sm:max-w-[780px] sm:max-h-[640px] overflow-visible p-0"
         onInteractOutside={(event) => {

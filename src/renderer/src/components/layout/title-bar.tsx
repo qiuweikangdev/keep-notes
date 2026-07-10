@@ -479,7 +479,7 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
                   className="h-4 w-4"
                 />
               </button>
-              <DropdownMenu.Root>
+              <DropdownMenu.Root modal={false}>
                 <DropdownMenu.Trigger asChild>
                   <button
                     type="button"
