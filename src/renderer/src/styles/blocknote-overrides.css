@@ -700,3 +700,19 @@
   background-color: var(--accent-color) !important;
   color: #ffffff !important;
 }
+
+/* 被动窗格只布局可见富文本块，并隔离其重排与绘制。 */
+.rich-virtual-preview {
+  contain: layout style paint;
+  overflow: auto;
+}
+
+.rich-virtual-preview__block {
+  contain: layout style;
+  width: 100%;
+}
+
+.rich-virtual-preview .bn-editor {
+  background: transparent !important;
+  padding-inline: var(--editor-padding);
+}
