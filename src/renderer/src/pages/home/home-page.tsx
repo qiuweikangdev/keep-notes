@@ -22,6 +22,7 @@ import {
 } from "@/features/diff/lib/diff-toast";
 import { areDiffContentsEqual } from "@/features/diff/lib/diff-content";
 import { useDiffStore } from "@/store/diff.store";
+import { useDiffPanelStore } from "@/features/diff/store/diff-panel.store";
 import { useTreeStore } from "@/store/tree.store";
 import { discardFileChanges } from "@/features/editor/lib/discard-file-changes";
 import {
@@ -66,7 +67,8 @@ function HomePageContent() {
   const filePath = useDiffStore((state) => state.filePath);
   const diffSource = useDiffStore((state) => state.source);
   const closeDiff = useDiffStore((state) => state.closeDiff);
-  const openDiff = useDiffStore((state) => state.openDiff);
+  const isDiffPanelOpen = useDiffPanelStore((state) => state.isOpen);
+  const openDiffPanel = useDiffPanelStore((state) => state.open);
   const { contentRef, resizeHandleProps, resetSize } = useResizableDialog();
 
   const electron = useElectron();
@@ -146,7 +148,8 @@ function HomePageContent() {
 
   const handleMoveToPanel = () => {
     if (!filePath) return;
-    openDiff(filePath, oldContent, newContent);
+    // 右侧面板使用独立 store，避免关闭弹窗时把面板也一起关闭。
+    openDiffPanel({ filePath, oldContent, newContent });
     closeDiff();
   };
 
@@ -241,7 +244,7 @@ function HomePageContent() {
             </div>
           </Panel>
 
-          {isOpen && (
+          {isDiffPanelOpen && (
             <>
               <PanelResizeHandle
                 style={{
@@ -461,7 +464,7 @@ function DiffDialog({
   const stopPropagation: PointerEventHandler = (_e) => _e.stopPropagation();
 
   return (
-    <Dialog.Root open={isOpen} onOpenChange={handleOpenChange}>
+    <Dialog.Root modal={false} open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent
         ref={contentRef}
         showCloseButton={false}
