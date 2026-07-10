@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DiffViewer } from "./diff-viewer";
 
@@ -51,7 +51,7 @@ describe("DiffViewer", () => {
     expect(fileDiffSpy).not.toHaveBeenCalled();
   });
 
-  it("passes dark-theme surface overrides into pierre diff unsafe CSS", () => {
+  it("passes dark-theme surface overrides into pierre diff unsafe CSS", async () => {
     render(
       <DiffViewer
         oldContent={"# old\n"}
@@ -60,7 +60,9 @@ describe("DiffViewer", () => {
       />,
     );
 
-    expect(fileDiffSpy).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(fileDiffSpy).toHaveBeenCalledTimes(1);
+    });
 
     const props = fileDiffSpy.mock.calls[0]?.[0] as {
       options?: { unsafeCSS?: string };

@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FileDiff, type FileDiffOptions } from "@pierre/diffs/react";
 import {
   parseDiffFromFile,
+  type CreatePatchOptionsNonabortable,
   type DiffsThemeNames,
   type FileContents,
   type FileDiffMetadata,
@@ -23,6 +24,21 @@ interface DiffStats {
   removed: number;
 }
 
+interface DiffInput {
+  cacheKey: string;
+  isLarge: boolean;
+  oldFile: FileContents;
+  newFile: FileContents;
+  normalizedOldContent: string;
+  normalizedNewContent: string;
+}
+
+interface DiffComputationState {
+  status: "empty" | "computing" | "ready" | "error";
+  cacheKey: string;
+  fileDiff: FileDiffMetadata | null;
+}
+
 const DIFF_THEME_MAP: Record<string, DiffsThemeNames> = {
   light: "pierre-light",
   dark: "pierre-dark",
@@ -32,12 +48,12 @@ const DIFF_THEME_MAP: Record<string, DiffsThemeNames> = {
   system: "pierre-dark",
 };
 
-// 通过 unsafeCSS 注入到 Shadow DOM 内的 @layer unsafe（pierre 默认最高优先级层）。
-// 库内默认 8x% mix 比例让红/绿颜色被强烈稀释，这里降低 mix 直接让删除/添加行
-// 的整行背景呈现明显对比度，对应 pierre 文档示例的视觉效果。
+const LARGE_DIFF_CHAR_LIMIT = 20000;
+const LARGE_DIFF_CONTEXT_LINES = 3;
+const DIFF_CACHE_LIMIT = 6;
+const DIFF_METADATA_CACHE = new Map<string, FileDiffMetadata | null>();
+
 const DIFF_VISUAL_BOOST_CSS = `
-  /* 覆盖 shadow root 内最终生效的主题变量，但不直接改行节点背景，
-   * 让 pierre 继续按原有链路计算增删行高亮。 */
   :host {
     --diffs-bg: var(--bg-primary) !important;
     --diffs-fg: var(--text-primary) !important;
@@ -49,7 +65,6 @@ const DIFF_VISUAL_BOOST_CSS = `
     --diffs-bg-hover-override: var(--hover-bg) !important;
   }
 
-  /* VSCode 风格的整行 diff 背景：内容区比行号区更柔和，保留层次感。 */
   :where([data-background]) [data-line-type="change-addition"][data-line],
   :where([data-background]) [data-line-type="change-addition"][data-no-newline] {
     --diffs-line-bg: color-mix(
@@ -112,6 +127,82 @@ function createCacheKey(fileName: string, content: string, side: string) {
   return `${fileName}:${side}:${content.length}:${hash}`;
 }
 
+function setDiffMetadataCache(key: string, value: FileDiffMetadata | null) {
+  if (DIFF_METADATA_CACHE.has(key)) {
+    DIFF_METADATA_CACHE.delete(key);
+  }
+  DIFF_METADATA_CACHE.set(key, value);
+
+  while (DIFF_METADATA_CACHE.size > DIFF_CACHE_LIMIT) {
+    const firstKey = DIFF_METADATA_CACHE.keys().next().value;
+    if (!firstKey) break;
+    DIFF_METADATA_CACHE.delete(firstKey);
+  }
+}
+
+function scheduleDiffComputation(callback: () => void, isLarge: boolean) {
+  const idleWindow = window as Window & {
+    requestIdleCallback?: (
+      callback: IdleRequestCallback,
+      options?: IdleRequestOptions,
+    ) => number;
+    cancelIdleCallback?: (handle: number) => void;
+  };
+
+  // 先让弹窗/面板完成首帧绘制，再计算大 diff，避免点击后看起来没有响应。
+  if (isLarge && typeof idleWindow.requestIdleCallback === "function") {
+    const handle = idleWindow.requestIdleCallback(callback, { timeout: 200 });
+    return () => idleWindow.cancelIdleCallback?.(handle);
+  }
+
+  const timer = window.setTimeout(callback, 32);
+  return () => window.clearTimeout(timer);
+}
+
+function createDiffInput(
+  oldContent: string,
+  newContent: string,
+  fileName: string,
+): DiffInput {
+  const normalizedOldContent = normalizeDiffContent(oldContent);
+  const normalizedNewContent = normalizeDiffContent(newContent);
+  const oldCacheKey = createCacheKey(fileName, normalizedOldContent, "old");
+  const newCacheKey = createCacheKey(fileName, normalizedNewContent, "new");
+
+  return {
+    cacheKey: `${oldCacheKey}:${newCacheKey}`,
+    isLarge:
+      normalizedOldContent.length + normalizedNewContent.length >=
+      LARGE_DIFF_CHAR_LIMIT,
+    normalizedOldContent,
+    normalizedNewContent,
+    oldFile: {
+      name: fileName,
+      contents: normalizedOldContent,
+      header: "磁盘",
+      cacheKey: oldCacheKey,
+    },
+    newFile: {
+      name: fileName,
+      contents: normalizedNewContent,
+      header: "编辑器",
+      cacheKey: newCacheKey,
+    },
+  };
+}
+
+function computeFileDiff(input: DiffInput) {
+  if (input.normalizedOldContent === input.normalizedNewContent) {
+    return null;
+  }
+
+  const parseOptions: CreatePatchOptionsNonabortable | undefined = input.isLarge
+    ? { context: LARGE_DIFF_CONTEXT_LINES }
+    : undefined;
+
+  return parseDiffFromFile(input.oldFile, input.newFile, parseOptions, true);
+}
+
 export function DiffViewer({
   oldContent,
   newContent,
@@ -121,51 +212,86 @@ export function DiffViewer({
   className = "",
 }: DiffViewerProps) {
   const { theme, isDark } = useTheme();
-  const normalizedOldContent = useMemo(
-    () => normalizeDiffContent(oldContent),
-    [oldContent],
+  const diffInput = useMemo(
+    () => createDiffInput(oldContent, newContent, fileName),
+    [fileName, newContent, oldContent],
   );
-  const normalizedNewContent = useMemo(
-    () => normalizeDiffContent(newContent),
-    [newContent],
-  );
+  const [diffState, setDiffState] = useState<DiffComputationState>(() => {
+    const hasCached = DIFF_METADATA_CACHE.has(diffInput.cacheKey);
+    return {
+      status:
+        diffInput.normalizedOldContent === diffInput.normalizedNewContent
+          ? "empty"
+          : hasCached
+            ? "ready"
+            : "computing",
+      cacheKey: diffInput.cacheKey,
+      fileDiff: hasCached
+        ? (DIFF_METADATA_CACHE.get(diffInput.cacheKey) ?? null)
+        : null,
+    };
+  });
 
-  const oldFile = useMemo<FileContents>(
-    () => ({
-      name: fileName,
-      contents: normalizedOldContent,
-      header: "磁盘",
-      cacheKey: createCacheKey(fileName, normalizedOldContent, "old"),
-    }),
-    [fileName, normalizedOldContent],
-  );
-
-  const newFile = useMemo<FileContents>(
-    () => ({
-      name: fileName,
-      contents: normalizedNewContent,
-      header: "编辑器",
-      cacheKey: createCacheKey(fileName, normalizedNewContent, "new"),
-    }),
-    [fileName, normalizedNewContent],
-  );
-
-  const fileDiff = useMemo(() => {
-    if (normalizedOldContent === normalizedNewContent) {
-      return null;
+  useEffect(() => {
+    if (diffInput.normalizedOldContent === diffInput.normalizedNewContent) {
+      setDiffState({
+        status: "empty",
+        cacheKey: diffInput.cacheKey,
+        fileDiff: null,
+      });
+      return undefined;
     }
 
-    try {
-      // 使用 @pierre/diffs 官方解析器生成渲染元数据，避免依赖不存在的 diffLines 导出。
-      return parseDiffFromFile(oldFile, newFile, undefined, true);
-    } catch (error) {
-      if (normalizedOldContent !== normalizedNewContent) {
+    if (DIFF_METADATA_CACHE.has(diffInput.cacheKey)) {
+      setDiffState({
+        status: "ready",
+        cacheKey: diffInput.cacheKey,
+        fileDiff: DIFF_METADATA_CACHE.get(diffInput.cacheKey) ?? null,
+      });
+      return undefined;
+    }
+
+    let cancelled = false;
+    setDiffState({
+      status: "computing",
+      cacheKey: diffInput.cacheKey,
+      fileDiff: null,
+    });
+
+    const cancelSchedule = scheduleDiffComputation(() => {
+      try {
+        // 大文档只保留少量上下文，避免把整篇文档同步塞进 diff 渲染树。
+        const nextFileDiff = computeFileDiff(diffInput);
+        setDiffMetadataCache(diffInput.cacheKey, nextFileDiff);
+        if (!cancelled) {
+          setDiffState({
+            status: "ready",
+            cacheKey: diffInput.cacheKey,
+            fileDiff: nextFileDiff,
+          });
+        }
+      } catch (error) {
         console.error("Failed to compute diff:", error);
+        if (!cancelled) {
+          setDiffState({
+            status: "error",
+            cacheKey: diffInput.cacheKey,
+            fileDiff: null,
+          });
+        }
       }
-      return null;
-    }
-  }, [newFile, normalizedNewContent, oldFile, normalizedOldContent]);
+    }, diffInput.isLarge);
 
+    return () => {
+      cancelled = true;
+      cancelSchedule();
+    };
+  }, [diffInput]);
+
+  const currentStatus =
+    diffState.cacheKey === diffInput.cacheKey ? diffState.status : "computing";
+  const fileDiff =
+    diffState.cacheKey === diffInput.cacheKey ? diffState.fileDiff : null;
   const stats = useMemo(() => getDiffStats(fileDiff), [fileDiff]);
 
   const diffOptions = useMemo<FileDiffOptions<undefined>>(
@@ -175,15 +301,15 @@ export function DiffViewer({
       diffStyle: "split",
       diffIndicators: "classic",
       hunkSeparators: "line-info-basic",
-      lineDiffType: "word",
+      lineDiffType: diffInput.isLarge ? "none" : "word",
+      maxLineDiffLength: diffInput.isLarge ? 240 : 1200,
       overflow: "wrap",
       stickyHeader: true,
       disableFileHeader: true,
-      tokenizeMaxLineLength: 1200,
-      disableVirtualizationBuffers: true,
+      tokenizeMaxLineLength: diffInput.isLarge ? 240 : 1200,
       unsafeCSS: DIFF_VISUAL_BOOST_CSS,
     }),
-    [isDark, theme],
+    [diffInput.isLarge, isDark, theme],
   );
 
   return (
@@ -207,13 +333,20 @@ export function DiffViewer({
       </div>
 
       <div className="diff-viewer__body min-h-0 flex-1 overflow-auto">
-        {fileDiff ? (
+        {currentStatus === "computing" ? (
+          <div className="flex h-full items-center justify-center text-sm text-[var(--text-muted)]">
+            正在计算差异…
+          </div>
+        ) : fileDiff ? (
           <FileDiff
             fileDiff={fileDiff}
             options={diffOptions}
             className="diff-viewer__pierre"
-            disableWorkerPool
           />
+        ) : currentStatus === "error" ? (
+          <div className="flex h-full items-center justify-center text-sm text-[var(--text-muted)]">
+            差异计算失败
+          </div>
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-[var(--text-muted)]">
             没有可显示的差异
