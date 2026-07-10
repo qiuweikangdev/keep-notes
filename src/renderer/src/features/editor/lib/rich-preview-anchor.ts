@@ -35,7 +35,7 @@ export function resolveRichPreviewAnchor(
   );
   let textOffset = 0;
 
-  // 只累计用户可见文本；HTML 模板缩进形成的纯空白节点不属于编辑器文本偏移。
+  // BlockNote 输出紧凑的块 HTML，因此所有文本节点（包括独立空格）都是语义内容。
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     if (node === target) {
       return {
@@ -45,7 +45,7 @@ export function resolveRichPreviewAnchor(
           clampTextOffset(localOffset, node.textContent?.length ?? 0),
       };
     }
-    if (node.textContent?.trim()) textOffset += node.textContent.length;
+    textOffset += node.textContent?.length ?? 0;
   }
 
   return { blockId, textOffset: 0 };

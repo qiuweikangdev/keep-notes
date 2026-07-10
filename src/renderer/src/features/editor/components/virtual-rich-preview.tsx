@@ -11,9 +11,8 @@ import {
   type UIEvent,
 } from "react";
 
-import { resolveTheme } from "@/config/themes";
+import { useTheme } from "@/hooks";
 import { useEditorStore } from "@/store/editor.store";
-import { useUIStore } from "@/store/ui.store";
 import { richPaneViewStateRegistry } from "@/features/editor/lib/editor-runtime";
 import {
   resolveRichPreviewAnchor,
@@ -97,12 +96,28 @@ function toNode(target: EventTarget | null): Node | null {
   return target as Node;
 }
 
+function getPointerBlock(
+  target: Node | null,
+  preview: HTMLElement,
+): HTMLElement | null {
+  if (!target) return null;
+  const element =
+    target.nodeType === Node.ELEMENT_NODE
+      ? (target as Element)
+      : target.parentElement;
+  const block = element?.closest<HTMLElement>("[data-block-id]") ?? null;
+  return block && preview.contains(block) ? block : null;
+}
+
 function resolvePointerAnchor(
   event: PointerEvent<HTMLDivElement>,
 ): RichPreviewAnchor | null {
   const preview = event.currentTarget;
   const ownerDocument = preview.ownerDocument as CaretDocument;
   const eventTarget = toNode(event.nativeEvent.target) ?? toNode(event.target);
+  const pointerBlock = getPointerBlock(eventTarget, preview);
+
+  if (!pointerBlock) return null;
 
   if (
     eventTarget?.nodeType === Node.ELEMENT_NODE &&
@@ -115,7 +130,10 @@ function resolvePointerAnchor(
     event.clientX,
     event.clientY,
   );
-  if (caretPosition && preview.contains(caretPosition.offsetNode)) {
+  if (
+    caretPosition &&
+    getPointerBlock(caretPosition.offsetNode, preview) === pointerBlock
+  ) {
     return resolveRichPreviewAnchor(
       caretPosition.offsetNode,
       caretPosition.offset,
@@ -126,14 +144,17 @@ function resolvePointerAnchor(
     event.clientX,
     event.clientY,
   );
-  if (caretRange && preview.contains(caretRange.startContainer)) {
+  if (
+    caretRange &&
+    getPointerBlock(caretRange.startContainer, preview) === pointerBlock
+  ) {
     return resolveRichPreviewAnchor(
       caretRange.startContainer,
       caretRange.startOffset,
     );
   }
 
-  return eventTarget ? resolveRichPreviewAnchor(eventTarget, 0) : null;
+  return resolveRichPreviewAnchor(pointerBlock, 0);
 }
 
 export function VirtualRichPreview({
@@ -142,8 +163,12 @@ export function VirtualRichPreview({
   onActivate,
 }: VirtualRichPreviewProps) {
   const appearance = useEditorStore((state) => state.appearance);
-  const theme = useUIStore((state) => state.theme);
+  const { isDark } = useTheme();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const restoredScrollRef = useRef<{
+    paneKey: RichPaneKey;
+    scrollTop: number;
+  } | null>(null);
   const subscribe = useCallback(
     (listener: () => void) => cache.subscribe(listener),
     [cache],
@@ -151,9 +176,14 @@ export function VirtualRichPreview({
   const getSnapshot = useCallback(() => cache.getSnapshot(), [cache]);
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const getScrollElement = useCallback(() => scrollRef.current, []);
+  const getItemKey = useCallback(
+    (index: number) => snapshot.order[index] ?? index,
+    [snapshot.order],
+  );
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: snapshot.order.length,
     getScrollElement,
+    getItemKey,
     estimateSize: estimateBlockSize,
     overscan: 8,
   });
@@ -180,13 +210,28 @@ export function VirtualRichPreview({
   useLayoutEffect(() => {
     const preview = scrollRef.current;
     if (!preview) return;
-    preview.scrollTop = richPaneViewStateRegistry.read(paneKey).scrollTop;
+    const scrollTop = richPaneViewStateRegistry.read(paneKey).scrollTop;
+    restoredScrollRef.current = { paneKey, scrollTop };
+    preview.scrollTop = scrollTop;
   }, [paneKey]);
 
   const handleScroll = useCallback(
     (event: UIEvent<HTMLDivElement>) => {
+      const scrollTop = event.currentTarget.scrollTop;
+      const restoredScroll = restoredScrollRef.current;
+      if (
+        restoredScroll?.paneKey === paneKey &&
+        restoredScroll.scrollTop === scrollTop
+      ) {
+        restoredScrollRef.current = null;
+        return;
+      }
+      restoredScrollRef.current = null;
+      if (richPaneViewStateRegistry.read(paneKey).scrollTop === scrollTop) {
+        return;
+      }
       richPaneViewStateRegistry.patch(paneKey, {
-        scrollTop: event.currentTarget.scrollTop,
+        scrollTop,
       });
     },
     [paneKey],
@@ -204,7 +249,7 @@ export function VirtualRichPreview({
       aria-multiline="true"
       aria-readonly="true"
       className="rich-virtual-preview bn-root"
-      data-color-scheme={resolveTheme(theme)}
+      data-color-scheme={isDark ? "dark" : "light"}
       data-testid="virtual-rich-preview"
       onPointerDown={handlePointerDown}
       onScroll={handleScroll}
