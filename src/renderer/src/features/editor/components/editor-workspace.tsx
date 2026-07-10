@@ -14,6 +14,7 @@ import {
   editorSaveCoordinator,
   subscribeToEditorFile,
 } from "../lib/editor-runtime";
+import { selectEditorWorkspaceSignature } from "../lib/editor-view-selectors";
 import { shouldApplyExternalFileChange } from "../lib/editor-external-change";
 import { repairMarkdownSourceBeforeParse } from "../lib/markdown";
 import {
@@ -51,10 +52,26 @@ export function EditorWorkspace({
   const [replacement, setReplacement] = useState("");
   const [findOptions, setFindOptions] = useState<FindTextOptions>({});
   const [activeFindIndex, setActiveFindIndex] = useState(-1);
-  const tab = useEditorStore((state) =>
-    state.panelGroups
-      .find((group) => group.id === groupId)
-      ?.tabs.find((item) => item.id === tabId),
+  useEditorStore(selectEditorWorkspaceSignature(groupId, tabId));
+  const tab = useEditorStore
+    .getState()
+    .panelGroups.find((group) => group.id === groupId)
+    ?.tabs.find((item) => item.id === tabId);
+  const tabFilePath = tab?.filePath ?? null;
+  const tabMode = tab?.mode ?? "rich";
+  const tabContent = tab?.content ?? "";
+  const tabParseErrorMessage = tab?.parseErrorMessage ?? null;
+  const tabScrollTop = tab?.scrollTop ?? 0;
+  const tabResetKey = tab
+    ? (tab.pendingFilePath ?? tab.filePath ?? tab.id)
+    : null;
+  const getCurrentTab = useCallback(
+    () =>
+      useEditorStore
+        .getState()
+        .panelGroups.find((item) => item.id === groupId)
+        ?.tabs.find((item) => item.id === tabId),
+    [groupId, tabId],
   );
   const setTabContent = useEditorStore((state) => state.setTabContent);
   const setTabScrollTop = useEditorStore((state) => state.setTabScrollTop);
@@ -66,18 +83,19 @@ export function EditorWorkspace({
   const { openFile } = useElectron();
 
   const rawMatches = useMemo(
-    () => findTextMatches(tab?.content ?? "", findQuery, findOptions),
-    [findOptions, findQuery, tab?.content],
+    () =>
+      findQuery ? findTextMatches(tabContent, findQuery, findOptions) : [],
+    [findOptions, findQuery, tabContent],
   );
 
   useEffect(() => {
-    if (!tab?.filePath) return;
-    const path = tab.filePath;
+    if (!tabFilePath) return;
+    const path = tabFilePath;
     return subscribeToEditorFile(path, (content) => {
       editorCache.setContent(path, content);
       const state = useEditorStore.getState();
       const currentTab = state.panelGroups
-        .find((group) => group.id === groupId)
+        .find((item) => item.id === groupId)
         ?.tabs.find((item) => item.id === tabId);
       if (
         currentTab &&
@@ -88,7 +106,7 @@ export function EditorWorkspace({
       state.completeTabLoad(groupId, tabId, path, content);
       state.syncFileContent(path, content, tabId);
     });
-  }, [groupId, tab?.filePath, tabId]);
+  }, [groupId, tabFilePath, tabId]);
 
   useEffect(() => {
     setActiveFindIndex(findQuery && rawMatches.length > 0 ? 0 : -1);
@@ -110,7 +128,7 @@ export function EditorWorkspace({
   }, [rawMatches.length]);
 
   useEffect(() => {
-    if (!isFindOpen || !findQuery || tab?.mode !== "rich") {
+    if (!isFindOpen || !findQuery || tabMode !== "rich") {
       clearEditorFindHighlights();
       return;
     }
@@ -131,8 +149,8 @@ export function EditorWorkspace({
     findOptions,
     findQuery,
     isFindOpen,
-    tab?.content,
-    tab?.mode,
+    tabContent,
+    tabMode,
   ]);
 
   useEffect(
@@ -143,37 +161,47 @@ export function EditorWorkspace({
   );
 
   useEffect(() => {
-    if (!isFindOpen || !findQuery || tab?.mode !== "source") return;
+    if (!isFindOpen || !findQuery || tabMode !== "source") return;
     const match = rawMatches[activeFindIndex];
     if (!match) return;
 
     requestAnimationFrame(() => {
       sourceEditorRef.current?.setSelectionRange(match.start, match.end);
     });
-  }, [activeFindIndex, findQuery, isFindOpen, rawMatches, tab?.mode]);
+  }, [activeFindIndex, findQuery, isFindOpen, rawMatches, tabMode]);
 
   const handleSourceChange = useCallback(
     (content: string) => {
-      if (!tab) return;
+      const currentTab = getCurrentTab();
+      if (!currentTab) return;
       setTabContent(groupId, tabId, content);
-      if (!tab.filePath) return;
-      syncFileContent(tab.filePath, content, tabId);
-      editorSaveCoordinator.schedule(tab.filePath, content);
+      if (!currentTab.filePath) return;
+      syncFileContent(currentTab.filePath, content, tabId);
+      editorSaveCoordinator.schedule(currentTab.filePath, content);
     },
-    [groupId, setTabContent, syncFileContent, tab, tabId],
+    [getCurrentTab, groupId, setTabContent, syncFileContent, tabId],
   );
 
   useEffect(() => {
-    if (!tab || tab.mode !== "source") return;
-    const repairedContent = repairMarkdownSourceBeforeParse(tab.content);
-    if (repairedContent === tab.content) return;
+    if (!tab || tabMode !== "source") return;
+    const repairedContent = repairMarkdownSourceBeforeParse(tabContent);
+    if (repairedContent === tabContent) return;
 
     // 源码模式也要修复历史拖拽导致的粘连列表，避免富文本解析正常但源码面板仍显示坏内容。
     setTabContent(groupId, tabId, repairedContent);
-    if (!tab.filePath) return;
-    syncFileContent(tab.filePath, repairedContent, tabId);
-    editorSaveCoordinator.schedule(tab.filePath, repairedContent);
-  }, [groupId, setTabContent, syncFileContent, tab, tabId]);
+    if (!tabFilePath) return;
+    syncFileContent(tabFilePath, repairedContent, tabId);
+    editorSaveCoordinator.schedule(tabFilePath, repairedContent);
+  }, [
+    groupId,
+    setTabContent,
+    syncFileContent,
+    tab,
+    tabContent,
+    tabFilePath,
+    tabId,
+    tabMode,
+  ]);
 
   const openFindWidget = useCallback(() => {
     setIsFindOpen(true);
@@ -206,43 +234,54 @@ export function EditorWorkspace({
 
   const applyFindReplacement = useCallback(
     (content: string, shouldPushUndo = true) => {
-      if (!tab) return;
-      if (content === tab.content) return;
+      const currentTab = getCurrentTab();
+      if (!currentTab) return;
+      if (content === currentTab.content) return;
       if (shouldPushUndo) {
-        replacementUndoStackRef.current.push(tab.content);
+        replacementUndoStackRef.current.push(currentTab.content);
       }
       setTabContent(groupId, tabId, content);
-      if (tab.filePath) {
-        syncFileContent(tab.filePath, content, tabId);
-        editorSaveCoordinator.schedule(tab.filePath, content);
+      if (currentTab.filePath) {
+        syncFileContent(currentTab.filePath, content, tabId);
+        editorSaveCoordinator.schedule(currentTab.filePath, content);
       }
-      if (tab.mode === "rich") {
+      if (currentTab.mode === "rich") {
         incrementTabReloadKey(groupId, tabId);
       }
     },
     [
+      getCurrentTab,
       groupId,
       incrementTabReloadKey,
       setTabContent,
       syncFileContent,
-      tab,
       tabId,
     ],
   );
 
   const replaceCurrentMatch = useCallback(() => {
-    if (!tab) return;
+    const currentTab = getCurrentTab();
+    if (!currentTab) return;
     const match = rawMatches[activeFindIndex];
     if (!match) return;
-    applyFindReplacement(replaceTextMatch(tab.content, match, replacement));
-  }, [activeFindIndex, applyFindReplacement, rawMatches, replacement, tab]);
+    applyFindReplacement(
+      replaceTextMatch(currentTab.content, match, replacement),
+    );
+  }, [
+    activeFindIndex,
+    applyFindReplacement,
+    getCurrentTab,
+    rawMatches,
+    replacement,
+  ]);
 
   const replaceAllMatches = useCallback(() => {
-    if (!tab || rawMatches.length === 0) return;
+    const currentTab = getCurrentTab();
+    if (!currentTab || rawMatches.length === 0) return;
     applyFindReplacement(
-      replaceAllTextMatches(tab.content, rawMatches, replacement),
+      replaceAllTextMatches(currentTab.content, rawMatches, replacement),
     );
-  }, [applyFindReplacement, rawMatches, replacement, tab]);
+  }, [applyFindReplacement, getCurrentTab, rawMatches, replacement]);
 
   const undoLastReplacement = useCallback(() => {
     const previousContent = replacementUndoStackRef.current.pop();
@@ -252,7 +291,7 @@ export function EditorWorkspace({
 
   const selectAllMatches = useCallback(() => {
     if (!findQuery || rawMatches.length === 0) return;
-    if (tab?.mode === "source") {
+    if (tabMode === "source") {
       const textarea = sourceEditorRef.current;
       const firstMatch = rawMatches[0];
       const lastMatch = rawMatches[rawMatches.length - 1];
@@ -265,7 +304,7 @@ export function EditorWorkspace({
     if (!root) return;
     const ranges = collectEditorFindRanges(root, findQuery, findOptions);
     selectEditorFindRanges(ranges);
-  }, [findOptions, findQuery, rawMatches, tab?.mode]);
+  }, [findOptions, findQuery, rawMatches, tabMode]);
 
   if (!tab) {
     return <EditorStateView status="empty" />;
@@ -278,7 +317,7 @@ export function EditorWorkspace({
         status="error"
         fileName={fileName}
         message={tab.errorMessage}
-        onRetry={() => tab.filePath && void openFile(tab.filePath, groupId)}
+        onRetry={() => tabFilePath && void openFile(tabFilePath, groupId)}
       />
     );
   }
@@ -309,14 +348,14 @@ export function EditorWorkspace({
         onUndoReplace={undoLastReplacement}
       />
       <div className="min-h-0 flex-1 overflow-hidden">
-        {tab.mode === "source" ? (
+        {tabMode === "source" ? (
           <div className="flex h-full min-h-0 flex-col">
-            {tab.parseErrorMessage ? (
+            {tabParseErrorMessage ? (
               <div
                 role="status"
                 className="border-b border-[var(--border-color)] bg-[color-mix(in_srgb,var(--danger-color)_8%,var(--bg-primary))] px-4 py-2 text-xs text-[var(--danger-color)]"
               >
-                {tab.parseErrorMessage}
+                {tabParseErrorMessage}
                 。已保留完整源码，请修正后重试富文本模式。
               </div>
             ) : null}
@@ -326,9 +365,9 @@ export function EditorWorkspace({
                 fontFamily={appearance.codeFont}
                 fontSize={appearance.fontSize}
                 lineHeight={appearance.lineHeight}
-                value={tab.content}
-                resetKey={tab.pendingFilePath ?? tab.filePath ?? tab.id}
-                scrollTop={tab.scrollTop}
+                value={tabContent}
+                resetKey={tabResetKey}
+                scrollTop={tabScrollTop}
                 onChange={handleSourceChange}
                 onScrollTopChange={(scrollTop) =>
                   setTabScrollTop(groupId, tabId, scrollTop)

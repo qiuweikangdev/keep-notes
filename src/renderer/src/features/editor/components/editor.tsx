@@ -1,4 +1,11 @@
-import { useState, useCallback, type CSSProperties } from "react";
+import {
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
+import { createPortal } from "react-dom";
 import { EditorTabBar } from "./editor-tab-bar";
 import { EditorWorkspace } from "./editor-workspace";
 import { useEditorStore } from "@/store/editor.store";
@@ -12,6 +19,7 @@ import {
   getDraggedFilePath,
   isEditorFileDrag,
 } from "../lib/editor-drag-session";
+import { EditorPanelSurfaceRegistry } from "../lib/editor-panel-surface-registry";
 
 // 支持的文件扩展名
 const SUPPORTED_EXTENSIONS = [".md", ".txt"];
@@ -269,6 +277,7 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
 
 export function Editor() {
   useEditorStore(selectEditorLayoutSignature);
+  const [surfaceRegistry] = useState(() => new EditorPanelSurfaceRegistry());
   const panelGroups = useEditorStore
     .getState()
     .panelGroups.map(({ id, direction, splitParentGroupId }) => ({
@@ -280,35 +289,111 @@ export function Editor() {
 
   if (!panelLayout) return null;
 
-  // 单面板组：直接渲染
-  if (panelLayout.type === "leaf") {
-    return (
-      <div
-        className="h-full overflow-hidden"
-        style={{ backgroundColor: "var(--bg-primary)" }}
-      >
-        <EditorPanelGroup groupId={panelLayout.id} />
-      </div>
-    );
-  }
-
   return (
     <div
       className="h-full overflow-hidden"
       style={{ backgroundColor: "var(--bg-primary)" }}
     >
-      <PanelLayout node={panelLayout} />
+      <RootPanelLayout node={panelLayout} surfaceRegistry={surfaceRegistry} />
+      {panelGroups.map(({ id }) => (
+        <PersistentEditorPanel
+          key={id}
+          groupId={id}
+          surfaceRegistry={surfaceRegistry}
+        />
+      ))}
     </div>
   );
 }
 
-function PanelLayout({ node }: { node: PanelLayoutNode }) {
+function PanelLeaf({
+  groupId,
+  surfaceRegistry,
+}: {
+  groupId: string;
+  surfaceRegistry: EditorPanelSurfaceRegistry;
+}) {
+  const hostRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    return surfaceRegistry.registerHost(groupId, host);
+  }, [groupId, surfaceRegistry]);
+
+  return (
+    <div
+      ref={hostRef}
+      data-editor-panel-host={groupId}
+      className="h-full min-h-0 overflow-hidden"
+    />
+  );
+}
+
+function PersistentEditorPanel({
+  groupId,
+  surfaceRegistry,
+}: {
+  groupId: string;
+  surfaceRegistry: EditorPanelSurfaceRegistry;
+}) {
+  const [surface] = useState(() => {
+    const element = document.createElement("div");
+    element.dataset.editorPanelSurface = groupId;
+    element.className = "relative h-full min-h-0 overflow-hidden";
+    return element;
+  });
+
+  useLayoutEffect(
+    () => surfaceRegistry.registerSurface(groupId, surface),
+    [groupId, surface, surfaceRegistry],
+  );
+
+  return createPortal(<EditorPanelGroup groupId={groupId} />, surface);
+}
+
+function RootPanelLayout({
+  node,
+  surfaceRegistry,
+}: {
+  node: PanelLayoutNode;
+  surfaceRegistry: EditorPanelSurfaceRegistry;
+}) {
+  const rootDirection = node.type === "split" ? node.direction : "horizontal";
+  const firstNode = node.type === "split" ? node.first : node;
+
+  return (
+    <PanelGroup
+      direction={rootDirection}
+      autoSaveId={`panel-group-root-${rootDirection}`}
+    >
+      <Panel minSize={20}>
+        <PanelLayout node={firstNode} surfaceRegistry={surfaceRegistry} />
+      </Panel>
+      {node.type === "split" ? (
+        <>
+          <PanelResizeHandle
+            style={getPanelResizeHandleStyle(node.direction)}
+            hitAreaMargins={{ coarse: 30, fine: 20 }}
+          />
+          <Panel minSize={20}>
+            <PanelLayout node={node.second} surfaceRegistry={surfaceRegistry} />
+          </Panel>
+        </>
+      ) : null}
+    </PanelGroup>
+  );
+}
+
+function PanelLayout({
+  node,
+  surfaceRegistry,
+}: {
+  node: PanelLayoutNode;
+  surfaceRegistry: EditorPanelSurfaceRegistry;
+}) {
   if (node.type === "leaf") {
-    return (
-      <div className="h-full relative">
-        <EditorPanelGroup groupId={node.id} />
-      </div>
-    );
+    return <PanelLeaf groupId={node.id} surfaceRegistry={surfaceRegistry} />;
   }
 
   return (
@@ -318,7 +403,7 @@ function PanelLayout({ node }: { node: PanelLayoutNode }) {
     >
       <Panel minSize={20}>
         <div className="h-full relative">
-          <PanelLayout node={node.first} />
+          <PanelLayout node={node.first} surfaceRegistry={surfaceRegistry} />
         </div>
       </Panel>
       <PanelResizeHandle
@@ -326,7 +411,7 @@ function PanelLayout({ node }: { node: PanelLayoutNode }) {
         hitAreaMargins={{ coarse: 30, fine: 20 }}
       />
       <Panel minSize={20}>
-        <PanelLayout node={node.second} />
+        <PanelLayout node={node.second} surfaceRegistry={surfaceRegistry} />
       </Panel>
     </PanelGroup>
   );
