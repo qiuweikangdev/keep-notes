@@ -46,20 +46,22 @@ vi.mock("@tanstack/react-virtual", () => ({
 function installColorSchemeMedia(initialMatches = false) {
   let matches = initialMatches;
   const listeners = new Set<(event: MediaQueryListEvent) => void>();
+  const addEventListener = vi.fn(
+    (_type: string, listener: (event: MediaQueryListEvent) => void) =>
+      listeners.add(listener),
+  );
+  const removeEventListener = vi.fn(
+    (_type: string, listener: (event: MediaQueryListEvent) => void) =>
+      listeners.delete(listener),
+  );
   const mediaQuery = {
     get matches() {
       return matches;
     },
     media: "(prefers-color-scheme: dark)",
     onchange: null,
-    addEventListener: (
-      _type: string,
-      listener: (event: MediaQueryListEvent) => void,
-    ) => listeners.add(listener),
-    removeEventListener: (
-      _type: string,
-      listener: (event: MediaQueryListEvent) => void,
-    ) => listeners.delete(listener),
+    addEventListener,
+    removeEventListener,
   } as MediaQueryList;
 
   Object.defineProperty(window, "matchMedia", {
@@ -68,6 +70,11 @@ function installColorSchemeMedia(initialMatches = false) {
   });
 
   return {
+    addEventListener,
+    removeEventListener,
+    get listenerCount() {
+      return listeners.size;
+    },
     setMatches(nextMatches: boolean) {
       matches = nextMatches;
       const event = { matches, media: mediaQuery.media } as MediaQueryListEvent;
@@ -385,6 +392,119 @@ describe("VirtualRichPreview", () => {
     expect(preview).toHaveAttribute("data-color-scheme", "light");
     act(() => colorScheme.setMatches(true));
     expect(preview).toHaveAttribute("data-color-scheme", "dark");
+  });
+
+  it("shares one readonly system-theme observer across preview instances", () => {
+    const colorScheme = installColorSchemeMedia(false);
+    useUIStore.setState({ theme: "system" });
+    const { cache } = createCache();
+    const localStorageSetItem = vi.spyOn(Storage.prototype, "setItem");
+    const rootSetProperty = vi.spyOn(
+      document.documentElement.style,
+      "setProperty",
+    );
+    const rootClassAdd = vi.spyOn(document.documentElement.classList, "add");
+    const bodyClassAdd = vi.spyOn(document.body.classList, "add");
+    const globalThemeState = {
+      bodyClass: document.body.className,
+      bodyStyle: document.body.getAttribute("style"),
+      rootClass: document.documentElement.className,
+      rootDataTheme: document.documentElement.getAttribute("data-theme"),
+      rootStyle: document.documentElement.getAttribute("style"),
+    };
+    const previews = (
+      <>
+        <VirtualRichPreview
+          paneKey="group-a:tab-a"
+          cache={cache}
+          onActivate={vi.fn()}
+        />
+        <VirtualRichPreview
+          paneKey="group-b:tab-b"
+          cache={cache}
+          onActivate={vi.fn()}
+        />
+        <VirtualRichPreview
+          paneKey="group-c:tab-c"
+          cache={cache}
+          onActivate={vi.fn()}
+        />
+      </>
+    );
+    const { rerender, unmount } = render(previews);
+
+    expect(colorScheme.addEventListener).toHaveBeenCalledOnce();
+    expect(colorScheme.listenerCount).toBe(1);
+    expect(localStorageSetItem).not.toHaveBeenCalled();
+    expect(rootSetProperty).not.toHaveBeenCalled();
+    expect(rootClassAdd).not.toHaveBeenCalled();
+    expect(bodyClassAdd).not.toHaveBeenCalled();
+    expect({
+      bodyClass: document.body.className,
+      bodyStyle: document.body.getAttribute("style"),
+      rootClass: document.documentElement.className,
+      rootDataTheme: document.documentElement.getAttribute("data-theme"),
+      rootStyle: document.documentElement.getAttribute("style"),
+    }).toEqual(globalThemeState);
+    expect(screen.getAllByRole("textbox")).toHaveLength(3);
+    expect(
+      screen
+        .getAllByRole("textbox")
+        .every((preview) => preview.dataset.colorScheme === "light"),
+    ).toBe(true);
+
+    rerender(previews);
+    expect(colorScheme.addEventListener).toHaveBeenCalledOnce();
+    act(() => colorScheme.setMatches(true));
+    expect(
+      screen
+        .getAllByRole("textbox")
+        .every((preview) => preview.dataset.colorScheme === "dark"),
+    ).toBe(true);
+    expect(localStorageSetItem).not.toHaveBeenCalled();
+    expect(rootSetProperty).not.toHaveBeenCalled();
+    expect(rootClassAdd).not.toHaveBeenCalled();
+    expect(bodyClassAdd).not.toHaveBeenCalled();
+
+    unmount();
+    expect(colorScheme.removeEventListener).toHaveBeenCalledOnce();
+    expect(colorScheme.listenerCount).toBe(0);
+
+    const replacementColorScheme = installColorSchemeMedia(true);
+    const remounted = render(
+      <VirtualRichPreview
+        paneKey="group-d:tab-d"
+        cache={cache}
+        onActivate={vi.fn()}
+      />,
+    );
+    expect(replacementColorScheme.addEventListener).toHaveBeenCalledOnce();
+    expect(screen.getByRole("textbox")).toHaveAttribute(
+      "data-color-scheme",
+      "dark",
+    );
+    remounted.unmount();
+    expect(replacementColorScheme.removeEventListener).toHaveBeenCalledOnce();
+  });
+
+  it("uses an SSR-safe light fallback when matchMedia is unavailable", () => {
+    Reflect.deleteProperty(window, "matchMedia");
+    useUIStore.setState({ theme: "system" });
+    const { cache } = createCache();
+
+    expect(() =>
+      render(
+        <VirtualRichPreview
+          paneKey="group-a:tab-a"
+          cache={cache}
+          onActivate={vi.fn()}
+        />,
+      ),
+    ).not.toThrow();
+    expect(screen.getByRole("textbox")).toHaveAttribute(
+      "data-color-scheme",
+      "light",
+    );
   });
 
   it("keeps document and block subscriptions stable across parent renders", () => {

@@ -11,8 +11,8 @@ import {
   type UIEvent,
 } from "react";
 
-import { useTheme } from "@/hooks";
 import { useEditorStore } from "@/store/editor.store";
+import { useUIStore } from "@/store/ui.store";
 import { richPaneViewStateRegistry } from "@/features/editor/lib/editor-runtime";
 import {
   resolveRichPreviewAnchor,
@@ -46,6 +46,66 @@ interface CaretDocument extends Document {
 }
 
 const estimateBlockSize = () => 36;
+const SYSTEM_COLOR_SCHEME_QUERY = "(prefers-color-scheme: dark)";
+// 所有被动窗格共享一个只读系统主题源，避免重复执行全局主题副作用。
+const systemColorSchemeListeners = new Set<() => void>();
+let systemColorSchemeMedia: MediaQueryList | null = null;
+let observedSystemColorSchemeMedia: MediaQueryList | null = null;
+
+function getSystemColorSchemeMedia(): MediaQueryList | null {
+  if (systemColorSchemeMedia) return systemColorSchemeMedia;
+  if (
+    typeof window === "undefined" ||
+    typeof window.matchMedia !== "function"
+  ) {
+    return null;
+  }
+  systemColorSchemeMedia = window.matchMedia(SYSTEM_COLOR_SCHEME_QUERY);
+  return systemColorSchemeMedia;
+}
+
+function publishSystemColorScheme(): void {
+  for (const listener of Array.from(systemColorSchemeListeners)) listener();
+}
+
+function subscribeSystemColorScheme(listener: () => void): () => void {
+  systemColorSchemeListeners.add(listener);
+  if (systemColorSchemeListeners.size === 1) {
+    const media = getSystemColorSchemeMedia();
+    if (media) {
+      media.addEventListener("change", publishSystemColorScheme);
+      observedSystemColorSchemeMedia = media;
+    }
+  }
+
+  let active = true;
+  return () => {
+    if (!active) return;
+    active = false;
+    systemColorSchemeListeners.delete(listener);
+    if (systemColorSchemeListeners.size > 0) return;
+
+    // 最后一个窗格卸载时按原始对象和处理器解绑，保证 HMR/重挂载身份安全。
+    observedSystemColorSchemeMedia?.removeEventListener(
+      "change",
+      publishSystemColorScheme,
+    );
+    observedSystemColorSchemeMedia = null;
+    systemColorSchemeMedia = null;
+  };
+}
+
+function getSystemColorSchemeSnapshot(): boolean {
+  return getSystemColorSchemeMedia()?.matches ?? false;
+}
+
+function subscribeStaticColorScheme(): () => void {
+  return () => {};
+}
+
+function getLightColorSchemeSnapshot(): false {
+  return false;
+}
 
 function usePreviewBlock(cache: RichPreviewCache, id: string) {
   const subscribe = useCallback(
@@ -163,7 +223,25 @@ export function VirtualRichPreview({
   onActivate,
 }: VirtualRichPreviewProps) {
   const appearance = useEditorStore((state) => state.appearance);
-  const { isDark } = useTheme();
+  const theme = useUIStore((state) => state.theme);
+  const observesSystemColorScheme = theme === "system";
+  const systemIsDark = useSyncExternalStore(
+    observesSystemColorScheme
+      ? subscribeSystemColorScheme
+      : subscribeStaticColorScheme,
+    observesSystemColorScheme
+      ? getSystemColorSchemeSnapshot
+      : getLightColorSchemeSnapshot,
+    getLightColorSchemeSnapshot,
+  );
+  const colorScheme =
+    theme === "system"
+      ? systemIsDark
+        ? "dark"
+        : "light"
+      : theme === "light"
+        ? "light"
+        : "dark";
   const scrollRef = useRef<HTMLDivElement>(null);
   const restoredScrollRef = useRef<{
     paneKey: RichPaneKey;
@@ -249,7 +327,7 @@ export function VirtualRichPreview({
       aria-multiline="true"
       aria-readonly="true"
       className="rich-virtual-preview bn-root"
-      data-color-scheme={isDark ? "dark" : "light"}
+      data-color-scheme={colorScheme}
       data-testid="virtual-rich-preview"
       onPointerDown={handlePointerDown}
       onScroll={handleScroll}
