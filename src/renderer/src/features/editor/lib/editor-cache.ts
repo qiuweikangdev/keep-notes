@@ -8,6 +8,7 @@ interface CachedEditorEntry<TBlocks> {
     source: string;
     parserVersion?: string;
     blocks: TBlocks;
+    serializedBaseline?: string;
   } | null;
 }
 
@@ -34,7 +35,7 @@ export class EditorCache<TBlocks> {
     path: string,
     source: string,
     parserVersion?: string,
-  ): { blocks: TBlocks } | null {
+  ): { blocks: TBlocks; serializedBaseline?: string } | null {
     const entry = this.touch(path);
     if (
       !entry?.parsed ||
@@ -44,9 +45,13 @@ export class EditorCache<TBlocks> {
       return null;
     }
 
-    return {
+    const result: { blocks: TBlocks; serializedBaseline?: string } = {
       blocks: entry.parsed.blocks,
     };
+    if (entry.parsed.serializedBaseline !== undefined) {
+      result.serializedBaseline = entry.parsed.serializedBaseline;
+    }
+    return result;
   }
 
   setBlocks(
@@ -54,11 +59,12 @@ export class EditorCache<TBlocks> {
     source: string,
     blocks: TBlocks,
     parserVersion?: string,
+    serializedBaseline?: string,
   ): void {
     const entry = this.entries.get(path);
     this.write(path, {
       content: entry?.content ?? source,
-      parsed: { source, parserVersion, blocks },
+      parsed: { source, parserVersion, blocks, serializedBaseline },
     });
   }
 

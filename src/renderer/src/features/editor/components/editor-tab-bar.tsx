@@ -16,6 +16,7 @@ import {
   isEditorFileDrag,
 } from "../lib/editor-drag-session";
 import { selectTabBarSignature } from "../lib/editor-view-selectors";
+import { shouldPrepareSplitWarmup } from "../lib/editor-split-warmup";
 import { EditorToolbar } from "./editor-toolbar";
 
 // 支持的文件扩展名
@@ -36,6 +37,39 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
   const removeTab = useEditorStore((state) => state.removeTab);
   const addTab = useEditorStore((state) => state.addTab);
   const addPanelGroup = useEditorStore((state) => state.addPanelGroup);
+  const splitWarmupStatus = useEditorStore((state) => {
+    const sourceGroup = state.panelGroups.find((item) => item.id === groupId);
+    const sourceTab = sourceGroup?.tabs.find(
+      (item) => item.id === sourceGroup.activeTabId,
+    );
+    if (
+      !sourceTab?.filePath ||
+      sourceTab.mode !== "rich" ||
+      sourceTab.loadStatus !== "ready"
+    ) {
+      return "ready";
+    }
+    const visibleDocumentCopies = state.panelGroups.filter((group) => {
+      if (group.splitWarmup) return false;
+      const tab = group.tabs.find((item) => item.id === group.activeTabId);
+      return tab?.filePath === sourceTab.filePath && tab.mode === "rich";
+    }).length;
+    if (
+      !shouldPrepareSplitWarmup({
+        documentLength: sourceTab.content.length,
+        visibleDocumentCopies,
+      })
+    ) {
+      return "limit";
+    }
+    return (
+      state.panelGroups.find(
+        (item) =>
+          item.splitWarmup?.sourceGroupId === groupId &&
+          item.splitWarmup.sourceTabId === sourceTab.id,
+      )?.splitWarmup?.status ?? "preparing"
+    );
+  });
   const { openFile } = useElectron();
 
   const group = useEditorStore
@@ -47,6 +81,13 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
     tabId: string;
   } | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const splitDisabled = splitWarmupStatus !== "ready";
+  const splitDisabledTitle =
+    splitWarmupStatus === "limit"
+      ? "大文档最多同时打开两个高性能面板"
+      : splitDisabled
+        ? "正在准备大文档拆分"
+        : undefined;
 
   // 关闭右键菜单
   useEffect(() => {
@@ -92,10 +133,12 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
   };
 
   const handleSplitRight = () => {
+    if (splitDisabled) return;
     addPanelGroup("horizontal", groupId);
   };
 
   const handleSplitDown = () => {
+    if (splitDisabled) return;
     addPanelGroup("vertical", groupId);
   };
 
@@ -258,6 +301,8 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
             onNewTab={handleNewTab}
             onSplitRight={handleSplitRight}
             onSplitDown={handleSplitDown}
+            splitDisabled={splitDisabled}
+            splitDisabledReason={splitDisabledTitle}
           />
         </div>
       )}
@@ -296,18 +341,22 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
           <MenuDivider />
           <MenuButton
             icon={<SplitSquareHorizontal className="h-3.5 w-3.5" />}
+            disabled={splitDisabled}
+            title={splitDisabledTitle}
             onClick={() => {
-              addPanelGroup("horizontal", groupId);
               setContextMenu(null);
+              addPanelGroup("horizontal", groupId);
             }}
           >
             向右拆分
           </MenuButton>
           <MenuButton
             icon={<SplitSquareVertical className="h-3.5 w-3.5" />}
+            disabled={splitDisabled}
+            title={splitDisabledTitle}
             onClick={() => {
-              addPanelGroup("vertical", groupId);
               setContextMenu(null);
+              addPanelGroup("vertical", groupId);
             }}
           >
             向下拆分
@@ -321,17 +370,26 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
 // 菜单按钮组件
 function MenuButton({
   icon,
+  disabled = false,
+  title,
   onClick,
   children,
 }: {
   icon?: React.ReactNode;
+  disabled?: boolean;
+  title?: string;
   onClick: () => void;
   children: React.ReactNode;
 }) {
   return (
     <button
       className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs transition-colors"
-      style={{ color: "var(--text-primary)" }}
+      style={{
+        color: "var(--text-primary)",
+        opacity: disabled ? 0.45 : 1,
+      }}
+      disabled={disabled}
+      title={title}
       onClick={onClick}
       onMouseEnter={(e) => {
         e.currentTarget.style.backgroundColor = "var(--accent-color)";

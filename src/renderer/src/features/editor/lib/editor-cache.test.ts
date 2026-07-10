@@ -37,4 +37,16 @@ describe("EditorCache", () => {
     expect(cache.getBlocks("a.md", "a")).toEqual({ blocks: "blocks-a" });
     expect(cache.getBlocks("b.md", "b")).toEqual({ blocks: "blocks-b" });
   });
+
+  it("stores serialized baseline with parsed blocks", () => {
+    const cache = new EditorCache<string>({ maxEntries: 2 });
+
+    cache.setBlocks("a.md", "a", "blocks-a", "parser-v1", "baseline-a");
+
+    expect(cache.getBlocks("a.md", "a", "parser-v1")).toEqual({
+      blocks: "blocks-a",
+      serializedBaseline: "baseline-a",
+    });
+    expect(cache.getBlocks("a.md", "a", "parser-v2")).toBeNull();
+  });
 });

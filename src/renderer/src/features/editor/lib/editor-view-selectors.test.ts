@@ -37,6 +37,20 @@ describe("editor view selectors", () => {
       selectTabBarSignature("group-1")(initial),
     );
   });
+
+  it("tracks whether a panel is hidden as a split warmup", () => {
+    const visible = createState("content");
+    const warmup = createState("content");
+    warmup.panelGroups[0].splitWarmup = {
+      sourceGroupId: "source-group",
+      sourceTabId: "source-tab",
+      status: "preparing",
+    };
+
+    expect(selectEditorLayoutSignature(warmup)).not.toBe(
+      selectEditorLayoutSignature(visible),
+    );
+  });
 });
 
 function createState(content: string): EditorState {

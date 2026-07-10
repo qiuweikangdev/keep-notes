@@ -25,6 +25,7 @@ vi.mock("./editor-tab-bar", () => ({
 
 const workspaceLifecycle = vi.hoisted(() => ({
   nextInstanceId: 0,
+  instances: new Map<string, number>(),
   mounts: new Map<string, number>(),
   unmounts: new Map<string, number>(),
 }));
@@ -40,6 +41,7 @@ vi.mock("./editor-workspace", async () => {
       });
 
       useEffect(() => {
+        workspaceLifecycle.instances.set(groupId, instanceId);
         workspaceLifecycle.mounts.set(
           groupId,
           (workspaceLifecycle.mounts.get(groupId) ?? 0) + 1,
@@ -87,6 +89,7 @@ function createTab(id: string, filePath: string) {
 
 beforeEach(() => {
   workspaceLifecycle.nextInstanceId = 0;
+  workspaceLifecycle.instances.clear();
   workspaceLifecycle.mounts.clear();
   workspaceLifecycle.unmounts.clear();
 });
@@ -227,5 +230,48 @@ describe("Editor split panels", () => {
     expect(workspaceLifecycle.mounts.get("group-2")).toBe(1);
     expect(workspaceLifecycle.unmounts.get("group-1") ?? 0).toBe(0);
     expect(workspaceLifecycle.unmounts.get("group-2") ?? 0).toBe(0);
+  });
+
+  it("keeps a split warmup hidden and reveals the same mounted instance when claimed", () => {
+    useEditorStore.setState({
+      panelGroups: [
+        {
+          id: "group-1",
+          activeTabId: "tab-1",
+          direction: "horizontal",
+          tabs: [createTab("tab-1", "/notes/large.md")],
+        },
+        {
+          id: "group-warmup",
+          activeTabId: "tab-warmup",
+          direction: "horizontal",
+          tabs: [createTab("tab-warmup", "/notes/large.md")],
+          splitWarmup: {
+            sourceGroupId: "group-1",
+            sourceTabId: "tab-1",
+            status: "ready",
+          },
+        },
+      ],
+      activeGroupId: "group-1",
+    });
+
+    render(<Editor />);
+
+    expect(workspaceLifecycle.mounts.get("group-warmup")).toBe(1);
+    expect(screen.queryByTestId("workspace-group-warmup")).toBeNull();
+    const warmupInstance = workspaceLifecycle.instances.get("group-warmup");
+
+    act(() => {
+      useEditorStore.getState().addPanelGroup("horizontal", "group-1");
+    });
+
+    expect(
+      screen
+        .getByTestId("workspace-group-warmup")
+        .getAttribute("data-instance-id"),
+    ).toBe(String(warmupInstance));
+    expect(workspaceLifecycle.mounts.get("group-warmup")).toBe(1);
+    expect(workspaceLifecycle.unmounts.get("group-warmup") ?? 0).toBe(0);
   });
 });

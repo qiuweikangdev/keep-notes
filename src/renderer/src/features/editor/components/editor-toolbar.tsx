@@ -26,12 +26,15 @@ import { hasNoHeadVersion, toGitRelativePath } from "../lib/editor-git-actions";
 import { flushEditorChange } from "../lib/editor-runtime";
 import { discardFileChanges } from "../lib/discard-file-changes";
 import { shouldFlushRichEditorBeforeAction } from "../lib/editor-large-document";
+import { selectEditorToolbarSignature } from "../lib/editor-view-selectors";
 
 interface EditorToolbarProps {
   groupId: string;
   onNewTab: () => void;
   onSplitRight: () => void;
   onSplitDown: () => void;
+  splitDisabled?: boolean;
+  splitDisabledReason?: string;
 }
 
 export function EditorToolbar({
@@ -39,11 +42,21 @@ export function EditorToolbar({
   onNewTab,
   onSplitRight,
   onSplitDown,
+  splitDisabled = false,
+  splitDisabledReason,
 }: EditorToolbarProps) {
-  const tab = useEditorStore((state) => {
-    const group = state.panelGroups.find((item) => item.id === groupId);
-    return group?.tabs.find((item) => item.id === group.activeTabId);
-  });
+  useEditorStore(selectEditorToolbarSignature(groupId));
+  const group = useEditorStore
+    .getState()
+    .panelGroups.find((item) => item.id === groupId);
+  const tab = group?.tabs.find((item) => item.id === group.activeTabId);
+  const getActiveTab = useCallback(() => {
+    const state = useEditorStore.getState();
+    const activeGroup = state.panelGroups.find((item) => item.id === groupId);
+    return activeGroup?.tabs.find(
+      (item) => item.id === activeGroup.activeTabId,
+    );
+  }, [groupId]);
   const repositoryRoot = useTreeStore((state) => state.treeRoot?.key ?? null);
   const showModeSwitcher = useEditorStore(
     (state) => state.appearance.showModeSwitcher,
@@ -84,37 +97,42 @@ export function EditorToolbar({
 
   const handleModeChange = useCallback(
     async (mode: EditorMode) => {
-      if (!tab || tab.mode === mode) return;
+      const currentTab = getActiveTab();
+      if (!currentTab || currentTab.mode === mode) return;
       if (
-        tab.mode === "rich" &&
+        currentTab.mode === "rich" &&
         mode === "source" &&
-        shouldFlushRichEditorBeforeAction(tab.content)
+        shouldFlushRichEditorBeforeAction(currentTab.content)
       ) {
-        await flushEditorChange(groupId, tab.id);
+        await flushEditorChange(groupId, currentTab.id);
       }
       if (mode === "rich") {
-        setTabParseError(groupId, tab.id, null);
+        setTabParseError(groupId, currentTab.id, null);
       }
-      setTabMode(groupId, tab.id, mode);
+      setTabMode(groupId, currentTab.id, mode);
     },
-    [groupId, setTabMode, setTabParseError, tab],
+    [getActiveTab, groupId, setTabMode, setTabParseError],
   );
 
   const handleDiff = useCallback(async () => {
-    if (!tab?.filePath || !repositoryRoot) return;
-    const filePath = tab.filePath;
+    const currentTab = getActiveTab();
+    if (!currentTab?.filePath || !repositoryRoot) return;
+    const filePath = currentTab.filePath;
 
     // 大文档富文本序列化会阻塞主线程；小文档才同步 flush，保证菜单和弹窗先响应。
-    if (tab.mode === "rich" && shouldFlushRichEditorBeforeAction(tab.content)) {
-      await flushEditorChange(groupId, tab.id);
+    if (
+      currentTab.mode === "rich" &&
+      shouldFlushRichEditorBeforeAction(currentTab.content)
+    ) {
+      await flushEditorChange(groupId, currentTab.id);
     }
 
     // 直接使用当前标签快照；大文档不再为了 diff 弹窗强制等待整文序列化。
     const matchedTab = useEditorStore
       .getState()
       .panelGroups.flatMap((g) => g.tabs)
-      .find((t) => t.id === tab.id);
-    const editorContent = matchedTab?.content ?? tab.content;
+      .find((t) => t.id === currentTab.id);
+    const editorContent = matchedTab?.content ?? currentTab.content;
 
     const relativePath = toGitRelativePath(repositoryRoot, filePath);
     const result = await getFileHeadContent(repositoryRoot, relativePath);
@@ -143,24 +161,29 @@ export function EditorToolbar({
     updateContent(headContent, editorContent);
   }, [
     closeDiff,
+    getActiveTab,
     getFileHeadContent,
     getGitStatus,
     groupId,
     openDiff,
     repositoryRoot,
-    tab,
     updateContent,
   ]);
 
   const handleDiscard = useCallback(async () => {
-    if (!tab?.filePath || !repositoryRoot) return;
-    const result = await discardFileChanges(repositoryRoot, tab.filePath, {
-      detectGitRepo,
-      discardChanges,
-      getFileHeadContent,
-      getGitStatus,
-      loadTree,
-    });
+    const currentTab = getActiveTab();
+    if (!currentTab?.filePath || !repositoryRoot) return;
+    const result = await discardFileChanges(
+      repositoryRoot,
+      currentTab.filePath,
+      {
+        detectGitRepo,
+        discardChanges,
+        getFileHeadContent,
+        getGitStatus,
+        loadTree,
+      },
+    );
     if (result.noChanges) {
       showNoDiffChangesToast();
     }
@@ -169,9 +192,9 @@ export function EditorToolbar({
     discardChanges,
     getFileHeadContent,
     getGitStatus,
+    getActiveTab,
     loadTree,
     repositoryRoot,
-    tab,
   ]);
 
   if (!tab) return null;
@@ -228,12 +251,24 @@ export function EditorToolbar({
             </EditorActionMenuItem>
             <EditorActionMenuItem
               icon={<SplitSquareHorizontal className="h-3.5 w-3.5" />}
+              disabled={splitDisabled}
+              title={
+                splitDisabled
+                  ? (splitDisabledReason ?? "正在准备大文档拆分")
+                  : undefined
+              }
               onSelect={onSplitRight}
             >
               向右拆分面板
             </EditorActionMenuItem>
             <EditorActionMenuItem
               icon={<SplitSquareVertical className="h-3.5 w-3.5" />}
+              disabled={splitDisabled}
+              title={
+                splitDisabled
+                  ? (splitDisabledReason ?? "正在准备大文档拆分")
+                  : undefined
+              }
               onSelect={onSplitDown}
             >
               向下拆分面板
@@ -273,17 +308,20 @@ export function EditorToolbar({
 function EditorActionMenuItem({
   icon,
   disabled = false,
+  title,
   onSelect,
   children,
 }: {
   icon: React.ReactNode;
   disabled?: boolean;
+  title?: string;
   onSelect: () => void;
   children: React.ReactNode;
 }) {
   return (
     <DropdownMenu.Item
       disabled={disabled}
+      title={title}
       className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[disabled]:opacity-45 data-[highlighted]:bg-[var(--hover-bg)]"
       style={{ color: "var(--text-primary)" }}
       onSelect={onSelect}

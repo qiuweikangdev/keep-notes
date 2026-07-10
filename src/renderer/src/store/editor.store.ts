@@ -48,12 +48,25 @@ export interface EditorTab {
   scrollTop: number;
 }
 
+export type SplitWarmupStatus = "preparing" | "ready" | "stale";
+
+export interface SplitWarmupState {
+  sourceGroupId: string;
+  sourceTabId: string;
+  status: SplitWarmupStatus;
+}
+
 export interface EditorPanelGroup {
   id: string;
   tabs: EditorTab[];
   activeTabId: string;
   direction: "horizontal" | "vertical";
   splitParentGroupId?: string | null;
+  splitWarmup?: SplitWarmupState;
+}
+
+export function isSplitWarmupGroup(group: EditorPanelGroup): boolean {
+  return group.splitWarmup !== undefined;
 }
 
 export interface OutlineHeading {
@@ -85,6 +98,11 @@ export interface EditorState {
     direction: "horizontal" | "vertical",
     targetGroupId?: string,
   ) => void;
+  prepareSplitWarmup: (sourceGroupId: string) => string | null;
+  markSplitWarmupPreparing: (groupId: string) => void;
+  markSplitWarmupReady: (groupId: string) => void;
+  markSplitWarmupStale: (groupId: string) => void;
+  discardSplitWarmup: () => void;
   removePanelGroup: (groupId: string) => void;
   setActiveGroupId: (groupId: string) => void;
 
@@ -135,6 +153,7 @@ export interface EditorState {
     path: string,
     content: string,
     sourceTabId?: string,
+    synchronizedTabIds?: readonly string[],
   ) => void;
 
   // 大纲操作
@@ -266,6 +285,28 @@ export const useEditorStore = create<EditorState>()(
             (t) => t.id === activeGroup.activeTabId,
           );
 
+          const readyWarmup = state.panelGroups.find(
+            (group) =>
+              group.splitWarmup?.sourceGroupId === sourceGroupId &&
+              group.splitWarmup.sourceTabId === activeTab?.id &&
+              group.splitWarmup.status === "ready",
+          );
+          if (readyWarmup) {
+            set((current) => ({
+              panelGroups: current.panelGroups.map((group) => {
+                if (group.id !== readyWarmup.id) return group;
+                return {
+                  ...group,
+                  direction,
+                  splitParentGroupId: sourceGroupId,
+                  splitWarmup: undefined,
+                };
+              }),
+              activeGroupId: sourceGroupId,
+            }));
+            return;
+          }
+
           // 创建新面板组，复制当前活动标签页
           const newTab = activeTab
             ? { ...activeTab, id: generateId() }
@@ -278,28 +319,136 @@ export const useEditorStore = create<EditorState>()(
             splitParentGroupId: activeGroup.id,
           };
 
+          set((current) => ({
+            panelGroups: [...current.panelGroups, newGroup],
+            // 拆分大文档时不要立即激活新面板，避免同步挂载第二个富文本编辑器拖慢当前输入。
+            activeGroupId: sourceGroupId,
+          }));
+        },
+
+        prepareSplitWarmup: (sourceGroupId: string) => {
+          const state = get();
+          const sourceGroup = state.panelGroups.find(
+            (group) => group.id === sourceGroupId && !isSplitWarmupGroup(group),
+          );
+          const sourceTab = sourceGroup?.tabs.find(
+            (tab) => tab.id === sourceGroup.activeTabId,
+          );
+          if (
+            !sourceGroup ||
+            !sourceTab ||
+            sourceTab.mode !== "rich" ||
+            sourceTab.loadStatus !== "ready"
+          ) {
+            return null;
+          }
+
+          const existingWarmup = state.panelGroups.find(
+            (group) =>
+              group.splitWarmup?.sourceGroupId === sourceGroupId &&
+              group.splitWarmup.sourceTabId === sourceTab.id &&
+              group.splitWarmup.status !== "stale",
+          );
+          if (existingWarmup) return existingWarmup.id;
+
+          const warmupTab = { ...sourceTab, id: generateId() };
+          const warmupGroup: EditorPanelGroup = {
+            id: generateId(),
+            tabs: [warmupTab],
+            activeTabId: warmupTab.id,
+            direction: sourceGroup.direction,
+            splitWarmup: {
+              sourceGroupId,
+              sourceTabId: sourceTab.id,
+              status: "preparing",
+            },
+          };
+
+          set((current) => ({
+            // 热备用全局最多保留一个，避免隐藏编辑器随标签数量增长。
+            panelGroups: [
+              ...current.panelGroups.filter(
+                (group) => !isSplitWarmupGroup(group),
+              ),
+              warmupGroup,
+            ],
+          }));
+          return warmupGroup.id;
+        },
+
+        markSplitWarmupReady: (groupId: string) => {
           set((state) => ({
-            panelGroups: [...state.panelGroups, newGroup],
-            activeGroupId: newGroup.id,
+            panelGroups: state.panelGroups.map((group) =>
+              group.id === groupId && group.splitWarmup
+                ? {
+                    ...group,
+                    splitWarmup: { ...group.splitWarmup, status: "ready" },
+                  }
+                : group,
+            ),
+          }));
+        },
+
+        markSplitWarmupPreparing: (groupId: string) => {
+          set((state) => ({
+            panelGroups: state.panelGroups.map((group) =>
+              group.id === groupId && group.splitWarmup
+                ? {
+                    ...group,
+                    splitWarmup: {
+                      ...group.splitWarmup,
+                      status: "preparing",
+                    },
+                  }
+                : group,
+            ),
+          }));
+        },
+
+        markSplitWarmupStale: (groupId: string) => {
+          set((state) => ({
+            panelGroups: state.panelGroups.map((group) =>
+              group.id === groupId && group.splitWarmup
+                ? {
+                    ...group,
+                    splitWarmup: { ...group.splitWarmup, status: "stale" },
+                  }
+                : group,
+            ),
+          }));
+        },
+
+        discardSplitWarmup: () => {
+          set((state) => ({
+            panelGroups: state.panelGroups.filter(
+              (group) => !isSplitWarmupGroup(group),
+            ),
           }));
         },
 
         // 移除面板组
         removePanelGroup: (groupId: string) => {
           set((state) => {
-            const newGroups = state.panelGroups.filter((g) => g.id !== groupId);
-            // 如果没有面板组了，创建一个默认的
-            if (newGroups.length === 0) {
-              const defaultGroup = createDefaultPanelGroup();
+            const newGroups = state.panelGroups.filter(
+              (group) =>
+                group.id !== groupId &&
+                group.splitWarmup?.sourceGroupId !== groupId,
+            );
+            const visibleGroups = newGroups.filter(
+              (group) => !isSplitWarmupGroup(group),
+            );
+            // 隐藏热备用不算可见面板，关闭最后一个面板时仍要创建默认面板。
+            if (visibleGroups.length === 0) {
+              const replacementGroup = createDefaultPanelGroup();
               return {
-                panelGroups: [defaultGroup],
-                activeGroupId: defaultGroup.id,
+                panelGroups: [replacementGroup],
+                activeGroupId: replacementGroup.id,
               };
             }
             // 如果移除的是当前激活的面板组，切换到第一个
             const newActiveId =
               state.activeGroupId === groupId
-                ? newGroups[0].id
+                ? visibleGroups[0].id
                 : state.activeGroupId;
             return {
               panelGroups: newGroups,
@@ -336,14 +485,22 @@ export const useEditorStore = create<EditorState>()(
 
             // 如果没有标签页了
             if (newTabs.length === 0) {
+              const visibleGroups = state.panelGroups.filter(
+                (item) => !isSplitWarmupGroup(item),
+              );
               // 多面板组时，移除整个面板组
-              if (state.panelGroups.length > 1) {
+              if (visibleGroups.length > 1) {
                 const newGroups = state.panelGroups.filter(
-                  (g) => g.id !== groupId,
+                  (item) =>
+                    item.id !== groupId &&
+                    item.splitWarmup?.sourceGroupId !== groupId,
+                );
+                const nextVisibleGroup = newGroups.find(
+                  (item) => !isSplitWarmupGroup(item),
                 );
                 const newActiveId =
                   state.activeGroupId === groupId
-                    ? newGroups[0].id
+                    ? (nextVisibleGroup?.id ?? state.activeGroupId)
                     : state.activeGroupId;
                 return {
                   panelGroups: newGroups,
@@ -357,15 +514,17 @@ export const useEditorStore = create<EditorState>()(
                 filePath: null,
                 wordCount: 0,
                 isDirty: false,
-                panelGroups: state.panelGroups.map((g) =>
-                  g.id === groupId
-                    ? {
-                        ...g,
-                        tabs: [],
-                        activeTabId: "",
-                      }
-                    : g,
-                ),
+                panelGroups: state.panelGroups
+                  .filter((item) => item.splitWarmup?.sourceGroupId !== groupId)
+                  .map((item) =>
+                    item.id === groupId
+                      ? {
+                          ...item,
+                          tabs: [],
+                          activeTabId: "",
+                        }
+                      : item,
+                  ),
               };
             }
 
@@ -680,18 +839,20 @@ export const useEditorStore = create<EditorState>()(
             }
 
             return {
-              panelGroups: state.panelGroups.map((group) =>
-                group.id === groupId
+              panelGroups: state.panelGroups.map((currentGroup) =>
+                currentGroup.id === groupId
                   ? {
-                      ...group,
-                      tabs: group.tabs.map((tab) => {
-                        if (tab.id !== tabId) return tab;
-                        if (tab.loadStatus === "loading") return tab;
+                      ...currentGroup,
+                      tabs: currentGroup.tabs.map((currentTab) => {
+                        if (currentTab.id !== tabId) return currentTab;
+                        if (currentTab.loadStatus === "loading") {
+                          return currentTab;
+                        }
 
-                        return { ...tab, scrollTop };
+                        return { ...currentTab, scrollTop };
                       }),
                     }
-                  : group,
+                  : currentGroup,
               ),
             };
           });
@@ -724,7 +885,7 @@ export const useEditorStore = create<EditorState>()(
           }));
         },
 
-        syncFileContent: (path, content, sourceTabId) => {
+        syncFileContent: (path, content, sourceTabId, synchronizedTabIds) => {
           set((state) => ({
             panelGroups: state.panelGroups.map((group) => ({
               ...group,
@@ -734,7 +895,9 @@ export const useEditorStore = create<EditorState>()(
                       ...tab,
                       content,
                       wordCount: content.length,
-                      reloadKey: tab.reloadKey + 1,
+                      reloadKey: synchronizedTabIds?.includes(tab.id)
+                        ? tab.reloadKey
+                        : tab.reloadKey + 1,
                     }
                   : tab,
               ),

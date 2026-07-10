@@ -29,13 +29,14 @@ import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 
 import { useTheme } from "@/hooks/use-theme";
 import { useDiffStore } from "@/store/diff.store";
-import { useEditorStore } from "@/store/editor.store";
+import { useEditorStore, type SplitWarmupState } from "@/store/editor.store";
 import { useTreeStore } from "@/store/tree.store";
 import {
   editorCache,
   editorSaveCoordinator,
   registerEditorChangeFlusher,
 } from "../lib/editor-runtime";
+import { selectBlockNoteRuntimeSignature } from "../lib/editor-view-selectors";
 import {
   ensureEditableBlocks,
   markdownEquals,
@@ -57,6 +58,7 @@ import {
   registerEditorOutlineNavigator,
 } from "../lib/editor-outline-navigation";
 import { createParseFallback } from "../lib/editor-parse-fallback";
+import { editorInstanceRegistry } from "../lib/editor-instance-registry";
 import {
   readImageFileAsArrayBuffer,
   readImageFileAsDataUrl,
@@ -137,6 +139,7 @@ interface BlockNoteEditorInnerProps {
   onFocus: () => void;
   onWordCountChange: (count: number) => void;
   onParseStateChange: (message: string | null) => void;
+  splitWarmup?: SplitWarmupState;
 }
 
 const MARKDOWN_PARSER_VERSION = "blocknote-v5";
@@ -319,6 +322,14 @@ function findEditorBlockElement(root: Element | null, blockId: string) {
 
 function yieldToMain(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+function waitForNextPaint(): Promise<void> {
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => resolve());
+    });
+  });
 }
 
 function scheduleEditorIdleTask(callback: () => void, timeout = 1200) {
@@ -563,6 +574,7 @@ function BlockNoteEditorInner({
   onFocus,
   onWordCountChange,
   onParseStateChange,
+  splitWarmup,
 }: BlockNoteEditorInnerProps) {
   const appearance = useEditorStore((state) => state.appearance);
   const isActiveEditor = useEditorStore((state) => {
@@ -587,6 +599,7 @@ function BlockNoteEditorInner({
   const appliedPathRef = useRef<string | null>(null);
   const appliedSourceRef = useRef(content);
   const serializedBaselineRef = useRef<string | null>(null);
+  const baselineSerializationRef = useRef<Promise<string | null> | null>(null);
   const serializationCancelRef = useRef<(() => void) | null>(null);
   const serializationInFlightRef = useRef<Promise<void> | null>(null);
   const serializationQueuedRef = useRef(false);
@@ -596,6 +609,8 @@ function BlockNoteEditorInner({
   const isActiveEditorRef = useRef(isActiveEditor);
   const applyTokenRef = useRef(0);
   const editorRef = useRef<CoreBlockNoteEditor | null>(null);
+  const editorRegistrationCleanupRef = useRef<(() => void) | null>(null);
+  const splitWarmupRef = useRef(splitWarmup);
   const workspaceRootPathRef = useRef(workspaceRootPath);
   const loadEditorImageUrl = useCallback(async (url: string) => {
     try {
@@ -731,6 +746,10 @@ function BlockNoteEditorInner({
   }, [path]);
 
   useEffect(() => {
+    splitWarmupRef.current = splitWarmup;
+  }, [splitWarmup]);
+
+  useEffect(() => {
     workspaceRootPathRef.current = workspaceRootPath;
   }, [workspaceRootPath]);
 
@@ -753,6 +772,7 @@ function BlockNoteEditorInner({
       appliedSourceRef.current,
       editor.document,
       parserCacheVersion,
+      serializedBaselineRef.current ?? undefined,
     );
   }, [editor, reloadKey]);
 
@@ -770,10 +790,23 @@ function BlockNoteEditorInner({
     if (pendingRevision === null) return;
 
     const runSerialization = (async () => {
+      if (baselineSerializationRef.current) {
+        await baselineSerializationRef.current;
+      }
       const serialized = await serializeMarkdown(editor, editor.document);
       const baseline = serializedBaselineRef.current;
       if (baseline === null) {
         serializedBaselineRef.current = serialized;
+        if (path) {
+          const parserCacheVersion = getMarkdownParserCacheVersion(reloadKey);
+          editorCache.setBlocks(
+            path,
+            contentRef.current,
+            editor.document,
+            parserCacheVersion,
+            serialized,
+          );
+        }
         changeGateRef.current.markSerialized(pendingRevision);
         return;
       }
@@ -801,6 +834,7 @@ function BlockNoteEditorInner({
           markdown,
           editor.document,
           parserCacheVersion,
+          serialized,
         );
       }
       onWordCountChangeRef.current(markdown.length);
@@ -871,12 +905,14 @@ function BlockNoteEditorInner({
 
   useEffect(() => {
     const applyToken = ++applyTokenRef.current;
+    baselineSerializationRef.current = null;
     cacheAppliedDocument();
     suppressChangeRef.current = true;
     changeGateRef.current.resetAfterProgrammaticChange();
 
     const applyContent = async () => {
       try {
+        const currentSplitWarmup = splitWarmupRef.current;
         const rawSource = contentRef.current;
         const source = repairMarkdownSourceBeforeParse(rawSource);
         const sourceWasRepaired = !markdownEquals(source, rawSource);
@@ -893,7 +929,14 @@ function BlockNoteEditorInner({
         const cached = path
           ? editorCache.getBlocks(path, source, parserCacheVersion)
           : null;
+        const liveSourceBlocks = currentSplitWarmup
+          ? editorInstanceRegistry.getDocumentSnapshot(
+              currentSplitWarmup.sourceGroupId,
+              currentSplitWarmup.sourceTabId,
+            )
+          : null;
         const parsedBlocks =
+          liveSourceBlocks ??
           cached?.blocks ??
           (await parseMarkdown(editor, source || "", {
             markdownFilePath: path,
@@ -902,15 +945,16 @@ function BlockNoteEditorInner({
         const blocks = ensureEditableBlocks(parsedBlocks, () => {
           return { type: "paragraph", content: [] } as Block;
         });
-        const serializedBaseline = await serializeMarkdown(editor, blocks);
-
         // Markdown 解析可能晚于下一次切换完成，旧结果不得再写入编辑器。
         if (applyToken !== applyTokenRef.current) return;
         if (sourceWasRepaired) {
           onWordCountChangeRef.current(source.length);
           onChangeRef.current(source);
         }
-        window.getSelection()?.removeAllRanges();
+        // 后台预热不得清除当前可见编辑器的选区或打断连续输入。
+        if (!currentSplitWarmup) {
+          window.getSelection()?.removeAllRanges();
+        }
         editor.replaceBlocks(editor.document, blocks);
         appliedPathRef.current = path;
         appliedSourceRef.current = source;
@@ -920,13 +964,106 @@ function BlockNoteEditorInner({
           currentScrollTop,
           cachedScrollTop: undefined,
         });
-        serializedBaselineRef.current = serializedBaseline;
+        serializedBaselineRef.current = cached?.serializedBaseline ?? null;
         if (path) {
           editorCache.setContent(path, source);
-          editorCache.setBlocks(path, source, blocks, parserCacheVersion);
+          editorCache.setBlocks(
+            path,
+            source,
+            blocks,
+            parserCacheVersion,
+            cached?.serializedBaseline,
+          );
         }
         restoreEditorScrollTop(scrollContainerRef.current, restoredScrollTop);
         onParseStateChange(null);
+
+        editorRegistrationCleanupRef.current?.();
+        editorRegistrationCleanupRef.current = editorInstanceRegistry.register({
+          groupId,
+          tabId,
+          path,
+          editor,
+          standby: Boolean(currentSplitWarmup),
+          mirrorSourceGroupId: currentSplitWarmup?.sourceGroupId,
+          mirrorSourceTabId: currentSplitWarmup?.sourceTabId,
+          isApplying: () => suppressChangeRef.current,
+          onSynchronizationPending: () => {
+            useEditorStore.getState().markSplitWarmupPreparing(groupId);
+          },
+          onSynchronized: () => {
+            const warmup = splitWarmupRef.current;
+            if (
+              warmup &&
+              editorInstanceRegistry.isDocumentSynchronized(
+                warmup.sourceGroupId,
+                warmup.sourceTabId,
+                groupId,
+                tabId,
+              )
+            ) {
+              useEditorStore.getState().markSplitWarmupReady(groupId);
+            }
+          },
+          onDesynchronized: () => {
+            const store = useEditorStore.getState();
+            const currentGroup = store.panelGroups.find(
+              (group) => group.id === groupId,
+            );
+            if (currentGroup?.splitWarmup) {
+              store.markSplitWarmupStale(groupId);
+            } else {
+              store.incrementTabReloadKey(groupId, tabId);
+            }
+          },
+        });
+        if (currentSplitWarmup) {
+          const isSynchronized = editorInstanceRegistry.isDocumentSynchronized(
+            currentSplitWarmup.sourceGroupId,
+            currentSplitWarmup.sourceTabId,
+            groupId,
+            tabId,
+          );
+          const store = useEditorStore.getState();
+          if (isSynchronized) {
+            store.markSplitWarmupReady(groupId);
+          } else {
+            store.markSplitWarmupStale(groupId);
+          }
+        }
+
+        if (serializedBaselineRef.current === null) {
+          const baselinePath = path;
+          const baselineSource = source;
+          const baselineBlocks = blocks;
+          const baselineParserCacheVersion = parserCacheVersion;
+          const baselinePromise = (async () => {
+            // 先让新面板完成一次绘制，再序列化大文档基线，避免拆分时出现空白闪烁。
+            await waitForNextPaint();
+            const serializedBaseline = await serializeMarkdown(
+              editor,
+              baselineBlocks,
+            );
+            if (applyToken !== applyTokenRef.current) return null;
+            serializedBaselineRef.current = serializedBaseline;
+            if (baselinePath) {
+              editorCache.setBlocks(
+                baselinePath,
+                baselineSource,
+                baselineBlocks,
+                baselineParserCacheVersion,
+                serializedBaseline,
+              );
+            }
+            return serializedBaseline;
+          })();
+          baselineSerializationRef.current = baselinePromise;
+          void baselinePromise.finally(() => {
+            if (baselineSerializationRef.current === baselinePromise) {
+              baselineSerializationRef.current = null;
+            }
+          });
+        }
 
         // 内容加载完成后更新大纲标题列表
         if (isActiveEditorRef.current) {
@@ -949,6 +1086,9 @@ function BlockNoteEditorInner({
     void applyContent();
     return () => {
       applyTokenRef.current += 1;
+      baselineSerializationRef.current = null;
+      editorRegistrationCleanupRef.current?.();
+      editorRegistrationCleanupRef.current = null;
     };
     // 普通输入只更新 contentRef；仅文件切换或显式重载时替换整篇文档。
   }, [
@@ -991,6 +1131,8 @@ function BlockNoteEditorInner({
       if (outlineUpdateCancelRef.current) {
         outlineUpdateCancelRef.current();
       }
+      editorRegistrationCleanupRef.current?.();
+      editorRegistrationCleanupRef.current = null;
       cacheAppliedDocument();
     },
     [cacheAppliedDocument],
@@ -998,6 +1140,8 @@ function BlockNoteEditorInner({
 
   const editorStyle = {
     backgroundColor: "var(--bg-primary)",
+    contain: "layout style paint",
+    isolation: "isolate",
     opacity: appearance.opacity / 100,
     "--editor-font-size": `${appearance.fontSize}px`,
     "--editor-line-height": appearance.lineHeight,
@@ -1135,10 +1279,19 @@ export function BlockNoteEditor({
   groupId: string;
   tabId: string;
 }) {
-  const tab = useEditorStore((state) =>
-    state.panelGroups
-      .find((group) => group.id === groupId)
-      ?.tabs.find((item) => item.id === tabId),
+  useEditorStore(selectBlockNoteRuntimeSignature(groupId, tabId));
+  const group = useEditorStore
+    .getState()
+    .panelGroups.find((item) => item.id === groupId);
+  const tab = group?.tabs.find((item) => item.id === tabId);
+  const tabFilePath = tab?.filePath ?? null;
+  const getCurrentTab = useCallback(
+    () =>
+      useEditorStore
+        .getState()
+        .panelGroups.find((currentGroup) => currentGroup.id === groupId)
+        ?.tabs.find((item) => item.id === tabId),
+    [groupId, tabId],
   );
   const setActiveGroupId = useEditorStore((state) => state.setActiveGroupId);
   const setActiveTab = useEditorStore((state) => state.setActiveTab);
@@ -1148,24 +1301,32 @@ export function BlockNoteEditor({
   const syncFileContent = useEditorStore((state) => state.syncFileContent);
 
   const handleFocus = useCallback(() => {
+    // 聚焦前应用已排队的小批量事务，避免用户在旧光标文档上开始输入。
+    editorInstanceRegistry.flushPending(groupId, tabId);
     setActiveGroupId(groupId);
     setActiveTab(groupId, tabId);
   }, [groupId, setActiveGroupId, setActiveTab, tabId]);
 
   const handleChange = useCallback(
     (content: string) => {
-      if (!tab) return;
+      const currentTab = getCurrentTab();
+      if (!currentTab) return;
       setTabContent(groupId, tabId, content);
-      if (!tab.filePath) return;
+      if (!currentTab.filePath) return;
 
-      syncFileContent(tab.filePath, content, tabId);
+      // 同一事务组的富文本实例已增量同步，只更新 Markdown 快照，不触发整文档替换。
+      const synchronizedTabIds = editorInstanceRegistry.getSynchronizedTabIds(
+        groupId,
+        tabId,
+      );
+      syncFileContent(currentTab.filePath, content, tabId, synchronizedTabIds);
       const diffState = useDiffStore.getState();
-      if (diffState.isOpen && diffState.filePath === tab.filePath) {
+      if (diffState.isOpen && diffState.filePath === currentTab.filePath) {
         diffState.updateContent(diffState.oldContent, content);
       }
-      editorSaveCoordinator.schedule(tab.filePath, content);
+      editorSaveCoordinator.schedule(currentTab.filePath, content);
     },
-    [groupId, setTabContent, syncFileContent, tab, tabId],
+    [getCurrentTab, groupId, setTabContent, syncFileContent, tabId],
   );
 
   const handleParseStateChange = useCallback(
@@ -1182,12 +1343,13 @@ export function BlockNoteEditor({
       groupId={groupId}
       tabId={tabId}
       content={tab.content}
-      path={tab.filePath}
+      path={tabFilePath}
       reloadKey={tab.reloadKey}
       onChange={handleChange}
       onFocus={handleFocus}
       onWordCountChange={(count) => setTabWordCount(groupId, tabId, count)}
       onParseStateChange={handleParseStateChange}
+      splitWarmup={group?.splitWarmup}
     />
   );
 }
