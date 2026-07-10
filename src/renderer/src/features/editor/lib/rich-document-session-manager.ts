@@ -39,6 +39,11 @@ interface RuntimeRegistration {
   unregisterSurface: () => void;
 }
 
+interface VisiblePaneRegistration {
+  path: string;
+  token: symbol;
+}
+
 const DEFAULT_MAX_BACKGROUND_SESSIONS = 4;
 
 export class RichDocumentSessionManager {
@@ -48,6 +53,10 @@ export class RichDocumentSessionManager {
   private readonly viewStates: RichPaneViewStateRegistry;
   private readonly records = new Map<string, SessionRecord>();
   private readonly listeners = new Set<() => void>();
+  private readonly visiblePaneRegistrations = new Map<
+    RichPaneKey,
+    VisiblePaneRegistration
+  >();
   private readonly runtimeRegistrations = new Map<
     string,
     RuntimeRegistration
@@ -83,7 +92,12 @@ export class RichDocumentSessionManager {
     const record = this.getOrCreateRecord(normalizedPath);
     // 每次保留都复制绑定作为注册身份，避免复用同一入参时旧回调误删新绑定。
     const retainedBinding = { ...binding };
+    const token = Symbol(binding.paneKey);
     record.visibleBindings.set(binding.paneKey, retainedBinding);
+    this.visiblePaneRegistrations.set(binding.paneKey, {
+      path: normalizedPath,
+      token,
+    });
     record.lastActiveAt = this.now();
     this.finishMutation();
 
@@ -96,7 +110,15 @@ export class RichDocumentSessionManager {
         this.deactivateRecord(record);
       }
       record.visibleBindings.delete(binding.paneKey);
-      this.viewStates.delete(binding.paneKey);
+      const registration = this.visiblePaneRegistrations.get(binding.paneKey);
+      // pane 跨路径迁移时，旧路径只清自己的 record，不得删除新 owner 的视图状态。
+      if (
+        registration?.path === normalizedPath &&
+        registration.token === token
+      ) {
+        this.visiblePaneRegistrations.delete(binding.paneKey);
+        this.viewStates.delete(binding.paneKey);
+      }
       record.lastActiveAt = this.now();
       this.deleteUnretainedRecord(record);
       this.finishMutation();
