@@ -292,6 +292,8 @@ function getClosingFenceMatch(line: string, openingFence: string) {
   if (!match) return null;
   if (match[1][0] !== openingFence[0]) return null;
   if (match[1].length < openingFence.length) return null;
+  // 关闭围栏后只允许空白，避免把代码块内的 fence-like 内容误判为结束位置。
+  if (!/^[ \t]*$/u.test(line.slice(match[0].length))) return null;
   return match;
 }
 

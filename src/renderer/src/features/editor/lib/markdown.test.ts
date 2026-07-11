@@ -185,6 +185,21 @@ describe("repairMarkdownSourceBeforeParse", () => {
 
     expect(repairMarkdownSourceBeforeParse(source)).toBe(source);
   });
+
+  it.each(["```not-a-close", "````not-a-close"])(
+    "does not treat a fence with trailing text as a closing fence: %s",
+    (fenceLikeContent) => {
+      const source = [
+        "```text",
+        fenceLikeContent,
+        "```bash写一个循环",
+        "```",
+        "",
+      ].join("\n");
+
+      expect(repairMarkdownSourceBeforeParse(source)).toBe(source);
+    },
+  );
 });
 
 describe("preserveMarkdownSource", () => {
