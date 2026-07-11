@@ -1,4 +1,60 @@
-import type { EditorState } from "@/store/editor.store";
+import type { EditorLoadStatus, EditorState } from "@/store/editor.store";
+
+export interface RichDocumentRepresentative {
+  path: string;
+  content: string;
+  reloadKey: number;
+  loadStatus: EditorLoadStatus;
+}
+
+export function selectRichDocumentRepresentative(path: string) {
+  const normalizedPath = path.replaceAll("\\", "/");
+  let previous: RichDocumentRepresentative | null = null;
+
+  return (state: EditorState): RichDocumentRepresentative | null => {
+    const visibleGroups = state.panelGroups.filter(
+      (group) => !group.splitWarmup,
+    );
+    let representative = visibleGroups
+      .flatMap((group) => group.tabs)
+      .find(
+        (tab) =>
+          tab.mode === "rich" &&
+          tab.filePath?.replaceAll("\\", "/") === normalizedPath,
+      );
+
+    representative ??= state.panelGroups
+      .flatMap((group) => group.tabs)
+      .find(
+        (tab) =>
+          tab.mode === "rich" &&
+          tab.filePath?.replaceAll("\\", "/") === normalizedPath,
+      );
+
+    if (!representative) {
+      previous = null;
+      return null;
+    }
+
+    if (
+      previous?.path === normalizedPath &&
+      previous.content === representative.content &&
+      previous.reloadKey === representative.reloadKey &&
+      previous.loadStatus === representative.loadStatus
+    ) {
+      return previous;
+    }
+
+    // selector 只暴露驱动 path 级编辑器会话的原始值，避免面板状态导致会话重挂载。
+    previous = {
+      path: normalizedPath,
+      content: representative.content,
+      reloadKey: representative.reloadKey,
+      loadStatus: representative.loadStatus,
+    };
+    return previous;
+  };
+}
 
 export function selectEditorLayoutSignature(state: EditorState): string {
   return state.panelGroups

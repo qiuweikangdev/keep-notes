@@ -4,6 +4,7 @@ import type { EditorState } from "@/store/editor.store";
 import {
   selectEditorLayoutSignature,
   selectPanelGroupSignature,
+  selectRichDocumentRepresentative,
   selectTabBarSignature,
 } from "./editor-view-selectors";
 
@@ -50,6 +51,68 @@ describe("editor view selectors", () => {
     expect(selectEditorLayoutSignature(warmup)).not.toBe(
       selectEditorLayoutSignature(visible),
     );
+  });
+
+  it("selects one rich representative from visible groups with a minimal descriptor", () => {
+    const state = createState("# Large");
+    state.panelGroups[0].tabs[0].filePath = "C:/notes/large.md";
+    state.panelGroups[0].tabs[0].reloadKey = 2;
+    state.panelGroups[0].tabs[0].wordCount = 99;
+    state.panelGroups[0].tabs[0].isDirty = true;
+    state.panelGroups[0].tabs[0].saveStatus = "saving";
+    state.panelGroups[0].tabs[0].scrollTop = 240;
+    state.panelGroups.unshift({
+      ...state.panelGroups[0],
+      id: "warmup-group",
+      activeTabId: "warmup-tab",
+      splitWarmup: {
+        sourceGroupId: "group-1",
+        sourceTabId: "tab-1",
+        status: "ready",
+      },
+      tabs: [
+        {
+          ...state.panelGroups[0].tabs[0],
+          id: "warmup-tab",
+          content: "# Stale warmup",
+          reloadKey: 8,
+        },
+      ],
+    });
+
+    expect(
+      selectRichDocumentRepresentative("C:/notes/large.md")(state),
+    ).toEqual({
+      path: "C:/notes/large.md",
+      content: "# Large",
+      reloadKey: 2,
+      loadStatus: "ready",
+    });
+  });
+
+  it("skips source tabs and preserves descriptor identity for unchanged primitives", () => {
+    const initial = createState("# Large");
+    initial.panelGroups[0].tabs[0].filePath = "C:/notes/large.md";
+    initial.panelGroups[0].tabs[1] = {
+      ...initial.panelGroups[0].tabs[0],
+      id: "source-tab",
+      content: "# Source",
+      mode: "source",
+      reloadKey: 9,
+    };
+    const selectRepresentative =
+      selectRichDocumentRepresentative("C:/notes/large.md");
+    const first = selectRepresentative(initial);
+    const updated = createState("# Large");
+    updated.panelGroups[0].tabs[0] = {
+      ...initial.panelGroups[0].tabs[0],
+      wordCount: 400,
+      isDirty: true,
+      saveStatus: "dirty",
+      scrollTop: 720,
+    };
+
+    expect(selectRepresentative(updated)).toBe(first);
   });
 });
 

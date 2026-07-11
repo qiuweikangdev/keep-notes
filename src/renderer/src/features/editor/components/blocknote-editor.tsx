@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   type CSSProperties,
 } from "react";
@@ -24,7 +25,7 @@ import type {
   BlockNoteEditor as CoreBlockNoteEditor,
   InlineContent,
 } from "@blocknote/core";
-import { AllSelection } from "@tiptap/pm/state";
+import { AllSelection, TextSelection } from "@tiptap/pm/state";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 
 import { useTheme } from "@/hooks/use-theme";
@@ -37,6 +38,15 @@ import {
   registerEditorChangeFlusher,
 } from "../lib/editor-runtime";
 import { selectBlockNoteRuntimeSignature } from "../lib/editor-view-selectors";
+import type { RichDocumentRuntime } from "../lib/rich-document-session-manager";
+import type { RichPreviewAnchor } from "../lib/rich-preview-anchor";
+import { RichPreviewCache } from "../lib/rich-preview-cache";
+import {
+  type RichPaneKey,
+  type RichPaneSelection,
+  type RichPaneViewState,
+  toRichPaneKey,
+} from "../lib/rich-pane-view-state";
 import {
   ensureEditableBlocks,
   markdownEquals,
@@ -129,17 +139,51 @@ interface UploadedImageAttachmentContext {
   moveCursorAfterUpload: () => void;
 }
 
-interface BlockNoteEditorInnerProps {
+export interface RichEditorBinding {
   groupId: string;
   tabId: string;
+  paneKey: RichPaneKey;
+  path: string;
+}
+
+export interface RichBlockNoteRuntime extends RichDocumentRuntime {
+  editor: CoreBlockNoteEditor;
+  previewCache: RichPreviewCache;
+  focusAt: (anchor: RichPreviewAnchor | null) => void;
+  readViewState: () => Pick<RichPaneViewState, "scrollTop" | "selection">;
+  restoreViewState: (state: RichPaneViewState) => void;
+  scrollToBlock: (blockId: string) => boolean;
+}
+
+export interface RichEditorSessionController {
+  path: string;
+  getActiveBinding: () => RichEditorBinding | null;
+  getBoundTabIds: () => string[];
+  onMarkdownChange: (content: string) => void;
+  onWordCountChange: (count: number) => void;
+  onParseStateChange: (message: string | null) => void;
+  onRuntimeReady: (runtime: RichBlockNoteRuntime) => () => void;
+}
+
+interface BlockNoteEditorInnerProps {
+  controller: RichEditorSessionController;
   content: string;
   path: string | null;
   reloadKey: number;
-  onChange: (content: string) => void;
-  onFocus: () => void;
-  onWordCountChange: (count: number) => void;
-  onParseStateChange: (message: string | null) => void;
+  surface?: HTMLElement;
   splitWarmup?: SplitWarmupState;
+}
+
+interface BlockNoteEditorSessionProps {
+  controller: RichEditorSessionController;
+  content: string;
+  reloadKey: number;
+  surface: HTMLElement;
+}
+
+interface LegacyBlockNoteEditorProps {
+  groupId: string;
+  tabId: string;
 }
 
 const MARKDOWN_PARSER_VERSION = "blocknote-v5";
@@ -318,6 +362,85 @@ function findEditorBlockElement(root: Element | null, blockId: string) {
   return (
     root?.querySelector<HTMLElement>(createBlockIdSelector(blockId)) ?? null
   );
+}
+
+function findEditorBlockFromDomPoint(node: Node): HTMLElement | null {
+  const element = node instanceof Element ? node : node.parentElement;
+  return element?.closest<HTMLElement>("[data-id]") ?? null;
+}
+
+function readBlockTextOffset(block: HTMLElement, node: Node, offset: number) {
+  try {
+    const range = block.ownerDocument.createRange();
+    range.selectNodeContents(block);
+    range.setEnd(node, offset);
+    return range.toString().length;
+  } catch {
+    return 0;
+  }
+}
+
+function readEditorSelectionPoint(
+  editor: CoreBlockNoteEditor,
+  position: number,
+): { blockId: string; textOffset: number } | null {
+  const view = editor.prosemirrorView;
+  try {
+    const point = view.domAtPos(position);
+    const block = findEditorBlockFromDomPoint(point.node);
+    const blockId = block?.dataset.id;
+    if (!block || !blockId) return null;
+
+    return {
+      blockId,
+      textOffset: readBlockTextOffset(block, point.node, point.offset),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function resolveEditorTextPosition(
+  editor: CoreBlockNoteEditor,
+  blockId: string,
+  textOffset: number,
+): number | null {
+  const block = findEditorBlockElement(editor.domElement, blockId);
+  if (!block) return null;
+
+  const targetOffset = Math.max(0, Math.trunc(textOffset));
+  const walker = block.ownerDocument.createTreeWalker(
+    block,
+    NodeFilter.SHOW_TEXT,
+  );
+  let consumed = 0;
+  let lastTextNode: Text | null = null;
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const textNode = node as Text;
+    const length = textNode.data.length;
+    lastTextNode = textNode;
+    if (consumed + length >= targetOffset) {
+      try {
+        return editor.prosemirrorView.posAtDOM(
+          textNode,
+          Math.min(length, targetOffset - consumed),
+        );
+      } catch {
+        return null;
+      }
+    }
+    consumed += length;
+  }
+
+  if (!lastTextNode) return null;
+  try {
+    return editor.prosemirrorView.posAtDOM(
+      lastTextNode,
+      lastTextNode.data.length,
+    );
+  } catch {
+    return null;
+  }
 }
 
 function yieldToMain(): Promise<void> {
@@ -565,24 +688,24 @@ export async function uploadEditorImageFileAsAttachment(
 }
 
 function BlockNoteEditorInner({
-  groupId,
-  tabId,
+  controller,
   content,
   path,
   reloadKey,
-  onChange,
-  onFocus,
-  onWordCountChange,
-  onParseStateChange,
+  surface,
   splitWarmup,
 }: BlockNoteEditorInnerProps) {
   const appearance = useEditorStore((state) => state.appearance);
-  const isActiveEditor = useEditorStore((state) => {
-    const activeGroup = state.panelGroups.find(
-      (group) => group.id === state.activeGroupId,
-    );
+  const isActiveEditor = useEditorStore(() => {
+    const binding = controller.getActiveBinding();
+    const state = useEditorStore.getState();
+    const activeGroup = binding
+      ? state.panelGroups.find((group) => group.id === state.activeGroupId)
+      : null;
     return (
-      state.activeGroupId === groupId && activeGroup?.activeTabId === tabId
+      binding !== null &&
+      state.activeGroupId === binding.groupId &&
+      activeGroup?.activeTabId === binding.tabId
     );
   });
   const workspaceRootPath = useTreeStore(
@@ -592,8 +715,8 @@ function BlockNoteEditorInner({
   const suppressChangeRef = useRef(false);
   const changeGateRef = useRef(new EditorChangeGate());
   const contentRef = useRef(content);
-  const onChangeRef = useRef(onChange);
-  const onWordCountChangeRef = useRef(onWordCountChange);
+  const controllerRef = useRef(controller);
+  controllerRef.current = controller;
   const pathRef = useRef(path);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const appliedPathRef = useRef<string | null>(null);
@@ -610,6 +733,11 @@ function BlockNoteEditorInner({
   const applyTokenRef = useRef(0);
   const editorRef = useRef<CoreBlockNoteEditor | null>(null);
   const editorRegistrationCleanupRef = useRef<(() => void) | null>(null);
+  const editorBindingSubscriptionCleanupRef = useRef<(() => void) | null>(null);
+  const runtimeRegistrationCleanupRef = useRef<(() => void) | null>(null);
+  const runtimeRef = useRef<RichBlockNoteRuntime | null>(null);
+  const previewCacheRef = useRef<RichPreviewCache | null>(null);
+  const previewTransactionCleanupRef = useRef<(() => void) | null>(null);
   const splitWarmupRef = useRef(splitWarmup);
   const workspaceRootPathRef = useRef(workspaceRootPath);
   const loadEditorImageUrl = useCallback(async (url: string) => {
@@ -722,24 +850,219 @@ function BlockNoteEditorInner({
     [editor],
   );
 
-  // 通过 store 暴露跳转函数给侧边栏
-  useEffect(
-    () => registerEditorOutlineNavigator(groupId, tabId, scrollToBlock),
-    [groupId, scrollToBlock, tabId],
+  const focusAt = useCallback(
+    (anchor: RichPreviewAnchor | null) => {
+      if (!anchor) {
+        editor.focus();
+        return;
+      }
+      if (!editor.getBlock(anchor.blockId)) {
+        editor.focus();
+        return;
+      }
+
+      editor.focus();
+      const position = resolveEditorTextPosition(
+        editor,
+        anchor.blockId,
+        anchor.textOffset,
+      );
+      if (position === null) {
+        editor.setTextCursorPosition(anchor.blockId, "start");
+        return;
+      }
+      const view = editor.prosemirrorView;
+      view.dispatch(
+        view.state.tr
+          .setSelection(TextSelection.create(view.state.doc, position))
+          .scrollIntoView(),
+      );
+    },
+    [editor],
   );
+
+  const readViewState = useCallback(() => {
+    const selection = editor.prosemirrorView.state.selection;
+    const anchor = readEditorSelectionPoint(editor, selection.anchor);
+    const head = readEditorSelectionPoint(editor, selection.head);
+    const richSelection: RichPaneSelection | null =
+      anchor && head
+        ? {
+            anchorBlockId: anchor.blockId,
+            anchorOffset: anchor.textOffset,
+            headBlockId: head.blockId,
+            headOffset: head.textOffset,
+          }
+        : null;
+    return {
+      scrollTop: readEditorScrollTop(scrollContainerRef.current),
+      selection: richSelection,
+    };
+  }, [editor]);
+
+  const restoreViewState = useCallback(
+    (state: RichPaneViewState) => {
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = Math.max(0, state.scrollTop);
+      }
+      if (!state.selection) return;
+
+      const anchor = resolveEditorTextPosition(
+        editor,
+        state.selection.anchorBlockId,
+        state.selection.anchorOffset,
+      );
+      const head = resolveEditorTextPosition(
+        editor,
+        state.selection.headBlockId,
+        state.selection.headOffset,
+      );
+      if (anchor === null || head === null) return;
+      const view = editor.prosemirrorView;
+      view.dispatch(
+        view.state.tr.setSelection(
+          TextSelection.create(view.state.doc, anchor, head),
+        ),
+      );
+    },
+    [editor],
+  );
+
+  const cancelPendingEditorWork = useCallback(() => {
+    serializationCancelRef.current?.();
+    serializationCancelRef.current = null;
+    outlineUpdateCancelRef.current?.();
+    outlineUpdateCancelRef.current = null;
+    serializationQueuedRef.current = false;
+  }, []);
+
+  const ensureRichRuntime = useCallback(
+    (blocks: Block[]) => {
+      if (!surface || !path) return;
+
+      let previewCache = previewCacheRef.current;
+      if (!previewCache) {
+        previewCache = new RichPreviewCache(editor);
+        previewCacheRef.current = previewCache;
+        previewTransactionCleanupRef.current = editor.onBeforeChange(
+          ({ tr }) => {
+            previewCache?.handleTransaction(tr);
+          },
+        );
+      }
+      // 初次应用及显式重载都以实际编辑器文档重新播种，避免预览观察到半应用状态。
+      previewCache.seed(blocks);
+      if (runtimeRef.current) return;
+
+      const runtimePath = controller.path;
+      let destroyed = false;
+      const runtime: RichBlockNoteRuntime = {
+        path: runtimePath,
+        surface,
+        editor,
+        previewCache,
+        focusAt,
+        readViewState,
+        restoreViewState,
+        scrollToBlock,
+        serializePendingChange: async () => {
+          serializationCancelRef.current?.();
+          serializationCancelRef.current = null;
+          await serializeChangeRef.current();
+        },
+        cancelPendingWork: cancelPendingEditorWork,
+        destroy: () => {
+          if (destroyed) return;
+          destroyed = true;
+          applyTokenRef.current += 1;
+          cancelPendingEditorWork();
+          editorRegistrationCleanupRef.current?.();
+          editorRegistrationCleanupRef.current = null;
+          editorBindingSubscriptionCleanupRef.current?.();
+          editorBindingSubscriptionCleanupRef.current = null;
+          previewTransactionCleanupRef.current?.();
+          previewTransactionCleanupRef.current = null;
+          previewCache.destroy();
+          if (previewCacheRef.current === previewCache) {
+            previewCacheRef.current = null;
+          }
+          if (runtimeRef.current === runtime) runtimeRef.current = null;
+        },
+        isDirty: () =>
+          useEditorStore
+            .getState()
+            .panelGroups.some((group) =>
+              group.tabs.some(
+                (tab) => tab.filePath === runtimePath && tab.isDirty,
+              ),
+            ),
+        isSaving: () =>
+          useEditorStore
+            .getState()
+            .panelGroups.some((group) =>
+              group.tabs.some(
+                (tab) =>
+                  tab.filePath === runtimePath && tab.saveStatus === "saving",
+              ),
+            ),
+        isReloading: () =>
+          useEditorStore
+            .getState()
+            .panelGroups.some((group) =>
+              group.tabs.some(
+                (tab) =>
+                  tab.filePath === runtimePath && tab.loadStatus === "loading",
+              ),
+            ),
+      };
+      runtimeRef.current = runtime;
+      runtimeRegistrationCleanupRef.current =
+        controllerRef.current.onRuntimeReady(runtime);
+    },
+    [
+      cancelPendingEditorWork,
+      controller.path,
+      editor,
+      focusAt,
+      path,
+      readViewState,
+      restoreViewState,
+      scrollToBlock,
+      surface,
+    ],
+  );
+
+  // 通过 store 暴露跳转函数给侧边栏
+  useEffect(() => {
+    let registeredPaneKey: RichPaneKey | null = null;
+    let releaseNavigator: (() => void) | null = null;
+    const synchronizeRegistration = () => {
+      const binding = controllerRef.current.getActiveBinding();
+      if (binding?.paneKey === registeredPaneKey) return;
+      releaseNavigator?.();
+      registeredPaneKey = binding?.paneKey ?? null;
+      releaseNavigator = binding
+        ? registerEditorOutlineNavigator(
+            binding.groupId,
+            binding.tabId,
+            scrollToBlock,
+          )
+        : null;
+    };
+
+    // 编辑器表面会跨面板移动，大纲导航必须跟随当前活动 binding。
+    synchronizeRegistration();
+    const unsubscribe = useEditorStore.subscribe(synchronizeRegistration);
+    return () => {
+      unsubscribe();
+      releaseNavigator?.();
+    };
+  }, [scrollToBlock]);
 
   // 同步最新内容引用，避免异步保存读取到旧 props。
   useEffect(() => {
     contentRef.current = content;
   }, [content]);
-
-  useEffect(() => {
-    onChangeRef.current = onChange;
-  }, [onChange]);
-
-  useEffect(() => {
-    onWordCountChangeRef.current = onWordCountChange;
-  }, [onWordCountChange]);
 
   useEffect(() => {
     pathRef.current = path;
@@ -775,6 +1098,93 @@ function BlockNoteEditorInner({
       serializedBaselineRef.current ?? undefined,
     );
   }, [editor, reloadKey]);
+
+  const registerEditorInstanceForCurrentBinding = useCallback(
+    (currentSplitWarmup: SplitWarmupState | undefined) => {
+      editorRegistrationCleanupRef.current?.();
+      editorRegistrationCleanupRef.current = null;
+      editorBindingSubscriptionCleanupRef.current?.();
+      editorBindingSubscriptionCleanupRef.current = null;
+      let registeredPaneKey: RichPaneKey | null = null;
+
+      const synchronizeRegistration = () => {
+        const binding = controllerRef.current.getActiveBinding();
+        if (binding?.paneKey === registeredPaneKey) return;
+        editorRegistrationCleanupRef.current?.();
+        editorRegistrationCleanupRef.current = null;
+        registeredPaneKey = binding?.paneKey ?? null;
+        if (!binding) return;
+
+        editorRegistrationCleanupRef.current = editorInstanceRegistry.register({
+          groupId: binding.groupId,
+          tabId: binding.tabId,
+          path,
+          editor,
+          standby: Boolean(currentSplitWarmup),
+          mirrorSourceGroupId: currentSplitWarmup?.sourceGroupId,
+          mirrorSourceTabId: currentSplitWarmup?.sourceTabId,
+          isApplying: () => suppressChangeRef.current,
+          onSynchronizationPending: () => {
+            const current = controllerRef.current.getActiveBinding();
+            if (!current) return;
+            const store = useEditorStore.getState();
+            const group = store.panelGroups.find(
+              (candidate) => candidate.id === current.groupId,
+            );
+            if (group?.splitWarmup) {
+              store.markSplitWarmupPreparing(current.groupId);
+            }
+          },
+          onSynchronized: () => {
+            const current = controllerRef.current.getActiveBinding();
+            const warmup = splitWarmupRef.current;
+            if (
+              current &&
+              warmup &&
+              editorInstanceRegistry.isDocumentSynchronized(
+                warmup.sourceGroupId,
+                warmup.sourceTabId,
+                current.groupId,
+                current.tabId,
+              )
+            ) {
+              useEditorStore.getState().markSplitWarmupReady(current.groupId);
+            }
+          },
+          onDesynchronized: () => {
+            const current = controllerRef.current.getActiveBinding();
+            if (!current) return;
+            const store = useEditorStore.getState();
+            const currentGroup = store.panelGroups.find(
+              (group) => group.id === current.groupId,
+            );
+            if (currentGroup?.splitWarmup) {
+              store.markSplitWarmupStale(current.groupId);
+            } else {
+              store.incrementTabReloadKey(current.groupId, current.tabId);
+            }
+          },
+        });
+
+        if (!currentSplitWarmup) return;
+        const synchronized = editorInstanceRegistry.isDocumentSynchronized(
+          currentSplitWarmup.sourceGroupId,
+          currentSplitWarmup.sourceTabId,
+          binding.groupId,
+          binding.tabId,
+        );
+        const store = useEditorStore.getState();
+        if (synchronized) store.markSplitWarmupReady(binding.groupId);
+        else store.markSplitWarmupStale(binding.groupId);
+      };
+
+      synchronizeRegistration();
+      editorBindingSubscriptionCleanupRef.current = useEditorStore.subscribe(
+        synchronizeRegistration,
+      );
+    },
+    [editor, path],
+  );
 
   const serializeChange = useCallback(async () => {
     if (suppressChangeRef.current) return;
@@ -837,8 +1247,8 @@ function BlockNoteEditorInner({
           serialized,
         );
       }
-      onWordCountChangeRef.current(markdown.length);
-      onChangeRef.current(markdown);
+      controllerRef.current.onWordCountChange(markdown.length);
+      controllerRef.current.onMarkdownChange(markdown);
       changeGateRef.current.markSerialized(pendingRevision);
     })();
 
@@ -948,8 +1358,8 @@ function BlockNoteEditorInner({
         // Markdown 解析可能晚于下一次切换完成，旧结果不得再写入编辑器。
         if (applyToken !== applyTokenRef.current) return;
         if (sourceWasRepaired) {
-          onWordCountChangeRef.current(source.length);
-          onChangeRef.current(source);
+          controllerRef.current.onWordCountChange(source.length);
+          controllerRef.current.onMarkdownChange(source);
         }
         // 后台预热不得清除当前可见编辑器的选区或打断连续输入。
         if (!currentSplitWarmup) {
@@ -975,62 +1385,11 @@ function BlockNoteEditorInner({
             cached?.serializedBaseline,
           );
         }
+        ensureRichRuntime(editor.document);
         restoreEditorScrollTop(scrollContainerRef.current, restoredScrollTop);
-        onParseStateChange(null);
+        controllerRef.current.onParseStateChange(null);
 
-        editorRegistrationCleanupRef.current?.();
-        editorRegistrationCleanupRef.current = editorInstanceRegistry.register({
-          groupId,
-          tabId,
-          path,
-          editor,
-          standby: Boolean(currentSplitWarmup),
-          mirrorSourceGroupId: currentSplitWarmup?.sourceGroupId,
-          mirrorSourceTabId: currentSplitWarmup?.sourceTabId,
-          isApplying: () => suppressChangeRef.current,
-          onSynchronizationPending: () => {
-            useEditorStore.getState().markSplitWarmupPreparing(groupId);
-          },
-          onSynchronized: () => {
-            const warmup = splitWarmupRef.current;
-            if (
-              warmup &&
-              editorInstanceRegistry.isDocumentSynchronized(
-                warmup.sourceGroupId,
-                warmup.sourceTabId,
-                groupId,
-                tabId,
-              )
-            ) {
-              useEditorStore.getState().markSplitWarmupReady(groupId);
-            }
-          },
-          onDesynchronized: () => {
-            const store = useEditorStore.getState();
-            const currentGroup = store.panelGroups.find(
-              (group) => group.id === groupId,
-            );
-            if (currentGroup?.splitWarmup) {
-              store.markSplitWarmupStale(groupId);
-            } else {
-              store.incrementTabReloadKey(groupId, tabId);
-            }
-          },
-        });
-        if (currentSplitWarmup) {
-          const isSynchronized = editorInstanceRegistry.isDocumentSynchronized(
-            currentSplitWarmup.sourceGroupId,
-            currentSplitWarmup.sourceTabId,
-            groupId,
-            tabId,
-          );
-          const store = useEditorStore.getState();
-          if (isSynchronized) {
-            store.markSplitWarmupReady(groupId);
-          } else {
-            store.markSplitWarmupStale(groupId);
-          }
-        }
+        registerEditorInstanceForCurrentBinding(currentSplitWarmup);
 
         if (serializedBaselineRef.current === null) {
           const baselinePath = path;
@@ -1068,12 +1427,15 @@ function BlockNoteEditorInner({
         // 内容加载完成后更新大纲标题列表
         if (isActiveEditorRef.current) {
           updateOutlineHeadings();
-          flushPendingEditorOutlineNavigation(groupId, tabId);
+          const binding = controllerRef.current.getActiveBinding();
+          if (binding) {
+            flushPendingEditorOutlineNavigation(binding.groupId, binding.tabId);
+          }
         }
       } catch (error) {
         if (applyToken !== applyTokenRef.current) return;
         const fallback = createParseFallback(error);
-        onParseStateChange(fallback.message);
+        controllerRef.current.onParseStateChange(fallback.message);
       } finally {
         if (applyToken === applyTokenRef.current) {
           queueMicrotask(() => {
@@ -1089,39 +1451,53 @@ function BlockNoteEditorInner({
       baselineSerializationRef.current = null;
       editorRegistrationCleanupRef.current?.();
       editorRegistrationCleanupRef.current = null;
+      editorBindingSubscriptionCleanupRef.current?.();
+      editorBindingSubscriptionCleanupRef.current = null;
     };
     // 普通输入只更新 contentRef；仅文件切换或显式重载时替换整篇文档。
   }, [
     cacheAppliedDocument,
     editor,
+    ensureRichRuntime,
     loadEditorImageUrl,
-    onParseStateChange,
     path,
+    registerEditorInstanceForCurrentBinding,
     reloadKey,
   ]);
 
-  useEffect(
-    () =>
-      registerEditorChangeFlusher(
-        groupId,
-        tabId,
-        async () => {
-          if (serializationCancelRef.current) {
-            serializationCancelRef.current();
-            serializationCancelRef.current = null;
-          }
-          await serializeChange();
-        },
-        () => {
-          // 放弃文件更改时取消尚未执行的序列化，避免旧内容稍后再次进入保存队列。
-          if (serializationCancelRef.current) {
-            serializationCancelRef.current();
-            serializationCancelRef.current = null;
-          }
-        },
-      ),
-    [groupId, serializeChange, tabId],
-  );
+  useEffect(() => {
+    let registeredPaneKey: RichPaneKey | null = null;
+    let releaseFlusher: (() => void) | null = null;
+    const synchronizeRegistration = () => {
+      const binding = controllerRef.current.getActiveBinding();
+      if (binding?.paneKey === registeredPaneKey) return;
+      releaseFlusher?.();
+      registeredPaneKey = binding?.paneKey ?? null;
+      releaseFlusher = binding
+        ? registerEditorChangeFlusher(
+            binding.groupId,
+            binding.tabId,
+            async () => {
+              serializationCancelRef.current?.();
+              serializationCancelRef.current = null;
+              await serializeChangeRef.current();
+            },
+            () => {
+              // 放弃文件更改时取消尚未执行的序列化，避免旧内容稍后再次进入保存队列。
+              serializationCancelRef.current?.();
+              serializationCancelRef.current = null;
+            },
+          )
+        : null;
+    };
+
+    synchronizeRegistration();
+    const unsubscribe = useEditorStore.subscribe(synchronizeRegistration);
+    return () => {
+      unsubscribe();
+      releaseFlusher?.();
+    };
+  }, []);
 
   useEffect(
     () => () => {
@@ -1133,9 +1509,25 @@ function BlockNoteEditorInner({
       }
       editorRegistrationCleanupRef.current?.();
       editorRegistrationCleanupRef.current = null;
+      editorBindingSubscriptionCleanupRef.current?.();
+      editorBindingSubscriptionCleanupRef.current = null;
       cacheAppliedDocument();
     },
     [cacheAppliedDocument],
+  );
+
+  useEffect(
+    () => () => {
+      runtimeRegistrationCleanupRef.current?.();
+      runtimeRegistrationCleanupRef.current = null;
+      runtimeRef.current?.destroy();
+      runtimeRef.current = null;
+      previewTransactionCleanupRef.current?.();
+      previewTransactionCleanupRef.current = null;
+      previewCacheRef.current?.destroy();
+      previewCacheRef.current = null;
+    },
+    [],
   );
 
   const editorStyle = {
@@ -1161,6 +1553,16 @@ function BlockNoteEditorInner({
 
   const markUserIntent = useCallback(() => {
     changeGateRef.current.markUserIntent();
+  }, []);
+
+  const handleFocus = useCallback(() => {
+    const binding = controllerRef.current.getActiveBinding();
+    if (!binding) return;
+    // 焦点事件发生时再读取 binding，表面移动后不会把操作写回旧面板。
+    editorInstanceRegistry.flushPending(binding.groupId, binding.tabId);
+    const store = useEditorStore.getState();
+    store.setActiveGroupId(binding.groupId);
+    store.setActiveTab(binding.groupId, binding.tabId);
   }, []);
 
   const handlePointerDownCapture = useCallback(
@@ -1240,8 +1642,8 @@ function BlockNoteEditorInner({
       ref={scrollContainerRef}
       className="editor-rich-scroll h-full overflow-y-auto overflow-x-hidden"
       style={editorStyle}
-      onFocus={onFocus}
-      onClick={onFocus}
+      onFocus={handleFocus}
+      onClick={handleFocus}
       onBeforeInputCapture={markUserIntent}
       onKeyDownCapture={handleKeyDownCapture}
       onPointerDownCapture={handlePointerDownCapture}
@@ -1272,83 +1674,93 @@ function BlockNoteEditorInner({
   );
 }
 
-export function BlockNoteEditor({
-  groupId,
-  tabId,
-}: {
-  groupId: string;
-  tabId: string;
-}) {
+export function BlockNoteEditor(
+  props: LegacyBlockNoteEditorProps | BlockNoteEditorSessionProps,
+) {
+  if ("controller" in props) {
+    return (
+      <BlockNoteEditorInner
+        controller={props.controller}
+        content={props.content}
+        path={props.controller.path}
+        reloadKey={props.reloadKey}
+        surface={props.surface}
+      />
+    );
+  }
+
+  return <LegacyBlockNoteEditor {...props} />;
+}
+
+function LegacyBlockNoteEditor({ groupId, tabId }: LegacyBlockNoteEditorProps) {
   useEditorStore(selectBlockNoteRuntimeSignature(groupId, tabId));
   const group = useEditorStore
     .getState()
     .panelGroups.find((item) => item.id === groupId);
   const tab = group?.tabs.find((item) => item.id === tabId);
   const tabFilePath = tab?.filePath ?? null;
-  const getCurrentTab = useCallback(
-    () =>
-      useEditorStore
-        .getState()
-        .panelGroups.find((currentGroup) => currentGroup.id === groupId)
-        ?.tabs.find((item) => item.id === tabId),
-    [groupId, tabId],
-  );
-  const setActiveGroupId = useEditorStore((state) => state.setActiveGroupId);
-  const setActiveTab = useEditorStore((state) => state.setActiveTab);
-  const setTabContent = useEditorStore((state) => state.setTabContent);
-  const setTabWordCount = useEditorStore((state) => state.setTabWordCount);
-  const setTabParseError = useEditorStore((state) => state.setTabParseError);
-  const syncFileContent = useEditorStore((state) => state.syncFileContent);
+  const controller = useMemo<RichEditorSessionController>(
+    () => ({
+      path: tabFilePath ?? "",
+      getActiveBinding: () => {
+        const currentTab = useEditorStore
+          .getState()
+          .panelGroups.find((currentGroup) => currentGroup.id === groupId)
+          ?.tabs.find((item) => item.id === tabId);
+        if (!currentTab) return null;
+        return {
+          groupId,
+          tabId,
+          paneKey: toRichPaneKey(groupId, tabId),
+          path: currentTab.filePath ?? "",
+        };
+      },
+      getBoundTabIds: () =>
+        editorInstanceRegistry.getSynchronizedTabIds(groupId, tabId),
+      onMarkdownChange: (content) => {
+        const store = useEditorStore.getState();
+        const currentTab = store.panelGroups
+          .find((currentGroup) => currentGroup.id === groupId)
+          ?.tabs.find((item) => item.id === tabId);
+        if (!currentTab) return;
+        store.setTabContent(groupId, tabId, content);
+        if (!currentTab.filePath) return;
 
-  const handleFocus = useCallback(() => {
-    // 聚焦前应用已排队的小批量事务，避免用户在旧光标文档上开始输入。
-    editorInstanceRegistry.flushPending(groupId, tabId);
-    setActiveGroupId(groupId);
-    setActiveTab(groupId, tabId);
-  }, [groupId, setActiveGroupId, setActiveTab, tabId]);
-
-  const handleChange = useCallback(
-    (content: string) => {
-      const currentTab = getCurrentTab();
-      if (!currentTab) return;
-      setTabContent(groupId, tabId, content);
-      if (!currentTab.filePath) return;
-
-      // 同一事务组的富文本实例已增量同步，只更新 Markdown 快照，不触发整文档替换。
-      const synchronizedTabIds = editorInstanceRegistry.getSynchronizedTabIds(
-        groupId,
-        tabId,
-      );
-      syncFileContent(currentTab.filePath, content, tabId, synchronizedTabIds);
-      const diffState = useDiffStore.getState();
-      if (diffState.isOpen && diffState.filePath === currentTab.filePath) {
-        diffState.updateContent(diffState.oldContent, content);
-      }
-      editorSaveCoordinator.schedule(currentTab.filePath, content);
-    },
-    [getCurrentTab, groupId, setTabContent, syncFileContent, tabId],
-  );
-
-  const handleParseStateChange = useCallback(
-    (message: string | null) => {
-      setTabParseError(groupId, tabId, message);
-    },
-    [groupId, setTabParseError, tabId],
+        const synchronizedTabIds = editorInstanceRegistry.getSynchronizedTabIds(
+          groupId,
+          tabId,
+        );
+        store.syncFileContent(
+          currentTab.filePath,
+          content,
+          tabId,
+          synchronizedTabIds,
+        );
+        const diffState = useDiffStore.getState();
+        if (diffState.isOpen && diffState.filePath === currentTab.filePath) {
+          diffState.updateContent(diffState.oldContent, content);
+        }
+        editorSaveCoordinator.schedule(currentTab.filePath, content);
+      },
+      onWordCountChange: (count) => {
+        useEditorStore.getState().setTabWordCount(groupId, tabId, count);
+      },
+      onParseStateChange: (message) => {
+        useEditorStore.getState().setTabParseError(groupId, tabId, message);
+      },
+      onRuntimeReady: () => () => {},
+    }),
+    [groupId, tabFilePath, tabId],
   );
 
   if (!tab) return null;
 
   return (
     <BlockNoteEditorInner
-      groupId={groupId}
-      tabId={tabId}
+      controller={controller}
       content={tab.content}
       path={tabFilePath}
       reloadKey={tab.reloadKey}
-      onChange={handleChange}
-      onFocus={handleFocus}
-      onWordCountChange={(count) => setTabWordCount(groupId, tabId, count)}
-      onParseStateChange={handleParseStateChange}
       splitWarmup={group?.splitWarmup}
     />
   );
