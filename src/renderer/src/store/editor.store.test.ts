@@ -145,48 +145,83 @@ describe("editor store", () => {
     expect(useEditorStore.getState().activeGroupId).toBe("group-1");
   });
 
-  it("claims a ready split warmup without changing its group or tab identity", () => {
-    const warmupGroupId = useEditorStore
-      .getState()
-      .prepareSplitWarmup("group-1");
-    expect(warmupGroupId).toBeTruthy();
+  it("does not notify when a path snapshot is already current", () => {
+    const before = useEditorStore.getState();
 
-    const preparedGroup = useEditorStore
+    useEditorStore
       .getState()
-      .panelGroups.find((group) => group.id === warmupGroupId);
-    const preparedTabId = preparedGroup?.activeTabId;
-    useEditorStore.getState().markSplitWarmupReady(warmupGroupId!);
+      .syncFileContent(
+        "note.md",
+        before.panelGroups[0].tabs[0].content,
+        undefined,
+        [before.panelGroups[0].tabs[0].id],
+      );
 
-    useEditorStore.getState().addPanelGroup("vertical", "group-1");
+    expect(useEditorStore.getState()).toBe(before);
+  });
 
-    const claimedGroup = useEditorStore
-      .getState()
-      .panelGroups.find((group) => group.id === warmupGroupId);
-    expect(claimedGroup).toMatchObject({
-      id: warmupGroupId,
-      activeTabId: preparedTabId,
-      direction: "vertical",
-      splitParentGroupId: "group-1",
+  it("updates parse state for every canonical-path tab without changing unrelated identities", () => {
+    const firstGroup = useEditorStore.getState().panelGroups[0];
+    const unrelatedGroup = {
+      ...firstGroup,
+      id: "group-2",
+      activeTabId: "tab-2",
+      tabs: [
+        {
+          ...firstGroup.tabs[0],
+          id: "tab-2",
+          filePath: "other.md",
+        },
+      ],
+    };
+    useEditorStore.setState({
+      panelGroups: [
+        {
+          ...firstGroup,
+          tabs: [{ ...firstGroup.tabs[0], filePath: "C:\\notes\\note.md" }],
+        },
+        unrelatedGroup,
+      ],
     });
-    expect(claimedGroup?.splitWarmup).toBeUndefined();
-    expect(useEditorStore.getState().activeGroupId).toBe("group-1");
+    const before = useEditorStore.getState();
+
+    before.setFileParseState("C:/notes/note.md", "parse failed");
+
+    const after = useEditorStore.getState();
+    expect(after.panelGroups[0].tabs[0]).toMatchObject({
+      mode: "source",
+      parseErrorMessage: "parse failed",
+    });
+    expect(after.panelGroups[1]).toBe(unrelatedGroup);
+
+    const current = useEditorStore.getState();
+    current.setFileParseState("C:/notes/note.md", "parse failed");
+    expect(useEditorStore.getState()).toBe(current);
   });
 
-  it("does not leave a hidden warmup as the last visible panel", () => {
-    const warmupGroupId = useEditorStore
-      .getState()
-      .prepareSplitWarmup("group-1");
-    expect(warmupGroupId).toBeTruthy();
+  it("allows three direct visible splits without hidden groups", () => {
+    useEditorStore.getState().addPanelGroup("horizontal", "group-1");
+    const second = useEditorStore.getState().panelGroups[1];
 
-    useEditorStore.getState().removePanelGroup("group-1");
+    useEditorStore.getState().addPanelGroup("vertical", second.id);
 
-    const state = useEditorStore.getState();
-    expect(state.panelGroups).toHaveLength(1);
-    expect(state.panelGroups[0].splitWarmup).toBeUndefined();
-    expect(state.activeGroupId).toBe(state.panelGroups[0].id);
+    const panelGroups = useEditorStore.getState().panelGroups;
+    const groupKeys = new Set([
+      "id",
+      "tabs",
+      "activeTabId",
+      "direction",
+      "splitParentGroupId",
+    ]);
+    expect(panelGroups).toHaveLength(3);
+    expect(
+      panelGroups.every((group) =>
+        Object.keys(group).every((key) => groupKeys.has(key)),
+      ),
+    ).toBe(true);
   });
 
-  it("updates mirrored rich-text tab source without forcing a document reload", () => {
+  it("updates a synchronized rich-text tab without forcing a document reload", () => {
     const sourceGroup = useEditorStore.getState().panelGroups[0];
     useEditorStore.setState({
       panelGroups: [
@@ -196,11 +231,6 @@ describe("editor store", () => {
           id: "group-2",
           activeTabId: "tab-2",
           tabs: [{ ...sourceGroup.tabs[0], id: "tab-2" }],
-          splitWarmup: {
-            sourceGroupId: "group-1",
-            sourceTabId: "tab-1",
-            status: "ready",
-          },
         },
       ],
     });
@@ -209,9 +239,9 @@ describe("editor store", () => {
       .getState()
       .syncFileContent("note.md", "mirrored", "tab-1", ["tab-2"]);
 
-    const peerTab = useEditorStore.getState().panelGroups[1].tabs[0];
-    expect(peerTab.content).toBe("mirrored");
-    expect(peerTab.reloadKey).toBe(0);
+    const synchronizedTab = useEditorStore.getState().panelGroups[1].tabs[0];
+    expect(synchronizedTab.content).toBe("mirrored");
+    expect(synchronizedTab.reloadKey).toBe(0);
   });
 
   it("still reloads an independent same-file tab outside the synchronization group", () => {
@@ -233,17 +263,5 @@ describe("editor store", () => {
       .syncFileContent("note.md", "external", "tab-1", []);
 
     expect(useEditorStore.getState().panelGroups[1].tabs[0].reloadKey).toBe(1);
-  });
-
-  it("ignores and discards a warmup when closing the last visible tab", () => {
-    useEditorStore.getState().prepareSplitWarmup("group-1");
-
-    useEditorStore.getState().removeTab("group-1", "tab-1");
-
-    const state = useEditorStore.getState();
-    expect(state.panelGroups).toHaveLength(1);
-    expect(state.panelGroups[0].id).toBe("group-1");
-    expect(state.panelGroups[0].tabs).toEqual([]);
-    expect(state.panelGroups[0].splitWarmup).toBeUndefined();
   });
 });

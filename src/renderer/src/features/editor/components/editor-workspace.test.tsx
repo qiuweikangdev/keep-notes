@@ -2,6 +2,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useEditorStore } from "@/store/editor.store";
+import { subscribeToEditorFile } from "../lib/editor-runtime";
 import { EditorWorkspace } from "./editor-workspace";
 
 vi.mock("@/hooks/use-electron", () => ({
@@ -64,6 +65,12 @@ afterEach(() => {
 });
 
 describe("EditorWorkspace split rich editor mount", () => {
+  it("leaves rich file watching to the document session host", () => {
+    render(<EditorWorkspace groupId="group-1" tabId="tab-1" />);
+
+    expect(subscribeToEditorFile).not.toHaveBeenCalled();
+  });
+
   it("mounts a large split rich editor without a raw Markdown transition", () => {
     render(<EditorWorkspace groupId="group-2" tabId="tab-2" />);
 

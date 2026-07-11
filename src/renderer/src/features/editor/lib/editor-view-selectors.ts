@@ -12,18 +12,7 @@ export function selectRichDocumentRepresentative(path: string) {
   let previous: RichDocumentRepresentative | null = null;
 
   return (state: EditorState): RichDocumentRepresentative | null => {
-    const visibleGroups = state.panelGroups.filter(
-      (group) => !group.splitWarmup,
-    );
-    let representative = visibleGroups
-      .flatMap((group) => group.tabs)
-      .find(
-        (tab) =>
-          tab.mode === "rich" &&
-          tab.filePath?.replaceAll("\\", "/") === normalizedPath,
-      );
-
-    representative ??= state.panelGroups
+    const representative = state.panelGroups
       .flatMap((group) => group.tabs)
       .find(
         (tab) =>
@@ -60,7 +49,7 @@ export function selectEditorLayoutSignature(state: EditorState): string {
   return state.panelGroups
     .map(
       (group) =>
-        `${group.id}:${group.direction}:${group.splitParentGroupId ?? ""}:${group.splitWarmup ? "warmup" : "visible"}`,
+        `${group.id}:${group.direction}:${group.splitParentGroupId ?? ""}`,
     )
     .join("|");
 }
@@ -68,9 +57,7 @@ export function selectEditorLayoutSignature(state: EditorState): string {
 export function selectPanelGroupSignature(groupId: string) {
   return (state: EditorState): string => {
     const group = state.panelGroups.find((item) => item.id === groupId);
-    return group
-      ? `${group.activeTabId}:${group.tabs.length}:${group.splitWarmup ? "warmup" : "visible"}`
-      : "";
+    return group ? `${group.activeTabId}:${group.tabs.length}` : "";
   };
 }
 

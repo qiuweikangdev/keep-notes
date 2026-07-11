@@ -57,6 +57,7 @@ export class RichDocumentSessionManager {
   private readonly records = new Map<string, SessionRecord>();
   private readonly listeners = new Set<() => void>();
   private readonly runtimeListeners = new Map<string, Set<() => void>>();
+  private readonly pendingSerializations = new Map<string, Promise<void>>();
   private readonly visiblePaneRegistrations = new Map<
     RichPaneKey,
     VisiblePaneRegistration
@@ -298,6 +299,24 @@ export class RichDocumentSessionManager {
 
   getRuntimeSnapshot(path: string): RichDocumentRuntime | null {
     return this.getRuntime(path);
+  }
+
+  serializePendingChange(path: string): Promise<void> {
+    const normalizedPath = normalizeRichDocumentPath(path);
+    const pending = this.pendingSerializations.get(normalizedPath);
+    if (pending) return pending;
+
+    const runtime = this.getRuntime(normalizedPath);
+    if (!runtime) return Promise.resolve();
+
+    // 同一路径的多个面板可能同时请求 flush；底层文档只序列化一次。
+    const serialization = runtime.serializePendingChange().finally(() => {
+      if (this.pendingSerializations.get(normalizedPath) === serialization) {
+        this.pendingSerializations.delete(normalizedPath);
+      }
+    });
+    this.pendingSerializations.set(normalizedPath, serialization);
+    return serialization;
   }
 
   subscribeRuntime(path: string, listener: () => void): () => void {

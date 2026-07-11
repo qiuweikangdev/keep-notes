@@ -36,26 +36,6 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
   const removeTab = useEditorStore((state) => state.removeTab);
   const addTab = useEditorStore((state) => state.addTab);
   const addPanelGroup = useEditorStore((state) => state.addPanelGroup);
-  const splitWarmupStatus = useEditorStore((state) => {
-    const sourceGroup = state.panelGroups.find((item) => item.id === groupId);
-    const sourceTab = sourceGroup?.tabs.find(
-      (item) => item.id === sourceGroup.activeTabId,
-    );
-    if (
-      !sourceTab?.filePath ||
-      sourceTab.mode !== "rich" ||
-      sourceTab.loadStatus !== "ready"
-    ) {
-      return "ready";
-    }
-    return (
-      state.panelGroups.find(
-        (item) =>
-          item.splitWarmup?.sourceGroupId === groupId &&
-          item.splitWarmup.sourceTabId === sourceTab.id,
-      )?.splitWarmup?.status ?? "preparing"
-    );
-  });
   const { openFile } = useElectron();
 
   const group = useEditorStore
@@ -67,8 +47,6 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
     tabId: string;
   } | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
-  const splitDisabled = splitWarmupStatus !== "ready";
-  const splitDisabledTitle = splitDisabled ? "正在准备大文档拆分" : undefined;
 
   // 关闭右键菜单
   useEffect(() => {
@@ -114,12 +92,10 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
   };
 
   const handleSplitRight = () => {
-    if (splitDisabled) return;
     addPanelGroup("horizontal", groupId);
   };
 
   const handleSplitDown = () => {
-    if (splitDisabled) return;
     addPanelGroup("vertical", groupId);
   };
 
@@ -282,7 +258,6 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
             onNewTab={handleNewTab}
             onSplitRight={handleSplitRight}
             onSplitDown={handleSplitDown}
-            splitDisabled={splitDisabled}
           />
         </div>
       )}
@@ -321,8 +296,6 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
           <MenuDivider />
           <MenuButton
             icon={<SplitSquareHorizontal className="h-3.5 w-3.5" />}
-            disabled={splitDisabled}
-            title={splitDisabledTitle}
             onClick={() => {
               setContextMenu(null);
               addPanelGroup("horizontal", groupId);
@@ -332,8 +305,6 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
           </MenuButton>
           <MenuButton
             icon={<SplitSquareVertical className="h-3.5 w-3.5" />}
-            disabled={splitDisabled}
-            title={splitDisabledTitle}
             onClick={() => {
               setContextMenu(null);
               addPanelGroup("vertical", groupId);

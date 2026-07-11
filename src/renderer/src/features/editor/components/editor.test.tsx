@@ -349,49 +349,6 @@ describe("Editor split panels", () => {
     expect(workspaceLifecycle.unmounts.get("group-1") ?? 0).toBe(0);
     expect(workspaceLifecycle.unmounts.get("group-2") ?? 0).toBe(0);
   });
-
-  it("keeps a split warmup hidden and reveals the same mounted instance when claimed", () => {
-    useEditorStore.setState({
-      panelGroups: [
-        {
-          id: "group-1",
-          activeTabId: "tab-1",
-          direction: "horizontal",
-          tabs: [createTab("tab-1", "/notes/large.md")],
-        },
-        {
-          id: "group-warmup",
-          activeTabId: "tab-warmup",
-          direction: "horizontal",
-          tabs: [createTab("tab-warmup", "/notes/large.md")],
-          splitWarmup: {
-            sourceGroupId: "group-1",
-            sourceTabId: "tab-1",
-            status: "ready",
-          },
-        },
-      ],
-      activeGroupId: "group-1",
-    });
-
-    render(<Editor />);
-
-    expect(workspaceLifecycle.mounts.get("group-warmup")).toBe(1);
-    expect(screen.queryByTestId("workspace-group-warmup")).toBeNull();
-    const warmupInstance = workspaceLifecycle.instances.get("group-warmup");
-
-    act(() => {
-      useEditorStore.getState().addPanelGroup("horizontal", "group-1");
-    });
-
-    expect(
-      screen
-        .getByTestId("workspace-group-warmup")
-        .getAttribute("data-instance-id"),
-    ).toBe(String(warmupInstance));
-    expect(workspaceLifecycle.mounts.get("group-warmup")).toBe(1);
-    expect(workspaceLifecycle.unmounts.get("group-warmup") ?? 0).toBe(0);
-  });
 });
 
 function createSamePathGroups(panelCount: number, path: string) {

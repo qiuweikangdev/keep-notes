@@ -1,6 +1,5 @@
 import {
   useCallback,
-  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -10,7 +9,7 @@ import {
 import { createPortal } from "react-dom";
 import { EditorTabBar } from "./editor-tab-bar";
 import { EditorWorkspace } from "./editor-workspace";
-import { isSplitWarmupGroup, useEditorStore } from "@/store/editor.store";
+import { useEditorStore } from "@/store/editor.store";
 import { useElectron } from "@/hooks/use-electron";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import {
@@ -22,7 +21,6 @@ import {
   isEditorFileDrag,
 } from "../lib/editor-drag-session";
 import { EditorPanelSurfaceRegistry } from "../lib/editor-panel-surface-registry";
-import { editorInstanceRegistry } from "../lib/editor-instance-registry";
 import { richDocumentSessionManager } from "../lib/editor-runtime";
 import { RichDocumentSessionHost } from "./rich-document-session-host";
 
@@ -255,11 +253,7 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden relative">
-      {group.splitWarmup ? (
-        <div className="h-[35px] flex-shrink-0" />
-      ) : (
-        <EditorTabBar groupId={groupId} />
-      )}
+      <EditorTabBar groupId={groupId} />
       <div
         className="flex-1 overflow-hidden relative"
         onDragOver={handleDragOver}
@@ -288,20 +282,13 @@ export function Editor() {
   useEditorStore(selectEditorLayoutSignature);
   const [surfaceRegistry] = useState(() => new EditorPanelSurfaceRegistry());
   const storedPanelGroups = useEditorStore.getState().panelGroups;
-  const allPanelGroups = storedPanelGroups.map(
+  const panelGroups = storedPanelGroups.map(
     ({ id, direction, splitParentGroupId }) => ({
       id,
       direction,
       splitParentGroupId,
     }),
   );
-  const panelGroups = storedPanelGroups
-    .filter((group) => !isSplitWarmupGroup(group))
-    .map(({ id, direction, splitParentGroupId }) => ({
-      id,
-      direction,
-      splitParentGroupId,
-    }));
   const panelLayout = buildPanelLayout(panelGroups);
 
   if (!panelLayout) return null;
@@ -311,10 +298,9 @@ export function Editor() {
       className="h-full overflow-hidden"
       style={{ backgroundColor: "var(--bg-primary)" }}
     >
-      <SplitWarmupManager />
       <RootPanelLayout node={panelLayout} surfaceRegistry={surfaceRegistry} />
       <RichDocumentSessionLayer />
-      {allPanelGroups.map(({ id }) => (
+      {panelGroups.map(({ id }) => (
         <PersistentEditorPanel
           key={id}
           groupId={id}
@@ -340,116 +326,6 @@ export function RichDocumentSessionLayer() {
   return paths.map((path) => (
     <RichDocumentSessionHost key={path} path={path} />
   ));
-}
-
-function selectSplitWarmupManagerSignature(
-  state: ReturnType<typeof useEditorStore.getState>,
-): string {
-  const activeGroup = state.panelGroups.find(
-    (group) => group.id === state.activeGroupId && !isSplitWarmupGroup(group),
-  );
-  const activeTab = activeGroup?.tabs.find(
-    (tab) => tab.id === activeGroup.activeTabId,
-  );
-  const warmup = state.panelGroups.find(isSplitWarmupGroup);
-  return [
-    activeGroup?.id ?? "",
-    activeTab?.id ?? "",
-    activeTab?.filePath ?? "",
-    activeTab?.mode ?? "",
-    activeTab?.loadStatus ?? "",
-    activeTab?.reloadKey ?? "",
-    warmup?.id ?? "",
-    warmup?.splitWarmup?.sourceGroupId ?? "",
-    warmup?.splitWarmup?.sourceTabId ?? "",
-    warmup?.splitWarmup?.status ?? "",
-  ].join("\u001f");
-}
-
-function scheduleSplitWarmup(callback: () => void): () => void {
-  const idleWindow = window as Window & {
-    requestIdleCallback?: (callback: () => void) => number;
-    cancelIdleCallback?: (handle: number) => void;
-  };
-  if (idleWindow.requestIdleCallback) {
-    const handle = idleWindow.requestIdleCallback(callback);
-    return () => idleWindow.cancelIdleCallback?.(handle);
-  }
-
-  const handle = window.setTimeout(callback, 0);
-  return () => window.clearTimeout(handle);
-}
-
-function SplitWarmupManager() {
-  const signature = useEditorStore(selectSplitWarmupManagerSignature);
-
-  useEffect(() => {
-    let cancelAttempt: (() => void) | null = null;
-    let cancelled = false;
-    const state = useEditorStore.getState();
-    const activeGroup = state.panelGroups.find(
-      (group) => group.id === state.activeGroupId && !isSplitWarmupGroup(group),
-    );
-    const activeTab = activeGroup?.tabs.find(
-      (tab) => tab.id === activeGroup.activeTabId,
-    );
-    const warmup = state.panelGroups.find(isSplitWarmupGroup);
-    for (const group of state.panelGroups) {
-      if (!isSplitWarmupGroup(group)) {
-        editorInstanceRegistry.setStandby(group.id, group.activeTabId, false);
-      }
-    }
-    const canWarm =
-      activeGroup &&
-      activeTab?.filePath &&
-      activeTab.mode === "rich" &&
-      activeTab.loadStatus === "ready";
-
-    if (!canWarm) {
-      if (!warmup) return;
-      return scheduleSplitWarmup(() => {
-        useEditorStore.getState().discardSplitWarmup();
-      });
-    }
-
-    if (
-      warmup?.splitWarmup?.sourceGroupId === activeGroup.id &&
-      warmup.splitWarmup.sourceTabId === activeTab.id &&
-      warmup.splitWarmup.status !== "stale"
-    ) {
-      return;
-    }
-
-    const prepareWhenSourceIsReady = () => {
-      cancelAttempt = null;
-      if (cancelled) return;
-      const latest = useEditorStore.getState();
-      const latestGroup = latest.panelGroups.find(
-        (group) => group.id === activeGroup.id && !isSplitWarmupGroup(group),
-      );
-      if (latestGroup?.activeTabId !== activeTab.id) return;
-
-      if (
-        !editorInstanceRegistry.getDocumentSnapshot(
-          activeGroup.id,
-          activeTab.id,
-        )
-      ) {
-        // 编辑器尚未完成首轮装载时继续等待空闲期，不能用普通定时器抢占输入。
-        cancelAttempt = scheduleSplitWarmup(prepareWhenSourceIsReady);
-        return;
-      }
-      latest.prepareSplitWarmup(activeGroup.id);
-    };
-
-    cancelAttempt = scheduleSplitWarmup(prepareWhenSourceIsReady);
-    return () => {
-      cancelled = true;
-      cancelAttempt?.();
-    };
-  }, [signature]);
-
-  return null;
 }
 
 function PanelLeaf({

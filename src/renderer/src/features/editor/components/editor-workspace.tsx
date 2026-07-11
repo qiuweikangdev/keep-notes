@@ -89,7 +89,7 @@ export function EditorWorkspace({
   );
 
   useEffect(() => {
-    if (!tabFilePath) return;
+    if (!tabFilePath || tabMode !== "source") return;
     const path = tabFilePath;
     return subscribeToEditorFile(path, (content) => {
       editorCache.setContent(path, content);
@@ -106,7 +106,7 @@ export function EditorWorkspace({
       state.completeTabLoad(groupId, tabId, path, content);
       state.syncFileContent(path, content, tabId);
     });
-  }, [groupId, tabFilePath, tabId]);
+  }, [groupId, tabFilePath, tabId, tabMode]);
 
   useEffect(() => {
     setActiveFindIndex(findQuery && rawMatches.length > 0 ? 0 : -1);

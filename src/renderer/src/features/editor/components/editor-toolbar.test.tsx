@@ -71,12 +71,10 @@ function renderToolbar({
   onNewTab = vi.fn(),
   onSplitRight = vi.fn(),
   onSplitDown = vi.fn(),
-  splitDisabled = false,
 }: {
   onNewTab?: () => void;
   onSplitRight?: () => void;
   onSplitDown?: () => void;
-  splitDisabled?: boolean;
 } = {}) {
   render(
     <EditorToolbar
@@ -84,7 +82,6 @@ function renderToolbar({
       onNewTab={onNewTab}
       onSplitRight={onSplitRight}
       onSplitDown={onSplitDown}
-      splitDisabled={splitDisabled}
     />,
   );
 }
@@ -229,28 +226,6 @@ describe("EditorToolbar diff action", () => {
     openActionMenu();
     fireEvent.click(screen.getByRole("menuitem", { name: "新建标签页" }));
     expect(onNewTab).toHaveBeenCalledTimes(1);
-  });
-
-  it("disables rich-text split actions until the hot standby is ready", async () => {
-    const onSplitRight = vi.fn();
-    const onSplitDown = vi.fn();
-    renderToolbar({ onSplitRight, onSplitDown, splitDisabled: true });
-
-    openActionMenu();
-
-    const splitRight = screen.getByRole("menuitem", {
-      name: "向右拆分面板",
-    });
-    const splitDown = screen.getByRole("menuitem", {
-      name: "向下拆分面板",
-    });
-    expect(splitRight).toHaveAttribute("data-disabled");
-    expect(splitDown).toHaveAttribute("data-disabled");
-    expect(splitRight).toHaveAttribute("title", "正在准备大文档拆分");
-    fireEvent.click(splitRight);
-    fireEvent.click(splitDown);
-    expect(onSplitRight).not.toHaveBeenCalled();
-    expect(onSplitDown).not.toHaveBeenCalled();
   });
 
   it("orders common actions first and git actions last", async () => {

@@ -39,21 +39,7 @@ describe("editor view selectors", () => {
     );
   });
 
-  it("tracks whether a panel is hidden as a split warmup", () => {
-    const visible = createState("content");
-    const warmup = createState("content");
-    warmup.panelGroups[0].splitWarmup = {
-      sourceGroupId: "source-group",
-      sourceTabId: "source-tab",
-      status: "preparing",
-    };
-
-    expect(selectEditorLayoutSignature(warmup)).not.toBe(
-      selectEditorLayoutSignature(visible),
-    );
-  });
-
-  it("selects one rich representative from visible groups with a minimal descriptor", () => {
+  it("selects one rich representative with a minimal descriptor", () => {
     const state = createState("# Large");
     state.panelGroups[0].tabs[0].filePath = "C:/notes/large.md";
     state.panelGroups[0].tabs[0].reloadKey = 2;
@@ -61,25 +47,6 @@ describe("editor view selectors", () => {
     state.panelGroups[0].tabs[0].isDirty = true;
     state.panelGroups[0].tabs[0].saveStatus = "saving";
     state.panelGroups[0].tabs[0].scrollTop = 240;
-    state.panelGroups.unshift({
-      ...state.panelGroups[0],
-      id: "warmup-group",
-      activeTabId: "warmup-tab",
-      splitWarmup: {
-        sourceGroupId: "group-1",
-        sourceTabId: "tab-1",
-        status: "ready",
-      },
-      tabs: [
-        {
-          ...state.panelGroups[0].tabs[0],
-          id: "warmup-tab",
-          content: "# Stale warmup",
-          reloadKey: 8,
-        },
-      ],
-    });
-
     expect(
       selectRichDocumentRepresentative("C:/notes/large.md")(state),
     ).toEqual({

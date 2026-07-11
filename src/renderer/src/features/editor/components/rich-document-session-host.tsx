@@ -1,13 +1,17 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { useDiffStore } from "@/store/diff.store";
 import type { EditorState } from "@/store/editor.store";
 import { useEditorStore } from "@/store/editor.store";
 import {
+  editorCache,
   editorSaveCoordinator,
+  registerEditorChangeFlusher,
   richDocumentSessionManager,
+  subscribeToEditorFile,
 } from "../lib/editor-runtime";
+import { registerEditorOutlineNavigator } from "../lib/editor-outline-navigation";
 import {
   selectRichDocumentRepresentative,
   type RichDocumentRepresentative,
@@ -16,6 +20,7 @@ import { normalizeRichDocumentPath } from "../lib/rich-document-surface-registry
 import { toRichPaneKey } from "../lib/rich-pane-view-state";
 import {
   BlockNoteEditor,
+  type RichBlockNoteRuntime,
   type RichEditorBinding,
   type RichEditorSessionController,
 } from "./blocknote-editor";
@@ -30,7 +35,7 @@ function selectActiveRichBinding(
 ): RichEditorBinding | null {
   const normalizedPath = normalizeRichDocumentPath(path);
   const activeGroup = state.panelGroups.find(
-    (group) => group.id === state.activeGroupId && !group.splitWarmup,
+    (group) => group.id === state.activeGroupId,
   );
   const activeTab = activeGroup?.tabs.find(
     (tab) => tab.id === activeGroup.activeTabId,
@@ -51,7 +56,6 @@ function selectActiveRichBinding(
   }
 
   for (const group of state.panelGroups) {
-    if (group.splitWarmup) continue;
     const tab = group.tabs.find(
       (candidate) =>
         candidate.id === group.activeTabId &&
@@ -94,15 +98,56 @@ function resolveStoredDocumentPath(
   return matchingStoredPath ?? normalizedPath;
 }
 
+function selectSynchronizedTabIds(
+  normalizedPath: string,
+  state: EditorState,
+): string[] {
+  const tabIds: string[] = [];
+  for (const group of state.panelGroups) {
+    for (const tab of group.tabs) {
+      if (
+        tab.filePath &&
+        normalizeRichDocumentPath(tab.filePath) === normalizedPath
+      ) {
+        tabIds.push(tab.id);
+      }
+    }
+  }
+  return tabIds;
+}
+
 export function RichDocumentSessionHost({
   path,
 }: RichDocumentSessionHostProps) {
   const normalizedPath = normalizeRichDocumentPath(path);
+  const [ioPath] = useState(() =>
+    resolveStoredDocumentPath(
+      normalizedPath,
+      useEditorStore.getState(),
+      richDocumentSessionManager.getBoundTabIds(normalizedPath),
+    ),
+  );
   const representativeSelector = useMemo(
     () => selectRichDocumentRepresentative(normalizedPath),
     [normalizedPath],
   );
   const representative = useEditorStore(representativeSelector);
+  const visibleBindingSignature = useEditorStore((state) => {
+    const bindingKeys: string[] = [];
+    for (const group of state.panelGroups) {
+      const tab = group.tabs.find(
+        (candidate) => candidate.id === group.activeTabId,
+      );
+      if (
+        tab?.mode === "rich" &&
+        tab.filePath &&
+        normalizeRichDocumentPath(tab.filePath) === normalizedPath
+      ) {
+        bindingKeys.push(`${group.id}:${tab.id}`);
+      }
+    }
+    return bindingKeys.join("|");
+  });
   const readyRepresentativeRef = useRef<{
     path: string;
     value: RichDocumentRepresentative | null;
@@ -136,15 +181,17 @@ export function RichDocumentSessionHost({
         richDocumentSessionManager.getBoundTabIds(normalizedPath),
       onMarkdownChange: (content) => {
         const store = useEditorStore.getState();
-        const tabIds =
-          richDocumentSessionManager.getBoundTabIds(normalizedPath);
-        const storedPath = resolveStoredDocumentPath(
+        const synchronizedTabIds = selectSynchronizedTabIds(
           normalizedPath,
           store,
-          tabIds,
         );
         // 同一路径的面板共享当前文档树，只更新 Markdown 快照，不触发任何面板重载。
-        store.syncFileContent(normalizedPath, content, undefined, tabIds);
+        store.syncFileContent(
+          normalizedPath,
+          content,
+          undefined,
+          synchronizedTabIds,
+        );
         const diffState = useDiffStore.getState();
         if (
           diffState.isOpen &&
@@ -153,7 +200,8 @@ export function RichDocumentSessionHost({
         ) {
           diffState.updateContent(diffState.oldContent, content);
         }
-        editorSaveCoordinator.schedule(storedPath, content);
+        // host 生命周期内固定 I/O 路径拼写，确保监听与自身写盘始终使用同一身份。
+        editorSaveCoordinator.schedule(ioPath, content);
       },
       onWordCountChange: (count) => {
         const binding = getActiveBinding();
@@ -163,16 +211,75 @@ export function RichDocumentSessionHost({
           .setTabWordCount(binding.groupId, binding.tabId, count);
       },
       onParseStateChange: (message) => {
-        const binding = getActiveBinding();
-        if (!binding) return;
-        useEditorStore
-          .getState()
-          .setTabParseError(binding.groupId, binding.tabId, message);
+        useEditorStore.getState().setFileParseState(normalizedPath, message);
       },
       onRuntimeReady: (runtime) =>
         richDocumentSessionManager.registerRuntime(normalizedPath, runtime),
     };
-  }, [normalizedPath]);
+  }, [ioPath, normalizedPath]);
+
+  useEffect(() => {
+    return subscribeToEditorFile(ioPath, (content) => {
+      const store = useEditorStore.getState();
+      const matchingTabs = store.panelGroups.flatMap((group) =>
+        group.tabs.filter(
+          (tab) =>
+            tab.filePath &&
+            normalizeRichDocumentPath(tab.filePath) === normalizedPath,
+        ),
+      );
+      if (
+        matchingTabs.length > 0 &&
+        matchingTabs.every((tab) => tab.content === content)
+      ) {
+        return;
+      }
+
+      editorCache.setContent(ioPath, content);
+      // 外部文件事件只更新快照并提升 reloadKey；唯一 session 随代表快照重载一次。
+      store.syncFileContent(normalizedPath, content);
+    });
+  }, [ioPath, normalizedPath]);
+
+  useEffect(() => {
+    const cleanups: Array<() => void> = [];
+    const state = useEditorStore.getState();
+    for (const group of state.panelGroups) {
+      const tab = group.tabs.find(
+        (candidate) => candidate.id === group.activeTabId,
+      );
+      if (
+        tab?.mode !== "rich" ||
+        !tab.filePath ||
+        normalizeRichDocumentPath(tab.filePath) !== normalizedPath
+      ) {
+        continue;
+      }
+
+      cleanups.push(
+        registerEditorChangeFlusher(
+          group.id,
+          tab.id,
+          () =>
+            richDocumentSessionManager.serializePendingChange(normalizedPath),
+          () =>
+            richDocumentSessionManager
+              .getRuntime(normalizedPath)
+              ?.cancelPendingWork(),
+        ),
+        registerEditorOutlineNavigator(group.id, tab.id, (blockId) => {
+          const runtime = richDocumentSessionManager.getRuntime(
+            normalizedPath,
+          ) as RichBlockNoteRuntime | null;
+          return runtime?.scrollToBlock(blockId) ?? false;
+        }),
+      );
+    }
+
+    return () => {
+      for (const cleanup of cleanups) cleanup();
+    };
+  }, [normalizedPath, visibleBindingSignature]);
 
   // 初次内容未就绪时不创建编辑器；一旦已创建，reload 的 loading 窗口只保留旧树，避免销毁会话。
   if (!readyRepresentative) return null;
