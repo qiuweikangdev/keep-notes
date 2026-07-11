@@ -12,9 +12,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useEditorStore } from "@/store/editor.store";
 import {
   richDocumentSessionManager,
+  richDocumentSurfaceRegistry,
   richPaneViewStateRegistry,
 } from "../lib/editor-runtime";
-import type { RichPreviewAnchor } from "../lib/rich-preview-anchor";
+import {
+  resolveRichPreviewAnchor,
+  type RichPreviewAnchor,
+} from "../lib/rich-preview-anchor";
 import { RichDocumentPane } from "./rich-document-pane";
 
 vi.mock("./virtual-rich-preview", () => ({
@@ -25,14 +29,28 @@ vi.mock("./virtual-rich-preview", () => ({
     paneKey: string;
     onActivate: (anchor: RichPreviewAnchor | null) => void;
   }) => (
-    <button
+    <div
       data-pane-key={paneKey}
       data-testid="virtual-rich-preview"
-      onPointerDown={() => onActivate({ blockId: "block-a", textOffset: 3 })}
-      type="button"
+      onPointerDown={(event) => {
+        const eventTarget = event.target as Node;
+        const target =
+          eventTarget instanceof Element && eventTarget.textContent === "world"
+            ? (eventTarget.firstChild ?? eventTarget)
+            : eventTarget;
+        const offset = target.textContent === "world" ? 3 : 0;
+        onActivate(resolveRichPreviewAnchor(target, offset));
+      }}
+      role="textbox"
     >
-      preview
-    </button>
+      <div data-block-id="block-a">
+        <p>
+          <span>Hello </span>
+          <strong>world</strong>
+          <img alt="unsupported" />
+        </p>
+      </div>
+    </div>
   ),
 }));
 
@@ -51,9 +69,170 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   richPaneViewStateRegistry.clear();
+  vi.restoreAllMocks();
 });
 
 describe("RichDocumentPane", () => {
+  it("moves, restores, activates, and focuses a passive pane on its first pointer-down", () => {
+    render(
+      <>
+        <RichDocumentPane groupId="group-1" tabId="tab-1" path={path} />
+        <RichDocumentPane groupId="group-2" tabId="tab-2" path={path} />
+      </>,
+    );
+    const runtime = createRuntime(path);
+    const outgoingSelection = {
+      anchorBlockId: "block-outgoing",
+      anchorOffset: 2,
+      headBlockId: "block-outgoing",
+      headOffset: 7,
+    };
+    runtime.readViewState.mockReturnValue({
+      scrollTop: 320,
+      selection: outgoingSelection,
+    });
+    let unregisterRuntime: (() => void) | undefined;
+    act(() => {
+      unregisterRuntime = richDocumentSessionManager.registerRuntime(
+        path,
+        runtime,
+      );
+    });
+    richPaneViewStateRegistry.patch("group-2:tab-2", { scrollTop: 640 });
+    runtime.readViewState.mockClear();
+    runtime.restoreViewState.mockClear();
+    runtime.focusAt.mockClear();
+
+    const order: string[] = [];
+    runtime.readViewState.mockImplementation(() => {
+      order.push("capture");
+      return { scrollTop: 320, selection: outgoingSelection };
+    });
+    const originalActivate = richDocumentSurfaceRegistry.activate.bind(
+      richDocumentSurfaceRegistry,
+    );
+    vi.spyOn(richDocumentSurfaceRegistry, "activate").mockImplementation(
+      (...args) => {
+        order.push("surface");
+        return originalActivate(...args);
+      },
+    );
+    runtime.restoreViewState.mockImplementation(() => order.push("restore"));
+    runtime.focusAt.mockImplementation(() => order.push("focus"));
+    const store = useEditorStore.getState();
+    const originalSetActiveGroupId = store.setActiveGroupId;
+    const originalSetActiveTab = store.setActiveTab;
+    vi.spyOn(store, "setActiveGroupId").mockImplementation((groupId) => {
+      order.push("group");
+      originalSetActiveGroupId(groupId);
+    });
+    vi.spyOn(store, "setActiveTab").mockImplementation((groupId, tabId) => {
+      order.push("tab");
+      originalSetActiveTab(groupId, tabId);
+    });
+
+    fireEvent.pointerDown(screen.getByText("world").firstChild!, {
+      clientX: 40,
+      clientY: 20,
+    });
+
+    const activeSurfacePane =
+      richDocumentSurfaceRegistry.getActivePaneKey(path);
+    const activeManagerPane = richDocumentSessionManager.getActivePane(path);
+    const surfaceParentPane =
+      runtime.surface.parentElement?.parentElement?.dataset.paneKey;
+    const outgoingState = richPaneViewStateRegistry.read("group-1:tab-1");
+    const restoreCalls = runtime.restoreViewState.mock.calls.map(([state]) =>
+      structuredClone(state),
+    );
+    const focusCalls = runtime.focusAt.mock.calls.map(([anchor]) => anchor);
+    const activeGroupId = useEditorStore.getState().activeGroupId;
+    const activationOrder = [...order];
+    act(() => unregisterRuntime?.());
+
+    expect(activeSurfacePane).toBe("group-2:tab-2");
+    expect(activeManagerPane).toBe("group-2:tab-2");
+    expect(surfaceParentPane).toBe("group-2:tab-2");
+    expect(outgoingState).toEqual(
+      expect.objectContaining({
+        scrollTop: 320,
+        selection: outgoingSelection,
+      }),
+    );
+    expect(restoreCalls).toEqual([expect.objectContaining({ scrollTop: 640 })]);
+    expect(focusCalls).toEqual([
+      {
+        blockId: "block-a",
+        textOffset: 9,
+      },
+    ]);
+    expect(activeGroupId).toBe("group-2");
+    expect(activationOrder).toEqual([
+      "capture",
+      "surface",
+      "restore",
+      "group",
+      "tab",
+      "focus",
+    ]);
+  });
+
+  it("focuses unsupported preview content at block offset zero", () => {
+    render(
+      <>
+        <RichDocumentPane groupId="group-1" tabId="tab-1" path={path} />
+        <RichDocumentPane groupId="group-2" tabId="tab-2" path={path} />
+      </>,
+    );
+    const runtime = createRuntime(path);
+    let unregisterRuntime: (() => void) | undefined;
+    act(() => {
+      unregisterRuntime = richDocumentSessionManager.registerRuntime(
+        path,
+        runtime,
+      );
+    });
+    runtime.focusAt.mockClear();
+
+    fireEvent.pointerDown(screen.getByAltText("unsupported"));
+
+    const focusCalls = runtime.focusAt.mock.calls.map(([anchor]) => anchor);
+    act(() => unregisterRuntime?.());
+    expect(focusCalls).toContainEqual({
+      blockId: "block-a",
+      textOffset: 0,
+    });
+  });
+
+  it("does not switch store ownership or focus when the surface move fails", () => {
+    render(
+      <>
+        <RichDocumentPane groupId="group-1" tabId="tab-1" path={path} />
+        <RichDocumentPane groupId="group-2" tabId="tab-2" path={path} />
+      </>,
+    );
+    const runtime = createRuntime(path);
+    let unregisterRuntime: (() => void) | undefined;
+    act(() => {
+      unregisterRuntime = richDocumentSessionManager.registerRuntime(
+        path,
+        runtime,
+      );
+    });
+    runtime.focusAt.mockClear();
+    vi.spyOn(richDocumentSessionManager, "setActivePane").mockReturnValue(
+      false,
+    );
+
+    fireEvent.pointerDown(screen.getByText("world").firstChild!);
+
+    const activeGroupId = useEditorStore.getState().activeGroupId;
+    const focusCalls = runtime.focusAt.mock.calls.length;
+    act(() => unregisterRuntime?.());
+    expect(activeGroupId).toBe("group-1");
+    expect(focusCalls).toBe(0);
+  });
+
   it("rerenders and activates before paint when its runtime becomes ready", () => {
     render(<RichDocumentPane groupId="group-1" tabId="tab-1" path={path} />);
 

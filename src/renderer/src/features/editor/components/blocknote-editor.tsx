@@ -31,12 +31,17 @@ import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 
 import { useTheme } from "@/hooks/use-theme";
 import { useDiffStore } from "@/store/diff.store";
-import { useEditorStore, type SplitWarmupState } from "@/store/editor.store";
+import {
+  useEditorStore,
+  type EditorState,
+  type SplitWarmupState,
+} from "@/store/editor.store";
 import { useTreeStore } from "@/store/tree.store";
 import {
   editorCache,
   editorSaveCoordinator,
   registerEditorChangeFlusher,
+  richPaneViewStateRegistry,
 } from "../lib/editor-runtime";
 import { selectBlockNoteRuntimeSignature } from "../lib/editor-view-selectors";
 import type { RichDocumentRuntime } from "../lib/rich-document-session-manager";
@@ -47,7 +52,9 @@ import {
   type RichEditorOwnerEntry,
 } from "../lib/rich-editor-owner-registry";
 import {
+  RichPaneScrollIdleWriter,
   type RichPaneKey,
+  type RichPaneScrollOwner,
   type RichPaneSelection,
   type RichPaneViewState,
   toRichPaneKey,
@@ -198,6 +205,65 @@ interface BlockNoteEditorSessionProps {
 interface LegacyBlockNoteEditorProps {
   groupId: string;
   tabId: string;
+}
+
+function toScrollOwner(binding: RichEditorBinding): RichPaneScrollOwner {
+  return {
+    groupId: binding.groupId,
+    tabId: binding.tabId,
+    paneKey: binding.paneKey,
+    path: normalizeRichDocumentPath(binding.path),
+  };
+}
+
+function getActiveScrollOwner(
+  path: string | null,
+  state: EditorState,
+): RichPaneScrollOwner | null {
+  if (!path) return null;
+
+  const normalizedPath = normalizeRichDocumentPath(path);
+  const group = state.panelGroups.find(
+    (candidate) => candidate.id === state.activeGroupId,
+  );
+  const tab = group?.tabs.find(
+    (candidate) => candidate.id === group.activeTabId,
+  );
+  if (
+    !group ||
+    tab?.mode !== "rich" ||
+    !tab.filePath ||
+    normalizeRichDocumentPath(tab.filePath) !== normalizedPath
+  ) {
+    return null;
+  }
+
+  return {
+    groupId: group.id,
+    tabId: tab.id,
+    paneKey: toRichPaneKey(group.id, tab.id),
+    path: normalizedPath,
+  };
+}
+
+function persistRichPaneScroll(
+  owner: RichPaneScrollOwner,
+  scrollTop: number,
+): void {
+  const store = useEditorStore.getState();
+  const tab = store.panelGroups
+    .find((group) => group.id === owner.groupId)
+    ?.tabs.find((candidate) => candidate.id === owner.tabId);
+  if (!tab) {
+    // close 通知发生在 store mutation 后；仍执行一次 no-op-safe flush 以取消旧 timer。
+    store.setTabScrollTop(owner.groupId, owner.tabId, scrollTop);
+    return;
+  }
+  if (!tab.filePath || normalizeRichDocumentPath(tab.filePath) !== owner.path) {
+    return;
+  }
+
+  store.setTabScrollTop(owner.groupId, owner.tabId, scrollTop);
 }
 
 const MARKDOWN_PARSER_VERSION = "blocknote-v5";
@@ -414,47 +480,99 @@ function readEditorSelectionPoint(
   }
 }
 
-function resolveEditorTextPosition(
+export function resolveEditorTextPosition(
   editor: CoreBlockNoteEditor,
   blockId: string,
   textOffset: number,
 ): number | null {
-  const block = findEditorBlockElement(editor.domElement, blockId);
-  if (!block) return null;
+  const doc = editor.prosemirrorView.state.doc;
+  let blockContainer: ProseMirrorNode | null = null;
+  let blockContainerStart = -1;
+  doc.descendants((node, position) => {
+    if (node.type.name === "blockContainer" && node.attrs.id === blockId) {
+      blockContainer = node;
+      blockContainerStart = position;
+      return false;
+    }
+    return blockContainer === null;
+  });
+  if (!blockContainer || blockContainerStart < 0) return null;
 
-  const targetOffset = Math.max(0, Math.trunc(textOffset));
-  const walker = block.ownerDocument.createTreeWalker(
-    block,
-    NodeFilter.SHOW_TEXT,
+  const finiteOffset = Number.isFinite(textOffset) ? Math.trunc(textOffset) : 0;
+  const targetOffset = Math.min(
+    Math.max(finiteOffset, 0),
+    blockContainer.textContent.length,
   );
   let consumed = 0;
-  let lastTextNode: Text | null = null;
-  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    const textNode = node as Text;
-    const length = textNode.data.length;
-    lastTextNode = textNode;
+  let resolvedPosition: number | null = null;
+  let firstInlineContentPosition: number | null = null;
+  blockContainer.descendants((node, position) => {
+    if (firstInlineContentPosition === null && node.inlineContent) {
+      firstInlineContentPosition = blockContainerStart + 1 + position + 1;
+    }
+    if (!node.isText || resolvedPosition !== null)
+      return resolvedPosition === null;
+
+    const length = node.text?.length ?? 0;
     if (consumed + length >= targetOffset) {
-      try {
-        return editor.prosemirrorView.posAtDOM(
-          textNode,
-          Math.min(length, targetOffset - consumed),
-        );
-      } catch {
-        return null;
-      }
+      resolvedPosition =
+        blockContainerStart + 1 + position + (targetOffset - consumed);
+      return false;
     }
     consumed += length;
-  }
+    return true;
+  });
 
-  if (!lastTextNode) return null;
+  if (resolvedPosition !== null) return resolvedPosition;
+
+  // 空 inline block 仍可由 Selection.near 定位；图片等 atom block 交给 BlockNote fallback。
+  if (firstInlineContentPosition === null) return null;
   try {
-    return editor.prosemirrorView.posAtDOM(
-      lastTextNode,
-      lastTextNode.data.length,
-    );
+    return doc.resolve(firstInlineContentPosition).parent.inlineContent
+      ? firstInlineContentPosition
+      : null;
   } catch {
     return null;
   }
+}
+
+export function focusEditorAtPreviewAnchor(
+  editor: CoreBlockNoteEditor,
+  anchor: RichPreviewAnchor | null,
+): void {
+  if (!anchor) {
+    editor.focus();
+    return;
+  }
+  if (!editor.getBlock(anchor.blockId)) {
+    editor.focus();
+    return;
+  }
+
+  const position = resolveEditorTextPosition(
+    editor,
+    anchor.blockId,
+    anchor.textOffset,
+  );
+  if (position === null) {
+    editor.setTextCursorPosition(anchor.blockId, "start");
+    editor.focus();
+    return;
+  }
+
+  const view = editor.prosemirrorView;
+  try {
+    const resolvedPosition = view.state.doc.resolve(position);
+    const selection = resolvedPosition.parent.inlineContent
+      ? TextSelection.create(view.state.doc, position)
+      : TextSelection.near(resolvedPosition, 1);
+    view.dispatch(view.state.tr.setSelection(selection).scrollIntoView());
+  } catch {
+    editor.setTextCursorPosition(anchor.blockId, "start");
+    editor.focus();
+    return;
+  }
+  editor.focus();
 }
 
 function yieldToMain(): Promise<void> {
@@ -815,6 +933,13 @@ function MountedBlockNoteEditor({
   const controllerRef = useRef(controller);
   controllerRef.current = controller;
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollWriterRef = useRef<RichPaneScrollIdleWriter | null>(null);
+  if (!scrollWriterRef.current) {
+    scrollWriterRef.current = new RichPaneScrollIdleWriter({
+      states: richPaneViewStateRegistry,
+      persist: persistRichPaneScroll,
+    });
+  }
   const appliedPathRef = useRef<string | null>(null);
   const appliedSourceRef = useRef(content);
   const serializedBaselineRef = useRef<string | null>(null);
@@ -925,33 +1050,8 @@ function MountedBlockNoteEditor({
   );
 
   const focusAt = useCallback(
-    (anchor: RichPreviewAnchor | null) => {
-      if (!anchor) {
-        editor.focus();
-        return;
-      }
-      if (!editor.getBlock(anchor.blockId)) {
-        editor.focus();
-        return;
-      }
-
-      editor.focus();
-      const position = resolveEditorTextPosition(
-        editor,
-        anchor.blockId,
-        anchor.textOffset,
-      );
-      if (position === null) {
-        editor.setTextCursorPosition(anchor.blockId, "start");
-        return;
-      }
-      const view = editor.prosemirrorView;
-      view.dispatch(
-        view.state.tr
-          .setSelection(TextSelection.create(view.state.doc, position))
-          .scrollIntoView(),
-      );
-    },
+    (anchor: RichPreviewAnchor | null) =>
+      focusEditorAtPreviewAnchor(editor, anchor),
     [editor],
   );
 
@@ -1060,6 +1160,8 @@ function MountedBlockNoteEditor({
         destroy: () => {
           if (destroyed) return;
           destroyed = true;
+          // runtime 释放前同步落盘所有窗格的最后滚动位置，不能把旧 timer 留给后续 binding。
+          scrollWriterRef.current?.flushAll();
           invalidateEditorLifecycle();
           editorRegistrationCleanupRef.current?.();
           editorRegistrationCleanupRef.current = null;
@@ -1163,6 +1265,22 @@ function MountedBlockNoteEditor({
   useEffect(() => {
     splitWarmupRef.current = splitWarmup;
   }, [splitWarmup]);
+
+  useEffect(() => {
+    const flushAtBindingBoundary = () => {
+      scrollWriterRef.current?.flushInactive(
+        getActiveScrollOwner(path, useEditorStore.getState()),
+      );
+    };
+
+    flushAtBindingBoundary();
+    const unsubscribe = useEditorStore.subscribe(flushAtBindingBoundary);
+    return () => {
+      unsubscribe();
+      // StrictMode effect replay 也只 flush，不永久销毁 writer，真实挂载仍可继续记录滚动。
+      scrollWriterRef.current?.flushAll();
+    };
+  }, [path]);
 
   useLayoutEffect(() => {
     const scrollContainer = scrollContainerRef.current;
@@ -1672,6 +1790,33 @@ function MountedBlockNoteEditor({
     store.setActiveTab(binding.groupId, binding.tabId);
   }, []);
 
+  const readCurrentScrollOwner = useCallback((): RichPaneScrollOwner | null => {
+    const binding = controllerRef.current.getActiveBinding();
+    if (!binding) return null;
+
+    const owner = toScrollOwner(binding);
+    return path && owner.path === normalizeRichDocumentPath(path)
+      ? owner
+      : null;
+  }, [path]);
+
+  const handleScroll = useCallback(
+    (event: React.UIEvent<HTMLDivElement>) => {
+      const owner = readCurrentScrollOwner();
+      if (!owner) return;
+
+      // 高频滚动只更新 ref/registry；Zustand 在 150ms idle 或生命周期边界才写入。
+      scrollWriterRef.current?.record(owner, event.currentTarget.scrollTop);
+    },
+    [readCurrentScrollOwner],
+  );
+
+  const handleBlur = useCallback(() => {
+    const owner = readCurrentScrollOwner();
+    if (owner) scrollWriterRef.current?.flushOwner(owner);
+    else scrollWriterRef.current?.flushAll();
+  }, [readCurrentScrollOwner]);
+
   const handlePointerDownCapture = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
       if (shouldMarkRichEditorPointerIntent(event.target)) {
@@ -1749,8 +1894,10 @@ function MountedBlockNoteEditor({
       ref={scrollContainerRef}
       className="editor-rich-scroll h-full overflow-y-auto overflow-x-hidden"
       style={editorStyle}
+      onBlur={handleBlur}
       onFocus={handleFocus}
       onClick={handleFocus}
+      onScroll={handleScroll}
       onBeforeInputCapture={markUserIntent}
       onKeyDownCapture={handleKeyDownCapture}
       onPointerDownCapture={handlePointerDownCapture}

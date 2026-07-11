@@ -17,15 +17,21 @@ import { useDiffStore } from "@/store/diff.store";
 import type { EditorPanelGroup } from "@/store/editor.store";
 import { useEditorStore } from "@/store/editor.store";
 import { editorSchema } from "../lib/blocknote-schema";
-import { editorCache, editorSaveCoordinator } from "../lib/editor-runtime";
+import {
+  editorCache,
+  editorSaveCoordinator,
+  richPaneViewStateRegistry,
+} from "../lib/editor-runtime";
 import { RichPreviewCache } from "../lib/rich-preview-cache";
 import {
   BlockNoteEditor,
   EditorFormattingToolbar,
+  focusEditorAtPreviewAnchor,
   handleRichEditorHeadingShortcut,
   handleRichEditorSelectAllShortcut,
   focusEditorOutlineBlock,
   moveCursorAfterUploadedImage,
+  resolveEditorTextPosition,
   richEditorDefaultUIProps,
   uploadEditorImageFileAsAttachment,
   selectEntireRichEditorContent,
@@ -60,6 +66,8 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  richPaneViewStateRegistry.clear();
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -219,6 +227,60 @@ describe("BlockNoteEditor rich text selection", () => {
     expect(handleRichEditorSelectAllShortcut(event, editor)).toBe(false);
     expect(event.preventDefault).not.toHaveBeenCalled();
     expect(event.stopPropagation).not.toHaveBeenCalled();
+  });
+});
+
+describe("focusEditorAtPreviewAnchor", () => {
+  it("maps exact nested rich-text offsets and clamps them to block content", () => {
+    const editor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: "Hello ", styles: {} },
+            { type: "text", text: "world", styles: { bold: true } },
+          ],
+        },
+      ],
+    });
+    const blockId = editor.document[0].id;
+    const focus = vi.spyOn(editor, "focus");
+    const fallback = vi.spyOn(editor, "setTextCursorPosition");
+
+    expect(resolveEditorTextPosition(editor, blockId, 9)).toBe(12);
+    focusEditorAtPreviewAnchor(editor, { blockId, textOffset: 9 });
+    expect(fallback).not.toHaveBeenCalled();
+    expect(
+      editor.prosemirrorView.state.selection.$from.parent.textContent,
+    ).toBe("Hello world");
+    expect(editor.prosemirrorView.state.selection.$from.parentOffset).toBe(9);
+
+    focusEditorAtPreviewAnchor(editor, { blockId, textOffset: -20 });
+    expect(editor.prosemirrorView.state.selection.$from.parentOffset).toBe(0);
+    focusEditorAtPreviewAnchor(editor, { blockId, textOffset: 999 });
+    expect(editor.prosemirrorView.state.selection.$from.parentOffset).toBe(11);
+    expect(focus).toHaveBeenCalledTimes(3);
+  });
+
+  it("falls back to the BlockNote cursor API for a non-text image block", () => {
+    const editor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "image",
+          props: { url: "https://example.com/image.png" },
+        },
+      ],
+    });
+    const blockId = editor.document[0].id;
+    const setTextCursorPosition = vi.spyOn(editor, "setTextCursorPosition");
+    const focus = vi.spyOn(editor, "focus");
+
+    focusEditorAtPreviewAnchor(editor, { blockId, textOffset: 42 });
+
+    expect(setTextCursorPosition).toHaveBeenCalledWith(blockId, "start");
+    expect(focus).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -560,6 +622,170 @@ describe("BlockNoteEditor persistent session runtime", () => {
     expect(session.runtime.current).toBe(initialRuntime);
     expect(session.runtime.current?.editor).toBe(initialEditor);
 
+    session.view.unmount();
+  });
+
+  it("coalesces live scroll bursts and flushes on blur and runtime destruction", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/scroll-idle.md";
+    setupSessionTab(path);
+    const session = renderRealSession(path);
+
+    await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    const runtime = session.runtime.current!;
+    const scrollContainer = session.view.container.querySelector<HTMLElement>(
+      ".editor-rich-scroll",
+    )!;
+    const setTabScrollTop = vi.spyOn(
+      useEditorStore.getState(),
+      "setTabScrollTop",
+    );
+    vi.useFakeTimers();
+
+    for (const scrollTop of [20, 60, 140]) {
+      scrollContainer.scrollTop = scrollTop;
+      fireEvent.scroll(scrollContainer);
+    }
+
+    expect(
+      richPaneViewStateRegistry.read("group-session:tab-session").scrollTop,
+    ).toBe(140);
+    expect(setTabScrollTop).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(149));
+    expect(setTabScrollTop).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(1));
+    expect(setTabScrollTop).toHaveBeenCalledTimes(1);
+    expect(setTabScrollTop).toHaveBeenLastCalledWith(
+      "group-session",
+      "tab-session",
+      140,
+    );
+
+    scrollContainer.scrollTop = 220;
+    fireEvent.scroll(scrollContainer);
+    fireEvent.blur(scrollContainer);
+    expect(setTabScrollTop).toHaveBeenCalledTimes(2);
+    expect(setTabScrollTop).toHaveBeenLastCalledWith(
+      "group-session",
+      "tab-session",
+      220,
+    );
+
+    scrollContainer.scrollTop = 360;
+    fireEvent.scroll(scrollContainer);
+    runtime.destroy();
+    expect(setTabScrollTop).toHaveBeenCalledTimes(3);
+    expect(setTabScrollTop).toHaveBeenLastCalledWith(
+      "group-session",
+      "tab-session",
+      360,
+    );
+    act(() => vi.runOnlyPendingTimers());
+    expect(setTabScrollTop).toHaveBeenCalledTimes(3);
+
+    vi.useRealTimers();
+    session.view.unmount();
+  });
+
+  it("flushes the owning pane on tab switch and unmount boundaries", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/scroll-boundary.md";
+    setupSessionTab(path);
+    useEditorStore.setState((state) => ({
+      panelGroups: state.panelGroups.map((group) => ({
+        ...group,
+        tabs: [
+          ...group.tabs,
+          { ...group.tabs[0], id: "tab-next", scrollTop: 0 },
+        ],
+      })),
+    }));
+    const session = renderRealSession(path);
+
+    await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    const scrollContainer = session.view.container.querySelector<HTMLElement>(
+      ".editor-rich-scroll",
+    )!;
+    const setTabScrollTop = vi.spyOn(
+      useEditorStore.getState(),
+      "setTabScrollTop",
+    );
+    vi.useFakeTimers();
+
+    scrollContainer.scrollTop = 180;
+    fireEvent.scroll(scrollContainer);
+    act(() => {
+      useEditorStore.getState().setActiveTab("group-session", "tab-next");
+    });
+    expect(setTabScrollTop).toHaveBeenCalledTimes(1);
+    expect(setTabScrollTop).toHaveBeenLastCalledWith(
+      "group-session",
+      "tab-session",
+      180,
+    );
+
+    act(() => {
+      useEditorStore.getState().setActiveTab("group-session", "tab-session");
+    });
+    scrollContainer.scrollTop = 280;
+    fireEvent.scroll(scrollContainer);
+    session.view.unmount();
+    expect(setTabScrollTop).toHaveBeenCalledTimes(2);
+    expect(setTabScrollTop).toHaveBeenLastCalledWith(
+      "group-session",
+      "tab-session",
+      280,
+    );
+    act(() => vi.runOnlyPendingTimers());
+    expect(setTabScrollTop).toHaveBeenCalledTimes(2);
+  });
+
+  it("flushes a closed pane without writing into its replacement tab", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/scroll-close.md";
+    setupSessionTab(path);
+    useEditorStore.setState((state) => ({
+      panelGroups: state.panelGroups.map((group) => ({
+        ...group,
+        tabs: [
+          ...group.tabs,
+          { ...group.tabs[0], id: "tab-next", scrollTop: 0 },
+        ],
+      })),
+    }));
+    const session = renderRealSession(path);
+
+    await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    const scrollContainer = session.view.container.querySelector<HTMLElement>(
+      ".editor-rich-scroll",
+    )!;
+    const setTabScrollTop = vi.spyOn(
+      useEditorStore.getState(),
+      "setTabScrollTop",
+    );
+    vi.useFakeTimers();
+
+    scrollContainer.scrollTop = 410;
+    fireEvent.scroll(scrollContainer);
+    act(() => {
+      useEditorStore.getState().removeTab("group-session", "tab-session");
+    });
+    act(() => vi.advanceTimersByTime(150));
+
+    expect(setTabScrollTop).toHaveBeenCalledTimes(1);
+    expect(setTabScrollTop).toHaveBeenCalledWith(
+      "group-session",
+      "tab-session",
+      410,
+    );
+    expect(
+      useEditorStore
+        .getState()
+        .panelGroups[0].tabs.find((tab) => tab.id === "tab-next")?.scrollTop,
+    ).toBe(0);
     session.view.unmount();
   });
 

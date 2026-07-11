@@ -1,9 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  RichPaneScrollIdleWriter,
   RichPaneViewStateRegistry,
   toRichPaneKey,
 } from "./rich-pane-view-state";
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("RichPaneViewStateRegistry", () => {
   it("builds a pane key from its group and tab", () => {
@@ -89,5 +94,103 @@ describe("RichPaneViewStateRegistry", () => {
 
     expect(states.read("g1:t1").scrollTop).toBe(0);
     expect(states.read("g2:t2").scrollTop).toBe(0);
+  });
+});
+
+describe("RichPaneScrollIdleWriter", () => {
+  const firstOwner = {
+    groupId: "g1",
+    tabId: "t1",
+    paneKey: "g1:t1" as const,
+    path: "C:/notes/first.md",
+  };
+
+  it("coalesces a scroll burst while patching the pane registry synchronously", () => {
+    vi.useFakeTimers();
+    const states = new RichPaneViewStateRegistry();
+    const persist = vi.fn();
+    const writer = new RichPaneScrollIdleWriter({ states, persist });
+
+    writer.record(firstOwner, 10);
+    writer.record(firstOwner, 40);
+    writer.record(firstOwner, 90);
+
+    expect(states.read(firstOwner.paneKey).scrollTop).toBe(90);
+    expect(persist).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(149);
+    expect(persist).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(persist).toHaveBeenCalledTimes(1);
+    expect(persist).toHaveBeenCalledWith(firstOwner, 90);
+  });
+
+  it("flushes an outgoing pane at a binding boundary and isolates the next owner", () => {
+    vi.useFakeTimers();
+    const states = new RichPaneViewStateRegistry();
+    const persist = vi.fn();
+    const writer = new RichPaneScrollIdleWriter({ states, persist });
+    const nextOwner = {
+      groupId: "g2",
+      tabId: "t2",
+      paneKey: "g2:t2" as const,
+      path: "C:/notes/first.md",
+    };
+
+    writer.record(firstOwner, 120);
+    writer.flushInactive(nextOwner);
+
+    expect(persist).toHaveBeenCalledTimes(1);
+    expect(persist).toHaveBeenLastCalledWith(firstOwner, 120);
+    writer.record(nextOwner, 640);
+    vi.advanceTimersByTime(150);
+    expect(persist).toHaveBeenCalledTimes(2);
+    expect(persist).toHaveBeenLastCalledWith(nextOwner, 640);
+  });
+
+  it("cannot let an old timer write into a replacement binding with the same pane key", () => {
+    vi.useFakeTimers();
+    const states = new RichPaneViewStateRegistry();
+    const persist = vi.fn();
+    const writer = new RichPaneScrollIdleWriter({ states, persist });
+    const replacementOwner = {
+      ...firstOwner,
+      path: "C:/notes/replacement.md",
+    };
+
+    writer.record(firstOwner, 75);
+    writer.record(replacementOwner, 15);
+
+    expect(persist).toHaveBeenCalledTimes(1);
+    expect(persist).toHaveBeenLastCalledWith(firstOwner, 75);
+    vi.advanceTimersByTime(150);
+    expect(persist).toHaveBeenCalledTimes(2);
+    expect(persist).toHaveBeenLastCalledWith(replacementOwner, 15);
+    vi.runOnlyPendingTimers();
+    expect(persist).toHaveBeenCalledTimes(2);
+  });
+
+  it("flushes all pending pane owners exactly once when destroyed", () => {
+    vi.useFakeTimers();
+    const states = new RichPaneViewStateRegistry();
+    const persist = vi.fn();
+    const writer = new RichPaneScrollIdleWriter({ states, persist });
+    const secondOwner = {
+      groupId: "g2",
+      tabId: "t2",
+      paneKey: "g2:t2" as const,
+      path: "C:/notes/second.md",
+    };
+
+    writer.record(firstOwner, 125);
+    writer.record(secondOwner, 250);
+    writer.destroy();
+
+    expect(persist).toHaveBeenCalledTimes(2);
+    expect(persist).toHaveBeenCalledWith(firstOwner, 125);
+    expect(persist).toHaveBeenCalledWith(secondOwner, 250);
+    vi.runOnlyPendingTimers();
+    expect(persist).toHaveBeenCalledTimes(2);
+    writer.record(firstOwner, 999);
+    expect(states.read(firstOwner.paneKey).scrollTop).toBe(125);
   });
 });

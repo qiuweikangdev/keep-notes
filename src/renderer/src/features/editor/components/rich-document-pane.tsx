@@ -12,6 +12,8 @@ import {
   richPaneViewStateRegistry,
 } from "../lib/editor-runtime";
 import { normalizeRichDocumentPath } from "../lib/rich-document-surface-registry";
+import type { RichDocumentBinding } from "../lib/rich-document-session-manager";
+import type { RichPreviewAnchor } from "../lib/rich-preview-anchor";
 import { toRichPaneKey, type RichPaneKey } from "../lib/rich-pane-view-state";
 import type { RichBlockNoteRuntime } from "./blocknote-editor";
 import { EditorStateView } from "./editor-state-view";
@@ -23,9 +25,34 @@ interface RichDocumentPaneProps {
   path: string;
 }
 
-function activateRichPane(path: string, paneKey: RichPaneKey): boolean {
+function attachRichPane(path: string, paneKey: RichPaneKey): boolean {
   const normalizedPath = normalizeRichDocumentPath(path);
   return richDocumentSessionManager.setActivePane(normalizedPath, paneKey);
+}
+
+function activateRichPane(
+  path: string,
+  binding: RichDocumentBinding,
+  anchor: RichPreviewAnchor | null,
+): boolean {
+  const normalizedPath = normalizeRichDocumentPath(path);
+  const runtime = richDocumentSessionManager.getRuntime(
+    normalizedPath,
+  ) as RichBlockNoteRuntime | null;
+  if (!runtime) return false;
+
+  // 必须先同步移动唯一编辑器表面；移动失败时不得提前改变 store 所有权。
+  if (
+    !richDocumentSessionManager.setActivePane(normalizedPath, binding.paneKey)
+  ) {
+    return false;
+  }
+
+  const store = useEditorStore.getState();
+  store.setActiveGroupId(binding.groupId);
+  store.setActiveTab(binding.groupId, binding.tabId);
+  runtime.focusAt(anchor);
+  return true;
 }
 
 export function RichDocumentPane({
@@ -91,17 +118,19 @@ export function RichDocumentPane({
       return;
     }
     // runtime 注册会触发路径级订阅；此处重新激活，不依赖偶然的 store 更新或轮询。
-    activateRichPane(normalizedPath, paneKey);
+    attachRichPane(normalizedPath, paneKey);
     return () => {
       richDocumentSessionManager.deactivateIfActive(normalizedPath, paneKey);
     };
   }, [isLive, normalizedPath, paneKey, runtime]);
 
-  const handleActivate = useCallback(() => {
-    if (!runtime) return;
-    useEditorStore.getState().setActiveTab(groupId, tabId);
-    activateRichPane(normalizedPath, paneKey);
-  }, [groupId, normalizedPath, paneKey, runtime, tabId]);
+  const handleActivate = useCallback(
+    (anchor: RichPreviewAnchor | null) => {
+      if (!runtime) return;
+      activateRichPane(normalizedPath, { paneKey, groupId, tabId }, anchor);
+    },
+    [groupId, normalizedPath, paneKey, runtime, tabId],
+  );
 
   const fileName = path.split(/[\\/]/).pop();
   return (
