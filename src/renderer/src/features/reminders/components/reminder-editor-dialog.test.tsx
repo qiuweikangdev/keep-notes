@@ -44,6 +44,54 @@ describe("ReminderEditorDialog", () => {
     });
   });
 
+  it("renders a compact editor aligned with the project dialog style", () => {
+    render(<ReminderEditorDialog />);
+
+    const dialog = screen.getByRole("dialog", { name: "新建提醒事项" });
+    const titleInput = screen.getByPlaceholderText("标题");
+    const settingsGroup = screen.getByTestId("reminder-settings-group");
+
+    expect(dialog).toHaveClass("max-w-[440px]");
+    expect(screen.getByRole("heading", { name: "新建提醒事项" })).toBeVisible();
+    expect(titleInput).toHaveClass("h-9", "text-sm");
+    expect(settingsGroup).toContainElement(screen.getByText("日期"));
+    expect(settingsGroup).toContainElement(screen.getByText("时间"));
+    expect(settingsGroup).toContainElement(screen.getByText("重复"));
+    expect(screen.queryAllByRole("switch")).toHaveLength(0);
+  });
+
+  it("renders the associated file as muted secondary text", () => {
+    render(<ReminderEditorDialog />);
+
+    expect(screen.getByText("today.md")).toHaveClass(
+      "text-[11px]",
+      "text-[var(--text-muted)]",
+    );
+  });
+
+  it("shows the edit heading when editing an existing reminder", () => {
+    useReminderStore.setState({
+      reminders: [
+        {
+          id: "reminder-1",
+          title: "Review notes",
+          filePath: "/workspace/notes/today.md",
+          fileName: "today.md",
+          scheduledAt: "2026-06-21T09:00:00.000Z",
+          repeat: "never",
+          completed: false,
+          createdAt: "2026-06-21T08:00:00.000Z",
+          updatedAt: "2026-06-21T08:00:00.000Z",
+        },
+      ],
+      editingReminderId: "reminder-1",
+    });
+
+    render(<ReminderEditorDialog />);
+
+    expect(screen.getByRole("heading", { name: "修改提醒事项" })).toBeVisible();
+  });
+
   it("keeps the previous repeat option when cancelling custom repeat", async () => {
     const user = userEvent.setup();
     render(<ReminderEditorDialog />);
@@ -59,6 +107,21 @@ describe("ReminderEditorDialog", () => {
     });
     expect(screen.getByRole("button", { name: /永不/ })).toBeInTheDocument();
     expect(screen.queryByText(/点击修改/)).not.toBeInTheDocument();
+  });
+
+  it("keeps the reminder editor open when the custom repeat dialog closes", async () => {
+    const user = userEvent.setup();
+    render(<ReminderEditorDialog />);
+
+    await user.click(screen.getByRole("button", { name: /永不/ }));
+    await user.click(screen.getByRole("button", { name: "自定义" }));
+
+    await user.click(screen.getAllByRole("button", { name: "取消" }).at(-1)!);
+
+    expect(useReminderStore.getState().isEditorOpen).toBe(true);
+    expect(
+      screen.getByRole("dialog", { name: "新建提醒事项" }),
+    ).toBeInTheDocument();
   });
 
   it("creates a standalone reminder without requiring a file", async () => {

@@ -266,7 +266,7 @@ describe("ReminderListDialog", () => {
     });
     render(<ReminderListDialog />);
 
-    await user.type(screen.getByPlaceholderText("搜索标题或文件名"), "missing");
+    await user.type(screen.getByPlaceholderText("搜索提醒事项"), "missing");
 
     expect(screen.queryByRole("button", { name: /Read notes/ })).toBeNull();
 
@@ -277,7 +277,7 @@ describe("ReminderListDialog", () => {
       useReminderStore.getState().openList();
     });
 
-    expect(screen.getByPlaceholderText("搜索标题或文件名")).toHaveValue("");
+    expect(screen.getByPlaceholderText("搜索提醒事项")).toHaveValue("");
     expect(
       screen.getByRole("button", { name: /Read notes/ }),
     ).toBeInTheDocument();

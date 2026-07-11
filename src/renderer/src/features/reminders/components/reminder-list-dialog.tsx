@@ -120,7 +120,7 @@ export function ReminderListDialog() {
             <input
               aria-label="搜索提醒事项"
               className="h-full min-w-0 flex-1 appearance-none border-0 bg-transparent p-0 text-sm text-[var(--text-primary)] shadow-none outline-none ring-0 placeholder:text-[var(--text-muted)] focus:border-0 focus:border-transparent focus:outline-none focus:ring-0"
-              placeholder="搜索标题或文件名"
+              placeholder="搜索提醒事项"
               role="searchbox"
               type="text"
               value={query}

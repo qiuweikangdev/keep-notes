@@ -10,7 +10,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { useReminderStore } from "@/store/reminder.store";
 import type {
   Reminder,
@@ -169,8 +168,6 @@ export function ReminderEditorDialog() {
     ReminderRepeatCustomRule | undefined
   >(initialState.customRepeat);
   const [isCustomOpen, setIsCustomOpen] = useState(false);
-  const [isDateEnabled, setIsDateEnabled] = useState(true);
-  const [isTimeEnabled, setIsTimeEnabled] = useState(true);
   const [openPicker, setOpenPicker] = useState<
     "date" | "time" | "repeat" | null
   >(null);
@@ -191,20 +188,13 @@ export function ReminderEditorDialog() {
     setRepeat(nextInitialState.repeat);
     setCustomRepeat(nextInitialState.customRepeat);
     setIsCustomOpen(false);
-    setIsDateEnabled(true);
-    setIsTimeEnabled(true);
     setOpenPicker(null);
     setDisplayMonth(parseDateValue(nextInitialState.date));
   }, [draftFilePath, editingReminder, isEditorOpen]);
 
   const filePath = editingReminder?.filePath ?? draftFilePath ?? "";
   const fileName = getFileName(filePath);
-  const canSave =
-    title.trim().length > 0 &&
-    date.length > 0 &&
-    time.length > 0 &&
-    isDateEnabled &&
-    isTimeEnabled;
+  const canSave = title.trim().length > 0 && date.length > 0 && time.length > 0;
 
   const handleRepeatChange = (value: ReminderRepeatPreset) => {
     if (value === "custom") {
@@ -239,227 +229,152 @@ export function ReminderEditorDialog() {
     <>
       <Dialog.Root open={isEditorOpen} onOpenChange={closeEditor}>
         <DialogContent
-          className="z-[60] max-w-[480px] gap-0 overflow-visible rounded-xl p-0 shadow-2xl"
+          className="z-[60] max-w-[440px] gap-0 overflow-visible rounded-xl p-0 shadow-lg"
           data-reminder-editor-dialog="true"
-          showCloseButton={false}
           style={{
-            backgroundColor: "var(--bg-secondary)",
+            backgroundColor: "var(--bg-primary)",
             border: "1px solid var(--border-color)",
             color: "var(--text-primary)",
           }}
         >
-          <Dialog.Title className="sr-only">
-            {editingReminder ? "修改提醒事项" : "新建提醒事项"}
-          </Dialog.Title>
+          <div className="flex h-11 items-center border-b border-[var(--border-color)] px-4 pr-12">
+            <Dialog.Title className="text-sm font-medium">
+              {editingReminder ? "修改提醒事项" : "新建提醒事项"}
+            </Dialog.Title>
+          </div>
           <Dialog.Description className="sr-only">
             设置提醒标题、日期时间和重复频率
           </Dialog.Description>
-          <div
-            className="space-y-4 rounded-xl"
-            style={{ backgroundColor: "var(--bg-secondary)" }}
-          >
-            <div
-              className="rounded-t-xl border-b px-5 py-3"
-              style={{
-                backgroundColor: "var(--bg-secondary)",
-                borderColor: "var(--border-color)",
-              }}
-            >
+          <div className="px-4 pt-4">
+            <div>
               <Input
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
                 placeholder="标题"
-                className="h-9 px-3 py-1 text-[18px] font-semibold"
+                className="h-9 px-3 py-1 text-sm"
                 style={{
-                  backgroundColor: "var(--bg-primary)",
+                  backgroundColor: "var(--bg-secondary)",
                   border: "1px solid var(--border-color)",
                   color: "var(--text-primary)",
                 }}
                 autoFocus
               />
               {fileName ? (
-                <p
-                  className="mt-1 truncate px-1 text-[13px]"
-                  style={{ color: "var(--text-muted)" }}
-                >
+                <p className="mt-1.5 truncate px-1 text-[11px] text-[var(--text-muted)]">
                   {fileName}
                 </p>
               ) : null}
             </div>
 
-            <div className="space-y-4 px-5">
-              <section>
-                <h3
-                  className="mb-2 text-[13px] font-medium"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  日期与时间
-                </h3>
-                <div className="rounded-lg" style={panelStyle}>
-                  <ReminderRow
-                    icon={<CalendarDays className="h-4 w-4" />}
-                    title="日期"
-                    detail={date}
-                    checked={isDateEnabled}
-                    onCheckedChange={(checked) => {
-                      setIsDateEnabled(checked);
-                      if (!checked) setOpenPicker(null);
-                    }}
-                  >
-                    <DatePickerControl
-                      value={date}
-                      disabled={!isDateEnabled}
-                      open={openPicker === "date"}
-                      displayMonth={displayMonth}
-                      onDisplayMonthChange={setDisplayMonth}
-                      onOpenChange={(open) =>
-                        setOpenPicker(open ? "date" : null)
-                      }
-                      onChange={(value) => {
-                        setDate(value);
-                        setDisplayMonth(parseDateValue(value));
-                        setOpenPicker(null);
-                      }}
-                    />
-                  </ReminderRow>
-                  <div className="mx-4 h-px bg-[var(--border-color)]" />
-                  <ReminderRow
-                    icon={<Clock3 className="h-4 w-4" />}
-                    title="时间"
-                    detail={time}
-                    checked={isTimeEnabled}
-                    onCheckedChange={(checked) => {
-                      setIsTimeEnabled(checked);
-                      if (!checked) setOpenPicker(null);
-                    }}
-                  >
-                    <TimePickerControl
-                      value={time}
-                      disabled={!isTimeEnabled}
-                      open={openPicker === "time"}
-                      onOpenChange={(open) =>
-                        setOpenPicker(open ? "time" : null)
-                      }
-                      onChange={setTime}
-                    />
-                  </ReminderRow>
-                </div>
-              </section>
-
-              <section>
-                <h3
-                  className="mb-2 text-[13px] font-medium"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  重复
-                </h3>
-                <div className="rounded-lg px-4 py-3" style={panelStyle}>
-                  <div className="flex items-center gap-3">
-                    <Repeat2
-                      className="h-4 w-4 flex-shrink-0"
-                      style={{ color: "var(--text-muted)" }}
-                    />
-                    <span className="text-[14px] font-medium">提醒频率</span>
-                    <RepeatPickerControl
-                      value={repeat}
-                      open={openPicker === "repeat"}
-                      onOpenChange={(open) =>
-                        setOpenPicker(open ? "repeat" : null)
-                      }
-                      onChange={(value) => {
-                        handleRepeatChange(value);
-                        setOpenPicker(null);
-                      }}
-                    />
-                  </div>
-                  {repeat === "custom" ? (
-                    <button
-                      type="button"
-                      className="mt-2 rounded-sm text-[12px] font-medium"
-                      style={{ color: "var(--accent-color)" }}
-                      onClick={() => setIsCustomOpen(true)}
-                    >
-                      {getRepeatLabel({ repeat, customRepeat })}，点击修改
-                    </button>
-                  ) : null}
-                </div>
-              </section>
-            </div>
-
             <div
-              className="flex justify-end gap-2 rounded-b-xl border-t px-5 py-4"
-              style={{
-                backgroundColor: "var(--bg-secondary)",
-                borderColor: "var(--border-color)",
-              }}
+              className="mt-4 overflow-visible rounded-lg"
+              data-testid="reminder-settings-group"
+              style={panelStyle}
             >
-              <Button
-                type="button"
-                variant="secondary"
-                className="min-w-[60px]"
-                onClick={closeEditor}
+              <ReminderSettingRow
+                icon={<CalendarDays className="h-4 w-4" />}
+                label="日期"
               >
-                取消
-              </Button>
-              <Button
-                type="button"
-                className="min-w-[68px]"
-                disabled={!canSave}
-                onClick={handleSave}
+                <DatePickerControl
+                  value={date}
+                  disabled={false}
+                  open={openPicker === "date"}
+                  displayMonth={displayMonth}
+                  onDisplayMonthChange={setDisplayMonth}
+                  onOpenChange={(open) => setOpenPicker(open ? "date" : null)}
+                  onChange={(value) => {
+                    setDate(value);
+                    setDisplayMonth(parseDateValue(value));
+                    setOpenPicker(null);
+                  }}
+                />
+              </ReminderSettingRow>
+              <div className="mx-3 h-px bg-[var(--border-color)]" />
+              <ReminderSettingRow
+                icon={<Clock3 className="h-4 w-4" />}
+                label="时间"
               >
-                保存
-              </Button>
+                <TimePickerControl
+                  value={time}
+                  disabled={false}
+                  open={openPicker === "time"}
+                  onOpenChange={(open) => setOpenPicker(open ? "time" : null)}
+                  onChange={setTime}
+                />
+              </ReminderSettingRow>
+              <div className="mx-3 h-px bg-[var(--border-color)]" />
+              <ReminderSettingRow
+                icon={<Repeat2 className="h-4 w-4" />}
+                label="重复"
+              >
+                <RepeatPickerControl
+                  value={repeat}
+                  open={openPicker === "repeat"}
+                  onOpenChange={(open) => setOpenPicker(open ? "repeat" : null)}
+                  onChange={(value) => {
+                    handleRepeatChange(value);
+                    setOpenPicker(null);
+                  }}
+                />
+              </ReminderSettingRow>
+              {repeat === "custom" ? (
+                <button
+                  type="button"
+                  className="mb-3 ml-11 rounded-sm text-[12px] font-medium"
+                  style={{ color: "var(--accent-color)" }}
+                  onClick={() => setIsCustomOpen(true)}
+                >
+                  {getRepeatLabel({ repeat, customRepeat })}，点击修改
+                </button>
+              ) : null}
             </div>
           </div>
+
+          <div className="mt-4 flex justify-end gap-2 border-t border-[var(--border-color)] px-4 py-3">
+            <Button type="button" variant="secondary" onClick={closeEditor}>
+              取消
+            </Button>
+            <Button type="button" disabled={!canSave} onClick={handleSave}>
+              保存
+            </Button>
+          </div>
+
+          <CustomRepeatDialog
+            open={isCustomOpen}
+            value={customRepeat}
+            onOpenChange={setIsCustomOpen}
+            onConfirm={(value) => {
+              setCustomRepeat(value);
+              setRepeat("custom");
+            }}
+          />
         </DialogContent>
       </Dialog.Root>
-
-      <CustomRepeatDialog
-        open={isCustomOpen}
-        value={customRepeat}
-        onOpenChange={setIsCustomOpen}
-        onConfirm={(value) => {
-          setCustomRepeat(value);
-          setRepeat("custom");
-        }}
-      />
     </>
   );
 }
 
-interface ReminderRowProps {
+interface ReminderSettingRowProps {
   icon: ReactNode;
-  title: string;
-  detail: string;
-  checked: boolean;
-  onCheckedChange: (checked: boolean) => void;
+  label: string;
   children: ReactNode;
 }
 
-function ReminderRow({
+function ReminderSettingRow({
   icon,
-  title,
-  detail,
-  checked,
-  onCheckedChange,
+  label,
   children,
-}: ReminderRowProps) {
+}: ReminderSettingRowProps) {
   return (
-    <div className="grid min-h-[68px] grid-cols-[20px_minmax(0,1fr)_auto_auto] items-center gap-3 px-4 py-3">
+    <div className="grid min-h-12 grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2">
       <div
         className="flex h-5 w-5 items-center justify-center"
         style={{ color: "var(--text-muted)" }}
       >
         {icon}
       </div>
-      <div>
-        <div className="text-[14px] font-medium">{title}</div>
-        <div className="text-[13px]" style={{ color: "var(--text-muted)" }}>
-          {detail}
-        </div>
-      </div>
+      <div className="text-[13px] font-medium">{label}</div>
       {children}
-      <Switch checked={checked} onCheckedChange={onCheckedChange} />
     </div>
   );
 }
@@ -500,7 +415,7 @@ function DatePickerControl({
         data-theme-control="true"
         disabled={disabled}
         aria-expanded={open}
-        className={`${controlClassName} flex w-[156px] items-center justify-between gap-2`}
+        className={`${controlClassName} flex w-[140px] items-center justify-between gap-2`}
         style={{
           backgroundColor: "var(--bg-secondary)",
           borderColor: "var(--border-color)",
@@ -636,7 +551,7 @@ function TimePickerControl({
         data-theme-control="true"
         disabled={disabled}
         aria-expanded={open}
-        className={`${controlClassName} flex w-[112px] items-center justify-between gap-2`}
+        className={`${controlClassName} flex w-[120px] items-center justify-between gap-2`}
         style={{
           backgroundColor: "var(--bg-secondary)",
           borderColor: "var(--border-color)",
@@ -748,7 +663,7 @@ function RepeatPickerControl({
         type="button"
         data-theme-control="true"
         aria-expanded={open}
-        className={`${controlClassName} flex min-w-[128px] items-center justify-between gap-2`}
+        className={`${controlClassName} flex w-[140px] items-center justify-between gap-2`}
         style={{
           backgroundColor: "var(--bg-secondary)",
           borderColor: "var(--border-color)",
