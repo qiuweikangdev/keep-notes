@@ -40,7 +40,7 @@ export const CODE_BLOCK_LANGUAGE_OPTIONS: CodeBlockLanguageOption[] = [
   {
     id: "bash",
     label: "Bash",
-    shortLabel: "sh",
+    shortLabel: "bash",
     aliases: ["sh", "shell", "zsh"],
   },
   { id: "python", label: "Python", shortLabel: "py", aliases: ["py"] },

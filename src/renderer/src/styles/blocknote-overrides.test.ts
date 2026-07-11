@@ -210,6 +210,21 @@ describe("blocknote overrides stylesheet", () => {
     expect(stylesheet).not.toMatch(/editor-code-block__code-pane--folded/);
   });
 
+  it("keeps the code language trigger on one line inside the code block", () => {
+    expect(getRule(".editor-code-block-language-trigger")).toMatch(
+      /max-width:\s*calc\(100% - 36px\);/,
+    );
+    expect(getRule(".editor-code-block-language-trigger > span")).toMatch(
+      /overflow:\s*hidden;/,
+    );
+    expect(getRule(".editor-code-block-language-trigger > span")).toMatch(
+      /text-overflow:\s*ellipsis;/,
+    );
+    expect(getRule(".editor-code-block-language-trigger > span")).toMatch(
+      /white-space:\s*nowrap;/,
+    );
+  });
+
   it("styles inline code marks inside rich editor text blocks", () => {
     const inlineCodeRule = getRule(
       ".bn-editor code:not(.editor-code-block__content)",

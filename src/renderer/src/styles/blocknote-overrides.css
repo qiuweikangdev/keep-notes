@@ -280,6 +280,13 @@
   color: var(--editor-code-block-text);
   pointer-events: auto;
   backdrop-filter: blur(8px);
+  max-width: calc(100% - 36px);
+}
+
+.editor-code-block-language-trigger > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .editor-code-block-language-trigger:hover {
