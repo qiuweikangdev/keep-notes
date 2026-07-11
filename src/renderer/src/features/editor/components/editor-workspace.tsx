@@ -31,10 +31,10 @@ import {
   selectEditorFindRanges,
   scrollRangeIntoView,
 } from "../lib/editor-find-highlights";
-import { BlockNoteEditor } from "./blocknote-editor";
 import { EditorStateView } from "./editor-state-view";
 import { FindWidget } from "./find-widget";
 import { MarkdownSourceEditor } from "./markdown-source-editor";
+import { RichDocumentPane } from "./rich-document-pane";
 
 export function EditorWorkspace({
   groupId,
@@ -375,8 +375,14 @@ export function EditorWorkspace({
               />
             </div>
           </div>
+        ) : tabFilePath ? (
+          <RichDocumentPane
+            groupId={groupId}
+            tabId={tabId}
+            path={tabFilePath}
+          />
         ) : (
-          <BlockNoteEditor groupId={groupId} tabId={tabId} />
+          <EditorStateView status="empty" />
         )}
       </div>
     </div>

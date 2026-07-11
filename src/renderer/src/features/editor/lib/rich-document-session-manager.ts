@@ -53,6 +53,7 @@ export class RichDocumentSessionManager {
   private readonly viewStates: RichPaneViewStateRegistry;
   private readonly records = new Map<string, SessionRecord>();
   private readonly listeners = new Set<() => void>();
+  private readonly runtimeListeners = new Map<string, Set<() => void>>();
   private readonly visiblePaneRegistrations = new Map<
     RichPaneKey,
     VisiblePaneRegistration
@@ -179,6 +180,9 @@ export class RichDocumentSessionManager {
 
     record.runtime = runtime;
     record.lastActiveAt = this.now();
+    if (previousRegistration?.runtime !== runtime) {
+      this.publishRuntime(normalizedPath);
+    }
     this.finishMutation();
 
     return () => {
@@ -257,6 +261,27 @@ export class RichDocumentSessionManager {
     return this.records.get(normalizeRichDocumentPath(path))?.runtime ?? null;
   }
 
+  getRuntimeSnapshot(path: string): RichDocumentRuntime | null {
+    return this.getRuntime(path);
+  }
+
+  subscribeRuntime(path: string, listener: () => void): () => void {
+    const normalizedPath = normalizeRichDocumentPath(path);
+    const listeners = this.runtimeListeners.get(normalizedPath) ?? new Set();
+    listeners.add(listener);
+    this.runtimeListeners.set(normalizedPath, listeners);
+
+    return () => {
+      listeners.delete(listener);
+      if (
+        listeners.size === 0 &&
+        this.runtimeListeners.get(normalizedPath) === listeners
+      ) {
+        this.runtimeListeners.delete(normalizedPath);
+      }
+    };
+  }
+
   getSnapshot(): string[] {
     return this.retainedPathSnapshot;
   }
@@ -309,6 +334,7 @@ export class RichDocumentSessionManager {
     this.runtimeRegistrations.delete(record.path);
     registration.unregisterSurface();
     record.runtime = null;
+    this.publishRuntime(record.path);
     registration.runtime.cancelPendingWork();
     registration.runtime.destroy();
   }
@@ -384,5 +410,11 @@ export class RichDocumentSessionManager {
     // 仅在有序路径内容变化时替换数组身份，满足 useSyncExternalStore 的稳定快照约束。
     this.retainedPathSnapshot = nextSnapshot;
     for (const listener of this.listeners) listener();
+  }
+
+  private publishRuntime(normalizedPath: string): void {
+    const listeners = this.runtimeListeners.get(normalizedPath);
+    if (!listeners) return;
+    for (const listener of Array.from(listeners)) listener();
   }
 }

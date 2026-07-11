@@ -4,6 +4,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
 } from "react";
 import { createPortal } from "react-dom";
@@ -22,6 +23,8 @@ import {
 } from "../lib/editor-drag-session";
 import { EditorPanelSurfaceRegistry } from "../lib/editor-panel-surface-registry";
 import { editorInstanceRegistry } from "../lib/editor-instance-registry";
+import { richDocumentSessionManager } from "../lib/editor-runtime";
+import { RichDocumentSessionHost } from "./rich-document-session-host";
 
 // 支持的文件扩展名
 const SUPPORTED_EXTENSIONS = [".md", ".txt"];
@@ -310,6 +313,7 @@ export function Editor() {
     >
       <SplitWarmupManager />
       <RootPanelLayout node={panelLayout} surfaceRegistry={surfaceRegistry} />
+      <RichDocumentSessionLayer />
       {allPanelGroups.map(({ id }) => (
         <PersistentEditorPanel
           key={id}
@@ -319,6 +323,23 @@ export function Editor() {
       ))}
     </div>
   );
+}
+
+const subscribeRetainedRichPaths = (listener: () => void) =>
+  richDocumentSessionManager.subscribe(listener);
+const getRetainedRichPathsSnapshot = () =>
+  richDocumentSessionManager.getSnapshot();
+
+export function RichDocumentSessionLayer() {
+  const paths = useSyncExternalStore(
+    subscribeRetainedRichPaths,
+    getRetainedRichPathsSnapshot,
+    getRetainedRichPathsSnapshot,
+  );
+
+  return paths.map((path) => (
+    <RichDocumentSessionHost key={path} path={path} />
+  ));
 }
 
 function selectSplitWarmupManagerSignature(

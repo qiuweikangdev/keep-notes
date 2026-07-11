@@ -20,10 +20,22 @@ vi.mock("../lib/editor-runtime", () => ({
   subscribeToEditorFile: vi.fn(() => () => {}),
 }));
 
-vi.mock("./blocknote-editor", () => ({
-  BlockNoteEditor: ({ groupId, tabId }: { groupId: string; tabId: string }) => (
-    <div data-testid="blocknote-editor">{`${groupId}:${tabId}`}</div>
+vi.mock("./rich-document-pane", () => ({
+  RichDocumentPane: ({
+    groupId,
+    tabId,
+    path,
+  }: {
+    groupId: string;
+    tabId: string;
+    path: string;
+  }) => (
+    <div data-testid="rich-document-pane">{`${groupId}:${tabId}:${path}`}</div>
   ),
+}));
+
+vi.mock("./blocknote-editor", () => ({
+  BlockNoteEditor: () => null,
 }));
 
 beforeEach(() => {
@@ -56,8 +68,8 @@ describe("EditorWorkspace split rich editor mount", () => {
     render(<EditorWorkspace groupId="group-2" tabId="tab-2" />);
 
     expect(screen.queryByTestId("split-rich-editor-snapshot")).toBeNull();
-    expect(screen.getByTestId("blocknote-editor")).toHaveTextContent(
-      "group-2:tab-2",
+    expect(screen.getByTestId("rich-document-pane")).toHaveTextContent(
+      "group-2:tab-2:large.md",
     );
   });
 
@@ -65,8 +77,8 @@ describe("EditorWorkspace split rich editor mount", () => {
     render(<EditorWorkspace groupId="group-1" tabId="tab-1" />);
 
     expect(screen.queryByTestId("split-rich-editor-snapshot")).toBeNull();
-    expect(screen.getByTestId("blocknote-editor")).toHaveTextContent(
-      "group-1:tab-1",
+    expect(screen.getByTestId("rich-document-pane")).toHaveTextContent(
+      "group-1:tab-1:large.md",
     );
   });
 });

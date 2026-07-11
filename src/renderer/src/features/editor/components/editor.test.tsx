@@ -24,41 +24,112 @@ vi.mock("./editor-tab-bar", () => ({
 }));
 
 const workspaceLifecycle = vi.hoisted(() => ({
+  renderRichPanes: false,
   nextInstanceId: 0,
   instances: new Map<string, number>(),
   mounts: new Map<string, number>(),
   unmounts: new Map<string, number>(),
 }));
 
+const richSessionLifecycle = vi.hoisted(() => ({
+  mounts: new Map<string, number>(),
+}));
+
 vi.mock("./editor-workspace", async () => {
   const { useEffect, useState } = await import("react");
+  const { useEditorStore: editorStoreHook } =
+    await import("@/store/editor.store");
+  const { RichDocumentPane } = await import("./rich-document-pane");
+
+  function RichPaneWorkspace({
+    groupId,
+    tabId,
+  }: {
+    groupId: string;
+    tabId: string;
+  }) {
+    const tab = editorStoreHook
+      .getState()
+      .panelGroups.find((group) => group.id === groupId)
+      ?.tabs.find((candidate) => candidate.id === tabId);
+    return tab?.filePath ? (
+      <RichDocumentPane groupId={groupId} path={tab.filePath} tabId={tabId} />
+    ) : null;
+  }
+
+  function LifecycleWorkspace({ groupId }: { groupId: string }) {
+    const [instanceId] = useState(() => {
+      workspaceLifecycle.nextInstanceId += 1;
+      return workspaceLifecycle.nextInstanceId;
+    });
+
+    useEffect(() => {
+      workspaceLifecycle.instances.set(groupId, instanceId);
+      workspaceLifecycle.mounts.set(
+        groupId,
+        (workspaceLifecycle.mounts.get(groupId) ?? 0) + 1,
+      );
+      return () => {
+        workspaceLifecycle.unmounts.set(
+          groupId,
+          (workspaceLifecycle.unmounts.get(groupId) ?? 0) + 1,
+        );
+      };
+    }, [groupId, instanceId]);
+
+    return (
+      <div data-testid={`workspace-${groupId}`} data-instance-id={instanceId}>
+        workspace-{groupId}
+      </div>
+    );
+  }
 
   return {
-    EditorWorkspace: ({ groupId }: { groupId: string }) => {
-      const [instanceId] = useState(() => {
-        workspaceLifecycle.nextInstanceId += 1;
-        return workspaceLifecycle.nextInstanceId;
-      });
+    EditorWorkspace: ({
+      groupId,
+      tabId,
+    }: {
+      groupId: string;
+      tabId: string;
+    }) => {
+      if (workspaceLifecycle.renderRichPanes) {
+        return <RichPaneWorkspace groupId={groupId} tabId={tabId} />;
+      }
+      return <LifecycleWorkspace groupId={groupId} />;
+    },
+  };
+});
 
-      useEffect(() => {
-        workspaceLifecycle.instances.set(groupId, instanceId);
-        workspaceLifecycle.mounts.set(
-          groupId,
-          (workspaceLifecycle.mounts.get(groupId) ?? 0) + 1,
+vi.mock("./virtual-rich-preview", () => ({
+  VirtualRichPreview: () => <div data-testid="virtual-rich-preview" />,
+}));
+
+vi.mock("./rich-document-session-host", async () => {
+  const { useLayoutEffect } = await import("react");
+  const { richDocumentSessionManager } = await import("../lib/editor-runtime");
+
+  return {
+    RichDocumentSessionHost: ({ path }: { path: string }) => {
+      useLayoutEffect(() => {
+        richSessionLifecycle.mounts.set(
+          path,
+          (richSessionLifecycle.mounts.get(path) ?? 0) + 1,
         );
-        return () => {
-          workspaceLifecycle.unmounts.set(
-            groupId,
-            (workspaceLifecycle.unmounts.get(groupId) ?? 0) + 1,
-          );
-        };
-      }, [groupId]);
-
-      return (
-        <div data-testid={`workspace-${groupId}`} data-instance-id={instanceId}>
-          workspace-{groupId}
-        </div>
-      );
+        return richDocumentSessionManager.registerRuntime(path, {
+          path,
+          surface: document.createElement("div"),
+          serializePendingChange: async () => undefined,
+          cancelPendingWork: vi.fn(),
+          destroy: vi.fn(),
+          isDirty: () => false,
+          isSaving: () => false,
+          isReloading: () => false,
+          previewCache: {},
+          readViewState: () => ({ scrollTop: 0, selection: null }),
+          restoreViewState: vi.fn(),
+        });
+      }, [path]);
+      return null;
     },
   };
 });
@@ -88,10 +159,12 @@ function createTab(id: string, filePath: string) {
 }
 
 beforeEach(() => {
+  workspaceLifecycle.renderRichPanes = false;
   workspaceLifecycle.nextInstanceId = 0;
   workspaceLifecycle.instances.clear();
   workspaceLifecycle.mounts.clear();
   workspaceLifecycle.unmounts.clear();
+  richSessionLifecycle.mounts.clear();
 });
 
 afterEach(() => {
@@ -99,6 +172,51 @@ afterEach(() => {
 });
 
 describe("Editor split panels", () => {
+  it.each([2, 3, 6])(
+    "shares one session host across %i same-path rich panes",
+    (panelCount) => {
+      const path = "C:/notes/large.md";
+      workspaceLifecycle.renderRichPanes = true;
+      useEditorStore.setState({
+        panelGroups: createSamePathGroups(panelCount, path),
+        activeGroupId: "group-1",
+      });
+
+      render(<Editor />);
+
+      expect(richSessionLifecycle.mounts.get(path)).toBe(1);
+      expect(screen.getAllByTestId("rich-document-pane")).toHaveLength(
+        panelCount,
+      );
+      expect(screen.getAllByTestId("virtual-rich-preview")).toHaveLength(
+        panelCount - 1,
+      );
+      expect(screen.getAllByTestId("rich-document-live-host")).toHaveLength(1);
+    },
+  );
+
+  it("does not remount the same-path session host when splitting from two to three panes", () => {
+    const path = "C:/notes/large.md";
+    workspaceLifecycle.renderRichPanes = true;
+    useEditorStore.setState({
+      panelGroups: createSamePathGroups(2, path),
+      activeGroupId: "group-1",
+    });
+
+    render(<Editor />);
+    expect(richSessionLifecycle.mounts.get(path)).toBe(1);
+
+    act(() => {
+      useEditorStore.setState({
+        panelGroups: createSamePathGroups(3, path),
+      });
+    });
+
+    expect(richSessionLifecycle.mounts.get(path)).toBe(1);
+    expect(screen.getAllByTestId("rich-document-pane")).toHaveLength(3);
+    expect(screen.getAllByTestId("virtual-rich-preview")).toHaveLength(2);
+  });
+
   it("uses a horizontal resize handle for vertical down splits", () => {
     useEditorStore.setState({
       panelGroups: [
@@ -275,3 +393,16 @@ describe("Editor split panels", () => {
     expect(workspaceLifecycle.unmounts.get("group-warmup") ?? 0).toBe(0);
   });
 });
+
+function createSamePathGroups(panelCount: number, path: string) {
+  return Array.from({ length: panelCount }, (_, index) => {
+    const number = index + 1;
+    return {
+      id: `group-${number}`,
+      activeTabId: `tab-${number}`,
+      direction: "horizontal" as const,
+      splitParentGroupId: index === 0 ? undefined : "group-1",
+      tabs: [createTab(`tab-${number}`, path)],
+    };
+  });
+}

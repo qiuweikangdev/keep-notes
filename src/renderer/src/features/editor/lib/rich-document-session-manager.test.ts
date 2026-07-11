@@ -438,6 +438,52 @@ describe("RichDocumentSessionManager", () => {
     expect(listener).toHaveBeenCalledTimes(2);
   });
 
+  it("publishes runtime changes only to the matching normalized path", () => {
+    const manager = createManager();
+    const noteListener = vi.fn();
+    const otherListener = vi.fn();
+    const retainedListener = vi.fn();
+    const releaseVisible = manager.retainVisible("C:/notes/large.md", {
+      paneKey: "g1:t1",
+      groupId: "g1",
+      tabId: "t1",
+    });
+    const retainedSnapshot = manager.getSnapshot();
+    const unsubscribeRetained = manager.subscribe(retainedListener);
+    const unsubscribeNote = manager.subscribeRuntime(
+      "C:\\notes\\large.md",
+      noteListener,
+    );
+    const unsubscribeOther = manager.subscribeRuntime(
+      "C:/notes/other.md",
+      otherListener,
+    );
+    const runtime = createRuntime("C:/notes/large.md", []);
+
+    expect(manager.getRuntimeSnapshot("C:/notes/large.md")).toBeNull();
+    const unregisterRuntime = manager.registerRuntime(
+      "C:/notes/large.md",
+      runtime,
+    );
+
+    expect(noteListener).toHaveBeenCalledTimes(1);
+    expect(otherListener).not.toHaveBeenCalled();
+    expect(retainedListener).not.toHaveBeenCalled();
+    expect(manager.getSnapshot()).toBe(retainedSnapshot);
+    expect(manager.getRuntimeSnapshot("C:\\notes\\large.md")).toBe(runtime);
+
+    unregisterRuntime();
+    expect(noteListener).toHaveBeenCalledTimes(2);
+    expect(manager.getRuntimeSnapshot("C:/notes/large.md")).toBeNull();
+    expect(retainedListener).not.toHaveBeenCalled();
+    expect(manager.getSnapshot()).toBe(retainedSnapshot);
+
+    unsubscribeNote();
+    unsubscribeOther();
+    unsubscribeRetained();
+    releaseVisible();
+  });
+
   it("ignores stale visible and runtime cleanup callbacks", () => {
     const destroyed: string[] = [];
     const viewStates = new RichPaneViewStateRegistry();
