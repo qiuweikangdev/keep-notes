@@ -98,5 +98,7 @@ Run the focused Vitest suites first, followed by `pnpm typecheck`, `pnpm lint`, 
 - `src/renderer/src/features/editor/lib/editor-code-block-languages.test.ts`
 - `src/renderer/src/features/editor/lib/editor-code-block-node-view.ts`
 - `src/renderer/src/features/editor/lib/blocknote-schema.test.ts`
+- `src/renderer/src/styles/blocknote-overrides.css`
+- `src/renderer/src/styles/blocknote-overrides.test.ts`
 
 No main-process, preload, IPC, dependency, or lockfile changes are required.
