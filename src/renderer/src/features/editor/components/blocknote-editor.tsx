@@ -480,60 +480,171 @@ function readEditorSelectionPoint(
   }
 }
 
+export interface RichEditorTextPositionRequest {
+  blockId: string;
+  textOffset: number;
+}
+
+interface IndexedTextPositionRequest extends RichEditorTextPositionRequest {
+  index: number;
+  targetOffset: number;
+}
+
+function normalizeEditorTextOffset(textOffset: number) {
+  return Number.isFinite(textOffset) ? Math.max(0, Math.trunc(textOffset)) : 0;
+}
+
+function walkNodeChildren(
+  parent: ProseMirrorNode,
+  parentStart: number,
+  visit: (node: ProseMirrorNode, position: number) => boolean,
+): boolean {
+  let childOffset = 0;
+  for (let index = 0; index < parent.childCount; index += 1) {
+    const child = parent.child(index);
+    const childPosition = parentStart + 1 + childOffset;
+    if (visit(child, childPosition)) return true;
+    childOffset += child.nodeSize;
+  }
+  return false;
+}
+
+function resolveBlockTextPositions(
+  doc: ProseMirrorNode,
+  blockContainer: ProseMirrorNode,
+  blockContainerStart: number,
+  requests: IndexedTextPositionRequest[],
+  positions: Array<number | null>,
+) {
+  const unresolved = requests.toSorted(
+    (left, right) => left.targetOffset - right.targetOffset,
+  );
+  let consumedText = 0;
+  let firstInlineContentPosition: number | null = null;
+  let lastTextEndPosition: number | null = null;
+
+  const walkBlockContent = (
+    parent: ProseMirrorNode,
+    parentStart: number,
+  ): boolean =>
+    walkNodeChildren(parent, parentStart, (node, position) => {
+      // 子块属于独立的 BlockNote block，父块的文本偏移不能跨入子块内容。
+      if (node.type.name === "blockContainer") return false;
+      if (firstInlineContentPosition === null && node.inlineContent) {
+        firstInlineContentPosition = position + 1;
+      }
+      if (node.isText) {
+        const length = node.text?.length ?? 0;
+        const textEnd = consumedText + length;
+        while (unresolved.length > 0 && unresolved[0].targetOffset <= textEnd) {
+          const request = unresolved.shift()!;
+          positions[request.index] =
+            position + (request.targetOffset - consumedText);
+        }
+        consumedText = textEnd;
+        lastTextEndPosition = position + length;
+      }
+      if (unresolved.length === 0) return true;
+      return node.childCount > 0 && walkBlockContent(node, position);
+    });
+
+  walkBlockContent(blockContainer, blockContainerStart);
+  if (unresolved.length === 0) return;
+
+  const fallbackPosition = lastTextEndPosition ?? firstInlineContentPosition;
+  if (fallbackPosition === null) return;
+  try {
+    if (!doc.resolve(fallbackPosition).parent.inlineContent) return;
+  } catch {
+    return;
+  }
+  for (const request of unresolved) {
+    positions[request.index] = fallbackPosition;
+  }
+}
+
+function resolveDocumentTextPositions(
+  doc: ProseMirrorNode,
+  requests: readonly RichEditorTextPositionRequest[],
+) {
+  const positions = Array<number | null>(requests.length).fill(null);
+  const requestsByBlockId = new Map<string, IndexedTextPositionRequest[]>();
+  requests.forEach((request, index) => {
+    const indexedRequest = {
+      ...request,
+      index,
+      targetOffset: normalizeEditorTextOffset(request.textOffset),
+    };
+    const blockRequests = requestsByBlockId.get(request.blockId);
+    if (blockRequests) blockRequests.push(indexedRequest);
+    else requestsByBlockId.set(request.blockId, [indexedRequest]);
+  });
+  if (requestsByBlockId.size === 0) return positions;
+
+  const walkDocument = (
+    parent: ProseMirrorNode,
+    parentStart: number,
+  ): boolean =>
+    walkNodeChildren(parent, parentStart, (node, position) => {
+      if (node.type.name === "blockContainer") {
+        const blockId = node.attrs.id;
+        const blockRequests =
+          typeof blockId === "string"
+            ? requestsByBlockId.get(blockId)
+            : undefined;
+        if (blockRequests) {
+          resolveBlockTextPositions(
+            doc,
+            node,
+            position,
+            blockRequests,
+            positions,
+          );
+          requestsByBlockId.delete(blockId);
+          if (requestsByBlockId.size === 0) return true;
+        }
+      }
+      return node.childCount > 0 && walkDocument(node, position);
+    });
+
+  // ProseMirror 根节点的直接子节点从位置 0 开始，因此根起点使用 -1。
+  walkDocument(doc, -1);
+  return positions;
+}
+
+export function resolveEditorTextPositions(
+  editor: CoreBlockNoteEditor,
+  requests: readonly RichEditorTextPositionRequest[],
+): Array<number | null> {
+  return resolveDocumentTextPositions(
+    editor.prosemirrorView.state.doc,
+    requests,
+  );
+}
+
 export function resolveEditorTextPosition(
   editor: CoreBlockNoteEditor,
   blockId: string,
   textOffset: number,
 ): number | null {
-  const doc = editor.prosemirrorView.state.doc;
-  let blockContainer: ProseMirrorNode | null = null;
-  let blockContainerStart = -1;
-  doc.descendants((node, position) => {
-    if (node.type.name === "blockContainer" && node.attrs.id === blockId) {
-      blockContainer = node;
-      blockContainerStart = position;
-      return false;
-    }
-    return blockContainer === null;
-  });
-  if (!blockContainer || blockContainerStart < 0) return null;
+  return resolveEditorTextPositions(editor, [{ blockId, textOffset }])[0];
+}
 
-  const finiteOffset = Number.isFinite(textOffset) ? Math.trunc(textOffset) : 0;
-  const targetOffset = Math.min(
-    Math.max(finiteOffset, 0),
-    blockContainer.textContent.length,
-  );
-  let consumed = 0;
-  let resolvedPosition: number | null = null;
-  let firstInlineContentPosition: number | null = null;
-  blockContainer.descendants((node, position) => {
-    if (firstInlineContentPosition === null && node.inlineContent) {
-      firstInlineContentPosition = blockContainerStart + 1 + position + 1;
-    }
-    if (!node.isText || resolvedPosition !== null)
-      return resolvedPosition === null;
-
-    const length = node.text?.length ?? 0;
-    if (consumed + length >= targetOffset) {
-      resolvedPosition =
-        blockContainerStart + 1 + position + (targetOffset - consumed);
-      return false;
-    }
-    consumed += length;
-    return true;
-  });
-
-  if (resolvedPosition !== null) return resolvedPosition;
-
-  // 空 inline block 仍可由 Selection.near 定位；图片等 atom block 交给 BlockNote fallback。
-  if (firstInlineContentPosition === null) return null;
+function safelyFocusEditor(editor: CoreBlockNoteEditor) {
   try {
-    return doc.resolve(firstInlineContentPosition).parent.inlineContent
-      ? firstInlineContentPosition
-      : null;
+    editor.focus();
   } catch {
-    return null;
+    // 编辑器正在切换容器或销毁时，焦点恢复失败不应中断面板激活。
   }
+}
+
+function focusEditorAtBlockStart(editor: CoreBlockNoteEditor, blockId: string) {
+  try {
+    editor.setTextCursorPosition(blockId, "start");
+  } catch {
+    // 块已被并发删除时保留当前选择，仍尝试把焦点交给活动编辑器。
+  }
+  safelyFocusEditor(editor);
 }
 
 export function focusEditorAtPreviewAnchor(
@@ -541,26 +652,17 @@ export function focusEditorAtPreviewAnchor(
   anchor: RichPreviewAnchor | null,
 ): void {
   if (!anchor) {
-    editor.focus();
-    return;
-  }
-  if (!editor.getBlock(anchor.blockId)) {
-    editor.focus();
-    return;
-  }
-
-  const position = resolveEditorTextPosition(
-    editor,
-    anchor.blockId,
-    anchor.textOffset,
-  );
-  if (position === null) {
-    editor.setTextCursorPosition(anchor.blockId, "start");
-    editor.focus();
+    safelyFocusEditor(editor);
     return;
   }
 
   const view = editor.prosemirrorView;
+  const position = resolveDocumentTextPositions(view.state.doc, [anchor])[0];
+  if (position === null) {
+    focusEditorAtBlockStart(editor, anchor.blockId);
+    return;
+  }
+
   try {
     const resolvedPosition = view.state.doc.resolve(position);
     const selection = resolvedPosition.parent.inlineContent
@@ -568,11 +670,10 @@ export function focusEditorAtPreviewAnchor(
       : TextSelection.near(resolvedPosition, 1);
     view.dispatch(view.state.tr.setSelection(selection).scrollIntoView());
   } catch {
-    editor.setTextCursorPosition(anchor.blockId, "start");
-    editor.focus();
+    focusEditorAtBlockStart(editor, anchor.blockId);
     return;
   }
-  editor.focus();
+  safelyFocusEditor(editor);
 }
 
 function yieldToMain(): Promise<void> {
@@ -1081,23 +1182,27 @@ function MountedBlockNoteEditor({
       }
       if (!state.selection) return;
 
-      const anchor = resolveEditorTextPosition(
-        editor,
-        state.selection.anchorBlockId,
-        state.selection.anchorOffset,
-      );
-      const head = resolveEditorTextPosition(
-        editor,
-        state.selection.headBlockId,
-        state.selection.headOffset,
-      );
+      const [anchor, head] = resolveEditorTextPositions(editor, [
+        {
+          blockId: state.selection.anchorBlockId,
+          textOffset: state.selection.anchorOffset,
+        },
+        {
+          blockId: state.selection.headBlockId,
+          textOffset: state.selection.headOffset,
+        },
+      ]);
       if (anchor === null || head === null) return;
       const view = editor.prosemirrorView;
-      view.dispatch(
-        view.state.tr.setSelection(
-          TextSelection.create(view.state.doc, anchor, head),
-        ),
-      );
+      try {
+        view.dispatch(
+          view.state.tr.setSelection(
+            TextSelection.create(view.state.doc, anchor, head),
+          ),
+        );
+      } catch {
+        // 选择在异步内容更新中失效时保留已恢复的滚动位置。
+      }
     },
     [editor],
   );

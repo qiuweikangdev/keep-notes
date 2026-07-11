@@ -32,6 +32,7 @@ import {
   focusEditorOutlineBlock,
   moveCursorAfterUploadedImage,
   resolveEditorTextPosition,
+  resolveEditorTextPositions,
   richEditorDefaultUIProps,
   uploadEditorImageFileAsAttachment,
   selectEntireRichEditorContent,
@@ -42,6 +43,25 @@ import {
 } from "./blocknote-editor";
 
 type SerializeMarkdown = typeof import("../lib/markdown").serializeMarkdown;
+
+interface TestTiptapEditor {
+  dispatchTransaction: (transaction: unknown) => void;
+  off: (
+    event: "transaction",
+    listener: (payload: { transaction: { scrolledIntoView: boolean } }) => void,
+  ) => void;
+  on: (
+    event: "transaction",
+    listener: (payload: { transaction: { scrolledIntoView: boolean } }) => void,
+  ) => void;
+}
+
+function getTestTiptapEditor(editor: CoreBlockNoteEditor) {
+  return Reflect.get(
+    editor,
+    ["_", "tiptapEditor"].join(""),
+  ) as TestTiptapEditor;
+}
 
 const markdownMocks = vi.hoisted(() => ({
   actualSerializeMarkdown: null as SerializeMarkdown | null,
@@ -231,6 +251,103 @@ describe("BlockNoteEditor rich text selection", () => {
 });
 
 describe("focusEditorAtPreviewAnchor", () => {
+  it("stops walking before trailing blocks after resolving an early target", () => {
+    const editor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: Array.from({ length: 200 }, (_, index) => ({
+        type: "paragraph" as const,
+        content: `Block ${index}`,
+      })),
+    });
+    const targetBlockId = editor.document[0].id;
+    const blockGroup = editor.prosemirrorView.state.doc.child(0);
+    const trailingBlock = blockGroup.child(blockGroup.childCount - 1);
+    const trailingAttrs = trailingBlock.attrs;
+    let trailingAttrsReadCount = 0;
+    Object.defineProperty(trailingBlock, "attrs", {
+      configurable: true,
+      get: () => {
+        trailingAttrsReadCount += 1;
+        return trailingAttrs;
+      },
+    });
+
+    expect(resolveEditorTextPosition(editor, targetBlockId, 2)).not.toBeNull();
+
+    expect(trailingAttrsReadCount).toBe(0);
+  });
+
+  it("resolves both selection endpoints in one bounded document pass", () => {
+    const editor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: Array.from({ length: 200 }, (_, index) => ({
+        type: "paragraph" as const,
+        content: `Block ${index}`,
+      })),
+    });
+    const [firstBlockId, secondBlockId] = editor.document.map(
+      (block) => block.id,
+    );
+    const blockGroup = editor.prosemirrorView.state.doc.child(0);
+    const firstBlock = blockGroup.child(0);
+    const firstAttrs = firstBlock.attrs;
+    const trailingBlock = blockGroup.child(blockGroup.childCount - 1);
+    const trailingAttrs = trailingBlock.attrs;
+    let firstAttrsReadCount = 0;
+    let trailingAttrsReadCount = 0;
+    Object.defineProperty(firstBlock, "attrs", {
+      configurable: true,
+      get: () => {
+        firstAttrsReadCount += 1;
+        return firstAttrs;
+      },
+    });
+    Object.defineProperty(trailingBlock, "attrs", {
+      configurable: true,
+      get: () => {
+        trailingAttrsReadCount += 1;
+        return trailingAttrs;
+      },
+    });
+
+    const positions = resolveEditorTextPositions(editor, [
+      { blockId: firstBlockId, textOffset: 2 },
+      { blockId: secondBlockId, textOffset: 3 },
+    ]);
+
+    expect(positions.every((position) => position !== null)).toBe(true);
+    expect(firstAttrsReadCount).toBe(1);
+    expect(trailingAttrsReadCount).toBe(0);
+  });
+
+  it("keeps globally correct positions for nested block containers", () => {
+    const editor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "paragraph",
+          content: "Parent",
+          children: [
+            {
+              type: "paragraph",
+              content: [
+                { type: "text", text: "Nested ", styles: {} },
+                { type: "text", text: "target", styles: { italic: true } },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const nestedBlock = editor.document[0].children[0];
+    const position = resolveEditorTextPosition(editor, nestedBlock.id, 9);
+
+    expect(position).not.toBeNull();
+    const resolved = editor.prosemirrorView.state.doc.resolve(position!);
+    expect(resolved.parent.textContent).toBe("Nested target");
+    expect(resolved.parentOffset).toBe(9);
+  });
+
   it("maps exact nested rich-text offsets and clamps them to block content", () => {
     const editor = CoreBlockNoteEditor.create({
       schema: editorSchema,
@@ -262,6 +379,112 @@ describe("focusEditorAtPreviewAnchor", () => {
     expect(editor.prosemirrorView.state.selection.$from.parentOffset).toBe(11);
     expect(focus).toHaveBeenCalledTimes(3);
   });
+
+  it("maps empty inline blocks and normalizes non-finite offsets", () => {
+    const editor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        { type: "paragraph", content: "" },
+        { type: "paragraph", content: "Finite" },
+      ],
+    });
+    const [emptyBlock, textBlock] = editor.document;
+    const emptyPosition = resolveEditorTextPosition(editor, emptyBlock.id, 12);
+    const zeroPosition = resolveEditorTextPosition(editor, textBlock.id, 0);
+
+    expect(emptyPosition).not.toBeNull();
+    expect(
+      editor.prosemirrorView.state.doc.resolve(emptyPosition!).parent
+        .inlineContent,
+    ).toBe(true);
+    expect(resolveEditorTextPosition(editor, textBlock.id, Number.NaN)).toBe(
+      zeroPosition,
+    );
+    expect(
+      resolveEditorTextPosition(editor, textBlock.id, Number.POSITIVE_INFINITY),
+    ).toBe(zeroPosition);
+    expect(
+      resolveEditorTextPosition(editor, textBlock.id, Number.NEGATIVE_INFINITY),
+    ).toBe(zeroPosition);
+  });
+
+  it("requests scrollIntoView on the exact dispatched selection", () => {
+    const editor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "Scroll target" }],
+    });
+    const blockId = editor.document[0].id;
+    let dispatchedTransaction: { scrolledIntoView: boolean } | null = null;
+    const tiptapEditor = getTestTiptapEditor(editor);
+    const readTransaction = (payload: {
+      transaction: { scrolledIntoView: boolean };
+    }) => {
+      dispatchedTransaction = payload.transaction;
+    };
+    tiptapEditor.on("transaction", readTransaction);
+
+    focusEditorAtPreviewAnchor(editor, {
+      blockId,
+      textOffset: 6,
+    });
+
+    expect(dispatchedTransaction?.scrolledIntoView).toBe(true);
+    expect(editor.prosemirrorView.state.selection.$from.parentOffset).toBe(6);
+    tiptapEditor.off("transaction", readTransaction);
+  });
+
+  it("falls back safely when the block ID is missing", () => {
+    const editor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "Known" }],
+    });
+    const fallback = vi.spyOn(editor, "setTextCursorPosition");
+    const focus = vi.spyOn(editor, "focus");
+
+    expect(() =>
+      focusEditorAtPreviewAnchor(editor, {
+        blockId: "missing-block",
+        textOffset: 4,
+      }),
+    ).not.toThrow();
+    expect(fallback).toHaveBeenCalledWith("missing-block", "start");
+    expect(focus).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["resolve", "dispatch"] as const)(
+    "falls back safely when ProseMirror %s fails",
+    (failure) => {
+      const editor = CoreBlockNoteEditor.create({
+        schema: editorSchema,
+        initialContent: [{ type: "paragraph", content: "Fallback" }],
+      });
+      const blockId = editor.document[0].id;
+      const view = editor.prosemirrorView;
+      if (failure === "resolve") {
+        vi.spyOn(view.state.doc, "resolve").mockImplementationOnce(() => {
+          throw new Error("selection failed");
+        });
+      } else {
+        vi.spyOn(
+          getTestTiptapEditor(editor),
+          "dispatchTransaction",
+        ).mockImplementationOnce(() => {
+          throw new Error("dispatch failed");
+        });
+      }
+      const fallback = vi.spyOn(editor, "setTextCursorPosition");
+      const focus = vi.spyOn(editor, "focus");
+
+      expect(() =>
+        focusEditorAtPreviewAnchor(editor, {
+          blockId,
+          textOffset: 4,
+        }),
+      ).not.toThrow();
+      expect(fallback).toHaveBeenCalledWith(blockId, "start");
+      expect(focus).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("falls back to the BlockNote cursor API for a non-text image block", () => {
     const editor = CoreBlockNoteEditor.create({
