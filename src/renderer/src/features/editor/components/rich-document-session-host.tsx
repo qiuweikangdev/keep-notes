@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { useDiffStore } from "@/store/diff.store";
@@ -8,7 +8,10 @@ import {
   editorSaveCoordinator,
   richDocumentSessionManager,
 } from "../lib/editor-runtime";
-import { selectRichDocumentRepresentative } from "../lib/editor-view-selectors";
+import {
+  selectRichDocumentRepresentative,
+  type RichDocumentRepresentative,
+} from "../lib/editor-view-selectors";
 import { normalizeRichDocumentPath } from "../lib/rich-document-surface-registry";
 import { toRichPaneKey } from "../lib/rich-pane-view-state";
 import {
@@ -69,6 +72,28 @@ function selectActiveRichBinding(
   return null;
 }
 
+function resolveStoredDocumentPath(
+  normalizedPath: string,
+  state: EditorState,
+  tabIds: string[],
+): string {
+  let matchingStoredPath: string | null = null;
+  for (const group of state.panelGroups) {
+    for (const tab of group.tabs) {
+      if (
+        tab.filePath &&
+        normalizeRichDocumentPath(tab.filePath) === normalizedPath
+      ) {
+        matchingStoredPath ??= tab.filePath;
+        if (tabIds.length === 0 || tabIds.includes(tab.id)) {
+          return tab.filePath;
+        }
+      }
+    }
+  }
+  return matchingStoredPath ?? normalizedPath;
+}
+
 export function RichDocumentSessionHost({
   path,
 }: RichDocumentSessionHostProps) {
@@ -78,6 +103,17 @@ export function RichDocumentSessionHost({
     [normalizedPath],
   );
   const representative = useEditorStore(representativeSelector);
+  const readyRepresentativeRef = useRef<{
+    path: string;
+    value: RichDocumentRepresentative | null;
+  }>({ path: normalizedPath, value: null });
+  if (readyRepresentativeRef.current.path !== normalizedPath) {
+    readyRepresentativeRef.current = { path: normalizedPath, value: null };
+  }
+  if (representative?.loadStatus === "ready") {
+    readyRepresentativeRef.current.value = representative;
+  }
+  const readyRepresentative = readyRepresentativeRef.current.value;
   const [surface] = useState(() => {
     const element = document.createElement("div");
     element.className = "h-full min-h-0";
@@ -102,6 +138,11 @@ export function RichDocumentSessionHost({
         const store = useEditorStore.getState();
         const tabIds =
           richDocumentSessionManager.getBoundTabIds(normalizedPath);
+        const storedPath = resolveStoredDocumentPath(
+          normalizedPath,
+          store,
+          tabIds,
+        );
         // 同一路径的面板共享当前文档树，只更新 Markdown 快照，不触发任何面板重载。
         store.syncFileContent(normalizedPath, content, undefined, tabIds);
         const diffState = useDiffStore.getState();
@@ -112,7 +153,7 @@ export function RichDocumentSessionHost({
         ) {
           diffState.updateContent(diffState.oldContent, content);
         }
-        editorSaveCoordinator.schedule(normalizedPath, content);
+        editorSaveCoordinator.schedule(storedPath, content);
       },
       onWordCountChange: (count) => {
         const binding = getActiveBinding();
@@ -133,13 +174,14 @@ export function RichDocumentSessionHost({
     };
   }, [normalizedPath]);
 
-  if (!representative || representative.loadStatus !== "ready") return null;
+  // 初次内容未就绪时不创建编辑器；一旦已创建，reload 的 loading 窗口只保留旧树，避免销毁会话。
+  if (!readyRepresentative) return null;
 
   return createPortal(
     <BlockNoteEditor
-      content={representative.content}
+      content={readyRepresentative.content}
       controller={controller}
-      reloadKey={representative.reloadKey}
+      reloadKey={readyRepresentative.reloadKey}
       surface={surface}
     />,
     surface,

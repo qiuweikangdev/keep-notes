@@ -47,6 +47,7 @@ import {
   type RichPaneViewState,
   toRichPaneKey,
 } from "../lib/rich-pane-view-state";
+import { normalizeRichDocumentPath } from "../lib/rich-document-surface-registry";
 import {
   ensureEditableBlocks,
   markdownEquals,
@@ -187,6 +188,15 @@ interface LegacyBlockNoteEditorProps {
 }
 
 const MARKDOWN_PARSER_VERSION = "blocknote-v5";
+const destroyedOwnedEditors = new WeakSet<CoreBlockNoteEditor>();
+
+function destroyOwnedEditor(editor: CoreBlockNoteEditor): void {
+  if (destroyedOwnedEditors.has(editor)) return;
+  destroyedOwnedEditors.add(editor);
+  // BlockNote 未公开组件所有权销毁入口，需要释放内部 Tiptap editor 的插件与监听器。
+  // oxlint-disable-next-line eslint/no-underscore-dangle
+  editor._tiptapEditor.destroy();
+}
 
 export function getMarkdownParserCacheVersion(reloadKey: number) {
   return `${MARKDOWN_PARSER_VERSION}:${reloadKey}`;
@@ -731,6 +741,8 @@ function BlockNoteEditorInner({
   const outlineScrollTokenRef = useRef(0);
   const isActiveEditorRef = useRef(isActiveEditor);
   const applyTokenRef = useRef(0);
+  const lifecycleGenerationRef = useRef(0);
+  const lifecycleActiveRef = useRef(true);
   const editorRef = useRef<CoreBlockNoteEditor | null>(null);
   const editorRegistrationCleanupRef = useRef<(() => void) | null>(null);
   const editorBindingSubscriptionCleanupRef = useRef<(() => void) | null>(null);
@@ -738,6 +750,9 @@ function BlockNoteEditorInner({
   const runtimeRef = useRef<RichBlockNoteRuntime | null>(null);
   const previewCacheRef = useRef<RichPreviewCache | null>(null);
   const previewTransactionCleanupRef = useRef<(() => void) | null>(null);
+  const pendingEditorDestructionsRef = useRef(
+    new Map<CoreBlockNoteEditor, { cancelled: boolean }>(),
+  );
   const splitWarmupRef = useRef(splitWarmup);
   const workspaceRootPathRef = useRef(workspaceRootPath);
   const loadEditorImageUrl = useCallback(async (url: string) => {
@@ -771,6 +786,30 @@ function BlockNoteEditorInner({
     uploadFile: uploadEditorImageFile,
   });
   editorRef.current = editor;
+
+  useEffect(() => {
+    const pending = pendingEditorDestructionsRef.current.get(editor);
+    if (pending) {
+      // StrictMode 会立即重放 effect；同一实例重新接管时撤销演练阶段排队的销毁。
+      pending.cancelled = true;
+      pendingEditorDestructionsRef.current.delete(editor);
+    }
+
+    return () => {
+      const task = { cancelled: false };
+      pendingEditorDestructionsRef.current.set(editor, task);
+      queueMicrotask(() => {
+        if (
+          task.cancelled ||
+          pendingEditorDestructionsRef.current.get(editor) !== task
+        ) {
+          return;
+        }
+        pendingEditorDestructionsRef.current.delete(editor);
+        destroyOwnedEditor(editor);
+      });
+    };
+  }, [editor]);
 
   // 获取 store 中的方法
   const setOutlineHeadings = useEditorStore(
@@ -934,7 +973,16 @@ function BlockNoteEditorInner({
     outlineUpdateCancelRef.current?.();
     outlineUpdateCancelRef.current = null;
     serializationQueuedRef.current = false;
+    // 稳定滚动通过 token 自行退出；取消会话工作时同步使所有旧滚动回调失效。
+    outlineScrollTokenRef.current += 1;
   }, []);
+
+  const invalidateEditorLifecycle = useCallback(() => {
+    lifecycleActiveRef.current = false;
+    lifecycleGenerationRef.current += 1;
+    applyTokenRef.current += 1;
+    cancelPendingEditorWork();
+  }, [cancelPendingEditorWork]);
 
   const ensureRichRuntime = useCallback(
     (blocks: Block[]) => {
@@ -955,6 +1003,9 @@ function BlockNoteEditorInner({
       if (runtimeRef.current) return;
 
       const runtimePath = controller.path;
+      const normalizedRuntimePath = normalizeRichDocumentPath(runtimePath);
+      lifecycleActiveRef.current = true;
+      lifecycleGenerationRef.current += 1;
       let destroyed = false;
       const runtime: RichBlockNoteRuntime = {
         path: runtimePath,
@@ -974,8 +1025,7 @@ function BlockNoteEditorInner({
         destroy: () => {
           if (destroyed) return;
           destroyed = true;
-          applyTokenRef.current += 1;
-          cancelPendingEditorWork();
+          invalidateEditorLifecycle();
           editorRegistrationCleanupRef.current?.();
           editorRegistrationCleanupRef.current = null;
           editorBindingSubscriptionCleanupRef.current?.();
@@ -993,7 +1043,11 @@ function BlockNoteEditorInner({
             .getState()
             .panelGroups.some((group) =>
               group.tabs.some(
-                (tab) => tab.filePath === runtimePath && tab.isDirty,
+                (tab) =>
+                  tab.filePath !== null &&
+                  normalizeRichDocumentPath(tab.filePath) ===
+                    normalizedRuntimePath &&
+                  tab.isDirty,
               ),
             ),
         isSaving: () =>
@@ -1002,7 +1056,10 @@ function BlockNoteEditorInner({
             .panelGroups.some((group) =>
               group.tabs.some(
                 (tab) =>
-                  tab.filePath === runtimePath && tab.saveStatus === "saving",
+                  tab.filePath !== null &&
+                  normalizeRichDocumentPath(tab.filePath) ===
+                    normalizedRuntimePath &&
+                  tab.saveStatus === "saving",
               ),
             ),
         isReloading: () =>
@@ -1011,7 +1068,10 @@ function BlockNoteEditorInner({
             .panelGroups.some((group) =>
               group.tabs.some(
                 (tab) =>
-                  tab.filePath === runtimePath && tab.loadStatus === "loading",
+                  tab.filePath !== null &&
+                  normalizeRichDocumentPath(tab.filePath) ===
+                    normalizedRuntimePath &&
+                  tab.loadStatus === "loading",
               ),
             ),
       };
@@ -1024,6 +1084,7 @@ function BlockNoteEditorInner({
       controller.path,
       editor,
       focusAt,
+      invalidateEditorLifecycle,
       path,
       readViewState,
       restoreViewState,
@@ -1187,12 +1248,17 @@ function BlockNoteEditorInner({
   );
 
   const serializeChange = useCallback(async () => {
-    if (suppressChangeRef.current) return;
+    const lifecycleGeneration = lifecycleGenerationRef.current;
+    const isCurrentLifecycle = () =>
+      lifecycleActiveRef.current &&
+      lifecycleGenerationRef.current === lifecycleGeneration;
+    if (!isCurrentLifecycle() || suppressChangeRef.current) return;
     // 页面不可见时跳过序列化，避免后台窗口占用 CPU 阻塞用户交互。
     if (document.visibilityState === "hidden") return;
     if (serializationInFlightRef.current) {
       serializationQueuedRef.current = true;
       await serializationInFlightRef.current;
+      if (!isCurrentLifecycle()) return;
       return;
     }
 
@@ -1202,13 +1268,17 @@ function BlockNoteEditorInner({
     const runSerialization = (async () => {
       if (baselineSerializationRef.current) {
         await baselineSerializationRef.current;
+        if (!isCurrentLifecycle()) return;
       }
       const serialized = await serializeMarkdown(editor, editor.document);
+      if (!isCurrentLifecycle()) return;
       const baseline = serializedBaselineRef.current;
       if (baseline === null) {
+        if (!isCurrentLifecycle()) return;
         serializedBaselineRef.current = serialized;
         if (path) {
           const parserCacheVersion = getMarkdownParserCacheVersion(reloadKey);
+          if (!isCurrentLifecycle()) return;
           editorCache.setBlocks(
             path,
             contentRef.current,
@@ -1217,18 +1287,22 @@ function BlockNoteEditorInner({
             serialized,
           );
         }
+        if (!isCurrentLifecycle()) return;
         changeGateRef.current.markSerialized(pendingRevision);
         return;
       }
       // 在序列化和源码保留之间让出主线程，确保用户交互（弹窗/菜单点击）不被阻塞。
       await yieldToMain();
+      if (!isCurrentLifecycle()) return;
       const markdown = resolveSerializedMarkdownChange(
         contentRef.current,
         baseline,
         serialized,
       );
+      if (!isCurrentLifecycle()) return;
       serializedBaselineRef.current = serialized;
       if (markdown === null) {
+        if (!isCurrentLifecycle()) return;
         changeGateRef.current.markSerialized(pendingRevision);
         return;
       }
@@ -1238,7 +1312,9 @@ function BlockNoteEditorInner({
       appliedSourceRef.current = markdown;
       if (path) {
         const parserCacheVersion = getMarkdownParserCacheVersion(reloadKey);
+        if (!isCurrentLifecycle()) return;
         editorCache.setContent(path, markdown);
+        if (!isCurrentLifecycle()) return;
         editorCache.setBlocks(
           path,
           markdown,
@@ -1247,8 +1323,11 @@ function BlockNoteEditorInner({
           serialized,
         );
       }
+      if (!isCurrentLifecycle()) return;
       controllerRef.current.onWordCountChange(markdown.length);
+      if (!isCurrentLifecycle()) return;
       controllerRef.current.onMarkdownChange(markdown);
+      if (!isCurrentLifecycle()) return;
       changeGateRef.current.markSerialized(pendingRevision);
     })();
 
@@ -1260,6 +1339,7 @@ function BlockNoteEditorInner({
         serializationInFlightRef.current = null;
       }
       if (
+        isCurrentLifecycle() &&
         serializationQueuedRef.current &&
         changeGateRef.current.capturePendingRevision() !== null
       ) {
@@ -1314,6 +1394,7 @@ function BlockNoteEditorInner({
   }, editor);
 
   useEffect(() => {
+    lifecycleActiveRef.current = true;
     const applyToken = ++applyTokenRef.current;
     baselineSerializationRef.current = null;
     cacheAppliedDocument();
@@ -1399,6 +1480,7 @@ function BlockNoteEditorInner({
           const baselinePromise = (async () => {
             // 先让新面板完成一次绘制，再序列化大文档基线，避免拆分时出现空白闪烁。
             await waitForNextPaint();
+            if (applyToken !== applyTokenRef.current) return null;
             const serializedBaseline = await serializeMarkdown(
               editor,
               baselineBlocks,
@@ -1448,6 +1530,8 @@ function BlockNoteEditorInner({
     void applyContent();
     return () => {
       applyTokenRef.current += 1;
+      lifecycleGenerationRef.current += 1;
+      cancelPendingEditorWork();
       baselineSerializationRef.current = null;
       editorRegistrationCleanupRef.current?.();
       editorRegistrationCleanupRef.current = null;
@@ -1457,6 +1541,7 @@ function BlockNoteEditorInner({
     // 普通输入只更新 contentRef；仅文件切换或显式重载时替换整篇文档。
   }, [
     cacheAppliedDocument,
+    cancelPendingEditorWork,
     editor,
     ensureRichRuntime,
     loadEditorImageUrl,
@@ -1501,19 +1586,14 @@ function BlockNoteEditorInner({
 
   useEffect(
     () => () => {
-      if (serializationCancelRef.current) {
-        serializationCancelRef.current();
-      }
-      if (outlineUpdateCancelRef.current) {
-        outlineUpdateCancelRef.current();
-      }
+      invalidateEditorLifecycle();
       editorRegistrationCleanupRef.current?.();
       editorRegistrationCleanupRef.current = null;
       editorBindingSubscriptionCleanupRef.current?.();
       editorBindingSubscriptionCleanupRef.current = null;
       cacheAppliedDocument();
     },
-    [cacheAppliedDocument],
+    [cacheAppliedDocument, invalidateEditorLifecycle],
   );
 
   useEffect(

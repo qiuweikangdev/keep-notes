@@ -4,11 +4,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { EditorPanelGroup } from "@/store/editor.store";
 import { useEditorStore } from "@/store/editor.store";
-import { richDocumentSessionManager } from "../lib/editor-runtime";
+import {
+  editorSaveCoordinator,
+  richDocumentSessionManager,
+} from "../lib/editor-runtime";
 import { RichDocumentSessionHost } from "./rich-document-session-host";
 
 const sessionMocks = vi.hoisted(() => ({
   mounts: new Map<string, number>(),
+  reloads: [] as Array<{ content: string; reloadKey: number }>,
+  runtimes: [] as MockRuntime[],
   controller: null as {
     getActiveBinding: () => {
       groupId: string;
@@ -43,10 +48,14 @@ interface MockRuntime {
 
 vi.mock("./blocknote-editor", () => ({
   BlockNoteEditor: ({
+    content,
     controller,
+    reloadKey,
     surface,
   }: {
+    content: string;
     controller: NonNullable<typeof sessionMocks.controller>;
+    reloadKey: number;
     surface: HTMLElement;
   }) => {
     useEffect(() => {
@@ -55,7 +64,7 @@ vi.mock("./blocknote-editor", () => ({
         (sessionMocks.mounts.get(controller.path) ?? 0) + 1,
       );
       sessionMocks.controller = controller;
-      return controller.onRuntimeReady({
+      const runtime = {
         path: controller.path,
         surface,
         serializePendingChange: async () => undefined,
@@ -70,8 +79,14 @@ vi.mock("./blocknote-editor", () => ({
         readViewState: () => ({ scrollTop: 0, selection: null }),
         restoreViewState: vi.fn(),
         scrollToBlock: () => false,
-      });
+      };
+      sessionMocks.runtimes.push(runtime);
+      return controller.onRuntimeReady(runtime);
     }, [controller, surface]);
+
+    useEffect(() => {
+      sessionMocks.reloads.push({ content, reloadKey });
+    }, [content, reloadKey]);
 
     return null;
   },
@@ -80,7 +95,11 @@ vi.mock("./blocknote-editor", () => ({
 afterEach(() => {
   cleanup();
   sessionMocks.mounts.clear();
+  sessionMocks.reloads.length = 0;
+  sessionMocks.runtimes.length = 0;
   sessionMocks.controller = null;
+  editorSaveCoordinator.cancel("C:/notes/shared.md");
+  editorSaveCoordinator.cancel("C:\\notes\\shared.md");
 });
 
 describe("RichDocumentSessionHost", () => {
@@ -120,24 +139,39 @@ describe("RichDocumentSessionHost", () => {
     expect(richDocumentSessionManager.getRuntime(path)).toBeNull();
   });
 
-  it("syncs every bound same-path tab without incrementing reload keys", () => {
-    const path = "C:/notes/shared.md";
+  it("syncs and saves every Windows-path tab through a normalized session path", async () => {
+    const path = "C:\\notes\\shared.md";
+    const sessionPath = "C:/notes/shared.md";
+    let finishWrite: (() => void) | null = null;
+    const writePromise = new Promise<void>((resolve) => {
+      finishWrite = resolve;
+    });
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: {
+        ...window.electronAPI,
+        writeFile: vi.fn(() => writePromise),
+      },
+    });
     useEditorStore.setState({
       activeGroupId: "group-1",
       panelGroups: createGroups(path),
     });
-    const releaseFirst = richDocumentSessionManager.retainVisible(path, {
+    const releaseFirst = richDocumentSessionManager.retainVisible(sessionPath, {
       paneKey: "group-1:tab-1",
       groupId: "group-1",
       tabId: "tab-1",
     });
-    const releaseSecond = richDocumentSessionManager.retainVisible(path, {
-      paneKey: "group-2:tab-2",
-      groupId: "group-2",
-      tabId: "tab-2",
-    });
+    const releaseSecond = richDocumentSessionManager.retainVisible(
+      sessionPath,
+      {
+        paneKey: "group-2:tab-2",
+        groupId: "group-2",
+        tabId: "tab-2",
+      },
+    );
 
-    render(<RichDocumentSessionHost path={path} />);
+    render(<RichDocumentSessionHost path={sessionPath} />);
     act(() => {
       sessionMocks.controller?.onMarkdownChange("# Updated");
     });
@@ -147,11 +181,95 @@ describe("RichDocumentSessionHost", () => {
       .panelGroups.flatMap((group) => group.tabs);
     expect(tabs.map((tab) => tab.content)).toEqual(["# Updated", "# Updated"]);
     expect(tabs.map((tab) => tab.reloadKey)).toEqual([2, 2]);
+    expect(tabs.map((tab) => tab.saveStatus)).toEqual(["dirty", "dirty"]);
+    expect(editorSaveCoordinator.hasPending(path)).toBe(true);
+    expect(editorSaveCoordinator.hasPending(sessionPath)).toBe(false);
+
+    const flushPromise = editorSaveCoordinator.flush(path);
+    expect(
+      useEditorStore
+        .getState()
+        .panelGroups.flatMap((group) => group.tabs)
+        .map((tab) => tab.saveStatus),
+    ).toEqual(["saving", "saving"]);
+    finishWrite?.();
+    await act(async () => {
+      await flushPromise;
+    });
+    expect(
+      useEditorStore
+        .getState()
+        .panelGroups.flatMap((group) => group.tabs)
+        .map((tab) => tab.saveStatus),
+    ).toEqual(["clean", "clean"]);
+    expect(window.electronAPI.writeFile).toHaveBeenCalledWith(
+      path,
+      "# Updated",
+    );
 
     releaseFirst();
     releaseSecond();
   });
+
+  it("keeps one mounted session through a same-path reload", () => {
+    const path = "C:/notes/reload.md";
+    useEditorStore.setState({
+      activeGroupId: "group-1",
+      panelGroups: createGroups(path),
+    });
+
+    render(<RichDocumentSessionHost path={path} />);
+    const initialRuntime = richDocumentSessionManager.getRuntime(path);
+
+    act(() => {
+      setAllTabs({ loadStatus: "loading" });
+    });
+    expect(richDocumentSessionManager.getRuntime(path)).toBe(initialRuntime);
+
+    act(() => {
+      setAllTabs({
+        content: "# Reloaded",
+        loadStatus: "ready",
+        reloadKey: 3,
+      });
+    });
+
+    expect(sessionMocks.mounts.get(path)).toBe(1);
+    expect(richDocumentSessionManager.getRuntime(path)).toBe(initialRuntime);
+    expect(sessionMocks.reloads).toEqual([
+      { content: "# Large", reloadKey: 2 },
+      { content: "# Reloaded", reloadKey: 3 },
+    ]);
+  });
+
+  it("waits for the initial ready document before mounting a session", () => {
+    const path = "C:/notes/initial-loading.md";
+    useEditorStore.setState({
+      activeGroupId: "group-1",
+      panelGroups: createGroups(path).map((group) => ({
+        ...group,
+        tabs: group.tabs.map((tab) => ({ ...tab, loadStatus: "loading" })),
+      })),
+    });
+
+    render(<RichDocumentSessionHost path={path} />);
+    expect(sessionMocks.mounts.get(path)).toBeUndefined();
+
+    act(() => {
+      setAllTabs({ loadStatus: "ready" });
+    });
+    expect(sessionMocks.mounts.get(path)).toBe(1);
+  });
 });
+
+function setAllTabs(patch: Partial<EditorPanelGroup["tabs"][number]>): void {
+  useEditorStore.setState((state) => ({
+    panelGroups: state.panelGroups.map((group) => ({
+      ...group,
+      tabs: group.tabs.map((tab) => ({ ...tab, ...patch })),
+    })),
+  }));
+}
 
 function createGroups(path: string): EditorPanelGroup[] {
   return [

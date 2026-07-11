@@ -11,6 +11,14 @@ import {
   completeFileTransition,
   failFileTransition,
 } from "@/features/editor/lib/editor-file-transition";
+import { normalizeRichDocumentPath } from "@/features/editor/lib/rich-document-surface-registry";
+
+function matchesEditorFilePath(filePath: string | null, path: string): boolean {
+  return (
+    filePath !== null &&
+    normalizeRichDocumentPath(filePath) === normalizeRichDocumentPath(path)
+  );
+}
 
 export interface EditorAppearance {
   fontSize: number;
@@ -872,7 +880,7 @@ export const useEditorStore = create<EditorState>()(
             panelGroups: state.panelGroups.map((group) => ({
               ...group,
               tabs: group.tabs.map((tab) =>
-                tab.filePath === path
+                matchesEditorFilePath(tab.filePath, path)
                   ? {
                       ...tab,
                       saveStatus: status,
@@ -890,7 +898,8 @@ export const useEditorStore = create<EditorState>()(
             panelGroups: state.panelGroups.map((group) => ({
               ...group,
               tabs: group.tabs.map((tab) =>
-                tab.filePath === path && tab.id !== sourceTabId
+                matchesEditorFilePath(tab.filePath, path) &&
+                tab.id !== sourceTabId
                   ? {
                       ...tab,
                       content,

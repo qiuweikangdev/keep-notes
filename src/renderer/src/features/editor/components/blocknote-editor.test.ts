@@ -9,11 +9,17 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { TextSelection } from "@tiptap/pm/state";
-import { createElement } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { createElement, StrictMode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useDiffStore } from "@/store/diff.store";
+import type { EditorPanelGroup } from "@/store/editor.store";
+import { useEditorStore } from "@/store/editor.store";
 import { editorSchema } from "../lib/blocknote-schema";
+import { editorCache, editorSaveCoordinator } from "../lib/editor-runtime";
+import { RichPreviewCache } from "../lib/rich-preview-cache";
 import {
+  BlockNoteEditor,
   EditorFormattingToolbar,
   handleRichEditorHeadingShortcut,
   handleRichEditorSelectAllShortcut,
@@ -24,10 +30,36 @@ import {
   selectEntireRichEditorContent,
   shouldLetCodeMirrorHandleKeyboardEvent,
   shouldMarkRichEditorPointerIntent,
+  type RichBlockNoteRuntime,
+  type RichEditorSessionController,
 } from "./blocknote-editor";
+
+type SerializeMarkdown = typeof import("../lib/markdown").serializeMarkdown;
+
+const markdownMocks = vi.hoisted(() => ({
+  actualSerializeMarkdown: null as SerializeMarkdown | null,
+  serializeMarkdown: vi.fn<SerializeMarkdown>(),
+}));
+
+vi.mock("../lib/markdown", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/markdown")>();
+  markdownMocks.actualSerializeMarkdown = actual.serializeMarkdown;
+  return {
+    ...actual,
+    serializeMarkdown: markdownMocks.serializeMarkdown,
+  };
+});
+
+beforeEach(() => {
+  markdownMocks.serializeMarkdown.mockReset();
+  markdownMocks.serializeMarkdown.mockImplementation((...args) =>
+    markdownMocks.actualSerializeMarkdown!(...args),
+  );
+});
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
 });
 
 function createRect() {
@@ -451,3 +483,242 @@ describe("BlockNoteEditor user intent tracking", () => {
     expect(shouldMarkRichEditorPointerIntent(code)).toBe(true);
   });
 });
+
+describe("BlockNoteEditor persistent session runtime", () => {
+  it("uses normalized path identity for runtime state and a real preview cache", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    setupSessionTab("C:\\notes\\shared.md", {
+      isDirty: true,
+      loadStatus: "loading",
+      saveStatus: "saving",
+    });
+    const seed = vi.spyOn(RichPreviewCache.prototype, "seed");
+    const handleTransaction = vi.spyOn(
+      RichPreviewCache.prototype,
+      "handleTransaction",
+    );
+    const session = renderRealSession("C:/notes/shared.md");
+
+    await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    const runtime = session.runtime.current!;
+
+    expect(runtime.isDirty()).toBe(true);
+    expect(runtime.isSaving()).toBe(true);
+    expect(runtime.isReloading()).toBe(true);
+    expect(seed).toHaveBeenCalledTimes(1);
+    expect(runtime.previewCache).toBeInstanceOf(RichPreviewCache);
+
+    const scrollContainer = session.view.container.querySelector<HTMLElement>(
+      ".editor-rich-scroll",
+    );
+    expect(scrollContainer).not.toBeNull();
+    scrollContainer!.scrollTop = 84;
+    expect(runtime.readViewState().scrollTop).toBe(84);
+    runtime.restoreViewState({ scrollTop: 21, selection: null });
+    expect(scrollContainer!.scrollTop).toBe(21);
+
+    const transactionCount = handleTransaction.mock.calls.length;
+    act(() => {
+      runtime.editor.updateBlock(runtime.editor.document[0], {
+        content: "Changed once",
+      });
+    });
+    expect(handleTransaction).toHaveBeenCalledTimes(transactionCount + 1);
+
+    const initialRuntime = session.runtime.current;
+    const initialEditor = runtime.editor;
+    session.view.rerender(
+      createElement(BlockNoteEditor, {
+        content: "# Reloaded",
+        controller: session.controller,
+        reloadKey: 1,
+        surface: session.surface,
+      }),
+    );
+    await waitFor(() =>
+      expect(JSON.stringify(initialEditor.document)).toContain("Reloaded"),
+    );
+    expect(session.runtime.current).toBe(initialRuntime);
+    expect(session.runtime.current?.editor).toBe(initialEditor);
+
+    session.view.unmount();
+  });
+
+  it("does not destroy the owned editor during StrictMode rehearsal", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    setupSessionTab("C:/notes/strict.md");
+    const session = renderRealSession("C:/notes/strict.md", true);
+
+    await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    const runtime = session.runtime.current!;
+    // oxlint-disable-next-line eslint/no-underscore-dangle
+    const destroy = vi.spyOn(runtime.editor._tiptapEditor, "destroy");
+
+    expect(runtime.editor.document[0]).toBeDefined();
+    expect(destroy).not.toHaveBeenCalled();
+    session.view.unmount();
+
+    await waitFor(() => expect(destroy).toHaveBeenCalledTimes(1));
+    // oxlint-disable-next-line eslint/no-underscore-dangle
+    expect(runtime.editor._tiptapEditor.isDestroyed).toBe(true);
+    expect(session.runtime.current).toBeNull();
+  });
+
+  it("drops an in-flight serialization after the runtime is destroyed", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    setupSessionTab("C:/notes/deferred.md");
+    useDiffStore.setState({
+      isOpen: true,
+      filePath: "C:/notes/deferred.md",
+      oldContent: "# Initial",
+    });
+    const session = renderRealSession("C:/notes/deferred.md");
+
+    await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    await waitFor(() =>
+      expect(markdownMocks.serializeMarkdown).toHaveBeenCalled(),
+    );
+    await act(async () => {
+      await markdownMocks.serializeMarkdown.mock.results[0]?.value;
+    });
+
+    const deferred = createDeferred<string>();
+    markdownMocks.serializeMarkdown.mockClear();
+    markdownMocks.serializeMarkdown.mockImplementationOnce(
+      () => deferred.promise,
+    );
+    session.callbacks.onMarkdownChange.mockClear();
+    session.callbacks.onWordCountChange.mockClear();
+    const cacheContent = vi.spyOn(editorCache, "setContent");
+    const cacheBlocks = vi.spyOn(editorCache, "setBlocks");
+    const scheduleSave = vi.spyOn(editorSaveCoordinator, "schedule");
+    const updateDiff = vi.spyOn(useDiffStore.getState(), "updateContent");
+    const runtime = session.runtime.current!;
+    const scrollContainer = session.view.container.querySelector<HTMLElement>(
+      ".editor-rich-scroll",
+    )!;
+
+    fireEvent.keyDown(scrollContainer, {
+      altKey: false,
+      ctrlKey: false,
+      key: "x",
+      metaKey: false,
+    });
+    act(() => {
+      runtime.editor.updateBlock(runtime.editor.document[0], {
+        content: "Deferred change",
+      });
+    });
+    const flushPromise = runtime.serializePendingChange();
+    await waitFor(() =>
+      expect(markdownMocks.serializeMarkdown).toHaveBeenCalledTimes(1),
+    );
+
+    runtime.destroy();
+    cacheContent.mockClear();
+    cacheBlocks.mockClear();
+    deferred.resolve("# Deferred change");
+    await act(async () => {
+      await flushPromise;
+    });
+
+    expect(session.callbacks.onMarkdownChange).not.toHaveBeenCalled();
+    expect(session.callbacks.onWordCountChange).not.toHaveBeenCalled();
+    expect(updateDiff).not.toHaveBeenCalled();
+    expect(scheduleSave).not.toHaveBeenCalled();
+    expect(cacheContent).not.toHaveBeenCalled();
+    expect(cacheBlocks).not.toHaveBeenCalled();
+
+    session.view.unmount();
+  });
+});
+
+function setupSessionTab(
+  path: string,
+  patch: Partial<EditorPanelGroup["tabs"][number]> = {},
+): void {
+  useEditorStore.setState({
+    activeGroupId: "group-session",
+    panelGroups: [
+      {
+        id: "group-session",
+        activeTabId: "tab-session",
+        direction: "horizontal",
+        tabs: [
+          {
+            id: "tab-session",
+            filePath: path,
+            pendingFilePath: null,
+            content: "# Initial",
+            wordCount: 9,
+            isDirty: false,
+            reloadKey: 0,
+            mode: "rich",
+            loadStatus: "ready",
+            saveStatus: "clean",
+            errorMessage: null,
+            parseErrorMessage: null,
+            scrollTop: 0,
+            ...patch,
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function renderRealSession(path: string, strict = false) {
+  const runtime = { current: null as RichBlockNoteRuntime | null };
+  const callbacks = {
+    onMarkdownChange: vi.fn((content: string) => {
+      const diffState = useDiffStore.getState();
+      if (diffState.isOpen && diffState.filePath === path) {
+        diffState.updateContent(diffState.oldContent, content);
+      }
+      editorSaveCoordinator.schedule(path, content);
+    }),
+    onWordCountChange: vi.fn(),
+    onParseStateChange: vi.fn(),
+  };
+  const controller: RichEditorSessionController = {
+    path,
+    getActiveBinding: () => ({
+      groupId: "group-session",
+      tabId: "tab-session",
+      paneKey: "group-session:tab-session",
+      path,
+    }),
+    getBoundTabIds: () => ["tab-session"],
+    onMarkdownChange: callbacks.onMarkdownChange,
+    onWordCountChange: callbacks.onWordCountChange,
+    onParseStateChange: callbacks.onParseStateChange,
+    onRuntimeReady: (nextRuntime) => {
+      runtime.current = nextRuntime;
+      return () => {
+        if (runtime.current === nextRuntime) runtime.current = null;
+      };
+    },
+  };
+  const surface = document.createElement("div");
+  const editor = createElement(BlockNoteEditor, {
+    content: "# Initial",
+    controller,
+    reloadKey: 0,
+    surface,
+  });
+  const view = render(
+    strict ? createElement(StrictMode, null, editor) : editor,
+  );
+  return { callbacks, controller, runtime, surface, view };
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve;
+  });
+  return { promise, resolve };
+}
