@@ -13,6 +13,7 @@ import {
 } from "./blocknote-schema";
 import { shouldStopEditorCodeBlockNodeViewEvent } from "./editor-code-block-node-view";
 import * as blocknoteSchemaModule from "./blocknote-schema";
+import { repairMarkdownSourceBeforeParse } from "./markdown";
 
 afterEach(() => {
   cleanup();
@@ -282,6 +283,22 @@ describe("editor BlockNote schema", () => {
       { type: "bulletListItem", text: "List" },
     ]);
     expect(blocks.map(getInlineText).join("")).not.toContain("*");
+  });
+
+  it("preserves the recovered first line in a malformed bash code block", async () => {
+    const editor = BlockNoteEditor.create({ schema: editorSchema });
+    const repaired = repairMarkdownSourceBeforeParse(
+      "```bash写一个 while True 无限循环\n不断从数据库查任务\n```",
+    );
+    const blocks = await editor.tryParseMarkdownToBlocks(repaired);
+
+    expect(blocks[0]).toMatchObject({
+      type: "codeBlock",
+      props: { language: "bash" },
+    });
+    expect(getInlineText(blocks[0])).toBe(
+      "写一个 while True 无限循环\n不断从数据库查任务",
+    );
   });
 
   it("parses markdown inline code as styled text instead of source markers", async () => {
