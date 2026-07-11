@@ -1,9 +1,11 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
+  useState,
   type CSSProperties,
 } from "react";
 import {
@@ -11,7 +13,6 @@ import {
   FormattingToolbarController,
   getFormattingToolbarItems,
   useBlockNoteEditor,
-  useCreateBlockNote,
   useEditorState,
   useEditorChange,
   useComponentsContext,
@@ -20,10 +21,10 @@ import {
 import { BlockNoteView } from "@blocknote/mantine";
 import { EditorView as CodeMirrorView } from "@codemirror/view";
 import { CodeXml } from "lucide-react";
-import type {
-  Block,
+import {
   BlockNoteEditor as CoreBlockNoteEditor,
-  InlineContent,
+  type Block,
+  type InlineContent,
 } from "@blocknote/core";
 import { AllSelection, TextSelection } from "@tiptap/pm/state";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
@@ -41,6 +42,10 @@ import { selectBlockNoteRuntimeSignature } from "../lib/editor-view-selectors";
 import type { RichDocumentRuntime } from "../lib/rich-document-session-manager";
 import type { RichPreviewAnchor } from "../lib/rich-preview-anchor";
 import { RichPreviewCache } from "../lib/rich-preview-cache";
+import {
+  richEditorOwnerRegistry,
+  type RichEditorOwnerEntry,
+} from "../lib/rich-editor-owner-registry";
 import {
   type RichPaneKey,
   type RichPaneSelection,
@@ -169,10 +174,18 @@ export interface RichEditorSessionController {
 interface BlockNoteEditorInnerProps {
   controller: RichEditorSessionController;
   content: string;
+  editorOwnerKey: string;
   path: string | null;
   reloadKey: number;
   surface?: HTMLElement;
   splitWarmup?: SplitWarmupState;
+}
+
+interface MountedBlockNoteEditorProps extends Omit<
+  BlockNoteEditorInnerProps,
+  "editorOwnerKey"
+> {
+  editor: CoreBlockNoteEditor;
 }
 
 interface BlockNoteEditorSessionProps {
@@ -188,15 +201,6 @@ interface LegacyBlockNoteEditorProps {
 }
 
 const MARKDOWN_PARSER_VERSION = "blocknote-v5";
-const destroyedOwnedEditors = new WeakSet<CoreBlockNoteEditor>();
-
-function destroyOwnedEditor(editor: CoreBlockNoteEditor): void {
-  if (destroyedOwnedEditors.has(editor)) return;
-  destroyedOwnedEditors.add(editor);
-  // BlockNote 未公开组件所有权销毁入口，需要释放内部 Tiptap editor 的插件与监听器。
-  // oxlint-disable-next-line eslint/no-underscore-dangle
-  editor._tiptapEditor.destroy();
-}
 
 export function getMarkdownParserCacheVersion(reloadKey: number) {
   return `${MARKDOWN_PARSER_VERSION}:${reloadKey}`;
@@ -697,14 +701,100 @@ export async function uploadEditorImageFileAsAttachment(
   return dataUrl;
 }
 
-function BlockNoteEditorInner({
+function BlockNoteEditorInner(props: BlockNoteEditorInnerProps) {
+  const { editorOwnerKey, path } = props;
+  const workspaceRootPath = useTreeStore(
+    (state) => state.treeRoot?.key ?? null,
+  );
+  const editorClaimKey = useId();
+  const ownerEditorRef = useRef<CoreBlockNoteEditor | null>(null);
+  const [mountedOwner, setMountedOwner] = useState<RichEditorOwnerEntry | null>(
+    null,
+  );
+  const loadEditorImageUrl = useCallback(async (url: string) => {
+    try {
+      return (await window.electronAPI.loadImageAsDataUrl(url)) ?? url;
+    } catch {
+      return url;
+    }
+  }, []);
+  const uploadEditorImageFile = useCallback(
+    async (file: File, blockId?: string) =>
+      uploadEditorImageFileAsAttachment(file, {
+        getWorkspaceRootPath: () => workspaceRootPath,
+        getMarkdownFilePath: () => path,
+        saveImageAttachment: window.electronAPI.saveImageAttachment,
+        moveCursorAfterUpload: () => {
+          window.setTimeout(() => {
+            moveCursorAfterUploadedImage(ownerEditorRef.current, blockId);
+          }, 0);
+        },
+      }),
+    [path, workspaceRootPath],
+  );
+  const resolveEditorFileUrl = useCallback(
+    (url: string) => loadEditorImageUrl(resolveEditorImageUrl(url, path)),
+    [loadEditorImageUrl, path],
+  );
+
+  useLayoutEffect(() => {
+    // Core editor 只能在 commit phase 创建；被丢弃或 suspended 的 render 不产生任何重型实例。
+    const mounted = richEditorOwnerRegistry.mount(
+      editorOwnerKey,
+      editorClaimKey,
+      {
+        resolveFileUrl: resolveEditorFileUrl,
+        uploadFile: uploadEditorImageFile,
+      },
+      (proxies) =>
+        CoreBlockNoteEditor.create({
+          initialContent: undefined,
+          resolveFileUrl: proxies.resolveFileUrl,
+          schema: editorSchema,
+          uploadFile: proxies.uploadFile,
+        }),
+    );
+    ownerEditorRef.current = mounted.entry.editor;
+    setMountedOwner((current) =>
+      current === mounted.entry ? current : mounted.entry,
+    );
+
+    return () => {
+      if (ownerEditorRef.current === mounted.entry.editor) {
+        ownerEditorRef.current = null;
+      }
+      mounted.release();
+    };
+  }, [
+    editorClaimKey,
+    editorOwnerKey,
+    resolveEditorFileUrl,
+    uploadEditorImageFile,
+  ]);
+
+  if (!mountedOwner || mountedOwner.ownerKey !== editorOwnerKey) return null;
+  return (
+    <MountedBlockNoteEditor
+      content={props.content}
+      controller={props.controller}
+      editor={mountedOwner.editor}
+      path={props.path}
+      reloadKey={props.reloadKey}
+      splitWarmup={props.splitWarmup}
+      surface={props.surface}
+    />
+  );
+}
+
+function MountedBlockNoteEditor({
   controller,
   content,
+  editor,
   path,
   reloadKey,
   surface,
   splitWarmup,
-}: BlockNoteEditorInnerProps) {
+}: MountedBlockNoteEditorProps) {
   const appearance = useEditorStore((state) => state.appearance);
   const isActiveEditor = useEditorStore(() => {
     const binding = controller.getActiveBinding();
@@ -718,16 +808,12 @@ function BlockNoteEditorInner({
       activeGroup?.activeTabId === binding.tabId
     );
   });
-  const workspaceRootPath = useTreeStore(
-    (state) => state.treeRoot?.key ?? null,
-  );
   const { isDark } = useTheme();
   const suppressChangeRef = useRef(false);
   const changeGateRef = useRef(new EditorChangeGate());
   const contentRef = useRef(content);
   const controllerRef = useRef(controller);
   controllerRef.current = controller;
-  const pathRef = useRef(path);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const appliedPathRef = useRef<string | null>(null);
   const appliedSourceRef = useRef(content);
@@ -750,11 +836,7 @@ function BlockNoteEditorInner({
   const runtimeRef = useRef<RichBlockNoteRuntime | null>(null);
   const previewCacheRef = useRef<RichPreviewCache | null>(null);
   const previewTransactionCleanupRef = useRef<(() => void) | null>(null);
-  const pendingEditorDestructionsRef = useRef(
-    new Map<CoreBlockNoteEditor, { cancelled: boolean }>(),
-  );
   const splitWarmupRef = useRef(splitWarmup);
-  const workspaceRootPathRef = useRef(workspaceRootPath);
   const loadEditorImageUrl = useCallback(async (url: string) => {
     try {
       return (await window.electronAPI.loadImageAsDataUrl(url)) ?? url;
@@ -762,54 +844,7 @@ function BlockNoteEditorInner({
       return url;
     }
   }, []);
-  const uploadEditorImageFile = useCallback(
-    async (file: File, blockId?: string) => {
-      return uploadEditorImageFileAsAttachment(file, {
-        getWorkspaceRootPath: () => workspaceRootPathRef.current,
-        getMarkdownFilePath: () => pathRef.current,
-        saveImageAttachment: window.electronAPI.saveImageAttachment,
-        moveCursorAfterUpload: () => {
-          window.setTimeout(() => {
-            moveCursorAfterUploadedImage(editorRef.current, blockId);
-          }, 0);
-        },
-      });
-    },
-    [],
-  );
-  const editor = useCreateBlockNote({
-    initialContent: undefined,
-    resolveFileUrl: (url) => {
-      return loadEditorImageUrl(resolveEditorImageUrl(url, pathRef.current));
-    },
-    schema: editorSchema,
-    uploadFile: uploadEditorImageFile,
-  });
   editorRef.current = editor;
-
-  useEffect(() => {
-    const pending = pendingEditorDestructionsRef.current.get(editor);
-    if (pending) {
-      // StrictMode 会立即重放 effect；同一实例重新接管时撤销演练阶段排队的销毁。
-      pending.cancelled = true;
-      pendingEditorDestructionsRef.current.delete(editor);
-    }
-
-    return () => {
-      const task = { cancelled: false };
-      pendingEditorDestructionsRef.current.set(editor, task);
-      queueMicrotask(() => {
-        if (
-          task.cancelled ||
-          pendingEditorDestructionsRef.current.get(editor) !== task
-        ) {
-          return;
-        }
-        pendingEditorDestructionsRef.current.delete(editor);
-        destroyOwnedEditor(editor);
-      });
-    };
-  }, [editor]);
 
   // 获取 store 中的方法
   const setOutlineHeadings = useEditorStore(
@@ -1126,16 +1161,8 @@ function BlockNoteEditorInner({
   }, [content]);
 
   useEffect(() => {
-    pathRef.current = path;
-  }, [path]);
-
-  useEffect(() => {
     splitWarmupRef.current = splitWarmup;
   }, [splitWarmup]);
-
-  useEffect(() => {
-    workspaceRootPathRef.current = workspaceRootPath;
-  }, [workspaceRootPath]);
 
   useLayoutEffect(() => {
     const scrollContainer = scrollContainerRef.current;
@@ -1762,6 +1789,7 @@ export function BlockNoteEditor(
       <BlockNoteEditorInner
         controller={props.controller}
         content={props.content}
+        editorOwnerKey={`session:${normalizeRichDocumentPath(props.controller.path)}`}
         path={props.controller.path}
         reloadKey={props.reloadKey}
         surface={props.surface}
@@ -1839,6 +1867,7 @@ function LegacyBlockNoteEditor({ groupId, tabId }: LegacyBlockNoteEditorProps) {
     <BlockNoteEditorInner
       controller={controller}
       content={tab.content}
+      editorOwnerKey={`legacy:${groupId}:${tabId}`}
       path={tabFilePath}
       reloadKey={tab.reloadKey}
       splitWarmup={group?.splitWarmup}

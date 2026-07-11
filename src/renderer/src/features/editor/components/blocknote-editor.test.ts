@@ -10,6 +10,7 @@ import {
 } from "@testing-library/react";
 import { TextSelection } from "@tiptap/pm/state";
 import { createElement, StrictMode } from "react";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useDiffStore } from "@/store/diff.store";
@@ -485,6 +486,23 @@ describe("BlockNoteEditor user intent tracking", () => {
 });
 
 describe("BlockNoteEditor persistent session runtime", () => {
+  it("does not create a core editor for a render that never commits", () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    setupSessionTab("C:/notes/discarded.md");
+    const createEditor = vi.spyOn(CoreBlockNoteEditor, "create");
+    const session = createRealSession("C:/notes/discarded.md");
+
+    try {
+      renderToString(session.editor);
+    } catch {
+      // 当前实现会在 SSR 深入 BlockNote 子树后失败；本用例只观察 commit 前是否构造 core editor。
+    }
+
+    expect(createEditor).not.toHaveBeenCalled();
+    expect(session.runtime.current).toBeNull();
+  });
+
   it("uses normalized path identity for runtime state and a real preview cache", async () => {
     setupMatchMedia();
     setupDomMeasurements();
@@ -549,9 +567,15 @@ describe("BlockNoteEditor persistent session runtime", () => {
     setupMatchMedia();
     setupDomMeasurements();
     setupSessionTab("C:/notes/strict.md");
+    const createEditor = vi.spyOn(CoreBlockNoteEditor, "create");
+    const handleTransaction = vi.spyOn(
+      RichPreviewCache.prototype,
+      "handleTransaction",
+    );
     const session = renderRealSession("C:/notes/strict.md", true);
 
     await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    expect(createEditor).toHaveBeenCalledTimes(1);
     const runtime = session.runtime.current!;
     // oxlint-disable-next-line eslint/no-underscore-dangle
     const destroy = vi.spyOn(runtime.editor._tiptapEditor, "destroy");
@@ -564,6 +588,28 @@ describe("BlockNoteEditor persistent session runtime", () => {
     // oxlint-disable-next-line eslint/no-underscore-dangle
     expect(runtime.editor._tiptapEditor.isDestroyed).toBe(true);
     expect(session.runtime.current).toBeNull();
+
+    const transactionCalls = handleTransaction.mock.calls.length;
+    // oxlint-disable-next-line eslint/no-underscore-dangle
+    const tiptapEditor = runtime.editor._tiptapEditor;
+    tiptapEditor.emit("transaction", {
+      editor: tiptapEditor,
+      transaction: tiptapEditor.state.tr,
+    });
+    expect(handleTransaction).toHaveBeenCalledTimes(transactionCalls);
+
+    setupSessionTab("C:/notes/strict.md");
+    const remounted = renderRealSession("C:/notes/strict.md", true);
+    await waitFor(() => expect(remounted.runtime.current).not.toBeNull());
+    expect(createEditor).toHaveBeenCalledTimes(2);
+    expect(remounted.runtime.current?.editor).not.toBe(runtime.editor);
+    // oxlint-disable eslint/no-underscore-dangle
+    const remountedTiptapEditor =
+      remounted.runtime.current!.editor._tiptapEditor;
+    // oxlint-enable eslint/no-underscore-dangle
+    const remountedDestroy = vi.spyOn(remountedTiptapEditor, "destroy");
+    remounted.view.unmount();
+    await waitFor(() => expect(remountedDestroy).toHaveBeenCalledTimes(1));
   });
 
   it("drops an in-flight serialization after the runtime is destroyed", async () => {
@@ -671,6 +717,14 @@ function setupSessionTab(
 }
 
 function renderRealSession(path: string, strict = false) {
+  const session = createRealSession(path);
+  const view = render(
+    strict ? createElement(StrictMode, null, session.editor) : session.editor,
+  );
+  return { ...session, view };
+}
+
+function createRealSession(path: string) {
   const runtime = { current: null as RichBlockNoteRuntime | null };
   const callbacks = {
     onMarkdownChange: vi.fn((content: string) => {
@@ -709,10 +763,7 @@ function renderRealSession(path: string, strict = false) {
     reloadKey: 0,
     surface,
   });
-  const view = render(
-    strict ? createElement(StrictMode, null, editor) : editor,
-  );
-  return { callbacks, controller, runtime, surface, view };
+  return { callbacks, controller, editor, runtime, surface };
 }
 
 function createDeferred<T>() {
