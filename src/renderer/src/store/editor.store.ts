@@ -12,6 +12,10 @@ import {
   failFileTransition,
 } from "@/features/editor/lib/editor-file-transition";
 import { normalizeRichDocumentPath } from "@/features/editor/lib/rich-document-surface-registry";
+import {
+  richPaneViewStateRegistry,
+  toRichPaneKey,
+} from "@/features/editor/lib/rich-pane-view-state";
 
 function matchesEditorFilePath(filePath: string | null, path: string): boolean {
   return (
@@ -436,6 +440,12 @@ export const useEditorStore = create<EditorState>()(
 
         // 移除面板组
         removePanelGroup: (groupId: string) => {
+          const removedGroup = get().panelGroups.find(
+            (group) => group.id === groupId,
+          );
+          for (const tab of removedGroup?.tabs ?? []) {
+            richPaneViewStateRegistry.delete(toRichPaneKey(groupId, tab.id));
+          }
           set((state) => {
             const newGroups = state.panelGroups.filter(
               (group) =>
@@ -485,6 +495,12 @@ export const useEditorStore = create<EditorState>()(
 
         // 移除标签页
         removeTab: (groupId: string, tabId: string) => {
+          const tabExists = get()
+            .panelGroups.find((group) => group.id === groupId)
+            ?.tabs.some((tab) => tab.id === tabId);
+          if (tabExists) {
+            richPaneViewStateRegistry.delete(toRichPaneKey(groupId, tabId));
+          }
           set((state) => {
             const group = state.panelGroups.find((g) => g.id === groupId);
             if (!group) return state;

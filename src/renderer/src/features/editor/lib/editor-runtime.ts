@@ -12,14 +12,14 @@ import {
 import { FileWatchRegistry } from "./file-watch-registry";
 import { RichDocumentSessionManager } from "./rich-document-session-manager";
 import { RichDocumentSurfaceRegistry } from "./rich-document-surface-registry";
-import { RichPaneViewStateRegistry } from "./rich-pane-view-state";
+import { richPaneViewStateRegistry } from "./rich-pane-view-state";
 import { useEditorStore } from "@/store/editor.store";
 import { useTreeStore } from "@/store/tree.store";
 
 export const editorCache = new EditorCache<Block[]>({ maxEntries: 24 });
 export const editorLoadSession = new EditorLoadSession();
 export const richDocumentSurfaceRegistry = new RichDocumentSurfaceRegistry();
-export const richPaneViewStateRegistry = new RichPaneViewStateRegistry();
+export { richPaneViewStateRegistry };
 export const richDocumentSessionManager = new RichDocumentSessionManager({
   surfaces: richDocumentSurfaceRegistry,
   viewStates: richPaneViewStateRegistry,

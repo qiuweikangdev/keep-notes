@@ -58,3 +58,5 @@ export class RichPaneViewStateRegistry {
     this.states.clear();
   }
 }
+
+export const richPaneViewStateRegistry = new RichPaneViewStateRegistry();

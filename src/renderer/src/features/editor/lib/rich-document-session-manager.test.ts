@@ -77,7 +77,7 @@ describe("RichDocumentSessionManager", () => {
     expect(viewStates.read("g1:t1").scrollTop).toBe(240);
 
     releaseNew();
-    expect(viewStates.read("g1:t1").scrollTop).toBe(0);
+    expect(viewStates.read("g1:t1").scrollTop).toBe(240);
   });
 
   it("defaults to four idle background sessions", () => {
@@ -274,6 +274,40 @@ describe("RichDocumentSessionManager", () => {
     expect(surfaces.getActivePaneKey("missing-host.md")).toBeNull();
   });
 
+  it("deactivates only the expected active pane and preserves a newer activation", () => {
+    const surfaces = new RichDocumentSurfaceRegistry();
+    const manager = createManager({ surfaces });
+    const destroyed: string[] = [];
+    const firstRuntime = createRuntime("first.md", destroyed);
+    const secondRuntime = createRuntime("second.md", destroyed);
+    const firstHost = document.createElement("div");
+    const secondHost = document.createElement("div");
+    manager.retainVisible("first.md", {
+      paneKey: "g1:t1",
+      groupId: "g1",
+      tabId: "t1",
+    });
+    manager.retainVisible("second.md", {
+      paneKey: "g2:t2",
+      groupId: "g2",
+      tabId: "t2",
+    });
+    manager.registerRuntime("first.md", firstRuntime);
+    manager.registerRuntime("second.md", secondRuntime);
+    surfaces.registerHost("first.md", "g1:t1", firstHost);
+    surfaces.registerHost("second.md", "g2:t2", secondHost);
+    manager.setActivePane("first.md", "g1:t1");
+    manager.setActivePane("second.md", "g2:t2");
+
+    expect(manager.deactivateIfActive("first.md", "g1:t1")).toBe(false);
+    expect(secondRuntime.surface.parentElement).toBe(secondHost);
+    expect(manager.getActivePane("second.md")).toBe("g2:t2");
+
+    expect(manager.deactivateIfActive("second.md", "g2:t2")).toBe(true);
+    expect(secondRuntime.surface.parentElement).toBeNull();
+    expect(manager.getActiveBinding()).toBeNull();
+  });
+
   it("does not destroy a shared runtime when one duplicate pane releases", () => {
     const destroyed: string[] = [];
     const manager = createManager({ maxBackgroundSessions: 0 });
@@ -327,6 +361,77 @@ describe("RichDocumentSessionManager", () => {
     unregisterCurrent();
     expect(currentRuntime.cancelPendingWork).toHaveBeenCalledTimes(1);
     expect(currentRuntime.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it("captures, replaces, attaches, and restores an active runtime in order", () => {
+    const events: string[] = [];
+    const surfaces = new RichDocumentSurfaceRegistry();
+    const viewStates = new RichPaneViewStateRegistry();
+    const manager = createManager({ surfaces, viewStates });
+    const firstRuntime = createStatefulRuntime("note.md", "r1", events, 73);
+    const secondRuntime = createStatefulRuntime("note.md", "r2", events, 0);
+    const host = document.createElement("div");
+    manager.retainVisible("note.md", {
+      paneKey: "g1:t1",
+      groupId: "g1",
+      tabId: "t1",
+    });
+    surfaces.registerHost("note.md", "g1:t1", host);
+    const unregisterFirst = manager.registerRuntime("note.md", firstRuntime);
+    manager.setActivePane("note.md", "g1:t1");
+    events.length = 0;
+
+    const unregisterSecond = manager.registerRuntime("note.md", secondRuntime);
+    manager.setActivePane("note.md", "g1:t1");
+
+    expect(events).toEqual([
+      "r1:read",
+      "r1:cancel",
+      "r1:destroy",
+      "r2:restore:73",
+    ]);
+    expect(secondRuntime.surface.parentElement).toBe(host);
+    expect(secondRuntime.restoreViewState).toHaveBeenCalledTimes(1);
+
+    unregisterFirst();
+    expect(secondRuntime.surface.parentElement).toBe(host);
+    expect(secondRuntime.restoreViewState).toHaveBeenCalledTimes(1);
+    unregisterSecond();
+  });
+
+  it("captures an active runtime across ready-null-ready and ignores stale release", () => {
+    const events: string[] = [];
+    const surfaces = new RichDocumentSurfaceRegistry();
+    const viewStates = new RichPaneViewStateRegistry();
+    const manager = createManager({ surfaces, viewStates });
+    const firstRuntime = createStatefulRuntime("note.md", "r1", events, 91);
+    const secondRuntime = createStatefulRuntime("note.md", "r2", events, 0);
+    const host = document.createElement("div");
+    manager.retainVisible("note.md", {
+      paneKey: "g1:t1",
+      groupId: "g1",
+      tabId: "t1",
+    });
+    surfaces.registerHost("note.md", "g1:t1", host);
+    const unregisterFirst = manager.registerRuntime("note.md", firstRuntime);
+    manager.setActivePane("note.md", "g1:t1");
+    events.length = 0;
+
+    unregisterFirst();
+    expect(events).toEqual(["r1:read", "r1:cancel", "r1:destroy"]);
+    expect(firstRuntime.surface.parentElement).toBeNull();
+    expect(manager.getActiveBinding()).toBeNull();
+
+    events.length = 0;
+    const unregisterSecond = manager.registerRuntime("note.md", secondRuntime);
+    manager.setActivePane("note.md", "g1:t1");
+    expect(events).toEqual(["r2:restore:91"]);
+    expect(secondRuntime.surface.parentElement).toBe(host);
+
+    unregisterFirst();
+    expect(secondRuntime.surface.parentElement).toBe(host);
+    expect(secondRuntime.restoreViewState).toHaveBeenCalledTimes(1);
+    unregisterSecond();
   });
 
   it("tears down a re-registered runtime instance only from current cleanup", () => {
@@ -510,3 +615,28 @@ describe("RichDocumentSessionManager", () => {
     expect(manager.getRuntime("note.md")).toBe(currentRuntime);
   });
 });
+
+function createStatefulRuntime(
+  path: string,
+  name: string,
+  events: string[],
+  scrollTop: number,
+) {
+  return {
+    path,
+    surface: document.createElement("div"),
+    serializePendingChange: vi.fn(async () => undefined),
+    cancelPendingWork: vi.fn(() => events.push(`${name}:cancel`)),
+    destroy: vi.fn(() => events.push(`${name}:destroy`)),
+    isDirty: () => false,
+    isSaving: () => false,
+    isReloading: () => false,
+    readViewState: vi.fn(() => {
+      events.push(`${name}:read`);
+      return { scrollTop, selection: null };
+    }),
+    restoreViewState: vi.fn((state: { scrollTop: number }) => {
+      events.push(`${name}:restore:${state.scrollTop}`);
+    }),
+  };
+}

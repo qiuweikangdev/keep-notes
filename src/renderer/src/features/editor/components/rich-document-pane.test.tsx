@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import {
   act,
   cleanup,
@@ -83,6 +84,67 @@ describe("RichDocumentPane", () => {
     expect(screen.getByTestId("editor-loading-skeleton")).toBeInTheDocument();
   });
 
+  it("reactivates replacement and recovered runtimes with the latest state once", () => {
+    render(<RichDocumentPane groupId="group-1" tabId="tab-1" path={path} />);
+    const firstRuntime = createRuntime(path);
+    const secondRuntime = createRuntime(path);
+    const recoveredRuntime = createRuntime(path);
+    firstRuntime.readViewState.mockReturnValue({
+      scrollTop: 73,
+      selection: null,
+    });
+    secondRuntime.readViewState.mockReturnValue({
+      scrollTop: 91,
+      selection: null,
+    });
+    let unregisterFirst: (() => void) | undefined;
+    let unregisterSecond: (() => void) | undefined;
+    let unregisterRecovered: (() => void) | undefined;
+
+    act(() => {
+      unregisterFirst = richDocumentSessionManager.registerRuntime(
+        path,
+        firstRuntime,
+      );
+    });
+    act(() => {
+      unregisterSecond = richDocumentSessionManager.registerRuntime(
+        path,
+        secondRuntime,
+      );
+    });
+
+    expect(firstRuntime.readViewState).toHaveBeenCalledTimes(1);
+    expect(firstRuntime.destroy).toHaveBeenCalledTimes(1);
+    expect(secondRuntime.surface.parentElement).not.toBeNull();
+    expect(secondRuntime.restoreViewState).toHaveBeenCalledTimes(1);
+    expect(secondRuntime.restoreViewState).toHaveBeenCalledWith(
+      expect.objectContaining({ scrollTop: 73 }),
+    );
+
+    unregisterFirst?.();
+    expect(secondRuntime.surface.parentElement).not.toBeNull();
+    expect(secondRuntime.restoreViewState).toHaveBeenCalledTimes(1);
+
+    act(() => unregisterSecond?.());
+    expect(secondRuntime.surface.parentElement).toBeNull();
+    expect(screen.getByTestId("editor-loading-skeleton")).toBeVisible();
+
+    act(() => {
+      unregisterRecovered = richDocumentSessionManager.registerRuntime(
+        path,
+        recoveredRuntime,
+      );
+    });
+    expect(recoveredRuntime.surface.parentElement).not.toBeNull();
+    expect(recoveredRuntime.restoreViewState).toHaveBeenCalledTimes(1);
+    expect(recoveredRuntime.restoreViewState).toHaveBeenCalledWith(
+      expect.objectContaining({ scrollTop: 91 }),
+    );
+
+    act(() => unregisterRecovered?.());
+  });
+
   it("moves the one live surface on active keyboard or tab switches", () => {
     render(
       <>
@@ -128,13 +190,71 @@ describe("RichDocumentPane", () => {
     act(() => unregisterRuntime?.());
   });
 
-  it("releases its identity-scoped binding and view state on close", () => {
+  it("physically detaches the outgoing surface for source and loading targets", () => {
+    const secondPath = "C:/notes/loading.md";
+    const view = render(
+      <>
+        <RichDocumentPane groupId="group-1" tabId="tab-1" path={path} />
+        <RichDocumentPane groupId="group-2" tabId="tab-2" path={secondPath} />
+      </>,
+    );
+    const firstRuntime = createRuntime(path);
+    const secondRuntime = createRuntime(secondPath);
+    let unregisterFirst: (() => void) | undefined;
+    act(() => {
+      unregisterFirst = richDocumentSessionManager.registerRuntime(
+        path,
+        firstRuntime,
+      );
+    });
+    const firstPane = screen
+      .getAllByTestId("rich-document-pane")
+      .find((pane) => pane.dataset.paneKey === "group-1:tab-1")!;
+    const secondPane = screen
+      .getAllByTestId("rich-document-pane")
+      .find((pane) => pane.dataset.paneKey === "group-2:tab-2")!;
+    expect(firstRuntime.surface.parentElement).not.toBeNull();
+
+    act(() => {
+      useEditorStore.getState().setActiveTab("group-2", "tab-2");
+    });
+
+    expect(firstRuntime.surface.parentElement).toBeNull();
+    expect(richDocumentSessionManager.getActiveBinding()).toBeNull();
+    expect(within(firstPane).getByTestId("virtual-rich-preview")).toBeVisible();
+    expect(
+      within(secondPane).getByTestId("editor-loading-skeleton"),
+    ).toBeVisible();
+
+    let unregisterSecond: (() => void) | undefined;
+    act(() => {
+      unregisterSecond = richDocumentSessionManager.registerRuntime(
+        secondPath,
+        secondRuntime,
+      );
+    });
+    expect(secondRuntime.surface.parentElement).not.toBeNull();
+    expect(firstRuntime.surface.parentElement).toBeNull();
+    expect(richDocumentSessionManager.getActivePane(secondPath)).toBe(
+      "group-2:tab-2",
+    );
+
+    act(() => unregisterSecond?.());
+    unregisterFirst?.();
+    view.unmount();
+  });
+
+  it("releases its identity-scoped binding and view state on close", async () => {
     richPaneViewStateRegistry.patch("group-1:tab-1", { scrollTop: 240 });
     const view = render(
       <RichDocumentPane groupId="group-1" tabId="tab-1" path={path} />,
     );
 
+    act(() => {
+      useEditorStore.getState().removeTab("group-1", "tab-1");
+    });
     view.unmount();
+    await act(async () => Promise.resolve());
 
     expect(richDocumentSessionManager.getVisiblePaneKeys(path)).toEqual([]);
     expect(richPaneViewStateRegistry.read("group-1:tab-1").scrollTop).toBe(0);
@@ -177,12 +297,169 @@ describe("RichDocumentPane", () => {
     expect(richDocumentSessionManager.getActivePane(path)).toBe(
       "group-1:tab-next",
     );
-    expect(richPaneViewStateRegistry.read("group-1:tab-1").scrollTop).toBe(0);
+    expect(richPaneViewStateRegistry.read("group-1:tab-1").scrollTop).toBe(18);
     expect(screen.getByTestId("rich-document-live-host")).toContainElement(
       runtime.surface,
     );
 
     act(() => unregisterRuntime?.());
+  });
+
+  it("preserves distinct same-path states across A-B-A tab switches", () => {
+    const group = createGroup("group-1", "tab-a");
+    group.tabs.push({ ...group.tabs[0], id: "tab-b" });
+    useEditorStore.setState({ activeGroupId: "group-1", panelGroups: [group] });
+    const runtime = createRuntime(path);
+    runtime.readViewState.mockReturnValue({ scrollTop: 111, selection: null });
+    const view = render(
+      <RichDocumentPane groupId="group-1" tabId="tab-a" path={path} />,
+    );
+    let unregisterRuntime: (() => void) | undefined;
+    act(() => {
+      unregisterRuntime = richDocumentSessionManager.registerRuntime(
+        path,
+        runtime,
+      );
+    });
+
+    act(() => {
+      useEditorStore.getState().setActiveTab("group-1", "tab-b");
+      view.rerender(
+        <RichDocumentPane groupId="group-1" tabId="tab-b" path={path} />,
+      );
+    });
+    expect(richPaneViewStateRegistry.read("group-1:tab-a").scrollTop).toBe(111);
+    expect(runtime.restoreViewState).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scrollTop: 0 }),
+    );
+
+    runtime.readViewState.mockReturnValue({ scrollTop: 222, selection: null });
+    act(() => {
+      useEditorStore.getState().setActiveTab("group-1", "tab-a");
+      view.rerender(
+        <RichDocumentPane groupId="group-1" tabId="tab-a" path={path} />,
+      );
+    });
+    expect(runtime.restoreViewState).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scrollTop: 111 }),
+    );
+    expect(richPaneViewStateRegistry.read("group-1:tab-b").scrollTop).toBe(222);
+
+    unregisterRuntime?.();
+  });
+
+  it("clears only an actually closed background tab state", () => {
+    const group = createGroup("group-1", "tab-a");
+    group.tabs.push({ ...group.tabs[0], id: "tab-b" });
+    useEditorStore.setState({ activeGroupId: "group-1", panelGroups: [group] });
+    const runtime = createRuntime(path);
+    runtime.readViewState.mockReturnValue({ scrollTop: 120, selection: null });
+    const view = render(
+      <RichDocumentPane groupId="group-1" tabId="tab-a" path={path} />,
+    );
+    let unregisterRuntime: (() => void) | undefined;
+    act(() => {
+      unregisterRuntime = richDocumentSessionManager.registerRuntime(
+        path,
+        runtime,
+      );
+    });
+    act(() => {
+      useEditorStore.getState().setActiveTab("group-1", "tab-b");
+      view.rerender(
+        <RichDocumentPane groupId="group-1" tabId="tab-b" path={path} />,
+      );
+    });
+    richPaneViewStateRegistry.patch("group-1:tab-b", { scrollTop: 220 });
+    expect(richPaneViewStateRegistry.read("group-1:tab-a").scrollTop).toBe(120);
+
+    act(() => {
+      useEditorStore.getState().removeTab("group-1", "tab-a");
+    });
+
+    expect(richPaneViewStateRegistry.read("group-1:tab-a").scrollTop).toBe(0);
+    expect(richPaneViewStateRegistry.read("group-1:tab-b").scrollTop).toBe(220);
+    unregisterRuntime?.();
+  });
+
+  it("preserves distinct cross-path states across A-B-A tab switches", () => {
+    const secondPath = "C:/notes/other.md";
+    const group = createGroup("group-1", "tab-a");
+    group.tabs.push({ ...group.tabs[0], id: "tab-b", filePath: secondPath });
+    useEditorStore.setState({ activeGroupId: "group-1", panelGroups: [group] });
+    const firstRuntime = createRuntime(path);
+    const secondRuntime = createRuntime(secondPath);
+    firstRuntime.readViewState.mockReturnValue({
+      scrollTop: 333,
+      selection: null,
+    });
+    secondRuntime.readViewState.mockReturnValue({
+      scrollTop: 444,
+      selection: null,
+    });
+    const view = render(
+      <RichDocumentPane groupId="group-1" tabId="tab-a" path={path} />,
+    );
+    let unregisterFirst: (() => void) | undefined;
+    let unregisterSecond: (() => void) | undefined;
+    act(() => {
+      unregisterFirst = richDocumentSessionManager.registerRuntime(
+        path,
+        firstRuntime,
+      );
+      unregisterSecond = richDocumentSessionManager.registerRuntime(
+        secondPath,
+        secondRuntime,
+      );
+    });
+
+    act(() => {
+      useEditorStore.getState().setActiveTab("group-1", "tab-b");
+      view.rerender(
+        <RichDocumentPane groupId="group-1" tabId="tab-b" path={secondPath} />,
+      );
+    });
+    expect(richPaneViewStateRegistry.read("group-1:tab-a").scrollTop).toBe(333);
+    expect(secondRuntime.restoreViewState).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scrollTop: 0 }),
+    );
+
+    act(() => {
+      useEditorStore.getState().setActiveTab("group-1", "tab-a");
+      view.rerender(
+        <RichDocumentPane groupId="group-1" tabId="tab-a" path={path} />,
+      );
+    });
+    expect(firstRuntime.restoreViewState).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scrollTop: 333 }),
+    );
+    expect(richPaneViewStateRegistry.read("group-1:tab-b").scrollTop).toBe(444);
+
+    unregisterFirst?.();
+    unregisterSecond?.();
+  });
+
+  it("preserves pane state during StrictMode effect replay", async () => {
+    richPaneViewStateRegistry.patch("group-1:tab-1", { scrollTop: 512 });
+    const runtime = createRuntime(path);
+    runtime.readViewState.mockReturnValue({ scrollTop: 512, selection: null });
+    const unregisterRuntime = richDocumentSessionManager.registerRuntime(
+      path,
+      runtime,
+    );
+
+    render(
+      <StrictMode>
+        <RichDocumentPane groupId="group-1" tabId="tab-1" path={path} />
+      </StrictMode>,
+    );
+    await act(async () => Promise.resolve());
+
+    expect(richPaneViewStateRegistry.read("group-1:tab-1").scrollTop).toBe(512);
+    expect(runtime.restoreViewState).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scrollTop: 512 }),
+    );
+    unregisterRuntime();
   });
 });
 

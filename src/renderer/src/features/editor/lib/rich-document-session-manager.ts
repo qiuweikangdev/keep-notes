@@ -4,6 +4,7 @@ import {
 } from "./rich-document-surface-registry";
 import {
   type RichPaneKey,
+  type RichPaneViewState,
   RichPaneViewStateRegistry,
 } from "./rich-pane-view-state";
 
@@ -16,6 +17,8 @@ export interface RichDocumentRuntime {
   isDirty: () => boolean;
   isSaving: () => boolean;
   isReloading: () => boolean;
+  readViewState?: () => Partial<RichPaneViewState>;
+  restoreViewState?: (state: RichPaneViewState) => void;
 }
 
 export interface RichDocumentBinding {
@@ -108,6 +111,7 @@ export class RichDocumentSessionManager {
       }
 
       if (record.activePaneKey === binding.paneKey) {
+        this.captureRuntimeViewState(record, record.runtime);
         this.deactivateRecord(record);
       }
       record.visibleBindings.delete(binding.paneKey);
@@ -118,7 +122,6 @@ export class RichDocumentSessionManager {
         registration.token === token
       ) {
         this.visiblePaneRegistrations.delete(binding.paneKey);
-        this.viewStates.delete(binding.paneKey);
       }
       record.lastActiveAt = this.now();
       this.deleteUnretainedRecord(record);
@@ -162,7 +165,19 @@ export class RichDocumentSessionManager {
         token,
       });
     } else {
-      // 先让表面注册表替换 DOM，再释放旧 runtime，激活中的窗格可无缝接管新表面。
+      if (
+        previousRegistration &&
+        this.activeDocumentPath === normalizedPath &&
+        record.activePaneKey
+      ) {
+        this.captureRuntimeViewState(record, previousRegistration.runtime);
+        this.deactivateRecord(record);
+      }
+      previousRegistration?.unregisterSurface();
+      previousRegistration?.runtime.cancelPendingWork();
+      previousRegistration?.runtime.destroy();
+
+      // 旧运行时销毁后再注册新表面；订阅者会在布局阶段完成挂载和视图恢复。
       const registration: RuntimeRegistration = {
         runtime,
         token,
@@ -173,9 +188,6 @@ export class RichDocumentSessionManager {
       };
       this.runtimeRegistrations.set(normalizedPath, registration);
       record.runtime = runtime;
-      previousRegistration?.runtime.cancelPendingWork();
-      previousRegistration?.runtime.destroy();
-      previousRegistration?.unregisterSurface();
     }
 
     record.runtime = runtime;
@@ -202,11 +214,20 @@ export class RichDocumentSessionManager {
     const record = this.records.get(normalizedPath);
     if (!record?.visibleBindings.has(paneKey)) return false;
 
+    if (
+      this.activeDocumentPath === normalizedPath &&
+      record.activePaneKey === paneKey
+    ) {
+      return true;
+    }
+
     // 全局切换必须先卸下旧文档，再挂载目标文档，确保布局中始终只有一个完整富文本 DOM。
     if (this.activeDocumentPath) {
       const previousRecord = this.records.get(this.activeDocumentPath);
-      if (previousRecord) this.deactivateRecord(previousRecord);
-      else this.activeDocumentPath = null;
+      if (previousRecord) {
+        this.captureRuntimeViewState(previousRecord, previousRecord.runtime);
+        this.deactivateRecord(previousRecord);
+      } else this.activeDocumentPath = null;
     }
 
     if (!this.surfaces.activate(normalizedPath, paneKey)) return false;
@@ -214,6 +235,20 @@ export class RichDocumentSessionManager {
     record.activePaneKey = paneKey;
     record.lastActiveAt = this.now();
     this.activeDocumentPath = normalizedPath;
+    record.runtime?.restoreViewState?.(this.viewStates.read(paneKey));
+    return true;
+  }
+
+  deactivateIfActive(path: string, paneKey: RichPaneKey): boolean {
+    const normalizedPath = normalizeRichDocumentPath(path);
+    if (this.activeDocumentPath !== normalizedPath) return false;
+
+    const record = this.records.get(normalizedPath);
+    if (!record || record.activePaneKey !== paneKey) return false;
+
+    // 按文档和窗格双重校验，旧 effect 不会卸下随后已激活的新表面。
+    this.captureRuntimeViewState(record, record.runtime);
+    this.deactivateRecord(record);
     return true;
   }
 
@@ -326,17 +361,36 @@ export class RichDocumentSessionManager {
     }
   }
 
+  private captureRuntimeViewState(
+    record: SessionRecord,
+    runtime: RichDocumentRuntime | null,
+  ): void {
+    const paneKey = record.activePaneKey;
+    if (
+      this.activeDocumentPath !== record.path ||
+      !paneKey ||
+      !runtime?.readViewState
+    ) {
+      return;
+    }
+
+    this.viewStates.patch(paneKey, runtime.readViewState());
+  }
+
   private releaseRuntime(
     record: SessionRecord,
     registration: RuntimeRegistration,
   ): void {
-    if (this.activeDocumentPath === record.path) this.deactivateRecord(record);
+    if (this.activeDocumentPath === record.path) {
+      this.captureRuntimeViewState(record, registration.runtime);
+      this.deactivateRecord(record);
+    }
     this.runtimeRegistrations.delete(record.path);
     registration.unregisterSurface();
     record.runtime = null;
-    this.publishRuntime(record.path);
     registration.runtime.cancelPendingWork();
     registration.runtime.destroy();
+    this.publishRuntime(record.path);
   }
 
   private deleteUnretainedRecord(record: SessionRecord): void {

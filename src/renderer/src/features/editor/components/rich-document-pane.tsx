@@ -23,34 +23,9 @@ interface RichDocumentPaneProps {
   path: string;
 }
 
-function activateRichPane(
-  path: string,
-  paneKey: RichPaneKey,
-  runtime: RichBlockNoteRuntime,
-): boolean {
+function activateRichPane(path: string, paneKey: RichPaneKey): boolean {
   const normalizedPath = normalizeRichDocumentPath(path);
-  const active = richDocumentSessionManager.getActiveBinding();
-  if (active?.path === normalizedPath && active.binding.paneKey === paneKey) {
-    return true;
-  }
-
-  if (active) {
-    const activeRuntime = richDocumentSessionManager.getRuntime(
-      active.path,
-    ) as RichBlockNoteRuntime | null;
-    if (activeRuntime) {
-      richPaneViewStateRegistry.patch(
-        active.binding.paneKey,
-        activeRuntime.readViewState(),
-      );
-    }
-  }
-
-  if (!richDocumentSessionManager.setActivePane(normalizedPath, paneKey)) {
-    return false;
-  }
-  runtime.restoreViewState(richPaneViewStateRegistry.read(paneKey));
-  return true;
+  return richDocumentSessionManager.setActivePane(normalizedPath, paneKey);
 }
 
 export function RichDocumentPane({
@@ -97,21 +72,35 @@ export function RichDocumentPane({
       host,
     );
     return () => {
+      richDocumentSessionManager.deactivateIfActive(normalizedPath, paneKey);
       releaseHost();
       releaseVisible();
+      queueMicrotask(() => {
+        const paneStillExists = useEditorStore
+          .getState()
+          .panelGroups.find((group) => group.id === groupId)
+          ?.tabs.some((tab) => tab.id === tabId);
+        if (!paneStillExists) richPaneViewStateRegistry.delete(paneKey);
+      });
     };
   }, [groupId, normalizedPath, paneKey, tabId]);
 
   useLayoutEffect(() => {
-    if (!isLive || !runtime) return;
+    if (!isLive || !runtime) {
+      richDocumentSessionManager.deactivateIfActive(normalizedPath, paneKey);
+      return;
+    }
     // runtime 注册会触发路径级订阅；此处重新激活，不依赖偶然的 store 更新或轮询。
-    activateRichPane(normalizedPath, paneKey, runtime);
+    activateRichPane(normalizedPath, paneKey);
+    return () => {
+      richDocumentSessionManager.deactivateIfActive(normalizedPath, paneKey);
+    };
   }, [isLive, normalizedPath, paneKey, runtime]);
 
   const handleActivate = useCallback(() => {
     if (!runtime) return;
     useEditorStore.getState().setActiveTab(groupId, tabId);
-    activateRichPane(normalizedPath, paneKey, runtime);
+    activateRichPane(normalizedPath, paneKey);
   }, [groupId, normalizedPath, paneKey, runtime, tabId]);
 
   const fileName = path.split(/[\\/]/).pop();
