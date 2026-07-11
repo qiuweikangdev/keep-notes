@@ -511,7 +511,6 @@ class EditorCodeBlockNodeView {
           ".editor-code-block__toolbar",
           ".editor-code-block-language-popover",
           ".cm-content",
-          ".cm-gutters",
         ].join(", "),
       )
     ) {

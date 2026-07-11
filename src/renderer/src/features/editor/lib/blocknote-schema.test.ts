@@ -831,6 +831,36 @@ describe("editor BlockNote schema", () => {
     expect(getCodeMirrorView(container).hasFocus).toBe(true);
   });
 
+  it("focuses CodeMirror when clicking the line-number gutter", async () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "codeBlock",
+          props: { language: "bash" },
+          content: "echo ready\necho next",
+        },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    await waitFor(() => {
+      expect(getCodeMirrorView(container).state.doc.lines).toBe(2);
+    });
+
+    const view = getCodeMirrorView(container);
+    const lineNumber = container.querySelector<HTMLElement>(
+      ".editor-code-block__codemirror .cm-lineNumbers .cm-gutterElement",
+    );
+    expect(lineNumber).not.toBe(null);
+
+    view.contentDOM.blur();
+    fireEvent.mouseDown(lineNumber as HTMLElement);
+
+    expect(view.hasFocus).toBe(true);
+  });
+
   it("shows a check icon after copying code from the CodeMirror node view", async () => {
     setupMatchMedia();
     const user = userEvent.setup();
