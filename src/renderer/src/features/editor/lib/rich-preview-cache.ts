@@ -11,6 +11,7 @@ import type {
 import type { Transaction } from "@tiptap/pm/state";
 
 import { collectChangedTopLevelBlocks } from "./editor-transaction-blocks";
+import { measureEditorOperation } from "./editor-performance";
 
 export interface RichPreviewBlockSnapshot {
   id: string;
@@ -175,7 +176,11 @@ export class RichPreviewCache<
     const cancel = this.schedule(() => {
       if (this.destroyed || this.pendingFrame !== pendingFrame) return;
       this.pendingFrame = null;
-      this.flush();
+      if (import.meta.env.DEV) {
+        measureEditorOperation("editor:preview-frame", () => this.flush());
+      } else {
+        this.flush();
+      }
     });
     if (this.pendingFrame === pendingFrame) pendingFrame.cancel = cancel;
   }

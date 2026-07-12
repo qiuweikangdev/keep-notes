@@ -15,6 +15,10 @@ import { normalizeRichDocumentPath } from "../lib/rich-document-surface-registry
 import type { RichDocumentBinding } from "../lib/rich-document-session-manager";
 import type { RichPreviewAnchor } from "../lib/rich-preview-anchor";
 import { toRichPaneKey, type RichPaneKey } from "../lib/rich-pane-view-state";
+import {
+  editorSplitPaintCoordinator,
+  measureEditorOperation,
+} from "../lib/editor-performance";
 import type { RichBlockNoteRuntime } from "./blocknote-editor";
 import { EditorStateView } from "./editor-state-view";
 import { VirtualRichPreview } from "./virtual-rich-preview";
@@ -35,24 +39,55 @@ function activateRichPane(
   binding: RichDocumentBinding,
   anchor: RichPreviewAnchor | null,
 ): boolean {
+  if (import.meta.env.DEV) {
+    return measureEditorOperation(
+      "editor:pane-activate",
+      () => {
+        const normalizedPath = normalizeRichDocumentPath(path);
+        const runtime = richDocumentSessionManager.getRuntime(
+          normalizedPath,
+        ) as RichBlockNoteRuntime | null;
+        if (!runtime) return false;
+
+        // 必须先同步移动唯一编辑器表面；移动失败的样本会被诊断层丢弃。
+        if (
+          !richDocumentSessionManager.setActivePane(
+            normalizedPath,
+            binding.paneKey,
+          )
+        ) {
+          return false;
+        }
+
+        useEditorStore.getState().setActiveTab(binding.groupId, binding.tabId);
+        runtime.focusAt(anchor);
+        return true;
+      },
+      Boolean,
+    );
+  }
+
   const normalizedPath = normalizeRichDocumentPath(path);
   const runtime = richDocumentSessionManager.getRuntime(
     normalizedPath,
   ) as RichBlockNoteRuntime | null;
   if (!runtime) return false;
-
-  // 必须先同步移动唯一编辑器表面；移动失败时不得提前改变 store 所有权。
   if (
     !richDocumentSessionManager.setActivePane(normalizedPath, binding.paneKey)
   ) {
     return false;
   }
-
-  const store = useEditorStore.getState();
-  store.setActiveGroupId(binding.groupId);
-  store.setActiveTab(binding.groupId, binding.tabId);
+  useEditorStore.getState().setActiveTab(binding.groupId, binding.tabId);
   runtime.focusAt(anchor);
   return true;
+}
+
+function EditorSplitPaintCommit({ groupId }: { groupId: string }) {
+  useLayoutEffect(
+    () => editorSplitPaintCoordinator!.commitPane(groupId),
+    [groupId],
+  );
+  return null;
 }
 
 export function RichDocumentPane({
@@ -146,12 +181,27 @@ export function RichDocumentPane({
       />
       {!runtime ? (
         <EditorStateView status="loading" fileName={fileName} />
-      ) : isLive ? null : (
-        <VirtualRichPreview
-          cache={runtime.previewCache}
-          onActivate={handleActivate}
-          paneKey={paneKey}
-        />
+      ) : (
+        <>
+          <div
+            aria-hidden={isLive}
+            className="absolute inset-0 h-full min-h-0 overflow-hidden"
+            data-testid="rich-preview-layer"
+            style={{
+              pointerEvents: isLive ? "none" : "auto",
+              visibility: isLive ? "hidden" : "visible",
+            }}
+          >
+            <VirtualRichPreview
+              cache={runtime.previewCache}
+              onActivate={handleActivate}
+              paneKey={paneKey}
+            />
+          </div>
+          {!isLive && import.meta.env.DEV ? (
+            <EditorSplitPaintCommit groupId={groupId} />
+          ) : null}
+        </>
       )}
     </div>
   );

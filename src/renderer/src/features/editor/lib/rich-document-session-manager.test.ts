@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   type RichDocumentRuntime,
@@ -35,6 +35,11 @@ function createManager(
 ): RichDocumentSessionManager {
   return new RichDocumentSessionManager(options);
 }
+
+afterEach(() => {
+  document.body.replaceChildren();
+  vi.restoreAllMocks();
+});
 
 describe("RichDocumentSessionManager", () => {
   it("deduplicates repeated visible bindings by normalized path", () => {
@@ -200,8 +205,11 @@ describe("RichDocumentSessionManager", () => {
     expect(deactivate.mock.invocationCallOrder[0]).toBeLessThan(
       activate.mock.invocationCallOrder[0],
     );
-    expect(firstRuntime.surface.parentElement).toBeNull();
-    expect(secondHost.firstElementChild).toBe(secondRuntime.surface);
+    expect(firstRuntime.surface.parentElement).toBe(document.body);
+    expect(firstRuntime.surface.style.visibility).toBe("hidden");
+    expect(secondRuntime.surface.parentElement).toBe(document.body);
+    expect(secondRuntime.surface.dataset.activePaneKey).toBe("g2:t2");
+    expect(secondHost.firstElementChild).toBeNull();
     expect(manager.getActivePane("first.md")).toBeNull();
     expect(manager.getActivePane("second.md")).toBe("g2:t2");
     expect(manager.getActiveBinding()).toEqual({
@@ -212,6 +220,45 @@ describe("RichDocumentSessionManager", () => {
         tabId: "t2",
       },
     });
+  });
+
+  it("moves a live surface between panes of the same document without hiding it", () => {
+    const surfaces = new RichDocumentSurfaceRegistry();
+    const viewStates = new RichPaneViewStateRegistry();
+    const manager = createManager({ surfaces, viewStates });
+    const runtime = createRuntime("large.md", []);
+    runtime.readViewState = vi.fn(() => ({ scrollTop: 180 }));
+    runtime.restoreViewState = vi.fn();
+    manager.retainVisible("large.md", {
+      paneKey: "g1:t1",
+      groupId: "g1",
+      tabId: "t1",
+    });
+    manager.retainVisible("large.md", {
+      paneKey: "g2:t2",
+      groupId: "g2",
+      tabId: "t2",
+    });
+    manager.registerRuntime("large.md", runtime);
+    surfaces.registerHost("large.md", "g1:t1", document.createElement("div"));
+    surfaces.registerHost("large.md", "g2:t2", document.createElement("div"));
+    viewStates.patch("g2:t2", { scrollTop: 640 });
+
+    expect(manager.setActivePane("large.md", "g1:t1")).toBe(true);
+    const deactivate = vi.spyOn(surfaces, "deactivate");
+    const activate = vi.spyOn(surfaces, "activate");
+
+    expect(manager.setActivePane("large.md", "g2:t2")).toBe(true);
+
+    expect(deactivate).not.toHaveBeenCalled();
+    expect(activate).toHaveBeenCalledOnce();
+    expect(activate).toHaveBeenCalledWith("large.md", "g2:t2");
+    expect(runtime.readViewState).toHaveBeenCalledOnce();
+    expect(runtime.restoreViewState).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scrollTop: 640 }),
+    );
+    expect(runtime.surface.style.visibility).toBe("visible");
+    expect(runtime.surface.dataset.activePaneKey).toBe("g2:t2");
   });
 
   it("leaves no active document when a target surface or host is missing", () => {
@@ -300,11 +347,13 @@ describe("RichDocumentSessionManager", () => {
     manager.setActivePane("second.md", "g2:t2");
 
     expect(manager.deactivateIfActive("first.md", "g1:t1")).toBe(false);
-    expect(secondRuntime.surface.parentElement).toBe(secondHost);
+    expect(secondRuntime.surface.parentElement).toBe(document.body);
+    expect(secondRuntime.surface.dataset.activePaneKey).toBe("g2:t2");
     expect(manager.getActivePane("second.md")).toBe("g2:t2");
 
     expect(manager.deactivateIfActive("second.md", "g2:t2")).toBe(true);
-    expect(secondRuntime.surface.parentElement).toBeNull();
+    expect(secondRuntime.surface.parentElement).toBe(document.body);
+    expect(secondRuntime.surface.style.visibility).toBe("hidden");
     expect(manager.getActiveBinding()).toBeNull();
   });
 
@@ -390,11 +439,13 @@ describe("RichDocumentSessionManager", () => {
       "r1:destroy",
       "r2:restore:73",
     ]);
-    expect(secondRuntime.surface.parentElement).toBe(host);
+    expect(secondRuntime.surface.parentElement).toBe(document.body);
+    expect(secondRuntime.surface.dataset.activePaneKey).toBe("g1:t1");
     expect(secondRuntime.restoreViewState).toHaveBeenCalledTimes(1);
 
     unregisterFirst();
-    expect(secondRuntime.surface.parentElement).toBe(host);
+    expect(secondRuntime.surface.parentElement).toBe(document.body);
+    expect(secondRuntime.surface.dataset.activePaneKey).toBe("g1:t1");
     expect(secondRuntime.restoreViewState).toHaveBeenCalledTimes(1);
     unregisterSecond();
   });
@@ -426,10 +477,12 @@ describe("RichDocumentSessionManager", () => {
     const unregisterSecond = manager.registerRuntime("note.md", secondRuntime);
     manager.setActivePane("note.md", "g1:t1");
     expect(events).toEqual(["r2:restore:91"]);
-    expect(secondRuntime.surface.parentElement).toBe(host);
+    expect(secondRuntime.surface.parentElement).toBe(document.body);
+    expect(secondRuntime.surface.dataset.activePaneKey).toBe("g1:t1");
 
     unregisterFirst();
-    expect(secondRuntime.surface.parentElement).toBe(host);
+    expect(secondRuntime.surface.parentElement).toBe(document.body);
+    expect(secondRuntime.surface.dataset.activePaneKey).toBe("g1:t1");
     expect(secondRuntime.restoreViewState).toHaveBeenCalledTimes(1);
     unregisterSecond();
   });

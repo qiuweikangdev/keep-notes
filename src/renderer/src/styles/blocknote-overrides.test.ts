@@ -9,7 +9,11 @@ const stylesheet = readFileSync(
 );
 
 function getRule(selector: string) {
-  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const escapedSelector = selector
+    .trim()
+    .split(/\s+/)
+    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("\\s+");
   const matches = Array.from(
     stylesheet.matchAll(
       new RegExp(`(?:^|\\n)${escapedSelector}\\s*\\{([\\s\\S]*?)\\n\\}`, "g"),
@@ -52,6 +56,26 @@ describe("blocknote overrides stylesheet", () => {
     );
     expect(editorRule).not.toMatch(/margin:\s*0 auto/);
     expect(editorRule).not.toMatch(/max-width:/);
+  });
+
+  it("skips offscreen live rich blocks during split and resize layout", () => {
+    const liveBlockRule = getRule(
+      "[data-rich-document-surface] .bn-editor > .bn-block-group > .bn-block-outer",
+    );
+
+    expect(liveBlockRule).toBeDefined();
+    expect(liveBlockRule).toMatch(/content-visibility:\s*auto;/);
+    expect(liveBlockRule).toMatch(/contain-intrinsic-block-size:\s*auto 80px;/);
+  });
+
+  it("skips offscreen overscan blocks in virtual rich previews", () => {
+    const previewBlockRule = getRule(".rich-virtual-preview__block");
+
+    expect(previewBlockRule).toBeDefined();
+    expect(previewBlockRule).toMatch(/content-visibility:\s*auto;/);
+    expect(previewBlockRule).toMatch(
+      /contain-intrinsic-block-size:\s*auto 64px;/,
+    );
   });
 
   it("normalizes checklist layout and checkbox size", () => {

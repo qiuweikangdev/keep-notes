@@ -222,6 +222,17 @@ export class RichDocumentSessionManager {
       return true;
     }
 
+    if (this.activeDocumentPath === normalizedPath && record.activePaneKey) {
+      // 同文档分栏切换只移动稳定表面，避免 visibility 往返触发整棵 ProseMirror 样式重算。
+      this.captureRuntimeViewState(record, record.runtime);
+      if (!this.surfaces.activate(normalizedPath, paneKey)) return false;
+
+      record.activePaneKey = paneKey;
+      record.lastActiveAt = this.now();
+      record.runtime?.restoreViewState?.(this.viewStates.read(paneKey));
+      return true;
+    }
+
     // 全局切换必须先卸下旧文档，再挂载目标文档，确保布局中始终只有一个完整富文本 DOM。
     if (this.activeDocumentPath) {
       const previousRecord = this.records.get(this.activeDocumentPath);

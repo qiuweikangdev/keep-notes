@@ -35,6 +35,7 @@ import { editorCache, richPaneViewStateRegistry } from "../lib/editor-runtime";
 import type { RichDocumentRuntime } from "../lib/rich-document-session-manager";
 import type { RichPreviewAnchor } from "../lib/rich-preview-anchor";
 import { RichPreviewCache } from "../lib/rich-preview-cache";
+import { measureEditorOperation } from "../lib/editor-performance";
 import {
   richEditorOwnerRegistry,
   type RichEditorOwnerEntry,
@@ -1207,7 +1208,13 @@ function MountedBlockNoteEditor({
         previewCacheRef.current = previewCache;
         previewTransactionCleanupRef.current = editor.onBeforeChange(
           ({ tr }) => {
-            previewCache?.handleTransaction(tr);
+            if (!import.meta.env.DEV) {
+              previewCache?.handleTransaction(tr);
+              return;
+            }
+            measureEditorOperation("editor:transaction", () =>
+              previewCache?.handleTransaction(tr),
+            );
           },
         );
       }

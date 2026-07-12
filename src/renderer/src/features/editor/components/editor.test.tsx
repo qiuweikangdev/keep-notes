@@ -1,5 +1,11 @@
 import type { CSSProperties, PropsWithChildren } from "react";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useEditorStore } from "@/store/editor.store";
 import { Editor } from "./editor";
@@ -9,8 +15,19 @@ vi.mock("react-resizable-panels", () => ({
   PanelGroup: ({
     children,
     direction,
-  }: PropsWithChildren<{ direction: "horizontal" | "vertical" }>) => (
-    <div data-testid={`panel-group-${direction}`}>{children}</div>
+    onLayout,
+  }: PropsWithChildren<{
+    direction: "horizontal" | "vertical";
+    onLayout?: (sizes: number[]) => void;
+  }>) => (
+    <div data-testid={`panel-group-${direction}`}>
+      {children}
+      <button
+        data-testid="panel-group-layout"
+        onClick={() => onLayout?.([50, 50])}
+        type="button"
+      />
+    </div>
   ),
   PanelResizeHandle: ({ style }: { style?: CSSProperties }) => (
     <div data-testid="panel-resize-handle" style={style} />
@@ -33,6 +50,27 @@ const workspaceLifecycle = vi.hoisted(() => ({
 
 const richSessionLifecycle = vi.hoisted(() => ({
   mounts: new Map<string, number>(),
+}));
+
+const editorPerformanceMocks = vi.hoisted(() => ({
+  cancelResize: vi.fn(),
+  commitSplitPane: vi.fn(() => vi.fn()),
+  cleanupObserver: vi.fn(),
+  measure: vi.fn(<T,>(_operation: string, callback: () => T) => callback()),
+  observe: vi.fn(() => editorPerformanceMocks.cleanupObserver),
+  resizeLayout: vi.fn(),
+}));
+
+vi.mock("../lib/editor-performance", () => ({
+  editorResizeFrameCoordinator: {
+    cancel: editorPerformanceMocks.cancelResize,
+    handleLayout: editorPerformanceMocks.resizeLayout,
+  },
+  editorSplitPaintCoordinator: {
+    commitPane: editorPerformanceMocks.commitSplitPane,
+  },
+  measureEditorOperation: editorPerformanceMocks.measure,
+  observeEditorLongTasks: editorPerformanceMocks.observe,
 }));
 
 vi.mock("./editor-workspace", async () => {
@@ -165,6 +203,12 @@ beforeEach(() => {
   workspaceLifecycle.mounts.clear();
   workspaceLifecycle.unmounts.clear();
   richSessionLifecycle.mounts.clear();
+  editorPerformanceMocks.cleanupObserver.mockClear();
+  editorPerformanceMocks.cancelResize.mockClear();
+  editorPerformanceMocks.commitSplitPane.mockClear();
+  editorPerformanceMocks.measure.mockClear();
+  editorPerformanceMocks.observe.mockClear();
+  editorPerformanceMocks.resizeLayout.mockClear();
 });
 
 afterEach(() => {
@@ -189,7 +233,7 @@ describe("Editor split panels", () => {
         panelCount,
       );
       expect(screen.getAllByTestId("virtual-rich-preview")).toHaveLength(
-        panelCount - 1,
+        panelCount,
       );
       expect(screen.getAllByTestId("rich-document-live-host")).toHaveLength(1);
     },
@@ -214,7 +258,54 @@ describe("Editor split panels", () => {
 
     expect(richSessionLifecycle.mounts.get(path)).toBe(1);
     expect(screen.getAllByTestId("rich-document-pane")).toHaveLength(3);
-    expect(screen.getAllByTestId("virtual-rich-preview")).toHaveLength(2);
+    expect(screen.getAllByTestId("virtual-rich-preview")).toHaveLength(3);
+  });
+
+  it("installs development resize diagnostics without writing content or scroll state", () => {
+    const path = "C:/notes/private-large.md";
+    const firstTab = createTab("tab-1", path);
+    firstTab.content = "#".repeat(24_000);
+    useEditorStore.setState({
+      panelGroups: [
+        {
+          id: "group-1",
+          activeTabId: "tab-1",
+          direction: "horizontal",
+          tabs: [firstTab],
+        },
+      ],
+      activeGroupId: "group-1",
+    });
+    const setTabScrollTop = vi.spyOn(
+      useEditorStore.getState(),
+      "setTabScrollTop",
+    );
+    const syncFileContent = vi.spyOn(
+      useEditorStore.getState(),
+      "syncFileContent",
+    );
+    const view = render(<Editor />);
+
+    expect(editorPerformanceMocks.observe).toHaveBeenCalledOnce();
+    const contextProvider = editorPerformanceMocks.observe.mock.calls[0][0];
+    expect(contextProvider()).toEqual({
+      documentLength: 24_000,
+      visiblePaneCount: 1,
+      mountedPreviewBlockCount: 0,
+    });
+    expect(JSON.stringify(contextProvider())).not.toContain(path);
+
+    const layoutTrigger = screen.getByTestId("panel-group-layout");
+    fireEvent.click(layoutTrigger);
+    fireEvent.click(layoutTrigger);
+
+    expect(editorPerformanceMocks.resizeLayout).toHaveBeenCalledTimes(2);
+    expect(setTabScrollTop).not.toHaveBeenCalled();
+    expect(syncFileContent).not.toHaveBeenCalled();
+
+    view.unmount();
+    expect(editorPerformanceMocks.cleanupObserver).toHaveBeenCalledOnce();
+    expect(editorPerformanceMocks.cancelResize).toHaveBeenCalledOnce();
   });
 
   it("uses a horizontal resize handle for vertical down splits", () => {

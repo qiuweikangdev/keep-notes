@@ -21,6 +21,31 @@ import {
 } from "../lib/rich-preview-anchor";
 import { RichDocumentPane } from "./rich-document-pane";
 
+const editorPerformanceMocks = vi.hoisted(() => ({
+  activationSamples: [] as string[],
+  commitPane: vi.fn(() => vi.fn()),
+  measure: vi.fn(
+    <T,>(
+      operation: string,
+      callback: () => T,
+      shouldRecord?: (value: T) => boolean,
+    ) => {
+      const result = callback();
+      if (!shouldRecord || shouldRecord(result)) {
+        editorPerformanceMocks.activationSamples.push(operation);
+      }
+      return result;
+    },
+  ),
+}));
+
+vi.mock("../lib/editor-performance", () => ({
+  editorSplitPaintCoordinator: {
+    commitPane: editorPerformanceMocks.commitPane,
+  },
+  measureEditorOperation: editorPerformanceMocks.measure,
+}));
+
 vi.mock("./virtual-rich-preview", () => ({
   VirtualRichPreview: ({
     paneKey,
@@ -56,7 +81,16 @@ vi.mock("./virtual-rich-preview", () => ({
 
 const path = "C:/notes/task-7-pane.md";
 
+function getPane(paneKey: string): HTMLElement {
+  return screen
+    .getAllByTestId("rich-document-pane")
+    .find((pane) => pane.dataset.paneKey === paneKey)!;
+}
+
 beforeEach(() => {
+  editorPerformanceMocks.activationSamples.length = 0;
+  editorPerformanceMocks.commitPane.mockClear();
+  editorPerformanceMocks.measure.mockClear();
   useEditorStore.setState({
     activeGroupId: "group-1",
     panelGroups: [
@@ -68,6 +102,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  document.body.replaceChildren();
   richPaneViewStateRegistry.clear();
   vi.restoreAllMocks();
 });
@@ -98,6 +133,7 @@ describe("RichDocumentPane", () => {
         runtime,
       );
     });
+    expect(editorPerformanceMocks.commitPane).toHaveBeenCalledWith("group-2");
     richPaneViewStateRegistry.patch("group-2:tab-2", { scrollTop: 640 });
     runtime.readViewState.mockClear();
     runtime.restoreViewState.mockClear();
@@ -131,16 +167,27 @@ describe("RichDocumentPane", () => {
       originalSetActiveTab(groupId, tabId);
     });
 
-    fireEvent.pointerDown(screen.getByText("world").firstChild!, {
-      clientX: 40,
-      clientY: 20,
-    });
+    fireEvent.pointerDown(
+      within(getPane("group-2:tab-2")).getByText("world").firstChild!,
+      {
+        clientX: 40,
+        clientY: 20,
+      },
+    );
+
+    expect(editorPerformanceMocks.measure).toHaveBeenCalledWith(
+      "editor:pane-activate",
+      expect.any(Function),
+      Boolean,
+    );
+    expect(editorPerformanceMocks.activationSamples).toEqual([
+      "editor:pane-activate",
+    ]);
 
     const activeSurfacePane =
       richDocumentSurfaceRegistry.getActivePaneKey(path);
     const activeManagerPane = richDocumentSessionManager.getActivePane(path);
-    const surfaceParentPane =
-      runtime.surface.parentElement?.parentElement?.dataset.paneKey;
+    const surfaceActivePane = runtime.surface.dataset.activePaneKey;
     const outgoingState = richPaneViewStateRegistry.read("group-1:tab-1");
     const restoreCalls = runtime.restoreViewState.mock.calls.map(([state]) =>
       structuredClone(state),
@@ -152,7 +199,7 @@ describe("RichDocumentPane", () => {
 
     expect(activeSurfacePane).toBe("group-2:tab-2");
     expect(activeManagerPane).toBe("group-2:tab-2");
-    expect(surfaceParentPane).toBe("group-2:tab-2");
+    expect(surfaceActivePane).toBe("group-2:tab-2");
     expect(outgoingState).toEqual(
       expect.objectContaining({
         scrollTop: 320,
@@ -171,7 +218,6 @@ describe("RichDocumentPane", () => {
       "capture",
       "surface",
       "restore",
-      "group",
       "tab",
       "focus",
     ]);
@@ -194,7 +240,9 @@ describe("RichDocumentPane", () => {
     });
     runtime.focusAt.mockClear();
 
-    fireEvent.pointerDown(screen.getByAltText("unsupported"));
+    fireEvent.pointerDown(
+      within(getPane("group-2:tab-2")).getByAltText("unsupported"),
+    );
 
     const focusCalls = runtime.focusAt.mock.calls.map(([anchor]) => anchor);
     act(() => unregisterRuntime?.());
@@ -224,13 +272,18 @@ describe("RichDocumentPane", () => {
       false,
     );
 
-    fireEvent.pointerDown(screen.getByText("world").firstChild!);
+    fireEvent.pointerDown(
+      within(getPane("group-2:tab-2")).getByText("world").firstChild!,
+    );
 
     const activeGroupId = useEditorStore.getState().activeGroupId;
     const focusCalls = runtime.focusAt.mock.calls.length;
     act(() => unregisterRuntime?.());
     expect(activeGroupId).toBe("group-1");
     expect(focusCalls).toBe(0);
+    expect(editorPerformanceMocks.activationSamples).not.toContain(
+      "editor:pane-activate",
+    );
   });
 
   it("rerenders and activates before paint when its runtime becomes ready", () => {
@@ -251,9 +304,8 @@ describe("RichDocumentPane", () => {
     });
 
     expect(screen.queryByTestId("editor-loading-skeleton")).toBeNull();
-    expect(screen.getByTestId("rich-document-live-host")).toContainElement(
-      runtime.surface,
-    );
+    expect(runtime.surface.parentElement).toBe(document.body);
+    expect(runtime.surface.dataset.activePaneKey).toBe("group-1:tab-1");
     expect(richDocumentSessionManager.getActivePane(path)).toBe(
       "group-1:tab-1",
     );
@@ -341,7 +393,14 @@ describe("RichDocumentPane", () => {
     });
 
     expect(screen.getAllByTestId("rich-document-live-host")).toHaveLength(1);
-    expect(screen.getAllByTestId("virtual-rich-preview")).toHaveLength(1);
+    expect(screen.getAllByTestId("virtual-rich-preview")).toHaveLength(2);
+    const firstPane = screen
+      .getAllByTestId("rich-document-pane")
+      .find((pane) => pane.dataset.paneKey === "group-1:tab-1")!;
+    expect(within(firstPane).getByTestId("rich-preview-layer")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
 
     act(() => {
       useEditorStore.getState().setActiveTab("group-2", "tab-2");
@@ -353,13 +412,15 @@ describe("RichDocumentPane", () => {
     expect(secondPane).toBeDefined();
     expect(
       within(secondPane!).getByTestId("rich-document-live-host"),
-    ).toContainElement(runtime.surface);
+    ).toBeEmptyDOMElement();
+    expect(runtime.surface.parentElement).toBe(document.body);
+    expect(runtime.surface.dataset.activePaneKey).toBe("group-2:tab-2");
     expect(richDocumentSessionManager.getActivePane(path)).toBe(
       "group-2:tab-2",
     );
     expect(runtime.readViewState).toHaveBeenCalledTimes(1);
 
-    const firstPreview = screen.getByTestId("virtual-rich-preview");
+    const firstPreview = within(firstPane).getByTestId("virtual-rich-preview");
     fireEvent.pointerDown(firstPreview);
     expect(useEditorStore.getState().activeGroupId).toBe("group-1");
     expect(richDocumentSessionManager.getActivePane(path)).toBe(
@@ -369,7 +430,7 @@ describe("RichDocumentPane", () => {
     act(() => unregisterRuntime?.());
   });
 
-  it("physically detaches the outgoing surface for source and loading targets", () => {
+  it("hides the stable outgoing surface for source and loading targets", () => {
     const secondPath = "C:/notes/loading.md";
     const view = render(
       <>
@@ -398,7 +459,8 @@ describe("RichDocumentPane", () => {
       useEditorStore.getState().setActiveTab("group-2", "tab-2");
     });
 
-    expect(firstRuntime.surface.parentElement).toBeNull();
+    expect(firstRuntime.surface.parentElement).toBe(document.body);
+    expect(firstRuntime.surface.style.visibility).toBe("hidden");
     expect(richDocumentSessionManager.getActiveBinding()).toBeNull();
     expect(within(firstPane).getByTestId("virtual-rich-preview")).toBeVisible();
     expect(
@@ -413,7 +475,9 @@ describe("RichDocumentPane", () => {
       );
     });
     expect(secondRuntime.surface.parentElement).not.toBeNull();
-    expect(firstRuntime.surface.parentElement).toBeNull();
+    expect(secondRuntime.surface.dataset.activePaneKey).toBe("group-2:tab-2");
+    expect(firstRuntime.surface.parentElement).toBe(document.body);
+    expect(firstRuntime.surface.style.visibility).toBe("hidden");
     expect(richDocumentSessionManager.getActivePane(secondPath)).toBe(
       "group-2:tab-2",
     );
@@ -477,9 +541,9 @@ describe("RichDocumentPane", () => {
       "group-1:tab-next",
     );
     expect(richPaneViewStateRegistry.read("group-1:tab-1").scrollTop).toBe(18);
-    expect(screen.getByTestId("rich-document-live-host")).toContainElement(
-      runtime.surface,
-    );
+    expect(screen.getByTestId("rich-document-live-host")).toBeEmptyDOMElement();
+    expect(runtime.surface.parentElement).toBe(document.body);
+    expect(runtime.surface.dataset.activePaneKey).toBe("group-1:tab-next");
 
     act(() => unregisterRuntime?.());
   });
@@ -523,6 +587,7 @@ describe("RichDocumentPane", () => {
       expect.objectContaining({ scrollTop: 111 }),
     );
     expect(richPaneViewStateRegistry.read("group-1:tab-b").scrollTop).toBe(222);
+    expect(runtime.editor.replaceBlocks).not.toHaveBeenCalled();
 
     unregisterRuntime?.();
   });
@@ -652,7 +717,7 @@ function createRuntime(runtimePath: string) {
     isDirty: () => false,
     isSaving: () => false,
     isReloading: () => false,
-    editor: {},
+    editor: { replaceBlocks: vi.fn() },
     previewCache: {},
     focusAt: vi.fn(),
     readViewState: vi.fn(() => ({ scrollTop: 18, selection: null })),

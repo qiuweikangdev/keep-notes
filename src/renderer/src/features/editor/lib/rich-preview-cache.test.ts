@@ -1,8 +1,16 @@
 import { BlockNoteEditor } from "@blocknote/core";
 import type { Transaction } from "@tiptap/pm/state";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { RichPreviewCache } from "./rich-preview-cache";
+
+const editorPerformanceMocks = vi.hoisted(() => ({
+  measure: vi.fn(<T>(_operation: string, callback: () => T) => callback()),
+}));
+
+vi.mock("./editor-performance", () => ({
+  measureEditorOperation: editorPerformanceMocks.measure,
+}));
 
 function createHarness() {
   const source = BlockNoteEditor.create({
@@ -55,7 +63,12 @@ function createHarness() {
 }
 
 describe("RichPreviewCache", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("merges repeated block edits into one frame export", () => {
+    editorPerformanceMocks.measure.mockClear();
     const {
       source,
       cache,
@@ -75,6 +88,11 @@ describe("RichPreviewCache", () => {
 
     scheduled[0]();
 
+    expect(editorPerformanceMocks.measure).toHaveBeenCalledOnce();
+    expect(editorPerformanceMocks.measure).toHaveBeenCalledWith(
+      "editor:preview-frame",
+      expect.any(Function),
+    );
     expect(cache.getSnapshot().revision).toBe(1);
     expect(exportedIds).toEqual(["block-a"]);
     expect(getBlock).toHaveBeenCalledTimes(1);
@@ -102,6 +120,18 @@ describe("RichPreviewCache", () => {
     expect(blocksToFullHTML).toHaveBeenCalledTimes(2);
     expect(cache.getBlockSnapshot("block-a")?.html).toContain("updated twice");
     expect(cache.getBlockSnapshot("block-b")?.html).toContain("changed");
+  });
+
+  it("flushes directly without a diagnostic wrapper outside development", () => {
+    vi.stubEnv("DEV", false);
+    editorPerformanceMocks.measure.mockClear();
+    const { source, cache, scheduled } = createHarness();
+
+    source.updateBlock("block-a", { content: "production" });
+    scheduled[0]();
+
+    expect(cache.getBlockSnapshot("block-a")?.html).toContain("production");
+    expect(editorPerformanceMocks.measure).not.toHaveBeenCalled();
   });
 
   it("refreshes every block affected by a mark-only transaction", () => {

@@ -9,6 +9,7 @@ interface SurfaceEntry {
   hosts: Map<RichPaneKey, HTMLElement>;
   activePaneKey: RichPaneKey | null;
   focusTarget: HTMLElement | null;
+  resizeObserver: ResizeObserver | null;
 }
 
 export class RichDocumentSurfaceRegistry {
@@ -25,14 +26,18 @@ export class RichDocumentSurfaceRegistry {
       entry.focusTarget = null;
     }
     entry.surface = surface;
+    this.mountSurface(surface);
 
-    const activeHost = entry.activePaneKey
-      ? entry.hosts.get(entry.activePaneKey)
+    const activePaneKey = entry.activePaneKey;
+    const activeHost = activePaneKey
+      ? entry.hosts.get(activePaneKey)
       : undefined;
-    if (activeHost) this.attach(entry, activeHost);
+    if (activeHost && activePaneKey) {
+      this.showAtHost(entry, activeHost, activePaneKey);
+    }
 
     return () => {
-      // 注册可能被 Strict Mode 重放，旧清理函数不得移除后来注册的面板。
+      // Strict Mode 可能重放注册流程，旧清理函数不得移除后来注册的表面。
       if (
         this.entries.get(normalizedPath) !== entry ||
         entry.surface !== surface
@@ -41,6 +46,7 @@ export class RichDocumentSurfaceRegistry {
       }
 
       this.captureFocus(entry);
+      this.stopObservingHost(entry);
       surface.remove();
       entry.surface = null;
       entry.activePaneKey = null;
@@ -58,7 +64,9 @@ export class RichDocumentSurfaceRegistry {
     const entry = this.getEntry(normalizedPath);
     entry.hosts.set(paneKey, host);
 
-    if (entry.activePaneKey === paneKey) this.attach(entry, host);
+    if (entry.activePaneKey === paneKey) {
+      this.showAtHost(entry, host, paneKey);
+    }
 
     return () => {
       // 同一窗格的宿主可能已被替换，清理时必须按节点身份确认归属。
@@ -71,7 +79,8 @@ export class RichDocumentSurfaceRegistry {
 
       if (entry.activePaneKey === paneKey) {
         this.captureFocus(entry);
-        if (entry.surface?.parentElement === host) entry.surface.remove();
+        this.stopObservingHost(entry);
+        this.hideSurface(entry.surface);
         entry.activePaneKey = null;
       }
       entry.hosts.delete(paneKey);
@@ -84,10 +93,10 @@ export class RichDocumentSurfaceRegistry {
     const host = entry?.hosts.get(paneKey);
     if (!entry?.surface || !host) return false;
 
-    // DOM 节点移动前保存当前后代焦点，挂到新宿主后恢复键盘输入位置。
+    // 表面始终挂在稳定的 body 容器，只更新定位，避免重挂完整编辑器触发所有块重排。
     this.captureFocus(entry);
-    this.attach(entry, host);
     entry.activePaneKey = paneKey;
+    this.showAtHost(entry, host, paneKey);
     return true;
   }
 
@@ -95,9 +104,10 @@ export class RichDocumentSurfaceRegistry {
     const entry = this.entries.get(normalizeRichDocumentPath(path));
     if (!entry) return;
 
-    // 停用只摘除稳定节点而不销毁它，后续激活仍可恢复原焦点后代。
+    // 停用仅隐藏稳定表面，不销毁也不重新挂载其 ProseMirror DOM。
     this.captureFocus(entry);
-    entry.surface?.remove();
+    this.stopObservingHost(entry);
+    this.hideSurface(entry.surface);
     entry.activePaneKey = null;
   }
 
@@ -116,6 +126,7 @@ export class RichDocumentSurfaceRegistry {
       hosts: new Map(),
       activePaneKey: null,
       focusTarget: null,
+      resizeObserver: null,
     };
     this.entries.set(normalizedPath, entry);
     return entry;
@@ -132,21 +143,86 @@ export class RichDocumentSurfaceRegistry {
     }
   }
 
-  private attach(entry: SurfaceEntry, host: HTMLElement): void {
-    if (!entry.surface) return;
-    if (entry.surface.parentElement !== host) host.append(entry.surface);
+  private mountSurface(surface: HTMLElement): void {
+    surface.style.position = "fixed";
+    surface.style.zIndex = "1";
+    this.hideSurface(surface);
+    if (surface.parentElement !== document.body) document.body.append(surface);
+  }
 
-    if (
-      entry.focusTarget?.isConnected &&
-      entry.surface.contains(entry.focusTarget)
-    ) {
+  private showAtHost(
+    entry: SurfaceEntry,
+    host: HTMLElement,
+    paneKey: RichPaneKey,
+  ): void {
+    const surface = entry.surface;
+    if (!surface) return;
+
+    const rect = host.getBoundingClientRect();
+    surface.style.left = `${rect.left}px`;
+    surface.style.top = `${rect.top}px`;
+    surface.style.width = `${rect.width}px`;
+    surface.style.height = `${rect.height}px`;
+    surface.style.visibility = "visible";
+    surface.style.pointerEvents = "auto";
+    surface.setAttribute("aria-hidden", "false");
+    surface.dataset.activePaneKey = paneKey;
+    this.observeHost(entry, host, paneKey);
+
+    if (entry.focusTarget?.isConnected && surface.contains(entry.focusTarget)) {
       entry.focusTarget.focus({ preventScroll: true });
     }
     entry.focusTarget = null;
   }
 
+  private hideSurface(surface: HTMLElement | null): void {
+    if (!surface) return;
+    surface.style.visibility = "hidden";
+    surface.style.pointerEvents = "none";
+    surface.setAttribute("aria-hidden", "true");
+    delete surface.dataset.activePaneKey;
+  }
+
+  private observeHost(
+    entry: SurfaceEntry,
+    host: HTMLElement,
+    paneKey: RichPaneKey,
+  ): void {
+    this.stopObservingHost(entry);
+    if (typeof ResizeObserver === "undefined") return;
+
+    entry.resizeObserver = new ResizeObserver(() => {
+      if (
+        entry.activePaneKey !== paneKey ||
+        entry.hosts.get(paneKey) !== host
+      ) {
+        return;
+      }
+      this.positionSurface(entry.surface, host);
+    });
+    entry.resizeObserver.observe(host);
+  }
+
+  private positionSurface(
+    surface: HTMLElement | null,
+    host: HTMLElement,
+  ): void {
+    if (!surface) return;
+    const rect = host.getBoundingClientRect();
+    surface.style.left = `${rect.left}px`;
+    surface.style.top = `${rect.top}px`;
+    surface.style.width = `${rect.width}px`;
+    surface.style.height = `${rect.height}px`;
+  }
+
+  private stopObservingHost(entry: SurfaceEntry): void {
+    entry.resizeObserver?.disconnect();
+    entry.resizeObserver = null;
+  }
+
   private deleteEmptyEntry(normalizedPath: string, entry: SurfaceEntry): void {
     if (!entry.surface && entry.hosts.size === 0) {
+      this.stopObservingHost(entry);
       this.entries.delete(normalizedPath);
     }
   }

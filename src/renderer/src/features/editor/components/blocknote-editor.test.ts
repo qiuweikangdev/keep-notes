@@ -68,6 +68,14 @@ const markdownMocks = vi.hoisted(() => ({
   serializeMarkdown: vi.fn<SerializeMarkdown>(),
 }));
 
+const editorPerformanceMocks = vi.hoisted(() => ({
+  measure: vi.fn(<T>(_operation: string, callback: () => T) => callback()),
+}));
+
+vi.mock("../lib/editor-performance", () => ({
+  measureEditorOperation: editorPerformanceMocks.measure,
+}));
+
 vi.mock("../lib/markdown", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../lib/markdown")>();
   markdownMocks.actualSerializeMarkdown = actual.serializeMarkdown;
@@ -78,6 +86,7 @@ vi.mock("../lib/markdown", async (importOriginal) => {
 });
 
 beforeEach(() => {
+  editorPerformanceMocks.measure.mockClear();
   markdownMocks.serializeMarkdown.mockReset();
   markdownMocks.serializeMarkdown.mockImplementation((...args) =>
     markdownMocks.actualSerializeMarkdown!(...args),
@@ -88,6 +97,7 @@ afterEach(() => {
   cleanup();
   richPaneViewStateRegistry.clear();
   vi.useRealTimers();
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
 
@@ -822,12 +832,30 @@ describe("BlockNoteEditor persistent session runtime", () => {
     expect(scrollContainer!.scrollTop).toBe(21);
 
     const transactionCount = handleTransaction.mock.calls.length;
+    editorPerformanceMocks.measure.mockClear();
     act(() => {
       runtime.editor.updateBlock(runtime.editor.document[0], {
         content: "Changed once",
       });
     });
     expect(handleTransaction).toHaveBeenCalledTimes(transactionCount + 1);
+    expect(editorPerformanceMocks.measure).toHaveBeenCalledWith(
+      "editor:transaction",
+      expect.any(Function),
+    );
+
+    vi.stubEnv("DEV", false);
+    editorPerformanceMocks.measure.mockClear();
+    const productionTransactionCount = handleTransaction.mock.calls.length;
+    act(() => {
+      runtime.editor.updateBlock(runtime.editor.document[0], {
+        content: "Production direct change",
+      });
+    });
+    expect(handleTransaction).toHaveBeenCalledTimes(
+      productionTransactionCount + 1,
+    );
+    expect(editorPerformanceMocks.measure).not.toHaveBeenCalled();
 
     const initialRuntime = session.runtime.current;
     const initialEditor = runtime.editor;

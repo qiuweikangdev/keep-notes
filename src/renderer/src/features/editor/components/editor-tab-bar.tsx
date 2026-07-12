@@ -15,6 +15,7 @@ import {
   getDraggedFilePath,
   isEditorFileDrag,
 } from "../lib/editor-drag-session";
+import { editorSplitPaintCoordinator } from "../lib/editor-performance";
 import { selectTabBarSignature } from "../lib/editor-view-selectors";
 import { EditorToolbar } from "./editor-toolbar";
 
@@ -28,6 +29,44 @@ function isSupportedFile(filePath: string): boolean {
 
 interface EditorTabBarProps {
   groupId: string;
+}
+
+type AddPanelGroup = (
+  direction: "horizontal" | "vertical",
+  targetGroupId?: string,
+) => void;
+
+export function splitEditorPanel(
+  direction: "horizontal" | "vertical",
+  groupId: string,
+  addPanelGroup: AddPanelGroup,
+): void {
+  if (!import.meta.env.DEV) {
+    addPanelGroup(direction, groupId);
+    return;
+  }
+
+  const existingGroupIds = new Set(
+    useEditorStore.getState().panelGroups.map((group) => group.id),
+  );
+  const token = editorSplitPaintCoordinator!.begin();
+  try {
+    addPanelGroup(direction, groupId);
+  } catch (error) {
+    editorSplitPaintCoordinator!.cancel(token);
+    throw error;
+  }
+
+  // 用新面板身份绑定计时，确保只在对应富文本预览提交并完成下一帧后结束。
+  const createdGroup = useEditorStore
+    .getState()
+    .panelGroups.find((group) => !existingGroupIds.has(group.id));
+  if (
+    !createdGroup ||
+    !editorSplitPaintCoordinator!.bindPane(token, createdGroup.id)
+  ) {
+    editorSplitPaintCoordinator!.cancel(token);
+  }
 }
 
 export function EditorTabBar({ groupId }: EditorTabBarProps) {
@@ -92,10 +131,18 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
   };
 
   const handleSplitRight = () => {
+    if (import.meta.env.DEV) {
+      splitEditorPanel("horizontal", groupId, addPanelGroup);
+      return;
+    }
     addPanelGroup("horizontal", groupId);
   };
 
   const handleSplitDown = () => {
+    if (import.meta.env.DEV) {
+      splitEditorPanel("vertical", groupId, addPanelGroup);
+      return;
+    }
     addPanelGroup("vertical", groupId);
   };
 
@@ -298,6 +345,10 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
             icon={<SplitSquareHorizontal className="h-3.5 w-3.5" />}
             onClick={() => {
               setContextMenu(null);
+              if (import.meta.env.DEV) {
+                splitEditorPanel("horizontal", groupId, addPanelGroup);
+                return;
+              }
               addPanelGroup("horizontal", groupId);
             }}
           >
@@ -307,6 +358,10 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
             icon={<SplitSquareVertical className="h-3.5 w-3.5" />}
             onClick={() => {
               setContextMenu(null);
+              if (import.meta.env.DEV) {
+                splitEditorPanel("vertical", groupId, addPanelGroup);
+                return;
+              }
               addPanelGroup("vertical", groupId);
             }}
           >

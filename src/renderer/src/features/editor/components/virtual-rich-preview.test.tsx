@@ -148,11 +148,19 @@ describe("VirtualRichPreview", () => {
       />,
     );
 
-    expect(
-      container.querySelectorAll("[data-rich-preview-block]"),
-    ).toHaveLength(3);
+    const mountedItems = container.querySelectorAll(
+      "[data-rich-preview-block]",
+    ).length;
+    const mockedVisibleItems = 3;
+    expect(mountedItems).toBe(mockedVisibleItems);
+    expect(mountedItems).toBeLessThanOrEqual(mockedVisibleItems + 16);
     expect(container).toHaveTextContent("Heading A");
     expect(container).not.toHaveTextContent("raw markdown source");
+    expect(screen.getByRole("textbox")).toHaveStyle({
+      height: "100%",
+      minHeight: "0",
+      width: "100%",
+    });
     expect(screen.getByRole("textbox")).toHaveAttribute(
       "aria-readonly",
       "true",
@@ -161,8 +169,8 @@ describe("VirtualRichPreview", () => {
       "aria-multiline",
       "true",
     );
-    expect(virtualizerMock.options).toMatchObject({ count: 100, overscan: 8 });
-    expect(virtualizerMock.options?.estimateSize()).toBe(36);
+    expect(virtualizerMock.options).toMatchObject({ count: 100, overscan: 4 });
+    expect(virtualizerMock.options?.estimateSize()).toBe(64);
     expect(virtualizerMock.options?.getScrollElement()).toBe(
       screen.getByRole("textbox"),
     );
@@ -289,8 +297,12 @@ describe("VirtualRichPreview", () => {
       value: vi.fn(() => ({ offset: 3, offsetNode: text })),
     });
 
-    fireEvent.pointerDown(text, { clientX: 20, clientY: 30 });
+    const dispatched = fireEvent.pointerDown(text, {
+      clientX: 20,
+      clientY: 30,
+    });
 
+    expect(dispatched).toBe(false);
     expect(onActivate).toHaveBeenCalledWith({
       blockId: "block-1",
       textOffset: 9,

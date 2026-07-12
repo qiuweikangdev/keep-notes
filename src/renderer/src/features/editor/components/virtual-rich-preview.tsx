@@ -45,7 +45,8 @@ interface CaretDocument extends Document {
   caretRangeFromPoint?: (x: number, y: number) => Range | null;
 }
 
-const estimateBlockSize = () => 36;
+// 大文档块平均高度显著高于单行文本；更接近真实值可减少首轮测量与快速滚动时的挂载量。
+const estimateBlockSize = () => 64;
 const SYSTEM_COLOR_SCHEME_QUERY = "(prefers-color-scheme: dark)";
 // 所有被动窗格共享一个只读系统主题源，避免重复执行全局主题副作用。
 const systemColorSchemeListeners = new Set<() => void>();
@@ -263,7 +264,7 @@ export function VirtualRichPreview({
     getScrollElement,
     getItemKey,
     estimateSize: estimateBlockSize,
-    overscan: 8,
+    overscan: 4,
   });
   const previewStyle = useMemo(
     () =>
@@ -274,8 +275,11 @@ export function VirtualRichPreview({
         backgroundColor: "var(--bg-primary)",
         color: "var(--text-primary)",
         fontSize: `${appearance.fontSize}px`,
+        height: "100%",
         lineHeight: appearance.lineHeight,
+        minHeight: 0,
         opacity: appearance.opacity / 100,
+        width: "100%",
       }) as CSSProperties,
     [
       appearance.fontSize,
@@ -316,6 +320,9 @@ export function VirtualRichPreview({
   );
   const handlePointerDown = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
+      if (event.button > 0) return;
+      // 阻止浏览器随后把焦点放回即将隐藏的预览层，避免真实编辑器先聚焦再失焦并重复整树布局。
+      event.preventDefault();
       onActivate(resolvePointerAnchor(event));
     },
     [onActivate],

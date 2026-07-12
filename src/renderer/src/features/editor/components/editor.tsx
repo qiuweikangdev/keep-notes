@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -23,6 +24,11 @@ import {
 import { EditorPanelSurfaceRegistry } from "../lib/editor-panel-surface-registry";
 import { richDocumentSessionManager } from "../lib/editor-runtime";
 import { RichDocumentSessionHost } from "./rich-document-session-host";
+import {
+  editorResizeFrameCoordinator,
+  observeEditorLongTasks,
+} from "../lib/editor-performance";
+import { normalizeRichDocumentPath } from "../lib/rich-document-surface-registry";
 
 // 支持的文件扩展名
 const SUPPORTED_EXTENSIONS = [".md", ".txt"];
@@ -42,6 +48,60 @@ type PanelLayoutNode =
       first: PanelLayoutNode;
       second: PanelLayoutNode;
     };
+
+function readEditorPerformanceContext() {
+  const state = useEditorStore.getState();
+  const activeGroup = state.panelGroups.find(
+    (group) => group.id === state.activeGroupId,
+  );
+  const activeTab = activeGroup?.tabs.find(
+    (tab) => tab.id === activeGroup.activeTabId,
+  );
+  const activePath = activeTab?.filePath
+    ? normalizeRichDocumentPath(activeTab.filePath)
+    : null;
+  let visiblePaneCount = 0;
+  if (activePath) {
+    for (const group of state.panelGroups) {
+      const tab = group.tabs.find(
+        (candidate) => candidate.id === group.activeTabId,
+      );
+      if (
+        tab?.mode === "rich" &&
+        tab.filePath &&
+        normalizeRichDocumentPath(tab.filePath) === activePath
+      ) {
+        visiblePaneCount += 1;
+      }
+    }
+  }
+
+  return {
+    documentLength: activeTab?.content.length ?? 0,
+    visiblePaneCount,
+    mountedPreviewBlockCount:
+      typeof document === "undefined"
+        ? 0
+        : document.querySelectorAll("[data-rich-preview-block]").length,
+  };
+}
+
+const editorPanelGroupDiagnosticProps = import.meta.env.DEV
+  ? { onLayout: editorResizeFrameCoordinator!.handleLayout }
+  : {};
+
+function EditorDevelopmentDiagnostics() {
+  useEffect(() => {
+    const disconnectLongTasks = observeEditorLongTasks(
+      readEditorPerformanceContext,
+    );
+    return () => {
+      disconnectLongTasks();
+      editorResizeFrameCoordinator!.cancel();
+    };
+  }, []);
+  return null;
+}
 
 // 检查文件是否支持
 function isSupportedFile(filePath: string): boolean {
@@ -299,6 +359,7 @@ export function Editor() {
       style={{ backgroundColor: "var(--bg-primary)" }}
     >
       <RootPanelLayout node={panelLayout} surfaceRegistry={surfaceRegistry} />
+      {import.meta.env.DEV ? <EditorDevelopmentDiagnostics /> : null}
       <RichDocumentSessionLayer />
       {panelGroups.map(({ id }) => (
         <PersistentEditorPanel
@@ -388,6 +449,7 @@ function RootPanelLayout({
     <PanelGroup
       direction={rootDirection}
       autoSaveId={`panel-group-root-${rootDirection}`}
+      {...editorPanelGroupDiagnosticProps}
     >
       <Panel minSize={20}>
         <PanelLayout node={firstNode} surfaceRegistry={surfaceRegistry} />
@@ -422,6 +484,7 @@ function PanelLayout({
     <PanelGroup
       direction={node.direction}
       autoSaveId={`panel-group-${node.id}`}
+      {...editorPanelGroupDiagnosticProps}
     >
       <Panel minSize={20}>
         <div className="h-full relative">

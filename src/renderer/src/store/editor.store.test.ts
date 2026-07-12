@@ -221,6 +221,18 @@ describe("editor store", () => {
     ).toBe(true);
   });
 
+  it("does not expose peer synchronization lifecycle actions", () => {
+    const actionNames = Object.entries(useEditorStore.getState())
+      .filter(([, value]) => typeof value === "function")
+      .map(([name]) => name);
+
+    expect(
+      actionNames.filter((name) =>
+        /warmup|standby|mirror|synchronization/i.test(name),
+      ),
+    ).toEqual([]);
+  });
+
   it("updates a synchronized rich-text tab without forcing a document reload", () => {
     const sourceGroup = useEditorStore.getState().panelGroups[0];
     useEditorStore.setState({
