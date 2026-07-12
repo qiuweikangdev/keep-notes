@@ -259,6 +259,115 @@ describe("editor BlockNote schema", () => {
     output.destroy?.();
   });
 
+  it("continues undoing in BlockNote after CodeMirror history is exhausted", async () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    editor.insertBlocks(
+      [{ type: "codeBlock", content: "" }],
+      editor.document[0],
+      "after",
+    );
+
+    await waitFor(() => {
+      expect(editor.document.some((block) => block.type === "codeBlock")).toBe(
+        true,
+      );
+    });
+    const codeMirror = getCodeMirrorView(container);
+    codeMirror.focus();
+    codeMirror.dispatch({
+      changes: { from: 0, insert: "const value = 1;" },
+      userEvent: "input.type",
+    });
+
+    const undoModifier = /Mac|iPhone|iPad/.test(navigator.platform)
+      ? { metaKey: true }
+      : { ctrlKey: true };
+    const undoInCodeMirror = () =>
+      codeMirror.contentDOM.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          bubbles: true,
+          cancelable: true,
+          key: "z",
+          ...undoModifier,
+        }),
+      );
+
+    undoInCodeMirror();
+    await waitFor(() => {
+      expect(codeMirror.state.doc.toString()).toBe("");
+      expect(editor.document.some((block) => block.type === "codeBlock")).toBe(
+        true,
+      );
+    });
+
+    undoInCodeMirror();
+    await waitFor(() => {
+      expect(editor.document.some((block) => block.type === "codeBlock")).toBe(
+        false,
+      );
+    });
+  });
+
+  it("undoes CodeMirror input one completed line at a time", async () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "codeBlock", content: "" }],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+    const codeMirror = getCodeMirrorView(container);
+    codeMirror.focus();
+
+    const typeCode = (text: string) => {
+      const from = codeMirror.state.selection.main.from;
+      codeMirror.dispatch({
+        changes: { from, insert: text },
+        selection: { anchor: from + text.length },
+        userEvent: "input.type",
+      });
+    };
+    const pressEnterInCodeMirror = () =>
+      codeMirror.contentDOM.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          bubbles: true,
+          cancelable: true,
+          key: "Enter",
+        }),
+      );
+
+    typeCode("a");
+    pressEnterInCodeMirror();
+    typeCode("b");
+    pressEnterInCodeMirror();
+    typeCode("c");
+    expect(codeMirror.state.doc.toString()).toBe("a\nb\nc");
+
+    const undoModifier = /Mac|iPhone|iPad/.test(navigator.platform)
+      ? { metaKey: true }
+      : { ctrlKey: true };
+    const undoInCodeMirror = () =>
+      codeMirror.contentDOM.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          bubbles: true,
+          cancelable: true,
+          key: "z",
+          ...undoModifier,
+        }),
+      );
+
+    undoInCodeMirror();
+    expect(codeMirror.state.doc.toString()).toBe("a\nb");
+
+    undoInCodeMirror();
+    expect(codeMirror.state.doc.toString()).toBe("a");
+  });
+
   it("does not expose a BlockNote Shiki highlighter for editor code blocks", () => {
     expect("createEditorCodeBlockHighlighter" in blocknoteSchemaModule).toBe(
       false,
@@ -352,6 +461,34 @@ describe("editor BlockNote schema", () => {
       { type: "bulletListItem", text: "List" },
     ]);
     expect(editor.document.map(getInlineText).join("")).not.toContain("*");
+  });
+
+  it("undoes one completed bullet list item at a time", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[0].id, "start");
+    typeString(editor, "* ");
+    typeString(editor, "a");
+    pressKey(editor, "Enter");
+    typeString(editor, "b");
+    pressKey(editor, "Enter");
+    typeString(editor, "c");
+
+    expect(editor.undo()).toBe(true);
+    expect(getDocumentSummary(editor)).toEqual([
+      { type: "bulletListItem", text: "a" },
+      { type: "bulletListItem", text: "b" },
+    ]);
+
+    expect(editor.undo()).toBe(true);
+    expect(getDocumentSummary(editor)).toEqual([
+      { type: "bulletListItem", text: "a" },
+    ]);
   });
 
   it("converts typed markdown inline code after Chinese text into styled text", () => {

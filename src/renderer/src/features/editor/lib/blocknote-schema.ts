@@ -17,6 +17,7 @@ import {
 } from "@blocknote/core/blocks";
 import { InputRule } from "@tiptap/core";
 import Code from "@tiptap/extension-code";
+import { closeHistory } from "@tiptap/pm/history";
 import { Plugin, TextSelection } from "@tiptap/pm/state";
 import type { Slice } from "@tiptap/pm/model";
 
@@ -199,6 +200,30 @@ const inlineCodeBackspaceExtension = createExtension({
 
         return true;
       });
+    },
+  },
+});
+
+const LIST_BLOCK_TYPES = new Set([
+  "bulletListItem",
+  "numberedListItem",
+  "checkListItem",
+]);
+
+const listHistoryBoundaryExtension = createExtension({
+  key: "editor-list-history-boundary",
+  runsBefore: ["default"],
+  keyboardShortcuts: {
+    Enter: ({ editor }) => {
+      const { block } = editor.getTextCursorPosition();
+      if (!LIST_BLOCK_TYPES.has(block.type)) return false;
+
+      editor.transact((tr) => {
+        // 当前列表项到此结束，下一项内容需要形成独立撤销单元。
+        closeHistory(tr);
+      });
+
+      return false;
     },
   },
 });
@@ -408,6 +433,7 @@ const editorBulletListItemSpec = {
   ...defaultBlockSpecs.bulletListItem,
   extensions: [
     ...(defaultBlockSpecs.bulletListItem.extensions ?? []),
+    listHistoryBoundaryExtension(),
     plainBulletListPasteExtension(),
   ],
 };

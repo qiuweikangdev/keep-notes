@@ -62,6 +62,7 @@ import {
   readImageFileAsDataUrl,
 } from "../lib/editor-image";
 import { editorSchema } from "../lib/blocknote-schema";
+import { configureRichTextUndoHistory } from "../lib/editor-undo-history";
 import { selectCodeBlockContent } from "./editor-code-block";
 
 import "@blocknote/core/fonts/inter.css";
@@ -628,6 +629,11 @@ function BlockNoteEditorInner({
     uploadFile: uploadEditorImageFile,
   });
   editorRef.current = editor;
+
+  useLayoutEffect(() => {
+    // BlockNote 挂载后替换默认的 100 步历史栈，避免长时间编辑时丢弃早期撤销记录。
+    configureRichTextUndoHistory(editor);
+  }, [editor]);
 
   // 获取 store 中的方法
   const setOutlineHeadings = useEditorStore(

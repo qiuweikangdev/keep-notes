@@ -3,6 +3,8 @@ import {
   history,
   historyKeymap,
   indentWithTab,
+  isolateHistory,
+  undoDepth,
 } from "@codemirror/commands";
 import { css } from "@codemirror/lang-css";
 import { html } from "@codemirror/lang-html";
@@ -630,6 +632,24 @@ class EditorCodeBlockNodeView {
               return true;
             },
           },
+          {
+            key: "Enter",
+            run: (view) => {
+              // 换行与下一行内容组成独立撤销单元，避免一次撤回清空多行输入。
+              view.dispatch({ annotations: isolateHistory.of("before") });
+
+              return false;
+            },
+          },
+          {
+            key: "Mod-z",
+            run: (view) => {
+              if (undoDepth(view.state) > 0) return false;
+
+              // 代码内容已全部撤回后，继续撤销外层的代码块创建等结构操作。
+              return this.editor.undo();
+            },
+          },
         ]),
       ),
       lineNumbers(),
@@ -746,7 +766,8 @@ class EditorCodeBlockNodeView {
     tr = tr.setSelection(
       TextSelection.create(tr.doc, nextSelectionFrom, nextSelectionTo),
     );
-    view.dispatch(tr);
+    // 代码文本由 CodeMirror 维护撤销栈，外层只记录代码块创建、删除等结构历史。
+    view.dispatch(tr.setMeta("addToHistory", false));
   }
 
   private selectAllCode() {
