@@ -272,6 +272,7 @@
 .editor-code-block__language-wrap {
   flex: 1;
   min-width: 0;
+  margin-right: 36px;
 }
 
 .editor-code-block-language-trigger {

@@ -518,7 +518,7 @@ class EditorCodeBlockNodeView {
       return;
     }
 
-    // 点击代码块空白区域时，让光标回到 CodeMirror，而不是落到外层富文本。
+    // 点击代码正文、普通 gutter 或其他非控件区域时，让焦点回到 CodeMirror，而不是落到外层富文本。
     this.codeMirror.focus();
   };
 

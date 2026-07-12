@@ -215,6 +215,9 @@ describe("blocknote overrides stylesheet", () => {
     expect(getRule(".editor-code-block__language-wrap")).toMatch(
       /min-width:\s*0;/,
     );
+    expect(getRule(".editor-code-block__language-wrap")).toMatch(
+      /margin-right:\s*36px;/,
+    );
     expect(getRule(".editor-code-block-language-trigger")).toMatch(
       /max-width:\s*100%;/,
     );
