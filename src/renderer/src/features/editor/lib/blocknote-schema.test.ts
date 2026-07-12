@@ -968,6 +968,45 @@ describe("editor BlockNote schema", () => {
     expect(getCodeMirrorView(container).hasFocus).toBe(true);
   });
 
+  it("focuses CodeMirror when clicking the code content", async () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "codeBlock",
+          props: { language: "js" },
+          content: "const a = 1",
+        },
+      ],
+    });
+
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    await waitFor(() => {
+      expect(getCodeMirrorView(container).state.doc.toString()).toBe(
+        "const a = 1",
+      );
+    });
+
+    const view = getCodeMirrorView(container);
+    const content = container.querySelector<HTMLElement>(
+      ".editor-code-block__codemirror .cm-content",
+    );
+    expect(content).not.toBe(null);
+
+    view.contentDOM.blur();
+    content?.dispatchEvent(
+      new MouseEvent("mousedown", {
+        bubbles: true,
+        button: 2,
+        cancelable: true,
+      }),
+    );
+
+    expect(view.hasFocus).toBe(true);
+  });
+
   it("focuses CodeMirror when clicking the line-number gutter", async () => {
     setupMatchMedia();
     const editor = BlockNoteEditor.create({

@@ -512,7 +512,6 @@ class EditorCodeBlockNodeView {
         [
           ".editor-code-block__toolbar",
           ".editor-code-block-language-popover",
-          ".cm-content",
         ].join(", "),
       )
     ) {
@@ -874,7 +873,7 @@ class EditorCodeBlockNodeView {
       "editor-code-block__toolbar flex items-center justify-between gap-2 border-b border-[var(--border-color)] px-2 py-1";
 
     const languageWrap = document.createElement("div");
-    languageWrap.className = "relative";
+    languageWrap.className = "editor-code-block__language-wrap relative";
 
     this.languageButton = document.createElement("button");
     this.languageButton.type = "button";

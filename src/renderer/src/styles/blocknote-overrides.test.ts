@@ -211,8 +211,15 @@ describe("blocknote overrides stylesheet", () => {
   });
 
   it("keeps the code language trigger on one line inside the code block", () => {
+    expect(getRule(".editor-code-block__language-wrap")).toMatch(/flex:\s*1;/);
+    expect(getRule(".editor-code-block__language-wrap")).toMatch(
+      /min-width:\s*0;/,
+    );
     expect(getRule(".editor-code-block-language-trigger")).toMatch(
-      /max-width:\s*calc\(100% - 36px\);/,
+      /max-width:\s*100%;/,
+    );
+    expect(getRule(".editor-code-block-language-trigger > span")).toMatch(
+      /min-width:\s*0;/,
     );
     expect(getRule(".editor-code-block-language-trigger > span")).toMatch(
       /overflow:\s*hidden;/,
@@ -222,6 +229,9 @@ describe("blocknote overrides stylesheet", () => {
     );
     expect(getRule(".editor-code-block-language-trigger > span")).toMatch(
       /white-space:\s*nowrap;/,
+    );
+    expect(getRule(".editor-code-block-language-trigger > svg")).toMatch(
+      /flex-shrink:\s*0;/,
     );
   });
 

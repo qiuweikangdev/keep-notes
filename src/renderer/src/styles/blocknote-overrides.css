@@ -269,6 +269,11 @@
   z-index: 60;
 }
 
+.editor-code-block__language-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
 .editor-code-block-language-trigger {
   position: absolute;
   left: 0;
@@ -280,13 +285,18 @@
   color: var(--editor-code-block-text);
   pointer-events: auto;
   backdrop-filter: blur(8px);
-  max-width: calc(100% - 36px);
+  max-width: 100%;
 }
 
 .editor-code-block-language-trigger > span {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.editor-code-block-language-trigger > svg {
+  flex-shrink: 0;
 }
 
 .editor-code-block-language-trigger:hover {
