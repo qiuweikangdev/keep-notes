@@ -20,13 +20,17 @@ import {
   measureEditorOperation,
 } from "../lib/editor-performance";
 import type { RichBlockNoteRuntime } from "./blocknote-editor";
-import { EditorStateView } from "./editor-state-view";
 import { VirtualRichPreview } from "./virtual-rich-preview";
 
 interface RichDocumentPaneProps {
   groupId: string;
   tabId: string;
   path: string;
+}
+
+interface PanePathRegistration {
+  releaseHost: () => void;
+  releaseVisible: () => void;
 }
 
 function attachRichPane(path: string, paneKey: RichPaneKey): boolean {
@@ -98,6 +102,11 @@ export function RichDocumentPane({
   const normalizedPath = normalizeRichDocumentPath(path);
   const paneKey = toRichPaneKey(groupId, tabId);
   const hostRef = useRef<HTMLDivElement>(null);
+  const registrationsRef = useRef(new Map<string, PanePathRegistration>());
+  const lastReadyRuntimeRef = useRef<{
+    path: string;
+    runtime: RichBlockNoteRuntime;
+  } | null>(null);
   const subscribeRuntime = useCallback(
     (listener: () => void) =>
       richDocumentSessionManager.subscribeRuntime(normalizedPath, listener),
@@ -112,6 +121,13 @@ export function RichDocumentPane({
     getRuntimeSnapshot,
     getRuntimeSnapshot,
   ) as RichBlockNoteRuntime | null;
+  if (runtime) {
+    lastReadyRuntimeRef.current = { path: normalizedPath, runtime };
+  }
+  const displayedRuntime = runtime ?? lastReadyRuntimeRef.current?.runtime;
+  const displayedPath = runtime
+    ? normalizedPath
+    : (lastReadyRuntimeRef.current?.path ?? normalizedPath);
   const isLive = useEditorStore(
     (state) =>
       state.activeGroupId === groupId &&
@@ -119,11 +135,43 @@ export function RichDocumentPane({
         tabId,
   );
 
+  const releaseRegistration = useCallback(
+    (registeredPath: string, clearClosedPaneState: boolean) => {
+      const registration = registrationsRef.current.get(registeredPath);
+      if (!registration) return;
+
+      richDocumentSessionManager.deactivateIfActive(registeredPath, paneKey);
+      registration.releaseHost();
+      registration.releaseVisible();
+      registrationsRef.current.delete(registeredPath);
+      if (!clearClosedPaneState) return;
+
+      queueMicrotask(() => {
+        const paneStillExists = useEditorStore
+          .getState()
+          .panelGroups.find((group) => group.id === groupId)
+          ?.tabs.some((tab) => tab.id === tabId);
+        if (!paneStillExists) richPaneViewStateRegistry.delete(paneKey);
+      });
+    },
+    [groupId, paneKey, tabId],
+  );
+
+  useLayoutEffect(() => {
+    return () => {
+      for (const registeredPath of Array.from(
+        registrationsRef.current.keys(),
+      )) {
+        releaseRegistration(registeredPath, true);
+      }
+    };
+  }, [paneKey, releaseRegistration]);
+
   useLayoutEffect(() => {
     const host = hostRef.current;
-    if (!host) return;
+    if (!host || registrationsRef.current.has(normalizedPath)) return;
 
-    // 同一次提交先注册可见 binding 和稳定 host，后续激活 effect 才能在首帧接管 surface。
+    // 新文件先注册到同一宿主，但旧文件绑定保留到目标 runtime 就绪，避免切换期间出现 loading 闪烁。
     const releaseVisible = richDocumentSessionManager.retainVisible(
       normalizedPath,
       { paneKey, groupId, tabId },
@@ -133,41 +181,46 @@ export function RichDocumentPane({
       paneKey,
       host,
     );
-    return () => {
-      richDocumentSessionManager.deactivateIfActive(normalizedPath, paneKey);
-      releaseHost();
-      releaseVisible();
-      queueMicrotask(() => {
-        const paneStillExists = useEditorStore
-          .getState()
-          .panelGroups.find((group) => group.id === groupId)
-          ?.tabs.some((tab) => tab.id === tabId);
-        if (!paneStillExists) richPaneViewStateRegistry.delete(paneKey);
-      });
-    };
+    registrationsRef.current.set(normalizedPath, {
+      releaseHost,
+      releaseVisible,
+    });
   }, [groupId, normalizedPath, paneKey, tabId]);
 
   useLayoutEffect(() => {
-    if (!isLive || !runtime) {
-      richDocumentSessionManager.deactivateIfActive(normalizedPath, paneKey);
+    if (!runtime) {
+      if (!isLive) {
+        for (const registeredPath of registrationsRef.current.keys()) {
+          richDocumentSessionManager.deactivateIfActive(
+            registeredPath,
+            paneKey,
+          );
+        }
+      }
       return;
     }
-    // runtime 注册会触发路径级订阅；此处重新激活，不依赖偶然的 store 更新或轮询。
-    attachRichPane(normalizedPath, paneKey);
-    return () => {
+
+    if (isLive && !attachRichPane(normalizedPath, paneKey)) return;
+    if (!isLive) {
       richDocumentSessionManager.deactivateIfActive(normalizedPath, paneKey);
-    };
-  }, [isLive, normalizedPath, paneKey, runtime]);
+    }
+
+    // 目标完整富文本已接管后再释放旧文档，切换对用户表现为一次原子替换。
+    for (const registeredPath of Array.from(registrationsRef.current.keys())) {
+      if (registeredPath !== normalizedPath) {
+        releaseRegistration(registeredPath, false);
+      }
+    }
+  }, [isLive, normalizedPath, paneKey, releaseRegistration, runtime]);
 
   const handleActivate = useCallback(
     (anchor: RichPreviewAnchor | null) => {
-      if (!runtime) return;
-      activateRichPane(normalizedPath, { paneKey, groupId, tabId }, anchor);
+      if (!displayedRuntime) return;
+      activateRichPane(displayedPath, { paneKey, groupId, tabId }, anchor);
     },
-    [groupId, normalizedPath, paneKey, runtime, tabId],
+    [displayedPath, displayedRuntime, groupId, paneKey, tabId],
   );
 
-  const fileName = path.split(/[\\/]/).pop();
   return (
     <div
       className="relative h-full min-h-0 overflow-hidden"
@@ -176,11 +229,16 @@ export function RichDocumentPane({
     >
       <div
         className="absolute inset-0 h-full min-h-0"
-        data-testid={isLive && runtime ? "rich-document-live-host" : undefined}
+        data-testid={
+          isLive && displayedRuntime ? "rich-document-live-host" : undefined
+        }
         ref={hostRef}
       />
-      {!runtime ? (
-        <EditorStateView status="loading" fileName={fileName} />
+      {!displayedRuntime ? (
+        <div
+          className="absolute inset-0 bg-[var(--bg-primary)]"
+          data-testid="editor-pending-canvas"
+        />
       ) : (
         <>
           <div
@@ -193,12 +251,12 @@ export function RichDocumentPane({
             }}
           >
             <VirtualRichPreview
-              cache={runtime.previewCache}
+              cache={displayedRuntime.previewCache}
               onActivate={handleActivate}
               paneKey={paneKey}
             />
           </div>
-          {!isLive && import.meta.env.DEV ? (
+          {!isLive && runtime && import.meta.env.DEV ? (
             <EditorSplitPaintCommit groupId={groupId} />
           ) : null}
         </>

@@ -289,7 +289,8 @@ describe("RichDocumentPane", () => {
   it("rerenders and activates before paint when its runtime becomes ready", () => {
     render(<RichDocumentPane groupId="group-1" tabId="tab-1" path={path} />);
 
-    expect(screen.getByTestId("editor-loading-skeleton")).toBeInTheDocument();
+    expect(screen.queryByTestId("editor-loading-skeleton")).toBeNull();
+    expect(screen.getByTestId("editor-pending-canvas")).toBeInTheDocument();
     expect(richDocumentSessionManager.getVisiblePaneKeys(path)).toEqual([
       "group-1:tab-1",
     ]);
@@ -303,7 +304,7 @@ describe("RichDocumentPane", () => {
       );
     });
 
-    expect(screen.queryByTestId("editor-loading-skeleton")).toBeNull();
+    expect(screen.queryByTestId("editor-pending-canvas")).toBeNull();
     expect(runtime.surface.parentElement).toBe(document.body);
     expect(runtime.surface.dataset.activePaneKey).toBe("group-1:tab-1");
     expect(richDocumentSessionManager.getActivePane(path)).toBe(
@@ -312,7 +313,56 @@ describe("RichDocumentPane", () => {
     expect(runtime.restoreViewState).toHaveBeenCalledTimes(1);
 
     act(() => unregisterRuntime?.());
-    expect(screen.getByTestId("editor-loading-skeleton")).toBeInTheDocument();
+    expect(screen.queryByTestId("editor-loading-skeleton")).toBeNull();
+    expect(screen.getByTestId("virtual-rich-preview")).toBeInTheDocument();
+  });
+
+  it("keeps the outgoing rich document visible until the next file runtime is ready", () => {
+    const nextPath = "C:/notes/next.md";
+    const view = render(
+      <RichDocumentPane groupId="group-1" tabId="tab-1" path={path} />,
+    );
+    const outgoingRuntime = createRuntime(path);
+    const nextRuntime = createRuntime(nextPath);
+    let unregisterOutgoing: (() => void) | undefined;
+    let unregisterNext: (() => void) | undefined;
+    act(() => {
+      unregisterOutgoing = richDocumentSessionManager.registerRuntime(
+        path,
+        outgoingRuntime,
+      );
+    });
+
+    view.rerender(
+      <RichDocumentPane groupId="group-1" tabId="tab-1" path={nextPath} />,
+    );
+
+    expect(screen.queryByTestId("editor-loading-skeleton")).toBeNull();
+    expect(outgoingRuntime.surface.style.visibility).toBe("visible");
+    expect(outgoingRuntime.surface.dataset.activePaneKey).toBe("group-1:tab-1");
+    expect(richDocumentSessionManager.getVisiblePaneKeys(path)).toEqual([
+      "group-1:tab-1",
+    ]);
+    expect(richDocumentSessionManager.getVisiblePaneKeys(nextPath)).toEqual([
+      "group-1:tab-1",
+    ]);
+
+    act(() => {
+      unregisterNext = richDocumentSessionManager.registerRuntime(
+        nextPath,
+        nextRuntime,
+      );
+    });
+
+    expect(nextRuntime.surface.dataset.activePaneKey).toBe("group-1:tab-1");
+    expect(outgoingRuntime.surface.style.visibility).toBe("hidden");
+    expect(richDocumentSessionManager.getVisiblePaneKeys(path)).toEqual([]);
+    expect(richDocumentSessionManager.getVisiblePaneKeys(nextPath)).toEqual([
+      "group-1:tab-1",
+    ]);
+
+    act(() => unregisterNext?.());
+    unregisterOutgoing?.();
   });
 
   it("reactivates replacement and recovered runtimes with the latest state once", () => {
@@ -359,7 +409,8 @@ describe("RichDocumentPane", () => {
 
     act(() => unregisterSecond?.());
     expect(secondRuntime.surface.parentElement).toBeNull();
-    expect(screen.getByTestId("editor-loading-skeleton")).toBeVisible();
+    expect(screen.queryByTestId("editor-loading-skeleton")).toBeNull();
+    expect(screen.getByTestId("virtual-rich-preview")).toBeInTheDocument();
 
     act(() => {
       unregisterRecovered = richDocumentSessionManager.registerRuntime(
@@ -430,7 +481,7 @@ describe("RichDocumentPane", () => {
     act(() => unregisterRuntime?.());
   });
 
-  it("hides the stable outgoing surface for source and loading targets", () => {
+  it("hides the outgoing surface for an inactive pending target without showing loading", () => {
     const secondPath = "C:/notes/loading.md";
     const view = render(
       <>
@@ -464,7 +515,10 @@ describe("RichDocumentPane", () => {
     expect(richDocumentSessionManager.getActiveBinding()).toBeNull();
     expect(within(firstPane).getByTestId("virtual-rich-preview")).toBeVisible();
     expect(
-      within(secondPane).getByTestId("editor-loading-skeleton"),
+      within(secondPane).queryByTestId("editor-loading-skeleton"),
+    ).toBeNull();
+    expect(
+      within(secondPane).getByTestId("editor-pending-canvas"),
     ).toBeVisible();
 
     let unregisterSecond: (() => void) | undefined;

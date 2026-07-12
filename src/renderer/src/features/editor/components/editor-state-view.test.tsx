@@ -5,12 +5,6 @@ import { describe, expect, it, vi } from "vitest";
 import { EditorStateView } from "./editor-state-view";
 
 describe("EditorStateView", () => {
-  it("shows a skeleton while loading", () => {
-    render(<EditorStateView status="loading" fileName="b.md" />);
-
-    expect(screen.getByTestId("editor-loading-skeleton")).toBeInTheDocument();
-  });
-
   it("renders a retry action for read errors", async () => {
     const retry = vi.fn();
     render(

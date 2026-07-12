@@ -88,6 +88,34 @@ describe("EditorWorkspace split rich editor mount", () => {
       "group-1:tab-1:large.md",
     );
   });
+
+  it("keeps the current rich pane mounted while the next file is loading", () => {
+    useEditorStore.setState((state) => ({
+      panelGroups: state.panelGroups.map((group) =>
+        group.id === "group-1"
+          ? {
+              ...group,
+              tabs: group.tabs.map((tab) =>
+                tab.id === "tab-1"
+                  ? {
+                      ...tab,
+                      pendingFilePath: "next.md",
+                      loadStatus: "loading" as const,
+                    }
+                  : tab,
+              ),
+            }
+          : group,
+      ),
+    }));
+
+    render(<EditorWorkspace groupId="group-1" tabId="tab-1" />);
+
+    expect(screen.getByTestId("rich-document-pane")).toHaveTextContent(
+      "group-1:tab-1:large.md",
+    );
+    expect(screen.queryByTestId("editor-loading-skeleton")).toBeNull();
+  });
 });
 
 function createLargeContent() {
