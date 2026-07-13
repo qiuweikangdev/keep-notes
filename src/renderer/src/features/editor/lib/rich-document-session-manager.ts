@@ -11,6 +11,7 @@ import {
 export interface RichDocumentRuntime {
   path: string;
   surface: HTMLElement;
+  captureVisualSnapshot?: () => void;
   serializePendingChange: () => Promise<void>;
   cancelPendingWork: () => void;
   destroy: () => void;
@@ -224,6 +225,8 @@ export class RichDocumentSessionManager {
 
     if (this.activeDocumentPath === normalizedPath && record.activePaneKey) {
       // 同文档分栏切换只移动稳定表面，避免 visibility 往返触发整棵 ProseMirror 样式重算。
+      // 搬移前先把当前可见块的真实 DOM 交给旧窗格，避免代码行号和折叠标记退化成序列化占位。
+      record.runtime?.captureVisualSnapshot?.();
       this.captureRuntimeViewState(record, record.runtime);
       const previousPaneKey = record.activePaneKey;
       // surface 恢复焦点时会同步触发编辑器 focus；必须先提交新 owner，避免焦点回调写回旧 pane。

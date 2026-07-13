@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  chooseCapturedEditorViewport,
   chooseRestoredEditorScrollTop,
   readEditorViewportAnchor,
   readEditorScrollTop,
   restoreEditorScrollTop,
+  resolveEditorViewportTargetOffset,
   scheduleStableEditorBlockScroll,
   scrollEditorBlockIntoView,
 } from "./editor-viewport";
@@ -50,6 +52,42 @@ describe("editor viewport", () => {
     ).toBe(0);
   });
 
+  it("keeps the requested viewport while a pane restore is still settling", () => {
+    const live = {
+      scrollTop: 940,
+      topBlockId: "code-block",
+      topBlockOffset: 210,
+      topBlockRatio: 0.4,
+      topCodeLine: 12,
+      topCodeLineOffset: -8,
+    };
+    const pending = {
+      scrollTop: 720,
+      topBlockId: "code-block",
+      topBlockOffset: 130,
+      topBlockRatio: 0.25,
+      topCodeLine: 8,
+      topCodeLineOffset: -4,
+    };
+
+    expect(
+      chooseCapturedEditorViewport({
+        live,
+        now: 150,
+        pending,
+        suppressUntil: 250,
+      }),
+    ).toEqual(pending);
+    expect(
+      chooseCapturedEditorViewport({
+        live,
+        now: 251,
+        pending,
+        suppressUntil: 250,
+      }),
+    ).toEqual(live);
+  });
+
   it("scrolls a target block by updating the editor scroll container", () => {
     const container = {
       scrollTop: 200,
@@ -89,9 +127,28 @@ describe("editor viewport", () => {
     expect(
       readEditorViewportAnchor(container, blocks, (block) => block.id),
     ).toEqual({
+      topCodeLine: null,
+      topCodeLineOffset: 0,
       topBlockId: "block-b",
       topBlockOffset: 30,
+      topBlockRatio: 0.375,
     });
+  });
+
+  it("restores the same relative position when live and preview block heights differ", () => {
+    const previewBlock = {
+      getBoundingClientRect: () => ({ top: -380, bottom: 420, height: 800 }),
+    };
+
+    expect(
+      resolveEditorViewportTargetOffset(previewBlock, {
+        topCodeLine: null,
+        topCodeLineOffset: 0,
+        topBlockId: "code-block",
+        topBlockOffset: 250,
+        topBlockRatio: 0.25,
+      }),
+    ).toBe(200);
   });
 
   it("restores the same block offset across different renderer heights", () => {
@@ -142,5 +199,81 @@ describe("editor viewport", () => {
     scheduledFrames.shift()?.();
 
     expect(container.scrollTop).toBe(400);
+  });
+
+  it("keeps aligning while embedded editor geometry changes across frames", () => {
+    const scheduledFrames: Array<() => void> = [];
+    const container = {
+      scrollTop: 0,
+      getBoundingClientRect: () => ({ top: 0 }),
+    };
+    let layoutShift = 0;
+    const target = {
+      getBoundingClientRect: () => ({
+        top: 400 + layoutShift - container.scrollTop,
+      }),
+    };
+
+    expect(
+      scheduleStableEditorBlockScroll({
+        container,
+        getTarget: () => target,
+        schedule: (callback) => {
+          scheduledFrames.push(callback);
+        },
+      }),
+    ).toBe(true);
+    expect(container.scrollTop).toBe(400);
+
+    layoutShift = 80;
+    scheduledFrames.shift()?.();
+    expect(container.scrollTop).toBe(480);
+    expect(scheduledFrames).toHaveLength(1);
+
+    layoutShift = 160;
+    scheduledFrames.shift()?.();
+    expect(container.scrollTop).toBe(560);
+    expect(scheduledFrames).toHaveLength(1);
+
+    scheduledFrames.shift()?.();
+    scheduledFrames.shift()?.();
+    expect(container.scrollTop).toBe(560);
+    expect(scheduledFrames).toHaveLength(0);
+  });
+
+  it("recalculates a proportional target offset while block height settles", () => {
+    const scheduledFrames: Array<() => void> = [];
+    const container = {
+      scrollTop: 0,
+      getBoundingClientRect: () => ({ top: 0 }),
+    };
+    let height = 400;
+    const target = {
+      getBoundingClientRect: () => ({
+        bottom: 400 - container.scrollTop + height,
+        height,
+        top: 400 - container.scrollTop,
+      }),
+    };
+    const anchor = {
+      topCodeLine: null,
+      topCodeLineOffset: 0,
+      topBlockId: "code-block",
+      topBlockOffset: 100,
+      topBlockRatio: 0.25,
+    };
+
+    scheduleStableEditorBlockScroll({
+      container,
+      getTarget: () => target,
+      getTargetOffset: (candidate) =>
+        resolveEditorViewportTargetOffset(candidate, anchor),
+      schedule: (callback) => scheduledFrames.push(callback),
+    });
+    expect(container.scrollTop).toBe(500);
+
+    height = 800;
+    scheduledFrames.shift()?.();
+    expect(container.scrollTop).toBe(600);
   });
 });

@@ -9,8 +9,11 @@ export interface RichPaneSelection {
 
 export interface RichPaneViewState {
   scrollTop: number;
+  topCodeLine: number | null;
+  topCodeLineOffset: number;
   topBlockId: string | null;
   topBlockOffset: number;
+  topBlockRatio: number | null;
   selection: RichPaneSelection | null;
   width: number;
 }
@@ -31,8 +34,11 @@ interface PendingPaneScroll {
 
 const EMPTY_VIEW_STATE: RichPaneViewState = {
   scrollTop: 0,
+  topCodeLine: null,
+  topCodeLineOffset: 0,
   topBlockId: null,
   topBlockOffset: 0,
+  topBlockRatio: null,
   selection: null,
   width: 0,
 };
@@ -124,7 +130,14 @@ export class RichPaneScrollIdleWriter {
   record(
     owner: RichPaneScrollOwner,
     scrollTop: number,
-    viewportAnchor?: Pick<RichPaneViewState, "topBlockId" | "topBlockOffset">,
+    viewportAnchor?: Pick<
+      RichPaneViewState,
+      | "topBlockId"
+      | "topBlockOffset"
+      | "topBlockRatio"
+      | "topCodeLine"
+      | "topCodeLineOffset"
+    >,
   ): void {
     if (this.destroyed) return;
 

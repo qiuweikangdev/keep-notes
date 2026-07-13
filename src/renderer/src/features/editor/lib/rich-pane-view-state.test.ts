@@ -24,8 +24,11 @@ describe("RichPaneViewStateRegistry", () => {
     expect(states.read("g2:t2").scrollTop).toBe(760);
     expect(states.read("missing:tab")).toEqual({
       scrollTop: 0,
+      topCodeLine: null,
+      topCodeLineOffset: 0,
       topBlockId: null,
       topBlockOffset: 0,
+      topBlockRatio: null,
       selection: null,
       width: 0,
     });

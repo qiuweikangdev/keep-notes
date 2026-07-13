@@ -1,5 +1,6 @@
 import { BlockNoteEditor } from "@blocknote/core";
 import { BlockNoteView } from "@blocknote/mantine";
+import { foldEffect, foldable, foldedRanges } from "@codemirror/language";
 import { EditorView } from "@codemirror/view";
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -254,6 +255,60 @@ describe("editor BlockNote schema", () => {
     expect(
       output.dom.querySelector(".editor-code-block__codemirror .cm-editor"),
     ).not.toBe(null);
+
+    output.destroy?.();
+  });
+
+  it("preserves folded code when a pane restores a selection inside it", () => {
+    const output = editorBlockSpecs.codeBlock.implementation.render.call(
+      {
+        blockContentDOMAttributes: {},
+        props: undefined,
+        renderType: "nodeView",
+      },
+      {
+        id: "block-1",
+        type: "codeBlock",
+        props: { language: "ts" },
+        content: "function demo() {\n  return 1;\n}\nnext();",
+        children: [],
+      } as never,
+      {
+        isEditable: true,
+        updateBlock: vi.fn(),
+      } as never,
+    ) as {
+      destroy?: () => void;
+      dom: HTMLElement;
+      setSelection?: (anchor: number, head: number) => void;
+    };
+    const codeMirror = getCodeMirrorView(output.dom);
+    const firstLine = codeMirror.state.doc.line(1);
+    const foldRange = foldable(codeMirror.state, firstLine.from, firstLine.to);
+
+    expect(foldRange).not.toBe(null);
+    codeMirror.dispatch({ effects: foldEffect.of(foldRange!) });
+    const dispatchSpy = vi.spyOn(codeMirror, "dispatch");
+    output.setSelection?.(
+      codeMirror.state.doc.length,
+      codeMirror.state.doc.length,
+    );
+
+    expect(dispatchSpy).toHaveBeenCalledOnce();
+    expect(dispatchSpy.mock.calls[0]?.[0]).not.toHaveProperty("scrollIntoView");
+
+    output.setSelection?.(foldRange!.from + 1, foldRange!.from + 1);
+    expect(dispatchSpy).toHaveBeenCalledOnce();
+
+    let foldCount = 0;
+    foldedRanges(codeMirror.state).between(
+      0,
+      codeMirror.state.doc.length,
+      () => {
+        foldCount += 1;
+      },
+    );
+    expect(foldCount).toBe(1);
 
     output.destroy?.();
   });

@@ -1,7 +1,17 @@
+import { EditorView as CodeMirrorView } from "@codemirror/view";
+
 import type { RichPaneKey } from "./rich-pane-view-state";
 
 export function normalizeRichDocumentPath(path: string): string {
   return path.replaceAll("\\", "/");
+}
+
+function requestEmbeddedCodeMirrorMeasurements(surface: HTMLElement): void {
+  for (const editorElement of surface.querySelectorAll<HTMLElement>(
+    ".cm-editor",
+  )) {
+    CodeMirrorView.findFromDOM(editorElement)?.requestMeasure();
+  }
 }
 
 interface SurfaceEntry {
@@ -9,6 +19,7 @@ interface SurfaceEntry {
   hosts: Map<RichPaneKey, HTMLElement>;
   activePaneKey: RichPaneKey | null;
   focusTarget: HTMLElement | null;
+  measurementGeneration: number;
   resizeObserver: ResizeObserver | null;
 }
 
@@ -95,8 +106,10 @@ export class RichDocumentSurfaceRegistry {
 
     // 表面始终挂在稳定的 body 容器，只更新定位，避免重挂完整编辑器触发所有块重排。
     this.captureFocus(entry);
+    const movedBetweenPanes =
+      entry.activePaneKey !== null && entry.activePaneKey !== paneKey;
     entry.activePaneKey = paneKey;
-    this.showAtHost(entry, host, paneKey);
+    this.showAtHost(entry, host, paneKey, movedBetweenPanes);
     return true;
   }
 
@@ -126,6 +139,7 @@ export class RichDocumentSurfaceRegistry {
       hosts: new Map(),
       activePaneKey: null,
       focusTarget: null,
+      measurementGeneration: 0,
       resizeObserver: null,
     };
     this.entries.set(normalizedPath, entry);
@@ -154,6 +168,7 @@ export class RichDocumentSurfaceRegistry {
     entry: SurfaceEntry,
     host: HTMLElement,
     paneKey: RichPaneKey,
+    settleMeasurements = false,
   ): void {
     const surface = entry.surface;
     if (!surface) return;
@@ -167,6 +182,12 @@ export class RichDocumentSurfaceRegistry {
     surface.style.pointerEvents = "auto";
     surface.setAttribute("aria-hidden", "false");
     surface.dataset.activePaneKey = paneKey;
+    // 固定表面换到另一个 pane 后尺寸可能相同，但视口位置已变化，需主动刷新 gutter 的行号和折叠标记。
+    requestEmbeddedCodeMirrorMeasurements(surface);
+    entry.measurementGeneration += 1;
+    if (settleMeasurements) {
+      this.scheduleSettledCodeMirrorMeasurements(entry, surface);
+    }
     this.observeHost(entry, host, paneKey);
 
     if (entry.focusTarget?.isConnected && surface.contains(entry.focusTarget)) {
@@ -181,6 +202,28 @@ export class RichDocumentSurfaceRegistry {
     surface.style.pointerEvents = "none";
     surface.setAttribute("aria-hidden", "true");
     delete surface.dataset.activePaneKey;
+  }
+
+  private scheduleSettledCodeMirrorMeasurements(
+    entry: SurfaceEntry,
+    surface: HTMLElement,
+  ): void {
+    if (typeof requestAnimationFrame !== "function") return;
+    const generation = entry.measurementGeneration;
+    let remainingFrames = 2;
+    const measure = () => {
+      if (
+        entry.surface !== surface ||
+        entry.measurementGeneration !== generation
+      ) {
+        return;
+      }
+
+      requestEmbeddedCodeMirrorMeasurements(surface);
+      remainingFrames -= 1;
+      if (remainingFrames > 0) requestAnimationFrame(measure);
+    };
+    requestAnimationFrame(measure);
   }
 
   private observeHost(
@@ -213,6 +256,7 @@ export class RichDocumentSurfaceRegistry {
     surface.style.top = `${rect.top}px`;
     surface.style.width = `${rect.width}px`;
     surface.style.height = `${rect.height}px`;
+    requestEmbeddedCodeMirrorMeasurements(surface);
   }
 
   private stopObservingHost(entry: SurfaceEntry): void {

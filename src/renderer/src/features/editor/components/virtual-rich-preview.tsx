@@ -22,8 +22,13 @@ import {
 import type { RichPaneKey } from "@/features/editor/lib/rich-pane-view-state";
 import type { RichPreviewCache } from "@/features/editor/lib/rich-preview-cache";
 import {
+  createEditorCodeLineTarget,
+  readEditorCodeViewportAnchor,
+} from "@/features/editor/lib/editor-code-viewport";
+import {
   readEditorViewportAnchor,
-  scrollEditorBlockIntoView,
+  resolveEditorViewportTargetOffset,
+  scheduleStableEditorBlockScroll,
 } from "@/features/editor/lib/editor-viewport";
 
 interface VirtualRichPreviewProps {
@@ -237,11 +242,24 @@ function findPreviewBlock(
 }
 
 function readPreviewViewportAnchor(preview: HTMLElement) {
-  return readEditorViewportAnchor(
+  const anchor = readEditorViewportAnchor(
     preview,
     preview.querySelectorAll<HTMLElement>("[data-rich-preview-block]"),
     (block) => block.dataset.blockId ?? null,
   );
+  const block = anchor.topBlockId
+    ? findPreviewBlock(preview, anchor.topBlockId)
+    : null;
+  if (!block) return anchor;
+
+  const bounds = preview.getBoundingClientRect();
+  return {
+    ...anchor,
+    ...readEditorCodeViewportAnchor(block, preview, {
+      x: bounds.left + Math.max(1, bounds.width / 2),
+      y: Math.min(bounds.bottom - 1, bounds.top + 24),
+    }),
+  };
 }
 
 export function VirtualRichPreview({
@@ -326,14 +344,38 @@ export function VirtualRichPreview({
     const target = state.topBlockId
       ? findPreviewBlock(preview, state.topBlockId)
       : null;
+    let targetIsCodeLine = false;
+    const getTarget = () => {
+      const block = state.topBlockId
+        ? findPreviewBlock(preview, state.topBlockId)
+        : null;
+      const codeLineTarget =
+        block && state.topCodeLine !== null
+          ? createEditorCodeLineTarget(block, state.topCodeLine)
+          : null;
+      targetIsCodeLine = Boolean(codeLineTarget);
+      return codeLineTarget ?? block;
+    };
     if (target) {
+      const viewportTarget = getTarget() ?? target;
+      const targetOffset = targetIsCodeLine
+        ? state.topCodeLineOffset
+        : resolveEditorViewportTargetOffset(viewportTarget, state);
       const delta =
-        target.getBoundingClientRect().top -
+        viewportTarget.getBoundingClientRect().top -
         preview.getBoundingClientRect().top +
-        state.topBlockOffset;
+        targetOffset;
       if (Math.abs(delta) < 1) return;
       suppressProgrammaticScrollUntilRef.current = performance.now() + 250;
-      scrollEditorBlockIntoView(preview, target, state.topBlockOffset);
+      scheduleStableEditorBlockScroll({
+        container: preview,
+        getTarget,
+        getTargetOffset: (candidate) =>
+          targetIsCodeLine
+            ? state.topCodeLineOffset
+            : resolveEditorViewportTargetOffset(candidate, state),
+        shouldContinue: () => restoreTokenRef.current === restoreToken,
+      });
       return;
     } else if (!state.topBlockId && preview.scrollTop === state.scrollTop) {
       return;
@@ -349,17 +391,17 @@ export function VirtualRichPreview({
     }
 
     virtualizer.scrollToIndex(targetIndex, { align: "start" });
-    let attempts = 0;
     const alignAnchor = () => {
-      if (restoreTokenRef.current !== restoreToken) return;
-      attempts += 1;
       suppressProgrammaticScrollUntilRef.current = performance.now() + 250;
-      scrollEditorBlockIntoView(
-        preview,
-        findPreviewBlock(preview, state.topBlockId!),
-        state.topBlockOffset,
-      );
-      if (attempts < 4) requestAnimationFrame(alignAnchor);
+      scheduleStableEditorBlockScroll({
+        container: preview,
+        getTarget,
+        getTargetOffset: (candidate) =>
+          targetIsCodeLine
+            ? state.topCodeLineOffset
+            : resolveEditorViewportTargetOffset(candidate, state),
+        shouldContinue: () => restoreTokenRef.current === restoreToken,
+      });
     };
     requestAnimationFrame(alignAnchor);
   }, [paneKey, snapshot.order, virtualizer]);

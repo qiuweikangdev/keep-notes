@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { EditorView as CodeMirrorView } from "@codemirror/view";
 
 import {
   normalizeRichDocumentPath,
@@ -74,6 +75,64 @@ describe("RichDocumentSurfaceRegistry", () => {
     expect(surface.style.visibility).toBe("hidden");
     expect(surface.dataset.activePaneKey).toBeUndefined();
     expect(registry.getActivePaneKey("C:\\notes\\large.md")).toBeNull();
+  });
+
+  it("remeasures every CodeMirror gutter after moving a surface between panes", () => {
+    const scheduledFrames: FrameRequestCallback[] = [];
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn((callback: FrameRequestCallback) => {
+        scheduledFrames.push(callback);
+        return scheduledFrames.length;
+      }),
+    );
+    const registry = new RichDocumentSurfaceRegistry();
+    const surface = document.createElement("div");
+    const firstCodeMirror = document.createElement("div");
+    const secondCodeMirror = document.createElement("div");
+    const firstHost = document.createElement("div");
+    const secondHost = document.createElement("div");
+    const firstRequestMeasure = vi.fn();
+    const secondRequestMeasure = vi.fn();
+    firstCodeMirror.className = "cm-editor";
+    secondCodeMirror.className = "cm-editor";
+    surface.append(firstCodeMirror, secondCodeMirror);
+    vi.spyOn(firstHost, "getBoundingClientRect").mockReturnValue(
+      rect(20, 50, 300, 200),
+    );
+    vi.spyOn(secondHost, "getBoundingClientRect").mockReturnValue(
+      rect(340, 120, 360, 240),
+    );
+    vi.spyOn(CodeMirrorView, "findFromDOM").mockImplementation((element) => {
+      if (element === firstCodeMirror) {
+        return { requestMeasure: firstRequestMeasure } as never;
+      }
+      if (element === secondCodeMirror) {
+        return { requestMeasure: secondRequestMeasure } as never;
+      }
+      return null;
+    });
+
+    registry.registerSurface("note.md", surface);
+    registry.registerHost("note.md", "g1:t1", firstHost);
+    registry.registerHost("note.md", "g2:t2", secondHost);
+    registry.activate("note.md", "g1:t1");
+    firstRequestMeasure.mockClear();
+    secondRequestMeasure.mockClear();
+
+    registry.activate("note.md", "g2:t2");
+
+    expect(firstRequestMeasure).toHaveBeenCalledOnce();
+    expect(secondRequestMeasure).toHaveBeenCalledOnce();
+
+    scheduledFrames.shift()?.(16);
+    expect(firstRequestMeasure).toHaveBeenCalledTimes(2);
+    expect(secondRequestMeasure).toHaveBeenCalledTimes(2);
+
+    scheduledFrames.shift()?.(32);
+    expect(firstRequestMeasure).toHaveBeenCalledTimes(3);
+    expect(secondRequestMeasure).toHaveBeenCalledTimes(3);
+    expect(scheduledFrames).toHaveLength(0);
   });
 
   it("returns false when the document surface or requested host is missing", () => {

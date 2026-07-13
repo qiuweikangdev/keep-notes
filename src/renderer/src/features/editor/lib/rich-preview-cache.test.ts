@@ -98,6 +98,39 @@ describe("RichPreviewCache", () => {
     cache.destroy();
   });
 
+  it("captures the live block DOM before a pane becomes a preview", () => {
+    const { cache } = createHarness();
+    const initialHtml = cache.getBlockSnapshot("block-a")?.html ?? "";
+    const template = document.createElement("template");
+    template.innerHTML = initialHtml;
+    const liveBlock = template.content.querySelector<HTMLElement>(
+      '[data-id="block-a"]',
+    );
+    expect(liveBlock).not.toBeNull();
+    liveBlock!.innerHTML = `
+      <div class="cm-editor cm-focused">
+        <div class="cm-foldGutter"><span title="Fold line">⌄</span></div>
+        <div class="cm-lineNumbers">26</div>
+        <div class="cm-cursor">cursor</div>
+        <div contenteditable="true">live code</div>
+      </div>
+    `;
+    const liveSurface = document.createElement("div");
+    liveSurface.append(liveBlock!);
+    const listener = vi.fn();
+    cache.subscribeBlock("block-a", listener);
+
+    cache.captureVisualSnapshot(liveSurface);
+
+    const capturedHtml = cache.getBlockSnapshot("block-a")?.html ?? "";
+    expect(capturedHtml).toContain('title="Fold line"');
+    expect(capturedHtml).toContain("live code");
+    expect(capturedHtml).toContain('contenteditable="false"');
+    expect(capturedHtml).not.toContain("cm-focused");
+    expect(capturedHtml).not.toContain("cm-cursor");
+    expect(listener).toHaveBeenCalledOnce();
+  });
+
   it("merges repeated block edits into one frame export", () => {
     editorPerformanceMocks.measure.mockClear();
     const {

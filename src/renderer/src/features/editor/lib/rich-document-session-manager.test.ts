@@ -227,6 +227,8 @@ describe("RichDocumentSessionManager", () => {
     const viewStates = new RichPaneViewStateRegistry();
     const manager = createManager({ surfaces, viewStates });
     const runtime = createRuntime("large.md", []);
+    const captureVisualSnapshot = vi.fn();
+    Object.assign(runtime, { captureVisualSnapshot });
     runtime.readViewState = vi.fn(() => ({ scrollTop: 180 }));
     runtime.restoreViewState = vi.fn();
     manager.retainVisible("large.md", {
@@ -250,9 +252,13 @@ describe("RichDocumentSessionManager", () => {
 
     expect(manager.setActivePane("large.md", "g2:t2")).toBe(true);
 
+    expect(captureVisualSnapshot).toHaveBeenCalledOnce();
     expect(deactivate).not.toHaveBeenCalled();
     expect(activate).toHaveBeenCalledOnce();
     expect(activate).toHaveBeenCalledWith("large.md", "g2:t2");
+    expect(captureVisualSnapshot.mock.invocationCallOrder[0]).toBeLessThan(
+      activate.mock.invocationCallOrder[0],
+    );
     expect(runtime.readViewState).toHaveBeenCalledOnce();
     expect(runtime.restoreViewState).toHaveBeenLastCalledWith(
       expect.objectContaining({ scrollTop: 640 }),

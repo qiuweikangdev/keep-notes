@@ -60,11 +60,18 @@ import {
 } from "../lib/markdown";
 import { EditorChangeGate } from "../lib/editor-change-gate";
 import {
+  createEditorCodeLineTarget,
+  readEditorCodeViewportAnchor,
+} from "../lib/editor-code-viewport";
+import {
+  chooseCapturedEditorViewport,
   chooseRestoredEditorScrollTop,
   readEditorViewportAnchor,
   readEditorScrollTop,
+  resolveEditorViewportTargetOffset,
   restoreEditorScrollTop,
   scheduleStableEditorBlockScroll,
+  type EditorViewportSnapshot,
 } from "../lib/editor-viewport";
 import { flushPendingEditorOutlineNavigation } from "../lib/editor-outline-navigation";
 import { createParseFallback } from "../lib/editor-parse-fallback";
@@ -151,7 +158,13 @@ export interface RichBlockNoteRuntime extends RichDocumentRuntime {
   focusAt: (anchor: RichPreviewAnchor | null) => void;
   readViewState: () => Pick<
     RichPaneViewState,
-    "scrollTop" | "selection" | "topBlockId" | "topBlockOffset"
+    | "scrollTop"
+    | "selection"
+    | "topCodeLine"
+    | "topCodeLineOffset"
+    | "topBlockId"
+    | "topBlockOffset"
+    | "topBlockRatio"
   >;
   restoreViewState: (state: RichPaneViewState) => void;
   scrollToBlock: (blockId: string) => boolean;
@@ -452,10 +465,26 @@ function readLiveEditorViewportAnchor(
         .elementFromPoint(x, y)
         ?.closest<HTMLElement>(LIVE_EDITOR_BLOCK_SELECTOR);
       if (!candidate || !root.contains(candidate)) continue;
+      const candidateBounds = candidate.getBoundingClientRect();
+      const codeAnchor = readEditorCodeViewportAnchor(candidate, container, {
+        x,
+        y,
+      });
       return {
+        ...codeAnchor,
         topBlockId: candidate.dataset.id ?? null,
-        topBlockOffset:
-          containerBounds.top - candidate.getBoundingClientRect().top,
+        topBlockOffset: containerBounds.top - candidateBounds.top,
+        topBlockRatio:
+          Number.isFinite(candidateBounds.height) && candidateBounds.height > 0
+            ? Math.min(
+                Math.max(
+                  (containerBounds.top - candidateBounds.top) /
+                    candidateBounds.height,
+                  0,
+                ),
+                1,
+              )
+            : null,
       };
     }
   }
@@ -1058,6 +1087,7 @@ function MountedBlockNoteEditor({
   controllerRef.current = controller;
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const suppressProgrammaticScrollUntilRef = useRef(0);
+  const pendingViewportRestoreRef = useRef<EditorViewportSnapshot | null>(null);
   const scrollWriterRef = useRef<RichPaneScrollIdleWriter | null>(null);
   if (!scrollWriterRef.current) {
     scrollWriterRef.current = new RichPaneScrollIdleWriter({
@@ -1193,12 +1223,23 @@ function MountedBlockNoteEditor({
     const scrollContainer = scrollContainerRef.current;
     const viewportAnchor = scrollContainer
       ? readLiveEditorViewportAnchor(scrollContainer, editor.domElement)
-      : { topBlockId: null, topBlockOffset: 0 };
-    return {
-      scrollTop: readEditorScrollTop(scrollContainerRef.current),
-      selection: richSelection,
-      ...viewportAnchor,
-    };
+      : {
+          topBlockId: null,
+          topBlockOffset: 0,
+          topBlockRatio: null,
+          topCodeLine: null,
+          topCodeLineOffset: 0,
+        };
+    const viewport = chooseCapturedEditorViewport({
+      live: {
+        scrollTop: readEditorScrollTop(scrollContainerRef.current),
+        ...viewportAnchor,
+      },
+      now: performance.now(),
+      pending: pendingViewportRestoreRef.current,
+      suppressUntil: suppressProgrammaticScrollUntilRef.current,
+    });
+    return { ...viewport, selection: richSelection };
   }, [editor]);
 
   const restoreViewState = useCallback(
@@ -1206,22 +1247,40 @@ function MountedBlockNoteEditor({
       // 切换窗格时终止旧窗格尚未完成的跨帧大纲定位，防止后续帧滚动新窗格。
       const scrollToken = outlineScrollTokenRef.current + 1;
       outlineScrollTokenRef.current = scrollToken;
+      pendingViewportRestoreRef.current = {
+        scrollTop: state.scrollTop,
+        topBlockId: state.topBlockId,
+        topBlockOffset: state.topBlockOffset,
+        topBlockRatio: state.topBlockRatio,
+        topCodeLine: state.topCodeLine,
+        topCodeLineOffset: state.topCodeLineOffset,
+      };
       suppressProgrammaticScrollUntilRef.current = performance.now() + 250;
       if (scrollContainerRef.current) {
         const activePaneKey = surface.dataset.activePaneKey as
           | RichPaneKey
           | undefined;
-        const target = state.topBlockId
-          ? findEditorBlockElement(editor.domElement, state.topBlockId)
-          : null;
+        let targetIsCodeLine = false;
+        const getTarget = () => {
+          const block = state.topBlockId
+            ? findEditorBlockElement(editor.domElement, state.topBlockId)
+            : null;
+          const codeLineTarget =
+            block && state.topCodeLine !== null
+              ? createEditorCodeLineTarget(block, state.topCodeLine)
+              : null;
+          targetIsCodeLine = Boolean(codeLineTarget);
+          return codeLineTarget ?? block;
+        };
+        const target = getTarget();
         if (target) {
           scheduleStableEditorBlockScroll({
             container: scrollContainerRef.current,
-            getTarget: () =>
-              state.topBlockId
-                ? findEditorBlockElement(editor.domElement, state.topBlockId)
-                : null,
-            targetOffset: state.topBlockOffset,
+            getTarget,
+            getTargetOffset: (candidate) =>
+              targetIsCodeLine
+                ? state.topCodeLineOffset
+                : resolveEditorViewportTargetOffset(candidate, state),
             shouldContinue: () =>
               outlineScrollTokenRef.current === scrollToken &&
               surface.dataset.activePaneKey === activePaneKey,
@@ -1322,6 +1381,16 @@ function MountedBlockNoteEditor({
         surface,
         editor,
         previewCache,
+        captureVisualSnapshot: () => {
+          if (
+            pendingViewportRestoreRef.current &&
+            performance.now() <= suppressProgrammaticScrollUntilRef.current
+          ) {
+            // CodeMirror 跨窗格测量未稳定时可能只挂载虚拟行，不能把瞬时 gap 写入旧窗格快照。
+            return;
+          }
+          previewCache.captureVisualSnapshot(surface);
+        },
         focusAt,
         readViewState,
         restoreViewState,
@@ -1777,6 +1846,13 @@ function MountedBlockNoteEditor({
     changeGateRef.current.markUserIntent();
   }, []);
 
+  const cancelPendingViewportRestore = useCallback(() => {
+    // 用户开始操作后立即终止跨帧校正，避免后续帧把真实滚动拉回旧面板位置。
+    outlineScrollTokenRef.current += 1;
+    suppressProgrammaticScrollUntilRef.current = 0;
+    pendingViewportRestoreRef.current = null;
+  }, []);
+
   const handleFocus = useCallback(() => {
     const binding = controllerRef.current.getActiveBinding();
     if (!binding) return;
@@ -1826,23 +1902,23 @@ function MountedBlockNoteEditor({
 
   const handlePointerDownCapture = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
-      suppressProgrammaticScrollUntilRef.current = 0;
+      cancelPendingViewportRestore();
       if (shouldMarkRichEditorPointerIntent(event.target)) {
         markUserIntent();
       }
     },
-    [markUserIntent],
+    [cancelPendingViewportRestore, markUserIntent],
   );
 
   const handleKeyDownCapture = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
-      suppressProgrammaticScrollUntilRef.current = 0;
+      cancelPendingViewportRestore();
       markUserIntent();
       if (shouldLetCodeMirrorHandleKeyboardEvent(event.target)) return;
       if (handleRichEditorHeadingShortcut(event, editor)) return;
       handleRichEditorSelectAllShortcut(event, editor);
     },
-    [editor, markUserIntent],
+    [cancelPendingViewportRestore, editor, markUserIntent],
   );
 
   useEffect(() => {
@@ -1910,12 +1986,8 @@ function MountedBlockNoteEditor({
       onBeforeInputCapture={markUserIntent}
       onKeyDownCapture={handleKeyDownCapture}
       onPointerDownCapture={handlePointerDownCapture}
-      onTouchStartCapture={() => {
-        suppressProgrammaticScrollUntilRef.current = 0;
-      }}
-      onWheelCapture={() => {
-        suppressProgrammaticScrollUntilRef.current = 0;
-      }}
+      onTouchStartCapture={cancelPendingViewportRestore}
+      onWheelCapture={cancelPendingViewportRestore}
       onPasteCapture={markUserIntent}
       onCutCapture={markUserIntent}
       onCompositionStartCapture={markUserIntent}

@@ -7,12 +7,22 @@ interface EditorScrollContainer extends EditorScrollHost {
 }
 
 interface EditorScrollTarget {
-  getBoundingClientRect: () => Pick<DOMRect, "top"> & { bottom?: number };
+  getBoundingClientRect: () => Pick<DOMRect, "top"> & {
+    bottom?: number;
+    height?: number;
+  };
 }
 
 export interface EditorViewportAnchor {
+  topCodeLine: number | null;
+  topCodeLineOffset: number;
   topBlockId: string | null;
   topBlockOffset: number;
+  topBlockRatio: number | null;
+}
+
+export interface EditorViewportSnapshot extends EditorViewportAnchor {
+  scrollTop: number;
 }
 
 type FrameScheduler = (callback: () => void) => void;
@@ -20,6 +30,7 @@ type FrameScheduler = (callback: () => void) => void;
 interface StableEditorBlockScrollOptions {
   container: EditorScrollContainer;
   getTarget: () => EditorScrollTarget | null;
+  getTargetOffset?: (target: EditorScrollTarget) => number;
   targetOffset?: number;
   schedule?: FrameScheduler;
   maxAttempts?: number;
@@ -34,9 +45,26 @@ interface RestoredScrollTopOptions {
   cachedScrollTop: number | null | undefined;
 }
 
+interface CapturedEditorViewportOptions {
+  live: EditorViewportSnapshot;
+  now: number;
+  pending: EditorViewportSnapshot | null;
+  suppressUntil: number;
+}
+
 export function readEditorScrollTop(element: EditorScrollHost | null): number {
   if (!element || !Number.isFinite(element.scrollTop)) return 0;
   return Math.max(0, element.scrollTop);
+}
+
+export function chooseCapturedEditorViewport({
+  live,
+  now,
+  pending,
+  suppressUntil,
+}: CapturedEditorViewportOptions): EditorViewportSnapshot {
+  const source = pending && now <= suppressUntil ? pending : live;
+  return { ...source };
 }
 
 export function chooseRestoredEditorScrollTop(
@@ -80,26 +108,67 @@ export function scrollEditorBlockIntoView(
   return true;
 }
 
+function readEditorBlockHeight(
+  bounds: ReturnType<EditorScrollTarget["getBoundingClientRect"]>,
+): number | null {
+  const height =
+    bounds.height ??
+    (typeof bounds.bottom === "number" ? bounds.bottom - bounds.top : NaN);
+  return Number.isFinite(height) && height > 0 ? height : null;
+}
+
+export function resolveEditorViewportTargetOffset(
+  target: EditorScrollTarget,
+  anchor: EditorViewportAnchor,
+): number {
+  const height = readEditorBlockHeight(target.getBoundingClientRect());
+  if (height === null || anchor.topBlockRatio === null) {
+    return anchor.topBlockOffset;
+  }
+
+  const ratio = Math.min(Math.max(anchor.topBlockRatio, 0), 1);
+  return height * ratio;
+}
+
 export function readEditorViewportAnchor<T extends EditorScrollTarget>(
   container: EditorScrollContainer | null,
   blocks: Iterable<T>,
   readBlockId: (block: T) => string | null,
 ): EditorViewportAnchor {
-  if (!container) return { topBlockId: null, topBlockOffset: 0 };
+  if (!container) {
+    return {
+      topCodeLine: null,
+      topCodeLineOffset: 0,
+      topBlockId: null,
+      topBlockOffset: 0,
+      topBlockRatio: null,
+    };
+  }
 
   const containerTop = container.getBoundingClientRect().top;
   let lastAnchor: EditorViewportAnchor = {
+    topCodeLine: null,
+    topCodeLineOffset: 0,
     topBlockId: null,
     topBlockOffset: 0,
+    topBlockRatio: null,
   };
   for (const block of blocks) {
     const blockId = readBlockId(block);
     if (!blockId) continue;
 
     const bounds = block.getBoundingClientRect();
+    const topBlockOffset = containerTop - bounds.top;
+    const height = readEditorBlockHeight(bounds);
     const anchor = {
+      topCodeLine: null,
+      topCodeLineOffset: 0,
       topBlockId: blockId,
-      topBlockOffset: containerTop - bounds.top,
+      topBlockOffset,
+      topBlockRatio:
+        height === null
+          ? null
+          : Math.min(Math.max(topBlockOffset / height, 0), 1),
     };
     lastAnchor = anchor;
     if ((bounds.bottom ?? bounds.top) > containerTop) return anchor;
@@ -111,6 +180,7 @@ export function readEditorViewportAnchor<T extends EditorScrollTarget>(
 export function scheduleStableEditorBlockScroll({
   container,
   getTarget,
+  getTargetOffset,
   targetOffset = 0,
   schedule = scheduleNextFrame,
   maxAttempts = 8,
@@ -126,12 +196,16 @@ export function scheduleStableEditorBlockScroll({
     if (shouldContinue && !shouldContinue()) return true;
 
     attempts += 1;
+    const previousScrollTop = container.scrollTop;
+    const target = getTarget();
     const didScroll = scrollEditorBlockIntoView(
       container,
-      getTarget(),
-      targetOffset,
+      target,
+      target && getTargetOffset ? getTargetOffset(target) : targetOffset,
     );
-    stableFrames = didScroll ? stableFrames + 1 : 0;
+    const adjustment = Math.abs(container.scrollTop - previousScrollTop);
+    // 嵌入式编辑器会跨帧更新高度；只有连续两帧无需校正，才能认为 viewport 真正稳定。
+    stableFrames = didScroll && adjustment < 1 ? stableFrames + 1 : 0;
 
     if (attempts < safeMaxAttempts && stableFrames < safeSettleFrames) {
       schedule(align);

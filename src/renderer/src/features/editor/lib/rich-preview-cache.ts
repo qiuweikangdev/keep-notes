@@ -36,6 +36,41 @@ interface PendingFrame {
   cancel: (() => void) | null;
 }
 
+function findBlockElement(root: ParentNode, id: string): HTMLElement | null {
+  return (
+    Array.from(root.querySelectorAll<HTMLElement>("[data-id]")).find(
+      (element) => element.dataset.id === id,
+    ) ?? null
+  );
+}
+
+function isVisibleInSurface(block: HTMLElement, surface: HTMLElement): boolean {
+  const blockRect = block.getBoundingClientRect();
+  const surfaceRect = surface.getBoundingClientRect();
+  if (blockRect.height === 0 || surfaceRect.height === 0) return true;
+  return (
+    blockRect.bottom >= surfaceRect.top && blockRect.top <= surfaceRect.bottom
+  );
+}
+
+function clonePreviewBlock(block: HTMLElement): HTMLElement {
+  const clone = block.cloneNode(true) as HTMLElement;
+  for (const editable of clone.querySelectorAll<HTMLElement>(
+    "[contenteditable]",
+  )) {
+    editable.setAttribute("contenteditable", "false");
+  }
+  for (const focused of clone.querySelectorAll<HTMLElement>(".cm-focused")) {
+    focused.classList.remove("cm-focused");
+  }
+  for (const transient of clone.querySelectorAll<HTMLElement>(
+    ".cm-cursor, .cm-selectionLayer, .cm-tooltip, .editor-code-block-language-popover",
+  )) {
+    transient.remove();
+  }
+  return clone;
+}
+
 type RichPreviewEditor<
   BSchema extends BlockSchema,
   ISchema extends InlineContentSchema,
@@ -119,6 +154,54 @@ export class RichPreviewCache<
     }
 
     this.ensureFrameScheduled();
+  }
+
+  captureVisualSnapshot(surface: HTMLElement): void {
+    if (this.destroyed) return;
+
+    const nextRevision = this.snapshot.revision + 1;
+    const changedIds: string[] = [];
+    const snapshotIds = new Set(this.snapshot.order);
+    const visibleLiveBlocks = new Map<string, HTMLElement>();
+    // 单次扫描当前表面，只同步视口内的真实块，避免大文档切换窗格时反复遍历整棵 DOM。
+    for (const liveBlock of surface.querySelectorAll<HTMLElement>(
+      "[data-id]",
+    )) {
+      const id = liveBlock.dataset.id;
+      if (
+        !id ||
+        !snapshotIds.has(id) ||
+        visibleLiveBlocks.has(id) ||
+        !isVisibleInSurface(liveBlock, surface)
+      ) {
+        continue;
+      }
+      visibleLiveBlocks.set(id, liveBlock);
+    }
+
+    for (const [id, liveBlock] of visibleLiveBlocks) {
+      const snapshot = this.blockSnapshots.get(id);
+      if (!snapshot) continue;
+
+      const template = document.createElement("template");
+      template.innerHTML = snapshot.html;
+      const previewBlock = findBlockElement(template.content, id);
+      if (!previewBlock) continue;
+
+      previewBlock.replaceWith(clonePreviewBlock(liveBlock));
+      const html = template.innerHTML;
+      if (html === snapshot.html) continue;
+
+      this.blockSnapshots.set(id, { id, html, revision: nextRevision });
+      changedIds.push(id);
+    }
+
+    if (changedIds.length === 0) return;
+    this.snapshot = { ...this.snapshot, revision: nextRevision };
+    for (const id of changedIds) this.publishBlock(id);
+    for (const registration of Array.from(this.listeners)) {
+      registration.listener();
+    }
   }
 
   getSnapshot(): RichPreviewSnapshot {

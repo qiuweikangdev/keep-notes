@@ -267,6 +267,16 @@ function getFoldedCodeMirrorRangeAtLine(view: CodeMirrorView, line: BlockInfo) {
   return foldedRange;
 }
 
+function isInsideFoldedCodeMirrorRange(view: CodeMirrorView, position: number) {
+  let isInside = false;
+
+  foldedRanges(view.state).between(position, position, (from, to) => {
+    if (from < position && to > position) isInside = true;
+  });
+
+  return isInside;
+}
+
 function stopCodeMirrorControlEvent(event: Event) {
   event.preventDefault();
   event.stopPropagation();
@@ -599,9 +609,12 @@ class EditorCodeBlockNodeView {
 
   public setSelection = (anchor: number, head: number) => {
     this.codeMirror.focus();
+
+    // pane 恢复的外部选择可能落在折叠区内部；CodeMirror 会因此自动展开，需保留原折叠状态。
+    if (isInsideFoldedCodeMirrorRange(this.codeMirror, head)) return;
+
     this.codeMirror.dispatch({
       selection: EditorSelection.range(anchor, head),
-      scrollIntoView: true,
     });
   };
 

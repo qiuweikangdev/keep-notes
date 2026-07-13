@@ -964,6 +964,36 @@ describe("BlockNoteEditor persistent session runtime", () => {
     session.view.unmount();
   });
 
+  it("does not capture an intermediate scroll position during rapid pane restoration", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/rapid-pane-scroll.md";
+    setupSessionTab(path);
+    const session = renderRealSession(path);
+
+    await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    const runtime = session.runtime.current!;
+    const scrollContainer = session.view.container.querySelector<HTMLElement>(
+      ".editor-rich-scroll",
+    )!;
+    const captureVisualSnapshot = vi.spyOn(
+      runtime.previewCache,
+      "captureVisualSnapshot",
+    );
+
+    runtime.restoreViewState({ scrollTop: 720, selection: null });
+    scrollContainer.scrollTop = 940;
+
+    expect(runtime.readViewState().scrollTop).toBe(720);
+    runtime.captureVisualSnapshot?.();
+    expect(captureVisualSnapshot).not.toHaveBeenCalled();
+    fireEvent.wheel(scrollContainer);
+    expect(runtime.readViewState().scrollTop).toBe(940);
+    runtime.captureVisualSnapshot?.();
+    expect(captureVisualSnapshot).toHaveBeenCalledOnce();
+    session.view.unmount();
+  });
+
   it("reads viewport anchors from BlockNote block wrappers, not nested data ids", async () => {
     setupMatchMedia();
     setupDomMeasurements();
