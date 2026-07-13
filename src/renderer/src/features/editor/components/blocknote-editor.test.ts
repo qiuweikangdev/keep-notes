@@ -1215,6 +1215,89 @@ describe("BlockNoteEditor persistent session runtime", () => {
     session.view.unmount();
   });
 
+  it("coalesces outline activation by frame and rejects a stale pane owner", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/outline-scroll-spy.md";
+    const content = "# First\nIntro\n## Second\nDetails";
+    setupSessionTab(path, { content });
+    const session = renderRealSession(path, false, content);
+
+    await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    await waitFor(() =>
+      expect(
+        useEditorStore.getState().outlineHeadingsByPath[path],
+      ).toHaveLength(2),
+    );
+    const runtime = session.runtime.current!;
+    const scrollContainer = session.view.container.querySelector<HTMLElement>(
+      ".editor-rich-scroll",
+    )!;
+    const [firstHeading, , secondHeading, details] = runtime.editor.document;
+    const detailsElement = runtime.editor.domElement.querySelector<HTMLElement>(
+      `[data-id="${details.id}"]`,
+    )!;
+    const scheduledFrames: FrameRequestCallback[] = [];
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn((callback: FrameRequestCallback) => {
+        scheduledFrames.push(callback);
+        return scheduledFrames.length;
+      }),
+    );
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const originalElementFromPoint = Object.getOwnPropertyDescriptor(
+      document,
+      "elementFromPoint",
+    );
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: vi.fn(() => detailsElement),
+    });
+    useEditorStore.setState({
+      activeHeadingIdByPane: {
+        "group-other:tab-other": firstHeading.id,
+        "group-session:tab-session": firstHeading.id,
+      },
+    });
+
+    try {
+      scrollContainer.scrollTop = 120;
+      fireEvent.scroll(scrollContainer);
+      scrollContainer.scrollTop = 240;
+      fireEvent.scroll(scrollContainer);
+      expect(scheduledFrames).toHaveLength(1);
+
+      surfaceAsAnotherPane(session.surface);
+      act(() => scheduledFrames.shift()?.(16));
+      expect(
+        useEditorStore.getState().activeHeadingIdByPane[
+          "group-session:tab-session"
+        ],
+      ).toBe(firstHeading.id);
+
+      session.surface.dataset.activePaneKey = "group-session:tab-session";
+      fireEvent.scroll(scrollContainer);
+      act(() => scheduledFrames.shift()?.(32));
+      expect(useEditorStore.getState().activeHeadingIdByPane).toMatchObject({
+        "group-other:tab-other": firstHeading.id,
+        "group-session:tab-session": secondHeading.id,
+      });
+    } finally {
+      if (originalElementFromPoint) {
+        Object.defineProperty(
+          document,
+          "elementFromPoint",
+          originalElementFromPoint,
+        );
+      } else {
+        Reflect.deleteProperty(document, "elementFromPoint");
+      }
+    }
+
+    session.view.unmount();
+  });
+
   it("flushes the owning pane on tab switch and unmount boundaries", async () => {
     setupMatchMedia();
     setupDomMeasurements();
@@ -1472,15 +1555,19 @@ function setupSessionTab(
   });
 }
 
-function renderRealSession(path: string, strict = false) {
-  const session = createRealSession(path);
+function renderRealSession(
+  path: string,
+  strict = false,
+  sourceContent = "# Initial",
+) {
+  const session = createRealSession(path, sourceContent);
   const view = render(
     strict ? createElement(StrictMode, null, session.editor) : session.editor,
   );
   return { ...session, view };
 }
 
-function createRealSession(path: string) {
+function createRealSession(path: string, sourceContent = "# Initial") {
   const runtime = { current: null as RichBlockNoteRuntime | null };
   const callbacks = {
     onMarkdownChange: vi.fn((content: string) => {
@@ -1515,7 +1602,7 @@ function createRealSession(path: string) {
   const surface = document.createElement("div");
   surface.dataset.activePaneKey = "group-session:tab-session";
   const editor = createElement(BlockNoteEditor, {
-    content: "# Initial",
+    content: sourceContent,
     controller,
     reloadKey: 0,
     surface,

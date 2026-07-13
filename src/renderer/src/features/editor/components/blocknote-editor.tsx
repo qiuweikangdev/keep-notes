@@ -139,6 +139,21 @@ interface OutlineNavigationCursorEditor {
   setTextCursorPosition: (blockId: string, placement: "start") => void;
 }
 
+interface EditorOutlineSnapshot {
+  headings: Array<{ id: string; text: string; level: number }>;
+  activeHeadingIdByBlockId: ReadonlyMap<string, string | null>;
+}
+
+interface PendingOutlineScrollActivation {
+  owner: RichPaneScrollOwner;
+  topBlockId: string | null;
+}
+
+const EMPTY_EDITOR_OUTLINE_SNAPSHOT: EditorOutlineSnapshot = {
+  headings: [],
+  activeHeadingIdByBlockId: new Map(),
+};
+
 interface UploadedImageAttachmentContext {
   getWorkspaceRootPath: () => string | null;
   getMarkdownFilePath: () => string | null;
@@ -436,6 +451,48 @@ function createBlockIdSelector(blockId: string) {
 }
 
 const LIVE_EDITOR_BLOCK_SELECTOR = '[data-node-type="blockOuter"][data-id]';
+
+function createEditorOutlineSnapshot(blocks: Block[]): EditorOutlineSnapshot {
+  const headings: EditorOutlineSnapshot["headings"] = [];
+  const activeHeadingIdByBlockId = new Map<string, string | null>();
+  let activeHeadingId: string | null = null;
+
+  const walk = (children: Block[]) => {
+    for (const block of children) {
+      if (block.type === "heading") {
+        activeHeadingId = block.id;
+        const text =
+          (block.content as InlineContent[])
+            ?.map((content) => (content.type === "text" ? content.text : ""))
+            .join("") ?? "";
+        headings.push({
+          id: block.id,
+          text,
+          level: block.props.level ?? 1,
+        });
+      }
+
+      // 滚动时只需按顶部块 ID 做 O(1) 查询，不再遍历标题或读取额外布局。
+      activeHeadingIdByBlockId.set(block.id, activeHeadingId);
+      if (block.children?.length) walk(block.children);
+    }
+  };
+
+  walk(blocks);
+  return { activeHeadingIdByBlockId, headings };
+}
+
+function isSameOutlineScrollOwner(
+  first: RichPaneScrollOwner,
+  second: RichPaneScrollOwner,
+): boolean {
+  return (
+    first.groupId === second.groupId &&
+    first.tabId === second.tabId &&
+    first.paneKey === second.paneKey &&
+    first.path === second.path
+  );
+}
 
 function findEditorBlockElement(root: Element | null, blockId: string) {
   return (
@@ -1106,6 +1163,10 @@ function MountedBlockNoteEditor({
   const serializeChangeRef = useRef<() => Promise<void>>(async () => {});
   const outlineUpdateCancelRef = useRef<(() => void) | null>(null);
   const outlineScrollTokenRef = useRef(0);
+  const outlineSnapshotRef = useRef(EMPTY_EDITOR_OUTLINE_SNAPSHOT);
+  const outlineScrollFrameRef = useRef<number | null>(null);
+  const pendingOutlineScrollActivationRef =
+    useRef<PendingOutlineScrollActivation | null>(null);
   const isActiveEditorRef = useRef(isActiveEditor);
   const applyTokenRef = useRef(0);
   const lifecycleGenerationRef = useRef(0);
@@ -1134,41 +1195,23 @@ function MountedBlockNoteEditor({
     (state) => state.setOutlineHeadingsForPath,
   );
 
-  // 提取标题的函数
-  const extractHeadings = useCallback(() => {
-    const headings: Array<{ id: string; text: string; level: number }> = [];
-
-    function walk(blocks: Block[]) {
-      for (const block of blocks) {
-        if (block.type === "heading") {
-          const text =
-            (block.content as InlineContent[])
-              ?.map((ic) => (ic.type === "text" ? ic.text : ""))
-              .join("") ?? "";
-          headings.push({
-            id: block.id,
-            text,
-            level: block.props.level ?? 1,
-          });
-        }
-        if (block.children?.length) {
-          walk(block.children);
-        }
-      }
-    }
-
-    walk(editor.document);
-    return headings;
-  }, [editor]);
-
   // 更新大纲标题列表到 store
   const updateOutlineHeadings = useCallback(() => {
-    const headings = extractHeadings();
+    const snapshot = createEditorOutlineSnapshot(editor.document);
+    outlineSnapshotRef.current = snapshot;
     if (isActiveEditorRef.current) {
-      setOutlineHeadingsForPath(controller.path, headings);
+      setOutlineHeadingsForPath(controller.path, snapshot.headings);
     }
-    return headings;
-  }, [controller.path, extractHeadings, setOutlineHeadingsForPath]);
+    return snapshot.headings;
+  }, [controller.path, editor, setOutlineHeadingsForPath]);
+
+  const cancelPendingOutlineScrollActivation = useCallback(() => {
+    if (outlineScrollFrameRef.current !== null) {
+      cancelAnimationFrame(outlineScrollFrameRef.current);
+      outlineScrollFrameRef.current = null;
+    }
+    pendingOutlineScrollActivationRef.current = null;
+  }, []);
 
   useEffect(() => {
     isActiveEditorRef.current = isActiveEditor;
@@ -1260,6 +1303,7 @@ function MountedBlockNoteEditor({
   const restoreViewState = useCallback(
     (state: RichPaneViewState) => {
       // 切换窗格时终止旧窗格尚未完成的跨帧大纲定位，防止后续帧滚动新窗格。
+      cancelPendingOutlineScrollActivation();
       const scrollToken = outlineScrollTokenRef.current + 1;
       outlineScrollTokenRef.current = scrollToken;
       pendingViewportRestoreRef.current = {
@@ -1342,7 +1386,7 @@ function MountedBlockNoteEditor({
         // 选择在异步内容更新中失效时保留已恢复的滚动位置。
       }
     },
-    [editor, surface],
+    [cancelPendingOutlineScrollActivation, editor, surface],
   );
 
   const cancelPendingEditorWork = useCallback(() => {
@@ -1353,7 +1397,8 @@ function MountedBlockNoteEditor({
     serializationQueuedRef.current = false;
     // 稳定滚动通过 token 自行退出；取消会话工作时同步使所有旧滚动回调失效。
     outlineScrollTokenRef.current += 1;
-  }, []);
+    cancelPendingOutlineScrollActivation();
+  }, [cancelPendingOutlineScrollActivation]);
 
   const invalidateEditorLifecycle = useCallback(() => {
     lifecycleActiveRef.current = false;
@@ -1892,12 +1937,48 @@ function MountedBlockNoteEditor({
         return;
       }
 
+      const viewportAnchor = readLiveEditorViewportAnchor(
+        event.currentTarget,
+        editor.domElement,
+      );
+
       // 高频滚动只更新 ref/registry；Zustand 在 150ms idle 或生命周期边界才写入。
       scrollWriterRef.current?.record(
         owner,
         event.currentTarget.scrollTop,
-        readLiveEditorViewportAnchor(event.currentTarget, editor.domElement),
+        viewportAnchor,
       );
+
+      pendingOutlineScrollActivationRef.current = {
+        owner,
+        topBlockId: viewportAnchor.topBlockId,
+      };
+      if (outlineScrollFrameRef.current !== null) return;
+
+      outlineScrollFrameRef.current = requestAnimationFrame(() => {
+        outlineScrollFrameRef.current = null;
+        const pending = pendingOutlineScrollActivationRef.current;
+        pendingOutlineScrollActivationRef.current = null;
+        if (!pending || !isActiveEditorRef.current) return;
+
+        // 面板可能在滚动帧提交前已切换；旧 owner 不能覆盖新面板的大纲状态。
+        const currentOwner = readCurrentScrollOwner();
+        if (
+          !currentOwner ||
+          !isSameOutlineScrollOwner(currentOwner, pending.owner)
+        ) {
+          return;
+        }
+
+        const activeHeadingId = pending.topBlockId
+          ? (outlineSnapshotRef.current.activeHeadingIdByBlockId.get(
+              pending.topBlockId,
+            ) ?? null)
+          : null;
+        useEditorStore
+          .getState()
+          .setActiveHeadingIdForPane(pending.owner.paneKey, activeHeadingId);
+      });
     },
     [editor, readCurrentScrollOwner],
   );
