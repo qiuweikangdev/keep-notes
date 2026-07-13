@@ -158,6 +158,12 @@
   margin-bottom: 0.12em;
 }
 
+.bn-editor .bn-inline-content {
+  /* 列表内容是 flex 子项，必须允许收缩，避免长链接撑出面板后在实时层与预览层之间跳宽。 */
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .bn-editor [data-content-type="quote"] blockquote {
   margin-block: 0.55em;
   padding: 0.2em 0 0.2em 0.9em;

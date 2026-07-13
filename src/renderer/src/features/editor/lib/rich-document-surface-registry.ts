@@ -206,9 +206,34 @@ export class RichDocumentSurfaceRegistry {
     if (!surface) return;
 
     if (surface.parentElement !== document.body) document.body.append(surface);
-    this.positionSurface(surface, host);
+    const sizeChanged = this.positionSurface(surface, host);
     entry.measurementGeneration += 1;
+    const generation = entry.measurementGeneration;
     surface.dataset.activePaneKey = paneKey;
+
+    if (
+      settleMeasurements &&
+      sizeChanged &&
+      typeof requestAnimationFrame === "function"
+    ) {
+      // 不等宽面板切换时先由目标预览承接一帧，避免真实编辑器带着旧宽度移动后再重排。
+      this.concealSurface(surface);
+      entry.focusTarget = null;
+      requestAnimationFrame(() => {
+        if (
+          entry.surface !== surface ||
+          entry.activePaneKey !== paneKey ||
+          entry.measurementGeneration !== generation
+        ) {
+          return;
+        }
+        this.revealSurface(entry, surface, paneKey, true);
+        this.scheduleSettledMeasurement(entry, surface);
+      });
+      this.observeHost(entry, host, paneKey);
+      return;
+    }
+
     this.revealSurface(entry, surface, paneKey, !settleMeasurements);
     if (settleMeasurements) this.scheduleSettledMeasurement(entry, surface);
     this.observeHost(entry, host, paneKey);
@@ -221,6 +246,7 @@ export class RichDocumentSurfaceRegistry {
     measureImmediately: boolean,
   ): void {
     surface.style.visibility = "visible";
+    surface.style.opacity = "1";
     surface.style.pointerEvents = "auto";
     surface.setAttribute("aria-hidden", "false");
     surface.dataset.activePaneKey = paneKey;
@@ -240,9 +266,17 @@ export class RichDocumentSurfaceRegistry {
   private hideSurface(surface: HTMLElement | null): void {
     if (!surface) return;
     surface.style.visibility = "hidden";
+    surface.style.opacity = "0";
     surface.style.pointerEvents = "none";
     surface.setAttribute("aria-hidden", "true");
     delete surface.dataset.activePaneKey;
+  }
+
+  private concealSurface(surface: HTMLElement): void {
+    surface.style.visibility = "visible";
+    surface.style.opacity = "0";
+    surface.style.pointerEvents = "none";
+    surface.setAttribute("aria-hidden", "true");
   }
 
   private parkSurface(surface: HTMLElement | null): void {
@@ -290,17 +324,20 @@ export class RichDocumentSurfaceRegistry {
     entry.resizeObserver.observe(host);
   }
 
-  private positionSurface(surface: HTMLElement, host: HTMLElement): void {
+  private positionSurface(surface: HTMLElement, host: HTMLElement): boolean {
     const rect = host.getBoundingClientRect();
     const transform = `translate3d(${rect.left}px, ${rect.top}px, 0)`;
     const width = `${rect.width}px`;
     const height = `${rect.height}px`;
+    const sizeChanged =
+      surface.style.width !== width || surface.style.height !== height;
 
     // 相同尺寸切换窗格时只更新 transform，让 Chromium 复用既有栅格层。
     if (surface.style.transform !== transform)
       surface.style.transform = transform;
     if (surface.style.width !== width) surface.style.width = width;
     if (surface.style.height !== height) surface.style.height = height;
+    return sizeChanged;
   }
 
   private stopObservingHost(entry: SurfaceEntry): void {

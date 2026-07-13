@@ -67,6 +67,14 @@ describe("blocknote overrides stylesheet", () => {
     expect(editorRule).toMatch(/"calt"\s+0/);
   });
 
+  it("keeps long inline content within the pane width", () => {
+    const inlineContentRule = getRule(".bn-editor .bn-inline-content");
+
+    expect(inlineContentRule).toBeDefined();
+    expect(inlineContentRule).toMatch(/min-width:\s*0;/);
+    expect(inlineContentRule).toMatch(/overflow-wrap:\s*anywhere;/);
+  });
+
   it("skips offscreen live rich blocks during split and resize layout", () => {
     const liveBlockRule = getRule(
       "[data-rich-document-surface] .bn-editor > .bn-block-group > .bn-block-outer",
