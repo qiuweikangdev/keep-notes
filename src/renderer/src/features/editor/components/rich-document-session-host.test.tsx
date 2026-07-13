@@ -8,8 +8,11 @@ import {
   editorSaveCoordinator,
   flushEditorChange,
   richDocumentSessionManager,
+  richDocumentSurfaceRegistry,
+  richPaneViewStateRegistry,
 } from "../lib/editor-runtime";
 import * as editorRuntime from "../lib/editor-runtime";
+import { scrollEditorOutlineBlock } from "../lib/editor-outline-navigation";
 import { RichDocumentSessionHost } from "./rich-document-session-host";
 
 const sessionMocks = vi.hoisted(() => ({
@@ -83,7 +86,7 @@ vi.mock("./blocknote-editor", () => ({
         focusAt: vi.fn(),
         readViewState: () => ({ scrollTop: 0, selection: null }),
         restoreViewState: vi.fn(),
-        scrollToBlock: () => false,
+        scrollToBlock: vi.fn(() => false),
       };
       sessionMocks.runtimes.push(runtime);
       return controller.onRuntimeReady(runtime);
@@ -428,6 +431,68 @@ describe("RichDocumentSessionHost", () => {
 
     view.unmount();
     expect(richDocumentSessionManager.getRuntime(path)).toBeNull();
+  });
+
+  it("activates the outline owner before scrolling a shared document pane", () => {
+    const path = "C:/notes/shared-outline.md";
+    useEditorStore.setState({
+      activeGroupId: "group-2",
+      panelGroups: createGroups(path),
+    });
+    const releaseFirst = richDocumentSessionManager.retainVisible(path, {
+      paneKey: "group-1:tab-1",
+      groupId: "group-1",
+      tabId: "tab-1",
+    });
+    const releaseSecond = richDocumentSessionManager.retainVisible(path, {
+      paneKey: "group-2:tab-2",
+      groupId: "group-2",
+      tabId: "tab-2",
+    });
+    const releaseFirstHost = richDocumentSurfaceRegistry.registerHost(
+      path,
+      "group-1:tab-1",
+      document.createElement("div"),
+    );
+    const releaseSecondHost = richDocumentSurfaceRegistry.registerHost(
+      path,
+      "group-2:tab-2",
+      document.createElement("div"),
+    );
+    richPaneViewStateRegistry.patch("group-1:tab-1", { scrollTop: 180 });
+
+    render(<RichDocumentSessionHost path={path} />);
+    const runtime = sessionMocks.runtimes.at(-1)!;
+    vi.mocked(runtime.scrollToBlock).mockReturnValue(true);
+    expect(
+      richDocumentSessionManager.setActivePane(path, "group-2:tab-2"),
+    ).toBe(true);
+    vi.mocked(runtime.restoreViewState).mockClear();
+    const setActiveTab = vi.spyOn(useEditorStore.getState(), "setActiveTab");
+
+    expect(scrollEditorOutlineBlock("group-1", "tab-1", "heading-a")).toBe(
+      true,
+    );
+
+    expect(richDocumentSessionManager.getActivePane(path)).toBe(
+      "group-1:tab-1",
+    );
+    expect(useEditorStore.getState().activeGroupId).toBe("group-1");
+    expect(runtime.restoreViewState).toHaveBeenCalledWith(
+      expect.objectContaining({ scrollTop: 180 }),
+    );
+    expect(runtime.scrollToBlock).toHaveBeenCalledWith("heading-a");
+    expect(setActiveTab).toHaveBeenCalledTimes(1);
+
+    expect(scrollEditorOutlineBlock("group-1", "tab-1", "heading-b")).toBe(
+      true,
+    );
+    expect(setActiveTab).toHaveBeenCalledTimes(1);
+
+    releaseFirstHost();
+    releaseSecondHost();
+    releaseFirst();
+    releaseSecond();
   });
 
   it("syncs and saves every Windows-path tab through a normalized session path", async () => {

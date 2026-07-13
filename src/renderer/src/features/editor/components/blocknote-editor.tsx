@@ -1151,6 +1151,8 @@ function MountedBlockNoteEditor({
 
   const restoreViewState = useCallback(
     (state: RichPaneViewState) => {
+      // 切换窗格时终止旧窗格尚未完成的跨帧大纲定位，防止后续帧滚动新窗格。
+      outlineScrollTokenRef.current += 1;
       if (scrollContainerRef.current) {
         scrollContainerRef.current.scrollTop = Math.max(0, state.scrollTop);
       }

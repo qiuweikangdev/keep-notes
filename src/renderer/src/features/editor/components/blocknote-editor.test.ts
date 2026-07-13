@@ -98,6 +98,7 @@ afterEach(() => {
   richPaneViewStateRegistry.clear();
   vi.useRealTimers();
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
@@ -873,6 +874,51 @@ describe("BlockNoteEditor persistent session runtime", () => {
     expect(session.runtime.current).toBe(initialRuntime);
     expect(session.runtime.current?.editor).toBe(initialEditor);
 
+    session.view.unmount();
+  });
+
+  it("cancels a previous pane outline scroll when restoring view state", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/outline-pane-switch.md";
+    setupSessionTab(path);
+    const session = renderRealSession(path);
+
+    await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    const runtime = session.runtime.current!;
+    const scrollContainer = session.view.container.querySelector<HTMLElement>(
+      ".editor-rich-scroll",
+    )!;
+    const blockId = runtime.editor.document[0].id;
+    const target = runtime.editor.domElement.querySelector<HTMLElement>(
+      `[data-id="${blockId}"]`,
+    )!;
+    const scheduledFrames: FrameRequestCallback[] = [];
+    vi.spyOn(window, "scrollBy").mockImplementation(() => {});
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn((callback: FrameRequestCallback) => {
+        scheduledFrames.push(callback);
+        return scheduledFrames.length;
+      }),
+    );
+    vi.spyOn(scrollContainer, "getBoundingClientRect").mockReturnValue({
+      ...createRect(),
+      top: 0,
+    });
+    vi.spyOn(target, "getBoundingClientRect").mockReturnValue({
+      ...createRect(),
+      top: 120,
+    });
+
+    expect(runtime.scrollToBlock(blockId)).toBe(true);
+    expect(scrollContainer.scrollTop).toBeGreaterThan(0);
+    runtime.restoreViewState({ scrollTop: 21, selection: null });
+    act(() => {
+      for (const callback of scheduledFrames.splice(0)) callback(0);
+    });
+
+    expect(scrollContainer.scrollTop).toBe(21);
     session.view.unmount();
   });
 

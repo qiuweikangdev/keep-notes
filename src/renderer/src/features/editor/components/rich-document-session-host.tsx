@@ -255,6 +255,7 @@ export function RichDocumentSessionHost({
       ) {
         continue;
       }
+      const paneKey = toRichPaneKey(group.id, tab.id);
 
       cleanups.push(
         registerEditorChangeFlusher(
@@ -271,7 +272,25 @@ export function RichDocumentSessionHost({
           const runtime = richDocumentSessionManager.getRuntime(
             normalizedPath,
           ) as RichBlockNoteRuntime | null;
-          return runtime?.scrollToBlock(blockId) ?? false;
+          if (
+            !runtime ||
+            !richDocumentSessionManager.setActivePane(normalizedPath, paneKey)
+          ) {
+            return false;
+          }
+
+          // 大纲导航必须先恢复所属窗格的独立视图状态，再执行块定位，避免同文件分栏互相滚动。
+          const store = useEditorStore.getState();
+          const targetGroup = store.panelGroups.find(
+            (candidate) => candidate.id === group.id,
+          );
+          if (
+            store.activeGroupId !== group.id ||
+            targetGroup?.activeTabId !== tab.id
+          ) {
+            store.setActiveTab(group.id, tab.id);
+          }
+          return runtime.scrollToBlock(blockId);
         }),
       );
     }
