@@ -227,7 +227,14 @@ export function ReminderEditorDialog() {
 
   return (
     <>
-      <Dialog.Root modal={false} open={isEditorOpen} onOpenChange={closeEditor}>
+      <Dialog.Root
+        modal={false}
+        open={isEditorOpen}
+        onOpenChange={(open) => {
+          // Dialog 可能在嵌套控件完成交互后再次同步当前打开状态，此时不能误关闭编辑器。
+          if (!open) closeEditor();
+        }}
+      >
         <DialogContent
           className="z-[60] max-w-[440px] gap-0 overflow-visible rounded-xl p-0 shadow-lg"
           data-reminder-editor-dialog="true"
@@ -366,7 +373,7 @@ function ReminderSettingRow({
   children,
 }: ReminderSettingRowProps) {
   return (
-    <div className="grid min-h-12 grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2">
+    <div className="grid min-h-12 grid-cols-[20px_minmax(0,1fr)_140px] items-center gap-3 px-3 py-2">
       <div
         className="flex h-5 w-5 items-center justify-center"
         style={{ color: "var(--text-muted)" }}
@@ -415,7 +422,7 @@ function DatePickerControl({
         data-theme-control="true"
         disabled={disabled}
         aria-expanded={open}
-        className={`${controlClassName} flex w-[140px] items-center justify-between gap-2`}
+        className={`${controlClassName} flex w-full items-center justify-between gap-2`}
         style={{
           backgroundColor: "var(--bg-secondary)",
           borderColor: "var(--border-color)",
@@ -551,7 +558,7 @@ function TimePickerControl({
         data-theme-control="true"
         disabled={disabled}
         aria-expanded={open}
-        className={`${controlClassName} flex w-[120px] items-center justify-between gap-2`}
+        className={`${controlClassName} flex w-full items-center justify-between gap-2`}
         style={{
           backgroundColor: "var(--bg-secondary)",
           borderColor: "var(--border-color)",
@@ -658,12 +665,12 @@ function RepeatPickerControl({
   useCloseOnOutsidePointerDown(open, pickerRef, () => onOpenChange(false));
 
   return (
-    <div className="relative ml-auto" ref={pickerRef}>
+    <div className="relative" ref={pickerRef}>
       <button
         type="button"
         data-theme-control="true"
         aria-expanded={open}
-        className={`${controlClassName} flex w-[140px] items-center justify-between gap-2`}
+        className={`${controlClassName} flex w-full items-center justify-between gap-2`}
         style={{
           backgroundColor: "var(--bg-secondary)",
           borderColor: "var(--border-color)",

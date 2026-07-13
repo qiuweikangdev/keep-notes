@@ -124,6 +124,37 @@ describe("ReminderEditorDialog", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps the editor open after selecting a repeat preset", async () => {
+    const user = userEvent.setup();
+    render(<ReminderEditorDialog />);
+
+    await user.click(screen.getByRole("button", { name: /永不/ }));
+    await user.click(screen.getByRole("button", { name: "每天" }));
+
+    expect(useReminderStore.getState().isEditorOpen).toBe(true);
+    expect(
+      screen.getByRole("dialog", { name: "新建提醒事项" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /每天/ })).toBeInTheDocument();
+  });
+
+  it("uses a shared control column for date, time, and repeat", () => {
+    render(<ReminderEditorDialog />);
+
+    const settingsGroup = screen.getByTestId("reminder-settings-group");
+    const rows = settingsGroup.querySelectorAll("div.grid");
+    const controls = settingsGroup.querySelectorAll("button[aria-expanded]");
+
+    expect(rows).toHaveLength(3);
+    rows.forEach((row) => {
+      expect(row).toHaveClass("grid-cols-[20px_minmax(0,1fr)_140px]");
+    });
+    expect(controls).toHaveLength(3);
+    controls.forEach((control) => {
+      expect(control).toHaveClass("w-full");
+    });
+  });
+
   it("creates a standalone reminder without requiring a file", async () => {
     const user = userEvent.setup();
     useReminderStore.setState({
