@@ -109,6 +109,21 @@ describe("FileTree context menu", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps the file tree scroll position when switching files from the tree", async () => {
+    render(<FileTree />);
+
+    fireEvent.click(await screen.findByText("daily.md"));
+
+    await waitFor(() => {
+      expect(electronMocks.openFile).toHaveBeenCalledWith("/notes/daily.md");
+    });
+    await act(
+      () =>
+        new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+    );
+    expect(virtualizerScrollToIndex).not.toHaveBeenCalled();
+  });
+
   it("keeps same-file outline selection and navigation isolated by pane", async () => {
     const path = "/notes/daily.md";
     const firstNavigate = vi.fn(() => true);

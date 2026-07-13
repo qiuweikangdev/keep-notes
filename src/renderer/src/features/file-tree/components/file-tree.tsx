@@ -547,6 +547,8 @@ export function FileTree() {
   // 处理节点点击
   const handleNodeClick = useCallback(
     (flatNode: FlatNode) => {
+      // 文件树内的直接点击不触发选中项自动定位，保留用户当前的滚动位置。
+      lastSelectedRevealKeyRef.current = flatNode.key;
       setSelectedKey(flatNode.key);
       if (flatNode.isFolder) {
         setFileTreeRevealRequest({
