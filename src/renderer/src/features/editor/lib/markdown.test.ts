@@ -5,6 +5,7 @@ import {
   markdownEquals,
   parseMarkdown,
   preserveMarkdownSource,
+  repairMarkdownSourceBeforeParse,
   resolveEditorImageUrl,
   serializeMarkdown,
 } from "./markdown";
@@ -124,6 +125,81 @@ describe("markdownEquals", () => {
     expect(markdownEquals("# Title  \n", "# Title\n")).toBe(false);
     expect(markdownEquals("# Title\n", "# Title\n")).toBe(true);
   });
+});
+
+describe("repairMarkdownSourceBeforeParse", () => {
+  it("recovers Chinese first-line content joined to a bash fence", () => {
+    const source = [
+      "核心步骤",
+      "",
+      "```bash写一个 while True 无限循环",
+      "不断从数据库查任务",
+      "```",
+      "",
+    ].join("\n");
+
+    expect(repairMarkdownSourceBeforeParse(source)).toBe(
+      [
+        "核心步骤",
+        "",
+        "```bash",
+        "写一个 while True 无限循环",
+        "不断从数据库查任务",
+        "```",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("canonicalizes a bash alias when recovering joined content", () => {
+    expect(
+      repairMarkdownSourceBeforeParse(
+        "~~~sh echo ready\r\necho next\r\n~~~\r\n",
+      ),
+    ).toBe("~~~bash\r\necho ready\r\necho next\r\n~~~\r\n");
+  });
+
+  it("leaves valid and unsupported fenced-code openings unchanged", () => {
+    const source = [
+      "```bash",
+      "echo ready",
+      "```",
+      "",
+      "```unknownlang joined content",
+      "value",
+      "```",
+      "",
+    ].join("\n");
+
+    expect(repairMarkdownSourceBeforeParse(source)).toBe(source);
+  });
+
+  it("does not split a supported one-character prefix from a custom language", () => {
+    const source = "```customlang joined content\nvalue\n```\n";
+
+    expect(repairMarkdownSourceBeforeParse(source)).toBe(source);
+  });
+
+  it("does not repair fence-like text inside an open code block", () => {
+    const source = ["````text", "```bash写一个循环", "````", ""].join("\n");
+
+    expect(repairMarkdownSourceBeforeParse(source)).toBe(source);
+  });
+
+  it.each(["```not-a-close", "````not-a-close"])(
+    "does not treat a fence with trailing text as a closing fence: %s",
+    (fenceLikeContent) => {
+      const source = [
+        "```text",
+        fenceLikeContent,
+        "```bash写一个循环",
+        "```",
+        "",
+      ].join("\n");
+
+      expect(repairMarkdownSourceBeforeParse(source)).toBe(source);
+    },
+  );
 });
 
 describe("preserveMarkdownSource", () => {

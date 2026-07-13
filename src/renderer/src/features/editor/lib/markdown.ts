@@ -1,5 +1,7 @@
 import { diffChars, type Change } from "diff";
 
+import { CODE_BLOCK_LANGUAGE_OPTIONS } from "./editor-code-block-languages";
+
 export interface MarkdownParser<TBlock> {
   tryParseMarkdownToBlocks(markdown: string): Promise<TBlock[]> | TBlock[];
 }
@@ -32,6 +34,20 @@ const SOURCE_PRESERVATION_DIFF_CHAR_LIMIT = 16_000;
 const LARGE_DOC_LIST_PRESERVE_LIMIT = 8_000;
 const UNORDERED_LIST_LINE_PATTERN = /^([ \t]{0,3})([-+*])([ \t]+)(.*)$/u;
 const FENCED_CODE_LINE_PATTERN = /^ {0,3}(```+|~~~+)/u;
+const FENCED_CODE_OPENING_PATTERN = /^( {0,3})(```+|~~~+)(.*)$/u;
+
+interface FencedCodeLanguageCandidate {
+  canonicalId: string;
+  value: string;
+}
+
+const FENCED_CODE_LANGUAGE_CANDIDATES: FencedCodeLanguageCandidate[] =
+  CODE_BLOCK_LANGUAGE_OPTIONS.flatMap((language) =>
+    [language.id, ...language.aliases].map((value) => ({
+      canonicalId: language.id,
+      value,
+    })),
+  ).toSorted((left, right) => right.value.length - left.value.length);
 
 interface MarkdownLine {
   ending: string;
@@ -276,6 +292,8 @@ function getClosingFenceMatch(line: string, openingFence: string) {
   if (!match) return null;
   if (match[1][0] !== openingFence[0]) return null;
   if (match[1].length < openingFence.length) return null;
+  // 关闭围栏后只允许空白，避免把代码块内的 fence-like 内容误判为结束位置。
+  if (!/^[ \t]*$/u.test(line.slice(match[0].length))) return null;
   return match;
 }
 
@@ -606,8 +624,86 @@ function repairJoinedUnorderedListMarkers(markdown: string): string | null {
   );
 }
 
+function splitJoinedFencedCodeOpening(
+  line: MarkdownLine,
+): MarkdownLine[] | null {
+  const match = line.text.match(FENCED_CODE_OPENING_PATTERN);
+  if (!match) return null;
+
+  const [, indent, fence, rawInfo] = match;
+  const info = rawInfo.trimStart();
+  if (!info) return null;
+
+  const normalizedInfo = info.toLowerCase();
+  // 优先移除最长的受支持语言或别名；其后必须是空白或非 ASCII 内容，剩余部分才作为首行代码。
+  const candidate = FENCED_CODE_LANGUAGE_CANDIDATES.find(({ value }) => {
+    if (!normalizedInfo.startsWith(value.toLowerCase())) return false;
+    const boundary = info[value.length];
+    return (
+      boundary !== undefined && (/\s/u.test(boundary) || boundary > "\x7f")
+    );
+  });
+  if (!candidate) return null;
+
+  const firstLine = info.slice(candidate.value.length).trimStart();
+  if (!firstLine) return null;
+
+  return [
+    {
+      text: `${indent}${fence}${candidate.canonicalId}`,
+      ending: line.ending || "\n",
+    },
+    {
+      text: firstLine,
+      ending: line.ending,
+    },
+  ];
+}
+
+function repairJoinedFencedCodeFirstLines(markdown: string): string | null {
+  const lines = splitMarkdownLines(markdown);
+  const nextLines: MarkdownLine[] = [];
+  let openingFence: string | null = null;
+  let changed = false;
+
+  for (const line of lines) {
+    if (openingFence) {
+      const closingMatch = getClosingFenceMatch(line.text, openingFence);
+      if (closingMatch) openingFence = null;
+      nextLines.push(line);
+      continue;
+    }
+
+    const openingMatch = line.text.match(FENCED_CODE_OPENING_PATTERN);
+    if (!openingMatch) {
+      nextLines.push(line);
+      continue;
+    }
+
+    const repairedLines = splitJoinedFencedCodeOpening(line);
+    if (repairedLines) {
+      changed = true;
+      nextLines.push(...repairedLines);
+    } else {
+      nextLines.push(line);
+    }
+    openingFence = openingMatch[2];
+  }
+
+  if (!changed) return null;
+
+  return preserveSourceEnding(
+    markdown,
+    nextLines.map((line) => `${line.text}${line.ending}`).join(""),
+  );
+}
+
 export function repairMarkdownSourceBeforeParse(markdown: string): string {
-  return repairJoinedUnorderedListMarkers(markdown) ?? markdown;
+  const fencedCodeRepaired =
+    repairJoinedFencedCodeFirstLines(markdown) ?? markdown;
+  return (
+    repairJoinedUnorderedListMarkers(fencedCodeRepaired) ?? fencedCodeRepaired
+  );
 }
 
 function preserveReorderedUnorderedLists(

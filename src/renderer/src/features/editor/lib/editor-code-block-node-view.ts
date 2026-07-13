@@ -3,6 +3,8 @@ import {
   history,
   historyKeymap,
   indentWithTab,
+  isolateHistory,
+  undoDepth,
 } from "@codemirror/commands";
 import { css } from "@codemirror/lang-css";
 import { html } from "@codemirror/lang-html";
@@ -520,15 +522,13 @@ class EditorCodeBlockNodeView {
         [
           ".editor-code-block__toolbar",
           ".editor-code-block-language-popover",
-          ".cm-content",
-          ".cm-gutters",
         ].join(", "),
       )
     ) {
       return;
     }
 
-    // 点击代码块空白区域时，让光标回到 CodeMirror，而不是落到外层富文本。
+    // 点击代码正文、普通 gutter 或其他非控件区域时，让焦点回到 CodeMirror，而不是落到外层富文本。
     this.codeMirror.focus();
   };
 
@@ -642,6 +642,24 @@ class EditorCodeBlockNodeView {
               this.selectAllCode();
 
               return true;
+            },
+          },
+          {
+            key: "Enter",
+            run: (view) => {
+              // 换行与下一行内容组成独立撤销单元，避免一次撤回清空多行输入。
+              view.dispatch({ annotations: isolateHistory.of("before") });
+
+              return false;
+            },
+          },
+          {
+            key: "Mod-z",
+            run: (view) => {
+              if (undoDepth(view.state) > 0) return false;
+
+              // 代码内容已全部撤回后，继续撤销外层的代码块创建等结构操作。
+              return this.editor.undo();
             },
           },
         ]),
@@ -760,7 +778,8 @@ class EditorCodeBlockNodeView {
     tr = tr.setSelection(
       TextSelection.create(tr.doc, nextSelectionFrom, nextSelectionTo),
     );
-    view.dispatch(tr);
+    // 代码文本由 CodeMirror 维护撤销栈，外层只记录代码块创建、删除等结构历史。
+    view.dispatch(tr.setMeta("addToHistory", false));
   }
 
   private selectAllCode() {
@@ -867,7 +886,7 @@ class EditorCodeBlockNodeView {
       "editor-code-block__toolbar flex items-center justify-between gap-2 border-b border-[var(--border-color)] px-2 py-1";
 
     const languageWrap = document.createElement("div");
-    languageWrap.className = "relative";
+    languageWrap.className = "editor-code-block__language-wrap relative";
 
     this.languageButton = document.createElement("button");
     this.languageButton.type = "button";

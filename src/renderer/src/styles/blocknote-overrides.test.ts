@@ -264,6 +264,34 @@ describe("blocknote overrides stylesheet", () => {
     expect(stylesheet).not.toMatch(/editor-code-block__code-pane--folded/);
   });
 
+  it("keeps the code language trigger on one line inside the code block", () => {
+    expect(getRule(".editor-code-block__language-wrap")).toMatch(/flex:\s*1;/);
+    expect(getRule(".editor-code-block__language-wrap")).toMatch(
+      /min-width:\s*0;/,
+    );
+    expect(getRule(".editor-code-block__language-wrap")).toMatch(
+      /margin-right:\s*36px;/,
+    );
+    expect(getRule(".editor-code-block-language-trigger")).toMatch(
+      /max-width:\s*100%;/,
+    );
+    expect(getRule(".editor-code-block-language-trigger > span")).toMatch(
+      /min-width:\s*0;/,
+    );
+    expect(getRule(".editor-code-block-language-trigger > span")).toMatch(
+      /overflow:\s*hidden;/,
+    );
+    expect(getRule(".editor-code-block-language-trigger > span")).toMatch(
+      /text-overflow:\s*ellipsis;/,
+    );
+    expect(getRule(".editor-code-block-language-trigger > span")).toMatch(
+      /white-space:\s*nowrap;/,
+    );
+    expect(getRule(".editor-code-block-language-trigger > svg")).toMatch(
+      /flex-shrink:\s*0;/,
+    );
+  });
+
   it("styles inline code marks inside rich editor text blocks", () => {
     const inlineCodeRule = getRule(
       ".bn-editor code:not(.editor-code-block__content)",

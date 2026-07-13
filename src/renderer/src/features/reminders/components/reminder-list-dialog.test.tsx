@@ -118,7 +118,7 @@ describe("ReminderListDialog", () => {
     ).toBeInTheDocument();
   });
 
-  it("closes from the close button after dismissing a row context menu", async () => {
+  it("closes with Escape after dismissing a row context menu", async () => {
     const user = userEvent.setup();
     useReminderStore.setState({
       reminders: [{ ...reminder, scheduledAt: new Date().toISOString() }],
@@ -129,7 +129,7 @@ describe("ReminderListDialog", () => {
     expect(await screen.findByText("修改")).toBeInTheDocument();
 
     await user.keyboard("{Escape}");
-    await user.click(screen.getByRole("button", { name: "关闭" }));
+    await user.keyboard("{Escape}");
 
     expect(useReminderStore.getState().isListOpen).toBe(false);
   });
@@ -168,18 +168,85 @@ describe("ReminderListDialog", () => {
     expect(screen.queryByText("文件")).not.toBeInTheDocument();
     expect(screen.queryByText("时间")).not.toBeInTheDocument();
     expect(screen.queryByText("最近通知")).not.toBeInTheDocument();
-    expect(screen.getByText("无关联文件")).toBeInTheDocument();
-    expect(screen.getByText(/^提醒 /)).toBeInTheDocument();
+    expect(screen.queryByText(/无关联文件/)).not.toBeInTheDocument();
+    expect(screen.getByText(/^.* · 永不$/)).toBeInTheDocument();
+    expect(screen.queryByText(/^提醒 /)).not.toBeInTheDocument();
     expect(screen.queryByText(/^通知 /)).not.toBeInTheDocument();
   });
 
-  it("keeps the reminder list scroll area at 250px", () => {
+  it("renders a compact command-palette shell", () => {
+    render(<ReminderListDialog />);
+
+    const dialog = screen.getByRole("dialog", { name: "提醒事项" });
+    const search = screen.getByRole("searchbox", {
+      name: "搜索提醒事项",
+    });
+
+    expect(dialog).toHaveClass("max-w-[520px]", "top-[12vh]", "translate-y-0");
+    expect(search).toHaveClass("border-0", "bg-transparent");
+    expect(screen.queryByRole("button", { name: "关闭" })).toBeNull();
+    expect(screen.getByRole("button", { name: "新建提醒事项" })).toBeVisible();
+  });
+
+  it("uses a bounded compact result list", () => {
     useReminderStore.setState({
       reminders: [{ ...reminder, scheduledAt: new Date().toISOString() }],
     });
     render(<ReminderListDialog />);
 
-    expect(screen.getByRole("tabpanel")).toHaveClass("h-[250px]");
+    expect(screen.getByRole("tabpanel")).toHaveClass(
+      "max-h-[320px]",
+      "overflow-y-auto",
+    );
+  });
+
+  it("renders an inline empty state", () => {
+    render(<ReminderListDialog />);
+
+    expect(screen.getByText("没有提醒事项")).toHaveClass(
+      "px-3",
+      "pb-4",
+      "pt-2",
+    );
+  });
+
+  it("renders compact tabs and search-style result rows", () => {
+    useReminderStore.setState({
+      reminders: [
+        {
+          ...reminder,
+          fileName: "",
+          scheduledAt: new Date().toISOString(),
+        },
+      ],
+    });
+    render(<ReminderListDialog />);
+
+    expect(screen.getByRole("tablist")).toHaveClass("flex", "gap-1");
+    expect(screen.getByRole("tab", { name: "今天" })).toHaveClass(
+      "w-auto",
+      "px-2",
+    );
+    expect(screen.getByRole("button", { name: /Read notes/ })).toHaveClass(
+      "flex",
+      "h-8",
+    );
+  });
+
+  it("renders an associated file below the title as smaller secondary text", () => {
+    useReminderStore.setState({
+      reminders: [{ ...reminder, scheduledAt: new Date().toISOString() }],
+    });
+    render(<ReminderListDialog />);
+
+    expect(screen.getByRole("button", { name: /Read notes/ })).toHaveClass(
+      "h-11",
+    );
+    const fileName = screen.getByText("today.md");
+
+    expect(fileName).toHaveClass("mt-0.5", "text-[10px]");
+    expect(fileName.parentElement).toHaveClass("items-start");
+    expect(screen.getByText(/^.* · 永不$/)).not.toHaveTextContent("today.md");
   });
 
   it("removes the history tab and keeps all reminders as the last tab", () => {
@@ -199,7 +266,7 @@ describe("ReminderListDialog", () => {
     });
     render(<ReminderListDialog />);
 
-    await user.type(screen.getByPlaceholderText("搜索标题或文件名"), "missing");
+    await user.type(screen.getByPlaceholderText("搜索提醒事项"), "missing");
 
     expect(screen.queryByRole("button", { name: /Read notes/ })).toBeNull();
 
@@ -210,7 +277,7 @@ describe("ReminderListDialog", () => {
       useReminderStore.getState().openList();
     });
 
-    expect(screen.getByPlaceholderText("搜索标题或文件名")).toHaveValue("");
+    expect(screen.getByPlaceholderText("搜索提醒事项")).toHaveValue("");
     expect(
       screen.getByRole("button", { name: /Read notes/ }),
     ).toBeInTheDocument();

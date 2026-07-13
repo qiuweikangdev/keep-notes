@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Bell, CheckCircle2, Pencil, Plus, Search, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ContextMenu } from "@/components/ui/context-menu";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Tabs } from "@/components/ui/tabs";
 import { useReminderStore } from "@/store/reminder.store";
 import type { Reminder } from "@/types";
@@ -93,7 +91,8 @@ export function ReminderListDialog() {
         }}
       >
         <DialogContent
-          className="max-w-[680px] gap-0 overflow-hidden p-0 shadow-2xl"
+          showCloseButton={false}
+          className="top-[12vh] max-w-[520px] translate-y-0 gap-0 overflow-hidden rounded-xl p-0 shadow-lg sm:rounded-xl"
           onEscapeKeyDown={(event) => {
             if (isContextMenuOpen) {
               event.preventDefault();
@@ -103,7 +102,7 @@ export function ReminderListDialog() {
           onInteractOutside={preventDialogDismissFromContextMenu}
           onPointerDownOutside={preventDialogDismissFromContextMenu}
           style={{
-            backgroundColor: "var(--bg-secondary)",
+            backgroundColor: "var(--bg-primary)",
             border: "1px solid var(--border-color)",
             color: "var(--text-primary)",
           }}
@@ -112,41 +111,29 @@ export function ReminderListDialog() {
           <Dialog.Description className="sr-only">
             查看、搜索、编辑和完成笔记提醒事项
           </Dialog.Description>
-          <div
-            className="border-b px-5 py-4"
-            style={{ borderColor: "var(--border-color)" }}
-          >
-            <div className="mb-4 flex items-center gap-3">
-              <Bell
-                className="h-5 w-5"
-                style={{ color: "var(--accent-color)" }}
-              />
-              <h2 className="text-lg font-semibold">提醒事项</h2>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <Search
-                  className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
-                  style={{ color: "var(--text-muted)" }}
-                />
-                <Input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="搜索标题或文件名"
-                  className="h-9 pl-9"
-                />
-              </div>
-              <Button
-                type="button"
-                variant="secondary"
-                size="icon"
-                aria-label="新建提醒事项"
-                title="新建提醒事项"
-                onClick={handleCreate}
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
+          <div className="flex h-9 items-center gap-2 px-3">
+            <Search
+              aria-hidden="true"
+              className="h-4 w-4 shrink-0 text-[var(--text-muted)]"
+            />
+            <input
+              aria-label="搜索提醒事项"
+              className="h-full min-w-0 flex-1 appearance-none border-0 bg-transparent p-0 text-sm text-[var(--text-primary)] shadow-none outline-none ring-0 placeholder:text-[var(--text-muted)] focus:border-0 focus:border-transparent focus:outline-none focus:ring-0"
+              placeholder="搜索提醒事项"
+              role="searchbox"
+              type="text"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+            <button
+              aria-label="新建提醒事项"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] outline-none hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-color)]"
+              title="新建提醒事项"
+              type="button"
+              onClick={handleCreate}
+            >
+              <Plus aria-hidden="true" className="h-4 w-4" />
+            </button>
           </div>
 
           <Tabs.Root
@@ -154,15 +141,14 @@ export function ReminderListDialog() {
             onValueChange={(value) => setTab(value as ReminderListTab)}
           >
             <Tabs.List
-              className="grid grid-cols-3 gap-1 px-5 py-3"
-              style={{ backgroundColor: "var(--bg-secondary)" }}
+              aria-label="提醒事项筛选"
+              className="flex items-center gap-1 px-1.5 pb-1"
             >
               {tabs.map((item) => (
                 <Tabs.Trigger
                   key={item.value}
                   value={item.value}
-                  className="h-8 rounded-md text-[13px] data-[state=active]:bg-[var(--bg-primary)]"
-                  style={{ color: "var(--text-primary)" }}
+                  className="h-6 w-auto rounded-md px-2 text-xs text-[var(--text-secondary)] outline-none hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-color)] data-[state=active]:bg-[var(--active-bg)] data-[state=active]:text-[var(--text-primary)]"
                 >
                   {item.label}
                 </Tabs.Trigger>
@@ -173,10 +159,10 @@ export function ReminderListDialog() {
               <Tabs.Content
                 key={item.value}
                 value={item.value}
-                className="h-[250px] overflow-auto bg-[var(--bg-primary)] px-3 py-3"
+                className="max-h-[320px] overflow-y-auto px-1.5 pb-2 outline-none"
               >
                 {visibleReminders.length > 0 ? (
-                  <div className="space-y-1">
+                  <div className="space-y-0.5">
                     {visibleReminders.map((reminder) => (
                       <ReminderListItem
                         key={reminder.id}
@@ -191,7 +177,7 @@ export function ReminderListDialog() {
                     ))}
                   </div>
                 ) : (
-                  <div className="flex h-[220px] items-center justify-center text-[13px] text-[var(--text-muted)]">
+                  <div className="px-3 pb-4 pt-2 text-[13px] text-[var(--text-muted)]">
                     没有提醒事项
                   </div>
                 )}
@@ -240,33 +226,47 @@ function ReminderListItem({
   onContextMenuOpenChange,
 }: ReminderListItemProps) {
   const scheduledAt = formatReminderDateTime(reminder.scheduledAt);
-  const fileName = reminder.fileName || "无关联文件";
+  const metadata = `${scheduledAt} · ${getRepeatLabel(reminder)}`;
 
   return (
     <ContextMenu.Root modal={false} onOpenChange={onContextMenuOpenChange}>
       <ContextMenu.Trigger asChild>
         <button
           type="button"
-          className="grid w-full grid-cols-[minmax(0,1fr)_52px] items-center gap-3 rounded-md px-3 py-2 text-left transition-colors hover:bg-[var(--hover-bg)]"
+          className={`flex w-full items-center gap-2 rounded-md px-2 text-left text-sm outline-none hover:bg-[var(--hover-bg)] focus-visible:ring-1 focus-visible:ring-[var(--accent-color)] ${
+            reminder.fileName ? "h-11" : "h-8"
+          }`}
         >
-          <div className="min-w-0">
-            <div className="truncate text-[14px] font-medium">
+          {reminder.completed ? (
+            <CheckCircle2
+              aria-hidden="true"
+              className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]"
+            />
+          ) : (
+            <Bell
+              aria-hidden="true"
+              className="h-3.5 w-3.5 shrink-0 text-[var(--text-muted)]"
+            />
+          )}
+          <span className="flex min-w-0 flex-1 flex-col items-start">
+            <span className="max-w-full truncate font-medium">
               {reminder.title}
-            </div>
-            <div
-              className="mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] leading-5"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              <span className="min-w-0 max-w-[180px] truncate">{fileName}</span>
-              <span className="shrink-0">提醒 {scheduledAt}</span>
-            </div>
-          </div>
-          <div
-            className="text-right text-[12px]"
-            style={{ color: "var(--text-muted)" }}
+            </span>
+            {reminder.fileName ? (
+              <span
+                className="mt-0.5 max-w-full truncate text-[10px] leading-none text-[var(--text-muted)]"
+                title={reminder.fileName}
+              >
+                {reminder.fileName}
+              </span>
+            ) : null}
+          </span>
+          <span
+            className="min-w-[160px] max-w-[280px] shrink-0 truncate text-right text-xs text-[var(--text-muted)]"
+            title={metadata}
           >
-            {getRepeatLabel(reminder)}
-          </div>
+            {metadata}
+          </span>
         </button>
       </ContextMenu.Trigger>
       <ContextMenu.Portal>

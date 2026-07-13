@@ -14,6 +14,7 @@ import {
 } from "./blocknote-schema";
 import { shouldStopEditorCodeBlockNodeViewEvent } from "./editor-code-block-node-view";
 import * as blocknoteSchemaModule from "./blocknote-schema";
+import { repairMarkdownSourceBeforeParse } from "./markdown";
 
 afterEach(() => {
   cleanup();
@@ -259,58 +260,113 @@ describe("editor BlockNote schema", () => {
     output.destroy?.();
   });
 
-  it("preserves folded code when a pane restores a selection inside it", () => {
-    const output = editorBlockSpecs.codeBlock.implementation.render.call(
-      {
-        blockContentDOMAttributes: {},
-        props: undefined,
-        renderType: "nodeView",
-      },
-      {
-        id: "block-1",
-        type: "codeBlock",
-        props: { language: "ts" },
-        content: "function demo() {\n  return 1;\n}\nnext();",
-        children: [],
-      } as never,
-      {
-        isEditable: true,
-        updateBlock: vi.fn(),
-      } as never,
-    ) as {
-      destroy?: () => void;
-      dom: HTMLElement;
-      setSelection?: (anchor: number, head: number) => void;
+  it("continues undoing in BlockNote after CodeMirror history is exhausted", async () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    editor.insertBlocks(
+      [{ type: "codeBlock", content: "" }],
+      editor.document[0],
+      "after",
+    );
+
+    await waitFor(() => {
+      expect(editor.document.some((block) => block.type === "codeBlock")).toBe(
+        true,
+      );
+    });
+    const codeMirror = getCodeMirrorView(container);
+    codeMirror.focus();
+    codeMirror.dispatch({
+      changes: { from: 0, insert: "const value = 1;" },
+      userEvent: "input.type",
+    });
+
+    const undoModifier = /Mac|iPhone|iPad/.test(navigator.platform)
+      ? { metaKey: true }
+      : { ctrlKey: true };
+    const undoInCodeMirror = () =>
+      codeMirror.contentDOM.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          bubbles: true,
+          cancelable: true,
+          key: "z",
+          ...undoModifier,
+        }),
+      );
+
+    undoInCodeMirror();
+    await waitFor(() => {
+      expect(codeMirror.state.doc.toString()).toBe("");
+      expect(editor.document.some((block) => block.type === "codeBlock")).toBe(
+        true,
+      );
+    });
+
+    undoInCodeMirror();
+    await waitFor(() => {
+      expect(editor.document.some((block) => block.type === "codeBlock")).toBe(
+        false,
+      );
+    });
+  });
+
+  it("undoes CodeMirror input one completed line at a time", async () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "codeBlock", content: "" }],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+    const codeMirror = getCodeMirrorView(container);
+    codeMirror.focus();
+
+    const typeCode = (text: string) => {
+      const from = codeMirror.state.selection.main.from;
+      codeMirror.dispatch({
+        changes: { from, insert: text },
+        selection: { anchor: from + text.length },
+        userEvent: "input.type",
+      });
     };
-    const codeMirror = getCodeMirrorView(output.dom);
-    const firstLine = codeMirror.state.doc.line(1);
-    const foldRange = foldable(codeMirror.state, firstLine.from, firstLine.to);
+    const pressEnterInCodeMirror = () =>
+      codeMirror.contentDOM.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          bubbles: true,
+          cancelable: true,
+          key: "Enter",
+        }),
+      );
 
-    expect(foldRange).not.toBe(null);
-    codeMirror.dispatch({ effects: foldEffect.of(foldRange!) });
-    const dispatchSpy = vi.spyOn(codeMirror, "dispatch");
-    output.setSelection?.(
-      codeMirror.state.doc.length,
-      codeMirror.state.doc.length,
-    );
+    typeCode("a");
+    pressEnterInCodeMirror();
+    typeCode("b");
+    pressEnterInCodeMirror();
+    typeCode("c");
+    expect(codeMirror.state.doc.toString()).toBe("a\nb\nc");
 
-    expect(dispatchSpy).toHaveBeenCalledOnce();
-    expect(dispatchSpy.mock.calls[0]?.[0]).not.toHaveProperty("scrollIntoView");
+    const undoModifier = /Mac|iPhone|iPad/.test(navigator.platform)
+      ? { metaKey: true }
+      : { ctrlKey: true };
+    const undoInCodeMirror = () =>
+      codeMirror.contentDOM.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          bubbles: true,
+          cancelable: true,
+          key: "z",
+          ...undoModifier,
+        }),
+      );
 
-    output.setSelection?.(foldRange!.from + 1, foldRange!.from + 1);
-    expect(dispatchSpy).toHaveBeenCalledOnce();
+    undoInCodeMirror();
+    expect(codeMirror.state.doc.toString()).toBe("a\nb");
 
-    let foldCount = 0;
-    foldedRanges(codeMirror.state).between(
-      0,
-      codeMirror.state.doc.length,
-      () => {
-        foldCount += 1;
-      },
-    );
-    expect(foldCount).toBe(1);
-
-    output.destroy?.();
+    undoInCodeMirror();
+    expect(codeMirror.state.doc.toString()).toBe("a");
   });
 
   it("does not expose a BlockNote Shiki highlighter for editor code blocks", () => {
@@ -337,6 +393,22 @@ describe("editor BlockNote schema", () => {
       { type: "bulletListItem", text: "List" },
     ]);
     expect(blocks.map(getInlineText).join("")).not.toContain("*");
+  });
+
+  it("preserves the recovered first line in a malformed bash code block", async () => {
+    const editor = BlockNoteEditor.create({ schema: editorSchema });
+    const repaired = repairMarkdownSourceBeforeParse(
+      "```bash写一个 while True 无限循环\n不断从数据库查任务\n```",
+    );
+    const blocks = await editor.tryParseMarkdownToBlocks(repaired);
+
+    expect(blocks[0]).toMatchObject({
+      type: "codeBlock",
+      props: { language: "bash" },
+    });
+    expect(getInlineText(blocks[0])).toBe(
+      "写一个 while True 无限循环\n不断从数据库查任务",
+    );
   });
 
   it("parses markdown inline code as styled text instead of source markers", async () => {
@@ -390,6 +462,34 @@ describe("editor BlockNote schema", () => {
       { type: "bulletListItem", text: "List" },
     ]);
     expect(editor.document.map(getInlineText).join("")).not.toContain("*");
+  });
+
+  it("undoes one completed bullet list item at a time", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[0].id, "start");
+    typeString(editor, "* ");
+    typeString(editor, "a");
+    pressKey(editor, "Enter");
+    typeString(editor, "b");
+    pressKey(editor, "Enter");
+    typeString(editor, "c");
+
+    expect(editor.undo()).toBe(true);
+    expect(getDocumentSummary(editor)).toEqual([
+      { type: "bulletListItem", text: "a" },
+      { type: "bulletListItem", text: "b" },
+    ]);
+
+    expect(editor.undo()).toBe(true);
+    expect(getDocumentSummary(editor)).toEqual([
+      { type: "bulletListItem", text: "a" },
+    ]);
   });
 
   it("converts typed markdown inline code after Chinese text into styled text", () => {
@@ -867,6 +967,75 @@ describe("editor BlockNote schema", () => {
     fireEvent.mouseDown(shell as HTMLElement);
 
     expect(getCodeMirrorView(container).hasFocus).toBe(true);
+  });
+
+  it("focuses CodeMirror when clicking the code content", async () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "codeBlock",
+          props: { language: "js" },
+          content: "const a = 1",
+        },
+      ],
+    });
+
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    await waitFor(() => {
+      expect(getCodeMirrorView(container).state.doc.toString()).toBe(
+        "const a = 1",
+      );
+    });
+
+    const view = getCodeMirrorView(container);
+    const content = container.querySelector<HTMLElement>(
+      ".editor-code-block__codemirror .cm-content",
+    );
+    expect(content).not.toBe(null);
+
+    view.contentDOM.blur();
+    content?.dispatchEvent(
+      new MouseEvent("mousedown", {
+        bubbles: true,
+        button: 2,
+        cancelable: true,
+      }),
+    );
+
+    expect(view.hasFocus).toBe(true);
+  });
+
+  it("focuses CodeMirror when clicking the line-number gutter", async () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "codeBlock",
+          props: { language: "bash" },
+          content: "echo ready\necho next",
+        },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    await waitFor(() => {
+      expect(getCodeMirrorView(container).state.doc.lines).toBe(2);
+    });
+
+    const view = getCodeMirrorView(container);
+    const lineNumber = container.querySelector<HTMLElement>(
+      ".editor-code-block__codemirror .cm-lineNumbers .cm-gutterElement",
+    );
+    expect(lineNumber).not.toBe(null);
+
+    view.contentDOM.blur();
+    fireEvent.mouseDown(lineNumber as HTMLElement);
+
+    expect(view.hasFocus).toBe(true);
   });
 
   it("shows a check icon after copying code from the CodeMirror node view", async () => {

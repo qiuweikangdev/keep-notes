@@ -43,6 +43,9 @@ describe("editor code block languages", () => {
   it("resolves ids and aliases without changing unsupported languages", () => {
     expect(getSupportedCodeBlockLanguageId("js")).toBe("javascript");
     expect(getSupportedCodeBlockLanguageId("ts")).toBe("typescript");
+    expect(getSupportedCodeBlockLanguageId("sh")).toBe("bash");
+    expect(getSupportedCodeBlockLanguageId("shell")).toBe("bash");
+    expect(getSupportedCodeBlockLanguageId("zsh")).toBe("bash");
     expect(getSupportedCodeBlockLanguageId("c++")).toBe("cpp");
     expect(getSupportedCodeBlockLanguageId("unknownlang")).toBe("unknownlang");
     expect(getSupportedCodeBlockLanguageId("")).toBe("text");
@@ -51,6 +54,8 @@ describe("editor code block languages", () => {
   it("returns labels for known languages and readable fallback labels", () => {
     expect(getCodeBlockLanguageLabel("typescript")).toBe("TypeScript");
     expect(getCodeBlockLanguageShortLabel("typescript")).toBe("ts");
+    expect(getCodeBlockLanguageShortLabel("bash")).toBe("bash");
+    expect(getCodeBlockLanguageShortLabel("sh")).toBe("bash");
     expect(getCodeBlockLanguageLabel("unknownlang")).toBe("unknownlang");
     expect(getCodeBlockLanguageShortLabel("unknownlang")).toBe("unknownlang");
   });

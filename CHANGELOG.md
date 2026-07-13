@@ -1,3 +1,28 @@
+# [2.10.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.9.3...v2.10.0) (2026-07-12)
+
+
+### Bug Fixes
+
+* focus code blocks from line gutters ([1396f02](https://github.com/qiuweikangdev/keep-notes/commit/1396f02a5aa0c1165e51b696a8052fce7432e298))
+* keep reminder editor open when custom repeat closes ([3e375ae](https://github.com/qiuweikangdev/keep-notes/commit/3e375aee0fbfd45e8fb8e8caff25e7d067fa9147))
+* normalize bash code block label ([b84c8f3](https://github.com/qiuweikangdev/keep-notes/commit/b84c8f3234d360181624b96d3506bc3d59e8bd42))
+* preserve granular editor undo history ([9dba66f](https://github.com/qiuweikangdev/keep-notes/commit/9dba66f65e170959aa519a7570bff5f95620f2c0))
+* recover code block first line ([f7696ef](https://github.com/qiuweikangdev/keep-notes/commit/f7696ef1761c5360faae4233e647dd8e5ca6ecdd))
+* reserve code block copy space ([6509a47](https://github.com/qiuweikangdev/keep-notes/commit/6509a4740436529db228e32655c01b308f634321))
+* restore code block controls and focus ([14be15a](https://github.com/qiuweikangdev/keep-notes/commit/14be15a3747c6cc155cd9db88f5bdbfc2bd1ba80))
+* validate code fence closings ([7498d1e](https://github.com/qiuweikangdev/keep-notes/commit/7498d1ef57aef2ca3720455f6cc8d3521f06f2c4))
+
+
+### Features
+
+* refine reminder list dialog ([0ad3828](https://github.com/qiuweikangdev/keep-notes/commit/0ad3828e32cd722b72eaa37bf969bb5eaf136f77))
+
+
+## Commit Summary
+
+- Compared with: v2.9.3
+- Total commits: 13
+
 ## [2.9.3](https://github.com/qiuweikangdev/keep-notes/compare/v2.9.2...v2.9.3) (2026-07-08)
 
 
