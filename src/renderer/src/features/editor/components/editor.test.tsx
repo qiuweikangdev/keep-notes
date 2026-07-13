@@ -29,8 +29,18 @@ vi.mock("react-resizable-panels", () => ({
       />
     </div>
   ),
-  PanelResizeHandle: ({ style }: { style?: CSSProperties }) => (
-    <div data-testid="panel-resize-handle" style={style} />
+  PanelResizeHandle: ({
+    style,
+    hitAreaMargins,
+  }: {
+    style?: CSSProperties;
+    hitAreaMargins?: { coarse: number; fine: number };
+  }) => (
+    <div
+      data-hit-area-margins={JSON.stringify(hitAreaMargins)}
+      data-testid="panel-resize-handle"
+      style={style}
+    />
   ),
 }));
 
@@ -350,6 +360,10 @@ describe("Editor split panels", () => {
     expect(handle.getAttribute("style")).toContain("border-left: 0");
     expect(handle.getAttribute("style")).toContain(
       "border-top: 1px solid var(--border-color)",
+    );
+    expect(handle).toHaveAttribute(
+      "data-hit-area-margins",
+      JSON.stringify({ coarse: 30, fine: 0 }),
     );
   });
 

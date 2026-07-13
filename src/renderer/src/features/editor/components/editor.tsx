@@ -32,6 +32,8 @@ import { normalizeRichDocumentPath } from "../lib/rich-document-surface-registry
 
 // 支持的文件扩展名
 const SUPPORTED_EXTENSIONS = [".md", ".txt"];
+// 鼠标不扩展命中区，避免覆盖相邻编辑器的滚动条；触控设备保留较大范围。
+const EDITOR_PANEL_RESIZE_HIT_AREA_MARGINS = { coarse: 30, fine: 0 };
 
 type PanelDirection = "horizontal" | "vertical";
 type PanelGroupDescriptor = {
@@ -460,7 +462,7 @@ function RootPanelLayout({
         <>
           <PanelResizeHandle
             style={getPanelResizeHandleStyle(node.direction)}
-            hitAreaMargins={{ coarse: 30, fine: 20 }}
+            hitAreaMargins={EDITOR_PANEL_RESIZE_HIT_AREA_MARGINS}
           />
           <Panel minSize={20}>
             <PanelLayout node={node.second} surfaceRegistry={surfaceRegistry} />
@@ -495,7 +497,7 @@ function PanelLayout({
       </Panel>
       <PanelResizeHandle
         style={getPanelResizeHandleStyle(node.direction)}
-        hitAreaMargins={{ coarse: 30, fine: 20 }}
+        hitAreaMargins={EDITOR_PANEL_RESIZE_HIT_AREA_MARGINS}
       />
       <Panel minSize={20}>
         <PanelLayout node={node.second} surfaceRegistry={surfaceRegistry} />
