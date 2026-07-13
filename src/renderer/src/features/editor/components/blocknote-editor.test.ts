@@ -1215,7 +1215,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
     session.view.unmount();
   });
 
-  it("coalesces outline activation by frame and rejects a stale pane owner", async () => {
+  it("activates the outline at the quarter-viewport line and rejects a stale pane owner", async () => {
     setupMatchMedia();
     setupDomMeasurements();
     const path = "C:/notes/outline-scroll-spy.md";
@@ -1233,10 +1233,29 @@ describe("BlockNoteEditor persistent session runtime", () => {
     const scrollContainer = session.view.container.querySelector<HTMLElement>(
       ".editor-rich-scroll",
     )!;
-    const [firstHeading, , secondHeading, details] = runtime.editor.document;
+    const [firstHeading, intro, secondHeading, details] =
+      runtime.editor.document;
+    const introElement = runtime.editor.domElement.querySelector<HTMLElement>(
+      `[data-id="${intro.id}"]`,
+    )!;
     const detailsElement = runtime.editor.domElement.querySelector<HTMLElement>(
       `[data-id="${details.id}"]`,
     )!;
+    const editorBounds = {
+      ...createRect(),
+      bottom: 500,
+      height: 400,
+      right: 400,
+      top: 100,
+      width: 400,
+    };
+    vi.spyOn(scrollContainer, "getBoundingClientRect").mockReturnValue(
+      editorBounds,
+    );
+    vi.spyOn(
+      runtime.editor.domElement,
+      "getBoundingClientRect",
+    ).mockReturnValue(editorBounds);
     const scheduledFrames: FrameRequestCallback[] = [];
     vi.stubGlobal(
       "requestAnimationFrame",
@@ -1250,9 +1269,12 @@ describe("BlockNoteEditor persistent session runtime", () => {
       document,
       "elementFromPoint",
     );
+    const elementFromPoint = vi.fn((_x: number, y: number) =>
+      y >= 200 ? detailsElement : introElement,
+    );
     Object.defineProperty(document, "elementFromPoint", {
       configurable: true,
-      value: vi.fn(() => detailsElement),
+      value: elementFromPoint,
     });
     useEditorStore.setState({
       activeHeadingIdByPane: {
@@ -1279,6 +1301,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
       session.surface.dataset.activePaneKey = "group-session:tab-session";
       fireEvent.scroll(scrollContainer);
       act(() => scheduledFrames.shift()?.(32));
+      expect(elementFromPoint).toHaveBeenCalledWith(200, 200);
       expect(useEditorStore.getState().activeHeadingIdByPane).toMatchObject({
         "group-other:tab-other": firstHeading.id,
         "group-session:tab-session": secondHeading.id,
