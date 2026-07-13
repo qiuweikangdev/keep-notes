@@ -58,6 +58,15 @@ describe("blocknote overrides stylesheet", () => {
     expect(editorRule).not.toMatch(/max-width:/);
   });
 
+  it("keeps punctuation glyphs identical between live and preview renderers", () => {
+    const editorRule = getRule(".bn-editor");
+
+    expect(editorRule).toMatch(/font-variant-ligatures:\s*none;/);
+    expect(editorRule).toMatch(/"liga"\s+0/);
+    expect(editorRule).toMatch(/"clig"\s+0/);
+    expect(editorRule).toMatch(/"calt"\s+0/);
+  });
+
   it("skips offscreen live rich blocks during split and resize layout", () => {
     const liveBlockRule = getRule(
       "[data-rich-document-surface] .bn-editor > .bn-block-group > .bn-block-outer",
@@ -120,7 +129,20 @@ describe("blocknote overrides stylesheet", () => {
       /\.bn-editor ul\s*\{[\s\S]*padding-left:\s*1\.25em;/,
     );
     expect(stylesheet).toMatch(
-      /\.bn-editor li::marker\s*\{[\s\S]*font-size:\s*0\.72em;[\s\S]*color:\s*var\(--text-muted\);/,
+      /\.bn-editor \.bn-block-content\[data-content-type="bulletListItem"\]\s*\{[\s\S]*align-items:\s*flex-start;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.bn-editor \.bn-block-content\[data-content-type="bulletListItem"\]::before,\s*\.bn-editor li::marker\s*\{[\s\S]*font-size:\s*1\.15em;[\s\S]*line-height:\s*1;[\s\S]*color:\s*var\(--text-muted\);/,
+    );
+    expect(
+      getRule(
+        '.bn-editor .bn-block-content[data-content-type="bulletListItem"]::before',
+      ),
+    ).toMatch(
+      /content:\s*"▪\\FE0E" !important;[\s\S]*transform:\s*translateY\(0\.25em\);[\s\S]*transition:\s*none;/,
+    );
+    expect(getRule(".rich-virtual-preview .bn-editor ul li::marker")).toMatch(
+      /content:\s*"▪\\FE0E";/,
     );
     expect(stylesheet).toMatch(
       /\.bn-editor ul ul\s*\{[\s\S]*margin-block:\s*0\.12em;/,

@@ -90,6 +90,12 @@
 .bn-editor {
   background-color: var(--bg-primary) !important;
   color: var(--text-primary) !important;
+  /* contenteditable 与只读 HTML 的字体连字默认值不同，统一保留 =>、* 等原始符号。 */
+  font-variant-ligatures: none;
+  font-feature-settings:
+    "liga" 0,
+    "clig" 0,
+    "calt" 0;
   width: 100%;
   margin: 0;
   padding-top: 20px;
@@ -190,9 +196,26 @@
   padding-left: 0.15em;
 }
 
+.bn-editor .bn-block-content[data-content-type="bulletListItem"] {
+  align-items: flex-start;
+}
+
+.bn-editor .bn-block-content[data-content-type="bulletListItem"]::before,
 .bn-editor li::marker {
-  font-size: 0.72em;
+  font-size: 1.15em;
+  line-height: 1;
   color: var(--text-muted);
+}
+
+.bn-editor .bn-block-content[data-content-type="bulletListItem"]::before {
+  /* 多行列表始终对齐第一行；保留零高度伪元素，避免影响 Chrome 文本选择。 */
+  content: "▪\FE0E" !important;
+  transform: translateY(0.25em);
+  transition: none;
+}
+
+.rich-virtual-preview .bn-editor ul li::marker {
+  content: "▪\FE0E";
 }
 
 /* 保留嵌套缩进，不显示 BlockNote 默认引导竖线。 */

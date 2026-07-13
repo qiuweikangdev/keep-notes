@@ -67,6 +67,37 @@ describe("RichPreviewCache", () => {
     vi.unstubAllEnvs();
   });
 
+  it("preserves literal punctuation in exported preview text", () => {
+    const source = BlockNoteEditor.create({
+      initialContent: [
+        {
+          id: "heading-symbols",
+          type: "heading",
+          content: "feature/qwk_0804 => google广告问题",
+        },
+        {
+          id: "list-symbols",
+          type: "bulletListItem",
+          content: "保留 * 星号",
+        },
+      ],
+    });
+    const cache = new RichPreviewCache(source);
+    cache.seed(source.document);
+    const readText = (blockId: string) => {
+      const template = document.createElement("template");
+      template.innerHTML = cache.getBlockSnapshot(blockId)?.html ?? "";
+      return template.content.textContent;
+    };
+
+    expect(readText("heading-symbols")).toBe(
+      "feature/qwk_0804 => google广告问题",
+    );
+    expect(readText("list-symbols")).toBe("保留 * 星号");
+
+    cache.destroy();
+  });
+
   it("merges repeated block edits into one frame export", () => {
     editorPerformanceMocks.measure.mockClear();
     const {
