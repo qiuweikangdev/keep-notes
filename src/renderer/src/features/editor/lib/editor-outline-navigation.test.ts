@@ -11,6 +11,33 @@ describe("editor outline navigation", () => {
     vi.useRealTimers();
   });
 
+  it("does not replay an older failed heading after a newer heading succeeds", () => {
+    vi.useFakeTimers();
+    const navigate = vi
+      .fn()
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(true);
+    const unregister = registerEditorOutlineNavigator(
+      "group-1",
+      "tab-1",
+      navigate,
+    );
+
+    expect(scrollEditorOutlineBlock("group-1", "tab-1", "heading-a")).toBe(
+      false,
+    );
+    expect(scrollEditorOutlineBlock("group-1", "tab-1", "heading-b")).toBe(
+      true,
+    );
+    vi.runOnlyPendingTimers();
+
+    expect(navigate.mock.calls).toEqual([
+      ["heading-a", { isRetry: false }],
+      ["heading-b", { isRetry: false }],
+    ]);
+    unregister();
+  });
+
   it("routes outline jumps to the matching editor instance", () => {
     const first = vi.fn(() => true);
     const second = vi.fn(() => true);
@@ -30,7 +57,7 @@ describe("editor outline navigation", () => {
     );
 
     expect(first).not.toHaveBeenCalled();
-    expect(second).toHaveBeenCalledWith("heading-1");
+    expect(second).toHaveBeenCalledWith("heading-1", { isRetry: false });
 
     unregisterFirst();
     unregisterSecond();
@@ -52,7 +79,7 @@ describe("editor outline navigation", () => {
     );
 
     expect(navigate).toHaveBeenCalledTimes(1);
-    expect(navigate).toHaveBeenCalledWith("heading-2");
+    expect(navigate).toHaveBeenCalledWith("heading-2", { isRetry: true });
 
     unregister();
   });
@@ -74,7 +101,7 @@ describe("editor outline navigation", () => {
     expect(flushPendingEditorOutlineNavigation("group-1", "tab-1")).toBe(true);
 
     expect(navigate).toHaveBeenCalledTimes(2);
-    expect(navigate).toHaveBeenLastCalledWith("heading-1");
+    expect(navigate).toHaveBeenLastCalledWith("heading-1", { isRetry: true });
 
     unregister();
   });
@@ -98,7 +125,7 @@ describe("editor outline navigation", () => {
     vi.runOnlyPendingTimers();
 
     expect(navigate).toHaveBeenCalledTimes(2);
-    expect(navigate).toHaveBeenLastCalledWith("heading-1");
+    expect(navigate).toHaveBeenLastCalledWith("heading-1", { isRetry: true });
 
     unregister();
   });
@@ -121,7 +148,7 @@ describe("editor outline navigation", () => {
     }
 
     expect(navigate).toHaveBeenCalledTimes(21);
-    expect(navigate).toHaveBeenLastCalledWith("heading-1");
+    expect(navigate).toHaveBeenLastCalledWith("heading-1", { isRetry: true });
 
     unregister();
   });

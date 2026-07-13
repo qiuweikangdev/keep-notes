@@ -234,6 +234,7 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
       return;
     }
     e.preventDefault();
+    e.stopPropagation();
     e.dataTransfer.dropEffect = "copy";
     setIsDragOver(true);
   }, []);
@@ -243,6 +244,7 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
       return;
     }
     e.preventDefault();
+    e.stopPropagation();
     setIsDragOver(false);
   }, []);
 
@@ -287,9 +289,9 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
         <div
           className="flex-1 flex items-center justify-center relative"
           style={{ backgroundColor: "var(--bg-primary)" }}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
+          onDragOverCapture={handleDragOver}
+          onDragLeaveCapture={handleDragLeave}
+          onDropCapture={handleDrop}
         >
           <div className="text-center" style={{ color: "var(--text-muted)" }}>
             <p className="text-sm">没有打开的文件</p>
@@ -316,9 +318,9 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
       <EditorTabBar groupId={groupId} />
       <div
         className="flex-1 overflow-hidden relative"
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
+        onDragOverCapture={handleDragOver}
+        onDragLeaveCapture={handleDragLeave}
+        onDropCapture={handleDrop}
       >
         {/* 渲染编辑器 */}
         <EditorWorkspace groupId={groupId} tabId={group.activeTabId} />

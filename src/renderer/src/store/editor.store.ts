@@ -91,6 +91,8 @@ export interface EditorState {
   // 大纲标题状态
   outlineHeadings: OutlineHeading[];
   activeHeadingId: string | null;
+  outlineHeadingsByPath: Record<string, OutlineHeading[]>;
+  activeHeadingIdByPane: Record<string, string | null>;
 
   // 面板组操作
   addPanelGroup: (
@@ -154,6 +156,8 @@ export interface EditorState {
   // 大纲操作
   setOutlineHeadings: (headings: OutlineHeading[]) => void;
   setActiveHeadingId: (id: string | null) => void;
+  setOutlineHeadingsForPath: (path: string, headings: OutlineHeading[]) => void;
+  setActiveHeadingIdForPane: (paneKey: string, id: string | null) => void;
 
   // 保持向后兼容
   setContent: (content: string) => void;
@@ -291,9 +295,23 @@ export const useEditorStore = create<EditorState>()(
             direction,
             splitParentGroupId: activeGroup.id,
           };
+          const sourcePaneKey = toRichPaneKey(
+            activeGroup.id,
+            activeGroup.activeTabId,
+          );
+          const newPaneKey = toRichPaneKey(newGroup.id, newTab.id);
+          richPaneViewStateRegistry.patch(
+            newPaneKey,
+            richPaneViewStateRegistry.read(sourcePaneKey),
+          );
 
           set((current) => ({
             panelGroups: [...current.panelGroups, newGroup],
+            activeHeadingIdByPane: {
+              ...current.activeHeadingIdByPane,
+              [newPaneKey]:
+                current.activeHeadingIdByPane[sourcePaneKey] ?? null,
+            },
             // 拆分大文档时不要立即激活新面板，避免同步挂载第二个富文本编辑器拖慢当前输入。
             activeGroupId: sourceGroupId,
           }));
@@ -576,6 +594,8 @@ export const useEditorStore = create<EditorState>()(
         },
 
         beginTabLoad: (groupId, tabId, path) => {
+          const paneKey = toRichPaneKey(groupId, tabId);
+          richPaneViewStateRegistry.delete(paneKey);
           set((state) => {
             const isActiveTarget = state.panelGroups.some(
               (group) =>
@@ -584,7 +604,12 @@ export const useEditorStore = create<EditorState>()(
                 group.activeTabId === tabId,
             );
 
+            const activeHeadingIdByPane = {
+              ...state.activeHeadingIdByPane,
+            };
+            delete activeHeadingIdByPane[paneKey];
             return {
+              activeHeadingIdByPane,
               panelGroups: state.panelGroups.map((group) =>
                 group.id === groupId
                   ? {
@@ -877,6 +902,8 @@ export const useEditorStore = create<EditorState>()(
         // 大纲标题状态
         outlineHeadings: [],
         activeHeadingId: null,
+        outlineHeadingsByPath: {},
+        activeHeadingIdByPane: {},
 
         // 大纲操作
         setOutlineHeadings: (headings) =>
@@ -888,6 +915,28 @@ export const useEditorStore = create<EditorState>()(
             return { outlineHeadings: headings };
           }),
         setActiveHeadingId: (id) => set({ activeHeadingId: id }),
+        setOutlineHeadingsForPath: (path, headings) =>
+          set((state) => {
+            const normalizedPath = normalizeRichDocumentPath(path);
+            const current = state.outlineHeadingsByPath[normalizedPath] ?? [];
+            if (areOutlineHeadingsEqual(current, headings)) return state;
+            return {
+              outlineHeadingsByPath: {
+                ...state.outlineHeadingsByPath,
+                [normalizedPath]: headings,
+              },
+            };
+          }),
+        setActiveHeadingIdForPane: (paneKey, id) =>
+          set((state) => {
+            if (state.activeHeadingIdByPane[paneKey] === id) return state;
+            return {
+              activeHeadingIdByPane: {
+                ...state.activeHeadingIdByPane,
+                [paneKey]: id,
+              },
+            };
+          }),
       };
     },
     {

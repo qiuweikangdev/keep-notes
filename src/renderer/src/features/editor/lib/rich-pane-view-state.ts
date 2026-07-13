@@ -49,6 +49,7 @@ export function toRichPaneKey(groupId: string, tabId: string): RichPaneKey {
 
 export class RichPaneViewStateRegistry {
   private readonly states = new Map<RichPaneKey, RichPaneViewState>();
+  private readonly listeners = new Map<RichPaneKey, Set<() => void>>();
 
   read(key: RichPaneKey): RichPaneViewState {
     const state = this.states.get(key) ?? EMPTY_VIEW_STATE;
@@ -62,14 +63,29 @@ export class RichPaneViewStateRegistry {
       ...nextState,
       selection: cloneSelection(nextState.selection),
     });
+    for (const listener of this.listeners.get(key) ?? []) listener();
+  }
+
+  subscribe(key: RichPaneKey, listener: () => void): () => void {
+    const listeners = this.listeners.get(key) ?? new Set<() => void>();
+    listeners.add(listener);
+    this.listeners.set(key, listeners);
+    return () => {
+      listeners.delete(listener);
+      if (listeners.size === 0) this.listeners.delete(key);
+    };
   }
 
   delete(key: RichPaneKey): void {
     this.states.delete(key);
+    for (const listener of this.listeners.get(key) ?? []) listener();
   }
 
   clear(): void {
     this.states.clear();
+    for (const listeners of this.listeners.values()) {
+      for (const listener of listeners) listener();
+    }
   }
 }
 
@@ -105,7 +121,11 @@ export class RichPaneScrollIdleWriter {
     this.delayMs = Math.max(0, options.delayMs ?? 150);
   }
 
-  record(owner: RichPaneScrollOwner, scrollTop: number): void {
+  record(
+    owner: RichPaneScrollOwner,
+    scrollTop: number,
+    viewportAnchor?: Pick<RichPaneViewState, "topBlockId" | "topBlockOffset">,
+  ): void {
     if (this.destroyed) return;
 
     const normalizedScrollTop = Number.isFinite(scrollTop)
@@ -122,7 +142,10 @@ export class RichPaneScrollIdleWriter {
       }
     }
 
-    this.states.patch(owner.paneKey, { scrollTop: normalizedScrollTop });
+    this.states.patch(owner.paneKey, {
+      ...viewportAnchor,
+      scrollTop: normalizedScrollTop,
+    });
     const token = Symbol(owner.paneKey);
     const pending: PendingPaneScroll = {
       owner: retainedOwner,

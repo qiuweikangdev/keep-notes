@@ -1,15 +1,19 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { useEditorStore } from "./editor.store";
+import { richPaneViewStateRegistry } from "@/features/editor/lib/rich-pane-view-state";
 
 describe("editor store", () => {
   beforeEach(() => {
+    richPaneViewStateRegistry.clear();
     useEditorStore.setState({
       activeGroupId: "group-1",
       content: "legacy draft",
       filePath: "legacy.md",
       wordCount: 12,
       isDirty: true,
+      outlineHeadingsByPath: {},
+      activeHeadingIdByPane: {},
       panelGroups: [
         {
           id: "group-1",
@@ -80,6 +84,22 @@ describe("editor store", () => {
     expect(useEditorStore.getState()).toBe(previousState);
   });
 
+  it("keeps document headings shared by path and active headings isolated by pane", () => {
+    const store = useEditorStore.getState();
+    const headings = [{ id: "heading-1", text: "Intro", level: 1 }];
+
+    store.setOutlineHeadingsForPath("C:\\notes\\shared.md", headings);
+    store.setActiveHeadingIdForPane("group-1:tab-1", "heading-1");
+    store.setActiveHeadingIdForPane("group-2:tab-2", "heading-2");
+
+    const state = useEditorStore.getState();
+    expect(state.outlineHeadingsByPath["C:/notes/shared.md"]).toEqual(headings);
+    expect(state.activeHeadingIdByPane).toMatchObject({
+      "group-1:tab-1": "heading-1",
+      "group-2:tab-2": "heading-2",
+    });
+  });
+
   it("clears outline state when opening another file", () => {
     useEditorStore.setState({
       outlineHeadings: [
@@ -143,6 +163,22 @@ describe("editor store", () => {
     expect(addedGroup?.direction).toBe("horizontal");
     expect(addedGroup?.splitParentGroupId).toBe("group-1");
     expect(useEditorStore.getState().activeGroupId).toBe("group-1");
+  });
+
+  it("clones the source pane view and outline state when splitting", () => {
+    richPaneViewStateRegistry.patch("group-1:tab-1", { scrollTop: 360 });
+    useEditorStore
+      .getState()
+      .setActiveHeadingIdForPane("group-1:tab-1", "heading-2");
+
+    useEditorStore.getState().addPanelGroup("horizontal", "group-1");
+
+    const newGroup = useEditorStore.getState().panelGroups.at(-1)!;
+    const newPaneKey = `${newGroup.id}:${newGroup.activeTabId}` as const;
+    expect(richPaneViewStateRegistry.read(newPaneKey).scrollTop).toBe(360);
+    expect(useEditorStore.getState().activeHeadingIdByPane[newPaneKey]).toBe(
+      "heading-2",
+    );
   });
 
   it("does not notify when a path snapshot is already current", () => {

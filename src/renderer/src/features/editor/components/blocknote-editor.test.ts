@@ -262,6 +262,20 @@ describe("BlockNoteEditor rich text selection", () => {
 });
 
 describe("focusEditorAtPreviewAnchor", () => {
+  it("focuses an empty preview activation without scrolling the previous selection", () => {
+    const editorFocus = vi.fn();
+    const domFocus = vi.fn();
+    const editor = {
+      focus: editorFocus,
+      prosemirrorView: { dom: { focus: domFocus } },
+    } as unknown as CoreBlockNoteEditor;
+
+    focusEditorAtPreviewAnchor(editor, null);
+
+    expect(editorFocus).not.toHaveBeenCalled();
+    expect(domFocus).toHaveBeenCalledWith({ preventScroll: true });
+  });
+
   it("stops walking before trailing blocks after resolving an early target", () => {
     const editor = CoreBlockNoteEditor.create({
       schema: editorSchema,
@@ -373,7 +387,6 @@ describe("focusEditorAtPreviewAnchor", () => {
       ],
     });
     const blockId = editor.document[0].id;
-    const focus = vi.spyOn(editor, "focus");
     const fallback = vi.spyOn(editor, "setTextCursorPosition");
 
     expect(resolveEditorTextPosition(editor, blockId, 9)).toBe(12);
@@ -388,7 +401,6 @@ describe("focusEditorAtPreviewAnchor", () => {
     expect(editor.prosemirrorView.state.selection.$from.parentOffset).toBe(0);
     focusEditorAtPreviewAnchor(editor, { blockId, textOffset: 999 });
     expect(editor.prosemirrorView.state.selection.$from.parentOffset).toBe(11);
-    expect(focus).toHaveBeenCalledTimes(3);
   });
 
   it("maps empty inline blocks and normalizes non-finite offsets", () => {
@@ -419,7 +431,7 @@ describe("focusEditorAtPreviewAnchor", () => {
     ).toBe(zeroPosition);
   });
 
-  it("requests scrollIntoView on the exact dispatched selection", () => {
+  it("places the exact selection without requesting browser scrolling", () => {
     const editor = CoreBlockNoteEditor.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "Scroll target" }],
@@ -439,7 +451,7 @@ describe("focusEditorAtPreviewAnchor", () => {
       textOffset: 6,
     });
 
-    expect(dispatchedTransaction?.scrolledIntoView).toBe(true);
+    expect(dispatchedTransaction?.scrolledIntoView).toBe(false);
     expect(editor.prosemirrorView.state.selection.$from.parentOffset).toBe(6);
     tiptapEditor.off("transaction", readTransaction);
   });
@@ -450,7 +462,6 @@ describe("focusEditorAtPreviewAnchor", () => {
       initialContent: [{ type: "paragraph", content: "Known" }],
     });
     const fallback = vi.spyOn(editor, "setTextCursorPosition");
-    const focus = vi.spyOn(editor, "focus");
 
     expect(() =>
       focusEditorAtPreviewAnchor(editor, {
@@ -458,8 +469,7 @@ describe("focusEditorAtPreviewAnchor", () => {
         textOffset: 4,
       }),
     ).not.toThrow();
-    expect(fallback).toHaveBeenCalledWith("missing-block", "start");
-    expect(focus).toHaveBeenCalledTimes(1);
+    expect(fallback).not.toHaveBeenCalled();
   });
 
   it.each(["resolve", "dispatch"] as const)(
@@ -484,7 +494,6 @@ describe("focusEditorAtPreviewAnchor", () => {
         });
       }
       const fallback = vi.spyOn(editor, "setTextCursorPosition");
-      const focus = vi.spyOn(editor, "focus");
 
       expect(() =>
         focusEditorAtPreviewAnchor(editor, {
@@ -492,8 +501,7 @@ describe("focusEditorAtPreviewAnchor", () => {
           textOffset: 4,
         }),
       ).not.toThrow();
-      expect(fallback).toHaveBeenCalledWith(blockId, "start");
-      expect(focus).toHaveBeenCalledTimes(1);
+      expect(fallback).not.toHaveBeenCalled();
     },
   );
 
@@ -509,12 +517,10 @@ describe("focusEditorAtPreviewAnchor", () => {
     });
     const blockId = editor.document[0].id;
     const setTextCursorPosition = vi.spyOn(editor, "setTextCursorPosition");
-    const focus = vi.spyOn(editor, "focus");
 
     focusEditorAtPreviewAnchor(editor, { blockId, textOffset: 42 });
 
-    expect(setTextCursorPosition).toHaveBeenCalledWith(blockId, "start");
-    expect(focus).toHaveBeenCalledTimes(1);
+    expect(setTextCursorPosition).not.toHaveBeenCalled();
   });
 });
 
@@ -626,27 +632,42 @@ describe("BlockNoteEditor formatting toolbar", () => {
 });
 
 describe("BlockNoteEditor outline navigation focus", () => {
-  it("focuses the editor before moving the cursor to an outline block", () => {
+  it("moves the outline cursor without requesting an unmanaged selection scroll", () => {
     const calls: string[] = [];
     const editor = {
       getBlock: vi.fn(() => ({ id: "heading-1", type: "heading" })),
       focus: vi.fn(() => calls.push("focus")),
       setTextCursorPosition: vi.fn(() => calls.push("set-cursor")),
     };
-    const scrollSelection = vi.fn(() => {
-      calls.push("scroll-selection");
-      return true;
-    });
 
-    expect(focusEditorOutlineBlock(editor, "heading-1", scrollSelection)).toBe(
-      true,
-    );
+    expect(focusEditorOutlineBlock(editor, "heading-1")).toBe(true);
 
-    expect(calls).toEqual(["focus", "set-cursor", "scroll-selection"]);
+    expect(calls).toEqual(["set-cursor"]);
+    expect(editor.focus).not.toHaveBeenCalled();
     expect(editor.setTextCursorPosition).toHaveBeenCalledWith(
       "heading-1",
       "start",
     );
+  });
+
+  it("does not fall back to a scrolling cursor API when ProseMirror fails", () => {
+    const editor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        { type: "heading", props: { level: 1 }, content: "Heading" },
+      ],
+    });
+    const blockId = editor.document[0].id;
+    vi.spyOn(
+      getTestTiptapEditor(editor),
+      "dispatchTransaction",
+    ).mockImplementationOnce(() => {
+      throw new Error("dispatch failed");
+    });
+    const fallback = vi.spyOn(editor, "setTextCursorPosition");
+
+    expect(focusEditorOutlineBlock(editor, blockId)).toBe(false);
+    expect(fallback).not.toHaveBeenCalled();
   });
 });
 
@@ -922,6 +943,124 @@ describe("BlockNoteEditor persistent session runtime", () => {
     session.view.unmount();
   });
 
+  it("does not persist a programmatic pane scroll restoration as user scroll", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/programmatic-pane-scroll.md";
+    setupSessionTab(path);
+    const session = renderRealSession(path);
+
+    await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    const runtime = session.runtime.current!;
+    const scrollContainer = session.view.container.querySelector<HTMLElement>(
+      ".editor-rich-scroll",
+    )!;
+    const patch = vi.spyOn(richPaneViewStateRegistry, "patch");
+
+    runtime.restoreViewState({ scrollTop: 240, selection: null });
+    fireEvent.scroll(scrollContainer);
+
+    expect(patch).not.toHaveBeenCalled();
+    session.view.unmount();
+  });
+
+  it("reads viewport anchors from BlockNote block wrappers, not nested data ids", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/block-wrapper-anchor.md";
+    setupSessionTab(path);
+    const session = renderRealSession(path);
+
+    await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    const runtime = session.runtime.current!;
+    const blockId = runtime.editor.document[0].id;
+    const block = runtime.editor.domElement.querySelector<HTMLElement>(
+      `[data-node-type="blockOuter"][data-id="${blockId}"]`,
+    )!;
+    const nestedDataId = document.createElement("span");
+    nestedDataId.dataset.id = "suggestion-mark-id";
+    block.append(nestedDataId);
+    const scrollContainer = session.view.container.querySelector<HTMLElement>(
+      ".editor-rich-scroll",
+    )!;
+    vi.spyOn(scrollContainer, "getBoundingClientRect").mockReturnValue({
+      ...createRect(),
+      bottom: 500,
+      left: 0,
+      right: 400,
+      top: 100,
+      width: 400,
+    });
+    vi.spyOn(
+      runtime.editor.domElement,
+      "getBoundingClientRect",
+    ).mockReturnValue({
+      ...createRect(),
+      bottom: 500,
+      left: 20,
+      right: 400,
+      top: 40,
+    });
+    vi.spyOn(block, "getBoundingClientRect").mockReturnValue({
+      ...createRect(),
+      bottom: 160,
+      top: 80,
+    });
+    const originalElementFromPoint = Object.getOwnPropertyDescriptor(
+      document,
+      "elementFromPoint",
+    );
+    const elementFromPoint = vi.fn(() => nestedDataId);
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: elementFromPoint,
+    });
+
+    let viewState: ReturnType<RichBlockNoteRuntime["readViewState"]>;
+    try {
+      viewState = runtime.readViewState();
+    } finally {
+      if (originalElementFromPoint) {
+        Object.defineProperty(
+          document,
+          "elementFromPoint",
+          originalElementFromPoint,
+        );
+      } else {
+        Reflect.deleteProperty(document, "elementFromPoint");
+      }
+    }
+    expect(elementFromPoint).toHaveBeenCalledWith(210, 124);
+    expect(viewState).toMatchObject({
+      topBlockId: blockId,
+      topBlockOffset: 20,
+    });
+    session.view.unmount();
+  });
+
+  it("does not inherit another pane selection when target selection is empty", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/empty-pane-selection.md";
+    setupSessionTab(path);
+    const session = renderRealSession(path);
+
+    await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    const runtime = session.runtime.current!;
+    const firstBlock = runtime.editor.document[0];
+    const secondBlock = runtime.editor.insertBlocks(
+      [{ type: "paragraph", content: "Second pane selection" }],
+      firstBlock,
+      "after",
+    )[0];
+    runtime.editor.setTextCursorPosition(secondBlock, "start");
+
+    runtime.restoreViewState({ scrollTop: 0, selection: null });
+
+    expect(runtime.editor.getTextCursorPosition().block.id).toBe(firstBlock.id);
+    session.view.unmount();
+  });
+
   it("coalesces live scroll bursts and flushes on blur and runtime destruction", async () => {
     setupMatchMedia();
     setupDomMeasurements();
@@ -940,6 +1079,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
     );
     vi.useFakeTimers();
 
+    fireEvent.wheel(scrollContainer);
     for (const scrollTop of [20, 60, 140]) {
       scrollContainer.scrollTop = scrollTop;
       fireEvent.scroll(scrollContainer);
@@ -949,6 +1089,15 @@ describe("BlockNoteEditor persistent session runtime", () => {
       richPaneViewStateRegistry.read("group-session:tab-session").scrollTop,
     ).toBe(140);
     expect(setTabScrollTop).not.toHaveBeenCalled();
+
+    surfaceAsAnotherPane(session.surface);
+    scrollContainer.scrollTop = 180;
+    fireEvent.scroll(scrollContainer);
+    expect(
+      richPaneViewStateRegistry.read("group-session:tab-session").scrollTop,
+    ).toBe(140);
+    session.surface.dataset.activePaneKey = "group-session:tab-session";
+
     act(() => vi.advanceTimersByTime(149));
     expect(setTabScrollTop).not.toHaveBeenCalled();
     act(() => vi.advanceTimersByTime(1));
@@ -959,6 +1108,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
       140,
     );
 
+    fireEvent.wheel(scrollContainer);
     scrollContainer.scrollTop = 220;
     fireEvent.scroll(scrollContainer);
     fireEvent.blur(scrollContainer);
@@ -969,6 +1119,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
       220,
     );
 
+    fireEvent.wheel(scrollContainer);
     scrollContainer.scrollTop = 360;
     fireEvent.scroll(scrollContainer);
     runtime.destroy();
@@ -1011,6 +1162,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
     );
     vi.useFakeTimers();
 
+    fireEvent.wheel(scrollContainer);
     scrollContainer.scrollTop = 180;
     fireEvent.scroll(scrollContainer);
     act(() => {
@@ -1026,6 +1178,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
     act(() => {
       useEditorStore.getState().setActiveTab("group-session", "tab-session");
     });
+    fireEvent.wheel(scrollContainer);
     scrollContainer.scrollTop = 280;
     fireEvent.scroll(scrollContainer);
     session.view.unmount();
@@ -1065,6 +1218,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
     );
     vi.useFakeTimers();
 
+    fireEvent.wheel(scrollContainer);
     scrollContainer.scrollTop = 410;
     fireEvent.scroll(scrollContainer);
     act(() => {
@@ -1280,6 +1434,7 @@ function createRealSession(path: string) {
     },
   };
   const surface = document.createElement("div");
+  surface.dataset.activePaneKey = "group-session:tab-session";
   const editor = createElement(BlockNoteEditor, {
     content: "# Initial",
     controller,
@@ -1287,6 +1442,10 @@ function createRealSession(path: string) {
     surface,
   });
   return { callbacks, controller, editor, runtime, surface };
+}
+
+function surfaceAsAnotherPane(surface: HTMLElement): void {
+  surface.dataset.activePaneKey = "group-other:tab-other";
 }
 
 function createDeferred<T>() {

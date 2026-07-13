@@ -268,30 +268,48 @@ export function RichDocumentSessionHost({
               .getRuntime(normalizedPath)
               ?.cancelPendingWork(),
         ),
-        registerEditorOutlineNavigator(group.id, tab.id, (blockId) => {
-          const runtime = richDocumentSessionManager.getRuntime(
-            normalizedPath,
-          ) as RichBlockNoteRuntime | null;
-          if (
-            !runtime ||
-            !richDocumentSessionManager.setActivePane(normalizedPath, paneKey)
-          ) {
-            return false;
-          }
+        registerEditorOutlineNavigator(
+          group.id,
+          tab.id,
+          (blockId, { isRetry }) => {
+            if (isRetry) {
+              const retryState = useEditorStore.getState();
+              const activeGroup = retryState.panelGroups.find(
+                (candidate) => candidate.id === retryState.activeGroupId,
+              );
+              if (
+                retryState.activeGroupId !== group.id ||
+                activeGroup?.activeTabId !== tab.id
+              ) {
+                // store 仍指向目标时继续修复尚未就绪的 manager；只有用户已切走才终止旧重试。
+                return "cancel";
+              }
+            }
 
-          // 大纲导航必须先恢复所属窗格的独立视图状态，再执行块定位，避免同文件分栏互相滚动。
-          const store = useEditorStore.getState();
-          const targetGroup = store.panelGroups.find(
-            (candidate) => candidate.id === group.id,
-          );
-          if (
-            store.activeGroupId !== group.id ||
-            targetGroup?.activeTabId !== tab.id
-          ) {
-            store.setActiveTab(group.id, tab.id);
-          }
-          return runtime.scrollToBlock(blockId);
-        }),
+            const runtime = richDocumentSessionManager.getRuntime(
+              normalizedPath,
+            ) as RichBlockNoteRuntime | null;
+            if (
+              !runtime ||
+              !richDocumentSessionManager.setActivePane(normalizedPath, paneKey)
+            ) {
+              return false;
+            }
+
+            // 大纲导航必须先恢复所属窗格的独立视图状态，再执行块定位，避免同文件分栏互相滚动。
+            const store = useEditorStore.getState();
+            const targetGroup = store.panelGroups.find(
+              (candidate) => candidate.id === group.id,
+            );
+            if (
+              store.activeGroupId !== group.id ||
+              targetGroup?.activeTabId !== tab.id
+            ) {
+              store.setActiveTab(group.id, tab.id);
+            }
+            return runtime.scrollToBlock(blockId);
+          },
+        ),
       );
     }
 

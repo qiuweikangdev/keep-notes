@@ -7,7 +7,12 @@ interface EditorScrollContainer extends EditorScrollHost {
 }
 
 interface EditorScrollTarget {
-  getBoundingClientRect: () => Pick<DOMRect, "top">;
+  getBoundingClientRect: () => Pick<DOMRect, "top"> & { bottom?: number };
+}
+
+export interface EditorViewportAnchor {
+  topBlockId: string | null;
+  topBlockOffset: number;
 }
 
 type FrameScheduler = (callback: () => void) => void;
@@ -15,6 +20,7 @@ type FrameScheduler = (callback: () => void) => void;
 interface StableEditorBlockScrollOptions {
   container: EditorScrollContainer;
   getTarget: () => EditorScrollTarget | null;
+  targetOffset?: number;
   schedule?: FrameScheduler;
   maxAttempts?: number;
   settleFrames?: number;
@@ -55,12 +61,17 @@ export function restoreEditorScrollTop(
 export function scrollEditorBlockIntoView(
   container: EditorScrollContainer | null,
   target: EditorScrollTarget | null,
+  targetOffset = 0,
 ): boolean {
   if (!container || !target) return false;
 
   const containerTop = container.getBoundingClientRect().top;
   const targetTop = target.getBoundingClientRect().top;
-  const nextScrollTop = container.scrollTop + targetTop - containerTop;
+  const normalizedTargetOffset = Number.isFinite(targetOffset)
+    ? targetOffset
+    : 0;
+  const nextScrollTop =
+    container.scrollTop + targetTop - containerTop + normalizedTargetOffset;
 
   // 只移动编辑器自身滚动容器，避免 scrollIntoView 级联滚动外层布局。
   container.scrollTop = Number.isFinite(nextScrollTop)
@@ -69,9 +80,38 @@ export function scrollEditorBlockIntoView(
   return true;
 }
 
+export function readEditorViewportAnchor<T extends EditorScrollTarget>(
+  container: EditorScrollContainer | null,
+  blocks: Iterable<T>,
+  readBlockId: (block: T) => string | null,
+): EditorViewportAnchor {
+  if (!container) return { topBlockId: null, topBlockOffset: 0 };
+
+  const containerTop = container.getBoundingClientRect().top;
+  let lastAnchor: EditorViewportAnchor = {
+    topBlockId: null,
+    topBlockOffset: 0,
+  };
+  for (const block of blocks) {
+    const blockId = readBlockId(block);
+    if (!blockId) continue;
+
+    const bounds = block.getBoundingClientRect();
+    const anchor = {
+      topBlockId: blockId,
+      topBlockOffset: containerTop - bounds.top,
+    };
+    lastAnchor = anchor;
+    if ((bounds.bottom ?? bounds.top) > containerTop) return anchor;
+  }
+
+  return lastAnchor;
+}
+
 export function scheduleStableEditorBlockScroll({
   container,
   getTarget,
+  targetOffset = 0,
   schedule = scheduleNextFrame,
   maxAttempts = 8,
   settleFrames = 2,
@@ -86,7 +126,11 @@ export function scheduleStableEditorBlockScroll({
     if (shouldContinue && !shouldContinue()) return true;
 
     attempts += 1;
-    const didScroll = scrollEditorBlockIntoView(container, getTarget());
+    const didScroll = scrollEditorBlockIntoView(
+      container,
+      getTarget(),
+      targetOffset,
+    );
     stableFrames = didScroll ? stableFrames + 1 : 0;
 
     if (attempts < safeMaxAttempts && stableFrames < safeSettleFrames) {

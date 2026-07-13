@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -12,6 +13,8 @@ import { useTreeStore } from "@/store/tree.store";
 import { CodeResult } from "@/types";
 import { DIFF_TOAST_EVENT } from "@/features/diff/lib/diff-toast";
 import { REVEAL_FILE_TREE_NODE_EVENT } from "../utils";
+import { registerEditorOutlineNavigator } from "@/features/editor/lib/editor-outline-navigation";
+import { richDocumentSessionManager } from "@/features/editor/lib/editor-runtime";
 
 const electronMocks = vi.hoisted(() => ({
   openFolder: vi.fn(),
@@ -54,7 +57,8 @@ vi.mock("@/hooks/use-electron", () => ({
 }));
 
 vi.mock("@/store/diff.store", () => ({
-  useDiffStore: () => diffStoreMock,
+  useDiffStore: (selector: (state: typeof diffStoreMock) => unknown) =>
+    selector(diffStoreMock),
 }));
 
 describe("FileTree context menu", () => {
@@ -103,6 +107,103 @@ describe("FileTree context menu", () => {
     expect(
       await screen.findByRole("menuitem", { name: /导出/ }),
     ).toBeInTheDocument();
+  });
+
+  it("keeps same-file outline selection and navigation isolated by pane", async () => {
+    const path = "/notes/daily.md";
+    const firstNavigate = vi.fn(() => true);
+    const secondNavigate = vi.fn(() => true);
+    const unregisterFirst = registerEditorOutlineNavigator(
+      "group-1",
+      "tab-1",
+      firstNavigate,
+    );
+    const unregisterSecond = registerEditorOutlineNavigator(
+      "group-2",
+      "tab-2",
+      secondNavigate,
+    );
+    const createTab = (id: string) => ({
+      id,
+      filePath: path,
+      pendingFilePath: null,
+      content: "# Intro\n## Details",
+      wordCount: 18,
+      isDirty: false,
+      reloadKey: 0,
+      mode: "rich" as const,
+      loadStatus: "ready" as const,
+      saveStatus: "clean" as const,
+      errorMessage: null,
+      parseErrorMessage: null,
+      scrollTop: 0,
+    });
+    useEditorStore.setState({
+      activeGroupId: "group-1",
+      appearance: {
+        ...useEditorStore.getState().appearance,
+        sidebarView: "outline",
+      },
+      panelGroups: [
+        {
+          id: "group-1",
+          activeTabId: "tab-1",
+          direction: "horizontal",
+          tabs: [createTab("tab-1")],
+        },
+        {
+          id: "group-2",
+          activeTabId: "tab-2",
+          direction: "horizontal",
+          tabs: [createTab("tab-2")],
+        },
+      ],
+      outlineHeadingsByPath: {
+        [path]: [
+          { id: "heading-1", text: "Intro", level: 1 },
+          { id: "heading-2", text: "Details", level: 2 },
+        ],
+      },
+      activeHeadingIdByPane: {
+        "group-1:tab-1": "heading-1",
+        "group-2:tab-2": "heading-2",
+      },
+    });
+
+    render(<FileTree />);
+    fireEvent.click(screen.getByRole("button", { name: "Details" }));
+    expect(firstNavigate).toHaveBeenCalledWith("heading-2", {
+      isRetry: false,
+    });
+    expect(useEditorStore.getState().activeHeadingIdByPane).toMatchObject({
+      "group-1:tab-1": "heading-2",
+      "group-2:tab-2": "heading-2",
+    });
+
+    act(() => useEditorStore.getState().setActiveTab("group-2", "tab-2"));
+    const staleManagerBinding = vi
+      .spyOn(richDocumentSessionManager, "getActiveBinding")
+      .mockReturnValue({
+        path,
+        binding: {
+          groupId: "group-1",
+          paneKey: "group-1:tab-1",
+          tabId: "tab-1",
+        },
+      });
+    fireEvent.click(screen.getByRole("button", { name: "Intro" }));
+    expect(secondNavigate).toHaveBeenCalledWith("heading-1", {
+      isRetry: false,
+    });
+    expect(useEditorStore.getState().activeHeadingIdByPane).toMatchObject({
+      "group-1:tab-1": "heading-2",
+      "group-2:tab-2": "heading-1",
+    });
+    expect(staleManagerBinding).not.toHaveBeenCalled();
+
+    staleManagerBinding.mockRestore();
+    unregisterFirst();
+    unregisterSecond();
   });
 
   it("opens the diff dialog from the virtualized file node menu", async () => {

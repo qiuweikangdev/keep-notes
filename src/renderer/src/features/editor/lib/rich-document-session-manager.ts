@@ -225,9 +225,13 @@ export class RichDocumentSessionManager {
     if (this.activeDocumentPath === normalizedPath && record.activePaneKey) {
       // 同文档分栏切换只移动稳定表面，避免 visibility 往返触发整棵 ProseMirror 样式重算。
       this.captureRuntimeViewState(record, record.runtime);
-      if (!this.surfaces.activate(normalizedPath, paneKey)) return false;
-
+      const previousPaneKey = record.activePaneKey;
+      // surface 恢复焦点时会同步触发编辑器 focus；必须先提交新 owner，避免焦点回调写回旧 pane。
       record.activePaneKey = paneKey;
+      if (!this.surfaces.activate(normalizedPath, paneKey)) {
+        record.activePaneKey = previousPaneKey;
+        return false;
+      }
       record.lastActiveAt = this.now();
       record.runtime?.restoreViewState?.(this.viewStates.read(paneKey));
       return true;
@@ -242,11 +246,15 @@ export class RichDocumentSessionManager {
       } else this.activeDocumentPath = null;
     }
 
-    if (!this.surfaces.activate(normalizedPath, paneKey)) return false;
-
+    const previousActiveDocumentPath = this.activeDocumentPath;
     record.activePaneKey = paneKey;
-    record.lastActiveAt = this.now();
     this.activeDocumentPath = normalizedPath;
+    if (!this.surfaces.activate(normalizedPath, paneKey)) {
+      record.activePaneKey = null;
+      this.activeDocumentPath = previousActiveDocumentPath;
+      return false;
+    }
+    record.lastActiveAt = this.now();
     record.runtime?.restoreViewState?.(this.viewStates.read(paneKey));
     return true;
   }

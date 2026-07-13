@@ -61,6 +61,7 @@ import {
 import { EditorChangeGate } from "../lib/editor-change-gate";
 import {
   chooseRestoredEditorScrollTop,
+  readEditorViewportAnchor,
   readEditorScrollTop,
   restoreEditorScrollTop,
   scheduleStableEditorBlockScroll,
@@ -148,7 +149,10 @@ export interface RichBlockNoteRuntime extends RichDocumentRuntime {
   editor: CoreBlockNoteEditor;
   previewCache: RichPreviewCache;
   focusAt: (anchor: RichPreviewAnchor | null) => void;
-  readViewState: () => Pick<RichPaneViewState, "scrollTop" | "selection">;
+  readViewState: () => Pick<
+    RichPaneViewState,
+    "scrollTop" | "selection" | "topBlockId" | "topBlockOffset"
+  >;
   restoreViewState: (state: RichPaneViewState) => void;
   scrollToBlock: (blockId: string) => boolean;
 }
@@ -414,12 +418,52 @@ function getCodeElementFromSelectionRoot(root: Element | null) {
 
 function createBlockIdSelector(blockId: string) {
   const escapedBlockId = blockId.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-  return `[data-id="${escapedBlockId}"]`;
+  return `[data-node-type="blockOuter"][data-id="${escapedBlockId}"]`;
 }
+
+const LIVE_EDITOR_BLOCK_SELECTOR = '[data-node-type="blockOuter"][data-id]';
 
 function findEditorBlockElement(root: Element | null, blockId: string) {
   return (
     root?.querySelector<HTMLElement>(createBlockIdSelector(blockId)) ?? null
+  );
+}
+
+function readLiveEditorViewportAnchor(
+  container: HTMLElement,
+  root: HTMLElement | null,
+) {
+  const blocks =
+    root?.querySelectorAll<HTMLElement>(LIVE_EDITOR_BLOCK_SELECTOR) ?? [];
+  const ownerDocument = container.ownerDocument;
+  if (root && typeof ownerDocument.elementFromPoint === "function") {
+    const containerBounds = container.getBoundingClientRect();
+    const rootBounds = root.getBoundingClientRect();
+    const contentLeft = Math.max(containerBounds.left, rootBounds.left);
+    const contentRight = Math.min(containerBounds.right, rootBounds.right);
+    // 探测点必须落在正文内部；左侧边缘是 BlockNote 拖拽栏，命中那里会退回到很高的父级列表块。
+    const x = contentLeft + Math.max(1, (contentRight - contentLeft) / 2);
+    for (const offset of [24, 48, 8, 1]) {
+      const y = Math.min(
+        containerBounds.bottom - 1,
+        containerBounds.top + offset,
+      );
+      const candidate = ownerDocument
+        .elementFromPoint(x, y)
+        ?.closest<HTMLElement>(LIVE_EDITOR_BLOCK_SELECTOR);
+      if (!candidate || !root.contains(candidate)) continue;
+      return {
+        topBlockId: candidate.dataset.id ?? null,
+        topBlockOffset:
+          containerBounds.top - candidate.getBoundingClientRect().top,
+      };
+    }
+  }
+
+  return readEditorViewportAnchor(
+    container,
+    blocks,
+    (block) => block.dataset.id ?? null,
   );
 }
 
@@ -609,21 +653,20 @@ export function resolveEditorTextPosition(
   return resolveEditorTextPositions(editor, [{ blockId, textOffset }])[0];
 }
 
-function safelyFocusEditor(editor: CoreBlockNoteEditor) {
+function safelyFocusEditorWithoutScroll(editor: CoreBlockNoteEditor) {
   try {
-    editor.focus();
+    editor.prosemirrorView.dom.focus({ preventScroll: true });
   } catch {
-    // 编辑器正在切换容器或销毁时，焦点恢复失败不应中断面板激活。
+    // 窗格切换期间节点可能已脱离布局；此时保持选择状态即可，不能回退到可能滚动的 focus。
   }
 }
 
-function focusEditorAtBlockStart(editor: CoreBlockNoteEditor, blockId: string) {
-  try {
-    editor.setTextCursorPosition(blockId, "start");
-  } catch {
-    // 块已被并发删除时保留当前选择，仍尝试把焦点交给活动编辑器。
-  }
-  safelyFocusEditor(editor);
+function focusEditorAtBlockStart(
+  editor: CoreBlockNoteEditor,
+  _blockId: string,
+) {
+  // 块可能已被并发删除；此时保留当前 selection，禁止 BlockNote cursor API 隐式滚动。
+  safelyFocusEditorWithoutScroll(editor);
 }
 
 export function focusEditorAtPreviewAnchor(
@@ -631,7 +674,8 @@ export function focusEditorAtPreviewAnchor(
   anchor: RichPreviewAnchor | null,
 ): void {
   if (!anchor) {
-    safelyFocusEditor(editor);
+    // 空白预览激活不得沿用上一窗格的大纲选择并触发浏览器自动滚动。
+    safelyFocusEditorWithoutScroll(editor);
     return;
   }
 
@@ -647,12 +691,13 @@ export function focusEditorAtPreviewAnchor(
     const selection = resolvedPosition.parent.inlineContent
       ? TextSelection.create(view.state.doc, position)
       : TextSelection.near(resolvedPosition, 1);
-    view.dispatch(view.state.tr.setSelection(selection).scrollIntoView());
+    // pane 激活只放置光标；目标 pane 的 viewport 已由 session manager 恢复。
+    view.dispatch(view.state.tr.setSelection(selection));
   } catch {
     focusEditorAtBlockStart(editor, anchor.blockId);
     return;
   }
-  safelyFocusEditor(editor);
+  safelyFocusEditorWithoutScroll(editor);
 }
 
 function yieldToMain(): Promise<void> {
@@ -685,34 +730,35 @@ function scheduleEditorIdleTask(callback: () => void, timeout = 1200) {
   return () => window.clearTimeout(timer);
 }
 
-function scrollCurrentEditorSelectionIntoView(editor: CoreBlockNoteEditor) {
-  const view = editor.prosemirrorView;
-  if (!view) return false;
-
-  view.dispatch(view.state.tr.scrollIntoView());
-  return true;
-}
-
 export function focusEditorOutlineBlock(
   editor: OutlineNavigationCursorEditor,
   blockId: string,
-  scrollSelection: (editor: OutlineNavigationCursorEditor) => boolean = (
-    currentEditor,
-  ) =>
-    scrollCurrentEditorSelectionIntoView(
-      currentEditor as unknown as CoreBlockNoteEditor,
-    ),
 ) {
   if (!editor.getBlock(blockId)) return false;
+  const hasProseMirrorView = "prosemirrorView" in editor;
 
   try {
-    // 首次从大纲跳转时编辑器可能未聚焦；先聚焦再设置光标，避免第一次点击只激活编辑器不滚动。
-    editor.focus();
-    editor.setTextCursorPosition(blockId, "start");
-    scrollSelection(editor);
+    const coreEditor = editor as unknown as CoreBlockNoteEditor;
+    const view = coreEditor.prosemirrorView;
+    const position = resolveEditorTextPosition(coreEditor, blockId, 0);
+    if (position === null) return false;
+    const resolvedPosition = view.state.doc.resolve(position);
+    const selection = resolvedPosition.parent.inlineContent
+      ? TextSelection.create(view.state.doc, position)
+      : TextSelection.near(resolvedPosition, 1);
+    // 大纲只更新选择，不使用 ProseMirror scrollIntoView；滚动统一交给可按 pane 取消的容器定位。
+    view.dispatch(view.state.tr.setSelection(selection));
+    view.dom.focus({ preventScroll: true });
     return true;
   } catch {
-    return false;
+    if (hasProseMirrorView) return false;
+    try {
+      // 仅为不含 ProseMirror view 的轻量编辑器替身保留兼容回退。
+      editor.setTextCursorPosition(blockId, "start");
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
 
@@ -1011,6 +1057,7 @@ function MountedBlockNoteEditor({
   const controllerRef = useRef(controller);
   controllerRef.current = controller;
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const suppressProgrammaticScrollUntilRef = useRef(0);
   const scrollWriterRef = useRef<RichPaneScrollIdleWriter | null>(null);
   if (!scrollWriterRef.current) {
     scrollWriterRef.current = new RichPaneScrollIdleWriter({
@@ -1047,8 +1094,8 @@ function MountedBlockNoteEditor({
   editorRef.current = editor;
 
   // 获取 store 中的方法
-  const setOutlineHeadings = useEditorStore(
-    (state) => state.setOutlineHeadings,
+  const setOutlineHeadingsForPath = useEditorStore(
+    (state) => state.setOutlineHeadingsForPath,
   );
 
   // 提取标题的函数
@@ -1082,10 +1129,10 @@ function MountedBlockNoteEditor({
   const updateOutlineHeadings = useCallback(() => {
     const headings = extractHeadings();
     if (isActiveEditorRef.current) {
-      setOutlineHeadings(headings);
+      setOutlineHeadingsForPath(controller.path, headings);
     }
     return headings;
-  }, [extractHeadings, setOutlineHeadings]);
+  }, [controller.path, extractHeadings, setOutlineHeadingsForPath]);
 
   useEffect(() => {
     isActiveEditorRef.current = isActiveEditor;
@@ -1143,20 +1190,61 @@ function MountedBlockNoteEditor({
             headOffset: head.textOffset,
           }
         : null;
+    const scrollContainer = scrollContainerRef.current;
+    const viewportAnchor = scrollContainer
+      ? readLiveEditorViewportAnchor(scrollContainer, editor.domElement)
+      : { topBlockId: null, topBlockOffset: 0 };
     return {
       scrollTop: readEditorScrollTop(scrollContainerRef.current),
       selection: richSelection,
+      ...viewportAnchor,
     };
   }, [editor]);
 
   const restoreViewState = useCallback(
     (state: RichPaneViewState) => {
       // 切换窗格时终止旧窗格尚未完成的跨帧大纲定位，防止后续帧滚动新窗格。
-      outlineScrollTokenRef.current += 1;
+      const scrollToken = outlineScrollTokenRef.current + 1;
+      outlineScrollTokenRef.current = scrollToken;
+      suppressProgrammaticScrollUntilRef.current = performance.now() + 250;
       if (scrollContainerRef.current) {
-        scrollContainerRef.current.scrollTop = Math.max(0, state.scrollTop);
+        const activePaneKey = surface.dataset.activePaneKey as
+          | RichPaneKey
+          | undefined;
+        const target = state.topBlockId
+          ? findEditorBlockElement(editor.domElement, state.topBlockId)
+          : null;
+        if (target) {
+          scheduleStableEditorBlockScroll({
+            container: scrollContainerRef.current,
+            getTarget: () =>
+              state.topBlockId
+                ? findEditorBlockElement(editor.domElement, state.topBlockId)
+                : null,
+            targetOffset: state.topBlockOffset,
+            shouldContinue: () =>
+              outlineScrollTokenRef.current === scrollToken &&
+              surface.dataset.activePaneKey === activePaneKey,
+          });
+        } else {
+          scrollContainerRef.current.scrollTop = Math.max(0, state.scrollTop);
+        }
       }
-      if (!state.selection) return;
+      if (!state.selection) {
+        const firstBlock = editor.document[0];
+        const position = firstBlock
+          ? resolveEditorTextPosition(editor, firstBlock.id, 0)
+          : null;
+        if (position === null) return;
+        const view = editor.prosemirrorView;
+        const resolvedPosition = view.state.doc.resolve(position);
+        const selection = resolvedPosition.parent.inlineContent
+          ? TextSelection.create(view.state.doc, position)
+          : TextSelection.near(resolvedPosition, 1);
+        // 新 pane 没有自己的选择时安装顶部选择，但不请求浏览器滚动，避免继承上一 pane 光标。
+        view.dispatch(view.state.tr.setSelection(selection));
+        return;
+      }
 
       const [anchor, head] = resolveEditorTextPositions(editor, [
         {
@@ -1180,7 +1268,7 @@ function MountedBlockNoteEditor({
         // 选择在异步内容更新中失效时保留已恢复的滚动位置。
       }
     },
-    [editor],
+    [editor, surface],
   );
 
   const cancelPendingEditorWork = useCallback(() => {
@@ -1701,22 +1789,33 @@ function MountedBlockNoteEditor({
   const readCurrentScrollOwner = useCallback((): RichPaneScrollOwner | null => {
     const binding = controllerRef.current.getActiveBinding();
     if (!binding) return null;
+    if (surface.dataset.activePaneKey !== binding.paneKey) return null;
 
     const owner = toScrollOwner(binding);
     return path && owner.path === normalizeRichDocumentPath(path)
       ? owner
       : null;
-  }, [path]);
+  }, [path, surface]);
 
   const handleScroll = useCallback(
     (event: React.UIEvent<HTMLDivElement>) => {
       const owner = readCurrentScrollOwner();
       if (!owner) return;
+      if (
+        suppressProgrammaticScrollUntilRef.current > 0 &&
+        performance.now() <= suppressProgrammaticScrollUntilRef.current
+      ) {
+        return;
+      }
 
       // 高频滚动只更新 ref/registry；Zustand 在 150ms idle 或生命周期边界才写入。
-      scrollWriterRef.current?.record(owner, event.currentTarget.scrollTop);
+      scrollWriterRef.current?.record(
+        owner,
+        event.currentTarget.scrollTop,
+        readLiveEditorViewportAnchor(event.currentTarget, editor.domElement),
+      );
     },
-    [readCurrentScrollOwner],
+    [editor, readCurrentScrollOwner],
   );
 
   const handleBlur = useCallback(() => {
@@ -1727,6 +1826,7 @@ function MountedBlockNoteEditor({
 
   const handlePointerDownCapture = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
+      suppressProgrammaticScrollUntilRef.current = 0;
       if (shouldMarkRichEditorPointerIntent(event.target)) {
         markUserIntent();
       }
@@ -1736,6 +1836,7 @@ function MountedBlockNoteEditor({
 
   const handleKeyDownCapture = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
+      suppressProgrammaticScrollUntilRef.current = 0;
       markUserIntent();
       if (shouldLetCodeMirrorHandleKeyboardEvent(event.target)) return;
       if (handleRichEditorHeadingShortcut(event, editor)) return;
@@ -1809,6 +1910,12 @@ function MountedBlockNoteEditor({
       onBeforeInputCapture={markUserIntent}
       onKeyDownCapture={handleKeyDownCapture}
       onPointerDownCapture={handlePointerDownCapture}
+      onTouchStartCapture={() => {
+        suppressProgrammaticScrollUntilRef.current = 0;
+      }}
+      onWheelCapture={() => {
+        suppressProgrammaticScrollUntilRef.current = 0;
+      }}
       onPasteCapture={markUserIntent}
       onCutCapture={markUserIntent}
       onCompositionStartCapture={markUserIntent}

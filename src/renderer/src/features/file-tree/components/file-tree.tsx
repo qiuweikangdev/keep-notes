@@ -31,6 +31,8 @@ import {
 import { useEditorStore } from "@/store/editor.store";
 import { OutlinePanel } from "./outline-panel";
 import { scrollEditorOutlineBlock } from "@/features/editor/lib/editor-outline-navigation";
+import { normalizeRichDocumentPath } from "@/features/editor/lib/rich-document-surface-registry";
+import { toRichPaneKey } from "@/features/editor/lib/rich-pane-view-state";
 import { useTreeStore } from "@/store/tree.store";
 import { useElectron } from "@/hooks/use-electron";
 import { useReminderStore } from "@/store/reminder.store";
@@ -68,6 +70,7 @@ const MENU_CONTENT_CLASS =
 const MENU_ITEM_CLASS =
   "flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-[13px] outline-none data-[highlighted]:bg-[var(--hover-bg)]";
 const MENU_SEPARATOR_CLASS = "my-1 h-px bg-[var(--border-color)]";
+const EMPTY_OUTLINE_HEADINGS = [];
 const TOOL_BUTTON_CLASS =
   "flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md transition-colors";
 const ROW_HEIGHT = 28; // 7 * 4 = 28px (h-7)
@@ -156,11 +159,29 @@ export function FileTree() {
   const isRootExpanded = treeRoot ? expandedKeys.has(treeRoot.key) : false;
   const treeRootKey = treeRoot?.key ?? null;
 
-  // 从 store 获取大纲标题列表和活跃标题 ID
-  const headings = useEditorStore((state) => state.outlineHeadings);
-  const activeHeadingId = useEditorStore((state) => state.activeHeadingId);
-  const setActiveHeadingId = useEditorStore(
-    (state) => state.setActiveHeadingId,
+  const activeOutlinePaneKey = useEditorStore((state) => {
+    const group = state.panelGroups.find(
+      (candidate) => candidate.id === state.activeGroupId,
+    );
+    return group ? toRichPaneKey(group.id, group.activeTabId) : null;
+  });
+  const normalizedActiveFilePath = activeFilePath
+    ? normalizeRichDocumentPath(activeFilePath)
+    : null;
+  // 标题结构按文档共享，选中标题按 pane 隔离，切换同文件分栏时不会串联状态。
+  const headings = useEditorStore((state) =>
+    normalizedActiveFilePath
+      ? (state.outlineHeadingsByPath[normalizedActiveFilePath] ??
+        EMPTY_OUTLINE_HEADINGS)
+      : EMPTY_OUTLINE_HEADINGS,
+  );
+  const activeHeadingId = useEditorStore((state) =>
+    activeOutlinePaneKey
+      ? (state.activeHeadingIdByPane[activeOutlinePaneKey] ?? null)
+      : null,
+  );
+  const setActiveHeadingIdForPane = useEditorStore(
+    (state) => state.setActiveHeadingIdForPane,
   );
 
   // 处理大纲标题点击，滚动到对应位置
@@ -170,14 +191,17 @@ export function FileTree() {
       const activeGroup = state.panelGroups.find(
         (group) => group.id === state.activeGroupId,
       );
-      if (activeGroup) {
-        scrollEditorOutlineBlock(activeGroup.id, activeGroup.activeTabId, id);
-      }
+      // 大纲属于当前 UI pane；manager 的 surface 切换可能稍晚，不能反向覆盖用户刚点击的标签。
+      const groupId = activeGroup?.id;
+      const tabId = activeGroup?.activeTabId ?? null;
+      if (!groupId || !tabId) return;
+
+      scrollEditorOutlineBlock(groupId, tabId, id);
       startTransition(() => {
-        setActiveHeadingId(id);
+        setActiveHeadingIdForPane(toRichPaneKey(groupId, tabId), id);
       });
     },
-    [setActiveHeadingId],
+    [setActiveHeadingIdForPane],
   );
 
   const revealCreatedNode = useCallback(
@@ -957,7 +981,7 @@ export function FileTree() {
               <OutlinePanel
                 headings={headings}
                 activeHeadingId={activeHeadingId}
-                resetKey={activeFilePath}
+                resetKey={`${activeOutlinePaneKey ?? "none"}:${activeFilePath ?? ""}`}
                 onHeadingClick={handleHeadingClick}
               />
             )}

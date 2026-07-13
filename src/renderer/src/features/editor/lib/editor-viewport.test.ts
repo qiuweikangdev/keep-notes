@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   chooseRestoredEditorScrollTop,
+  readEditorViewportAnchor,
   readEditorScrollTop,
   restoreEditorScrollTop,
   scheduleStableEditorBlockScroll,
@@ -63,6 +64,47 @@ describe("editor viewport", () => {
 
     expect(container.scrollTop).toBe(460);
     expect(target.scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it("reads the first visible block as a renderer-independent viewport anchor", () => {
+    const container = {
+      scrollTop: 480,
+      getBoundingClientRect: () => ({ top: 100 }),
+    };
+    const blocks = [
+      {
+        id: "block-a",
+        getBoundingClientRect: () => ({ top: 20, bottom: 80 }),
+      },
+      {
+        id: "block-b",
+        getBoundingClientRect: () => ({ top: 70, bottom: 150 }),
+      },
+      {
+        id: "block-c",
+        getBoundingClientRect: () => ({ top: 150, bottom: 210 }),
+      },
+    ];
+
+    expect(
+      readEditorViewportAnchor(container, blocks, (block) => block.id),
+    ).toEqual({
+      topBlockId: "block-b",
+      topBlockOffset: 30,
+    });
+  });
+
+  it("restores the same block offset across different renderer heights", () => {
+    const container = {
+      scrollTop: 900,
+      getBoundingClientRect: () => ({ top: 100 }),
+    };
+    const target = {
+      getBoundingClientRect: () => ({ top: 360, bottom: 440 }),
+    };
+
+    expect(scrollEditorBlockIntoView(container, target, 30)).toBe(true);
+    expect(container.scrollTop).toBe(1190);
   });
 
   it("reports when a target block cannot be found", () => {

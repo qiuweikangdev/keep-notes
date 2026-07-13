@@ -1,6 +1,7 @@
 import {
   act,
   cleanup,
+  createEvent,
   fireEvent,
   render,
   screen,
@@ -15,6 +16,7 @@ import { VirtualRichPreview } from "./virtual-rich-preview";
 
 const virtualizerMock = vi.hoisted(() => ({
   measureElement: vi.fn(),
+  scrollToIndex: vi.fn(),
   options: null as {
     count: number;
     estimateSize: () => number;
@@ -39,6 +41,7 @@ vi.mock("@tanstack/react-virtual", () => ({
       getTotalSize: () => start + Math.max(0, options.count - 3) * 36,
       getVirtualItems: () => virtualItems,
       measureElement: virtualizerMock.measureElement,
+      scrollToIndex: virtualizerMock.scrollToIndex,
     };
   },
 }));
@@ -242,13 +245,15 @@ describe("VirtualRichPreview", () => {
     );
     const preview = screen.getByRole("textbox");
 
+    fireEvent.wheel(preview);
     preview.scrollTop = 128;
     fireEvent.scroll(preview);
 
     expect(patch).toHaveBeenCalledOnce();
-    expect(patch).toHaveBeenCalledWith("group-a:tab-a", {
-      scrollTop: 128,
-    });
+    expect(patch).toHaveBeenCalledWith(
+      "group-a:tab-a",
+      expect.objectContaining({ scrollTop: 128 }),
+    );
   });
 
   it("does not write a restored scroll event over newer pane state", () => {
@@ -273,11 +278,330 @@ describe("VirtualRichPreview", () => {
     expect(patch).not.toHaveBeenCalled();
     expect(richPaneViewStateRegistry.read(paneKey).scrollTop).toBe(144);
 
+    fireEvent.wheel(preview);
     preview.scrollTop = 180;
     fireEvent.scroll(preview);
 
     expect(patch).toHaveBeenCalledOnce();
-    expect(patch).toHaveBeenCalledWith(paneKey, { scrollTop: 180 });
+    expect(patch).toHaveBeenCalledWith(
+      paneKey,
+      expect.objectContaining({ scrollTop: 180 }),
+    );
+  });
+
+  it("keeps the hidden preview synchronized while its pane is live", () => {
+    const paneKey = "group-a:tab-a";
+    const { cache } = createCache();
+    const props = {
+      cache,
+      onActivate: vi.fn(),
+      paneKey: paneKey as const,
+    };
+    const { rerender } = render(
+      <VirtualRichPreview {...props} isLive={true} />,
+    );
+    const preview = screen.getByRole("textbox");
+    preview.scrollTop = 40;
+    richPaneViewStateRegistry.patch(paneKey, { scrollTop: 420 });
+
+    expect(preview.scrollTop).toBe(420);
+
+    rerender(<VirtualRichPreview {...props} isLive={false} />);
+
+    expect(preview.scrollTop).toBe(420);
+    richPaneViewStateRegistry.patch(paneKey, { scrollTop: 560 });
+    expect(preview.scrollTop).toBe(560);
+  });
+
+  it("ignores hidden preview scroll events while its pane is live", () => {
+    const paneKey = "group-a:tab-a";
+    const { cache } = createCache();
+    richPaneViewStateRegistry.patch(paneKey, { scrollTop: 420 });
+    const patch = vi.spyOn(richPaneViewStateRegistry, "patch");
+    const { rerender } = render(
+      <VirtualRichPreview
+        paneKey={paneKey}
+        cache={cache}
+        isLive={true}
+        onActivate={vi.fn()}
+      />,
+    );
+    const preview = screen.getByRole("textbox");
+
+    fireEvent.wheel(preview);
+    preview.scrollTop = 40;
+    fireEvent.scroll(preview);
+
+    expect(patch).not.toHaveBeenCalled();
+    expect(richPaneViewStateRegistry.read(paneKey).scrollTop).toBe(420);
+
+    rerender(
+      <VirtualRichPreview
+        paneKey={paneKey}
+        cache={cache}
+        isLive={false}
+        onActivate={vi.fn()}
+      />,
+    );
+    expect(preview.scrollTop).toBe(420);
+  });
+
+  it("ignores virtualizer scroll corrections without user intent", () => {
+    const paneKey = "group-a:tab-a";
+    const patch = vi.spyOn(richPaneViewStateRegistry, "patch");
+    const { cache } = createCache();
+    render(
+      <VirtualRichPreview
+        paneKey={paneKey}
+        cache={cache}
+        onActivate={vi.fn()}
+      />,
+    );
+    const preview = screen.getByRole("textbox");
+
+    preview.scrollTop = 240;
+    fireEvent.scroll(preview);
+
+    expect(patch).not.toHaveBeenCalled();
+    expect(richPaneViewStateRegistry.read(paneKey).scrollTop).toBe(0);
+  });
+
+  it("records the first visible block anchor instead of only a pixel offset", () => {
+    const paneKey = "group-a:tab-a";
+    const { cache } = createCache();
+    render(
+      <VirtualRichPreview
+        paneKey={paneKey}
+        cache={cache}
+        onActivate={vi.fn()}
+      />,
+    );
+    const preview = screen.getByRole("textbox");
+    vi.spyOn(preview, "getBoundingClientRect").mockReturnValue({
+      bottom: 500,
+      height: 400,
+      left: 0,
+      right: 400,
+      top: 100,
+      width: 400,
+      x: 0,
+      y: 100,
+      toJSON: vi.fn(),
+    });
+    const blocks = preview.querySelectorAll<HTMLElement>(
+      "[data-rich-preview-block]",
+    );
+    vi.spyOn(blocks[0], "getBoundingClientRect").mockReturnValue({
+      bottom: 80,
+      height: 60,
+      left: 0,
+      right: 400,
+      top: 20,
+      width: 400,
+      x: 0,
+      y: 20,
+      toJSON: vi.fn(),
+    });
+    vi.spyOn(blocks[1], "getBoundingClientRect").mockReturnValue({
+      bottom: 150,
+      height: 80,
+      left: 0,
+      right: 400,
+      top: 70,
+      width: 400,
+      x: 0,
+      y: 70,
+      toJSON: vi.fn(),
+    });
+
+    fireEvent.wheel(preview);
+    preview.scrollTop = 480;
+    fireEvent.scroll(preview);
+
+    expect(richPaneViewStateRegistry.read(paneKey)).toMatchObject({
+      scrollTop: 480,
+      topBlockId: "block-1",
+      topBlockOffset: 30,
+    });
+  });
+
+  it("pre-aligns a hidden preview from the live editor block anchor", () => {
+    const paneKey = "group-a:tab-a";
+    const { cache } = createCache();
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      callback(0);
+      return 1;
+    });
+    const props = { cache, onActivate: vi.fn(), paneKey: paneKey as const };
+    const { rerender } = render(
+      <VirtualRichPreview {...props} isLive={true} />,
+    );
+    const preview = screen.getByRole("textbox");
+    vi.spyOn(preview, "getBoundingClientRect").mockImplementation(
+      () =>
+        ({
+          bottom: 500,
+          height: 400,
+          left: 0,
+          right: 400,
+          top: 100,
+          width: 400,
+          x: 0,
+          y: 100,
+          toJSON: vi.fn(),
+        }) as DOMRect,
+    );
+    const target = preview.querySelector<HTMLElement>(
+      '[data-block-id="block-1"]',
+    )!;
+    vi.spyOn(target, "getBoundingClientRect").mockImplementation(
+      () =>
+        ({
+          bottom: 440 - preview.scrollTop,
+          height: 80,
+          left: 0,
+          right: 400,
+          top: 360 - preview.scrollTop,
+          width: 400,
+          x: 0,
+          y: 360 - preview.scrollTop,
+          toJSON: vi.fn(),
+        }) as DOMRect,
+    );
+    richPaneViewStateRegistry.patch(paneKey, {
+      scrollTop: 900,
+      topBlockId: "block-1",
+      topBlockOffset: 30,
+    });
+
+    expect(virtualizerMock.scrollToIndex).not.toHaveBeenCalled();
+    expect(preview.scrollTop).toBe(290);
+
+    rerender(<VirtualRichPreview {...props} isLive={false} />);
+    expect(preview.scrollTop).toBe(290);
+  });
+
+  it("cancels a stale deferred restore when a newer anchor is already mounted", () => {
+    const paneKey = "group-a:tab-a";
+    const { cache } = createCache();
+    const scheduledFrames: FrameRequestCallback[] = [];
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      scheduledFrames.push(callback);
+      return scheduledFrames.length;
+    });
+    render(
+      <VirtualRichPreview
+        paneKey={paneKey}
+        cache={cache}
+        onActivate={vi.fn()}
+      />,
+    );
+    const preview = screen.getByRole("textbox");
+    vi.spyOn(preview, "getBoundingClientRect").mockReturnValue({
+      bottom: 500,
+      height: 400,
+      left: 0,
+      right: 400,
+      top: 100,
+      width: 400,
+      x: 0,
+      y: 100,
+      toJSON: vi.fn(),
+    });
+    const mountedTarget = preview.querySelector<HTMLElement>(
+      '[data-block-id="block-1"]',
+    )!;
+    vi.spyOn(mountedTarget, "getBoundingClientRect").mockImplementation(
+      () =>
+        ({
+          bottom: 440 - preview.scrollTop,
+          height: 80,
+          left: 0,
+          right: 400,
+          top: 360 - preview.scrollTop,
+          width: 400,
+          x: 0,
+          y: 360 - preview.scrollTop,
+          toJSON: vi.fn(),
+        }) as DOMRect,
+    );
+
+    act(() => {
+      richPaneViewStateRegistry.patch(paneKey, {
+        scrollTop: 3600,
+        topBlockId: "block-99",
+        topBlockOffset: 0,
+      });
+    });
+    const staleTarget = document.createElement("div");
+    staleTarget.dataset.blockId = "block-99";
+    staleTarget.dataset.richPreviewBlock = "";
+    vi.spyOn(staleTarget, "getBoundingClientRect").mockImplementation(
+      () =>
+        ({
+          bottom: 680 - preview.scrollTop,
+          height: 80,
+          left: 0,
+          right: 400,
+          top: 600 - preview.scrollTop,
+          width: 400,
+          x: 0,
+          y: 600 - preview.scrollTop,
+          toJSON: vi.fn(),
+        }) as DOMRect,
+    );
+    preview.append(staleTarget);
+
+    act(() => {
+      richPaneViewStateRegistry.patch(paneKey, {
+        scrollTop: 900,
+        topBlockId: "block-1",
+        topBlockOffset: 30,
+      });
+    });
+    expect(preview.scrollTop).toBe(290);
+
+    act(() => scheduledFrames.shift()?.(0));
+
+    expect(preview.scrollTop).toBe(290);
+  });
+
+  it("does not activate a pane when dragging its scrollbar", () => {
+    const { cache } = createCache();
+    const onActivate = vi.fn();
+    render(
+      <VirtualRichPreview
+        paneKey="group-a:tab-a"
+        cache={cache}
+        onActivate={onActivate}
+      />,
+    );
+    const preview = screen.getByRole("textbox");
+    Object.defineProperties(preview, {
+      clientWidth: { configurable: true, value: 180 },
+      offsetWidth: { configurable: true, value: 200 },
+    });
+    vi.spyOn(preview, "getBoundingClientRect").mockReturnValue({
+      bottom: 300,
+      height: 300,
+      left: -180,
+      right: 20,
+      top: 0,
+      width: 200,
+      x: -180,
+      y: 0,
+      toJSON: vi.fn(),
+    });
+
+    const pointerDown = createEvent.pointerDown(preview);
+    Object.defineProperties(pointerDown, {
+      button: { configurable: true, value: 0 },
+      clientX: { configurable: true, value: 10 },
+      clientY: { configurable: true, value: 80 },
+    });
+    fireEvent(preview, pointerDown);
+
+    expect(onActivate).not.toHaveBeenCalled();
   });
 
   it("activates the exact anchor from a nested text position", () => {

@@ -127,6 +127,7 @@ afterEach(() => {
   sessionMocks.controller = null;
   editorSaveCoordinator.cancel("C:/notes/shared.md");
   editorSaveCoordinator.cancel("C:\\notes\\shared.md");
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -493,6 +494,98 @@ describe("RichDocumentSessionHost", () => {
     releaseSecondHost();
     releaseFirst();
     releaseSecond();
+  });
+
+  it("does not let a stale outline retry reclaim the store before pane commit", () => {
+    vi.useFakeTimers();
+    const path = "C:/notes/stale-outline.md";
+    useEditorStore.setState({
+      activeGroupId: "group-1",
+      panelGroups: createGroups(path),
+    });
+    const releaseFirst = richDocumentSessionManager.retainVisible(path, {
+      paneKey: "group-1:tab-1",
+      groupId: "group-1",
+      tabId: "tab-1",
+    });
+    const releaseSecond = richDocumentSessionManager.retainVisible(path, {
+      paneKey: "group-2:tab-2",
+      groupId: "group-2",
+      tabId: "tab-2",
+    });
+    const releaseFirstHost = richDocumentSurfaceRegistry.registerHost(
+      path,
+      "group-1:tab-1",
+      document.createElement("div"),
+    );
+    const releaseSecondHost = richDocumentSurfaceRegistry.registerHost(
+      path,
+      "group-2:tab-2",
+      document.createElement("div"),
+    );
+
+    render(<RichDocumentSessionHost path={path} />);
+    const runtime = sessionMocks.runtimes.at(-1)!;
+    vi.mocked(runtime.scrollToBlock).mockReturnValue(false);
+    expect(
+      richDocumentSessionManager.setActivePane(path, "group-1:tab-1"),
+    ).toBe(true);
+    expect(scrollEditorOutlineBlock("group-1", "tab-1", "heading-a")).toBe(
+      false,
+    );
+
+    useEditorStore.getState().setActiveTab("group-2", "tab-2");
+    vi.mocked(runtime.scrollToBlock).mockClear();
+    vi.runOnlyPendingTimers();
+
+    expect(richDocumentSessionManager.getActivePane(path)).toBe(
+      "group-1:tab-1",
+    );
+    expect(useEditorStore.getState().activeGroupId).toBe("group-2");
+    expect(runtime.scrollToBlock).not.toHaveBeenCalled();
+
+    releaseFirstHost();
+    releaseSecondHost();
+    releaseFirst();
+    releaseSecond();
+  });
+
+  it("retries outline navigation while the intended pane remains active", () => {
+    vi.useFakeTimers();
+    const path = "C:/notes/retry-outline.md";
+    useEditorStore.setState({
+      activeGroupId: "group-1",
+      panelGroups: createGroups(path),
+    });
+    const releasePane = richDocumentSessionManager.retainVisible(path, {
+      paneKey: "group-1:tab-1",
+      groupId: "group-1",
+      tabId: "tab-1",
+    });
+    const releaseHost = richDocumentSurfaceRegistry.registerHost(
+      path,
+      "group-1:tab-1",
+      document.createElement("div"),
+    );
+
+    render(<RichDocumentSessionHost path={path} />);
+    const runtime = sessionMocks.runtimes.at(-1)!;
+    vi.mocked(runtime.scrollToBlock).mockReturnValue(true);
+    const activatePane = vi.spyOn(richDocumentSessionManager, "setActivePane");
+    activatePane.mockReturnValueOnce(false);
+
+    expect(scrollEditorOutlineBlock("group-1", "tab-1", "heading-a")).toBe(
+      false,
+    );
+    expect(runtime.scrollToBlock).not.toHaveBeenCalled();
+
+    vi.runOnlyPendingTimers();
+
+    expect(activatePane).toHaveBeenCalledTimes(2);
+    expect(runtime.scrollToBlock).toHaveBeenCalledWith("heading-a");
+
+    releaseHost();
+    releasePane();
   });
 
   it("syncs and saves every Windows-path tab through a normalized session path", async () => {

@@ -31,6 +31,20 @@ describe("RichPaneViewStateRegistry", () => {
     });
   });
 
+  it("notifies only subscribers of the patched pane", () => {
+    const states = new RichPaneViewStateRegistry();
+    const first = vi.fn();
+    const second = vi.fn();
+    const unsubscribe = states.subscribe("g1:t1", first);
+    states.subscribe("g2:t2", second);
+
+    states.patch("g1:t1", { scrollTop: 240 });
+
+    expect(first).toHaveBeenCalledOnce();
+    expect(second).not.toHaveBeenCalled();
+    unsubscribe();
+  });
+
   it("returns immutable view state snapshots", () => {
     const states = new RichPaneViewStateRegistry();
     states.patch("g1:t1", {

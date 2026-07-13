@@ -52,6 +52,10 @@ const richSessionLifecycle = vi.hoisted(() => ({
   mounts: new Map<string, number>(),
 }));
 
+const electronMocks = vi.hoisted(() => ({
+  openFile: vi.fn(),
+}));
+
 const editorPerformanceMocks = vi.hoisted(() => ({
   cancelResize: vi.fn(),
   commitSplitPane: vi.fn(() => vi.fn()),
@@ -116,7 +120,12 @@ vi.mock("./editor-workspace", async () => {
     }, [groupId, instanceId]);
 
     return (
-      <div data-testid={`workspace-${groupId}`} data-instance-id={instanceId}>
+      <div
+        data-testid={`workspace-${groupId}`}
+        data-instance-id={instanceId}
+        onDragOver={(event) => event.stopPropagation()}
+        onDrop={(event) => event.stopPropagation()}
+      >
         workspace-{groupId}
       </div>
     );
@@ -174,7 +183,7 @@ vi.mock("./rich-document-session-host", async () => {
 
 vi.mock("@/hooks/use-electron", () => ({
   useElectron: () => ({
-    openFile: vi.fn(),
+    openFile: electronMocks.openFile,
   }),
 }));
 
@@ -209,6 +218,8 @@ beforeEach(() => {
   editorPerformanceMocks.measure.mockClear();
   editorPerformanceMocks.observe.mockClear();
   editorPerformanceMocks.resizeLayout.mockClear();
+  electronMocks.openFile.mockReset();
+  electronMocks.openFile.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -340,6 +351,46 @@ describe("Editor split panels", () => {
     expect(handle.getAttribute("style")).toContain(
       "border-top: 1px solid var(--border-color)",
     );
+  });
+
+  it("captures a file-tree drop before the rich editor consumes it", async () => {
+    useEditorStore.setState({
+      panelGroups: [
+        {
+          id: "group-1",
+          activeTabId: "tab-1",
+          direction: "horizontal",
+          tabs: [createTab("tab-1", "C:/notes/left.md")],
+        },
+        {
+          id: "group-2",
+          activeTabId: "tab-2",
+          direction: "horizontal",
+          splitParentGroupId: "group-1",
+          tabs: [createTab("tab-2", "C:/notes/right.md")],
+        },
+      ],
+      activeGroupId: "group-1",
+    });
+    render(<Editor />);
+    const target = screen.getByTestId("workspace-group-2");
+    const draggedPath = "C:/notes/dragged.md";
+    const dataTransfer = {
+      dropEffect: "none",
+      files: [],
+      getData: vi.fn(() => draggedPath),
+      types: ["application/x-keep-notes-file"],
+    } as unknown as DataTransfer;
+
+    fireEvent.dragOver(target, { dataTransfer });
+    fireEvent.drop(target, { dataTransfer });
+
+    await vi.waitFor(() => {
+      expect(electronMocks.openFile).toHaveBeenCalledWith(
+        draggedPath,
+        "group-2",
+      );
+    });
   });
 
   it("keeps the bottom panel below when splitting only the top panel to the right", () => {

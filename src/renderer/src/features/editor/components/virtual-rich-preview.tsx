@@ -7,6 +7,7 @@ import {
   useRef,
   useSyncExternalStore,
   type CSSProperties,
+  type KeyboardEvent,
   type PointerEvent,
   type UIEvent,
 } from "react";
@@ -20,10 +21,15 @@ import {
 } from "@/features/editor/lib/rich-preview-anchor";
 import type { RichPaneKey } from "@/features/editor/lib/rich-pane-view-state";
 import type { RichPreviewCache } from "@/features/editor/lib/rich-preview-cache";
+import {
+  readEditorViewportAnchor,
+  scrollEditorBlockIntoView,
+} from "@/features/editor/lib/editor-viewport";
 
 interface VirtualRichPreviewProps {
   paneKey: RichPaneKey;
   cache: RichPreviewCache;
+  isLive?: boolean;
   onActivate: (anchor: RichPreviewAnchor | null) => void;
 }
 
@@ -218,9 +224,30 @@ function resolvePointerAnchor(
   return resolveRichPreviewAnchor(pointerBlock, 0);
 }
 
+function findPreviewBlock(
+  preview: HTMLElement,
+  blockId: string,
+): HTMLElement | null {
+  for (const block of preview.querySelectorAll<HTMLElement>(
+    "[data-rich-preview-block]",
+  )) {
+    if (block.dataset.blockId === blockId) return block;
+  }
+  return null;
+}
+
+function readPreviewViewportAnchor(preview: HTMLElement) {
+  return readEditorViewportAnchor(
+    preview,
+    preview.querySelectorAll<HTMLElement>("[data-rich-preview-block]"),
+    (block) => block.dataset.blockId ?? null,
+  );
+}
+
 export function VirtualRichPreview({
   paneKey,
   cache,
+  isLive = false,
   onActivate,
 }: VirtualRichPreviewProps) {
   const appearance = useEditorStore((state) => state.appearance);
@@ -244,10 +271,10 @@ export function VirtualRichPreview({
         ? "light"
         : "dark";
   const scrollRef = useRef<HTMLDivElement>(null);
-  const restoredScrollRef = useRef<{
-    paneKey: RichPaneKey;
-    scrollTop: number;
-  } | null>(null);
+  const isLiveRef = useRef(isLive);
+  isLiveRef.current = isLive;
+  const restoreTokenRef = useRef(0);
+  const suppressProgrammaticScrollUntilRef = useRef(0);
   const subscribe = useCallback(
     (listener: () => void) => cache.subscribe(listener),
     [cache],
@@ -289,31 +316,114 @@ export function VirtualRichPreview({
     ],
   );
 
-  useLayoutEffect(() => {
+  const restorePaneScroll = useCallback(() => {
     const preview = scrollRef.current;
     if (!preview) return;
-    const scrollTop = richPaneViewStateRegistry.read(paneKey).scrollTop;
-    restoredScrollRef.current = { paneKey, scrollTop };
-    preview.scrollTop = scrollTop;
-  }, [paneKey]);
+    // 每次恢复都先作废上一轮跨帧定位，避免高频切换时旧任务回滚新面板的滚动位置。
+    const restoreToken = restoreTokenRef.current + 1;
+    restoreTokenRef.current = restoreToken;
+    const state = richPaneViewStateRegistry.read(paneKey);
+    const target = state.topBlockId
+      ? findPreviewBlock(preview, state.topBlockId)
+      : null;
+    if (target) {
+      const delta =
+        target.getBoundingClientRect().top -
+        preview.getBoundingClientRect().top +
+        state.topBlockOffset;
+      if (Math.abs(delta) < 1) return;
+      suppressProgrammaticScrollUntilRef.current = performance.now() + 250;
+      scrollEditorBlockIntoView(preview, target, state.topBlockOffset);
+      return;
+    } else if (!state.topBlockId && preview.scrollTop === state.scrollTop) {
+      return;
+    }
+
+    suppressProgrammaticScrollUntilRef.current = performance.now() + 250;
+    const targetIndex = state.topBlockId
+      ? snapshot.order.indexOf(state.topBlockId)
+      : -1;
+    if (targetIndex < 0 || !state.topBlockId) {
+      preview.scrollTop = state.scrollTop;
+      return;
+    }
+
+    virtualizer.scrollToIndex(targetIndex, { align: "start" });
+    let attempts = 0;
+    const alignAnchor = () => {
+      if (restoreTokenRef.current !== restoreToken) return;
+      attempts += 1;
+      suppressProgrammaticScrollUntilRef.current = performance.now() + 250;
+      scrollEditorBlockIntoView(
+        preview,
+        findPreviewBlock(preview, state.topBlockId!),
+        state.topBlockOffset,
+      );
+      if (attempts < 4) requestAnimationFrame(alignAnchor);
+    };
+    requestAnimationFrame(alignAnchor);
+  }, [paneKey, snapshot.order, virtualizer]);
+
+  useLayoutEffect(() => {
+    restorePaneScroll();
+    const unsubscribe = richPaneViewStateRegistry.subscribe(
+      paneKey,
+      restorePaneScroll,
+    );
+    return () => {
+      restoreTokenRef.current += 1;
+      unsubscribe();
+    };
+  }, [paneKey, restorePaneScroll]);
+
+  useLayoutEffect(() => {
+    restorePaneScroll();
+  }, [isLive, restorePaneScroll]);
+
+  const scrollIntentUntilRef = useRef(0);
+  const markScrollIntent = useCallback(() => {
+    // 只允许真实的用户滚动输入更新 pane 状态，忽略虚拟列表测量引起的滚动修正。
+    suppressProgrammaticScrollUntilRef.current = 0;
+    scrollIntentUntilRef.current = performance.now() + 300;
+  }, []);
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLDivElement>) => {
+      if (
+        [
+          "ArrowDown",
+          "ArrowLeft",
+          "ArrowRight",
+          "ArrowUp",
+          "End",
+          "Home",
+          "PageDown",
+          "PageUp",
+          " ",
+        ].includes(event.key)
+      ) {
+        markScrollIntent();
+      }
+    },
+    [markScrollIntent],
+  );
 
   const handleScroll = useCallback(
     (event: UIEvent<HTMLDivElement>) => {
-      const scrollTop = event.currentTarget.scrollTop;
-      const restoredScroll = restoredScrollRef.current;
+      if (isLiveRef.current) return;
       if (
-        restoredScroll?.paneKey === paneKey &&
-        restoredScroll.scrollTop === scrollTop
+        suppressProgrammaticScrollUntilRef.current > 0 &&
+        performance.now() <= suppressProgrammaticScrollUntilRef.current
       ) {
-        restoredScrollRef.current = null;
         return;
       }
-      restoredScrollRef.current = null;
+      const scrollTop = event.currentTarget.scrollTop;
+      if (performance.now() > scrollIntentUntilRef.current) return;
       if (richPaneViewStateRegistry.read(paneKey).scrollTop === scrollTop) {
         return;
       }
       richPaneViewStateRegistry.patch(paneKey, {
         scrollTop,
+        ...readPreviewViewportAnchor(event.currentTarget),
       });
     },
     [paneKey],
@@ -321,11 +431,23 @@ export function VirtualRichPreview({
   const handlePointerDown = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
       if (event.button > 0) return;
+      const preview = event.currentTarget;
+      const bounds = preview.getBoundingClientRect();
+      const isVerticalScrollbar =
+        preview.offsetWidth > preview.clientWidth &&
+        event.clientX >= bounds.left + preview.clientWidth;
+      const isHorizontalScrollbar =
+        preview.offsetHeight > preview.clientHeight &&
+        event.clientY >= bounds.top + preview.clientHeight;
+      if (isVerticalScrollbar || isHorizontalScrollbar) {
+        markScrollIntent();
+        return;
+      }
       // 阻止浏览器随后把焦点放回即将隐藏的预览层，避免真实编辑器先聚焦再失焦并重复整树布局。
       event.preventDefault();
       onActivate(resolvePointerAnchor(event));
     },
-    [onActivate],
+    [markScrollIntent, onActivate],
   );
 
   return (
@@ -336,8 +458,11 @@ export function VirtualRichPreview({
       className="rich-virtual-preview bn-root"
       data-color-scheme={colorScheme}
       data-testid="virtual-rich-preview"
+      onKeyDown={handleKeyDown}
       onPointerDown={handlePointerDown}
       onScroll={handleScroll}
+      onTouchStart={markScrollIntent}
+      onWheel={markScrollIntent}
       ref={scrollRef}
       role="textbox"
       style={previewStyle}

@@ -252,6 +252,7 @@ export function RichDocumentPane({
           >
             <VirtualRichPreview
               cache={displayedRuntime.previewCache}
+              isLive={isLive}
               onActivate={handleActivate}
               paneKey={paneKey}
             />

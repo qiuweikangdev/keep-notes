@@ -1,4 +1,11 @@
-type OutlineNavigator = (blockId: string) => boolean;
+export type OutlineNavigationResult = boolean | "cancel";
+interface OutlineNavigationContext {
+  isRetry: boolean;
+}
+type OutlineNavigator = (
+  blockId: string,
+  context: OutlineNavigationContext,
+) => OutlineNavigationResult;
 
 const outlineNavigators = new Map<string, OutlineNavigator>();
 const pendingOutlineNavigations = new Map<string, string>();
@@ -35,7 +42,13 @@ function flushPendingOutlineNavigation(key: string): boolean {
   const navigator = outlineNavigators.get(key);
   if (!navigator) return false;
 
-  if (!navigator(pendingBlockId)) return false;
+  const result = navigator(pendingBlockId, { isRetry: true });
+  if (result === "cancel") {
+    pendingOutlineNavigations.delete(key);
+    clearPendingOutlineNavigationRetry(key);
+    return true;
+  }
+  if (!result) return false;
 
   pendingOutlineNavigations.delete(key);
   clearPendingOutlineNavigationRetry(key);
@@ -69,6 +82,9 @@ export function scrollEditorOutlineBlock(
   blockId: string,
 ): boolean {
   const key = outlineNavigatorKey(groupId, tabId);
+  // 新的用户意图必须覆盖同一标签尚未完成的旧标题定位，旧 timer 不得稍后回放。
+  pendingOutlineNavigations.delete(key);
+  clearPendingOutlineNavigationRetry(key);
   const navigator = outlineNavigators.get(key);
   if (!navigator) {
     pendingOutlineNavigations.set(key, blockId);
@@ -76,14 +92,12 @@ export function scrollEditorOutlineBlock(
     return false;
   }
 
-  if (!navigator(blockId)) {
+  const result = navigator(blockId, { isRetry: false });
+  if (result === "cancel") return false;
+  if (!result) {
     pendingOutlineNavigations.set(key, blockId);
     schedulePendingOutlineNavigationRetry(key);
     return false;
-  }
-
-  if (pendingOutlineNavigations.get(key) === blockId) {
-    pendingOutlineNavigations.delete(key);
   }
 
   return true;
