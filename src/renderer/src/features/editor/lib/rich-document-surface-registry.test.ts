@@ -8,6 +8,7 @@ import {
 
 afterEach(() => {
   document.body.replaceChildren();
+  Reflect.deleteProperty(document, "elementsFromPoint");
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -22,7 +23,7 @@ describe("RichDocumentSurfaceRegistry", () => {
     );
   });
 
-  it("keeps one document surface mounted while positioning it over pane hosts", () => {
+  it("moves one stable body surface between pane positions with transforms", () => {
     const registry = new RichDocumentSurfaceRegistry();
     const surface = document.createElement("div");
     const firstHost = document.createElement("div");
@@ -58,18 +59,19 @@ describe("RichDocumentSurfaceRegistry", () => {
     expect(surface.parentElement).toBe(document.body);
     expect(firstHost.firstElementChild).toBeNull();
     expect(surface.dataset.activePaneKey).toBe("g1:t1");
-    expect(surface.style.cssText).toContain("left: 20px");
-    expect(surface.style.cssText).toContain("top: 50px");
-    expect(surface.style.cssText).toContain("width: 300px");
-    expect(surface.style.cssText).toContain("height: 200px");
+    expect(surface.style.position).toBe("fixed");
+    expect(surface.style.transform).toBe("translate3d(20px, 50px, 0)");
+    expect(surface.style.width).toBe("300px");
+    expect(surface.style.height).toBe("200px");
     expect(registry.getActivePaneKey("C:/notes/large.md")).toBe("g1:t1");
     expect(registry.activate("C:\\notes\\large.md", "g2:t2")).toBe(true);
     expect(surface.parentElement).toBe(document.body);
     expect(secondHost.firstElementChild).toBeNull();
     expect(firstHost.firstElementChild).toBeNull();
     expect(surface.dataset.activePaneKey).toBe("g2:t2");
-    expect(surface.style.cssText).toContain("left: 340px");
-    expect(surface.style.cssText).toContain("top: 120px");
+    expect(surface.style.transform).toBe("translate3d(340px, 120px, 0)");
+    expect(surface.style.width).toBe("360px");
+    expect(surface.style.height).toBe("240px");
     registry.deactivate("C:\\notes\\large.md");
     expect(surface.parentElement).toBe(document.body);
     expect(surface.style.visibility).toBe("hidden");
@@ -77,7 +79,7 @@ describe("RichDocumentSurfaceRegistry", () => {
     expect(registry.getActivePaneKey("C:\\notes\\large.md")).toBeNull();
   });
 
-  it("remeasures every CodeMirror gutter after moving a surface between panes", () => {
+  it("remeasures only CodeMirror instances visible after a pane move", () => {
     const scheduledFrames: FrameRequestCallback[] = [];
     vi.stubGlobal(
       "requestAnimationFrame",
@@ -97,6 +99,13 @@ describe("RichDocumentSurfaceRegistry", () => {
     firstCodeMirror.className = "cm-editor";
     secondCodeMirror.className = "cm-editor";
     surface.append(firstCodeMirror, secondCodeMirror);
+    vi.spyOn(surface, "getBoundingClientRect").mockReturnValue(
+      rect(340, 120, 360, 240),
+    );
+    Object.defineProperty(document, "elementsFromPoint", {
+      configurable: true,
+      value: vi.fn(() => [firstCodeMirror]),
+    });
     vi.spyOn(firstHost, "getBoundingClientRect").mockReturnValue(
       rect(20, 50, 300, 200),
     );
@@ -122,16 +131,12 @@ describe("RichDocumentSurfaceRegistry", () => {
 
     registry.activate("note.md", "g2:t2");
 
-    expect(firstRequestMeasure).toHaveBeenCalledOnce();
-    expect(secondRequestMeasure).toHaveBeenCalledOnce();
+    expect(firstRequestMeasure).not.toHaveBeenCalled();
+    expect(secondRequestMeasure).not.toHaveBeenCalled();
 
     scheduledFrames.shift()?.(16);
-    expect(firstRequestMeasure).toHaveBeenCalledTimes(2);
-    expect(secondRequestMeasure).toHaveBeenCalledTimes(2);
-
-    scheduledFrames.shift()?.(32);
-    expect(firstRequestMeasure).toHaveBeenCalledTimes(3);
-    expect(secondRequestMeasure).toHaveBeenCalledTimes(3);
+    expect(firstRequestMeasure).toHaveBeenCalledOnce();
+    expect(secondRequestMeasure).not.toHaveBeenCalled();
     expect(scheduledFrames).toHaveLength(0);
   });
 
@@ -144,7 +149,7 @@ describe("RichDocumentSurfaceRegistry", () => {
     expect(registry.activate("surface-only.md", "g1:t1")).toBe(false);
   });
 
-  it("tracks an active host resize without reparenting the editor surface", () => {
+  it("tracks the active host size while keeping the surface in body", () => {
     let resizeCallback: ResizeObserverCallback | null = null;
     const disconnect = vi.fn();
     const observe = vi.fn();
@@ -161,8 +166,7 @@ describe("RichDocumentSurfaceRegistry", () => {
     const registry = new RichDocumentSurfaceRegistry();
     const surface = document.createElement("div");
     const host = document.createElement("div");
-    const readRect = vi
-      .spyOn(host, "getBoundingClientRect")
+    vi.spyOn(host, "getBoundingClientRect")
       .mockReturnValueOnce(rect(10, 20, 300, 200))
       .mockReturnValue(rect(30, 40, 420, 260));
 
@@ -170,18 +174,16 @@ describe("RichDocumentSurfaceRegistry", () => {
     registry.registerHost("note.md", "g1:t1", host);
     registry.activate("note.md", "g1:t1");
     expect(surface.parentElement).toBe(document.body);
-    expect(surface.style.left).toBe("10px");
+    expect(surface.style.transform).toBe("translate3d(10px, 20px, 0)");
     expect(observe).toHaveBeenCalledWith(host);
 
     resizeCallback?.([] as ResizeObserverEntry[], {} as ResizeObserver);
 
-    expect(readRect).toHaveBeenCalledTimes(2);
-    expect(surface.parentElement).toBe(document.body);
-    expect(surface.style.left).toBe("30px");
-    expect(surface.style.top).toBe("40px");
+    expect(surface.style.transform).toBe("translate3d(30px, 40px, 0)");
     expect(surface.style.width).toBe("420px");
     expect(surface.style.height).toBe("260px");
     registry.deactivate("note.md");
+    expect(surface.parentElement).toBe(document.body);
     expect(disconnect).toHaveBeenCalled();
   });
 
@@ -213,7 +215,7 @@ describe("RichDocumentSurfaceRegistry", () => {
     expect(staleHost.firstElementChild).toBeNull();
   });
 
-  it("restores a focused descendant after activation and deactivation", () => {
+  it("preserves focus across moves and restores it after deactivation", () => {
     const registry = new RichDocumentSurfaceRegistry();
     const surface = document.createElement("div");
     const input = document.createElement("input");
@@ -230,14 +232,16 @@ describe("RichDocumentSurfaceRegistry", () => {
 
     registry.activate("note.md", "g2:t2");
 
-    expect(focusSpy).toHaveBeenCalledWith({ preventScroll: true });
+    expect(focusSpy).not.toHaveBeenCalled();
     expect(document.activeElement).toBe(input);
 
     registry.deactivate("note.md");
+    input.blur();
     expect(surface.parentElement).toBe(document.body);
     expect(surface.style.visibility).toBe("hidden");
     expect(registry.activate("note.md", "g1:t1")).toBe(true);
-    expect(focusSpy).toHaveBeenCalledTimes(2);
+    expect(focusSpy).toHaveBeenCalledOnce();
+    expect(focusSpy).toHaveBeenCalledWith({ preventScroll: true });
     expect(document.activeElement).toBe(input);
   });
 

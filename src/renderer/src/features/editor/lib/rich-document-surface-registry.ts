@@ -6,10 +6,39 @@ export function normalizeRichDocumentPath(path: string): string {
   return path.replaceAll("\\", "/");
 }
 
-function requestEmbeddedCodeMirrorMeasurements(surface: HTMLElement): void {
-  for (const editorElement of surface.querySelectorAll<HTMLElement>(
-    ".cm-editor",
-  )) {
+function requestVisibleCodeMirrorMeasurements(surface: HTMLElement): void {
+  const ownerDocument = surface.ownerDocument;
+  const surfaceBounds = surface.getBoundingClientRect();
+  const editorElements = new Set<HTMLElement>();
+  const activeEditor =
+    ownerDocument.activeElement?.closest<HTMLElement>(".cm-editor");
+  if (activeEditor && surface.contains(activeEditor)) {
+    editorElements.add(activeEditor);
+  }
+
+  if (
+    surfaceBounds.width > 0 &&
+    surfaceBounds.height > 0 &&
+    typeof ownerDocument.elementsFromPoint === "function"
+  ) {
+    const x = surfaceBounds.left + surfaceBounds.width / 2;
+    const sampleDistance = 64;
+    for (
+      let y = surfaceBounds.top + 1;
+      y < surfaceBounds.bottom;
+      y += sampleDistance
+    ) {
+      for (const element of ownerDocument.elementsFromPoint(x, y)) {
+        const editorElement = element.closest<HTMLElement>(".cm-editor");
+        if (editorElement && surface.contains(editorElement)) {
+          editorElements.add(editorElement);
+          break;
+        }
+      }
+    }
+  }
+
+  for (const editorElement of editorElements) {
     CodeMirrorView.findFromDOM(editorElement)?.requestMeasure();
   }
 }
@@ -91,7 +120,7 @@ export class RichDocumentSurfaceRegistry {
       if (entry.activePaneKey === paneKey) {
         this.captureFocus(entry);
         this.stopObservingHost(entry);
-        this.hideSurface(entry.surface);
+        this.parkSurface(entry.surface);
         entry.activePaneKey = null;
       }
       entry.hosts.delete(paneKey);
@@ -104,7 +133,7 @@ export class RichDocumentSurfaceRegistry {
     const host = entry?.hosts.get(paneKey);
     if (!entry?.surface || !host) return false;
 
-    // 表面始终挂在稳定的 body 容器，只更新定位，避免重挂完整编辑器触发所有块重排。
+    // 表面节点始终留在 body，只用合成层 transform 在窗格间移动，避免大型 DOM 重挂触发黑帧。
     this.captureFocus(entry);
     const movedBetweenPanes =
       entry.activePaneKey !== null && entry.activePaneKey !== paneKey;
@@ -120,7 +149,7 @@ export class RichDocumentSurfaceRegistry {
     // 停用仅隐藏稳定表面，不销毁也不重新挂载其 ProseMirror DOM。
     this.captureFocus(entry);
     this.stopObservingHost(entry);
-    this.hideSurface(entry.surface);
+    this.parkSurface(entry.surface);
     entry.activePaneKey = null;
   }
 
@@ -159,9 +188,12 @@ export class RichDocumentSurfaceRegistry {
 
   private mountSurface(surface: HTMLElement): void {
     surface.style.position = "fixed";
+    surface.style.left = "0";
+    surface.style.top = "0";
+    surface.style.transformOrigin = "0 0";
+    surface.style.willChange = "transform";
     surface.style.zIndex = "1";
-    this.hideSurface(surface);
-    if (surface.parentElement !== document.body) document.body.append(surface);
+    this.parkSurface(surface);
   }
 
   private showAtHost(
@@ -173,24 +205,33 @@ export class RichDocumentSurfaceRegistry {
     const surface = entry.surface;
     if (!surface) return;
 
-    const rect = host.getBoundingClientRect();
-    surface.style.left = `${rect.left}px`;
-    surface.style.top = `${rect.top}px`;
-    surface.style.width = `${rect.width}px`;
-    surface.style.height = `${rect.height}px`;
+    if (surface.parentElement !== document.body) document.body.append(surface);
+    this.positionSurface(surface, host);
+    entry.measurementGeneration += 1;
+    surface.dataset.activePaneKey = paneKey;
+    this.revealSurface(entry, surface, paneKey, !settleMeasurements);
+    if (settleMeasurements) this.scheduleSettledMeasurement(entry, surface);
+    this.observeHost(entry, host, paneKey);
+  }
+
+  private revealSurface(
+    entry: SurfaceEntry,
+    surface: HTMLElement,
+    paneKey: RichPaneKey,
+    measureImmediately: boolean,
+  ): void {
     surface.style.visibility = "visible";
     surface.style.pointerEvents = "auto";
     surface.setAttribute("aria-hidden", "false");
     surface.dataset.activePaneKey = paneKey;
-    // 固定表面换到另一个 pane 后尺寸可能相同，但视口位置已变化，需主动刷新 gutter 的行号和折叠标记。
-    requestEmbeddedCodeMirrorMeasurements(surface);
-    entry.measurementGeneration += 1;
-    if (settleMeasurements) {
-      this.scheduleSettledCodeMirrorMeasurements(entry, surface);
-    }
-    this.observeHost(entry, host, paneKey);
+    // 表面换到另一个 pane 后只刷新当前视口命中的 CodeMirror，不能遍历大文档的全部代码块。
+    if (measureImmediately) requestVisibleCodeMirrorMeasurements(surface);
 
-    if (entry.focusTarget?.isConnected && surface.contains(entry.focusTarget)) {
+    if (
+      entry.focusTarget?.isConnected &&
+      surface.contains(entry.focusTarget) &&
+      surface.ownerDocument.activeElement !== entry.focusTarget
+    ) {
       entry.focusTarget.focus({ preventScroll: true });
     }
     entry.focusTarget = null;
@@ -204,26 +245,27 @@ export class RichDocumentSurfaceRegistry {
     delete surface.dataset.activePaneKey;
   }
 
-  private scheduleSettledCodeMirrorMeasurements(
+  private parkSurface(surface: HTMLElement | null): void {
+    if (!surface) return;
+    this.hideSurface(surface);
+    if (surface.parentElement !== document.body) document.body.append(surface);
+  }
+
+  private scheduleSettledMeasurement(
     entry: SurfaceEntry,
     surface: HTMLElement,
   ): void {
     if (typeof requestAnimationFrame !== "function") return;
     const generation = entry.measurementGeneration;
-    let remainingFrames = 2;
-    const measure = () => {
+    requestAnimationFrame(() => {
       if (
         entry.surface !== surface ||
         entry.measurementGeneration !== generation
       ) {
         return;
       }
-
-      requestEmbeddedCodeMirrorMeasurements(surface);
-      remainingFrames -= 1;
-      if (remainingFrames > 0) requestAnimationFrame(measure);
-    };
-    requestAnimationFrame(measure);
+      requestVisibleCodeMirrorMeasurements(surface);
+    });
   }
 
   private observeHost(
@@ -237,26 +279,28 @@ export class RichDocumentSurfaceRegistry {
     entry.resizeObserver = new ResizeObserver(() => {
       if (
         entry.activePaneKey !== paneKey ||
-        entry.hosts.get(paneKey) !== host
+        entry.hosts.get(paneKey) !== host ||
+        !entry.surface
       ) {
         return;
       }
       this.positionSurface(entry.surface, host);
+      this.scheduleSettledMeasurement(entry, entry.surface);
     });
     entry.resizeObserver.observe(host);
   }
 
-  private positionSurface(
-    surface: HTMLElement | null,
-    host: HTMLElement,
-  ): void {
-    if (!surface) return;
+  private positionSurface(surface: HTMLElement, host: HTMLElement): void {
     const rect = host.getBoundingClientRect();
-    surface.style.left = `${rect.left}px`;
-    surface.style.top = `${rect.top}px`;
-    surface.style.width = `${rect.width}px`;
-    surface.style.height = `${rect.height}px`;
-    requestEmbeddedCodeMirrorMeasurements(surface);
+    const transform = `translate3d(${rect.left}px, ${rect.top}px, 0)`;
+    const width = `${rect.width}px`;
+    const height = `${rect.height}px`;
+
+    // 相同尺寸切换窗格时只更新 transform，让 Chromium 复用既有栅格层。
+    if (surface.style.transform !== transform)
+      surface.style.transform = transform;
+    if (surface.style.width !== width) surface.style.width = width;
+    if (surface.style.height !== height) surface.style.height = height;
   }
 
   private stopObservingHost(entry: SurfaceEntry): void {

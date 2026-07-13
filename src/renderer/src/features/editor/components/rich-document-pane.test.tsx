@@ -305,6 +305,7 @@ describe("RichDocumentPane", () => {
     });
 
     expect(screen.queryByTestId("editor-pending-canvas")).toBeNull();
+    expect(screen.getByTestId("rich-document-live-host")).toBeEmptyDOMElement();
     expect(runtime.surface.parentElement).toBe(document.body);
     expect(runtime.surface.dataset.activePaneKey).toBe("group-1:tab-1");
     expect(richDocumentSessionManager.getActivePane(path)).toBe(

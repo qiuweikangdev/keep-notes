@@ -38,6 +38,7 @@ function createManager(
 
 afterEach(() => {
   document.body.replaceChildren();
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
@@ -222,7 +223,7 @@ describe("RichDocumentSessionManager", () => {
     });
   });
 
-  it("moves a live surface between panes of the same document without hiding it", () => {
+  it("moves a live surface between pane positions without hiding it", () => {
     const surfaces = new RichDocumentSurfaceRegistry();
     const viewStates = new RichPaneViewStateRegistry();
     const manager = createManager({ surfaces, viewStates });

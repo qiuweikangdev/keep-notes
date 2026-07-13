@@ -994,6 +994,55 @@ describe("BlockNoteEditor persistent session runtime", () => {
     session.view.unmount();
   });
 
+  it("cancels stale pane scroll correction before focusing from a preview", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/preview-pane-focus.md";
+    setupSessionTab(path);
+    const session = renderRealSession(path);
+
+    await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    const runtime = session.runtime.current!;
+    const scrollContainer = session.view.container.querySelector<HTMLElement>(
+      ".editor-rich-scroll",
+    )!;
+    const blockId = runtime.editor.document[0].id;
+    const target = runtime.editor.domElement.querySelector<HTMLElement>(
+      `[data-id="${blockId}"]`,
+    )!;
+    const scheduledFrames: FrameRequestCallback[] = [];
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn((callback: FrameRequestCallback) => {
+        scheduledFrames.push(callback);
+        return scheduledFrames.length;
+      }),
+    );
+    vi.spyOn(scrollContainer, "getBoundingClientRect").mockReturnValue({
+      ...createRect(),
+      top: 0,
+    });
+    vi.spyOn(target, "getBoundingClientRect").mockReturnValue({
+      ...createRect(),
+      top: 120,
+    });
+
+    runtime.restoreViewState({
+      scrollTop: 240,
+      selection: null,
+      topBlockId: blockId,
+      topBlockOffset: 20,
+    });
+    runtime.focusAt(null);
+    scrollContainer.scrollTop = 360;
+    act(() => {
+      for (const callback of scheduledFrames.splice(0)) callback(0);
+    });
+
+    expect(scrollContainer.scrollTop).toBe(360);
+    session.view.unmount();
+  });
+
   it("reads viewport anchors from BlockNote block wrappers, not nested data ids", async () => {
     setupMatchMedia();
     setupDomMeasurements();

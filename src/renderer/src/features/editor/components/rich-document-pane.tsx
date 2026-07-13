@@ -246,7 +246,7 @@ export function RichDocumentPane({
             className="absolute inset-0 h-full min-h-0 overflow-hidden"
             data-testid="rich-preview-layer"
             style={{
-              // 活动窗格下方持续预绘只读层，编辑器表面移走时可直接接管画面，避免虚拟列表重新挂载产生空白帧。
+              // 保留活动窗格的预绘内容，编辑器合成层切换时由其承接过渡画面。
               pointerEvents: isLive ? "none" : "auto",
               visibility: "visible",
             }}

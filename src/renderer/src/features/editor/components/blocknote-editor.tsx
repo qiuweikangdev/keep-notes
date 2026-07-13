@@ -1201,10 +1201,19 @@ function MountedBlockNoteEditor({
     [editor],
   );
 
+  const cancelPendingViewportRestore = useCallback(() => {
+    // 从预览层激活时真实编辑器收不到 pointerdown，聚焦前必须主动终止旧窗格的跨帧校正。
+    outlineScrollTokenRef.current += 1;
+    suppressProgrammaticScrollUntilRef.current = 0;
+    pendingViewportRestoreRef.current = null;
+  }, []);
+
   const focusAt = useCallback(
-    (anchor: RichPreviewAnchor | null) =>
-      focusEditorAtPreviewAnchor(editor, anchor),
-    [editor],
+    (anchor: RichPreviewAnchor | null) => {
+      cancelPendingViewportRestore();
+      focusEditorAtPreviewAnchor(editor, anchor);
+    },
+    [cancelPendingViewportRestore, editor],
   );
 
   const readViewState = useCallback(() => {
@@ -1844,13 +1853,6 @@ function MountedBlockNoteEditor({
 
   const markUserIntent = useCallback(() => {
     changeGateRef.current.markUserIntent();
-  }, []);
-
-  const cancelPendingViewportRestore = useCallback(() => {
-    // 用户开始操作后立即终止跨帧校正，避免后续帧把真实滚动拉回旧面板位置。
-    outlineScrollTokenRef.current += 1;
-    suppressProgrammaticScrollUntilRef.current = 0;
-    pendingViewportRestoreRef.current = null;
   }, []);
 
   const handleFocus = useCallback(() => {
