@@ -30,17 +30,20 @@ vi.mock("react-resizable-panels", () => ({
     </div>
   ),
   PanelResizeHandle: ({
+    children,
     style,
     hitAreaMargins,
-  }: {
+  }: PropsWithChildren<{
     style?: CSSProperties;
     hitAreaMargins?: { coarse: number; fine: number };
-  }) => (
+  }>) => (
     <div
       data-hit-area-margins={JSON.stringify(hitAreaMargins)}
       data-testid="panel-resize-handle"
       style={style}
-    />
+    >
+      {children}
+    </div>
   ),
 }));
 
@@ -375,11 +378,15 @@ describe("Editor split panels", () => {
       height: "6px",
       minHeight: "6px",
       cursor: "row-resize",
+      alignSelf: "stretch",
     });
-    expect(handle.getAttribute("style")).toContain("border-left: 0");
-    expect(handle.getAttribute("style")).toContain(
-      "border-top: 1px solid var(--border-color)",
-    );
+    const divider = screen
+      .getByTestId("panel-resize-handle")
+      .querySelector("[data-editor-panel-resize-divider]");
+    expect(divider).toHaveStyle({
+      top: "2px",
+      height: "1px",
+    });
     expect(handle).toHaveAttribute(
       "data-hit-area-margins",
       JSON.stringify({ coarse: 30, fine: 0 }),

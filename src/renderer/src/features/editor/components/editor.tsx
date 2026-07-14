@@ -118,17 +118,15 @@ function getPanelResizeHandleStyle(
     backgroundColor: "transparent",
     position: "relative",
     flexShrink: 0,
+    alignSelf: "stretch",
   };
 
-  // 根据拆分方向切换拖拽手柄尺寸和鼠标样式，保证上下拆分可垂直拖动。
+  // 手柄只负责命中区域；视觉分割线由内部绝对定位元素绘制，避免百分比高度参与边框计算。
   if (direction === "vertical") {
     return {
       ...baseStyle,
-      width: "100%",
       height: "6px",
       minHeight: "6px",
-      borderLeft: "0",
-      borderTop: "1px solid var(--border-color)",
       cursor: "row-resize",
     };
   }
@@ -137,11 +135,51 @@ function getPanelResizeHandleStyle(
     ...baseStyle,
     width: "6px",
     minWidth: "6px",
-    height: "100%",
-    borderLeft: "1px solid var(--border-color)",
-    borderTop: "0",
     cursor: "col-resize",
   };
+}
+
+function getPanelResizeDividerStyle(
+  direction: "horizontal" | "vertical",
+): CSSProperties {
+  const baseStyle: CSSProperties = {
+    backgroundColor: "var(--border-color)",
+    pointerEvents: "none",
+    position: "absolute",
+  };
+
+  if (direction === "vertical") {
+    return {
+      ...baseStyle,
+      top: "2px",
+      left: 0,
+      right: 0,
+      height: "1px",
+    };
+  }
+
+  return {
+    ...baseStyle,
+    top: 0,
+    bottom: 0,
+    left: "2px",
+    width: "1px",
+  };
+}
+
+function EditorPanelResizeHandle({ direction }: { direction: PanelDirection }) {
+  return (
+    <PanelResizeHandle
+      style={getPanelResizeHandleStyle(direction)}
+      hitAreaMargins={EDITOR_PANEL_RESIZE_HIT_AREA_MARGINS}
+    >
+      <div
+        aria-hidden
+        data-editor-panel-resize-divider
+        style={getPanelResizeDividerStyle(direction)}
+      />
+    </PanelResizeHandle>
+  );
 }
 
 function createPanelLeaf(id: string): PanelLayoutNode {
@@ -462,10 +500,7 @@ function RootPanelLayout({
       </Panel>
       {node.type === "split" ? (
         <>
-          <PanelResizeHandle
-            style={getPanelResizeHandleStyle(node.direction)}
-            hitAreaMargins={EDITOR_PANEL_RESIZE_HIT_AREA_MARGINS}
-          />
+          <EditorPanelResizeHandle direction={node.direction} />
           <Panel minSize={20}>
             <PanelLayout node={node.second} surfaceRegistry={surfaceRegistry} />
           </Panel>
@@ -497,10 +532,7 @@ function PanelLayout({
           <PanelLayout node={node.first} surfaceRegistry={surfaceRegistry} />
         </div>
       </Panel>
-      <PanelResizeHandle
-        style={getPanelResizeHandleStyle(node.direction)}
-        hitAreaMargins={EDITOR_PANEL_RESIZE_HIT_AREA_MARGINS}
-      />
+      <EditorPanelResizeHandle direction={node.direction} />
       <Panel minSize={20}>
         <PanelLayout node={node.second} surfaceRegistry={surfaceRegistry} />
       </Panel>
