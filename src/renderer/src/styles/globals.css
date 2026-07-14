@@ -547,18 +547,31 @@ button:focus-visible {
   scrollbar-width: none;
 }
 
+.file-tree-scrollbar-track {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 8px;
+  pointer-events: none;
+}
+
 .file-tree-scrollbar-thumb {
   position: absolute;
   top: 0;
-  right: 2px;
-  width: 4px;
+  right: 0;
+  width: 8px;
   min-height: 24px;
   border-radius: 999px;
   background-color: rgba(0, 0, 0, 0.2);
   opacity: 0;
-  pointer-events: none;
+  cursor: default;
   transition: opacity 240ms ease;
   will-change: opacity, transform;
+}
+
+.file-tree-scroll-shell:hover .file-tree-scrollbar-track {
+  pointer-events: auto;
 }
 
 .file-tree-scroll-shell:hover .file-tree-scrollbar-thumb {

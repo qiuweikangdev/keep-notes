@@ -14,4 +14,10 @@ describe("global scrollbar styles", () => {
       /\.file-tree-scrollbar-thumb\s*\{[\s\S]*transition:\s*opacity\s+240ms\s+ease;/,
     );
   });
+
+  it("keeps the file tree scrollbar track at the standard width", () => {
+    expect(stylesheet).toMatch(
+      /\.file-tree-scrollbar-track\s*\{[\s\S]*width:\s*8px;/,
+    );
+  });
 });

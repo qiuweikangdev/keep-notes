@@ -1,6 +1,7 @@
 import {
   act,
   cleanup,
+  createEvent,
   fireEvent,
   render,
   screen,
@@ -109,6 +110,42 @@ describe("FileTree context menu", () => {
     expect(
       container.querySelector(".file-tree-scrollbar-thumb"),
     ).toBeInTheDocument();
+  });
+
+  it("scrolls the file tree when clicking the custom scrollbar track", () => {
+    const { container } = render(<FileTree />);
+    const scrollContainer = container.querySelector(
+      ".file-tree-scroll-container",
+    ) as HTMLDivElement;
+    const scrollbarTrack = container.querySelector(
+      ".file-tree-scrollbar-track",
+    ) as HTMLDivElement;
+
+    Object.defineProperties(scrollContainer, {
+      clientHeight: { configurable: true, value: 100 },
+      scrollHeight: { configurable: true, value: 1000 },
+      scrollTop: { configurable: true, value: 0, writable: true },
+    });
+    vi.spyOn(scrollbarTrack, "getBoundingClientRect").mockReturnValue({
+      bottom: 100,
+      height: 100,
+      left: 0,
+      right: 8,
+      top: 0,
+      width: 8,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    const pointerDown = createEvent.pointerDown(scrollbarTrack);
+    Object.defineProperty(pointerDown, "clientY", {
+      configurable: true,
+      value: 50,
+    });
+    fireEvent(scrollbarTrack, pointerDown);
+
+    expect(scrollContainer.scrollTop).toBe(450);
   });
 
   it("shows an export action from the virtualized file node menu", async () => {
