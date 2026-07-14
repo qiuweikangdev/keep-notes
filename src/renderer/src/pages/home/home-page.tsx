@@ -1,5 +1,5 @@
 ﻿import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { PanelRightOpen, Undo2, X } from "lucide-react";
+import { CircleAlert, Info, PanelRightOpen, Undo2, X } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Editor } from "@/features/editor";
@@ -25,6 +25,11 @@ import { useDiffStore } from "@/store/diff.store";
 import { useDiffPanelStore } from "@/features/diff/store/diff-panel.store";
 import { useTreeStore } from "@/store/tree.store";
 import { discardFileChanges } from "@/features/editor/lib/discard-file-changes";
+import {
+  APP_TOAST_EVENT,
+  isAppToastDetail,
+  type AppToastVariant,
+} from "@/lib/app-toast";
 import {
   useCallback,
   useEffect,
@@ -75,8 +80,11 @@ function HomePageContent() {
   const { loadTree, openFile } = electron;
   const repositoryRoot = useTreeStore((state) => state.treeRoot?.key ?? null);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
-  const [diffToastMessage, setDiffToastMessage] = useState<string | null>(null);
-  const diffToastTimerRef = useRef<number | null>(null);
+  const [toast, setToast] = useState<{
+    message: string;
+    variant: AppToastVariant;
+  } | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
 
   const isMac = useMemo(() => {
     return window.electronAPI?.getPlatform() === "darwin";
@@ -116,35 +124,46 @@ function HomePageContent() {
 
   useEffect(() => {
     return () => {
-      if (diffToastTimerRef.current !== null) {
-        window.clearTimeout(diffToastTimerRef.current);
+      if (toastTimerRef.current !== null) {
+        window.clearTimeout(toastTimerRef.current);
       }
     };
   }, []);
 
-  const showDiffToastMessage = useCallback((message: string) => {
-    if (diffToastTimerRef.current !== null) {
-      window.clearTimeout(diffToastTimerRef.current);
-    }
-    setDiffToastMessage(message);
-    diffToastTimerRef.current = window.setTimeout(() => {
-      setDiffToastMessage(null);
-      diffToastTimerRef.current = null;
-    }, DIFF_TOAST_AUTO_CLOSE_MS);
-  }, []);
+  const showToastMessage = useCallback(
+    (message: string, variant: AppToastVariant = "info") => {
+      if (toastTimerRef.current !== null) {
+        window.clearTimeout(toastTimerRef.current);
+      }
+      setToast({ message, variant });
+      toastTimerRef.current = window.setTimeout(() => {
+        setToast(null);
+        toastTimerRef.current = null;
+      }, DIFF_TOAST_AUTO_CLOSE_MS);
+    },
+    [],
+  );
 
   useEffect(() => {
     const handleDiffToast = (event: Event) => {
       const detail = (event as CustomEvent<unknown>).detail;
       if (!isDiffToastDetail(detail)) return;
-      showDiffToastMessage(detail.message);
+      showToastMessage(detail.message);
+    };
+
+    const handleAppToast = (event: Event) => {
+      const detail = (event as CustomEvent<unknown>).detail;
+      if (!isAppToastDetail(detail)) return;
+      showToastMessage(detail.message, detail.variant);
     };
 
     window.addEventListener(DIFF_TOAST_EVENT, handleDiffToast);
+    window.addEventListener(APP_TOAST_EVENT, handleAppToast);
     return () => {
       window.removeEventListener(DIFF_TOAST_EVENT, handleDiffToast);
+      window.removeEventListener(APP_TOAST_EVENT, handleAppToast);
     };
-  }, [showDiffToastMessage]);
+  }, [showToastMessage]);
 
   const handleMoveToPanel = () => {
     if (!filePath) return;
@@ -160,19 +179,19 @@ function HomePageContent() {
   const handleConfirmDiscard = async () => {
     // 二次确认后再判断是否存在可放弃内容，避免提前跳过确认弹窗。
     if (areDiffContentsEqual(oldContent, newContent)) {
-      showDiffToastMessage(DIFF_NO_CHANGES_MESSAGE);
+      showToastMessage(DIFF_NO_CHANGES_MESSAGE);
       return;
     }
 
     if (!filePath || !repositoryRoot) return;
     const result = await discardFileChanges(repositoryRoot, filePath, electron);
     if (!result.success) {
-      showDiffToastMessage(DIFF_NO_CHANGES_MESSAGE);
+      showToastMessage(DIFF_NO_CHANGES_MESSAGE);
       return;
     }
 
     if (result.noChanges) {
-      showDiffToastMessage(DIFF_NO_CHANGES_MESSAGE);
+      showToastMessage(DIFF_NO_CHANGES_MESSAGE);
       return;
     }
 
@@ -289,24 +308,33 @@ function HomePageContent() {
         onConfirm={handleConfirmDiscard}
       />
 
-      {diffToastMessage ? <DiffToast message={diffToastMessage} /> : null}
+      {toast ? (
+        <AppToast message={toast.message} variant={toast.variant} />
+      ) : null}
     </div>
   );
 }
 
-function DiffToast({ message }: { message: string }) {
+function AppToast({
+  message,
+  variant,
+}: {
+  message: string;
+  variant: AppToastVariant;
+}) {
+  const ToastIcon = variant === "error" ? CircleAlert : Info;
+
   return (
     <div
       role="status"
       aria-live="polite"
-      className="fixed right-5 top-12 z-[100] rounded-md border px-4 py-2 text-sm shadow-lg"
-      style={{
-        backgroundColor: "var(--bg-secondary)",
-        borderColor: "var(--border-color)",
-        color: "var(--text-primary)",
-      }}
+      data-variant={variant}
+      className="app-toast pointer-events-none fixed left-1/2 top-14 z-[100] flex w-[calc(100vw-24px)] max-w-[320px] items-center gap-2 rounded-lg px-2.5 py-2 text-sm"
     >
-      {message}
+      <span className="app-toast__icon flex h-5 w-5 shrink-0 items-center justify-center">
+        <ToastIcon aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
+      </span>
+      <span className="min-w-0 flex-1 break-words leading-5">{message}</span>
     </div>
   );
 }

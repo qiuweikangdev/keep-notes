@@ -12,6 +12,7 @@ import { useEditorStore } from "@/store/editor.store";
 import { useTreeStore } from "@/store/tree.store";
 import { CodeResult } from "@/types";
 import { DIFF_TOAST_EVENT } from "@/features/diff/lib/diff-toast";
+import { APP_TOAST_EVENT } from "@/lib/app-toast";
 import { REVEAL_FILE_TREE_NODE_EVENT } from "../utils";
 import { registerEditorOutlineNavigator } from "@/features/editor/lib/editor-outline-navigation";
 import { richDocumentSessionManager } from "@/features/editor/lib/editor-runtime";
@@ -265,6 +266,64 @@ describe("FileTree context menu", () => {
     expect(diffStoreMock.openDiff).not.toHaveBeenCalled();
 
     window.removeEventListener(DIFF_TOAST_EVENT, toastSpy);
+  });
+
+  it("shows a toast when renaming to an existing name", async () => {
+    const toastSpy = vi.fn();
+    window.addEventListener(APP_TOAST_EVENT, toastSpy);
+    electronMocks.renameItem.mockResolvedValue({
+      code: CodeResult.Fail,
+      message: "“published.md”已存在，请使用其他名称",
+    });
+
+    render(<FileTree />);
+
+    fireEvent.contextMenu(await screen.findByText("daily.md"));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /重命名/ }));
+    const input = await screen.findByDisplayValue("daily");
+    fireEvent.change(input, { target: { value: "published" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(toastSpy).toHaveBeenCalledTimes(1);
+    });
+    const toastEvent = toastSpy.mock.calls[0]?.[0] as CustomEvent<{
+      message: string;
+    }>;
+    expect(toastEvent.detail.message).toBe(
+      "“published.md”已存在，请使用其他名称",
+    );
+
+    window.removeEventListener(APP_TOAST_EVENT, toastSpy);
+  });
+
+  it("shows a toast when creating a file with an existing name", async () => {
+    const toastSpy = vi.fn();
+    window.addEventListener(APP_TOAST_EVENT, toastSpy);
+    electronMocks.createFile.mockResolvedValue({
+      code: CodeResult.Fail,
+      message: "“daily.md”已存在，请使用其他名称",
+    });
+
+    const { container } = render(<FileTree />);
+
+    const rootNode = container.querySelector(".tree-node-root");
+    expect(rootNode).not.toBeNull();
+    fireEvent.contextMenu(rootNode!);
+    fireEvent.click(await screen.findByRole("menuitem", { name: /新建文件$/ }));
+    const input = await screen.findByPlaceholderText("输入文件名称");
+    fireEvent.change(input, { target: { value: "daily" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(toastSpy).toHaveBeenCalledTimes(1);
+    });
+    const toastEvent = toastSpy.mock.calls[0]?.[0] as CustomEvent<{
+      message: string;
+    }>;
+    expect(toastEvent.detail.message).toBe("“daily.md”已存在，请使用其他名称");
+
+    window.removeEventListener(APP_TOAST_EVENT, toastSpy);
   });
 
   it("expands ancestors and scrolls to a file tree reveal request", async () => {

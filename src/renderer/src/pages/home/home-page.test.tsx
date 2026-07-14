@@ -10,6 +10,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useTreeStore } from "@/store/tree.store";
 import { DIFF_TOAST_EVENT } from "@/features/diff/lib/diff-toast";
+import { APP_TOAST_EVENT } from "@/lib/app-toast";
 
 const closeDiff = vi.fn();
 const discardFileChangesMock = vi.hoisted(() => vi.fn());
@@ -106,17 +107,30 @@ vi.mock("@/components/ui/confirm-dialog", () => ({
     ) : null,
 }));
 
-vi.mock("@/store/diff.store", () => ({
-  useDiffStore: () => ({
-    isOpen: diffStateMock.isOpen,
-    isLoading: false,
-    oldContent: diffStateMock.oldContent,
-    newContent: diffStateMock.newContent,
-    filePath: "D:\\notes\\readme.md",
-    source: diffStateMock.source,
-    closeDiff,
-  }),
-}));
+vi.mock("@/store/diff.store", () => {
+  return {
+    useDiffStore: (
+      selector: (value: {
+        isOpen: boolean;
+        isLoading: boolean;
+        oldContent: string;
+        newContent: string;
+        filePath: string;
+        source: "worktree" | "history";
+        closeDiff: typeof closeDiff;
+      }) => unknown,
+    ) =>
+      selector({
+        isOpen: diffStateMock.isOpen,
+        isLoading: false,
+        oldContent: diffStateMock.oldContent,
+        newContent: diffStateMock.newContent,
+        filePath: "D:\\notes\\readme.md",
+        source: diffStateMock.source,
+        closeDiff,
+      }),
+  };
+});
 
 import { HomePage } from "./home-page";
 
@@ -241,5 +255,34 @@ describe("HomePage", () => {
     await waitFor(() => {
       expect(screen.getByText("暂无更改内容")).toBeInTheDocument();
     });
+  });
+
+  it("renders an app toast from the shared toast event", async () => {
+    diffStateMock.isOpen = false;
+
+    render(<HomePage />);
+
+    window.dispatchEvent(
+      new CustomEvent(APP_TOAST_EVENT, {
+        detail: {
+          message: "“daily.md”已存在，请使用其他名称",
+          variant: "error",
+        },
+      }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("“daily.md”已存在，请使用其他名称"),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByRole("status")).toHaveClass(
+      "app-toast",
+      "top-14",
+      "max-w-[320px]",
+      "px-2.5",
+      "py-2",
+    );
+    expect(screen.getByRole("status")).toHaveAttribute("data-variant", "error");
   });
 });

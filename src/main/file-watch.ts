@@ -61,6 +61,7 @@ export function shouldIgnoreFsWatchPath(targetPath: string): boolean {
     .filter(Boolean)
     .some((segment) => {
       if (IGNORED_EXACT_NAMES.has(segment)) return true;
+      if (segment.startsWith(".tolaria-rename-txn-")) return true;
       if (segment.startsWith(".#")) return true;
       if (segment.endsWith("~")) return true;
       if (segment.endsWith(".tmp")) return true;

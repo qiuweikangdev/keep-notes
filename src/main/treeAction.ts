@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { randomUUID } from "node:crypto";
 import { basename, dirname, join, normalize, sep } from "node:path";
 import { dialog } from "electron";
 import { CodeResult } from "../shared/types";
@@ -10,6 +11,43 @@ import {
 } from "./utils";
 
 const fsPromises = fs.promises;
+
+function getNameExistsMessage(targetPath: string) {
+  return `“${basename(targetPath)}”已存在，请使用其他名称`;
+}
+
+function isFileExistsError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "EEXIST"
+  );
+}
+
+async function renamePath(
+  sourcePath: string,
+  targetPath: string,
+  isCaseOnlyRename: boolean,
+) {
+  if (!isCaseOnlyRename) {
+    await fsPromises.rename(sourcePath, targetPath);
+    return;
+  }
+
+  // 大小写不敏感的文件系统需要经过临时路径，确保仅修改名称大小写也能落盘。
+  const temporaryPath = join(
+    dirname(sourcePath),
+    `.tolaria-rename-txn-${randomUUID()}`,
+  );
+  await fsPromises.rename(sourcePath, temporaryPath);
+  try {
+    await fsPromises.rename(temporaryPath, targetPath);
+  } catch (error) {
+    await fsPromises.rename(temporaryPath, sourcePath).catch(() => undefined);
+    throw error;
+  }
+}
 
 async function createItem(
   pathStr: string,
@@ -27,15 +65,18 @@ async function createItem(
   if (isExists) {
     return {
       code: CodeResult.Fail,
-      message: isFolder ? "该文件夹已存在" : "该文件已存在",
+      message: getNameExistsMessage(newPath),
     };
   }
 
   try {
     if (isFolder) {
-      await fsPromises.mkdir(newPath, { recursive: true });
+      await fsPromises.mkdir(newPath);
     } else {
-      await fsPromises.writeFile(newPath, "", { encoding: "utf-8" });
+      await fsPromises.writeFile(newPath, "", {
+        encoding: "utf-8",
+        flag: "wx",
+      });
     }
 
     const targetNode = findNodeByKey(treeData, dealPath);
@@ -65,7 +106,7 @@ async function createItem(
   } catch (e) {
     return {
       code: CodeResult.Fail,
-      message: String(e),
+      message: isFileExistsError(e) ? getNameExistsMessage(newPath) : String(e),
     };
   }
 }
@@ -91,17 +132,31 @@ export async function rename(pathStr: string, title: string, treeData: any[]) {
   const parentPath = dirname(pathStr);
   const curTitle = result.isFile() ? `${title}.md` : title;
   const newPath = `${parentPath}${sep}${curTitle}`;
+  const currentTitle = basename(pathStr);
+  if (currentTitle === curTitle) {
+    return {
+      code: CodeResult.Success,
+      message: "名称未发生变化",
+      data: { treeData },
+    };
+  }
+
+  const siblingNames = await fsPromises.readdir(parentPath);
+  const hasExactNameConflict = siblingNames.includes(curTitle);
+  const isCaseOnlyRename =
+    currentTitle !== curTitle &&
+    currentTitle.toLocaleLowerCase() === curTitle.toLocaleLowerCase();
   const isExists = fs.existsSync(newPath);
 
-  if (isExists) {
+  if (hasExactNameConflict || (isExists && !isCaseOnlyRename)) {
     return {
       code: CodeResult.Fail,
-      message: "已存在文件/文件夹",
+      message: getNameExistsMessage(newPath),
     };
   }
 
   try {
-    await fsPromises.rename(pathStr, newPath);
+    await renamePath(pathStr, newPath, isCaseOnlyRename);
     const targetNode = findNodeByKey(treeData, pathStr);
     if (targetNode) {
       updateFilePaths(targetNode, newPath);

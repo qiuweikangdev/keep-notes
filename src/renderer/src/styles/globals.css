@@ -972,12 +972,55 @@ button:focus-visible {
   }
 }
 
+@keyframes appToastIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+@keyframes appToastFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .animate-fade-in {
   animation: fadeIn 0.15s ease-out;
 }
 
 .animate-spin {
   animation: spin 1s linear infinite;
+}
+
+.app-toast {
+  border: 1px solid color-mix(in srgb, var(--border-color) 88%, transparent);
+  background: color-mix(in srgb, var(--bg-primary) 96%, var(--bg-secondary));
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.16);
+  color: var(--text-primary);
+  transform: translate(-50%, 0);
+  animation: appToastIn 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.app-toast__icon {
+  color: var(--accent-color);
+}
+
+.app-toast[data-variant="error"] .app-toast__icon {
+  color: var(--danger-color);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-toast {
+    animation: appToastFadeIn 120ms linear;
+  }
 }
 
 /* 鍙抽敭鑿滃崟楂樹寒 */

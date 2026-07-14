@@ -23,6 +23,7 @@ import {
 import { useTreeStore } from "@/store/tree.store";
 import { useElectron } from "@/hooks/use-electron";
 import { cn } from "@/lib/cn";
+import { showAppToast } from "@/lib/app-toast";
 import type { TreeNode as TreeNodeType } from "@/types";
 import { ContextMenu } from "@/components/ui/context-menu";
 import { CodeResult } from "@/types";
@@ -215,6 +216,8 @@ export const TreeNode = memo(function TreeNode({
           ? `${node.key}${sep}${title}.md`
           : `${node.key}${sep}${title}`;
       setSelectedKey(newKey);
+    } else if (result.message) {
+      showAppToast(result.message);
     }
 
     setCreateValue("");
@@ -265,6 +268,8 @@ export const TreeNode = memo(function TreeNode({
     const result = await renameItem(node.key, title, treeData);
     if (result.code === CodeResult.Success && result.data) {
       setTreeData(result.data.treeData);
+    } else if (result.message) {
+      showAppToast(result.message);
     }
     setIsRenaming(false);
   }, [renameValue, node.title, node.key, renameItem, setTreeData]);

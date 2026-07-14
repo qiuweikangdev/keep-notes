@@ -26,6 +26,9 @@ describe("shouldIgnoreFsWatchPath", () => {
   it("ignores temporary, swap, backup, and cloud placeholder files", () => {
     expect(shouldIgnoreFsWatchPath("notes/.DS_Store")).toBe(true);
     expect(shouldIgnoreFsWatchPath("notes/.tolaria-rename-txn")).toBe(true);
+    expect(
+      shouldIgnoreFsWatchPath("notes/.tolaria-rename-txn-operation-id"),
+    ).toBe(true);
     expect(shouldIgnoreFsWatchPath("notes/.#draft.md")).toBe(true);
     expect(shouldIgnoreFsWatchPath("notes/draft.md~")).toBe(true);
     expect(shouldIgnoreFsWatchPath("notes/draft.tmp")).toBe(true);

@@ -48,6 +48,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import type { TreeNode as TreeNodeType } from "@/types";
 import { CodeResult } from "@/types";
 import { cn } from "@/lib/cn";
+import { showAppToast } from "@/lib/app-toast";
 import { KEEP_NOTES_FILE_DRAG_TYPE, setDraggedFilePath } from "@/lib/file-drag";
 import {
   buildCreatedNodeKey,
@@ -371,6 +372,7 @@ export function FileTree() {
       revealCreatedNode(treeRoot.key, newKey);
       return;
     }
+    if (r.message) showAppToast(r.message);
     setCreateValue("");
     setCreatingInfo(null);
   }, [
@@ -1310,6 +1312,8 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
     const result = await renameItem(flatNode.key, title, treeData);
     if (result.code === CodeResult.Success && result.data) {
       setTreeData(result.data.treeData);
+    } else if (result.message) {
+      showAppToast(result.message);
     }
     setIsRenaming(false);
   }, [renameValue, flatNode.title, flatNode.key, renameItem, setTreeData]);
@@ -1787,6 +1791,7 @@ function CreateInput({
       onCreated(parentKey, newKey);
       return;
     }
+    if (result.message) showAppToast(result.message);
     onCancel();
   }, [
     value,
