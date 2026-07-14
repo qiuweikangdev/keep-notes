@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { loadImageAsDataUrl, saveImageAttachment } from "./file";
+import { loadImageAsDataUrl, readDirectory, saveImageAttachment } from "./file";
 
 vi.mock("electron", () => ({
   clipboard: {
@@ -22,6 +22,44 @@ vi.mock("electron", () => ({
     showItemInFolder: vi.fn(),
   },
 }));
+
+describe("readDirectory", () => {
+  const tempRoots: string[] = [];
+
+  afterEach(async () => {
+    await Promise.all(
+      tempRoots.map((root) =>
+        fs.promises.rm(root, { recursive: true, force: true }),
+      ),
+    );
+    tempRoots.length = 0;
+  });
+
+  it("places folders first and sorts numbered names naturally", async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "keep-notes-tree-"),
+    );
+    tempRoots.push(root);
+
+    await Promise.all([
+      fs.promises.mkdir(path.join(root, "10-archive")),
+      fs.promises.mkdir(path.join(root, "2-projects")),
+      fs.promises.writeFile(path.join(root, "10-summary.md"), ""),
+      fs.promises.writeFile(path.join(root, "2-plan.md"), ""),
+      fs.promises.writeFile(path.join(root, "1-intro.md"), ""),
+    ]);
+
+    const tree = await readDirectory(root);
+
+    expect(tree?.map((node) => node.title)).toEqual([
+      "2-projects",
+      "10-archive",
+      "1-intro.md",
+      "2-plan.md",
+      "10-summary.md",
+    ]);
+  });
+});
 
 describe("loadImageAsDataUrl", () => {
   const tempRoots: string[] = [];

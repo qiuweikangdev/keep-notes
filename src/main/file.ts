@@ -8,6 +8,7 @@ import {
   type SaveImageAttachmentInput,
   type SaveImageAttachmentResult,
 } from "../shared/types";
+import { compareFileTreeTitles } from "../shared/file-tree-sort";
 import { listExternalOpenApps, openWithExternalApp } from "./external-open";
 import { shouldIgnoreFsWatchPath } from "./file-watch";
 
@@ -64,10 +65,8 @@ export async function readDirectory(directoryPath: string) {
       }
     }
 
-    directories.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
-    markdownFiles.sort((a, b) =>
-      a.toLowerCase().localeCompare(b.toLowerCase()),
-    );
+    directories.sort(compareFileTreeTitles);
+    markdownFiles.sort(compareFileTreeTitles);
 
     const directoryTrees = await Promise.all(
       directories.map(async (dir) => {

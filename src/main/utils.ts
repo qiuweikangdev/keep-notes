@@ -1,6 +1,7 @@
 import { dirname, normalize } from "node:path";
 import fs from "node:fs";
 import { BrowserWindow } from "electron/main";
+import { compareFileTreeTitles } from "../shared/file-tree-sort";
 
 const fsPromises = fs.promises;
 
@@ -48,7 +49,7 @@ export async function treeDataSort(
 
     if (isDirA && !isDirB) return -1;
     if (!isDirA && isDirB) return 1;
-    return a.title.toLowerCase().localeCompare(b.title.toLowerCase());
+    return compareFileTreeTitles(a.title, b.title);
   });
 
   return nodesWithStats;
