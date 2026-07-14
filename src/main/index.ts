@@ -9,6 +9,7 @@ import { registerAppMenu } from "./menu";
 import { initializeReminderIpc } from "./ipc/reminder.ipc";
 import { initializeNotificationIpc } from "./ipc/notification.ipc";
 import { initializeExportIpc } from "./ipc/export.ipc";
+import { registerWindowsZoomInShortcut } from "./zoom-shortcuts";
 
 const APP_ID = "com.keep-notes";
 const APP_NAME = "Keep Notes";
@@ -38,6 +39,7 @@ app.whenReady().then(async () => {
 
   app.on("browser-window-created", (_, window) => {
     optimizer.watchWindowShortcuts(window, { zoom: true });
+    registerWindowsZoomInShortcut(window);
   });
 
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {

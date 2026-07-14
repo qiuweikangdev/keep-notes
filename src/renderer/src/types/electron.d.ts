@@ -43,6 +43,8 @@ export interface ElectronAPI {
   setWindowPosition: (x: number, y: number) => void;
   // 判断窗口是否最大化
   isWindowMaximized: () => Promise<boolean>;
+  getZoomFactor: () => Promise<number>;
+  setZoomFactor: (zoomFactor: number) => Promise<number>;
   updateDirtyState: (isDirty: boolean) => void;
   // 获取当前运行平台
   getPlatform: () => string;

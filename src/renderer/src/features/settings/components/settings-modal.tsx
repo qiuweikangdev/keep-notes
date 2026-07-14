@@ -54,6 +54,8 @@ const settingsMenuItems = [
 
 const EDITOR_PADDING_MIN = 72;
 const EDITOR_PADDING_MAX = 120;
+const ZOOM_FACTOR_MIN = 0.5;
+const ZOOM_FACTOR_MAX = 1.5;
 
 const defaultAppInfo: AppInfo = {
   version: "",
@@ -130,6 +132,8 @@ export function SettingsModal() {
   const [externalOpenApps, setExternalOpenApps] = useState<ExternalOpenApp[]>(
     [],
   );
+  const [zoomFactor, setZoomFactor] = useState(1);
+  const [isZoomLoading, setIsZoomLoading] = useState(true);
   const editorPaddingProgress =
     ((Math.max(appearance.padding, EDITOR_PADDING_MIN) - EDITOR_PADDING_MIN) /
       (EDITOR_PADDING_MAX - EDITOR_PADDING_MIN)) *
@@ -159,6 +163,7 @@ export function SettingsModal() {
     if (!isSettingsOpen) return;
 
     let isMounted = true;
+    setIsZoomLoading(true);
     const unsubscribe = window.electronAPI.onUpdateState((state) => {
       if (!isMounted) return;
       setUpdateState(state);
@@ -168,11 +173,14 @@ export function SettingsModal() {
       window.electronAPI.getAppInfo(),
       window.electronAPI.getUpdateState(),
       window.electronAPI.listExternalOpenApps?.() ?? Promise.resolve([]),
-    ]).then(([info, state, apps]) => {
+      window.electronAPI.getZoomFactor?.() ?? Promise.resolve(1),
+    ]).then(([info, state, apps, currentZoomFactor]) => {
       if (!isMounted) return;
       setAppInfo(info);
       setUpdateState(state);
       setExternalOpenApps(apps);
+      setZoomFactor(currentZoomFactor);
+      setIsZoomLoading(false);
     });
 
     return () => {
@@ -250,7 +258,7 @@ export function SettingsModal() {
             </div>
 
             {/* 默认打开目标 */}
-            <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+            <div>
               <SettingRow
                 label="默认打开目标"
                 description="默认打开文件和文件夹的位置"
@@ -333,7 +341,7 @@ export function SettingsModal() {
             </div>
 
             {/* 标题栏快速打开器 */}
-            <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+            <div>
               <SettingRow
                 label="应用打开器入口"
                 description="在标题栏显示默认应用与快捷下拉入口"
@@ -348,7 +356,7 @@ export function SettingsModal() {
             </div>
 
             {/* 底部操作栏悬停显示 */}
-            <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+            <div>
               <SettingRow
                 label="底部操作栏悬停显示"
                 description="鼠标悬停在侧边栏时显示底部操作栏"
@@ -363,7 +371,7 @@ export function SettingsModal() {
             </div>
 
             {/* 文件历史导航 */}
-            <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+            <div>
               <SettingRow
                 label="文件历史导航"
                 description="在标题栏显示前进/后退按钮，用于切换最近打开的文件"
@@ -378,7 +386,7 @@ export function SettingsModal() {
             </div>
 
             {/* 编辑器内容字号 */}
-            <div style={{ borderBottom: "1px solid var(--border-color)" }}>
+            <div>
               <div className="py-1">
                 <SettingRow
                   label="编辑器内容字号"
@@ -461,6 +469,42 @@ export function SettingsModal() {
                       style={{ color: "var(--text-primary)" }}
                     >
                       {appearance.padding}
+                    </span>
+                  </div>
+                </SettingRow>
+
+                <SettingRow
+                  label="界面缩放"
+                  description="调整整个应用的显示比例"
+                >
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min={ZOOM_FACTOR_MIN}
+                      max={ZOOM_FACTOR_MAX}
+                      step="0.1"
+                      value={zoomFactor}
+                      aria-label="界面缩放"
+                      aria-valuetext={`${Math.round(zoomFactor * 100)}%`}
+                      disabled={isZoomLoading}
+                      onChange={(e) => {
+                        const nextZoomFactor = Number(e.target.value);
+                        setZoomFactor(nextZoomFactor);
+                        void window.electronAPI
+                          .setZoomFactor(nextZoomFactor)
+                          .then(setZoomFactor);
+                      }}
+                      className="w-32 h-1 rounded-full appearance-none cursor-pointer"
+                      style={{
+                        background: `linear-gradient(to right, var(--accent-color) 0%, var(--accent-color) ${((zoomFactor - ZOOM_FACTOR_MIN) / (ZOOM_FACTOR_MAX - ZOOM_FACTOR_MIN)) * 100}%, var(--bg-tertiary) ${((zoomFactor - ZOOM_FACTOR_MIN) / (ZOOM_FACTOR_MAX - ZOOM_FACTOR_MIN)) * 100}%, var(--bg-tertiary) 100%)`,
+                        accentColor: "var(--accent-color)",
+                      }}
+                    />
+                    <span
+                      className="text-sm w-10 text-right"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      {Math.round(zoomFactor * 100)}%
                     </span>
                   </div>
                 </SettingRow>

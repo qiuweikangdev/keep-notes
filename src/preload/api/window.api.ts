@@ -41,6 +41,14 @@ export const windowApi = {
     return ipcRenderer.invoke(IPC_CHANNELS.WINDOW.IS_MAXIMIZED);
   },
 
+  getZoomFactor: (): Promise<number> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.WINDOW.GET_ZOOM_FACTOR);
+  },
+
+  setZoomFactor: (zoomFactor: number): Promise<number> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.WINDOW.SET_ZOOM_FACTOR, zoomFactor);
+  },
+
   updateDirtyState: (isDirty: boolean): void => {
     ipcRenderer.send(IPC_CHANNELS.EDITOR.UPDATE_DIRTY_STATE, isDirty);
   },

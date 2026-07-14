@@ -7,6 +7,8 @@ export const IPC_CHANNELS = {
     GET_POSITION: "window:get-position",
     SET_POSITION: "window:set-position",
     IS_MAXIMIZED: "window:is-maximized",
+    GET_ZOOM_FACTOR: "window:get-zoom-factor",
+    SET_ZOOM_FACTOR: "window:set-zoom-factor",
   },
   APP: {
     GET_INFO: "app:get-info",

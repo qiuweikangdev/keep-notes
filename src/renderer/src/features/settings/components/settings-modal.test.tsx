@@ -36,6 +36,8 @@ describe("SettingsModal about tab", () => {
     installUpdate: vi.fn(),
     openRepository: vi.fn(),
     onUpdateState: vi.fn(() => vi.fn()),
+    getZoomFactor: vi.fn(async () => 1),
+    setZoomFactor: vi.fn(async (zoomFactor: number) => zoomFactor),
     getExportConfig: vi.fn(async () => ({
       enabledFormats: ["pdf"],
       defaultDirectoryMode: "same-as-source",
@@ -171,6 +173,40 @@ describe("SettingsModal about tab", () => {
       fontSize: 18,
       uiFontSize: 18,
     });
+  });
+
+  it("updates the window zoom factor from the appearance slider", async () => {
+    render(<SettingsModal />);
+
+    const zoomSlider = screen.getByRole("slider", { name: "界面缩放" });
+    await waitFor(() => {
+      expect(zoomSlider).toBeEnabled();
+    });
+    expect(zoomSlider).toHaveAttribute("min", "0.5");
+    expect(zoomSlider).toHaveAttribute("max", "1.5");
+    fireEvent.change(zoomSlider, { target: { value: "1.2" } });
+
+    await waitFor(() => {
+      expect(window.electronAPI.setZoomFactor).toHaveBeenCalledWith(1.2);
+    });
+    expect(zoomSlider).toHaveAttribute("aria-valuetext", "120%");
+  });
+
+  it("uses one divider for each appearance setting row", () => {
+    render(<SettingsModal />);
+
+    const settingRow = screen
+      .getByText("应用打开器入口")
+      .closest("div[style*='border-bottom']");
+
+    expect(settingRow).toHaveAttribute(
+      "style",
+      expect.stringContaining("border-bottom"),
+    );
+    expect(settingRow?.parentElement).not.toHaveAttribute(
+      "style",
+      expect.stringContaining("border-bottom"),
+    );
   });
 
   it("configures export formats from the export tab", async () => {
