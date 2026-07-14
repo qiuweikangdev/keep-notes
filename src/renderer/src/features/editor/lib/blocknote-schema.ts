@@ -18,7 +18,7 @@ import {
 import { InputRule } from "@tiptap/core";
 import Code from "@tiptap/extension-code";
 import { closeHistory } from "@tiptap/pm/history";
-import { Plugin, TextSelection } from "@tiptap/pm/state";
+import { AllSelection, Plugin, TextSelection } from "@tiptap/pm/state";
 import type { Slice } from "@tiptap/pm/model";
 
 import {
@@ -224,6 +224,37 @@ const listHistoryBoundaryExtension = createExtension({
       });
 
       return false;
+    },
+  },
+});
+
+const fullDocumentClearExtension = createExtension({
+  key: "editor-full-document-clear",
+  runsBefore: ["default"],
+  keyboardShortcuts: {
+    Backspace: ({ editor }) => {
+      if (!(editor.prosemirrorState.selection instanceof AllSelection)) {
+        return false;
+      }
+
+      // 全文选中时统一替换为一个空段落，让光标回到折叠状态并隐藏格式工具栏。
+      const { insertedBlocks } = editor.replaceBlocks(editor.document, [
+        { type: "paragraph", content: "" },
+      ]);
+      editor.setTextCursorPosition(insertedBlocks[0].id, "start");
+      return true;
+    },
+    Delete: ({ editor }) => {
+      if (!(editor.prosemirrorState.selection instanceof AllSelection)) {
+        return false;
+      }
+
+      // Delete 与 Backspace 保持一致，避免不同删除键留下不同的编辑器状态。
+      const { insertedBlocks } = editor.replaceBlocks(editor.document, [
+        { type: "paragraph", content: "" },
+      ]);
+      editor.setTextCursorPosition(insertedBlocks[0].id, "start");
+      return true;
     },
   },
 });
@@ -442,6 +473,7 @@ const editorParagraphSpec = {
   ...defaultBlockSpecs.paragraph,
   extensions: [
     ...(defaultBlockSpecs.paragraph.extensions ?? []),
+    fullDocumentClearExtension(),
     inlineCodeBackspaceExtension(),
     inlineCodeNormalizerExtension(),
   ],

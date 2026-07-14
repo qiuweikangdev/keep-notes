@@ -2,6 +2,7 @@ import { BlockNoteEditor } from "@blocknote/core";
 import { BlockNoteView } from "@blocknote/mantine";
 import { foldEffect, foldable, foldedRanges } from "@codemirror/language";
 import { EditorView } from "@codemirror/view";
+import { AllSelection } from "@tiptap/pm/state";
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
@@ -767,6 +768,33 @@ describe("editor BlockNote schema", () => {
     expect(editor.document[0].type).toBe("paragraph");
     expect(getInlineText(editor.document[0])).toBe("");
   });
+
+  it.each(["Backspace", "Delete"])(
+    "clears every block and collapses the selection after select-all then %s",
+    (key) => {
+      setupMatchMedia();
+      const editor = BlockNoteEditor.create({
+        schema: editorSchema,
+        initialContent: [
+          { type: "codeBlock", content: "const value = 1" },
+          { type: "bulletListItem", content: "A list item" },
+        ],
+      });
+      render(createElement(BlockNoteView, { editor }));
+
+      editor.prosemirrorView.dispatch(
+        editor.prosemirrorView.state.tr.setSelection(
+          new AllSelection(editor.prosemirrorView.state.doc),
+        ),
+      );
+      pressKey(editor, key);
+
+      expect(getDocumentSummary(editor)).toEqual([
+        { type: "paragraph", text: "" },
+      ]);
+      expect(editor.prosemirrorView.state.selection.empty).toBe(true);
+    },
+  );
 
   it("renders JavaScript code blocks with CodeMirror", async () => {
     setupMatchMedia();
