@@ -1,3 +1,40 @@
+# [2.12.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.11.0...v2.12.0) (2026-07-14)
+
+
+### Bug Fixes
+
+* animate file tree scrollbar on hover ([d2c471c](https://github.com/qiuweikangdev/keep-notes/commit/d2c471cb63de96e60c60171898f4d2568eb56e08))
+* enable file tree scrollbar interaction ([bb571d5](https://github.com/qiuweikangdev/keep-notes/commit/bb571d5fd90b16f8976360f8166f4bf9bed860c7))
+* fade out file tree scrollbar ([627bb84](https://github.com/qiuweikangdev/keep-notes/commit/627bb84d119d8c5b60991d6100ea231197efc16e))
+* hide root search result paths ([cf91fd3](https://github.com/qiuweikangdev/keep-notes/commit/cf91fd309b09487d086a1f6841102d595f48f41c))
+* improve tree name conflict feedback ([b822579](https://github.com/qiuweikangdev/keep-notes/commit/b8225797e20a42f1d108d2a515d93ae03144759d))
+* improve window zoom controls ([53676da](https://github.com/qiuweikangdev/keep-notes/commit/53676da7aece48e9d70410320d837537019a7b5c))
+* prevent code block theme flicker ([c738b82](https://github.com/qiuweikangdev/keep-notes/commit/c738b82d2bd494c678e7dac60e0da678c16fc350))
+* prevent git panel loading flicker ([5437a44](https://github.com/qiuweikangdev/keep-notes/commit/5437a443e37dfe2e9db76c45b9b27ed9ca398c56))
+* prevent rich editor opacity ghosting ([7bfe2a1](https://github.com/qiuweikangdev/keep-notes/commit/7bfe2a14f479a72a0c9a5761e8210aa74a056acd))
+* render git panel above editor ([9454e54](https://github.com/qiuweikangdev/keep-notes/commit/9454e54f8445d6db16480531446d7109d8379f39))
+* render global search above editor ([234e50e](https://github.com/qiuweikangdev/keep-notes/commit/234e50e9766b8e86ac4cbe105da75cf0326e02e1))
+* reset editor state after full-document deletion ([9b41eab](https://github.com/qiuweikangdev/keep-notes/commit/9b41eab77a04b34fa7c02d2bce4eadd53a413c35))
+* restore rich editor transparency ([56978dd](https://github.com/qiuweikangdev/keep-notes/commit/56978dde0d3f302ad1c70cd00356d2ffb4e56f5e))
+* show sidebar divider while resizing ([d1b39de](https://github.com/qiuweikangdev/keep-notes/commit/d1b39dea9534082c7161f01ece6e625193b7c574))
+* stabilize editor panel divider ([2f92f23](https://github.com/qiuweikangdev/keep-notes/commit/2f92f23c8447c9a12cae67175b7d7b4bc002c905))
+* sync outline activation with editor viewport ([a468c15](https://github.com/qiuweikangdev/keep-notes/commit/a468c15ef0ef933f0a00f6f25323c675dd63c7ab))
+* theme diff viewer empty surface ([81db5cd](https://github.com/qiuweikangdev/keep-notes/commit/81db5cd50968639e5b21cce37dcdff22ad7bd2af))
+* toast portal ([356200b](https://github.com/qiuweikangdev/keep-notes/commit/356200b2f48989a60bbd0de574729669581bf742))
+
+
+### Features
+
+* git panel icon ([3ea9bf6](https://github.com/qiuweikangdev/keep-notes/commit/3ea9bf6862e621e8165b697c42b95bd0263a05dc))
+* optimize editor tab operations ([ff72ba1](https://github.com/qiuweikangdev/keep-notes/commit/ff72ba13dc82609c58a38df0144c5358e93889c1))
+* show git footer operation loading ([cd5eff0](https://github.com/qiuweikangdev/keep-notes/commit/cd5eff0f3cfa43749402fd4816e1cd5a52c58fca))
+
+
+## Commit Summary
+
+- Compared with: v2.11.0
+- Total commits: 27
+
 # [2.11.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.10.0...v2.11.0) (2026-07-13)
 
 
