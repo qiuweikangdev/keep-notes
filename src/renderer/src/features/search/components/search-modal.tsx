@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { FileText, FolderOpen, Search, X } from "lucide-react";
 import { useTreeStore } from "@/store/tree.store";
 import { useEditorStore } from "@/store/editor.store";
@@ -307,7 +308,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const hasQuery = query.trim().length > 0;
   const resultTypeLabel = hasWorkspace ? "文件" : "目录";
 
-  return (
+  return createPortal(
     <div className="pointer-events-none fixed inset-x-0 top-0 z-50 flex items-start justify-center pt-[12vh]">
       <div
         ref={modalRef}
@@ -409,6 +410,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -132,7 +132,8 @@ vi.mock("@/features/settings", () => ({
 }));
 
 vi.mock("@/features/search", () => ({
-  SearchModal: () => null,
+  SearchModal: ({ isOpen }: { isOpen: boolean }) =>
+    isOpen ? <div aria-label="Global search" role="dialog" /> : null,
 }));
 
 vi.mock("@/components/ui/tooltip", () => ({
@@ -333,6 +334,18 @@ describe("App shortcuts", () => {
       "data-collapsed",
       "false",
     );
+  });
+
+  it("opens global search when receiving the title bar search event", () => {
+    render(<App />);
+
+    act(() => {
+      window.dispatchEvent(new Event("open-search"));
+    });
+
+    expect(
+      screen.getByRole("dialog", { name: "Global search" }),
+    ).toBeInTheDocument();
   });
 
   it("toggles the same sidebar when receiving the menu action", () => {

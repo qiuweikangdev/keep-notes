@@ -16,7 +16,6 @@ import { useUIStore } from "@/store/ui.store";
 import { useEditorStore } from "@/store/editor.store";
 import { useTheme } from "@/hooks/use-theme";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { SearchModal } from "@/features/search";
 import { GitPanel } from "@/features/git";
 import { useElectron } from "@/hooks/use-electron";
 import { useTreeStore } from "@/store/tree.store";
@@ -44,7 +43,6 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
   const appearance = useEditorStore((state) => state.appearance);
   const setAppearance = useEditorStore((state) => state.setAppearance);
   const { isDark, toggleTheme } = useTheme();
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isGitOpen, setIsGitOpen] = useState(false);
   const [isGitRepo, setIsGitRepo] = useState(false);
   const [externalOpenApps, setExternalOpenApps] = useState<ExternalOpenApp[]>(
@@ -419,7 +417,7 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
         {/* 中间：搜索栏 */}
         <div className="flex h-full flex-1 items-center justify-center px-4">
           <button
-            onClick={() => setIsSearchOpen(true)}
+            onClick={() => window.dispatchEvent(new Event("open-search"))}
             className="flex items-center gap-2 h-[30px] w-[320px] max-w-[50%] px-3 rounded-lg text-xs transition-all"
             style={{
               backgroundColor: "var(--bg-secondary)",
@@ -669,12 +667,6 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
           )}
         </div>
       </div>
-
-      {/* 搜索弹窗 */}
-      <SearchModal
-        isOpen={isSearchOpen}
-        onClose={() => setIsSearchOpen(false)}
-      />
 
       {/* Git 面板 */}
       <GitPanel isOpen={isGitOpen} onClose={() => setIsGitOpen(false)} />

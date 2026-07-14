@@ -185,6 +185,16 @@ describe("SearchModal", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("renders at the document root above body-mounted editor surfaces", () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+
+    render(<SearchModal isOpen onClose={vi.fn()} />, { container });
+
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByRole("searchbox")).toBeInTheDocument();
+  });
+
   it("closes when clicking outside the compact modal", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();

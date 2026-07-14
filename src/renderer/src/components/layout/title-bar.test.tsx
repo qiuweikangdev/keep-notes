@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TitleBar } from "./title-bar";
 import { MAC_TITLE_BAR_HEIGHT } from "@shared/title-bar";
@@ -127,5 +133,24 @@ describe("TitleBar", () => {
         "vscode",
       );
     });
+  });
+
+  it("从标题栏搜索入口派发全局搜索事件", () => {
+    const listener = vi.fn();
+    window.addEventListener("open-search", listener);
+
+    try {
+      const container = document.createElement("div");
+      render(<TitleBar collapsed={false} onToggleCollapse={vi.fn()} />, {
+        container,
+      });
+      fireEvent.click(
+        within(container).getByRole("button", { name: /搜索文件/ }),
+      );
+
+      expect(listener).toHaveBeenCalledOnce();
+    } finally {
+      window.removeEventListener("open-search", listener);
+    }
   });
 });
