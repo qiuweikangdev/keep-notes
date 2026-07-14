@@ -146,7 +146,6 @@ interface EditorOutlineSnapshot {
 
 interface PendingOutlineScrollActivation {
   owner: RichPaneScrollOwner;
-  topBlockId: string | null;
 }
 
 const EMPTY_EDITOR_OUTLINE_SNAPSHOT: EditorOutlineSnapshot = {
@@ -451,6 +450,8 @@ function createBlockIdSelector(blockId: string) {
 }
 
 const LIVE_EDITOR_BLOCK_SELECTOR = '[data-node-type="blockOuter"][data-id]';
+const OUTLINE_ACTIVATION_VIEWPORT_RATIO = 0.25;
+const OUTLINE_ACTIVATION_MIN_OFFSET = 24;
 
 function createEditorOutlineSnapshot(blocks: Block[]): EditorOutlineSnapshot {
   const headings: EditorOutlineSnapshot["headings"] = [];
@@ -472,7 +473,7 @@ function createEditorOutlineSnapshot(blocks: Block[]): EditorOutlineSnapshot {
         });
       }
 
-      // 滚动时只需按顶部块 ID 做 O(1) 查询，不再遍历标题或读取额外布局。
+      // 滚动时只需按定位块 ID 做 O(1) 查询，不再遍历标题或读取额外布局。
       activeHeadingIdByBlockId.set(block.id, activeHeadingId);
       if (block.children?.length) walk(block.children);
     }
@@ -552,6 +553,60 @@ function readLiveEditorViewportAnchor(
     blocks,
     (block) => block.dataset.id ?? null,
   );
+}
+
+function readLiveEditorOutlineBlockId(
+  container: HTMLElement,
+  root: HTMLElement | null,
+) {
+  const blocks =
+    root?.querySelectorAll<HTMLElement>(LIVE_EDITOR_BLOCK_SELECTOR) ?? [];
+  const ownerDocument = container.ownerDocument;
+  if (root && typeof ownerDocument.elementFromPoint === "function") {
+    const containerBounds = container.getBoundingClientRect();
+    const rootBounds = root.getBoundingClientRect();
+    const contentLeft = Math.max(containerBounds.left, rootBounds.left);
+    const contentRight = Math.min(containerBounds.right, rootBounds.right);
+    const viewportHeight = Math.max(
+      0,
+      containerBounds.bottom - containerBounds.top,
+    );
+    const activationOffset = Math.max(
+      OUTLINE_ACTIVATION_MIN_OFFSET,
+      viewportHeight * OUTLINE_ACTIVATION_VIEWPORT_RATIO,
+    );
+    const rootBottom =
+      rootBounds.bottom > containerBounds.top
+        ? rootBounds.bottom
+        : containerBounds.bottom;
+    const maxY = Math.min(containerBounds.bottom, rootBottom) - 1;
+    const x = contentLeft + Math.max(1, (contentRight - contentLeft) / 2);
+
+    // 标题越过视口四分之一处即激活，避免上一章节只剩少量正文时大纲仍停留在旧标题。
+    if (contentRight > contentLeft && maxY > containerBounds.top) {
+      for (const adjustment of [0, 16, -16]) {
+        const y = Math.min(
+          maxY,
+          Math.max(
+            containerBounds.top + 1,
+            containerBounds.top + activationOffset + adjustment,
+          ),
+        );
+        const candidate = ownerDocument
+          .elementFromPoint(x, y)
+          ?.closest<HTMLElement>(LIVE_EDITOR_BLOCK_SELECTOR);
+        if (candidate && root.contains(candidate)) {
+          return candidate.dataset.id ?? null;
+        }
+      }
+    }
+  }
+
+  return readEditorViewportAnchor(
+    container,
+    blocks,
+    (block) => block.dataset.id ?? null,
+  ).topBlockId;
 }
 
 function findEditorBlockFromDomPoint(node: Node): HTMLElement | null {
@@ -1937,21 +1992,21 @@ function MountedBlockNoteEditor({
         return;
       }
 
+      const scrollContainer = event.currentTarget;
       const viewportAnchor = readLiveEditorViewportAnchor(
-        event.currentTarget,
+        scrollContainer,
         editor.domElement,
       );
 
       // 高频滚动只更新 ref/registry；Zustand 在 150ms idle 或生命周期边界才写入。
       scrollWriterRef.current?.record(
         owner,
-        event.currentTarget.scrollTop,
+        scrollContainer.scrollTop,
         viewportAnchor,
       );
 
       pendingOutlineScrollActivationRef.current = {
         owner,
-        topBlockId: viewportAnchor.topBlockId,
       };
       if (outlineScrollFrameRef.current !== null) return;
 
@@ -1970,9 +2025,13 @@ function MountedBlockNoteEditor({
           return;
         }
 
-        const activeHeadingId = pending.topBlockId
+        const outlineBlockId = readLiveEditorOutlineBlockId(
+          scrollContainer,
+          editor.domElement,
+        );
+        const activeHeadingId = outlineBlockId
           ? (outlineSnapshotRef.current.activeHeadingIdByBlockId.get(
-              pending.topBlockId,
+              outlineBlockId,
             ) ?? null)
           : null;
         useEditorStore
