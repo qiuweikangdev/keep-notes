@@ -1161,7 +1161,7 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
   return (
     <div
       ref={parentRef}
-      className="min-h-0 flex-1 overflow-auto"
+      className="file-tree-scroll-container min-h-0 flex-1 overflow-auto"
       style={{
         contain: "layout paint style",
         overflowAnchor: "none",

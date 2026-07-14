@@ -538,6 +538,19 @@ button:focus-visible {
 }
 
 /* 鑷畾涔夋粴鍔ㄦ潯 */
+.file-tree-scroll-container::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  transition:
+    width 160ms ease,
+    height 160ms ease;
+}
+
+.file-tree-scroll-container:hover::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;

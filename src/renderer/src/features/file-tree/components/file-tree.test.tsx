@@ -100,6 +100,14 @@ describe("FileTree context menu", () => {
     });
   });
 
+  it("marks the virtualized file tree scroll container for hover scrollbar styling", () => {
+    const { container } = render(<FileTree />);
+
+    expect(
+      container.querySelector(".file-tree-scroll-container"),
+    ).toBeInTheDocument();
+  });
+
   it("shows an export action from the virtualized file node menu", async () => {
     render(<FileTree />);
 
