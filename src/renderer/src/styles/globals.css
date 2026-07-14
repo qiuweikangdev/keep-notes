@@ -566,7 +566,7 @@ button:focus-visible {
   background-color: rgba(0, 0, 0, 0.2);
   opacity: 0;
   cursor: default;
-  transition: opacity 240ms ease;
+  transition: opacity 700ms ease;
   will-change: opacity, transform;
 }
 
