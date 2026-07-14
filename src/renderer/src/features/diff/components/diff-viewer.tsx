@@ -65,6 +65,10 @@ const DIFF_VISUAL_BOOST_CSS = `
     --diffs-bg-hover-override: var(--hover-bg) !important;
   }
 
+  :host, [data-code], [data-gutter], [data-content], [data-content-buffer] {
+    background-color: var(--bg-primary) !important;
+  }
+
   :where([data-background]) [data-line-type="change-addition"][data-line],
   :where([data-background]) [data-line-type="change-addition"][data-no-newline] {
     --diffs-line-bg: color-mix(

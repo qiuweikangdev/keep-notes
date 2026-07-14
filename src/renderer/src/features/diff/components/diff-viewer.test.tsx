@@ -70,6 +70,12 @@ describe("DiffViewer", () => {
     const unsafeCSS = props.options?.unsafeCSS ?? "";
 
     expect(unsafeCSS).toContain(":host");
+    expect(unsafeCSS).toContain(
+      ":host, [data-code], [data-gutter], [data-content], [data-content-buffer] {",
+    );
+    expect(unsafeCSS).toContain(
+      "background-color: var(--bg-primary) !important;",
+    );
     expect(unsafeCSS).toContain("--diffs-bg: var(--bg-primary) !important;");
     expect(unsafeCSS).toContain(
       "--diffs-bg-context: var(--bg-primary) !important;",
