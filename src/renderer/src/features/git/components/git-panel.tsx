@@ -2084,9 +2084,9 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                 aria-busy={activeFooterOperation === "commit"}
               >
                 {activeFooterOperation === "commit" ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <GitCommit className="h-3.5 w-3.5" />
+                  <GitCommit className="h-5 w-5" />
                 )}
                 提交
               </Button>
@@ -2097,9 +2097,9 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                 aria-busy={activeFooterOperation === "commit-and-push"}
               >
                 {activeFooterOperation === "commit-and-push" ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <Send className="h-3.5 w-3.5" />
+                  <Send className="h-4 w-4" />
                 )}
                 提交并推送
               </Button>

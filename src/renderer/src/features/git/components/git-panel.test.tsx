@@ -287,6 +287,18 @@ describe("GitPanel", () => {
     },
   );
 
+  it("uses optically balanced icons for commit footer actions", async () => {
+    render(<GitPanel isOpen onClose={vi.fn()} />);
+
+    await screen.findByText("changed.md");
+
+    for (const label of ["提交", "提交并推送"]) {
+      expect(
+        screen.getByRole("button", { name: label }).querySelector("svg"),
+      ).toHaveClass("h-4", "w-4");
+    }
+  });
+
   it("keeps the Git panel open when the discard confirmation dialog closes", async () => {
     const onClose = vi.fn();
     render(<GitPanel isOpen onClose={onClose} />);
