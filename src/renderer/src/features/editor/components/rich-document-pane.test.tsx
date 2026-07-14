@@ -510,6 +510,32 @@ describe("RichDocumentPane", () => {
     act(() => unregisterRuntime?.());
   });
 
+  it("hides the active preview behind a transparent live surface", () => {
+    useEditorStore.setState((state) => ({
+      appearance: { ...state.appearance, opacity: 60 },
+    }));
+    render(
+      <>
+        <RichDocumentPane groupId="group-1" tabId="tab-1" path={path} />
+        <RichDocumentPane groupId="group-2" tabId="tab-2" path={path} />
+      </>,
+    );
+    const runtime = createRuntime(path);
+    let unregisterRuntime: (() => void) | undefined;
+    act(() => {
+      unregisterRuntime = richDocumentSessionManager.registerRuntime(
+        path,
+        runtime,
+      );
+    });
+
+    expect(
+      within(getPane("group-1:tab-1")).getByTestId("rich-preview-layer"),
+    ).toHaveStyle({ visibility: "hidden" });
+
+    act(() => unregisterRuntime?.());
+  });
+
   it("hides the outgoing surface for an inactive pending target without showing loading", () => {
     const secondPath = "C:/notes/loading.md";
     const view = render(

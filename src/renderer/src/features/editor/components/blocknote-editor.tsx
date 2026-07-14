@@ -1236,6 +1236,15 @@ function MountedBlockNoteEditor({
   const runtimeRef = useRef<RichBlockNoteRuntime | null>(null);
   const previewCacheRef = useRef<RichPreviewCache | null>(null);
   const previewTransactionCleanupRef = useRef<(() => void) | null>(null);
+
+  useLayoutEffect(() => {
+    const opacity = `${appearance.opacity / 100}`;
+    surface.dataset.richSurfaceOpacity = opacity;
+    if (surface.style.visibility === "visible") {
+      surface.style.opacity = opacity;
+    }
+  }, [appearance.opacity, surface]);
+
   const loadEditorImageUrl = useCallback(async (url: string) => {
     try {
       return (await window.electronAPI.loadImageAsDataUrl(url)) ?? url;

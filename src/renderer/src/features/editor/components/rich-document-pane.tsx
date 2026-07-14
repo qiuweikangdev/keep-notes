@@ -134,6 +134,7 @@ export function RichDocumentPane({
       state.panelGroups.find((group) => group.id === groupId)?.activeTabId ===
         tabId,
   );
+  const appearanceOpacity = useEditorStore((state) => state.appearance.opacity);
 
   const releaseRegistration = useCallback(
     (registeredPath: string, clearClosedPaneState: boolean) => {
@@ -246,9 +247,10 @@ export function RichDocumentPane({
             className="absolute inset-0 h-full min-h-0 overflow-hidden"
             data-testid="rich-preview-layer"
             style={{
-              // 保留活动窗格的预绘内容，编辑器合成层切换时由其承接过渡画面。
+              // 低透明度时隐藏活动预览，避免 body 中的透明编辑器表面透出错位文本。
               pointerEvents: isLive ? "none" : "auto",
-              visibility: "visible",
+              visibility:
+                isLive && appearanceOpacity < 100 ? "hidden" : "visible",
             }}
           >
             <VirtualRichPreview

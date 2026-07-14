@@ -246,7 +246,7 @@ export class RichDocumentSurfaceRegistry {
     measureImmediately: boolean,
   ): void {
     surface.style.visibility = "visible";
-    surface.style.opacity = "1";
+    surface.style.opacity = surface.dataset.richSurfaceOpacity ?? "1";
     surface.style.pointerEvents = "auto";
     surface.setAttribute("aria-hidden", "false");
     surface.dataset.activePaneKey = paneKey;

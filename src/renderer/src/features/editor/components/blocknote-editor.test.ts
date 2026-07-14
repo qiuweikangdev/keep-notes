@@ -819,6 +819,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
         session.view.container.querySelector<HTMLElement>(".editor-rich-scroll")
           ?.style.opacity,
       ).toBe("");
+      expect(session.surface.dataset.richSurfaceOpacity).toBe("0.6");
     } finally {
       useEditorStore.setState({ appearance });
       session.view.unmount();
