@@ -3,6 +3,7 @@ import {
   useEffect,
   useCallback,
   useMemo,
+  useRef,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
@@ -47,6 +48,7 @@ import {
   File,
   Folder,
   FolderOpen,
+  Loader2,
   MinusSquare,
   PlusSquare,
 } from "lucide-react";
@@ -173,13 +175,14 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
   const expandedKeys = useTreeStore((state) => state.expandedKeys);
   const setExpandedKeys = useTreeStore((state) => state.setExpandedKeys);
 
-  const [isGitRepo, setIsGitRepo] = useState(false);
+  const [isGitRepo, setIsGitRepo] = useState<boolean | null>(null);
   const [currentBranch, setCurrentBranch] = useState("");
   const [branches, setBranches] = useState<GitBranch[]>([]);
   const [gitStatus, setGitStatus] = useState<GitStatus | null>(null);
   const [commitMessage, setCommitMessage] = useState("");
   const [includeUntracked, setIncludeUntracked] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [isGitInfoLoading, setIsGitInfoLoading] = useState(false);
   const [showBranchList, setShowBranchList] = useState(false);
   const [showCreateBranch, setShowCreateBranch] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
@@ -209,18 +212,21 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
   const openDiff = useDiffStore((state) => state.openDiff);
   const closeDiff = useDiffStore((state) => state.closeDiff);
   const updateContent = useDiffStore((state) => state.updateContent);
+  const wasOpenRef = useRef(isOpen);
 
   const currentDir = treeRoot?.key || "";
   const getCurrentDir = useCallback(() => currentDir, [currentDir]);
+  const isOpening = isOpen && !wasOpenRef.current;
 
   const resetPanelState = useCallback(() => {
-    setIsGitRepo(false);
+    setIsGitRepo(null);
     setCurrentBranch("");
     setBranches([]);
     setGitStatus(null);
     setCommitMessage("");
     setIncludeUntracked(true);
     setLoading(false);
+    setIsGitInfoLoading(false);
     setShowBranchList(false);
     setShowCreateBranch(false);
     setNewBranchName("");
@@ -242,10 +248,14 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
 
   const loadGitInfo = useCallback(async () => {
     const dir = getCurrentDir();
-    if (!dir) return;
+    if (!dir) {
+      setIsGitRepo(false);
+      return;
+    }
 
     try {
       setLoading(true);
+      setIsGitInfoLoading(true);
       const detectResult = await detectGitRepo(dir);
       if (detectResult?.code === CodeResult.Success && detectResult.data) {
         setIsGitRepo(detectResult.data.isGitRepo);
@@ -265,15 +275,20 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             setStagedFiles(new Set(statusResult.data.staged));
           }
         }
+      } else {
+        setIsGitRepo(false);
       }
     } catch (error) {
       console.error("加载 Git 信息失败:", error);
+      setIsGitRepo(false);
     } finally {
       setLoading(false);
+      setIsGitInfoLoading(false);
     }
   }, [getCurrentDir, detectGitRepo, getBranches, getGitStatus]);
 
   useEffect(() => {
+    wasOpenRef.current = isOpen;
     if (isOpen) {
       resetPanelState();
       loadGitInfo();
@@ -1481,6 +1496,59 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
 
   if (!isOpen) return null;
 
+  if (isOpening || isGitRepo === null) {
+    return createPortal(
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center"
+        style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
+        onClick={onClose}
+      >
+        <div
+          className="w-[400px] rounded-xl shadow-2xl"
+          style={{ backgroundColor: "var(--bg-secondary)" }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div
+            className="flex items-center justify-between p-4"
+            style={{ borderBottom: "1px solid var(--border-color)" }}
+          >
+            <div className="flex items-center gap-2">
+              <GitBranchIcon
+                className="h-5 w-5"
+                style={{ color: "var(--text-muted)" }}
+              />
+              <span
+                className="font-medium"
+                style={{ color: "var(--text-primary)" }}
+              >
+                Git 操作
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              data-theme-control="true"
+              className="rounded-lg p-1"
+              style={{ color: "var(--text-muted)" }}
+              aria-label="关闭 Git 操作"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div
+            className="flex flex-col items-center gap-3 p-8 text-center"
+            role="status"
+            aria-label="加载中"
+            style={{ color: "var(--text-muted)" }}
+          >
+            <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+        </div>
+      </div>,
+      document.body,
+    );
+  }
+
   if (!isGitRepo) {
     return createPortal(
       <div
@@ -1905,28 +1973,43 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         </div>
 
         {/* 文件列表 - 可滚动区域 */}
-        {activeTab === "changes" && allFiles.length > 0 && (
+        {activeTab === "changes" && isGitInfoLoading && (
           <div
-            className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
-            style={{ backgroundColor: "var(--bg-primary)" }}
+            className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-6"
+            role="status"
+            aria-label="加载中"
+            style={{ color: "var(--text-muted)" }}
           >
-            {renderFileSection("已暂存的更改", stagedFilePaths, "staged")}
-            {renderFileSection("更改", unstagedFilePaths, "unstaged")}
+            <Loader2 className="h-5 w-5 animate-spin" />
           </div>
         )}
 
-        {/* 无更改提示 */}
-        {activeTab === "changes" && allFiles.length === 0 && (
-          <div
-            className="flex min-h-0 flex-1 items-center justify-center py-6"
-            style={{ color: "var(--text-muted)" }}
-          >
-            <div className="text-center">
-              <GitCommit className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">无更改</p>
+        {activeTab === "changes" &&
+          !isGitInfoLoading &&
+          allFiles.length > 0 && (
+            <div
+              className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
+              style={{ backgroundColor: "var(--bg-primary)" }}
+            >
+              {renderFileSection("已暂存的更改", stagedFilePaths, "staged")}
+              {renderFileSection("更改", unstagedFilePaths, "unstaged")}
             </div>
-          </div>
-        )}
+          )}
+
+        {/* 无更改提示 */}
+        {activeTab === "changes" &&
+          !isGitInfoLoading &&
+          allFiles.length === 0 && (
+            <div
+              className="flex min-h-0 flex-1 items-center justify-center py-6"
+              style={{ color: "var(--text-muted)" }}
+            >
+              <div className="text-center">
+                <GitCommit className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">无更改</p>
+              </div>
+            </div>
+          )}
 
         {activeTab === "history" && renderHistoryContent()}
 

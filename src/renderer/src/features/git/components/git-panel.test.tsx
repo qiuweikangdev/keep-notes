@@ -184,6 +184,69 @@ describe("GitPanel", () => {
     }
   });
 
+  it("keeps Git detection and file status in loading states while opening", async () => {
+    const { rerender } = render(<GitPanel isOpen onClose={vi.fn()} />);
+
+    await screen.findByText("changed.md");
+
+    let resolveGitRepo: (value: unknown) => void;
+    let resolveGitStatus: (value: unknown) => void;
+    electronMocks.detectGitRepo.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveGitRepo = resolve;
+        }),
+    );
+    electronMocks.getGitStatus.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveGitStatus = resolve;
+        }),
+    );
+
+    rerender(<GitPanel isOpen={false} onClose={vi.fn()} />);
+    rerender(<GitPanel isOpen onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(document.querySelector('[role="status"]')).toBeInTheDocument();
+    });
+    expect(screen.queryByText("正在检查 Git 仓库...")).not.toBeInTheDocument();
+    expect(screen.queryByText("当前目录不是 Git 仓库")).not.toBeInTheDocument();
+
+    resolveGitRepo!({
+      code: CodeResult.Success,
+      data: { isGitRepo: true },
+    });
+
+    await waitFor(() => {
+      expect(document.querySelector('[role="status"]')).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByText("正在加载 Git 文件状态..."),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("无更改")).not.toBeInTheDocument();
+
+    resolveGitStatus!({
+      code: CodeResult.Success,
+      data: {
+        current: "main",
+        tracking: "origin/main",
+        files: [],
+        ahead: 0,
+        behind: 0,
+        created: [],
+        not_added: [],
+        modified: ["changed.md"],
+        deleted: [],
+        renamed: [],
+        staged: [],
+        conflicted: [],
+      },
+    });
+
+    expect(await screen.findByText("changed.md")).toBeInTheDocument();
+  });
+
   it("keeps the Git panel open when the discard confirmation dialog closes", async () => {
     const onClose = vi.fn();
     render(<GitPanel isOpen onClose={onClose} />);
