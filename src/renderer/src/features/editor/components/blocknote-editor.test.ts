@@ -803,6 +803,28 @@ describe("BlockNoteEditor user intent tracking", () => {
 });
 
 describe("BlockNoteEditor persistent session runtime", () => {
+  it("keeps the live editor surface opaque at reduced window opacity", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    setupSessionTab("C:/notes/opaque-surface.md");
+    const appearance = useEditorStore.getState().appearance;
+    useEditorStore.setState({
+      appearance: { ...appearance, opacity: 60 },
+    });
+    const session = renderRealSession("C:/notes/opaque-surface.md");
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      expect(
+        session.view.container.querySelector<HTMLElement>(".editor-rich-scroll")
+          ?.style.opacity,
+      ).toBe("");
+    } finally {
+      useEditorStore.setState({ appearance });
+      session.view.unmount();
+    }
+  });
+
   it("does not create a core editor for a render that never commits", () => {
     setupMatchMedia();
     setupDomMeasurements();

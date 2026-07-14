@@ -1939,7 +1939,6 @@ function MountedBlockNoteEditor({
     backgroundColor: "var(--bg-primary)",
     contain: "layout style paint",
     isolation: "isolate",
-    opacity: appearance.opacity / 100,
     "--editor-font-size": `${appearance.fontSize}px`,
     "--editor-line-height": appearance.lineHeight,
     "--editor-padding": `${appearance.padding}px`,

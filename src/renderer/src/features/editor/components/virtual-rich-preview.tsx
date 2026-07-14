@@ -323,15 +323,9 @@ export function VirtualRichPreview({
         height: "100%",
         lineHeight: appearance.lineHeight,
         minHeight: 0,
-        opacity: appearance.opacity / 100,
         width: "100%",
       }) as CSSProperties,
-    [
-      appearance.fontSize,
-      appearance.lineHeight,
-      appearance.opacity,
-      appearance.padding,
-    ],
+    [appearance.fontSize, appearance.lineHeight, appearance.padding],
   );
 
   const restorePaneScroll = useCallback(() => {

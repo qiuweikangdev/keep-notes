@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { richPaneViewStateRegistry } from "../lib/editor-runtime";
 import { RichPreviewCache } from "../lib/rich-preview-cache";
+import { useEditorStore } from "@/store/editor.store";
 import { useUIStore } from "@/store/ui.store";
 import { VirtualRichPreview } from "./virtual-rich-preview";
 
@@ -178,6 +179,28 @@ describe("VirtualRichPreview", () => {
       screen.getByRole("textbox"),
     );
     expect(virtualizerMock.options?.getItemKey(0)).toBe("block-0");
+  });
+
+  it("keeps the virtual preview opaque at reduced window opacity", () => {
+    const { cache } = createCache();
+    const appearance = useEditorStore.getState().appearance;
+    useEditorStore.setState({
+      appearance: { ...appearance, opacity: 60 },
+    });
+
+    try {
+      render(
+        <VirtualRichPreview
+          paneKey="group-a:tab-a"
+          cache={cache}
+          onActivate={vi.fn()}
+        />,
+      );
+
+      expect(screen.getByRole("textbox").style.opacity).toBe("");
+    } finally {
+      useEditorStore.setState({ appearance });
+    }
   });
 
   it("keeps virtual measurements and React instances keyed by block ID", () => {
