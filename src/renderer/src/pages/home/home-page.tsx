@@ -75,6 +75,7 @@ function HomePageContent() {
   const isDiffPanelOpen = useDiffPanelStore((state) => state.isOpen);
   const openDiffPanel = useDiffPanelStore((state) => state.open);
   const { contentRef, resizeHandleProps, resetSize } = useResizableDialog();
+  const [isSidebarResizing, setIsSidebarResizing] = useState(false);
 
   const electron = useElectron();
   const { loadTree, openFile } = electron;
@@ -247,11 +248,15 @@ function HomePageContent() {
               position: "relative",
               cursor: "col-resize",
             }}
+            onDragging={setIsSidebarResizing}
           >
-            <div
-              className="absolute inset-y-0 -left-1 -right-1"
-              style={{ backgroundColor: "var(--border-color)" }}
-            />
+            {isSidebarResizing ? (
+              <div
+                data-testid="sidebar-panel-resize-divider"
+                className="absolute inset-y-0 left-1/2 -translate-x-1/2"
+                style={{ width: "3px", backgroundColor: "var(--border-color)" }}
+              />
+            ) : null}
           </PanelResizeHandle>
 
           <Panel minSize={30}>

@@ -24,7 +24,20 @@ const diffStateMock = vi.hoisted(() => ({
 vi.mock("react-resizable-panels", () => ({
   Panel: ({ children }: PropsWithChildren) => <div>{children}</div>,
   PanelGroup: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  PanelResizeHandle: () => <div />,
+  PanelResizeHandle: ({
+    children,
+    onDragging,
+    ...props
+  }: PropsWithChildren<{ onDragging?: (isDragging: boolean) => void }>) => (
+    <div
+      data-testid="sidebar-panel-resize-handle"
+      onPointerDown={() => onDragging?.(true)}
+      onPointerUp={() => onDragging?.(false)}
+      {...props}
+    >
+      {children}
+    </div>
+  ),
 }));
 
 vi.mock("@/components/ui/dialog", () => ({
@@ -156,6 +169,28 @@ describe("HomePage", () => {
 
   afterEach(() => {
     cleanup();
+  });
+
+  it("shows the 3px sidebar divider only while resizing", () => {
+    render(<HomePage />);
+
+    const handle = screen.getByTestId("sidebar-panel-resize-handle");
+    expect(
+      screen.queryByTestId("sidebar-panel-resize-divider"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.pointerDown(handle, { pointerId: 1, button: 0 });
+
+    expect(screen.getByTestId("sidebar-panel-resize-divider")).toHaveStyle({
+      width: "3px",
+      backgroundColor: "var(--border-color)",
+    });
+
+    fireEvent.pointerUp(handle, { pointerId: 1 });
+
+    expect(
+      screen.queryByTestId("sidebar-panel-resize-divider"),
+    ).not.toBeInTheDocument();
   });
 
   it("renders the diff popup through the Radix dialog root", () => {
