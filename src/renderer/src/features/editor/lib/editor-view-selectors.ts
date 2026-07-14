@@ -1,4 +1,5 @@
 import type { EditorLoadStatus, EditorState } from "@/store/editor.store";
+import { matchesEditorDocumentPath } from "./editor-document-path";
 
 export interface RichDocumentRepresentative {
   path: string;
@@ -16,8 +17,7 @@ export function selectRichDocumentRepresentative(path: string) {
       .flatMap((group) => group.tabs)
       .find(
         (tab) =>
-          tab.mode === "rich" &&
-          tab.filePath?.replaceAll("\\", "/") === normalizedPath,
+          tab.mode === "rich" && matchesEditorDocumentPath(tab, normalizedPath),
       );
 
     if (!representative) {

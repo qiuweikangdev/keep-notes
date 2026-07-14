@@ -89,6 +89,26 @@ describe("EditorWorkspace split rich editor mount", () => {
     );
   });
 
+  it("mounts an editable rich pane for an unnamed tab", () => {
+    useEditorStore.setState({
+      activeGroupId: "group-1",
+      panelGroups: [
+        {
+          id: "group-1",
+          activeTabId: "tab-untitled",
+          direction: "horizontal",
+          tabs: [createTab("tab-untitled", null, "")],
+        },
+      ],
+    });
+
+    render(<EditorWorkspace groupId="group-1" tabId="tab-untitled" />);
+
+    expect(screen.getByTestId("rich-document-pane")).toHaveTextContent(
+      "group-1:tab-untitled:keep-notes-untitled://tab-untitled",
+    );
+  });
+
   it("keeps the current rich pane mounted while the next file is loading", () => {
     useEditorStore.setState((state) => ({
       panelGroups: state.panelGroups.map((group) =>
@@ -122,7 +142,7 @@ function createLargeContent() {
   return `# Large\n${"content line\n".repeat(900)}`;
 }
 
-function createTab(id: string, filePath: string, content: string) {
+function createTab(id: string, filePath: string | null, content: string) {
   return {
     id,
     filePath,

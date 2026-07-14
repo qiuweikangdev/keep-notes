@@ -18,6 +18,7 @@ const electronMocks = vi.hoisted(() => ({
   getFileHeadContent: vi.fn(),
   getGitStatus: vi.fn(),
   loadTree: vi.fn(),
+  openInExplorer: vi.fn(),
 }));
 
 const diffStoreMock = vi.hoisted(() => ({
@@ -228,6 +229,56 @@ describe("EditorToolbar diff action", () => {
     expect(onNewTab).toHaveBeenCalledTimes(1);
   });
 
+  it("reveals the current file from the tab action menu", async () => {
+    renderToolbar();
+
+    await screen.findByRole("button", { name: "标签页操作" });
+    openActionMenu();
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "在资源管理器中显示" }),
+    );
+
+    expect(electronMocks.openInExplorer).toHaveBeenCalledWith(
+      "/notes/readme.md",
+    );
+  });
+
+  it("switches the current tab to Markdown source mode from the menu", async () => {
+    renderToolbar();
+
+    await screen.findByRole("button", { name: "标签页操作" });
+    openActionMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "编辑模式切换" }));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().panelGroups[0].tabs[0].mode).toBe(
+        "source",
+      );
+    });
+  });
+
+  it("hides the file-manager action for an unnamed tab", async () => {
+    useEditorStore.setState((state) => ({
+      panelGroups: state.panelGroups.map((group) => ({
+        ...group,
+        tabs: group.tabs.map((tab) =>
+          tab.id === group.activeTabId ? { ...tab, filePath: null } : tab,
+        ),
+      })),
+    }));
+    renderToolbar();
+
+    await screen.findByRole("button", { name: "标签页操作" });
+    openActionMenu();
+
+    expect(
+      screen.queryByRole("menuitem", { name: "在资源管理器中显示" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: "编辑模式切换" }),
+    ).toBeInTheDocument();
+  });
+
   it("orders common actions first and git actions last", async () => {
     renderToolbar();
 
@@ -238,6 +289,8 @@ describe("EditorToolbar diff action", () => {
       screen.getAllByRole("menuitem").map((item) => item.textContent),
     ).toEqual([
       "新建标签页",
+      "在资源管理器中显示",
+      "编辑模式切换",
       "向右拆分面板",
       "向下拆分面板",
       "比较差异",
@@ -267,6 +320,12 @@ describe("EditorToolbar diff action", () => {
     ).not.toBeInTheDocument();
     expect(
       screen.getAllByRole("menuitem").map((item) => item.textContent),
-    ).toEqual(["新建标签页", "向右拆分面板", "向下拆分面板"]);
+    ).toEqual([
+      "新建标签页",
+      "在资源管理器中显示",
+      "编辑模式切换",
+      "向右拆分面板",
+      "向下拆分面板",
+    ]);
   });
 });

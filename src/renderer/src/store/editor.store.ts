@@ -231,7 +231,8 @@ const createDefaultTab = (filePath?: string | null): EditorTab => ({
   isDirty: false,
   reloadKey: 0,
   mode: "rich",
-  loadStatus: filePath ? "loading" : "idle",
+  // 未命名文档无需读取磁盘，可直接创建富文本会话。
+  loadStatus: filePath ? "loading" : "ready",
   saveStatus: "clean",
   errorMessage: null,
   parseErrorMessage: null,

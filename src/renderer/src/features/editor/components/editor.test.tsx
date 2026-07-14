@@ -237,6 +237,25 @@ afterEach(() => {
 });
 
 describe("Editor split panels", () => {
+  it("keeps the tab action bar visible when the last tab is closed", () => {
+    useEditorStore.setState({
+      panelGroups: [
+        {
+          id: "group-1",
+          activeTabId: "",
+          direction: "horizontal",
+          tabs: [],
+        },
+      ],
+      activeGroupId: "group-1",
+    });
+
+    render(<Editor />);
+
+    expect(screen.getByText("tab-bar-group-1")).toBeInTheDocument();
+    expect(screen.getByText("没有打开的文件")).toBeInTheDocument();
+  });
+
   it.each([2, 3, 6])(
     "shares one session host across %i same-path rich panes",
     (panelCount) => {

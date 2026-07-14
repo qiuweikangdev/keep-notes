@@ -29,6 +29,10 @@ import {
   observeEditorLongTasks,
 } from "../lib/editor-performance";
 import { normalizeRichDocumentPath } from "../lib/rich-document-surface-registry";
+import {
+  getEditorDocumentPath,
+  matchesEditorDocumentPath,
+} from "../lib/editor-document-path";
 
 // 支持的文件扩展名
 const SUPPORTED_EXTENSIONS = [".md", ".txt"];
@@ -59,20 +63,17 @@ function readEditorPerformanceContext() {
   const activeTab = activeGroup?.tabs.find(
     (tab) => tab.id === activeGroup.activeTabId,
   );
-  const activePath = activeTab?.filePath
-    ? normalizeRichDocumentPath(activeTab.filePath)
-    : null;
+  const activePath =
+    activeTab?.mode === "rich"
+      ? normalizeRichDocumentPath(getEditorDocumentPath(activeTab))
+      : null;
   let visiblePaneCount = 0;
   if (activePath) {
     for (const group of state.panelGroups) {
       const tab = group.tabs.find(
         (candidate) => candidate.id === group.activeTabId,
       );
-      if (
-        tab?.mode === "rich" &&
-        tab.filePath &&
-        normalizeRichDocumentPath(tab.filePath) === activePath
-      ) {
+      if (tab?.mode === "rich" && matchesEditorDocumentPath(tab, activePath)) {
         visiblePaneCount += 1;
       }
     }
@@ -288,6 +289,7 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
   if (!group.activeTabId || group.tabs.length === 0) {
     return (
       <div className="flex flex-col h-full overflow-hidden relative">
+        <EditorTabBar groupId={groupId} />
         <div
           className="flex-1 flex items-center justify-center relative"
           style={{ backgroundColor: "var(--bg-primary)" }}

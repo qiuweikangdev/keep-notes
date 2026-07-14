@@ -32,6 +32,10 @@ import { useTheme } from "@/hooks/use-theme";
 import { useEditorStore, type EditorState } from "@/store/editor.store";
 import { useTreeStore } from "@/store/tree.store";
 import { editorCache, richPaneViewStateRegistry } from "../lib/editor-runtime";
+import {
+  isUntitledDocumentPath,
+  matchesEditorDocumentPath,
+} from "../lib/editor-document-path";
 import type { RichDocumentRuntime } from "../lib/rich-document-session-manager";
 import type { RichPreviewAnchor } from "../lib/rich-preview-anchor";
 import { RichPreviewCache } from "../lib/rich-preview-cache";
@@ -243,8 +247,7 @@ function getActiveScrollOwner(
   if (
     !group ||
     tab?.mode !== "rich" ||
-    !tab.filePath ||
-    normalizeRichDocumentPath(tab.filePath) !== normalizedPath
+    !matchesEditorDocumentPath(tab, normalizedPath)
   ) {
     return null;
   }
@@ -270,7 +273,7 @@ function persistRichPaneScroll(
     store.setTabScrollTop(owner.groupId, owner.tabId, scrollTop);
     return;
   }
-  if (!tab.filePath || normalizeRichDocumentPath(tab.filePath) !== owner.path) {
+  if (!matchesEditorDocumentPath(tab, owner.path)) {
     return;
   }
 
@@ -1089,6 +1092,7 @@ export async function uploadEditorImageFileAsAttachment(
 
 function BlockNoteEditorInner(props: BlockNoteEditorInnerProps) {
   const { editorOwnerKey, path } = props;
+  const storedFilePath = path && !isUntitledDocumentPath(path) ? path : null;
   const workspaceRootPath = useTreeStore(
     (state) => state.treeRoot?.key ?? null,
   );
@@ -1108,7 +1112,7 @@ function BlockNoteEditorInner(props: BlockNoteEditorInnerProps) {
     async (file: File, blockId?: string) =>
       uploadEditorImageFileAsAttachment(file, {
         getWorkspaceRootPath: () => workspaceRootPath,
-        getMarkdownFilePath: () => path,
+        getMarkdownFilePath: () => storedFilePath,
         saveImageAttachment: window.electronAPI.saveImageAttachment,
         moveCursorAfterUpload: () => {
           window.setTimeout(() => {
@@ -1116,11 +1120,12 @@ function BlockNoteEditorInner(props: BlockNoteEditorInnerProps) {
           }, 0);
         },
       }),
-    [path, workspaceRootPath],
+    [storedFilePath, workspaceRootPath],
   );
   const resolveEditorFileUrl = useCallback(
-    (url: string) => loadEditorImageUrl(resolveEditorImageUrl(url, path)),
-    [loadEditorImageUrl, path],
+    (url: string) =>
+      loadEditorImageUrl(resolveEditorImageUrl(url, storedFilePath)),
+    [loadEditorImageUrl, storedFilePath],
   );
 
   useLayoutEffect(() => {
@@ -1536,9 +1541,7 @@ function MountedBlockNoteEditor({
             .panelGroups.some((group) =>
               group.tabs.some(
                 (tab) =>
-                  tab.filePath !== null &&
-                  normalizeRichDocumentPath(tab.filePath) ===
-                    normalizedRuntimePath &&
+                  matchesEditorDocumentPath(tab, normalizedRuntimePath) &&
                   tab.isDirty,
               ),
             ),
@@ -1548,9 +1551,7 @@ function MountedBlockNoteEditor({
             .panelGroups.some((group) =>
               group.tabs.some(
                 (tab) =>
-                  tab.filePath !== null &&
-                  normalizeRichDocumentPath(tab.filePath) ===
-                    normalizedRuntimePath &&
+                  matchesEditorDocumentPath(tab, normalizedRuntimePath) &&
                   tab.saveStatus === "saving",
               ),
             ),
@@ -1560,9 +1561,7 @@ function MountedBlockNoteEditor({
             .panelGroups.some((group) =>
               group.tabs.some(
                 (tab) =>
-                  tab.filePath !== null &&
-                  normalizeRichDocumentPath(tab.filePath) ===
-                    normalizedRuntimePath &&
+                  matchesEditorDocumentPath(tab, normalizedRuntimePath) &&
                   tab.loadStatus === "loading",
               ),
             ),

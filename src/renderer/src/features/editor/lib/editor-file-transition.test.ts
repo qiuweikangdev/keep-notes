@@ -33,6 +33,17 @@ describe("editor file transition", () => {
     });
   });
 
+  it("preserves an explicitly selected source mode when opening a file", () => {
+    const unnamed = {
+      ...createTab(),
+      filePath: null,
+      mode: "source" as const,
+      loadStatus: "ready" as const,
+    };
+
+    expect(beginFileTransition(unnamed, "notes.md").mode).toBe("source");
+  });
+
   it("resets scroll offset when the current file is refreshed externally", () => {
     const current = { ...createTab(), scrollTop: 320 };
     const completed = completeFileTransition(current, "a.md", "# A updated");

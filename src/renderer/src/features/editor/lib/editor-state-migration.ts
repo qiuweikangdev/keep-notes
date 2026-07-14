@@ -87,7 +87,7 @@ export function normalizePersistedPanelGroups(
       pendingFilePath: tab.pendingFilePath ?? null,
       mode: tab.mode ?? "rich",
       // 旧标签页已经携带内容，恢复后应直接可编辑，不能停在 loading。
-      loadStatus: tab.loadStatus ?? (tab.filePath ? "ready" : "idle"),
+      loadStatus: tab.filePath ? (tab.loadStatus ?? "ready") : "ready",
       saveStatus: tab.saveStatus ?? (tab.isDirty ? "dirty" : "clean"),
       errorMessage: tab.errorMessage ?? null,
       parseErrorMessage: tab.parseErrorMessage ?? null,

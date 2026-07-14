@@ -13,6 +13,7 @@ import {
 } from "../lib/editor-runtime";
 import * as editorRuntime from "../lib/editor-runtime";
 import { scrollEditorOutlineBlock } from "../lib/editor-outline-navigation";
+import { getEditorDocumentPath } from "../lib/editor-document-path";
 import { RichDocumentSessionHost } from "./rich-document-session-host";
 
 const sessionMocks = vi.hoisted(() => ({
@@ -132,6 +133,44 @@ afterEach(() => {
 });
 
 describe("RichDocumentSessionHost", () => {
+  it("edits an unnamed rich document without file watching or disk saves", () => {
+    const tab = createTab("tab-untitled", null);
+    tab.content = "";
+    tab.reloadKey = 0;
+    const path = getEditorDocumentPath(tab);
+    const scheduleSave = vi.spyOn(editorSaveCoordinator, "schedule");
+    useEditorStore.setState({
+      activeGroupId: "group-1",
+      panelGroups: [
+        {
+          id: "group-1",
+          activeTabId: tab.id,
+          direction: "horizontal",
+          tabs: [tab],
+        },
+      ],
+    });
+    const release = richDocumentSessionManager.retainVisible(path, {
+      paneKey: "group-1:tab-untitled",
+      groupId: "group-1",
+      tabId: tab.id,
+    });
+
+    render(<RichDocumentSessionHost path={path} />);
+    act(() => {
+      sessionMocks.controller?.onMarkdownChange("# Draft");
+    });
+
+    expect(useEditorStore.getState().panelGroups[0].tabs[0]).toMatchObject({
+      content: "# Draft",
+      isDirty: true,
+    });
+    expect(window.electronAPI.watchFile).not.toHaveBeenCalled();
+    expect(scheduleSave).not.toHaveBeenCalled();
+
+    release();
+  });
+
   it("keeps one I/O path identity when the surviving mixed-slash binding changes", async () => {
     const path = "C:/notes/shared.md";
     const windowsPath = "C:\\notes\\shared.md";
@@ -742,7 +781,10 @@ function createGroups(path: string): EditorPanelGroup[] {
   ];
 }
 
-function createTab(id: string, path: string): EditorPanelGroup["tabs"][number] {
+function createTab(
+  id: string,
+  path: string | null,
+): EditorPanelGroup["tabs"][number] {
   return {
     id,
     filePath: path,

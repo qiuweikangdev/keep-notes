@@ -35,6 +35,33 @@ describe("normalizePersistedPanelGroups", () => {
       scrollTop: 0,
     });
   });
+
+  it("marks a legacy unnamed rich tab ready for editing", () => {
+    const groups = normalizePersistedPanelGroups([
+      {
+        id: "group-1",
+        activeTabId: "tab-1",
+        direction: "horizontal",
+        tabs: [
+          {
+            id: "tab-1",
+            filePath: null,
+            content: "draft",
+            wordCount: 5,
+            isDirty: true,
+            reloadKey: 0,
+            mode: "rich",
+            loadStatus: "idle",
+          },
+        ],
+      },
+    ]);
+
+    expect(groups[0].tabs[0]).toMatchObject({
+      mode: "rich",
+      loadStatus: "ready",
+    });
+  });
 });
 
 describe("normalizePersistedAppearance", () => {

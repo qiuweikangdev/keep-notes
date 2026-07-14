@@ -70,6 +70,20 @@ describe("editor store", () => {
     expect(tab?.saveStatus).toBe("clean");
   });
 
+  it("creates unnamed tabs in an immediately editable rich mode", () => {
+    const tabId = useEditorStore.getState().addTab("group-1");
+    const tab = useEditorStore
+      .getState()
+      .panelGroups[0].tabs.find((item) => item.id === tabId);
+
+    expect(tab).toMatchObject({
+      filePath: null,
+      content: "",
+      mode: "rich",
+      loadStatus: "ready",
+    });
+  });
+
   it("keeps outline heading state stable when extracted headings are unchanged", () => {
     const headings = [
       { id: "heading-1", text: "Intro", level: 1 },

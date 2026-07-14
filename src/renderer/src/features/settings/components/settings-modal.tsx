@@ -347,21 +347,6 @@ export function SettingsModal() {
               </SettingRow>
             </div>
 
-            {/* 编辑模式切换 */}
-            <div style={{ borderBottom: "1px solid var(--border-color)" }}>
-              <SettingRow
-                label="编辑模式切换"
-                description="在编辑器标签栏显示富文本与 Markdown 源码切换按钮"
-              >
-                <Switch
-                  checked={appearance.showModeSwitcher}
-                  onCheckedChange={(checked) =>
-                    setAppearance({ showModeSwitcher: checked })
-                  }
-                />
-              </SettingRow>
-            </div>
-
             {/* 底部操作栏悬停显示 */}
             <div style={{ borderBottom: "1px solid var(--border-color)" }}>
               <SettingRow

@@ -294,20 +294,18 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
         })}
       </div>
 
-      {/* 操作按钮区域 - 仅在有标签页时显示 */}
-      {group.tabs.length > 0 && (
-        <div
-          className="flex h-full flex-shrink-0 items-center gap-1 px-1"
-          style={{ borderLeft: "1px solid var(--border-color)" }}
-        >
-          <EditorToolbar
-            groupId={groupId}
-            onNewTab={handleNewTab}
-            onSplitRight={handleSplitRight}
-            onSplitDown={handleSplitDown}
-          />
-        </div>
-      )}
+      {/* 空面板也保留标签页操作入口，用户可随时创建未命名标签页。 */}
+      <div
+        className="flex h-full flex-shrink-0 items-center gap-1 px-1"
+        style={{ borderLeft: "1px solid var(--border-color)" }}
+      >
+        <EditorToolbar
+          groupId={groupId}
+          onNewTab={handleNewTab}
+          onSplitRight={handleSplitRight}
+          onSplitDown={handleSplitDown}
+        />
+      </div>
 
       {/* 右键菜单 */}
       {contextMenu && (

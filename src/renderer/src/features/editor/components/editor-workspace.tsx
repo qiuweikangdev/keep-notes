@@ -17,6 +17,7 @@ import {
 import { selectEditorWorkspaceSignature } from "../lib/editor-view-selectors";
 import { shouldApplyExternalFileChange } from "../lib/editor-external-change";
 import { repairMarkdownSourceBeforeParse } from "../lib/markdown";
+import { getEditorDocumentPath } from "../lib/editor-document-path";
 import {
   findTextMatches,
   getSteppedMatchIndex,
@@ -65,6 +66,7 @@ export function EditorWorkspace({
   const tabResetKey = tab
     ? (tab.pendingFilePath ?? tab.filePath ?? tab.id)
     : null;
+  const tabDocumentPath = tab ? getEditorDocumentPath(tab) : null;
   const getCurrentTab = useCallback(
     () =>
       useEditorStore
@@ -375,11 +377,11 @@ export function EditorWorkspace({
               />
             </div>
           </div>
-        ) : tabFilePath ? (
+        ) : tabDocumentPath ? (
           <RichDocumentPane
             groupId={groupId}
             tabId={tabId}
-            path={tabFilePath}
+            path={tabDocumentPath}
           />
         ) : (
           <EditorStateView status="empty" />

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  Code2,
-  FileText,
+  ArrowLeftRight,
+  FolderSearch,
   GitCompare,
   MoreHorizontal,
   Plus,
@@ -17,6 +17,7 @@ import { useDiffStore } from "@/store/diff.store";
 import { useEditorStore, type EditorMode } from "@/store/editor.store";
 import { useTreeStore } from "@/store/tree.store";
 import { CodeResult } from "@/types";
+import { getRevealInFileManagerLabel } from "@/features/file-tree/utils";
 import {
   showNoDiffChangesToast,
   showNoDiffContentToast,
@@ -54,9 +55,6 @@ export function EditorToolbar({
     );
   }, [groupId]);
   const repositoryRoot = useTreeStore((state) => state.treeRoot?.key ?? null);
-  const showModeSwitcher = useEditorStore(
-    (state) => state.appearance.showModeSwitcher,
-  );
   const setTabMode = useEditorStore((state) => state.setTabMode);
   const setTabParseError = useEditorStore((state) => state.setTabParseError);
   const openDiff = useDiffStore((state) => state.openDiff);
@@ -68,9 +66,13 @@ export function EditorToolbar({
     getFileHeadContent,
     getGitStatus,
     loadTree,
+    openInExplorer,
   } = useElectron();
   const [isGitRepo, setIsGitRepo] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const revealInFileManagerLabel = getRevealInFileManagerLabel(
+    window.electronAPI?.getPlatform?.(),
+  );
 
   useEffect(() => {
     let active = true;
@@ -166,6 +168,18 @@ export function EditorToolbar({
     updateContent,
   ]);
 
+  const handleRevealInFileManager = useCallback(() => {
+    const currentTab = getActiveTab();
+    if (!currentTab?.filePath || currentTab.pendingFilePath) return;
+    void openInExplorer(currentTab.filePath);
+  }, [getActiveTab, openInExplorer]);
+
+  const handleModeToggle = useCallback(() => {
+    const currentTab = getActiveTab();
+    if (!currentTab) return;
+    void handleModeChange(currentTab.mode === "rich" ? "source" : "rich");
+  }, [getActiveTab, handleModeChange]);
+
   const handleDiscard = useCallback(async () => {
     const currentTab = getActiveTab();
     if (!currentTab?.filePath || !repositoryRoot) return;
@@ -193,31 +207,11 @@ export function EditorToolbar({
     repositoryRoot,
   ]);
 
-  if (!tab) return null;
-
   const showGitActions =
-    isGitRepo && Boolean(tab.filePath && !tab.pendingFilePath);
+    isGitRepo && Boolean(tab?.filePath && !tab.pendingFilePath);
 
   return (
     <>
-      {showModeSwitcher ? (
-        <div className="flex rounded-md bg-[var(--bg-tertiary)] p-0.5">
-          <ModeButton
-            active={tab.mode === "rich"}
-            icon={<FileText className="h-3.5 w-3.5" />}
-            onClick={() => void handleModeChange("rich")}
-          >
-            富文本
-          </ModeButton>
-          <ModeButton
-            active={tab.mode === "source"}
-            icon={<Code2 className="h-3.5 w-3.5" />}
-            onClick={() => void handleModeChange("source")}
-          >
-            源码
-          </ModeButton>
-        </div>
-      ) : null}
       <DropdownMenu.Root modal={false}>
         <DropdownMenu.Trigger asChild>
           <button
@@ -245,6 +239,26 @@ export function EditorToolbar({
             >
               新建标签页
             </EditorActionMenuItem>
+            {tab?.filePath && !tab.pendingFilePath ? (
+              <EditorActionMenuItem
+                icon={<FolderSearch className="h-3.5 w-3.5" />}
+                onSelect={handleRevealInFileManager}
+              >
+                {revealInFileManagerLabel}
+              </EditorActionMenuItem>
+            ) : null}
+            {tab ? (
+              <>
+                <DropdownMenu.Separator className="my-1 h-px bg-[var(--border-color)]" />
+                <EditorActionMenuItem
+                  icon={<ArrowLeftRight className="h-3.5 w-3.5" />}
+                  onSelect={handleModeToggle}
+                >
+                  编辑模式切换
+                </EditorActionMenuItem>
+              </>
+            ) : null}
+            <DropdownMenu.Separator className="my-1 h-px bg-[var(--border-color)]" />
             <EditorActionMenuItem
               icon={<SplitSquareHorizontal className="h-3.5 w-3.5" />}
               onSelect={onSplitRight}
@@ -281,7 +295,7 @@ export function EditorToolbar({
         open={confirmDiscard}
         onOpenChange={setConfirmDiscard}
         title="确认放弃更改"
-        description={`确定要放弃 "${tab.filePath?.split(/[\\/]/).pop() ?? "当前文件"}" 的更改吗？`}
+        description={`确定要放弃 "${tab?.filePath?.split(/[\\/]/).pop() ?? "当前文件"}" 的更改吗？`}
         confirmText="确定"
         onConfirm={handleDiscard}
       />
@@ -313,34 +327,5 @@ function EditorActionMenuItem({
       <span className="flex h-4 w-4 items-center justify-center">{icon}</span>
       <span>{children}</span>
     </DropdownMenu.Item>
-  );
-}
-
-function ModeButton({
-  active,
-  icon,
-  children,
-  onClick,
-}: {
-  active: boolean;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className="flex items-center gap-1.5 rounded px-2 py-1 text-[11px]"
-      aria-pressed={active}
-      style={{
-        backgroundColor: active ? "var(--bg-primary)" : "transparent",
-        color: active ? "var(--text-primary)" : "var(--text-muted)",
-        boxShadow: active ? "0 1px 2px rgba(0, 0, 0, 0.08)" : "none",
-      }}
-      onClick={onClick}
-    >
-      {icon}
-      {children}
-    </button>
   );
 }
