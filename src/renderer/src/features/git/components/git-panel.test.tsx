@@ -48,7 +48,8 @@ vi.mock("@/hooks/use-electron", () => ({
 }));
 
 vi.mock("@/store/tree.store", () => ({
-  useTreeStore: () => treeStoreMock,
+  useTreeStore: <T,>(selector: (state: typeof treeStoreMock) => T) =>
+    selector(treeStoreMock),
 }));
 
 vi.mock("@/store/editor.store", () => ({
@@ -61,7 +62,8 @@ vi.mock("@/store/editor.store", () => ({
 }));
 
 vi.mock("@/store/diff.store", () => ({
-  useDiffStore: () => diffStoreMock,
+  useDiffStore: <T,>(selector: (state: typeof diffStoreMock) => T) =>
+    selector(diffStoreMock),
 }));
 
 describe("GitPanel", () => {
@@ -165,6 +167,23 @@ describe("GitPanel", () => {
     cleanup();
   });
 
+  it("renders at the document root above body-mounted editor surfaces", async () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const { unmount } = render(<GitPanel isOpen onClose={vi.fn()} />, {
+      container,
+    });
+
+    try {
+      await screen.findByText("changed.md");
+
+      expect(container).toBeEmptyDOMElement();
+    } finally {
+      unmount();
+      container.remove();
+    }
+  });
+
   it("keeps the Git panel open when the discard confirmation dialog closes", async () => {
     const onClose = vi.fn();
     render(<GitPanel isOpen onClose={onClose} />);
@@ -173,7 +192,7 @@ describe("GitPanel", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "提交" })).not.toBeDisabled();
     });
-    fireEvent.click(screen.getAllByTitle("放弃更改")[0]);
+    fireEvent.click(screen.getAllByLabelText("放弃更改")[0]);
 
     expect(await screen.findByText("确认放弃更改")).toBeInTheDocument();
 
@@ -224,10 +243,10 @@ describe("GitPanel", () => {
     await screen.findByText("changed.md");
 
     expect(screen.getByTitle("切换分支")).toBeInTheDocument();
-    expect(screen.getByTitle("创建新分支")).toBeInTheDocument();
+    expect(screen.getByLabelText("创建新分支")).toBeInTheDocument();
     expect(screen.getByTitle("切换为树形视图")).toBeInTheDocument();
-    expect(screen.getByTitle("全部暂存")).toBeInTheDocument();
-    expect(screen.getByTitle("全部暂存").parentElement).toHaveClass(
+    expect(screen.getByLabelText("全部暂存")).toBeInTheDocument();
+    expect(screen.getByLabelText("全部暂存").parentElement).toHaveClass(
       "git-panel-tooltip--align-end",
     );
     expect(
@@ -235,15 +254,15 @@ describe("GitPanel", () => {
         .getByRole("button", { name: "收起更改" })
         .closest(".overflow-x-hidden"),
     ).toBeInTheDocument();
-    expect(screen.getAllByTitle("查看差异").length).toBeGreaterThan(0);
-    expect(screen.getAllByTitle("打开文件").length).toBeGreaterThan(0);
-    expect(screen.getAllByTitle("放弃更改").length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText("查看差异").length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText("打开文件").length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText("放弃更改").length).toBeGreaterThan(0);
     await user.hover(screen.getByTitle("切换为树形视图"));
     await expectTooltipContent("切换为树形视图");
     await user.unhover(screen.getByTitle("切换为树形视图"));
 
     await user.hover(screen.getByText("changed.md"));
-    await user.hover(screen.getAllByTitle("查看差异")[0]);
+    await user.hover(screen.getAllByLabelText("查看差异")[0]);
     await expectTooltipContent("查看差异");
 
     expect(
@@ -274,10 +293,10 @@ describe("GitPanel", () => {
 
     await screen.findByText("changed.md");
 
-    expect(screen.getByTitle("取消暂存所有更改")).toBeInTheDocument();
-    expect(screen.getByTitle("放弃所有更改")).toBeInTheDocument();
+    expect(screen.getByLabelText("取消暂存所有更改")).toBeInTheDocument();
+    expect(screen.getByLabelText("放弃所有更改")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTitle("放弃所有更改"));
+    fireEvent.click(screen.getByLabelText("放弃所有更改"));
     expect(await screen.findByText("确认放弃更改")).toBeInTheDocument();
     expect(screen.getByText("确定要放弃所有更改吗？")).toBeInTheDocument();
 

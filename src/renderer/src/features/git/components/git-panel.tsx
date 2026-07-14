@@ -5,6 +5,7 @@ import {
   useMemo,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { useElectron } from "@/hooks/use-electron";
 import { useTreeStore } from "@/store/tree.store";
 import { useEditorStore } from "@/store/editor.store";
@@ -1481,7 +1482,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
   if (!isOpen) return null;
 
   if (!isGitRepo) {
-    return (
+    return createPortal(
       <div
         className="fixed inset-0 z-50 flex items-center justify-center"
         style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
@@ -1531,11 +1532,12 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             </p>
           </div>
         </div>
-      </div>
+      </div>,
+      document.body,
     );
   }
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
       style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
@@ -1996,6 +1998,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         confirmText="确定"
         onConfirm={confirmDiscardChanges}
       />
-    </div>
+    </div>,
+    document.body,
   );
 }
