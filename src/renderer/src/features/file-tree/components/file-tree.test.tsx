@@ -106,6 +106,9 @@ describe("FileTree context menu", () => {
     expect(
       container.querySelector(".file-tree-scroll-container"),
     ).toBeInTheDocument();
+    expect(
+      container.querySelector(".file-tree-scrollbar-thumb"),
+    ).toBeInTheDocument();
   });
 
   it("shows an export action from the virtualized file node menu", async () => {

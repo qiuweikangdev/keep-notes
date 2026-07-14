@@ -9,9 +9,9 @@ const stylesheet = readFileSync(
 );
 
 describe("global scrollbar styles", () => {
-  it("animates the file tree scrollbar width when hover state changes", () => {
+  it("fades out the file tree scrollbar after hover ends", () => {
     expect(stylesheet).toMatch(
-      /\.file-tree-scroll-container::-webkit-scrollbar\s*\{[\s\S]*transition:\s*width\s+160ms\s+ease,\s*height\s+160ms\s+ease;/,
+      /\.file-tree-scrollbar-thumb\s*\{[\s\S]*transition:\s*opacity\s+240ms\s+ease;/,
     );
   });
 });

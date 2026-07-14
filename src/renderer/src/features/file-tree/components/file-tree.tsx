@@ -1102,6 +1102,7 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
   openCreateReminder,
 }: VirtualizedTreeListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
+  const scrollbarThumbRef = useRef<HTMLDivElement>(null);
   const rows = useMemo(
     () => buildFileTreeRows(flatNodes, creatingInfo?.parentKey),
     [creatingInfo?.parentKey, flatNodes],
@@ -1158,64 +1159,112 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
     return () => cancelAnimationFrame(frame);
   }, [creatingRowIndex, virtualizer]);
 
-  return (
-    <div
-      ref={parentRef}
-      className="file-tree-scroll-container min-h-0 flex-1 overflow-auto"
-      style={{
-        contain: "layout paint style",
-        overflowAnchor: "none",
-      }}
-    >
-      <div
-        style={{
-          height: `${virtualizer.getTotalSize()}px`,
-          width: "100%",
-          position: "relative",
-        }}
-      >
-        {virtualizer.getVirtualItems().map((virtualItem) => {
-          const row = rows[virtualItem.index];
-          if (!row) return null;
+  const syncScrollbarThumb = useCallback(() => {
+    const container = parentRef.current;
+    const thumb = scrollbarThumbRef.current;
+    if (!container || !thumb) return;
 
-          if (row.type === "create") {
-            if (!creatingInfo || row.parentKey !== creatingInfo.parentKey) {
-              return null;
+    const { clientHeight, scrollHeight, scrollTop } = container;
+    const scrollableHeight = scrollHeight - clientHeight;
+    if (scrollableHeight <= 0) {
+      thumb.hidden = true;
+      return;
+    }
+
+    // 按内容与视口比例同步覆盖式滚动条，避免滚动事件触发 React 重渲。
+    const thumbHeight = Math.max(
+      24,
+      (clientHeight * clientHeight) / scrollHeight,
+    );
+    const maxThumbOffset = clientHeight - thumbHeight;
+    const thumbOffset = (scrollTop / scrollableHeight) * maxThumbOffset;
+
+    thumb.hidden = false;
+    thumb.style.height = `${thumbHeight}px`;
+    thumb.style.transform = `translateY(${thumbOffset}px)`;
+  }, []);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(syncScrollbarThumb);
+    return () => cancelAnimationFrame(frame);
+  }, [rows.length, syncScrollbarThumb]);
+
+  useEffect(() => {
+    const container = parentRef.current;
+    if (!container || typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver(syncScrollbarThumb);
+    observer.observe(container);
+
+    return () => observer.disconnect();
+  }, [syncScrollbarThumb]);
+
+  return (
+    <div className="file-tree-scroll-shell group relative min-h-0 flex-1">
+      <div
+        ref={parentRef}
+        className="file-tree-scroll-container h-full overflow-auto"
+        style={{
+          contain: "layout paint style",
+          overflowAnchor: "none",
+        }}
+        onScroll={syncScrollbarThumb}
+      >
+        <div
+          style={{
+            height: `${virtualizer.getTotalSize()}px`,
+            width: "100%",
+            position: "relative",
+          }}
+        >
+          {virtualizer.getVirtualItems().map((virtualItem) => {
+            const row = rows[virtualItem.index];
+            if (!row) return null;
+
+            if (row.type === "create") {
+              if (!creatingInfo || row.parentKey !== creatingInfo.parentKey) {
+                return null;
+              }
+
+              return (
+                <CreateInput
+                  key={row.key}
+                  creatingInfo={creatingInfo}
+                  parentKey={row.parentKey}
+                  top={virtualItem.start}
+                  onCreated={onNodeCreated}
+                  onCancel={() => onCreateInFolder("", "file", 0)}
+                />
+              );
             }
 
+            const flatNode = row.node;
+
             return (
-              <CreateInput
-                key={row.key}
-                creatingInfo={creatingInfo}
-                parentKey={row.parentKey}
-                top={virtualItem.start}
-                onCreated={onNodeCreated}
-                onCancel={() => onCreateInFolder("", "file", 0)}
+              <VirtualTreeNode
+                key={flatNode.key}
+                flatNode={flatNode}
+                size={virtualItem.size}
+                start={virtualItem.start}
+                isSelected={selectedKey === flatNode.key}
+                onClick={onClick}
+                onCreateInFolder={onCreateInFolder}
+                onDeleteNode={onDeleteNode}
+                openFile={openFile}
+                openInExplorer={openInExplorer}
+                copyPath={copyPath}
+                openInNewWindow={openInNewWindow}
+                openCreateReminder={openCreateReminder}
               />
             );
-          }
-
-          const flatNode = row.node;
-
-          return (
-            <VirtualTreeNode
-              key={flatNode.key}
-              flatNode={flatNode}
-              size={virtualItem.size}
-              start={virtualItem.start}
-              isSelected={selectedKey === flatNode.key}
-              onClick={onClick}
-              onCreateInFolder={onCreateInFolder}
-              onDeleteNode={onDeleteNode}
-              openFile={openFile}
-              openInExplorer={openInExplorer}
-              copyPath={copyPath}
-              openInNewWindow={openInNewWindow}
-              openCreateReminder={openCreateReminder}
-            />
-          );
-        })}
+          })}
+        </div>
       </div>
+      <div
+        ref={scrollbarThumbRef}
+        aria-hidden="true"
+        className="file-tree-scrollbar-thumb"
+      />
     </div>
   );
 });

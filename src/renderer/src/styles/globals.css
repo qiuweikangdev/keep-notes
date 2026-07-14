@@ -541,14 +541,35 @@ button:focus-visible {
 .file-tree-scroll-container::-webkit-scrollbar {
   width: 0;
   height: 0;
-  transition:
-    width 160ms ease,
-    height 160ms ease;
 }
 
-.file-tree-scroll-container:hover::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+.file-tree-scroll-container {
+  scrollbar-width: none;
+}
+
+.file-tree-scrollbar-thumb {
+  position: absolute;
+  top: 0;
+  right: 2px;
+  width: 4px;
+  min-height: 24px;
+  border-radius: 999px;
+  background-color: rgba(0, 0, 0, 0.2);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 240ms ease;
+  will-change: opacity, transform;
+}
+
+.file-tree-scroll-shell:hover .file-tree-scrollbar-thumb {
+  opacity: 1;
+}
+
+.dark .file-tree-scrollbar-thumb,
+.nord .file-tree-scrollbar-thumb,
+.dracula .file-tree-scrollbar-thumb,
+.solarized .file-tree-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.14);
 }
 
 ::-webkit-scrollbar {
