@@ -72,7 +72,7 @@ function getDisplayDirectory(filePath: string, rootPath?: string): string {
   if (!parentPath.startsWith(normalizedRootPath)) return parentPath;
 
   const relativePath = parentPath.slice(normalizedRootPath.length);
-  return relativePath.replace(/^\//, "") || ".";
+  return relativePath.replace(/^\//, "");
 }
 
 function getRecentOpenedFiles(
@@ -395,9 +395,11 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                   <span className="min-w-0 flex-1 truncate font-medium">
                     {result.title}
                   </span>
-                  <span className="min-w-[120px] max-w-[240px] truncate text-right text-xs text-[var(--text-muted)]">
-                    {result.subtitle}
-                  </span>
+                  {result.subtitle ? (
+                    <span className="min-w-[120px] max-w-[240px] truncate text-right text-xs text-[var(--text-muted)]">
+                      {result.subtitle}
+                    </span>
+                  ) : null}
                 </button>
               );
             })}

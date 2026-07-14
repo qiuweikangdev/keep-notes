@@ -18,6 +18,7 @@ vi.mock("@/hooks/use-electron", () => ({
 }));
 
 const treeData = [
+  { title: "root.md", key: "C:\\notes\\root.md" },
   {
     title: "docs",
     key: "C:\\notes\\docs",
@@ -109,6 +110,19 @@ describe("SearchModal", () => {
     ]);
     expect(screen.queryByText("eleventh.md")).not.toBeInTheDocument();
     expect(screen.queryByText("image.png")).not.toBeInTheDocument();
+  });
+
+  it("hides the path label for files in the workspace root", async () => {
+    const user = userEvent.setup();
+    useEditorStore.setState({
+      recentOpenedFilePaths: ["C:\\notes\\root.md"],
+    });
+    render(<SearchModal isOpen onClose={vi.fn()} />);
+
+    await user.type(screen.getByRole("searchbox"), "root");
+
+    const rootResult = screen.getByRole("option", { name: /root\.md/ });
+    expect(rootResult.querySelectorAll("span")).toHaveLength(1);
   });
 
   it("falls back to open files when recent opened history is empty", () => {
