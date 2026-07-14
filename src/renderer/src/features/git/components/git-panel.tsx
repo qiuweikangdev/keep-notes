@@ -33,7 +33,10 @@ import type { GitFileTreeNode, GitStatusBadge } from "../lib/git-status-view";
 import {
   GitBranch as GitBranchIcon,
   GitCommit,
-  RefreshCw,
+  Download,
+  Upload,
+  Send,
+  Loader2,
   Plus,
   Check,
   X,
@@ -48,7 +51,6 @@ import {
   File,
   Folder,
   FolderOpen,
-  Loader2,
   MinusSquare,
   PlusSquare,
 } from "lucide-react";
@@ -65,6 +67,7 @@ const GIT_HISTORY_PAGE_SIZE = 5;
 const DISCARD_ALL_CHANGES = "__ALL_GIT_CHANGES__";
 
 type GitPanelTab = "changes" | "history";
+type GitFooterOperation = "pull" | "push" | "commit" | "commit-and-push";
 
 const formatGitHistoryDate = (date: string) => {
   const parsed = new Date(date);
@@ -182,6 +185,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
   const [commitMessage, setCommitMessage] = useState("");
   const [includeUntracked, setIncludeUntracked] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [activeFooterOperation, setActiveFooterOperation] =
+    useState<GitFooterOperation | null>(null);
   const [isGitInfoLoading, setIsGitInfoLoading] = useState(false);
   const [showBranchList, setShowBranchList] = useState(false);
   const [showCreateBranch, setShowCreateBranch] = useState(false);
@@ -226,6 +231,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     setCommitMessage("");
     setIncludeUntracked(true);
     setLoading(false);
+    setActiveFooterOperation(null);
     setIsGitInfoLoading(false);
     setShowBranchList(false);
     setShowCreateBranch(false);
@@ -496,6 +502,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
 
     try {
       setLoading(true);
+      setActiveFooterOperation("push");
       const result = await pushToRemote(dir);
       if (result.code === CodeResult.Success) {
         showMessage("success", "推送成功");
@@ -505,6 +512,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     } catch (error) {
       showMessage("error", "推送失败");
     } finally {
+      setActiveFooterOperation(null);
       setLoading(false);
     }
   }, [getCurrentDir, pushToRemote]);
@@ -515,6 +523,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
 
     try {
       setLoading(true);
+      setActiveFooterOperation("pull");
       const result = await pullFromRemote(dir);
       if (result.code === CodeResult.Success) {
         showMessage("success", "拉取成功");
@@ -526,6 +535,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     } catch (error) {
       showMessage("error", "拉取失败");
     } finally {
+      setActiveFooterOperation(null);
       setLoading(false);
     }
   }, [getCurrentDir, pullFromRemote, loadGitInfo, loadTree]);
@@ -721,6 +731,9 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
 
       try {
         setLoading(true);
+        setActiveFooterOperation(
+          pushAfterCommit ? "commit-and-push" : "commit",
+        );
         const options: GitCommitOptions = {
           message,
           push: pushAfterCommit,
@@ -745,6 +758,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       } catch (error) {
         showMessage("error", "提交失败");
       } finally {
+        setActiveFooterOperation(null);
         setLoading(false);
       }
     },
@@ -1612,10 +1626,22 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       onClick={onClose}
     >
       <div
-        className="w-[680px] h-[82vh] max-h-[82vh] rounded-xl shadow-2xl overflow-hidden flex flex-col"
+        className="relative w-[680px] h-[82vh] max-h-[82vh] rounded-xl shadow-2xl overflow-hidden flex flex-col"
         style={{ backgroundColor: "var(--bg-secondary)" }}
         onClick={(e) => e.stopPropagation()}
       >
+        {activeFooterOperation ? (
+          <div
+            className="absolute inset-0 z-20 flex items-center justify-center bg-black/20"
+            role="status"
+            aria-label="Git 操作进行中"
+          >
+            <Loader2
+              className="h-7 w-7 animate-spin"
+              style={{ color: "var(--accent-color)" }}
+            />
+          </div>
+        ) : null}
         {/* 头部 */}
         <div
           className="flex items-center justify-between p-4"
@@ -2025,10 +2051,13 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                 disabled={loading}
                 className="gap-1.5"
                 title="从远程拉取"
+                aria-busy={activeFooterOperation === "pull"}
               >
-                <RefreshCw
-                  className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
-                />
+                {activeFooterOperation === "pull" ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Download className="h-3.5 w-3.5" />
+                )}
                 拉取
               </Button>
               <Button
@@ -2036,8 +2065,13 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                 disabled={loading}
                 className="gap-1.5"
                 title="推送到远程"
+                aria-busy={activeFooterOperation === "push"}
               >
-                <GitCommit className="h-3.5 w-3.5" />
+                {activeFooterOperation === "push" ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Upload className="h-3.5 w-3.5" />
+                )}
                 推送
               </Button>
             </div>
@@ -2046,15 +2080,27 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                 onClick={() => handleCommit(false)}
                 disabled={!canCommit}
                 variant="secondary"
-                className="px-4"
+                className="gap-1.5 px-4"
+                aria-busy={activeFooterOperation === "commit"}
               >
+                {activeFooterOperation === "commit" ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <GitCommit className="h-3.5 w-3.5" />
+                )}
                 提交
               </Button>
               <Button
                 onClick={() => handleCommit(true)}
                 disabled={!canCommit}
-                className="px-4"
+                className="gap-1.5 px-4"
+                aria-busy={activeFooterOperation === "commit-and-push"}
               >
+                {activeFooterOperation === "commit-and-push" ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Send className="h-3.5 w-3.5" />
+                )}
                 提交并推送
               </Button>
             </div>

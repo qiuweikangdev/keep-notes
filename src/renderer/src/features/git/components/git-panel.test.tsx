@@ -247,6 +247,46 @@ describe("GitPanel", () => {
     expect(await screen.findByText("changed.md")).toBeInTheDocument();
   });
 
+  it.each([
+    ["拉取", electronMocks.pullFromRemote],
+    ["推送", electronMocks.pushToRemote],
+    ["提交", electronMocks.commitChanges],
+    ["提交并推送", electronMocks.commitChanges],
+  ])(
+    "shows a matching loader and overlay while %s is pending",
+    async (label, operation) => {
+      let resolveOperation: (value: { code: CodeResult }) => void;
+      operation.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveOperation = resolve;
+          }),
+      );
+
+      render(<GitPanel isOpen onClose={vi.fn()} />);
+
+      await screen.findByText("changed.md");
+      const button = screen.getByRole("button", { name: label });
+      expect(button.querySelector("svg")).toBeInTheDocument();
+
+      fireEvent.click(button);
+
+      expect(button).toHaveAttribute("aria-busy", "true");
+      expect(
+        screen.getByRole("status", { name: "Git 操作进行中" }),
+      ).toBeInTheDocument();
+
+      resolveOperation!({ code: CodeResult.Success });
+
+      await waitFor(() => {
+        expect(button).toHaveAttribute("aria-busy", "false");
+      });
+      expect(
+        screen.queryByRole("status", { name: "Git 操作进行中" }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
   it("keeps the Git panel open when the discard confirmation dialog closes", async () => {
     const onClose = vi.fn();
     render(<GitPanel isOpen onClose={onClose} />);
