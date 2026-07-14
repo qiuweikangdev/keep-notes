@@ -173,6 +173,8 @@ describe("VirtualRichPreview", () => {
       "aria-multiline",
       "true",
     );
+    expect(container.querySelector(".bn-editor-preview")).not.toBeNull();
+    expect(container.querySelector(".bn-editor")).toBeNull();
     expect(virtualizerMock.options).toMatchObject({ count: 100, overscan: 4 });
     expect(virtualizerMock.options?.estimateSize()).toBe(64);
     expect(virtualizerMock.options?.getScrollElement()).toBe(

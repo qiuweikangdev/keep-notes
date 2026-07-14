@@ -75,8 +75,36 @@ describe("RichDocumentSurfaceRegistry", () => {
     registry.deactivate("C:\\notes\\large.md");
     expect(surface.parentElement).toBe(document.body);
     expect(surface.style.visibility).toBe("hidden");
+    expect(surface.style.transform).toBe(
+      "translate3d(-100000px, -100000px, 0)",
+    );
     expect(surface.dataset.activePaneKey).toBeUndefined();
     expect(registry.getActivePaneKey("C:\\notes\\large.md")).toBeNull();
+    expect(registry.activate("C:\\notes\\large.md", "g1:t1")).toBe(true);
+    expect(surface.style.transform).toBe("translate3d(20px, 50px, 0)");
+  });
+
+  it("parks background rich editors outside BlockNote drag target bounds", () => {
+    const registry = new RichDocumentSurfaceRegistry();
+    const backgroundSurface = document.createElement("div");
+    const editor = document.createElement("div");
+    const host = document.createElement("div");
+    editor.className = "bn-editor";
+    backgroundSurface.append(editor);
+    vi.spyOn(host, "getBoundingClientRect").mockReturnValue(
+      rect(420, 80, 500, 600),
+    );
+
+    registry.registerSurface("background.md", backgroundSurface);
+    registry.registerHost("background.md", "g1:t1", host);
+    registry.activate("background.md", "g1:t1");
+    registry.deactivate("background.md");
+
+    expect(document.querySelectorAll(".bn-editor")).toHaveLength(1);
+    expect(backgroundSurface.style.visibility).toBe("hidden");
+    expect(backgroundSurface.style.transform).toBe(
+      "translate3d(-100000px, -100000px, 0)",
+    );
   });
 
   it("remeasures only CodeMirror instances visible after a pane move", () => {

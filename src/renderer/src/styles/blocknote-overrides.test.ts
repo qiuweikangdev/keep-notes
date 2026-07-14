@@ -45,7 +45,7 @@ describe("blocknote overrides stylesheet", () => {
   });
 
   it("keeps rich editor content anchored to the panel left edge", () => {
-    const editorRule = getRule(".bn-editor");
+    const editorRule = getRule(":is(.bn-editor, .bn-editor-preview)");
 
     expect(editorRule).toBeDefined();
     expect(editorRule).toMatch(/width:\s*100%;/);
@@ -59,7 +59,7 @@ describe("blocknote overrides stylesheet", () => {
   });
 
   it("keeps punctuation glyphs identical between live and preview renderers", () => {
-    const editorRule = getRule(".bn-editor");
+    const editorRule = getRule(":is(.bn-editor, .bn-editor-preview)");
 
     expect(editorRule).toMatch(/font-variant-ligatures:\s*none;/);
     expect(editorRule).toMatch(/"liga"\s+0/);
@@ -68,7 +68,9 @@ describe("blocknote overrides stylesheet", () => {
   });
 
   it("keeps long inline content within the pane width", () => {
-    const inlineContentRule = getRule(".bn-editor .bn-inline-content");
+    const inlineContentRule = getRule(
+      ":is(.bn-editor, .bn-editor-preview) .bn-inline-content",
+    );
 
     expect(inlineContentRule).toBeDefined();
     expect(inlineContentRule).toMatch(/min-width:\s*0;/);
@@ -115,7 +117,7 @@ describe("blocknote overrides stylesheet", () => {
 
   it("renders quotes as a left rule instead of a bordered card", () => {
     const quoteRule = getRule(
-      '.bn-editor [data-content-type="quote"] blockquote',
+      ':is(.bn-editor, .bn-editor-preview) [data-content-type="quote"] blockquote',
     );
 
     expect(quoteRule).toBeDefined();
@@ -125,41 +127,41 @@ describe("blocknote overrides stylesheet", () => {
     expect(quoteRule).toMatch(/border-radius:\s*0;/);
     expect(quoteRule).not.toMatch(/border:\s*1px solid/);
     expect(stylesheet).toMatch(
-      /\.bn-editor\s+\.bn-block-content\[data-content-type="quote"\]:has\(\s*\.ProseMirror-trailingBreak:only-child\s*\)\s*\{[\s\S]*align-items:\s*center;/,
+      /:is\(\.bn-editor, \.bn-editor-preview\)\s+\.bn-block-content\[data-content-type="quote"\]:has\(\s*\.ProseMirror-trailingBreak:only-child\s*\)\s*\{[\s\S]*align-items:\s*center;/,
     );
     expect(stylesheet).toMatch(
-      /\.bn-editor\s+\.bn-block-content\[data-content-type="quote"\]:has\(\s*\.ProseMirror-trailingBreak:only-child\s*\)::after\s*\{[\s\S]*align-self:\s*center;/,
+      /:is\(\.bn-editor, \.bn-editor-preview\)\s+\.bn-block-content\[data-content-type="quote"\]:has\(\s*\.ProseMirror-trailingBreak:only-child\s*\)::after\s*\{[\s\S]*align-self:\s*center;/,
     );
   });
 
   it("keeps bullet lists compact and readable across nested levels", () => {
     expect(stylesheet).toMatch(
-      /\.bn-editor ul\s*\{[\s\S]*padding-left:\s*1\.25em;/,
+      /:is\(\.bn-editor, \.bn-editor-preview\) ul\s*\{[\s\S]*padding-left:\s*1\.25em;/,
     );
     expect(stylesheet).toMatch(
-      /\.bn-editor \.bn-block-content\[data-content-type="bulletListItem"\]\s*\{[\s\S]*align-items:\s*flex-start;/,
+      /:is\(\.bn-editor, \.bn-editor-preview\)\s+\.bn-block-content\[data-content-type="bulletListItem"\]\s*\{[\s\S]*align-items:\s*flex-start;/,
     );
     expect(stylesheet).toMatch(
-      /\.bn-editor \.bn-block-content\[data-content-type="bulletListItem"\]::before,\s*\.bn-editor li::marker\s*\{[\s\S]*font-size:\s*1\.15em;[\s\S]*line-height:\s*1;[\s\S]*color:\s*var\(--text-muted\);/,
+      /:is\(\.bn-editor, \.bn-editor-preview\)\s+\.bn-block-content\[data-content-type="bulletListItem"\]::before,\s*:is\(\.bn-editor, \.bn-editor-preview\) li::marker\s*\{[\s\S]*font-size:\s*1\.15em;[\s\S]*line-height:\s*1;[\s\S]*color:\s*var\(--text-muted\);/,
     );
     expect(
       getRule(
-        '.bn-editor .bn-block-content[data-content-type="bulletListItem"]::before',
+        ':is(.bn-editor, .bn-editor-preview) .bn-block-content[data-content-type="bulletListItem"]::before',
       ),
     ).toMatch(
       /content:\s*"▪\\FE0E" !important;[\s\S]*transform:\s*translateY\(0\.25em\);[\s\S]*transition:\s*none;/,
     );
-    expect(getRule(".rich-virtual-preview .bn-editor ul li::marker")).toMatch(
-      /content:\s*"▪\\FE0E";/,
-    );
+    expect(
+      getRule(".rich-virtual-preview .bn-editor-preview ul li::marker"),
+    ).toMatch(/content:\s*"▪\\FE0E";/);
     expect(stylesheet).toMatch(
-      /\.bn-editor ul ul\s*\{[\s\S]*margin-block:\s*0\.12em;/,
+      /:is\(\.bn-editor, \.bn-editor-preview\) ul ul\s*\{[\s\S]*margin-block:\s*0\.12em;/,
     );
   });
 
   it("removes BlockNote indent guide lines from nested blocks", () => {
     const indentGuideRule = getRule(
-      ".bn-editor .bn-block-group .bn-block-group > .bn-block-outer::before",
+      ":is(.bn-editor, .bn-editor-preview) .bn-block-group .bn-block-group > .bn-block-outer::before",
     );
 
     expect(indentGuideRule).toBeDefined();
@@ -294,7 +296,7 @@ describe("blocknote overrides stylesheet", () => {
 
   it("styles inline code marks inside rich editor text blocks", () => {
     const inlineCodeRule = getRule(
-      ".bn-editor code:not(.editor-code-block__content)",
+      ":is(.bn-editor, .bn-editor-preview) code:not(.editor-code-block__content)",
     );
 
     expect(inlineCodeRule).toBeDefined();
@@ -373,9 +375,15 @@ describe("blocknote overrides stylesheet", () => {
   });
 
   it("keeps heading text aligned with the block side menu", () => {
-    expect(getRule(".bn-editor h1")).toMatch(/margin-top:\s*0;/);
-    expect(getRule(".bn-editor h2")).toMatch(/margin-top:\s*0;/);
-    expect(getRule(".bn-editor h3")).toMatch(/margin-top:\s*0;/);
+    expect(getRule(":is(.bn-editor, .bn-editor-preview) h1")).toMatch(
+      /margin-top:\s*0;/,
+    );
+    expect(getRule(":is(.bn-editor, .bn-editor-preview) h2")).toMatch(
+      /margin-top:\s*0;/,
+    );
+    expect(getRule(":is(.bn-editor, .bn-editor-preview) h3")).toMatch(
+      /margin-top:\s*0;/,
+    );
   });
 
   it("aligns the code block side menu with the code block header row", () => {
@@ -437,7 +445,7 @@ describe("blocknote overrides stylesheet", () => {
 
   it("keeps the table wrapper and extend row button within the editor width", () => {
     expect(stylesheet).toMatch(
-      /\.bn-editor \[data-content-type="table"\] table\s*\{[\s\S]*width:\s*max-content;/,
+      /:is\(\.bn-editor, \.bn-editor-preview\) \[data-content-type="table"\] table\s*\{[\s\S]*width:\s*max-content;/,
     );
     expect(stylesheet).toMatch(
       /\.bn-mantine \.bn-extend-button-add-remove-rows\s*\{[\s\S]*width:\s*calc\(100% - 22px\);/,

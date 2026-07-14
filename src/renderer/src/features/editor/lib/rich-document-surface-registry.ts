@@ -2,6 +2,8 @@ import { EditorView as CodeMirrorView } from "@codemirror/view";
 
 import type { RichPaneKey } from "./rich-pane-view-state";
 
+const PARKED_SURFACE_TRANSFORM = "translate3d(-100000px, -100000px, 0)";
+
 export function normalizeRichDocumentPath(path: string): string {
   return path.replaceAll("\\", "/");
 }
@@ -268,6 +270,8 @@ export class RichDocumentSurfaceRegistry {
     surface.style.visibility = "hidden";
     surface.style.opacity = "0";
     surface.style.pointerEvents = "none";
+    // BlockNote 会按所有 .bn-editor 的屏幕距离选择拖放目标；后台表面必须移出视口，不能保留旧窗格坐标。
+    surface.style.transform = PARKED_SURFACE_TRANSFORM;
     surface.setAttribute("aria-hidden", "true");
     delete surface.dataset.activePaneKey;
   }
