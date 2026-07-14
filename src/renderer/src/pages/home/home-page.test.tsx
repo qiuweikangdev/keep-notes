@@ -320,4 +320,22 @@ describe("HomePage", () => {
     );
     expect(screen.getByRole("status")).toHaveAttribute("data-variant", "error");
   });
+
+  it("renders app toasts at the document root above editor surfaces", async () => {
+    diffStateMock.isOpen = false;
+    const container = document.createElement("div");
+    document.body.append(container);
+
+    render(<HomePage />, { container });
+
+    window.dispatchEvent(
+      new CustomEvent(APP_TOAST_EVENT, {
+        detail: { message: "操作失败", variant: "error" },
+      }),
+    );
+
+    const toast = await screen.findByRole("status");
+    expect(toast.parentElement).toBe(document.body);
+    expect(container).not.toContainElement(toast);
+  });
 });

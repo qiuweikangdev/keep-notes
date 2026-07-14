@@ -40,6 +40,7 @@ import {
   type PointerEventHandler,
   type RefObject,
 } from "react";
+import { createPortal } from "react-dom";
 
 const DRAG_ACTIVATION_DISTANCE = 8;
 const VIEWPORT_MARGIN = 16;
@@ -329,7 +330,7 @@ function AppToast({
 }) {
   const ToastIcon = variant === "error" ? CircleAlert : Info;
 
-  return (
+  return createPortal(
     <div
       role="status"
       aria-live="polite"
@@ -340,7 +341,8 @@ function AppToast({
         <ToastIcon aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
       </span>
       <span className="min-w-0 flex-1 break-words leading-5">{message}</span>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
