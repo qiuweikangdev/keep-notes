@@ -1,49 +1,37 @@
-import { useEffect, useCallback, useState } from "react";
-import { useUIStore } from "@/store/ui.store";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { getThemeConfig, resolveTheme, type ThemeName } from "@/config/themes";
+import { useUIStore } from "@/store/ui.store";
 
-// 所有需要移除的主题类名
 const THEME_CLASSES = ["light", "dark", "nord", "dracula", "solarized"];
 
 export function useTheme() {
   const theme = useUIStore((state) => state.theme);
   const setTheme = useUIStore((state) => state.setTheme);
-  // 跟踪系统实际应用的主题（用于 system 模式下的 UI 显示）
-  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">(() =>
-    resolveTheme(theme),
-  );
+  const [, refreshSystemTheme] = useState(0);
 
-  // 监听系统主题变化
+  // 每次渲染都同步解析主题，避免主题变量和 BlockNote 的色彩方案出现短暂错位。
+  const resolvedTheme = resolveTheme(theme);
+
   useEffect(() => {
-    if (theme !== "system") {
-      setResolvedTheme(resolveTheme(theme));
-      return;
-    }
+    if (theme !== "system") return;
 
-    // system 模式下监听 OS 偏好变化
+    // 仅在跟随系统时订阅系统配色变化，通过刷新触发一次同步重新解析。
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-
     const handleChange = () => {
-      setResolvedTheme(resolveTheme("system"));
+      refreshSystemTheme((version) => version + 1);
     };
 
     mediaQuery.addEventListener("change", handleChange);
-    // 初始同步
-    setResolvedTheme(resolveTheme("system"));
 
     return () => mediaQuery.removeEventListener("change", handleChange);
   }, [theme]);
 
-  // 应用主题到 DOM
-  useEffect(() => {
+  // 在浏览器绘制前批量提交全局主题变量，与本次 React 渲染保持同一帧生效。
+  useLayoutEffect(() => {
     const root = document.documentElement;
     const body = document.body;
-    // 将 system 解析为实际的 light 或 dark
-    const actualTheme = resolveTheme(theme);
-    const config = getThemeConfig(actualTheme);
+    const config = getThemeConfig(resolvedTheme);
 
-    // 先设置 CSS 变量，再切换 class，避免中间状态闪烁
-    // 设置 CSS 变量（内联样式优先级最高，立即生效）
     root.style.setProperty("--bg-primary", config.colors.bgPrimary);
     root.style.setProperty("--bg-secondary", config.colors.bgSecondary);
     root.style.setProperty("--bg-tertiary", config.colors.bgTertiary);
@@ -55,29 +43,21 @@ export function useTheme() {
     root.style.setProperty("--active-bg", config.colors.activeBg);
     root.style.setProperty("--accent-color", config.colors.accentColor);
 
-    // 设置 body 背景色
     body.style.backgroundColor = config.colors.bgPrimary;
     body.style.color = config.colors.textPrimary;
 
-    // 移除旧主题类
     root.classList.remove(...THEME_CLASSES);
     body.classList.remove(...THEME_CLASSES);
-
-    // 添加新主题类
-    root.classList.add(actualTheme);
-    body.classList.add(actualTheme);
-
-    // 设置 data 属性
+    root.classList.add(resolvedTheme);
+    body.classList.add(resolvedTheme);
     root.setAttribute(
       "data-theme",
-      theme === "system" ? "system" : actualTheme,
+      theme === "system" ? "system" : resolvedTheme,
     );
 
-    // 保存到 localStorage
     localStorage.setItem("theme", theme);
   }, [theme, resolvedTheme]);
 
-  // 初始化主题 - 从 localStorage 读取
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme") as ThemeName | null;
     if (savedTheme && savedTheme !== theme) {
@@ -92,25 +72,20 @@ export function useTheme() {
     [setTheme],
   );
 
-  // 切换主题（在亮色和暗色之间切换，system 视为当前系统主题的反向）
   const toggleTheme = useCallback(() => {
     if (theme === "system") {
-      // system 模式下，切换到与当前系统相反的主题
-      const newTheme = resolvedTheme === "light" ? "dark" : "light";
-      setTheme(newTheme);
-    } else {
-      const newTheme = theme === "light" ? "dark" : "light";
-      setTheme(newTheme);
+      setTheme(resolvedTheme === "light" ? "dark" : "light");
+      return;
     }
-  }, [theme, resolvedTheme, setTheme]);
 
-  const config = getThemeConfig(resolvedTheme);
+    setTheme(theme === "light" ? "dark" : "light");
+  }, [resolvedTheme, setTheme, theme]);
 
   return {
     theme,
     setTheme: changeTheme,
     toggleTheme,
     isDark: resolvedTheme === "dark",
-    config,
+    config: getThemeConfig(resolvedTheme),
   };
 }
