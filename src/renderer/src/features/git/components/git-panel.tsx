@@ -24,6 +24,8 @@ import type {
 } from "@/types";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
+import { DialogResizeHandles } from "@/components/ui/dialog-resize-handles";
+import { useResizableDialog } from "@/hooks/use-resizable-dialog";
 import {
   buildGitFileTree,
   getGitStatusBadge,
@@ -222,6 +224,14 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
   const currentDir = treeRoot?.key || "";
   const getCurrentDir = useCallback(() => currentDir, [currentDir]);
   const isOpening = isOpen && !wasOpenRef.current;
+  const isMainDialogOpen = isOpen && !isOpening && isGitRepo === true;
+  const { contentRef, dragHandleProps, resizeHandleProps } = useResizableDialog(
+    {
+      isOpen: isMainDialogOpen,
+      minWidth: 480,
+      minHeight: 360,
+    },
+  );
 
   const resetPanelState = useCallback(() => {
     setIsGitRepo(null);
@@ -1520,7 +1530,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         onClick={onClose}
       >
         <div
-          className="w-[400px] rounded-xl shadow-2xl"
+          data-git-dialog="loading"
+          className="max-h-[calc(100vh-32px)] w-[calc(100vw-32px)] max-w-[400px] overflow-auto rounded-xl shadow-2xl"
           style={{ backgroundColor: "var(--bg-secondary)" }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -1573,7 +1584,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         onClick={onClose}
       >
         <div
-          className="w-[400px] rounded-xl shadow-2xl"
+          data-git-dialog="not-repository"
+          className="max-h-[calc(100vh-32px)] w-[calc(100vw-32px)] max-w-[400px] overflow-auto rounded-xl shadow-2xl"
           style={{ backgroundColor: "var(--bg-secondary)" }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -1628,7 +1640,9 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       onClick={onClose}
     >
       <div
-        className="relative w-[680px] h-[82vh] max-h-[82vh] rounded-xl shadow-2xl overflow-hidden flex flex-col"
+        ref={contentRef}
+        data-git-dialog="main"
+        className="relative flex h-[82vh] max-h-[calc(100vh-32px)] w-[calc(100vw-32px)] max-w-[680px] flex-col overflow-hidden rounded-xl shadow-2xl"
         style={{ backgroundColor: "var(--bg-secondary)" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -1646,7 +1660,9 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         ) : null}
         {/* 头部 */}
         <div
-          className="flex items-center justify-between p-4"
+          data-dialog-drag-handle
+          {...dragHandleProps}
+          className="flex select-none items-center justify-between p-4"
           style={{ borderBottom: "1px solid var(--border-color)" }}
         >
           <div className="flex items-center gap-2">
@@ -1665,6 +1681,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           <button
             type="button"
             onClick={onClose}
+            onPointerDown={(event) => event.stopPropagation()}
             data-theme-control="true"
             className="p-1 rounded-lg"
             style={{ color: "var(--text-muted)" }}
@@ -2120,6 +2137,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             </div>
           </div>
         )}
+        <DialogResizeHandles resizeHandleProps={resizeHandleProps} />
       </div>
 
       {/* 确认放弃更改弹窗 */}

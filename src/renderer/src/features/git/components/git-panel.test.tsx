@@ -1,14 +1,26 @@
 import {
   cleanup,
   fireEvent,
-  render,
+  render as baseRender,
   screen,
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DragResizeProvider } from "@/components/drag-resize-provider";
 import { CodeResult } from "@/types";
 import { GitPanel } from "./git-panel";
+
+const render = (
+  ui: Parameters<typeof baseRender>[0],
+  options?: Parameters<typeof baseRender>[1],
+) =>
+  baseRender(ui, {
+    ...options,
+    wrapper: ({ children }) => (
+      <DragResizeProvider debounceMs={0}>{children}</DragResizeProvider>
+    ),
+  });
 
 const electronMocks = vi.hoisted(() => ({
   detectGitRepo: vi.fn(),
@@ -165,6 +177,86 @@ describe("GitPanel", () => {
 
   afterEach(() => {
     cleanup();
+  });
+
+  it("uses responsive shared geometry for the main Git surface", async () => {
+    render(<GitPanel isOpen onClose={vi.fn()} />);
+
+    await screen.findByText("changed.md");
+    const dialog = document.querySelector<HTMLElement>(
+      '[data-git-dialog="main"]',
+    );
+    expect(dialog).toHaveClass(
+      "h-[82vh]",
+      "max-h-[calc(100vh-32px)]",
+      "w-[calc(100vw-32px)]",
+      "max-w-[680px]",
+    );
+    expect(
+      dialog?.querySelector("[data-dialog-drag-handle]"),
+    ).toBeInTheDocument();
+    expect(
+      dialog?.querySelectorAll("[data-dialog-resize-handle]"),
+    ).toHaveLength(8);
+  });
+
+  it("keeps the Git loading surface compact but viewport safe", () => {
+    electronMocks.detectGitRepo.mockReturnValueOnce(
+      new Promise(() => undefined),
+    );
+
+    render(<GitPanel isOpen onClose={vi.fn()} />);
+
+    expect(
+      screen.getByRole("status").closest('[data-git-dialog="loading"]'),
+    ).toHaveClass(
+      "w-[calc(100vw-32px)]",
+      "max-w-[400px]",
+      "max-h-[calc(100vh-32px)]",
+    );
+  });
+
+  it("keeps the non-repository surface compact but viewport safe", async () => {
+    electronMocks.detectGitRepo.mockResolvedValueOnce({
+      code: CodeResult.Success,
+      data: { isGitRepo: false },
+    });
+
+    render(<GitPanel isOpen onClose={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(
+        document.querySelector('[data-git-dialog="not-repository"]'),
+      ).toBeInTheDocument();
+    });
+    expect(
+      document.querySelector('[data-git-dialog="not-repository"]'),
+    ).toHaveClass(
+      "w-[calc(100vw-32px)]",
+      "max-w-[400px]",
+      "max-h-[calc(100vh-32px)]",
+    );
+  });
+
+  it("restores default Git geometry after reopening", async () => {
+    const { rerender } = render(<GitPanel isOpen onClose={vi.fn()} />);
+    await screen.findByText("changed.md");
+    const dialog = document.querySelector<HTMLElement>(
+      '[data-git-dialog="main"]',
+    );
+    expect(dialog).not.toBeNull();
+    dialog!.style.width = "540px";
+    dialog!.style.left = "32px";
+
+    rerender(<GitPanel isOpen={false} onClose={vi.fn()} />);
+    rerender(<GitPanel isOpen onClose={vi.fn()} />);
+
+    await screen.findByText("changed.md");
+    const reopened = document.querySelector<HTMLElement>(
+      '[data-git-dialog="main"]',
+    );
+    expect(reopened?.style.width).toBe("");
+    expect(reopened?.style.left).toBe("");
   });
 
   it("renders at the document root above body-mounted editor surfaces", async () => {
