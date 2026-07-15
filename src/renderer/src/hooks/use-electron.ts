@@ -15,6 +15,7 @@ import {
   fileOpenController,
   flushEditorChange,
 } from "@/features/editor/lib/editor-runtime";
+import { selectFileOpenTabId } from "@/features/editor/lib/editor-tab-opening";
 import {
   selectAddRecentFolder,
   selectIncrementReloadKey,
@@ -145,8 +146,8 @@ export function useElectron() {
       }
 
       if (targetGroup) {
-        const tabId = targetGroup.activeTabId;
-        const activeTab = targetGroup.tabs.find((tab) => tab.id === tabId);
+        let tabId = targetGroup.activeTabId;
+        let activeTab = targetGroup.tabs.find((tab) => tab.id === tabId);
 
         if (
           (activeTab?.filePath === filePath &&
@@ -159,8 +160,19 @@ export function useElectron() {
           return;
         }
 
+        tabId = selectFileOpenTabId(targetGroup, state.addTab);
+        if (tabId !== targetGroup.activeTabId) {
+          state = useEditorStore.getState();
+          targetGroup = state.panelGroups.find(
+            (group) => group.id === targetGroup!.id,
+          );
+          activeTab = targetGroup?.tabs.find((tab) => tab.id === tabId);
+        }
+
+        if (!targetGroup || !activeTab) return;
+
         // 复用标签前先冲刷旧文件，避免尚未到期的自动保存丢失。
-        if (activeTab?.filePath) {
+        if (activeTab.filePath) {
           await flushEditorChange(targetGroup.id, tabId);
           await editorSaveCoordinator.flush(activeTab.filePath);
         }
