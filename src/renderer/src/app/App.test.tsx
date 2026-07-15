@@ -127,9 +127,22 @@ vi.mock("@/pages/home", async () => {
   return { HomePage: MockHomePage };
 });
 
-vi.mock("@/features/settings", () => ({
-  SettingsModal: () => null,
-}));
+vi.mock("@/features/settings", async () => {
+  const { useDragResize } = await vi.importActual<
+    typeof import("@/components/drag-resize-provider")
+  >("@/components/drag-resize-provider");
+
+  return {
+    SettingsModal: () => {
+      const { isIdle } = useDragResize();
+      return (
+        <div data-testid="application-dialog-provider-state">
+          {String(isIdle)}
+        </div>
+      );
+    },
+  };
+});
 
 vi.mock("@/features/search", () => ({
   SearchModal: ({ isOpen }: { isOpen: boolean }) =>
@@ -296,6 +309,14 @@ describe("App shortcuts", () => {
         },
       },
     });
+  });
+
+  it("provides drag and resize state to application-level dialogs", () => {
+    render(<App />);
+
+    expect(
+      screen.getByTestId("application-dialog-provider-state"),
+    ).toHaveTextContent("true");
   });
 
   it("allows the page button to toggle the mounted sidebar panel", () => {

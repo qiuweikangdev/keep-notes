@@ -1,4 +1,5 @@
 import { Tooltip } from "@/components/ui/tooltip";
+import { DragResizeProvider } from "@/components/drag-resize-provider";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { useEditorStore } from "@/store/editor.store";
 import { SettingsModal } from "@/features/settings";
@@ -128,21 +129,23 @@ export function App() {
 
   return (
     <Tooltip.Provider delayDuration={300}>
-      <div style={windowStyle}>
-        <HomePage />
-        <SettingsModal />
-        <SearchModal
-          isOpen={isSearchOpen}
-          onClose={() => setIsSearchOpen(false)}
-        />
-        <ReminderEditorDialog />
-        <ReminderListDialog />
-        {APP_BEHAVIOR_CONFIG.notifications.showInAppReminderNotification ? (
-          <ReminderNotificationToast />
-        ) : null}
-        <ExportController />
-        <ExportSuccessToast />
-      </div>
+      <DragResizeProvider>
+        <div style={windowStyle}>
+          <HomePage />
+          <SettingsModal />
+          <SearchModal
+            isOpen={isSearchOpen}
+            onClose={() => setIsSearchOpen(false)}
+          />
+          <ReminderEditorDialog />
+          <ReminderListDialog />
+          {APP_BEHAVIOR_CONFIG.notifications.showInAppReminderNotification ? (
+            <ReminderNotificationToast />
+          ) : null}
+          <ExportController />
+          <ExportSuccessToast />
+        </div>
+      </DragResizeProvider>
     </Tooltip.Provider>
   );
 }

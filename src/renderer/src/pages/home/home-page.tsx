@@ -1,6 +1,7 @@
 ﻿import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { CircleAlert, Info, PanelRightOpen, Undo2, X } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { DialogResizeHandles } from "@/components/ui/dialog-resize-handles";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Editor } from "@/features/editor";
 import { EditorBridge } from "@/features/editor/components/editor-bridge";
@@ -9,10 +10,6 @@ import { TitleBar } from "@/components/layout/title-bar";
 import { usePanel } from "@/hooks/use-panel";
 import { useElectron } from "@/hooks/use-electron";
 import { useResizableDialog } from "@/hooks/use-resizable-dialog";
-import {
-  DragResizeProvider,
-  useDragResize,
-} from "@/components/drag-resize-provider";
 import { DiffViewer, DiffPanel } from "@/features/diff";
 import {
   DIFF_TOAST_AUTO_CLOSE_MS,
@@ -42,15 +39,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
-const DRAG_ACTIVATION_DISTANCE = 8;
-const VIEWPORT_MARGIN = 16;
-
 export function HomePage() {
-  return (
-    <DragResizeProvider>
-      <HomePageContent />
-    </DragResizeProvider>
-  );
+  return <HomePageContent />;
 }
 
 function HomePageContent() {
@@ -75,7 +65,9 @@ function HomePageContent() {
   const closeDiff = useDiffStore((state) => state.closeDiff);
   const isDiffPanelOpen = useDiffPanelStore((state) => state.isOpen);
   const openDiffPanel = useDiffPanelStore((state) => state.open);
-  const { contentRef, resizeHandleProps, resetSize } = useResizableDialog();
+  const { contentRef, dragHandleProps, resizeHandleProps } = useResizableDialog(
+    { isOpen },
+  );
   const [isSidebarResizing, setIsSidebarResizing] = useState(false);
 
   const electron = useElectron();
@@ -91,13 +83,6 @@ function HomePageContent() {
   const isMac = useMemo(() => {
     return window.electronAPI?.getPlatform() === "darwin";
   }, []);
-
-  // 对话框打开时重置尺寸，使用 useLayoutEffect 在浏览器绘制前同步清除旧内联样式，避免闪烁
-  useLayoutEffect(() => {
-    if (isOpen) {
-      resetSize();
-    }
-  }, [isOpen, resetSize]);
 
   useEffect(() => {
     const applyWindowTarget = async () => {
@@ -293,6 +278,7 @@ function HomePageContent() {
         isOpen={isOpen}
         onClose={closeDiff}
         contentRef={contentRef}
+        dragHandleProps={dragHandleProps}
         resizeHandleProps={resizeHandleProps}
         fileName={fileName}
         isLoading={isLoading}
@@ -351,6 +337,7 @@ function DiffDialog({
   isOpen,
   onClose,
   contentRef,
+  dragHandleProps,
   resizeHandleProps,
   fileName,
   isLoading,
@@ -365,6 +352,7 @@ function DiffDialog({
   isOpen: boolean;
   onClose: () => void;
   contentRef: RefObject<HTMLDivElement | null>;
+  dragHandleProps: ReturnType<typeof useResizableDialog>["dragHandleProps"];
   resizeHandleProps: ReturnType<typeof useResizableDialog>["resizeHandleProps"];
   fileName: string;
   isLoading: boolean;
@@ -376,8 +364,6 @@ function DiffDialog({
   onDiscard: () => void;
   onMoveToPanel: () => void;
 }) {
-  const { startDrag, endDrag } = useDragResize();
-
   // 防止弹窗打开时触发的 pointer 事件导致 DismissableLayer 立即关闭弹窗
   const openTimeRef = useRef(0);
   useLayoutEffect(() => {
@@ -396,104 +382,6 @@ function DiffDialog({
     },
     [onClose],
   );
-
-  // 拖拽会话
-  const dragSessionRef = useRef<{
-    pointerId: number;
-    // 鼠标按下时的坐标
-    downX: number;
-    downY: number;
-    // 鼠标相对于对话框左上角的偏移（激活时计算）
-    offsetX: number;
-    offsetY: number;
-  } | null>(null);
-
-  // 拖拽是否已激活（超过激活距离）
-  const dragActivatedRef = useRef(false);
-
-  const handleHeaderPointerDown: PointerEventHandler<HTMLElement> = (e) => {
-    if (e.button !== 0 || !contentRef.current) return;
-    e.preventDefault();
-
-    dragSessionRef.current = {
-      pointerId: e.pointerId,
-      downX: e.clientX,
-      downY: e.clientY,
-      offsetX: 0,
-      offsetY: 0,
-    };
-    dragActivatedRef.current = false;
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
-
-  const handleHeaderPointerMove: PointerEventHandler<HTMLElement> = (e) => {
-    const session = dragSessionRef.current;
-    if (!session || session.pointerId !== e.pointerId) return;
-    if (!contentRef.current) return;
-
-    const dx = e.clientX - session.downX;
-    const dy = e.clientY - session.downY;
-
-    // 激活距离检查
-    if (!dragActivatedRef.current) {
-      if (
-        Math.abs(dx) < DRAG_ACTIVATION_DISTANCE &&
-        Math.abs(dy) < DRAG_ACTIVATION_DISTANCE
-      ) {
-        return;
-      }
-      dragActivatedRef.current = true;
-      startDrag();
-
-      // 激活时：读取一次 rect，计算偏移，切换到绝对定位，然后直接返回
-      // 避免在同一帧内读写交替导致布局抖动
-      const target = contentRef.current;
-      const rect = target.getBoundingClientRect();
-      session.offsetX = e.clientX - rect.left;
-      session.offsetY = e.clientY - rect.top;
-      // 先禁用过渡动画，再切换定位方式，避免 duration-200 导致的闪跳
-      target.style.setProperty("transition", "none", "important");
-      target.style.setProperty("left", `${rect.left}px`, "important");
-      target.style.setProperty("top", `${rect.top}px`, "important");
-      target.style.setProperty("transform", "none", "important");
-      return;
-    }
-
-    // 移动阶段：使用 offsetWidth/offsetHeight 避免 getBoundingClientRect 的布局开销
-    const target = contentRef.current;
-    const maxLeft = window.innerWidth - target.offsetWidth - VIEWPORT_MARGIN;
-    const maxTop = window.innerHeight - target.offsetHeight - VIEWPORT_MARGIN;
-    const newLeft = Math.max(
-      VIEWPORT_MARGIN,
-      Math.min(e.clientX - session.offsetX, maxLeft),
-    );
-    const newTop = Math.max(
-      VIEWPORT_MARGIN,
-      Math.min(e.clientY - session.offsetY, maxTop),
-    );
-    target.style.setProperty("left", `${newLeft}px`, "important");
-    target.style.setProperty("top", `${newTop}px`, "important");
-  };
-
-  const handleHeaderPointerUp: PointerEventHandler<HTMLElement> = (e) => {
-    const session = dragSessionRef.current;
-    if (!session || session.pointerId !== e.pointerId) return;
-
-    dragSessionRef.current = null;
-    if (dragActivatedRef.current) {
-      dragActivatedRef.current = false;
-      endDrag();
-    }
-    e.currentTarget.releasePointerCapture(e.pointerId);
-  };
-
-  const handleHeaderPointerCancel: PointerEventHandler<HTMLElement> = (_e) => {
-    dragSessionRef.current = null;
-    if (dragActivatedRef.current) {
-      dragActivatedRef.current = false;
-      endDrag();
-    }
-  };
 
   // 按钮阻止事件冒泡，避免触发拖拽
   const stopPropagation: PointerEventHandler = (_e) => _e.stopPropagation();
@@ -514,10 +402,8 @@ function DiffDialog({
       >
         {/* 头部拖拽区域：使用指针事件直接操作对话框元素的 left/top */}
         <div
-          onPointerDown={handleHeaderPointerDown}
-          onPointerMove={handleHeaderPointerMove}
-          onPointerUp={handleHeaderPointerUp}
-          onPointerCancel={handleHeaderPointerCancel}
+          data-dialog-drag-handle
+          {...dragHandleProps}
           className="relative z-10 flex flex-shrink-0 select-none items-center justify-between border-b border-[var(--border-color)] px-4 py-3 pr-12"
           style={{ cursor: "default" }}
         >
@@ -587,41 +473,7 @@ function DiffDialog({
           )}
         </div>
 
-        {/* 8 个方向的 resize 拖拽句柄 */}
-        <div aria-hidden className="pointer-events-none absolute inset-0">
-          <div
-            className="pointer-events-auto absolute left-0 top-0 h-3 w-full cursor-n-resize"
-            {...resizeHandleProps.n}
-          />
-          <div
-            className="pointer-events-auto absolute bottom-0 left-0 h-3 w-full cursor-s-resize"
-            {...resizeHandleProps.s}
-          />
-          <div
-            className="pointer-events-auto absolute right-0 top-0 h-full w-3 cursor-e-resize"
-            {...resizeHandleProps.e}
-          />
-          <div
-            className="pointer-events-auto absolute left-0 top-0 h-full w-3 cursor-w-resize"
-            {...resizeHandleProps.w}
-          />
-          <div
-            className="pointer-events-auto absolute right-0 top-0 h-3 w-3 cursor-ne-resize"
-            {...resizeHandleProps.ne}
-          />
-          <div
-            className="pointer-events-auto absolute left-0 top-0 h-3 w-3 cursor-nw-resize"
-            {...resizeHandleProps.nw}
-          />
-          <div
-            className="pointer-events-auto absolute bottom-0 right-0 h-3 w-3 cursor-se-resize"
-            {...resizeHandleProps.se}
-          />
-          <div
-            className="pointer-events-auto absolute bottom-0 left-0 h-3 w-3 cursor-sw-resize"
-            {...resizeHandleProps.sw}
-          />
-        </div>
+        <DialogResizeHandles resizeHandleProps={resizeHandleProps} />
       </DialogContent>
     </Dialog.Root>
   );

@@ -2,12 +2,13 @@ import type { PropsWithChildren } from "react";
 import {
   cleanup,
   fireEvent,
-  render,
+  render as baseRender,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DragResizeProvider } from "@/components/drag-resize-provider";
 import { useTreeStore } from "@/store/tree.store";
 import { DIFF_TOAST_EVENT } from "@/features/diff/lib/diff-toast";
 import { APP_TOAST_EVENT } from "@/lib/app-toast";
@@ -41,13 +42,31 @@ vi.mock("react-resizable-panels", () => ({
 }));
 
 vi.mock("@/components/ui/dialog", () => ({
-  Dialog: {
-    Root: ({ children, open }: PropsWithChildren<{ open?: boolean }>) =>
-      open ? <div data-testid="dialog-root">{children}</div> : null,
-    Title: ({ children }: PropsWithChildren) => <h2>{children}</h2>,
-  },
-  DialogContent: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  DialogHeader: ({ children }: PropsWithChildren) => <div>{children}</div>,
+  ...(() => {
+    const React = require("react");
+    return {
+      Dialog: {
+        Root: ({ children, open }: PropsWithChildren<{ open?: boolean }>) =>
+          open ? <div data-testid="dialog-root">{children}</div> : null,
+        Title: ({ children }: PropsWithChildren) => <h2>{children}</h2>,
+      },
+      DialogContent: React.forwardRef(
+        (
+          {
+            children,
+            showCloseButton: _showCloseButton,
+            ...props
+          }: PropsWithChildren<{ showCloseButton?: boolean }>,
+          ref: React.ForwardedRef<HTMLDivElement>,
+        ) => (
+          <div ref={ref} data-testid="diff-dialog-content" {...props}>
+            {children}
+          </div>
+        ),
+      ),
+      DialogHeader: ({ children }: PropsWithChildren) => <div>{children}</div>,
+    };
+  })(),
 }));
 
 vi.mock("@/features/editor", () => ({
@@ -147,6 +166,18 @@ vi.mock("@/store/diff.store", () => {
 
 import { HomePage } from "./home-page";
 
+function render(
+  ui: Parameters<typeof baseRender>[0],
+  options?: Parameters<typeof baseRender>[1],
+) {
+  return baseRender(ui, {
+    ...options,
+    wrapper: ({ children }) => (
+      <DragResizeProvider debounceMs={0}>{children}</DragResizeProvider>
+    ),
+  });
+}
+
 describe("HomePage", () => {
   beforeEach(() => {
     diffStateMock.isOpen = true;
@@ -204,6 +235,15 @@ describe("HomePage", () => {
     expect(
       screen.getByRole("button", { name: "放弃当前文件更改" }),
     ).toBeInTheDocument();
+  });
+
+  it("uses the shared drag handle and all resize handles", () => {
+    render(<HomePage />);
+
+    expect(document.querySelector("[data-dialog-drag-handle]")).not.toBeNull();
+    expect(
+      document.querySelectorAll("[data-dialog-resize-handle]"),
+    ).toHaveLength(8);
   });
 
   it("hides mutable actions for history diff popups", () => {
