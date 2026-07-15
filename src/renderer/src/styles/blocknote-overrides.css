@@ -478,6 +478,20 @@
   border-left-width: 2px !important;
 }
 
+.editor-code-block__codemirror
+  .cm-editor.cm-focused:not(:has(.cm-cursor-primary))
+  .cm-content
+  > .cm-line:only-child:has(> br:only-child)::before {
+  /* 空文档尚未生成 CodeMirror 光标层时，补绘与正常光标一致的插入线。 */
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 1.6rem;
+  border-left: 2px solid var(--editor-code-block-cursor);
+  pointer-events: none;
+}
+
 .editor-code-block__codemirror .cm-scroller {
   align-items: flex-start;
 }
@@ -488,6 +502,7 @@
 }
 
 .editor-code-block__codemirror .cm-line {
+  position: relative;
   line-height: 1.6rem !important;
 }
 
