@@ -179,6 +179,45 @@
 }
 
 :is(.bn-editor, .bn-editor-preview)
+  .bn-block-outer:has(
+    > .bn-block > .bn-block-content[data-content-type="quote"]
+  ):has(> .bn-block > .bn-block-group) {
+  /* 引用有子块时把引用线提升到父容器，列表与正文共享同一引用区域。 */
+  margin-block: 0.55em;
+  padding-left: 0.9em;
+  border-left: 3px solid var(--accent-color);
+  color: var(--text-secondary);
+}
+
+:is(.bn-editor, .bn-editor-preview)
+  .bn-block-outer:has(
+    > .bn-block > .bn-block-content[data-content-type="quote"]
+  ):has(> .bn-block > .bn-block-group)
+  > .bn-block
+  > .bn-block-content[data-content-type="quote"]
+  blockquote {
+  margin-block: 0;
+  padding: 0.2em 0;
+  border-left: 0;
+}
+
+:is(.bn-editor, .bn-editor-preview)
+  .bn-block-outer:has(
+    > .bn-block > .bn-block-content[data-content-type="quote"]
+  ):has(> .bn-block > .bn-block-group)
+  > .bn-block
+  > .bn-block-content[data-content-type="quote"]:has(
+    .ProseMirror-trailingBreak:only-child
+  ) {
+  /* 空引用直接从第一个子列表开始，不保留一行不可见的父块占位。 */
+  block-size: 0;
+  min-block-size: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+:is(.bn-editor, .bn-editor-preview)
   .bn-block-content[data-content-type="quote"]:has(
     .ProseMirror-trailingBreak:only-child
   ) {

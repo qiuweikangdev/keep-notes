@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   ensureEditableBlocks,
@@ -11,6 +11,65 @@ import {
 } from "./markdown";
 
 describe("Markdown source preservation", () => {
+  type TestBlock = {
+    content?: string;
+    children?: TestBlock[];
+    type: string;
+  };
+
+  it("nests quoted markdown list items under their quote after parsing", async () => {
+    let received = "";
+    const blocks = await parseMarkdown<TestBlock>(
+      {
+        tryParseMarkdownToBlocks: (markdown) => {
+          received = markdown;
+          return [
+            { type: "quote", content: "Quote text" },
+            { type: "bulletListItem", content: "First item" },
+            { type: "bulletListItem", content: "Second item" },
+          ];
+        },
+      },
+      "> Quote text\n>\n> - First item\n> - Second item\n",
+    );
+
+    expect(received).toBe("> Quote text\n\n- First item\n- Second item\n");
+    expect(blocks).toEqual([
+      {
+        type: "quote",
+        content: "Quote text",
+        children: [
+          { type: "bulletListItem", content: "First item" },
+          { type: "bulletListItem", content: "Second item" },
+        ],
+      },
+    ]);
+  });
+
+  it("serializes quote-owned bullet items as nested quote markdown", async () => {
+    const serialize = vi.fn((blocks: TestBlock[]) =>
+      blocks[0]?.type === "quote"
+        ? "> Quote text\n"
+        : "* First item\n* Second item\n",
+    );
+
+    await expect(
+      serializeMarkdown<TestBlock>({ blocksToMarkdownLossy: serialize }, [
+        {
+          type: "quote",
+          content: "Quote text",
+          children: [
+            { type: "bulletListItem", content: "First item" },
+            { type: "bulletListItem", content: "Second item" },
+          ],
+        },
+      ]),
+    ).resolves.toBe("> Quote text\n>\n> * First item\n> * Second item\n");
+    expect(serialize).toHaveBeenCalledWith([
+      { type: "quote", content: "Quote text", children: [] },
+    ]);
+  });
+
   it("normalizes only the parser input while retaining source whitespace", async () => {
     const source = "\uFEFF# Title  \r\n\r\n* item\t \r\n\r\n";
     let received = "";

@@ -8,6 +8,8 @@ import {
   getBlockInfo,
   getNodeById,
   insertBlocks,
+  nodeToBlock,
+  updateBlockTr,
   type CodeBlockOptions,
 } from "@blocknote/core";
 import {
@@ -15,11 +17,12 @@ import {
   createCodeBlockSpec,
   createQuoteBlockSpec,
 } from "@blocknote/core/blocks";
+import { SideMenuExtension } from "@blocknote/core/extensions";
 import { InputRule } from "@tiptap/core";
 import Code from "@tiptap/extension-code";
 import { closeHistory } from "@tiptap/pm/history";
 import { AllSelection, Plugin, TextSelection } from "@tiptap/pm/state";
-import type { Slice } from "@tiptap/pm/model";
+import type { Node, Slice } from "@tiptap/pm/model";
 
 import {
   createEditorCodeBlockExternalHTML,
@@ -298,30 +301,56 @@ const editorCodeBlockSpec = createBlockSpec(
   editorCodeBlockExtensions,
 )();
 
-function getPlainParagraphTextsFromPasteSlice(slice: Slice): string[] | null {
-  const texts: string[] = [];
+function collectParagraphTextsFromPasteNode(node: Node, texts: string[]) {
+  if (node.type.name === "blockContainer") {
+    const blockContent = node.firstChild;
+    if (blockContent?.type.name !== "paragraph") return false;
 
-  slice.content.forEach((blockContainer) => {
-    const blockContent = blockContainer.firstChild;
-    if (blockContent?.type.name !== "paragraph") {
-      return;
-    }
     texts.push(blockContent.textContent);
+    return true;
+  }
+
+  if (node.type.name !== "blockGroup") return false;
+
+  let isPlainParagraphGroup = true;
+  node.forEach((child) => {
+    if (!collectParagraphTextsFromPasteNode(child, texts)) {
+      isPlainParagraphGroup = false;
+    }
   });
 
-  return texts.length === slice.content.childCount ? texts : null;
+  return isPlainParagraphGroup;
 }
 
-function getPlainBulletListPasteBlocks(slice: Slice) {
+function getPlainParagraphTextsFromPasteSlice(slice: Slice): string[] | null {
+  const texts: string[] = [];
+  let isPlainParagraphSlice = true;
+
+  slice.content.forEach((node) => {
+    if (!collectParagraphTextsFromPasteNode(node, texts)) {
+      isPlainParagraphSlice = false;
+    }
+  });
+
+  return isPlainParagraphSlice ? texts : null;
+}
+
+function getQuoteListPasteContent(slice: Slice) {
   const paragraphTexts = getPlainParagraphTextsFromPasteSlice(slice);
   if (!paragraphTexts) return null;
 
   const nonEmptyLines = paragraphTexts
     .map((text) => text.trim())
     .filter(Boolean);
-  if (nonEmptyLines.length < 2) return null;
+  const listStart = nonEmptyLines.findIndex((line) =>
+    /^[-+*]\s+(.+)$/u.test(line),
+  );
+  if (listStart === -1) return null;
 
-  const blocks = nonEmptyLines.map((line) => {
+  const listLines = nonEmptyLines.slice(listStart);
+  if (listLines.length < 2) return null;
+
+  const blocks = listLines.map((line) => {
     const match = line.match(/^[-+*]\s+(.+)$/u);
     if (!match) return null;
 
@@ -331,7 +360,18 @@ function getPlainBulletListPasteBlocks(slice: Slice) {
     };
   });
 
-  return blocks.every((block) => block !== null) ? blocks : null;
+  if (!blocks.every((block) => block !== null)) return null;
+
+  return {
+    blocks,
+    leadText: nonEmptyLines.slice(0, listStart).join("\n"),
+  };
+}
+
+function getPlainBulletListPasteBlocks(slice: Slice) {
+  const quoteContent = getQuoteListPasteContent(slice);
+  if (!quoteContent || quoteContent.leadText) return null;
+  return quoteContent.blocks;
 }
 
 const plainBulletListPasteExtension = createExtension(({ editor }) => ({
@@ -373,6 +413,20 @@ function getInlineContentText(content: unknown) {
     .join("");
 }
 
+function appendPlainTextToInlineContent(content: unknown, text: string) {
+  if (!text) return content;
+  if (!Array.isArray(content) || content.length === 0) return text;
+
+  return [
+    ...content,
+    {
+      type: "text" as const,
+      text: `\n${text}`,
+      styles: {},
+    },
+  ];
+}
+
 // 通过 >  输入规则创建出的空引用块，现在按 Backspace 会直接回退成空的普通段落，不再残留 > 触发文本
 function isEmptyQuoteBackspaceContent(content: unknown) {
   const text = getInlineContentText(content).trim();
@@ -393,6 +447,27 @@ const editorQuoteBlockSpec = {
   },
   extensions: [
     ...(baseQuoteBlockSpec.extensions ?? []),
+    createExtension(({ editor }) => ({
+      key: "editor-quote-side-menu-parent",
+      mount() {
+        const sideMenu = editor.getExtension(SideMenuExtension);
+        const store = sideMenu?.store;
+        if (!store) return;
+
+        return store.subscribe(({ currentVal }) => {
+          if (!currentVal) return;
+
+          let parent = editor.getParentBlock(currentVal.block);
+          while (parent && parent.type !== "quote") {
+            parent = editor.getParentBlock(parent);
+          }
+          if (!parent || parent.id === currentVal.block.id) return;
+
+          // 引用子块命中 SideMenu 时统一提升到外层引用，确保显示位置和拖拽对象一致。
+          store.setState({ ...currentVal, block: parent });
+        });
+      },
+    }))(),
     createExtension({
       key: "editor-quote-enter",
       runsBefore: ["default"],
@@ -457,13 +532,199 @@ const editorQuoteBlockSpec = {
         },
       },
     }),
+    createExtension(({ editor }) => ({
+      key: "editor-quote-list-input",
+      runsBefore: ["default", "bullet-list-item-shortcuts"],
+      inputRules: [
+        {
+          find: /(?:^|\ufffc)\s?[-+*]\s$/,
+          replace() {
+            const { block } = editor.getTextCursorPosition();
+            if (block.type !== "quote") return;
+
+            // 与默认列表规则在同一输入规则链中抢先命中，直接把列表项放进引用子块。
+            return {
+              type: "quote",
+              props: block.props,
+              children: [
+                ...block.children,
+                { type: "bulletListItem", content: "" },
+              ],
+            };
+          },
+        },
+      ],
+      prosemirrorPlugins: [
+        new Plugin({
+          props: {
+            handlePaste(_view, event, slice) {
+              const pasteContent = getQuoteListPasteContent(slice);
+              if (!pasteContent) return false;
+
+              const { block } = editor.getTextCursorPosition();
+              if (block.type !== "quote") return false;
+
+              // 引用内粘贴的列表保持为引用子块，避免被默认粘贴逻辑拆成同级块。
+              editor.replaceBlocks(
+                [block],
+                [
+                  {
+                    id: block.id,
+                    type: "quote",
+                    content: appendPlainTextToInlineContent(
+                      block.content,
+                      pasteContent.leadText,
+                    ) as typeof block.content,
+                    props: block.props,
+                    children: [...block.children, ...pasteContent.blocks],
+                  },
+                ],
+              );
+              event.preventDefault();
+
+              return true;
+            },
+            handleTextInput(view, from, to, text) {
+              if (text !== " " || from !== to) return false;
+
+              const { block } = editor.getTextCursorPosition();
+              const { selection } = view.state;
+              if (block.type !== "quote") return false;
+              if (
+                selection.$from.parentOffset !==
+                selection.$from.parent.content.size
+              ) {
+                return false;
+              }
+
+              const marker = getInlineContentText(block.content).match(
+                /(?:^|\n)[-+*]$/u,
+              )?.[0];
+              if (!marker) return false;
+
+              const tr = view.state.tr.delete(from - marker.length, from);
+              const quoteNode = getNodeById(block.id, tr.doc);
+              if (!quoteNode) return false;
+              const quote = nodeToBlock(quoteNode.node, tr.doc.type.schema);
+
+              // Chromium 的文本输入路径可能先经过独立插件；默认规则被拦截后在这里完成同样的子块转换。
+              updateBlockTr(tr, quoteNode.posBeforeNode, {
+                children: [
+                  ...quote.children,
+                  { type: "bulletListItem", content: "" },
+                ],
+              });
+
+              const updatedQuoteNode = getNodeById(block.id, tr.doc);
+              if (!updatedQuoteNode) return false;
+              const updatedQuote = nodeToBlock(
+                updatedQuoteNode.node,
+                tr.doc.type.schema,
+              );
+              const child = updatedQuote.children.at(-1);
+              const childNode = child && getNodeById(child.id, tr.doc);
+              if (childNode) {
+                const childInfo = getBlockInfo(childNode);
+                if (childInfo.isBlockContainer) {
+                  tr.setSelection(
+                    TextSelection.create(
+                      tr.doc,
+                      childInfo.blockContent.beforePos + 1,
+                    ),
+                  );
+                }
+              }
+
+              view.dispatch(tr.scrollIntoView());
+              return true;
+            },
+          },
+          appendTransaction(transactions, oldState, newState) {
+            if (!transactions.some((transaction) => transaction.docChanged)) {
+              return null;
+            }
+
+            let insertedChildId: string | null = null;
+            oldState.doc.descendants((node, position) => {
+              if (node.type.name !== "blockContainer") return true;
+
+              const oldInfo = getBlockInfo({
+                node,
+                posBeforeNode: position,
+              });
+              if (!oldInfo.isBlockContainer) return true;
+              if (oldInfo.blockNoteType !== "quote") return true;
+
+              const id = node.attrs.id;
+              if (typeof id !== "string") return true;
+              const nextNode = getNodeById(id, newState.doc);
+              if (!nextNode) return true;
+
+              const oldQuote = nodeToBlock(node, oldState.doc.type.schema);
+              const nextQuote = nodeToBlock(
+                nextNode.node,
+                newState.doc.type.schema,
+              );
+              if (nextQuote.type !== "quote") return true;
+              if (nextQuote.children.length !== oldQuote.children.length + 1) {
+                return true;
+              }
+
+              const child = nextQuote.children.at(-1);
+              if (child?.type !== "bulletListItem") return true;
+              insertedChildId = child.id;
+              return false;
+            });
+            if (!insertedChildId) return null;
+
+            const tr = newState.tr;
+            const childNode = getNodeById(insertedChildId, tr.doc);
+            if (childNode) {
+              const childInfo = getBlockInfo(childNode);
+              if (childInfo.isBlockContainer) {
+                tr.setSelection(
+                  TextSelection.create(
+                    tr.doc,
+                    childInfo.blockContent.beforePos + 1,
+                  ),
+                );
+              }
+            }
+
+            return tr;
+          },
+        }),
+      ],
+    }))(),
   ],
 };
+
+const quoteAwareBulletListItemExtensions = (
+  defaultBlockSpecs.bulletListItem.extensions ?? []
+).map((extensionFactory) =>
+  createExtension(({ editor }) => {
+    const extension = extensionFactory({ editor });
+    if (extension.key !== "bullet-list-item-shortcuts") return extension;
+
+    return {
+      ...extension,
+      inputRules: extension.inputRules?.map((inputRule) => ({
+        ...inputRule,
+        replace(props) {
+          if (props.editor.getTextCursorPosition().block.type === "quote") {
+            return;
+          }
+          return inputRule.replace(props);
+        },
+      })),
+    };
+  })(),
+);
 
 const editorBulletListItemSpec = {
   ...defaultBlockSpecs.bulletListItem,
   extensions: [
-    ...(defaultBlockSpecs.bulletListItem.extensions ?? []),
+    ...quoteAwareBulletListItemExtensions,
     listHistoryBoundaryExtension(),
     plainBulletListPasteExtension(),
   ],

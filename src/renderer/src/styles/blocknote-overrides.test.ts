@@ -134,6 +134,15 @@ describe("blocknote overrides stylesheet", () => {
     );
   });
 
+  it("keeps quote child blocks on one continuous quote surface", () => {
+    expect(stylesheet).toMatch(
+      /\.bn-block-outer:has\(\s*> \.bn-block > \.bn-block-content\[data-content-type="quote"\]\s*\):has\(\s*> \.bn-block > \.bn-block-group\s*\)\s*\{[\s\S]*padding-left:\s*0\.9em;[\s\S]*border-left:\s*3px solid var\(--accent-color\);/,
+    );
+    expect(stylesheet).toMatch(
+      /\.bn-block-outer:has\(\s*> \.bn-block > \.bn-block-content\[data-content-type="quote"\]\s*\):has\(\s*> \.bn-block > \.bn-block-group\s*\)[\s\S]*\.bn-block-content\[data-content-type="quote"\]:has\(\s*\.ProseMirror-trailingBreak:only-child\s*\)\s*\{[\s\S]*block-size:\s*0;/,
+    );
+  });
+
   it("keeps bullet lists compact and readable across nested levels", () => {
     expect(stylesheet).toMatch(
       /:is\(\.bn-editor, \.bn-editor-preview\) ul\s*\{[\s\S]*padding-left:\s*1\.25em;/,

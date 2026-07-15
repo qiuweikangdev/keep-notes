@@ -15,6 +15,16 @@ export interface MarkdownParseOptions {
   resolveImageUrl?: (url: string) => Promise<string | null> | string | null;
 }
 
+interface MarkdownTreeBlock {
+  children?: MarkdownTreeBlock[];
+  type?: unknown;
+}
+
+interface QuoteListDescriptor {
+  itemCount: number;
+  quoteOrdinal: number;
+}
+
 export function markdownEquals(left: string, right: string): boolean {
   return left === right;
 }
@@ -1316,6 +1326,182 @@ async function resolveImageBlockUrls<TBlock>(
   );
 }
 
+const QUOTE_LINE_PATTERN = /^> ?/u;
+const QUOTE_BLANK_LINE_PATTERN = /^>\s*$/u;
+const QUOTE_LIST_LINE_PATTERN = /^>\s*[-+*]\s+/u;
+
+function getMarkdownBlockType(block: unknown): string | null {
+  if (!isRecord(block) || typeof block.type !== "string") return null;
+  return block.type;
+}
+
+// BlockNote 会将引用内的列表行折叠为普通引用文本，解析前临时展开后再恢复子块关系。
+function normalizeQuoteListsForParser(markdown: string): {
+  descriptors: QuoteListDescriptor[];
+  markdown: string;
+} {
+  const lines = markdown.split("\n");
+  const descriptors: QuoteListDescriptor[] = [];
+  let quoteOrdinal = 0;
+  let index = 0;
+
+  while (index < lines.length) {
+    if (!QUOTE_LINE_PATTERN.test(lines[index])) {
+      index += 1;
+      continue;
+    }
+
+    const quoteStart = index;
+    let quoteEnd = index;
+    while (
+      quoteEnd < lines.length &&
+      QUOTE_LINE_PATTERN.test(lines[quoteEnd])
+    ) {
+      quoteEnd += 1;
+    }
+    quoteOrdinal += 1;
+
+    let listStart = quoteStart;
+    while (
+      listStart < quoteEnd &&
+      !QUOTE_LIST_LINE_PATTERN.test(lines[listStart])
+    ) {
+      listStart += 1;
+    }
+    if (listStart === quoteEnd) {
+      index = quoteEnd;
+      continue;
+    }
+
+    let listEnd = listStart;
+    while (listEnd < quoteEnd && QUOTE_LIST_LINE_PATTERN.test(lines[listEnd])) {
+      listEnd += 1;
+    }
+    if (listEnd !== quoteEnd) {
+      index = quoteEnd;
+      continue;
+    }
+
+    let replacementStart = listStart;
+    while (
+      replacementStart > quoteStart &&
+      QUOTE_BLANK_LINE_PATTERN.test(lines[replacementStart - 1])
+    ) {
+      replacementStart -= 1;
+    }
+    const listLines = lines
+      .slice(listStart, listEnd)
+      .map((line) => line.replace(/^>\s*/u, ""));
+    const quotePrefix = replacementStart === quoteStart ? [">"] : [];
+
+    lines.splice(
+      replacementStart,
+      listEnd - replacementStart,
+      ...quotePrefix,
+      "",
+      ...listLines,
+    );
+    descriptors.push({ itemCount: listLines.length, quoteOrdinal });
+    index = replacementStart + quotePrefix.length + listLines.length + 1;
+  }
+
+  return { descriptors, markdown: lines.join("\n") };
+}
+
+function restoreQuoteListChildren<TBlock>(
+  blocks: TBlock[],
+  descriptors: QuoteListDescriptor[],
+): TBlock[] {
+  const restoredBlocks = [...blocks];
+
+  for (const descriptor of descriptors) {
+    let quoteCount = 0;
+    const quoteIndex = restoredBlocks.findIndex((block) => {
+      if (getMarkdownBlockType(block) !== "quote") return false;
+      quoteCount += 1;
+      return quoteCount === descriptor.quoteOrdinal;
+    });
+    if (quoteIndex === -1) continue;
+
+    const listBlocks = restoredBlocks.slice(
+      quoteIndex + 1,
+      quoteIndex + 1 + descriptor.itemCount,
+    );
+    if (
+      listBlocks.length !== descriptor.itemCount ||
+      !listBlocks.every(
+        (block) => getMarkdownBlockType(block) === "bulletListItem",
+      )
+    ) {
+      continue;
+    }
+
+    const quote = restoredBlocks[quoteIndex];
+    if (!isRecord(quote)) continue;
+    const children = Array.isArray(quote.children) ? quote.children : [];
+    restoredBlocks.splice(quoteIndex, descriptor.itemCount + 1, {
+      ...quote,
+      children: [...children, ...listBlocks],
+    } as TBlock);
+  }
+
+  return restoredBlocks;
+}
+
+function getQuoteListChildren<TBlock>(block: TBlock): TBlock[] | null {
+  if (!isRecord(block) || block.type !== "quote") return null;
+  if (!Array.isArray(block.children) || block.children.length === 0)
+    return null;
+  return block.children.every(
+    (child) => getMarkdownBlockType(child) === "bulletListItem",
+  )
+    ? (block.children as TBlock[])
+    : null;
+}
+
+// BlockNote 序列化非列表父块时会提升其子块，需要手动补回标准引用列表前缀。
+async function serializeQuoteListBlocks<TBlock>(
+  serializer: MarkdownSerializer<TBlock>,
+  blocks: TBlock[],
+): Promise<string> {
+  if (!blocks.some((block) => getQuoteListChildren(block))) {
+    return serializer.blocksToMarkdownLossy(blocks);
+  }
+
+  const chunks: string[] = [];
+  let pendingBlocks: TBlock[] = [];
+  const flushPendingBlocks = async () => {
+    if (pendingBlocks.length === 0) return;
+    const markdown = await serializer.blocksToMarkdownLossy(pendingBlocks);
+    chunks.push(markdown.trimEnd());
+    pendingBlocks = [];
+  };
+
+  for (const block of blocks) {
+    const children = getQuoteListChildren(block);
+    if (!children) {
+      pendingBlocks.push(block);
+      continue;
+    }
+
+    await flushPendingBlocks();
+    const quote = block as MarkdownTreeBlock;
+    const quoteMarkdown = await serializer.blocksToMarkdownLossy([
+      { ...quote, children: [] } as TBlock,
+    ]);
+    const listMarkdown = await serializer.blocksToMarkdownLossy(children);
+    const quotedList = listMarkdown
+      .trimEnd()
+      .split("\n")
+      .map((line) => (line ? `> ${line}` : ">"))
+      .join("\n");
+    chunks.push(`${quoteMarkdown.trimEnd()}\n>\n${quotedList}`);
+  }
+
+  await flushPendingBlocks();
+  return `${chunks.join("\n\n")}\n`;
+}
+
 export async function parseMarkdown<TBlock>(
   parser: MarkdownParser<TBlock>,
   markdown: string,
@@ -1326,8 +1512,12 @@ export async function parseMarkdown<TBlock>(
   const parseInput = repairedMarkdown
     .replace(/^\uFEFF/, "")
     .replace(/\r\n?/g, "\n");
-  const blocks = await parser.tryParseMarkdownToBlocks(parseInput);
-  return resolveImageBlockUrls(blocks, options);
+  const normalized = normalizeQuoteListsForParser(parseInput);
+  const blocks = await parser.tryParseMarkdownToBlocks(normalized.markdown);
+  return resolveImageBlockUrls(
+    restoreQuoteListChildren(blocks, normalized.descriptors),
+    options,
+  );
 }
 
 function yieldToMain(): Promise<void> {
@@ -1340,5 +1530,5 @@ export async function serializeMarkdown<TBlock>(
 ): Promise<string> {
   // 大文档序列化可能阻塞数百毫秒；让出主线程确保用户交互不被延迟。
   await yieldToMain();
-  return serializer.blocksToMarkdownLossy(blocks);
+  return serializeQuoteListBlocks(serializer, blocks);
 }

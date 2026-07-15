@@ -481,6 +481,8 @@ class EditorCodeBlockNodeView {
 
   private copyResetTimer: number | null = null;
 
+  private focusAfterMountFrame: number | null = null;
+
   private readonly closeLanguagePickerOnPointerDown = (event: PointerEvent) => {
     const target = event.target;
     if (!(target instanceof Node)) {
@@ -529,8 +531,8 @@ class EditorCodeBlockNodeView {
       return;
     }
 
-    // 点击代码正文、普通 gutter 或其他非控件区域时，让焦点回到 CodeMirror，而不是落到外层富文本。
-    this.codeMirror.focus();
+    // 点击代码正文、普通 gutter 或其他非控件区域时，让焦点回到 CodeMirror，并刷新空行光标层。
+    this.focusCodeMirrorAndRefreshCursor();
   };
 
   constructor({ block, editor, props }: EditorCodeBlockNodeViewOptions) {
@@ -576,6 +578,17 @@ class EditorCodeBlockNodeView {
       true,
     );
     this.dom.addEventListener("mousedown", this.focusCodeMirrorFromShell);
+    this.focusAfterMountFrame = window.requestAnimationFrame(() => {
+      this.focusAfterMountFrame = null;
+      if (!this.dom.isConnected || !this.isProseMirrorSelectionInsideBlock()) {
+        return;
+      }
+      if (!this.codeMirror.hasFocus && !this.prosemirrorView?.hasFocus())
+        return;
+
+      // CodeMirror 在 NodeView 挂载前可能无法测出空行坐标，挂载后重新派发选区以生成光标。
+      this.focusCodeMirrorAndRefreshCursor();
+    });
   }
 
   public stopEvent = (event: Event) =>
@@ -591,6 +604,10 @@ class EditorCodeBlockNodeView {
       window.clearTimeout(this.copyResetTimer);
       this.copyResetTimer = null;
     }
+    if (this.focusAfterMountFrame !== null) {
+      window.cancelAnimationFrame(this.focusAfterMountFrame);
+      this.focusAfterMountFrame = null;
+    }
     this.dom.removeEventListener("mousedown", this.focusCodeMirrorFromShell);
     this.codeMirror.contentDOM.removeEventListener(
       "keydown",
@@ -605,17 +622,8 @@ class EditorCodeBlockNodeView {
   };
 
   public deselectNode = () => {
-    const position = this.getPos?.();
-    const selection = this.prosemirrorView?.state.selection;
-    if (position !== undefined && selection) {
-      const contentFrom = position + 1;
-      const contentTo =
-        contentFrom +
-        (this.node?.content.size ?? this.codeMirror.state.doc.length);
-
-      // 内部 CodeMirror 同步文本选区时会取消外层节点选区，此时仍需保留代码编辑焦点。
-      if (selection.from >= contentFrom && selection.to <= contentTo) return;
-    }
+    // 内部 CodeMirror 同步文本选区时会取消外层节点选区，此时仍需保留代码编辑焦点。
+    if (this.isProseMirrorSelectionInsideBlock()) return;
 
     this.codeMirror.contentDOM.blur();
   };
@@ -640,6 +648,24 @@ class EditorCodeBlockNodeView {
 
     return true;
   };
+
+  private isProseMirrorSelectionInsideBlock() {
+    const position = this.getPos?.();
+    const selection = this.prosemirrorView?.state.selection;
+    if (position === undefined || !selection) return false;
+
+    const contentFrom = position + 1;
+    const contentTo =
+      contentFrom +
+      (this.node?.content.size ?? this.codeMirror.state.doc.length);
+
+    return selection.from >= contentFrom && selection.to <= contentTo;
+  }
+
+  private focusCodeMirrorAndRefreshCursor() {
+    this.codeMirror.focus();
+    this.codeMirror.dispatch({ selection: this.codeMirror.state.selection });
+  }
 
   private getCodeMirrorExtensions(): Extension[] {
     return [

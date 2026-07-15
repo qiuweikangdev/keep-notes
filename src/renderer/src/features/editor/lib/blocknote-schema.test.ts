@@ -1,4 +1,5 @@
 import { BlockNoteEditor } from "@blocknote/core";
+import { SideMenuExtension } from "@blocknote/core/extensions";
 import { BlockNoteView } from "@blocknote/mantine";
 import { foldEffect, foldable, foldedRanges } from "@codemirror/language";
 import { EditorView, getDrawSelectionConfig } from "@codemirror/view";
@@ -19,6 +20,7 @@ import { repairMarkdownSourceBeforeParse } from "./markdown";
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -76,6 +78,30 @@ function setupMatchMedia() {
       removeListener: () => undefined,
     }),
   });
+}
+
+function mockCursorCoordinatesAfterDetachedMeasure() {
+  let measurementCount = 0;
+
+  return vi
+    .spyOn(EditorView.prototype, "coordsAtPos")
+    .mockImplementation(() => {
+      measurementCount += 1;
+      if (measurementCount === 1) return null;
+
+      return { bottom: 24, left: 100, right: 100, top: 4 };
+    });
+}
+
+function mockCursorCoordinatesUntilLayoutIsReady() {
+  let isLayoutReady = false;
+  vi.spyOn(EditorView.prototype, "coordsAtPos").mockImplementation(() =>
+    isLayoutReady ? { bottom: 24, left: 100, right: 100, top: 4 } : null,
+  );
+
+  return () => {
+    isLayoutReady = true;
+  };
 }
 
 function setupClipboardEvent() {
@@ -749,6 +775,191 @@ describe("editor BlockNote schema", () => {
     expect(editor.document.map(getInlineText).join("")).not.toContain("*");
   });
 
+  it("pastes markdown list items as children of a non-empty quote", () => {
+    setupMatchMedia();
+    setupClipboardEvent();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "quote",
+          content: "这是引用",
+        },
+      ],
+    });
+    render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[0].id, "end");
+    editor.pasteText("* 列表1\n* 列表2");
+
+    expect(editor.document).toHaveLength(1);
+    expect(editor.document[0].type).toBe("quote");
+    expect(getInlineText(editor.document[0])).toBe("这是引用");
+    expect(
+      editor.document[0].children.map((block) => ({
+        type: block.type,
+        text: getInlineText(block),
+      })),
+    ).toEqual([
+      { type: "bulletListItem", text: "列表1" },
+      { type: "bulletListItem", text: "列表2" },
+    ]);
+  });
+
+  it("splits a pasted quote lead line from its following bullet list", () => {
+    setupMatchMedia();
+    setupClipboardEvent();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "quote",
+          content: "",
+        },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[0].id, "start");
+    editor.pasteText("列表\n- 列表1\n- 列表2");
+    expect(editor.document).toHaveLength(1);
+    expect(editor.document[0].type).toBe("quote");
+    expect(getInlineText(editor.document[0])).toBe("列表");
+    expect(
+      editor.document[0].children.map((block) => ({
+        type: block.type,
+        text: getInlineText(block),
+      })),
+    ).toEqual([
+      { type: "bulletListItem", text: "列表1" },
+      { type: "bulletListItem", text: "列表2" },
+    ]);
+    expect(
+      container.querySelectorAll('[data-content-type="quote"]'),
+    ).toHaveLength(1);
+    expect(
+      container.querySelectorAll('[data-content-type="bulletListItem"]'),
+    ).toHaveLength(2);
+  });
+
+  it("keeps a keyboard-entered bullet list inside its quote parent", async () => {
+    setupMatchMedia();
+    const user = userEvent.setup();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "paragraph",
+          content: "",
+        },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[0].id, "start");
+    editor.focus();
+    await user.keyboard("> - 这是引用");
+
+    const quoteOuter = container
+      .querySelector('[data-content-type="quote"]')
+      ?.closest(".bn-block-outer");
+    expect(
+      quoteOuter?.querySelector(
+        ':scope > .bn-block > .bn-block-group [data-content-type="bulletListItem"]',
+      ),
+    ).not.toBeNull();
+
+    expect(editor.document).toHaveLength(1);
+    expect(editor.document[0].type).toBe("quote");
+    expect(getInlineText(editor.document[0])).toBe("");
+    expect(editor.document[0].children).toHaveLength(1);
+    expect(editor.document[0].children[0].type).toBe("bulletListItem");
+    expect(getInlineText(editor.document[0].children[0])).toBe("这是引用");
+  });
+
+  it("binds the side menu of a quote child list item to its parent quote", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "quote",
+          content: "",
+          children: [{ type: "bulletListItem", content: "列表" }],
+        },
+      ],
+    });
+    render(createElement(BlockNoteView, { editor }));
+    const quote = editor.document[0];
+    const child = quote.children[0];
+    const sideMenu = editor.getExtension(SideMenuExtension);
+
+    sideMenu?.store?.setState(() => ({
+      block: child,
+      referencePos: new DOMRect(0, 0, 0, 0),
+      show: true,
+    }));
+
+    expect(sideMenu?.store?.state.block.id).toBe(quote.id);
+  });
+
+  it("runs quote list input before the default bullet list rule", () => {
+    const editor = BlockNoteEditor.create({ schema: editorSchema });
+    const extension = editor.getExtension("editor-quote-list-input");
+
+    expect(extension?.runsBefore).toContain("bullet-list-item-shortcuts");
+    expect(extension?.inputRules).toHaveLength(1);
+  });
+
+  it("prevents the default bullet rule from replacing a quote block", () => {
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "quote", content: "-" }],
+    });
+    editor.setTextCursorPosition(editor.document[0].id, "end");
+    const extension = editor.getExtension("bullet-list-item-shortcuts");
+    const replacement = extension?.inputRules?.[0]?.replace({
+      editor,
+      match: ["- "],
+      range: { from: 1, to: 3 },
+    });
+
+    expect(replacement).toBeUndefined();
+  });
+
+  it("turns bullet markers after a quote line break into child list items", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "quote",
+          content: "列表",
+        },
+      ],
+    });
+    render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[0].id, "end");
+    pressKey(editor, "Enter");
+    typeString(editor, "- 列表1");
+    pressKey(editor, "Enter");
+    typeString(editor, "列表2");
+
+    expect(editor.document).toHaveLength(1);
+    expect(editor.document[0].type).toBe("quote");
+    expect(getInlineText(editor.document[0])).toBe("列表");
+    expect(
+      editor.document[0].children.map((block) => ({
+        type: block.type,
+        text: getInlineText(block),
+      })),
+    ).toEqual([
+      { type: "bulletListItem", text: "列表1" },
+      { type: "bulletListItem", text: "列表2" },
+    ]);
+  });
+
   it("keeps Enter-created line breaks inside quote blocks", () => {
     setupMatchMedia();
     const editor = BlockNoteEditor.create({
@@ -881,6 +1092,7 @@ describe("editor BlockNote schema", () => {
 
   it("renders CodeMirror after creating a TypeScript code block from input", async () => {
     setupMatchMedia();
+    mockCursorCoordinatesAfterDetachedMeasure();
     const editor = BlockNoteEditor.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
@@ -904,6 +1116,11 @@ describe("editor BlockNote schema", () => {
           container.querySelector(".editor-code-block__codemirror .cm-line"),
         ).not.toBe(null);
         expect(getCodeMirrorView(container).hasFocus).toBe(true);
+        expect(
+          container.querySelector(
+            ".editor-code-block__codemirror .cm-cursor-primary",
+          ),
+        ).not.toBe(null);
       },
       { timeout: 1000 },
     );
@@ -1050,6 +1267,42 @@ describe("editor BlockNote schema", () => {
     await user.click(codePane as HTMLElement);
 
     expect(getCodeMirrorView(container).hasFocus).toBe(true);
+  });
+
+  it("shows the cursor when clicking an empty code block", async () => {
+    setupMatchMedia();
+    const revealCursorCoordinates = mockCursorCoordinatesUntilLayoutIsReady();
+    const user = userEvent.setup();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[0].id, "start");
+    editor.focus();
+    typeString(editor, "```js ");
+
+    await waitFor(() => {
+      expect(editor.document[0].type).toBe("codeBlock");
+      expect(getCodeMirrorView(container).hasFocus).toBe(true);
+      expect(container.querySelector(".cm-cursor-primary")).toBe(null);
+    });
+
+    const codePane = container.querySelector<HTMLElement>(
+      ".editor-code-block__code-pane",
+    );
+    expect(codePane).not.toBe(null);
+    codePane?.addEventListener("click", revealCursorCoordinates, {
+      once: true,
+    });
+
+    await user.click(codePane as HTMLElement);
+
+    await waitFor(() => {
+      expect(getCodeMirrorView(container).hasFocus).toBe(true);
+      expect(container.querySelector(".cm-cursor-primary")).not.toBe(null);
+    });
   });
 
   it("keeps CodeMirror focused when its node selection becomes a text selection", async () => {
