@@ -1,14 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import {
-  afterAll,
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   checkAndCloseWindow,
   createWindow,
@@ -151,7 +143,6 @@ describe("openPathInNewWindow", () => {
 
 describe("window close draft protection", () => {
   const writeFile = vi.spyOn(fs.promises, "writeFile");
-  const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -161,11 +152,6 @@ describe("window close draft protection", () => {
 
   afterEach(() => {
     writeFile.mockReset();
-    consoleError.mockClear();
-  });
-
-  afterAll(() => {
-    consoleError.mockRestore();
   });
 
   it("shows the save confirmation when the renderer reports any dirty tab", async () => {
@@ -220,6 +206,9 @@ describe("window close draft protection", () => {
   });
 
   it("keeps the window open when the dirty snapshot getter is missing", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
     const executeJavaScript = createRendererExecutor({});
     const win = {
       isDestroyed: vi.fn(() => false),
@@ -227,13 +216,26 @@ describe("window close draft protection", () => {
       webContents: { executeJavaScript },
     } as unknown as Electron.BrowserWindow;
 
-    await saveAndClose(win);
+    try {
+      await saveAndClose(win);
 
-    expect(executeJavaScript).toHaveBeenCalledTimes(1);
-    expect(win.destroy).not.toHaveBeenCalled();
+      expect(executeJavaScript).toHaveBeenCalledTimes(1);
+      expect(win.destroy).not.toHaveBeenCalled();
+      expect(consoleError).toHaveBeenCalledWith(
+        "Error during save:",
+        expect.objectContaining({
+          message: "Close-save snapshot bridge is unavailable",
+        }),
+      );
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   it("keeps the window open when the save success callback is missing", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
     const snapshots = [
       {
         groupId: "group-1",
@@ -252,12 +254,54 @@ describe("window close draft protection", () => {
       webContents: { executeJavaScript },
     } as unknown as Electron.BrowserWindow;
 
-    await saveAndClose(win);
+    try {
+      await saveAndClose(win);
 
-    expect(writeFile).toHaveBeenCalledTimes(1);
-    expect(executeJavaScript).toHaveBeenCalledTimes(2);
-    expect(win.destroy).not.toHaveBeenCalled();
+      expect(writeFile).toHaveBeenCalledTimes(1);
+      expect(executeJavaScript).toHaveBeenCalledTimes(2);
+      expect(win.destroy).not.toHaveBeenCalled();
+      expect(consoleError).toHaveBeenCalledWith(
+        "Error during save:",
+        expect.objectContaining({
+          message: "Close-save success bridge is unavailable",
+        }),
+      );
+    } finally {
+      consoleError.mockRestore();
+    }
   });
+
+  it.each([false, 0, "", {}])(
+    "keeps the window open for invalid dirty snapshot %#",
+    async (invalidSnapshot) => {
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      const executeJavaScript = vi
+        .fn()
+        .mockResolvedValueOnce(JSON.stringify(invalidSnapshot));
+      const win = {
+        isDestroyed: vi.fn(() => false),
+        destroy: vi.fn(),
+        webContents: { executeJavaScript },
+      } as unknown as Electron.BrowserWindow;
+
+      try {
+        await saveAndClose(win);
+
+        expect(writeFile).not.toHaveBeenCalled();
+        expect(win.destroy).not.toHaveBeenCalled();
+        expect(consoleError).toHaveBeenCalledWith(
+          "Error during save:",
+          expect.objectContaining({
+            message: "Invalid close-save snapshot",
+          }),
+        );
+      } finally {
+        consoleError.mockRestore();
+      }
+    },
+  );
 
   it("writes dirty snapshots in order and closes only after consuming null", async () => {
     const firstSnapshot = {

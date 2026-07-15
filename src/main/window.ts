@@ -130,6 +130,18 @@ export async function openPathInNewWindow(
   }
 }
 
+function isCloseSaveSnapshot(value: unknown): value is CloseSaveSnapshot {
+  if (typeof value !== "object" || value === null) return false;
+
+  const snapshot = value as Record<string, unknown>;
+  return (
+    typeof snapshot.groupId === "string" &&
+    typeof snapshot.tabId === "string" &&
+    typeof snapshot.content === "string" &&
+    (typeof snapshot.filePath === "string" || snapshot.filePath === null)
+  );
+}
+
 export async function checkAndCloseWindow(win: BrowserWindow): Promise<void> {
   if (win.isDestroyed()) return;
 
@@ -186,14 +198,18 @@ export async function saveAndClose(win: BrowserWindow): Promise<void> {
           return JSON.stringify(window.__getNextDirtyEditor());
         })()`,
       );
-      const snapshot = JSON.parse(
-        serializedSnapshot,
-      ) as CloseSaveSnapshot | null;
+      const parsedSnapshot: unknown = JSON.parse(serializedSnapshot);
 
-      if (!snapshot) {
+      if (parsedSnapshot === null) {
         win.destroy();
         return;
       }
+
+      // 渲染进程数据属于跨进程输入，必须逐字段校验后才能用于写盘。
+      if (!isCloseSaveSnapshot(parsedSnapshot)) {
+        throw new Error("Invalid close-save snapshot");
+      }
+      const snapshot = parsedSnapshot;
 
       let savedPath = snapshot.filePath;
       if (!savedPath) {
