@@ -44,20 +44,40 @@ describe("ReminderEditorDialog", () => {
     });
   });
 
-  it("renders a compact editor aligned with the project dialog style", () => {
+  it("renders a layered editor with a flat schedule hierarchy", () => {
     render(<ReminderEditorDialog />);
 
     const dialog = screen.getByRole("dialog", { name: "新建提醒事项" });
     const titleInput = screen.getByPlaceholderText("标题");
     const settingsGroup = screen.getByTestId("reminder-settings-group");
 
-    expect(dialog).toHaveClass("max-w-[440px]");
-    expect(screen.getByRole("heading", { name: "新建提醒事项" })).toBeVisible();
+    expect(dialog).toHaveClass(
+      "top-[calc(12vh+88px)]",
+      "max-w-[460px]",
+      "translate-y-0",
+    );
+    expect(screen.getByRole("heading", { name: "新建提醒事项" })).toHaveClass(
+      "text-[15px]",
+      "font-semibold",
+    );
+    expect(screen.getByRole("button", { name: "关闭" })).toHaveClass(
+      "h-7",
+      "w-7",
+      "rounded-md",
+    );
     expect(titleInput).toHaveClass("h-9", "text-sm");
+    expect(settingsGroup).toHaveClass("border-y");
+    expect(settingsGroup).not.toHaveClass("rounded-lg");
     expect(settingsGroup).toContainElement(screen.getByText("日期"));
     expect(settingsGroup).toContainElement(screen.getByText("时间"));
     expect(settingsGroup).toContainElement(screen.getByText("重复"));
     expect(screen.queryAllByRole("switch")).toHaveLength(0);
+  });
+
+  it("uses an explicit primary action with the existing disabled rule", () => {
+    render(<ReminderEditorDialog />);
+
+    expect(screen.getByRole("button", { name: "保存提醒" })).toBeDisabled();
   });
 
   it("renders the associated file as muted secondary text", () => {
@@ -147,7 +167,9 @@ describe("ReminderEditorDialog", () => {
 
     expect(rows).toHaveLength(3);
     rows.forEach((row) => {
-      expect(row).toHaveClass("grid-cols-[20px_minmax(0,1fr)_140px]");
+      expect(row).toHaveClass(
+        "grid-cols-[20px_minmax(0,1fr)_minmax(120px,140px)]",
+      );
     });
     expect(controls).toHaveLength(3);
     controls.forEach((control) => {
@@ -167,7 +189,7 @@ describe("ReminderEditorDialog", () => {
     expect(screen.queryByText(/\.md$/)).not.toBeInTheDocument();
 
     await user.type(titleInput, "喝水");
-    await user.click(screen.getByRole("button", { name: "保存" }));
+    await user.click(screen.getByRole("button", { name: "保存提醒" }));
 
     await waitFor(() => {
       expect(window.electronAPI.createReminder).toHaveBeenCalledWith(
@@ -215,7 +237,7 @@ describe("ReminderEditorDialog", () => {
     );
 
     await user.type(screen.getByPlaceholderText("标题"), "喝水");
-    await user.click(screen.getByRole("button", { name: "保存" }));
+    await user.click(screen.getByRole("button", { name: "保存提醒" }));
 
     await waitFor(() => {
       expect(useReminderStore.getState()).toMatchObject({
