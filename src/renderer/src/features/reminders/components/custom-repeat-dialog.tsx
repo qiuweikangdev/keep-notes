@@ -1,29 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
-import { ChevronRight } from "lucide-react";
-import { Dialog } from "@/components/ui/dialog";
+import { Check, ChevronRight, X } from "lucide-react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ReminderRepeatCustomRule, ReminderRepeatUnit } from "@/types";
 
-const unitLabels: Record<ReminderRepeatUnit, string> = {
-  hour: "小时",
-  day: "天",
-  week: "周",
-  month: "月",
-  year: "年",
-};
-
 const unitOptions: Array<{ label: string; value: ReminderRepeatUnit }> = [
-  { label: "每小时", value: "hour" },
-  { label: "每天", value: "day" },
-  { label: "每周", value: "week" },
-  { label: "每月", value: "month" },
-  { label: "每年", value: "year" },
+  { label: "小时", value: "hour" },
+  { label: "天", value: "day" },
+  { label: "周", value: "week" },
+  { label: "月", value: "month" },
+  { label: "年", value: "year" },
 ];
 
 const repeatControlClassName =
-  "h-9 rounded-md px-3 text-[13px] outline-none transition-colors focus:border-[var(--accent-color)]";
+  "h-9 rounded-md px-3 text-[13px] outline-none transition-colors focus:border-[var(--text-muted)] focus:ring-0";
 
 function useCloseOnOutsidePointerDown(
   open: boolean,
@@ -87,39 +79,66 @@ export function CustomRepeatDialog({
 
   return (
     <Dialog.Root modal={false} open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay
-          className="fixed inset-0 z-[70]"
-          style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
-        />
-        <Dialog.Content
-          onPointerDownOutside={() => onOpenChange(false)}
-          className="fixed left-[50%] top-[50%] z-[71] w-[360px] max-w-[92vw] translate-x-[-50%] translate-y-[-50%] overflow-visible rounded-xl border shadow-2xl"
-          style={{
-            backgroundColor: "var(--bg-secondary)",
-            borderColor: "var(--border-color)",
-            color: "var(--text-primary)",
-          }}
-        >
-          <Dialog.Title className="sr-only">自定义重复</Dialog.Title>
-          <Dialog.Description className="sr-only">
-            设置提醒事项的自定义重复间隔
-          </Dialog.Description>
-          <div
-            className="border-b px-5 py-4"
-            style={{ borderColor: "var(--border-color)" }}
+      <DialogContent
+        showCloseButton={false}
+        overlayClassName="z-[70]"
+        overlayStyle={{ backgroundColor: "rgba(0, 0, 0, 0.22)" }}
+        onPointerDownOutside={() => onOpenChange(false)}
+        className="z-[71] w-[calc(100%-32px)] max-w-[336px] gap-0 overflow-visible rounded-xl p-0 shadow-[0_12px_28px_rgba(0,0,0,0.24)]"
+        data-custom-repeat-dialog="true"
+        style={{
+          backgroundColor:
+            "color-mix(in srgb, var(--bg-tertiary) 36%, var(--bg-primary))",
+          border: "none",
+          color: "var(--text-primary)",
+        }}
+      >
+        <div className="flex h-11 items-center justify-between border-b border-[var(--border-color)] px-4">
+          <Dialog.Title className="text-sm font-semibold">
+            自定义重复
+          </Dialog.Title>
+          <Dialog.Close
+            aria-label="关闭"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-color)]"
           >
-            <h3 className="text-[15px] font-semibold">自定义重复</h3>
-          </div>
+            <X aria-hidden="true" className="h-4 w-4" />
+          </Dialog.Close>
+        </div>
+        <Dialog.Description className="sr-only">
+          设置提醒事项的自定义重复间隔
+        </Dialog.Description>
 
-          <div className="space-y-3 px-5 py-4">
-            <label className="grid grid-cols-[64px_1fr] items-center gap-3">
-              <span
-                className="text-[13px] font-medium"
-                style={{ color: "var(--text-muted)" }}
-              >
-                频率
-              </span>
+        <div className="px-4 py-4">
+          <label
+            htmlFor="custom-repeat-interval"
+            className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]"
+          >
+            重复规则
+          </label>
+          <div className="flex items-center gap-2">
+            <span className="shrink-0 text-[13px] text-[var(--text-secondary)]">
+              每
+            </span>
+            <Input
+              id="custom-repeat-interval"
+              type="number"
+              min={1}
+              step={1}
+              inputMode="numeric"
+              value={interval}
+              onChange={(event) => setInterval(event.target.value)}
+              aria-label="重复间隔"
+              aria-invalid={!isValid}
+              className={`${repeatControlClassName} w-16 shrink-0 px-2 text-center font-semibold`}
+              style={{
+                backgroundColor: "var(--bg-secondary)",
+                borderColor: isValid
+                  ? "var(--border-color)"
+                  : "var(--danger-color)",
+                color: "var(--text-primary)",
+              }}
+            />
+            <div className="min-w-0 flex-1">
               <UnitPickerControl
                 value={unit}
                 open={isUnitOpen}
@@ -129,71 +148,32 @@ export function CustomRepeatDialog({
                   setIsUnitOpen(false);
                 }}
               />
-            </label>
-
-            <label className="grid grid-cols-[64px_76px_1fr] items-center gap-3">
-              <span
-                className="text-[13px] font-medium"
-                style={{ color: "var(--text-muted)" }}
-              >
-                每
-              </span>
-              <Input
-                type="number"
-                min={1}
-                step={1}
-                value={interval}
-                onChange={(event) => setInterval(event.target.value)}
-                aria-invalid={!isValid}
-                className={`${repeatControlClassName} text-center font-semibold`}
-                style={{
-                  backgroundColor: "var(--bg-primary)",
-                  borderColor: isValid
-                    ? "var(--border-color)"
-                    : "var(--danger-color)",
-                }}
-              />
-              <span className="text-[14px] font-medium">
-                {unitLabels[unit]}
-              </span>
-            </label>
-            {!isValid ? (
-              <p
-                className="pl-[76px] text-[12px]"
-                style={{ color: "var(--danger-color)" }}
-              >
-                请输入大于 0 的整数
-              </p>
-            ) : null}
+            </div>
           </div>
+          {!isValid ? (
+            <p className="mt-1.5 text-xs text-[var(--danger-color)]">
+              请输入大于 0 的整数
+            </p>
+          ) : null}
+        </div>
 
-          <div
-            className="flex justify-end gap-2 rounded-b-xl border-t px-5 py-4"
-            style={{
-              backgroundColor: "var(--bg-secondary)",
-              borderColor: "var(--border-color)",
-            }}
-          >
-            <Dialog.Close asChild>
-              <Button
-                type="button"
-                variant="secondary"
-                className="min-w-[60px]"
-              >
-                取消
-              </Button>
-            </Dialog.Close>
-            <Button
-              type="button"
-              disabled={!isValid}
-              onClick={handleConfirm}
-              className="min-w-[60px]"
-            >
-              好
+        <div
+          className="flex justify-end gap-2 rounded-b-xl border-t border-[var(--border-color)] px-4 py-3"
+          style={{
+            backgroundColor:
+              "color-mix(in srgb, var(--bg-secondary) 38%, var(--bg-primary))",
+          }}
+        >
+          <Dialog.Close asChild>
+            <Button type="button" variant="secondary">
+              取消
             </Button>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
+          </Dialog.Close>
+          <Button type="button" disabled={!isValid} onClick={handleConfirm}>
+            确定
+          </Button>
+        </div>
+      </DialogContent>
     </Dialog.Root>
   );
 }
@@ -213,7 +193,7 @@ function UnitPickerControl({
 }: UnitPickerControlProps) {
   const pickerRef = useRef<HTMLDivElement>(null);
   const selectedLabel =
-    unitOptions.find((option) => option.value === value)?.label ?? "每天";
+    unitOptions.find((option) => option.value === value)?.label ?? "天";
 
   useCloseOnOutsidePointerDown(open, pickerRef, () => onOpenChange(false));
 
@@ -222,6 +202,7 @@ function UnitPickerControl({
       <button
         type="button"
         data-theme-control="true"
+        aria-label="重复单位"
         aria-expanded={open}
         className={`${repeatControlClassName} flex w-full items-center justify-between gap-2 border font-medium`}
         style={{
@@ -231,7 +212,7 @@ function UnitPickerControl({
         }}
         onClick={() => onOpenChange(!open)}
       >
-        <span>{selectedLabel}</span>
+        <span className="min-w-0 truncate">{selectedLabel}</span>
         <ChevronRight
           className="h-4 w-4 rotate-90"
           style={{ color: "var(--text-muted)" }}
@@ -239,14 +220,14 @@ function UnitPickerControl({
       </button>
       {open ? (
         <div
-          className="absolute left-0 top-[calc(100%+8px)] z-[82] w-full rounded-xl border p-2 shadow-lg"
+          className="absolute left-0 top-[calc(100%+6px)] z-[82] w-full rounded-lg border p-1.5 shadow-[0_6px_12px_rgba(0,0,0,0.16)]"
           style={{
             backgroundColor: "var(--bg-primary)",
             borderColor: "var(--border-color)",
             color: "var(--text-primary)",
           }}
         >
-          <div className="max-h-[240px] space-y-1 overflow-y-auto pr-1">
+          <div className="space-y-0.5">
             {unitOptions.map((option) => {
               const isSelected = option.value === value;
               return (
@@ -255,14 +236,12 @@ function UnitPickerControl({
                   type="button"
                   data-theme-control="true"
                   data-selected={isSelected ? "true" : undefined}
-                  className="flex h-10 w-full items-center justify-between rounded-lg px-3 text-left text-[14px] font-semibold"
+                  className="flex h-8 w-full items-center justify-between rounded-md px-2.5 text-left text-[13px] font-medium"
                   onClick={() => onChange(option.value)}
                 >
                   <span>{option.label}</span>
                   {isSelected ? (
-                    <span aria-hidden="true" className="text-[15px]">
-                      ✓
-                    </span>
+                    <Check aria-hidden="true" className="h-3.5 w-3.5" />
                   ) : null}
                 </button>
               );

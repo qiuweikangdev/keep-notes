@@ -177,7 +177,9 @@ export function ReminderListDialog() {
               <Tabs.Content
                 key={item.value}
                 value={item.value}
-                className="max-h-[320px] overflow-y-auto p-2 outline-none"
+                className={`max-h-[320px] overflow-y-auto outline-none ${
+                  visibleReminders.length > 0 ? "p-2" : "p-1.5"
+                }`}
               >
                 {visibleReminders.length > 0 ? (
                   <div className="space-y-0.5">
@@ -195,22 +197,9 @@ export function ReminderListDialog() {
                     ))}
                   </div>
                 ) : (
-                  <div className="flex items-center gap-3 px-3 py-4">
-                    <div
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
-                      style={{
-                        backgroundColor:
-                          "color-mix(in srgb, var(--bg-secondary) 70%, var(--bg-primary))",
-                        color: "var(--text-muted)",
-                      }}
-                    >
-                      <Bell aria-hidden="true" className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0 flex items-center justify-center">
-                      <p className="text-[13px] font-medium text-[var(--text-primary)]">
-                        没有提醒事项
-                      </p>
-                    </div>
+                  <div className="flex h-8 items-center gap-2 px-2 text-xs text-[var(--text-muted)]">
+                    <Bell aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+                    <p>没有提醒事项</p>
                   </div>
                 )}
               </Tabs.Content>

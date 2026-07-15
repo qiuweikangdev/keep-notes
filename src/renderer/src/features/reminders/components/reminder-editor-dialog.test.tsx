@@ -44,20 +44,20 @@ describe("ReminderEditorDialog", () => {
     });
   });
 
-  it("renders a layered editor with a flat schedule hierarchy", () => {
+  it("renders a compact layered editor with a clear form hierarchy", () => {
     render(<ReminderEditorDialog />);
 
     const dialog = screen.getByRole("dialog", { name: "新建提醒事项" });
-    const titleInput = screen.getByPlaceholderText("标题");
+    const titleInput = screen.getByRole("textbox", { name: "提醒标题" });
     const settingsGroup = screen.getByTestId("reminder-settings-group");
 
     expect(dialog).toHaveClass(
-      "top-[calc(12vh+64px)]",
-      "max-w-[460px]",
+      "top-[calc(12vh+56px)]",
+      "max-w-[408px]",
       "translate-y-0",
     );
     expect(screen.getByRole("heading", { name: "新建提醒事项" })).toHaveClass(
-      "text-[15px]",
+      "text-sm",
       "font-semibold",
     );
     expect(screen.getByRole("button", { name: "关闭" })).toHaveClass(
@@ -66,8 +66,12 @@ describe("ReminderEditorDialog", () => {
       "rounded-md",
     );
     expect(titleInput).toHaveClass("h-9", "text-sm");
-    expect(settingsGroup).toHaveClass("border-y");
-    expect(settingsGroup).not.toHaveClass("rounded-lg", "border");
+    expect(settingsGroup).toHaveClass(
+      "mt-4",
+      "space-y-2.5",
+      "overflow-visible",
+    );
+    expect(settingsGroup).not.toHaveClass("border-y", "rounded-lg", "border");
     expect(settingsGroup).toContainElement(screen.getByText("日期"));
     expect(settingsGroup).toContainElement(screen.getByText("时间"));
     expect(settingsGroup).toContainElement(screen.getByText("重复"));
@@ -161,28 +165,22 @@ describe("ReminderEditorDialog", () => {
     expect(screen.getByRole("button", { name: /每天/ })).toBeInTheDocument();
   });
 
-  it("uses a shared control column for date, time, and repeat", () => {
+  it("renders date, time, and repeat as compact independent rows", () => {
     render(<ReminderEditorDialog />);
 
     const settingsGroup = screen.getByTestId("reminder-settings-group");
-    const rows = settingsGroup.querySelectorAll("div.grid");
+    const scheduleRows = screen.getAllByTestId("reminder-schedule-row");
     const controls = settingsGroup.querySelectorAll(
       'button[data-reminder-setting-control="true"]',
     );
 
-    expect(rows).toHaveLength(3);
-    rows.forEach((row) => {
-      expect(row).toHaveClass(
-        "grid-cols-[20px_minmax(0,1fr)_minmax(120px,140px)]",
-      );
-      expect(row).not.toHaveClass(
-        "transition-colors",
-        "hover:bg-[var(--hover-bg)]",
-      );
+    expect(scheduleRows).toHaveLength(3);
+    scheduleRows.forEach((row) => {
+      expect(row).toHaveClass("grid-cols-[48px_minmax(0,1fr)]", "gap-3");
     });
     expect(controls).toHaveLength(3);
     controls.forEach((control) => {
-      expect(control).toHaveClass("w-full");
+      expect(control).toHaveClass("h-9", "w-full");
       expect(control).not.toHaveAttribute("data-theme-control");
     });
   });
@@ -194,7 +192,7 @@ describe("ReminderEditorDialog", () => {
     });
     render(<ReminderEditorDialog />);
 
-    const titleInput = screen.getByPlaceholderText("标题");
+    const titleInput = screen.getByPlaceholderText("输入提醒内容");
     expect(titleInput).toHaveClass("h-9", "px-3");
     expect(screen.queryByText(/\.md$/)).not.toBeInTheDocument();
 
@@ -275,7 +273,7 @@ describe("ReminderEditorDialog", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "新建提醒事项" }));
-    await user.type(screen.getByPlaceholderText("标题"), "喝水");
+    await user.type(screen.getByPlaceholderText("输入提醒内容"), "喝水");
     await user.click(screen.getByRole("button", { name: "保存提醒" }));
 
     await waitFor(() => {

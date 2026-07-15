@@ -222,7 +222,15 @@ describe("ReminderListDialog", () => {
   it("renders an inline empty state", () => {
     render(<ReminderListDialog />);
 
-    expect(screen.getByText("没有提醒事项")).toHaveClass("font-medium");
+    const emptyMessage = screen.getByText("没有提醒事项");
+
+    expect(screen.getByRole("tabpanel")).toHaveClass("p-1.5");
+    expect(emptyMessage.parentElement).toHaveClass(
+      "h-8",
+      "gap-2",
+      "text-xs",
+      "text-[var(--text-muted)]",
+    );
   });
 
   it("renders compact tabs and search-style result rows", () => {
