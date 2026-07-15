@@ -12,6 +12,7 @@ import type { CloseSaveSnapshot, WindowOpenTarget } from "../shared/types";
 
 // 平台判断
 const isMac = process.platform === "darwin";
+const closeInProgressWindows = new WeakSet<BrowserWindow>();
 
 // macOS: 使用原生标题栏隐藏模式，显示红绿灯按钮
 // Windows/Linux: 使用无边框透明窗口，自定义标题栏
@@ -74,8 +75,14 @@ export function createWindow(initialTarget?: WindowOpenTarget): BrowserWindow {
     if (win.isDestroyed()) return;
 
     event.preventDefault();
+    if (closeInProgressWindows.has(win)) return;
 
-    checkAndCloseWindow(win);
+    // 必须在第一次异步关闭检查前同步占用当前窗口，避免重复事件并发保存同一批草稿。
+    closeInProgressWindows.add(win);
+    return checkAndCloseWindow(win).finally(() => {
+      // 取消或失败时窗口仍然存在，需要释放占用以允许用户再次关闭。
+      if (!win.isDestroyed()) closeInProgressWindows.delete(win);
+    });
   });
 
   if (is.dev && process.env.ELECTRON_RENDERER_URL) {
@@ -146,7 +153,7 @@ export async function checkAndCloseWindow(win: BrowserWindow): Promise<void> {
   if (win.isDestroyed()) return;
 
   try {
-    const isDirty = getCachedDirtyState();
+    const isDirty = getCachedDirtyState(win);
 
     if (isDirty) {
       const result = await dialog.showMessageBox(win, {

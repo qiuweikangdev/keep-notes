@@ -22,6 +22,29 @@ function createRendererExecutor(renderer: Record<string, unknown>) {
   });
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((promiseResolve) => {
+    resolve = promiseResolve;
+  });
+
+  return { promise, resolve };
+}
+
+type CloseHandler = (event: {
+  preventDefault: ReturnType<typeof vi.fn>;
+}) => Promise<void> | void;
+
+function getCloseHandler(win: Electron.BrowserWindow): CloseHandler {
+  const on = win.on as unknown as {
+    mock: { calls: Array<[string, CloseHandler]> };
+  };
+  const registration = on.mock.calls.find(([event]) => event === "close");
+
+  if (!registration) throw new Error("Close handler was not registered");
+  return registration[1];
+}
+
 const BrowserWindowMock = vi.hoisted(() =>
   vi.fn(function BrowserWindow(
     options: Electron.BrowserWindowConstructorOptions,
@@ -38,6 +61,7 @@ const BrowserWindowMock = vi.hoisted(() =>
       loadFile: vi.fn(),
       loadURL: vi.fn(),
       isDestroyed: vi.fn(() => false),
+      destroy: vi.fn(),
       show: vi.fn(),
     };
   }),
@@ -154,6 +178,60 @@ describe("window close draft protection", () => {
     writeFile.mockReset();
   });
 
+  it("starts only one close flow for rapid repeated close events", async () => {
+    const confirmation = createDeferred<{ response: number }>();
+    electronMocks.showMessageBox.mockReturnValue(confirmation.promise);
+    const win = createWindow();
+    const close = getCloseHandler(win);
+    const firstEvent = { preventDefault: vi.fn() };
+    const secondEvent = { preventDefault: vi.fn() };
+
+    const firstClose = close(firstEvent);
+    const secondClose = close(secondEvent);
+
+    confirmation.resolve({ response: 2 });
+    await firstClose;
+    await secondClose;
+
+    expect(firstEvent.preventDefault).toHaveBeenCalledTimes(1);
+    expect(secondEvent.preventDefault).toHaveBeenCalledTimes(1);
+    expect(electronMocks.showMessageBox).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows closing again after the user cancels", async () => {
+    electronMocks.showMessageBox.mockResolvedValue({ response: 2 });
+    const win = createWindow();
+    const close = getCloseHandler(win);
+
+    await close({ preventDefault: vi.fn() });
+    await close({ preventDefault: vi.fn() });
+
+    expect(electronMocks.showMessageBox).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps close flows isolated between windows", async () => {
+    const confirmation = createDeferred<{ response: number }>();
+    electronMocks.showMessageBox.mockReturnValue(confirmation.promise);
+    const firstWindow = createWindow();
+    const secondWindow = createWindow();
+
+    const firstClose = getCloseHandler(firstWindow)({
+      preventDefault: vi.fn(),
+    });
+    const secondClose = getCloseHandler(secondWindow)({
+      preventDefault: vi.fn(),
+    });
+
+    expect(electronMocks.showMessageBox).toHaveBeenCalledTimes(2);
+
+    confirmation.resolve({ response: 1 });
+    await firstClose;
+    await secondClose;
+
+    expect(firstWindow.destroy).toHaveBeenCalledTimes(1);
+    expect(secondWindow.destroy).toHaveBeenCalledTimes(1);
+  });
+
   it("shows the save confirmation when the renderer reports any dirty tab", async () => {
     electronMocks.showMessageBox.mockResolvedValue({ response: 2 });
     const win = {
@@ -163,6 +241,7 @@ describe("window close draft protection", () => {
 
     await checkAndCloseWindow(win);
 
+    expect(getCachedDirtyState).toHaveBeenCalledWith(win);
     expect(electronMocks.showMessageBox).toHaveBeenCalledTimes(1);
     expect(win.destroy).not.toHaveBeenCalled();
   });

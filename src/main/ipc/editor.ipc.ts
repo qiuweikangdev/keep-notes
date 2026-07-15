@@ -1,16 +1,24 @@
-import { ipcMain } from "electron";
+import { ipcMain, type BrowserWindow } from "electron";
 import { IPC_CHANNELS } from "../../shared/constants";
 import { getBrowserWindow } from "../utils";
 
-// 主进程缓存的脏状态
-let cachedDirtyState = false;
+const dirtyStateByWebContentsId = new Map<number, boolean>();
 
 export function registerEditorIpc(): void {
   // 渲染进程通知主进程脏状态变化
   ipcMain.on(
     IPC_CHANNELS.EDITOR.UPDATE_DIRTY_STATE,
-    (_event, isDirty: boolean) => {
-      cachedDirtyState = isDirty;
+    (event, isDirty: boolean) => {
+      const senderId = event.sender.id;
+
+      if (!dirtyStateByWebContentsId.has(senderId)) {
+        // 每个渲染进程只注册一次销毁清理，避免缓存和监听器随脏状态更新持续增长。
+        event.sender.once("destroyed", () => {
+          dirtyStateByWebContentsId.delete(senderId);
+        });
+      }
+
+      dirtyStateByWebContentsId.set(senderId, isDirty);
     },
   );
 
@@ -34,11 +42,7 @@ export function registerEditorIpc(): void {
   );
 }
 
-// 导出给 window.ts 使用
-export function getCachedDirtyState(): boolean {
-  return cachedDirtyState;
-}
-
-export function setCachedDirtyState(state: boolean): void {
-  cachedDirtyState = state;
+// 关闭检查只能读取当前窗口对应的渲染进程状态，避免多窗口互相覆盖。
+export function getCachedDirtyState(win: BrowserWindow): boolean {
+  return dirtyStateByWebContentsId.get(win.webContents.id) ?? false;
 }
