@@ -327,12 +327,17 @@ describe("editor BlockNote schema", () => {
       );
     const cursorRule = cursorRules.find(
       (rule) =>
-        (rule as CSSStyleRule).selectorText.endsWith(".cm-cursor") &&
+        (rule as CSSStyleRule).selectorText.endsWith(
+          ".cm-focused .cm-cursor",
+        ) &&
         (rule as CSSStyleRule).style.getPropertyValue("border-left-color") ===
-          "color-mix(in srgb, var(--accent-color) 60%, var(--text-primary))",
+          "var(--editor-code-block-cursor)",
     );
 
     expect(cursorRule).not.toBeUndefined();
+    expect(
+      (cursorRule as CSSStyleRule).style.getPropertyValue("border-left-style"),
+    ).toBe("solid");
     expect(
       (cursorRule as CSSStyleRule).style.getPropertyValue("border-left-width"),
     ).toBe("2px");

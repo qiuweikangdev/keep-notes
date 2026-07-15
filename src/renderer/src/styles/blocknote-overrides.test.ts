@@ -42,6 +42,12 @@ describe("blocknote overrides stylesheet", () => {
     expect(getRule('.bn-root[data-color-scheme="dark"]')).toMatch(
       /--editor-code-token-string:\s*#98c379;/,
     );
+    expect(getRule('.bn-root[data-color-scheme="light"]')).toMatch(
+      /--editor-code-block-cursor:\s*#0969da;/,
+    );
+    expect(getRule('.bn-root[data-color-scheme="dark"]')).toMatch(
+      /--editor-code-block-cursor:\s*#79c0ff;/,
+    );
   });
 
   it("keeps rich editor content anchored to the panel left edge", () => {
@@ -358,6 +364,14 @@ describe("blocknote overrides stylesheet", () => {
     ).toMatch(/z-index:\s*60;/);
   });
 
+  it("disables block paint containment while a code language popover is open", () => {
+    expect(
+      getRule(
+        "[data-rich-document-surface] .bn-editor > .bn-block-group > .bn-block-outer:has(.editor-code-block-language-popover)",
+      ),
+    ).toMatch(/content-visibility:\s*visible;/);
+  });
+
   it("keeps the code block copy action hidden until hover", () => {
     expect(getRule(".editor-code-block-copy")).toMatch(/opacity:\s*0;/);
     expect(
@@ -375,6 +389,18 @@ describe("blocknote overrides stylesheet", () => {
     expect(
       getRule(".editor-code-block__codemirror .cm-content ::selection"),
     ).toMatch(/background-color:\s*var\(--accent-color\) !important;/);
+  });
+
+  it("keeps the focused CodeMirror cursor high contrast in live styles", () => {
+    const cursorRule = getRule(
+      ".editor-code-block__codemirror .cm-editor.cm-focused .cm-cursor",
+    );
+
+    expect(cursorRule).toMatch(
+      /border-left-color:\s*var\(--editor-code-block-cursor\) !important;/,
+    );
+    expect(cursorRule).toMatch(/border-left-style:\s*solid !important;/);
+    expect(cursorRule).toMatch(/border-left-width:\s*2px !important;/);
   });
 
   it("keeps paragraph text aligned with the block side menu", () => {

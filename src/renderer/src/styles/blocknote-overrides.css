@@ -19,6 +19,7 @@
   --bn-colors-side-menu: var(--text-muted);
   --editor-code-block-bg: #f5f8ff;
   --editor-code-block-text: #0f172a;
+  --editor-code-block-cursor: #0969da;
   --editor-code-block-muted: #475569;
   --editor-code-block-border: rgba(148, 163, 184, 0.9);
   --editor-code-block-control-bg: rgba(255, 255, 255, 0.92);
@@ -62,6 +63,7 @@
   --bn-colors-side-menu: var(--text-muted);
   --editor-code-block-bg: #0d1117;
   --editor-code-block-text: #f0f6fc;
+  --editor-code-block-cursor: #79c0ff;
   --editor-code-block-muted: #8b949e;
   --editor-code-block-border: rgba(86, 96, 116, 0.9);
   --editor-code-block-control-bg: rgba(22, 27, 34, 0.94);
@@ -470,6 +472,12 @@
   min-width: max-content;
 }
 
+.editor-code-block__codemirror .cm-editor.cm-focused .cm-cursor {
+  border-left-color: var(--editor-code-block-cursor) !important;
+  border-left-style: solid !important;
+  border-left-width: 2px !important;
+}
+
 .editor-code-block__codemirror .cm-scroller {
   align-items: flex-start;
 }
@@ -802,6 +810,14 @@
 [data-rich-document-surface] .bn-editor > .bn-block-group > .bn-block-outer {
   content-visibility: auto;
   contain-intrinsic-block-size: auto 80px;
+}
+
+[data-rich-document-surface]
+  .bn-editor
+  > .bn-block-group
+  > .bn-block-outer:has(.editor-code-block-language-popover) {
+  /* 弹窗打开时解除块级绘制隔离，避免语言选项被代码块边界裁剪。 */
+  content-visibility: visible;
 }
 
 /* 被动窗格只布局可见富文本块，并隔离其重排与绘制。 */
