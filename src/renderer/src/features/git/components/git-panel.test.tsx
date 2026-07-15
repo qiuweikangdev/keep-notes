@@ -247,6 +247,51 @@ describe("GitPanel", () => {
     expect(await screen.findByText("changed.md")).toBeInTheDocument();
   });
 
+  it("keeps the changes list visible while refreshing Git status", async () => {
+    render(<GitPanel isOpen onClose={vi.fn()} />);
+
+    await screen.findByText("changed.md");
+
+    let resolveStatus: (value: unknown) => void;
+    electronMocks.getGitStatus.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveStatus = resolve;
+        }),
+    );
+
+    fireEvent.click(screen.getAllByLabelText("放弃更改")[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "确定" }));
+
+    await waitFor(() => {
+      expect(electronMocks.getGitStatus).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.getByText("changed.md")).toBeInTheDocument();
+    expect(
+      screen.getByRole("status", { name: "正在刷新文件状态" }),
+    ).toBeInTheDocument();
+
+    resolveStatus!({
+      code: CodeResult.Success,
+      data: {
+        current: "main",
+        tracking: "origin/main",
+        files: [],
+        ahead: 0,
+        behind: 0,
+        created: [],
+        not_added: [],
+        modified: [],
+        deleted: [],
+        renamed: [],
+        staged: [],
+        conflicted: [],
+      },
+    });
+
+    expect(await screen.findByText("无更改")).toBeInTheDocument();
+  });
+
   it.each([
     ["拉取", electronMocks.pullFromRemote],
     ["推送", electronMocks.pushToRemote],

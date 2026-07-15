@@ -702,6 +702,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     () => allFilePaths.filter((path) => !isFileStaged(path)),
     [allFilePaths, isFileStaged],
   );
+  const isInitialGitInfoLoading = isGitInfoLoading && gitStatus === null;
+  const isRefreshingGitStatus = isGitInfoLoading && gitStatus !== null;
   const modifiedCount =
     allFiles.filter((file) => file.badge?.kind === "modified").length || 0;
   const addedCount =
@@ -1999,7 +2001,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         </div>
 
         {/* 文件列表 - 可滚动区域 */}
-        {activeTab === "changes" && isGitInfoLoading && (
+        {activeTab === "changes" && isInitialGitInfoLoading && (
           <div
             className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 py-6"
             role="status"
@@ -2011,20 +2013,32 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         )}
 
         {activeTab === "changes" &&
-          !isGitInfoLoading &&
+          !isInitialGitInfoLoading &&
           allFiles.length > 0 && (
             <div
-              className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
+              className="relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
               style={{ backgroundColor: "var(--bg-primary)" }}
             >
               {renderFileSection("已暂存的更改", stagedFilePaths, "staged")}
               {renderFileSection("更改", unstagedFilePaths, "unstaged")}
+              {isRefreshingGitStatus ? (
+                <div
+                  className="absolute inset-0 z-10 flex items-center justify-center bg-black/10"
+                  role="status"
+                  aria-label="正在刷新文件状态"
+                >
+                  <Loader2
+                    className="h-5 w-5 animate-spin"
+                    style={{ color: "var(--accent-color)" }}
+                  />
+                </div>
+              ) : null}
             </div>
           )}
 
         {/* 无更改提示 */}
         {activeTab === "changes" &&
-          !isGitInfoLoading &&
+          !isInitialGitInfoLoading &&
           allFiles.length === 0 && (
             <div
               className="flex min-h-0 flex-1 items-center justify-center py-6"
