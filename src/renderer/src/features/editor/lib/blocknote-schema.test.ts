@@ -329,7 +329,7 @@ describe("editor BlockNote schema", () => {
       (rule) =>
         (rule as CSSStyleRule).selectorText.endsWith(".cm-cursor") &&
         (rule as CSSStyleRule).style.getPropertyValue("border-left-color") ===
-          "var(--accent-color)",
+          "color-mix(in srgb, var(--accent-color) 60%, var(--text-primary))",
     );
 
     expect(cursorRule).not.toBeUndefined();
