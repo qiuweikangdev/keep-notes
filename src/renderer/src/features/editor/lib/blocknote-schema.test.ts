@@ -2,7 +2,7 @@ import { BlockNoteEditor } from "@blocknote/core";
 import { BlockNoteView } from "@blocknote/mantine";
 import { foldEffect, foldable, foldedRanges } from "@codemirror/language";
 import { EditorView, getDrawSelectionConfig } from "@codemirror/view";
-import { AllSelection } from "@tiptap/pm/state";
+import { AllSelection, NodeSelection, TextSelection } from "@tiptap/pm/state";
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
@@ -261,7 +261,7 @@ describe("editor BlockNote schema", () => {
     output.destroy?.();
   });
 
-  it("keeps the focused code block cursor continuously visible", () => {
+  it("keeps the focused code block cursor continuously visible and emphasized", () => {
     const output = editorBlockSpecs.codeBlock.implementation.render.call(
       {
         blockContentDOMAttributes: {},
@@ -292,6 +292,24 @@ describe("editor BlockNote schema", () => {
     expect(
       getDrawSelectionConfig((view as EditorView).state).cursorBlinkRate,
     ).toBe(0);
+    const cursorRules = Array.from(document.styleSheets)
+      .flatMap((styleSheet) => Array.from(styleSheet.cssRules))
+      .filter(
+        (rule) =>
+          rule instanceof CSSStyleRule &&
+          rule.selectorText.includes(".cm-cursor"),
+      );
+    const cursorRule = cursorRules.find(
+      (rule) =>
+        (rule as CSSStyleRule).selectorText.endsWith(".cm-cursor") &&
+        (rule as CSSStyleRule).style.getPropertyValue("border-left-color") ===
+          "var(--accent-color)",
+    );
+
+    expect(cursorRule).not.toBeUndefined();
+    expect(
+      (cursorRule as CSSStyleRule).style.getPropertyValue("border-left-width"),
+    ).toBe("2px");
 
     output.destroy?.();
   });
@@ -871,8 +889,8 @@ describe("editor BlockNote schema", () => {
     const { container } = render(createElement(BlockNoteView, { editor }));
 
     editor.setTextCursorPosition(editor.document[0].id, "start");
+    editor.focus();
     typeString(editor, "```ts ");
-    typeString(editor, "const a = 1\nvar b = 2");
 
     await waitFor(
       () => {
@@ -885,6 +903,7 @@ describe("editor BlockNote schema", () => {
         expect(
           container.querySelector(".editor-code-block__codemirror .cm-line"),
         ).not.toBe(null);
+        expect(getCodeMirrorView(container).hasFocus).toBe(true);
       },
       { timeout: 1000 },
     );
@@ -1002,6 +1021,7 @@ describe("editor BlockNote schema", () => {
 
   it("focuses CodeMirror when clicking the code block blank shell", async () => {
     setupMatchMedia();
+    const user = userEvent.setup();
     const editor = BlockNoteEditor.create({
       schema: editorSchema,
       initialContent: [
@@ -1021,15 +1041,59 @@ describe("editor BlockNote schema", () => {
       );
     });
 
-    const shell = container.querySelector<HTMLElement>(
-      ".editor-code-block-shell",
+    const codePane = container.querySelector<HTMLElement>(
+      ".editor-code-block__code-pane",
     );
-    expect(shell).not.toBe(null);
+    expect(codePane).not.toBe(null);
 
     getCodeMirrorView(container).contentDOM.blur();
-    fireEvent.mouseDown(shell as HTMLElement);
+    await user.click(codePane as HTMLElement);
 
     expect(getCodeMirrorView(container).hasFocus).toBe(true);
+  });
+
+  it("keeps CodeMirror focused when its node selection becomes a text selection", async () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "codeBlock",
+          props: { language: "js" },
+          content: "",
+        },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    await waitFor(() => {
+      expect(getCodeMirrorView(container).state.doc.length).toBe(0);
+    });
+
+    const codeMirror = getCodeMirrorView(container);
+    const prosemirror = editor.prosemirrorView;
+    let codeBlockPosition: number | undefined;
+    prosemirror.state.doc.descendants((node, position) => {
+      if (node.type.name !== "codeBlock") return true;
+      codeBlockPosition = position;
+      return false;
+    });
+
+    expect(codeBlockPosition).not.toBeUndefined();
+    prosemirror.dispatch(
+      prosemirror.state.tr.setSelection(
+        NodeSelection.create(
+          prosemirror.state.doc,
+          codeBlockPosition as number,
+        ),
+      ),
+    );
+    expect(codeMirror.hasFocus).toBe(true);
+
+    codeMirror.dispatch({ selection: codeMirror.state.selection });
+
+    expect(prosemirror.state.selection).toBeInstanceOf(TextSelection);
+    expect(codeMirror.hasFocus).toBe(true);
   });
 
   it("focuses CodeMirror when clicking the code content", async () => {

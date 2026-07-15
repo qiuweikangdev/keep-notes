@@ -148,6 +148,7 @@ const editorCodeMirrorTheme = CodeMirrorView.theme({
   },
   ".cm-cursor": {
     borderLeftColor: "var(--accent-color)",
+    borderLeftWidth: "2px",
   },
   ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
     backgroundColor: "var(--accent-color)",
@@ -604,6 +605,18 @@ class EditorCodeBlockNodeView {
   };
 
   public deselectNode = () => {
+    const position = this.getPos?.();
+    const selection = this.prosemirrorView?.state.selection;
+    if (position !== undefined && selection) {
+      const contentFrom = position + 1;
+      const contentTo =
+        contentFrom +
+        (this.node?.content.size ?? this.codeMirror.state.doc.length);
+
+      // 内部 CodeMirror 同步文本选区时会取消外层节点选区，此时仍需保留代码编辑焦点。
+      if (selection.from >= contentFrom && selection.to <= contentTo) return;
+    }
+
     this.codeMirror.contentDOM.blur();
   };
 
