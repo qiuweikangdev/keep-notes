@@ -72,6 +72,7 @@ describe("EditorBridge close protection", () => {
         "group-1",
         "tab-draft",
         "/notes/draft.md",
+        "draft",
       );
     });
 
@@ -83,5 +84,42 @@ describe("EditorBridge close protection", () => {
       isDirty: false,
     });
     expect(updateDirtyState).toHaveBeenLastCalledWith(false);
+  });
+
+  it("keeps a draft dirty when its content changes while the snapshot is saving", () => {
+    render(<EditorBridge />);
+
+    expect((window as any).__getNextDirtyEditor()).toMatchObject({
+      content: "draft",
+      filePath: null,
+    });
+
+    act(() => {
+      useEditorStore
+        .getState()
+        .setTabContent("group-1", "tab-draft", 'new "draft"\nline');
+      (window as any).__onCloseSaveSuccess(
+        "group-1",
+        "tab-draft",
+        "/notes/draft.md",
+        "draft",
+      );
+    });
+
+    const draft = useEditorStore
+      .getState()
+      .panelGroups[0].tabs.find((tab) => tab.id === "tab-draft");
+    expect(draft).toMatchObject({
+      filePath: "/notes/draft.md",
+      content: 'new "draft"\nline',
+      isDirty: true,
+    });
+    expect((window as any).__getNextDirtyEditor()).toEqual({
+      groupId: "group-1",
+      tabId: "tab-draft",
+      content: 'new "draft"\nline',
+      filePath: "/notes/draft.md",
+    });
+    expect(updateDirtyState).toHaveBeenLastCalledWith(true);
   });
 });

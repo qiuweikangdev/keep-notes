@@ -1,6 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import {
   checkAndCloseWindow,
   createWindow,
@@ -15,6 +23,12 @@ const electronMocks = vi.hoisted(() => ({
   showSaveDialog: vi.fn(),
 }));
 const getCachedDirtyState = vi.hoisted(() => vi.fn(() => false));
+
+function createRendererExecutor(renderer: Record<string, unknown>) {
+  return vi.fn(async (script: string) => {
+    return Function("window", `"use strict"; return (${script});`)(renderer);
+  });
+}
 
 const BrowserWindowMock = vi.hoisted(() =>
   vi.fn(function BrowserWindow(
@@ -137,6 +151,7 @@ describe("openPathInNewWindow", () => {
 
 describe("window close draft protection", () => {
   const writeFile = vi.spyOn(fs.promises, "writeFile");
+  const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -146,6 +161,11 @@ describe("window close draft protection", () => {
 
   afterEach(() => {
     writeFile.mockReset();
+    consoleError.mockClear();
+  });
+
+  afterAll(() => {
+    consoleError.mockRestore();
   });
 
   it("shows the save confirmation when the renderer reports any dirty tab", async () => {
@@ -195,6 +215,96 @@ describe("window close draft protection", () => {
       "__onCloseSaveSuccess",
     );
     expect(executeJavaScript.mock.calls[1][0]).toContain("tab-draft");
+    expect(executeJavaScript.mock.calls[1][0]).toContain("draft");
+    expect(win.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the window open when the dirty snapshot getter is missing", async () => {
+    const executeJavaScript = createRendererExecutor({});
+    const win = {
+      isDestroyed: vi.fn(() => false),
+      destroy: vi.fn(),
+      webContents: { executeJavaScript },
+    } as unknown as Electron.BrowserWindow;
+
+    await saveAndClose(win);
+
+    expect(executeJavaScript).toHaveBeenCalledTimes(1);
+    expect(win.destroy).not.toHaveBeenCalled();
+  });
+
+  it("keeps the window open when the save success callback is missing", async () => {
+    const snapshots = [
+      {
+        groupId: "group-1",
+        tabId: "tab-draft",
+        content: "draft",
+        filePath: "C:\\notes\\draft.md",
+      },
+      null,
+    ];
+    const executeJavaScript = createRendererExecutor({
+      __getNextDirtyEditor: () => snapshots.shift(),
+    });
+    const win = {
+      isDestroyed: vi.fn(() => false),
+      destroy: vi.fn(),
+      webContents: { executeJavaScript },
+    } as unknown as Electron.BrowserWindow;
+
+    await saveAndClose(win);
+
+    expect(writeFile).toHaveBeenCalledTimes(1);
+    expect(executeJavaScript).toHaveBeenCalledTimes(2);
+    expect(win.destroy).not.toHaveBeenCalled();
+  });
+
+  it("writes dirty snapshots in order and closes only after consuming null", async () => {
+    const firstSnapshot = {
+      groupId: 'group-"1',
+      tabId: "tab-first",
+      content: 'first "draft"\nline',
+      filePath: "C:\\notes\\first.md",
+    };
+    const secondSnapshot = {
+      groupId: "group-2",
+      tabId: "tab-second",
+      content: "second draft",
+      filePath: "C:\\notes\\second.md",
+    };
+    const snapshots = [firstSnapshot, secondSnapshot, null];
+    const savedSnapshots: unknown[][] = [];
+    const executeJavaScript = createRendererExecutor({
+      __getNextDirtyEditor: () => snapshots.shift(),
+      __onCloseSaveSuccess: (...args: unknown[]) => savedSnapshots.push(args),
+    });
+    const win = {
+      isDestroyed: vi.fn(() => false),
+      destroy: vi.fn(),
+      webContents: { executeJavaScript },
+    } as unknown as Electron.BrowserWindow;
+
+    await saveAndClose(win);
+
+    expect(writeFile.mock.calls).toEqual([
+      [firstSnapshot.filePath, firstSnapshot.content, "utf-8"],
+      [secondSnapshot.filePath, secondSnapshot.content, "utf-8"],
+    ]);
+    expect(savedSnapshots).toEqual([
+      [
+        firstSnapshot.groupId,
+        firstSnapshot.tabId,
+        firstSnapshot.filePath,
+        firstSnapshot.content,
+      ],
+      [
+        secondSnapshot.groupId,
+        secondSnapshot.tabId,
+        secondSnapshot.filePath,
+        secondSnapshot.content,
+      ],
+    ]);
+    expect(executeJavaScript).toHaveBeenCalledTimes(5);
     expect(win.destroy).toHaveBeenCalledTimes(1);
   });
 

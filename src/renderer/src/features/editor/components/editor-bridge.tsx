@@ -107,12 +107,31 @@ export function EditorBridge() {
       groupId: string,
       tabId: string,
       filePath: string | null,
+      savedContent: string,
     ) => {
-      const state = useEditorStore.getState();
-      if (filePath) {
-        state.setTabFilePath(groupId, tabId, filePath);
-      }
-      state.setTabDirty(groupId, tabId, false);
+      // 路径回填与脏状态更新必须原子完成；写盘后又被编辑的标签继续保持待保存。
+      useEditorStore.setState((state) => ({
+        panelGroups: state.panelGroups.map((group) =>
+          group.id === groupId
+            ? {
+                ...group,
+                tabs: group.tabs.map((tab) => {
+                  if (tab.id !== tabId) return tab;
+
+                  const isDirty = tab.content !== savedContent;
+                  return {
+                    ...tab,
+                    ...(filePath
+                      ? { filePath, pendingFilePath: null }
+                      : undefined),
+                    isDirty,
+                    saveStatus: isDirty ? "dirty" : "clean",
+                  };
+                }),
+              }
+            : group,
+        ),
+      }));
     };
 
     // 监听 store 变化，同步脏状态到主进程

@@ -179,7 +179,12 @@ export async function saveAndClose(win: BrowserWindow): Promise<void> {
   try {
     while (!win.isDestroyed()) {
       const serializedSnapshot = await win.webContents.executeJavaScript(
-        "JSON.stringify(window.__getNextDirtyEditor ? window.__getNextDirtyEditor() : null)",
+        `(() => {
+          if (typeof window.__getNextDirtyEditor !== "function") {
+            throw new Error("Close-save snapshot bridge is unavailable");
+          }
+          return JSON.stringify(window.__getNextDirtyEditor());
+        })()`,
       );
       const snapshot = JSON.parse(
         serializedSnapshot,
@@ -209,9 +214,14 @@ export async function saveAndClose(win: BrowserWindow): Promise<void> {
       await fs.promises.writeFile(savedPath, snapshot.content, "utf-8");
       if (win.isDestroyed()) return;
 
-      // 按快照身份通知渲染进程保存成功，再继续处理下一个脏标签。
+      // 仅在回调存在时确认本次快照保存，并把写盘内容传回以检测并发编辑。
       await win.webContents.executeJavaScript(
-        `window.__onCloseSaveSuccess && window.__onCloseSaveSuccess(${JSON.stringify(snapshot.groupId)}, ${JSON.stringify(snapshot.tabId)}, ${JSON.stringify(savedPath)})`,
+        `(() => {
+          if (typeof window.__onCloseSaveSuccess !== "function") {
+            throw new Error("Close-save success bridge is unavailable");
+          }
+          return window.__onCloseSaveSuccess(${JSON.stringify(snapshot.groupId)}, ${JSON.stringify(snapshot.tabId)}, ${JSON.stringify(savedPath)}, ${JSON.stringify(snapshot.content)});
+        })()`,
       );
     }
   } catch (error) {
