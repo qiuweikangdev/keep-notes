@@ -46,6 +46,43 @@ describe("Markdown source preservation", () => {
     ]);
   });
 
+  it("restores nested quoted list levels under one empty parent quote", async () => {
+    let received = "";
+    const blocks = await parseMarkdown<TestBlock>(
+      {
+        tryParseMarkdownToBlocks: (markdown) => {
+          received = markdown;
+          return [
+            { type: "quote", content: "" },
+            { type: "bulletListItem", content: "1" },
+            {
+              type: "bulletListItem",
+              content: "2",
+              children: [{ type: "bulletListItem", content: "2" }],
+            },
+          ];
+        },
+      },
+      "> - 1\n> - 2\n>   - 2\n",
+    );
+
+    expect(received).toBe(">\n\n- 1\n- 2\n  - 2\n");
+    expect(blocks).toEqual([
+      {
+        type: "quote",
+        content: "",
+        children: [
+          { type: "bulletListItem", content: "1" },
+          {
+            type: "bulletListItem",
+            content: "2",
+            children: [{ type: "bulletListItem", content: "2" }],
+          },
+        ],
+      },
+    ]);
+  });
+
   it("serializes quote-owned bullet items as nested quote markdown", async () => {
     const serialize = vi.fn((blocks: TestBlock[]) =>
       blocks[0]?.type === "quote"
@@ -64,10 +101,49 @@ describe("Markdown source preservation", () => {
           ],
         },
       ]),
-    ).resolves.toBe("> Quote text\n>\n> * First item\n> * Second item\n");
+    ).resolves.toBe("> Quote text\n>\n> - First item\n> - Second item\n");
     expect(serialize).toHaveBeenCalledWith([
       { type: "quote", content: "Quote text", children: [] },
     ]);
+  });
+
+  it("omits the empty quote placeholder before a nested child list", async () => {
+    const serialize = vi.fn((blocks: TestBlock[]) =>
+      blocks[0]?.type === "quote" ? ">\n" : "* 1\n* 2\n  * 2\n",
+    );
+
+    await expect(
+      serializeMarkdown<TestBlock>({ blocksToMarkdownLossy: serialize }, [
+        {
+          type: "quote",
+          content: "",
+          children: [
+            { type: "bulletListItem", content: "1" },
+            {
+              type: "bulletListItem",
+              content: "2",
+              children: [{ type: "bulletListItem", content: "2" }],
+            },
+          ],
+        },
+      ]),
+    ).resolves.toBe("> - 1\n> - 2\n>   - 2\n");
+  });
+
+  it("restores missing quote prefixes around a preserved child list", () => {
+    const source = ">\n\n* 1\n* 2\n  * 2\n";
+    const serialized = "> - 1\n> - 2\n>   - 2\n";
+
+    expect(preserveMarkdownSource(source, serialized, serialized)).toBe(
+      serialized,
+    );
+  });
+
+  it("does not pull a serialized outer list into an empty quote", () => {
+    const source = ">\n\n* outside\n";
+    const serialized = ">\n\n- outside\n";
+
+    expect(preserveMarkdownSource(source, serialized, serialized)).toBe(source);
   });
 
   it("normalizes only the parser input while retaining source whitespace", async () => {

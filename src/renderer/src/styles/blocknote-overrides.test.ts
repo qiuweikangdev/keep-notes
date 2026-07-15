@@ -492,6 +492,26 @@ describe("blocknote overrides stylesheet", () => {
     ).toMatch(/pointer-events:\s*auto;/);
   });
 
+  it("keeps the aligned quote parent side menu hoverable across its gap", () => {
+    expect(getRule(".editor-side-menu")).toMatch(/display:\s*flex;/);
+    expect(
+      getRule('.editor-side-menu[data-quote-has-children="true"]'),
+    ).toMatch(/padding-right:\s*16px;/);
+
+    const quoteSideMenuRule = getRule(
+      '.editor-side-menu[data-quote-has-children="true"] .bn-side-menu[data-block-type="quote"]',
+    );
+    expect(quoteSideMenuRule).toMatch(/height:\s*30px;/);
+    expect(quoteSideMenuRule).toMatch(/margin-right:\s*0\s*!important;/);
+    expect(quoteSideMenuRule).not.toMatch(/transform:/);
+  });
+
+  it("removes the default nested-block indent from direct quote children", () => {
+    expect(stylesheet).toMatch(
+      /\.bn-block-outer:has\(\s*> \.bn-block > \.bn-block-content\[data-content-type="quote"\]\s*\):has\(\s*> \.bn-block > \.bn-block-group\s*\)[\s\S]*> \.bn-block[\s\S]*> \.bn-block-group\s*\{[\s\S]*margin-left:\s*0;/,
+    );
+  });
+
   it("keeps the table wrapper and extend row button within the editor width", () => {
     expect(stylesheet).toMatch(
       /:is\(\.bn-editor, \.bn-editor-preview\) \[data-content-type="table"\] table\s*\{[\s\S]*width:\s*max-content;/,

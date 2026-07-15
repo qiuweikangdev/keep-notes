@@ -1,5 +1,8 @@
 import { BlockNoteEditor as CoreBlockNoteEditor } from "@blocknote/core";
-import { FormattingToolbarExtension } from "@blocknote/core/extensions";
+import {
+  FormattingToolbarExtension,
+  SideMenuExtension,
+} from "@blocknote/core/extensions";
 import { BlockNoteView } from "@blocknote/mantine";
 import {
   act,
@@ -184,8 +187,48 @@ function selectTextByContent(editor: CoreBlockNoteEditor, text: string) {
 }
 
 describe("BlockNoteEditor rich text selection", () => {
-  it("enables the default block side menu for block insert and drag controls", () => {
-    expect(richEditorDefaultUIProps.sideMenu).toBe(true);
+  it("lets the quote-aware controller own the block side menu", () => {
+    expect(richEditorDefaultUIProps.sideMenu).toBe(false);
+  });
+
+  it("keeps a parent quote side menu visible while the pointer hovers it", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/quote-side-menu-hover.md";
+    const session = renderRealSession(path, false, "> - First\n> - Second");
+
+    await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    const editor = session.runtime.current!.editor;
+    const sideMenu = editor.getExtension(SideMenuExtension)!;
+    const freezeMenu = vi
+      .spyOn(sideMenu, "freezeMenu")
+      .mockImplementation(() => {});
+    const unfreezeMenu = vi
+      .spyOn(sideMenu, "unfreezeMenu")
+      .mockImplementation(() => {});
+
+    act(() => {
+      sideMenu.store.setState({
+        block: editor.document[0],
+        referencePos: new DOMRect(),
+        show: true,
+      });
+    });
+
+    const menu = await waitFor(() => {
+      const element = document.querySelector<HTMLElement>(
+        '.editor-side-menu[data-quote-has-children="true"]',
+      );
+      expect(element).not.toBeNull();
+      return element!;
+    });
+
+    fireEvent.mouseEnter(menu);
+    expect(freezeMenu).toHaveBeenCalledTimes(1);
+
+    fireEvent.mouseLeave(menu);
+    expect(unfreezeMenu).toHaveBeenCalledTimes(1);
+    session.view.unmount();
   });
 
   it("selects the entire ProseMirror document", () => {

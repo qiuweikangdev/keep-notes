@@ -196,6 +196,16 @@
     > .bn-block > .bn-block-content[data-content-type="quote"]
   ):has(> .bn-block > .bn-block-group)
   > .bn-block
+  > .bn-block-group {
+  /* 父引用已提供引用线内边距，移除 BlockNote 对直属子块重复增加的 24px 缩进。 */
+  margin-left: 0;
+}
+
+:is(.bn-editor, .bn-editor-preview)
+  .bn-block-outer:has(
+    > .bn-block > .bn-block-content[data-content-type="quote"]
+  ):has(> .bn-block > .bn-block-group)
+  > .bn-block
   > .bn-block-content[data-content-type="quote"]
   blockquote {
   margin-block: 0;
@@ -638,6 +648,22 @@
   align-items: center;
   justify-content: center;
   pointer-events: auto;
+}
+
+.editor-side-menu {
+  display: flex;
+}
+
+.editor-side-menu[data-quote-has-children="true"] {
+  /* 保留原始 8px 菜单间距并补足父引用安全距离，同时让整段间距保持可悬浮。 */
+  padding-right: 16px;
+}
+
+.editor-side-menu[data-quote-has-children="true"]
+  .bn-side-menu[data-block-type="quote"] {
+  /* 空引用正文折叠后，父级手柄直接与首个子列表行对齐。 */
+  height: 30px;
+  margin-right: 0 !important;
 }
 
 /* 内联代码样式 */

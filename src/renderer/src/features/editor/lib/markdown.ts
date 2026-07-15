@@ -938,11 +938,90 @@ function preserveLargeDocumentListMarkers(source: string, edited: string) {
   return preserveSourceEnding(source, result);
 }
 
-function repairMarkdownSourceAfterPreserve(source: string, markdown: string) {
-  return normalizeUnorderedListMarkers(
+function getListLineSignature(text: string, quoted: boolean): string | null {
+  if (quoted && !/^> ?/u.test(text)) return null;
+  const content = quoted ? text.replace(/^> ?/u, "") : text;
+  const match = content.match(/^([ \t]*)[-+*][ \t]+(.*)$/u);
+  if (!match) return null;
+
+  return `${match[1].length}:${match[2]}`;
+}
+
+function repairEmptyQuoteChildListSource(
+  markdown: string,
+  serialized: string,
+): string {
+  const serializedLines = splitMarkdownLines(serialized);
+  const quotedRuns: string[][] = [];
+
+  for (let index = 0; index < serializedLines.length; index += 1) {
+    const signatures: string[] = [];
+    while (index < serializedLines.length) {
+      const signature = getListLineSignature(serializedLines[index].text, true);
+      if (!signature) break;
+      signatures.push(signature);
+      index += 1;
+    }
+    if (signatures.length > 0) quotedRuns.push(signatures);
+  }
+  if (quotedRuns.length === 0) return markdown;
+
+  const sourceLines = splitMarkdownLines(markdown);
+  for (const quotedRun of quotedRuns) {
+    for (let listStart = 0; listStart < sourceLines.length; listStart += 1) {
+      const sourceSignatures = quotedRun.map((_, offset) =>
+        getListLineSignature(
+          sourceLines[listStart + offset]?.text ?? "",
+          false,
+        ),
+      );
+      if (
+        sourceSignatures.some((signature) => signature === null) ||
+        sourceSignatures.some(
+          (signature, offset) => signature !== quotedRun[offset],
+        )
+      ) {
+        continue;
+      }
+
+      let quoteIndex = listStart - 1;
+      while (quoteIndex >= 0 && sourceLines[quoteIndex].text.trim() === "") {
+        quoteIndex -= 1;
+      }
+      if (quoteIndex < 0 || !/^>\s*$/u.test(sourceLines[quoteIndex].text)) {
+        continue;
+      }
+
+      const quotedListLines = sourceLines
+        .slice(listStart, listStart + quotedRun.length)
+        .map((line) => ({
+          ...line,
+          text: `> ${line.text.replace(/^([ \t]*)[-+*]([ \t]+)/u, "$1-$2")}`,
+        }));
+
+      // 旧源码中的空引用占位与外层列表属于同一个富文本父引用，合并回标准引用列表。
+      sourceLines.splice(
+        quoteIndex,
+        listStart + quotedRun.length - quoteIndex,
+        ...quotedListLines,
+      );
+      break;
+    }
+  }
+
+  return sourceLines.map((line) => `${line.text}${line.ending}`).join("");
+}
+
+function repairMarkdownSourceAfterPreserve(
+  source: string,
+  markdown: string,
+  serialized: string,
+) {
+  const normalized = normalizeUnorderedListMarkers(
     source,
     repairMarkdownSourceBeforeParse(preserveSourceEnding(source, markdown)),
   );
+  return repairEmptyQuoteChildListSource(normalized, serialized);
 }
 
 /**
@@ -1024,8 +1103,10 @@ export function preserveMarkdownSource(
   const repairedListMarkerSource =
     repairedJoinedListSource ?? repairMarkdownSourceBeforeParse(source);
   const preservationSource = repairedListMarkerSource;
+  const finalizeMarkdown = (markdown: string) =>
+    repairMarkdownSourceAfterPreserve(preservationSource, markdown, edited);
 
-  if (baseline === edited) return preservationSource;
+  if (baseline === edited) return finalizeMarkdown(preservationSource);
 
   // 大文档跳过列表重排和跨块移动的多次 splitMarkdownLines 扫描，
   // 直接走字符级或行级的保留路径，避免不必要的 O(n) 开销。
@@ -1038,14 +1119,16 @@ export function preserveMarkdownSource(
       baseline,
       edited,
     );
-    if (reorderedListSource !== null) return reorderedListSource;
+    if (reorderedListSource !== null) {
+      return finalizeMarkdown(reorderedListSource);
+    }
 
     const movedListSource = preserveMovedUnorderedListItemsAcrossBlocks(
       preservationSource,
       baseline,
       edited,
     );
-    if (movedListSource !== null) return movedListSource;
+    if (movedListSource !== null) return finalizeMarkdown(movedListSource);
   }
 
   if (
@@ -1053,8 +1136,7 @@ export function preserveMarkdownSource(
     SOURCE_PRESERVATION_DIFF_CHAR_LIMIT
   ) {
     // 大文档避免字符级 diff 阻塞输入；保留行级列表标记和文件结尾，正文采用编辑器序列化结果。
-    return repairMarkdownSourceAfterPreserve(
-      preservationSource,
+    return finalizeMarkdown(
       preserveLargeDocumentListMarkers(preservationSource, edited),
     );
   }
@@ -1090,7 +1172,7 @@ export function preserveMarkdownSource(
   });
   for (let index = 1; index < mappedEdits.length; index += 1) {
     if (mappedEdits[index - 1].end > mappedEdits[index].start) {
-      return edited;
+      return finalizeMarkdown(edited);
     }
   }
 
@@ -1098,13 +1180,13 @@ export function preserveMarkdownSource(
   for (const edit of mappedEdits.toReversed()) {
     // 映射异常时回退到编辑器结果，避免生成内容错位或重复。
     if (edit.start < 0 || edit.end < edit.start || edit.end > result.length) {
-      return repairMarkdownSourceAfterPreserve(preservationSource, edited);
+      return finalizeMarkdown(edited);
     }
     result =
       result.slice(0, edit.start) + edit.replacement + result.slice(edit.end);
   }
 
-  return repairMarkdownSourceAfterPreserve(preservationSource, result);
+  return finalizeMarkdown(result);
 }
 
 export function ensureEditableBlocks<TBlock>(
@@ -1391,7 +1473,7 @@ function normalizeQuoteListsForParser(markdown: string): {
     }
     const listLines = lines
       .slice(listStart, listEnd)
-      .map((line) => line.replace(/^>\s*/u, ""));
+      .map((line) => line.replace(/^> ?/u, ""));
     const quotePrefix = replacementStart === quoteStart ? [">"] : [];
 
     lines.splice(
@@ -1401,7 +1483,15 @@ function normalizeQuoteListsForParser(markdown: string): {
       "",
       ...listLines,
     );
-    descriptors.push({ itemCount: listLines.length, quoteOrdinal });
+    const listIndents = listLines.map(
+      (line) => line.match(/^([ \t]*)[-+*][ \t]+/u)?.[1].length ?? 0,
+    );
+    const rootIndent = Math.min(...listIndents);
+    const itemCount = listIndents.filter(
+      (indent) => indent === rootIndent,
+    ).length;
+    // 描述符按顶层列表块计数，嵌套列表行会由解析器保留在父列表项 children 中。
+    descriptors.push({ itemCount, quoteOrdinal });
     index = replacementStart + quotePrefix.length + listLines.length + 1;
   }
 
@@ -1493,9 +1583,22 @@ async function serializeQuoteListBlocks<TBlock>(
     const quotedList = listMarkdown
       .trimEnd()
       .split("\n")
-      .map((line) => (line ? `> ${line}` : ">"))
+      .map((line) => {
+        if (!line) return ">";
+
+        // 引用子列表统一使用 Markdown 的短横线模板，同时保留嵌套层级缩进。
+        const normalizedLine = line.replace(/^([ \t]*)[-+*]([ \t]+)/u, "$1-$2");
+        return `> ${normalizedLine}`;
+      })
       .join("\n");
-    chunks.push(`${quoteMarkdown.trimEnd()}\n>\n${quotedList}`);
+    const quoteContent = isRecord(block) ? getInlineText(block.content) : "";
+
+    // 空父引用仅承担子块容器职责，源码不输出额外的 `>` 占位行。
+    chunks.push(
+      quoteContent.trim()
+        ? `${quoteMarkdown.trimEnd()}\n>\n${quotedList}`
+        : quotedList,
+    );
   }
 
   await flushPendingBlocks();

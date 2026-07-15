@@ -5,16 +5,20 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type ComponentProps,
   type CSSProperties,
 } from "react";
 import {
   FormattingToolbar,
   FormattingToolbarController,
   getFormattingToolbarItems,
+  SideMenu,
+  SideMenuController,
   useBlockNoteEditor,
   useEditorState,
   useEditorChange,
   useComponentsContext,
+  useExtensionState,
   type FormattingToolbarProps,
 } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
@@ -25,6 +29,7 @@ import {
   type Block,
   type InlineContent,
 } from "@blocknote/core";
+import { SideMenuExtension } from "@blocknote/core/extensions";
 import { AllSelection, TextSelection } from "@tiptap/pm/state";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 
@@ -280,7 +285,7 @@ function persistRichPaneScroll(
   store.setTabScrollTop(owner.groupId, owner.tabId, scrollTop);
 }
 
-const MARKDOWN_PARSER_VERSION = "blocknote-v5";
+const MARKDOWN_PARSER_VERSION = "blocknote-v6";
 
 export function getMarkdownParserCacheVersion(reloadKey: number) {
   return `${MARKDOWN_PARSER_VERSION}:${reloadKey}`;
@@ -300,8 +305,46 @@ const INLINE_CODE_MARKDOWN_EXAMPLE = "`code`";
 const INLINE_CODE_MARKDOWN_SELECTION = /^`([^`\n]+)`$/;
 
 export const richEditorDefaultUIProps = {
-  sideMenu: true,
+  sideMenu: false,
 } as const;
+
+function EditorSideMenu(props: ComponentProps<typeof SideMenu>) {
+  const editor = useBlockNoteEditor();
+  const sideMenu = editor.getExtension(SideMenuExtension);
+  const block = useExtensionState(SideMenuExtension, {
+    editor,
+    selector: (state) => state?.block,
+  });
+  const quoteHasChildren = block?.type === "quote" && block.children.length > 0;
+
+  return (
+    <div
+      className="editor-side-menu"
+      data-quote-has-children={quoteHasChildren ? "true" : undefined}
+      onMouseEnter={() => {
+        // 鼠标跨过引用线与菜单之间的安全间距时，保持菜单绑定在父引用上。
+        if (quoteHasChildren) sideMenu?.freezeMenu();
+      }}
+      onMouseLeave={(event) => {
+        if (!quoteHasChildren) return;
+        const nextTarget = event.relatedTarget;
+        if (
+          nextTarget instanceof Element &&
+          nextTarget.closest('[role="menu"]')
+        ) {
+          return;
+        }
+        sideMenu?.unfreezeMenu();
+      }}
+    >
+      <SideMenu {...props} />
+    </div>
+  );
+}
+
+function EditorSideMenuController() {
+  return <SideMenuController sideMenu={EditorSideMenu} />;
+}
 
 function applyInlineCodeStyle(editor: CoreBlockNoteEditor) {
   const view = editor.prosemirrorView;
@@ -2165,6 +2208,7 @@ function MountedBlockNoteEditor({
         }}
       >
         <EditorFormattingToolbar />
+        <EditorSideMenuController />
       </BlockNoteView>
     </div>
   );
