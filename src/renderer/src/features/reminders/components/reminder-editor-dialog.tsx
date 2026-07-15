@@ -233,22 +233,25 @@ export function ReminderEditorDialog() {
       >
         <DialogContent
           showCloseButton={false}
-          className="top-[calc(12vh+72px)] z-[60] w-[calc(100%-32px)] max-w-[420px] translate-y-0 gap-0 overflow-visible rounded-xl p-0 shadow-xl"
+          overlayClassName="z-[55]"
+          overlayStyle={{ backgroundColor: "rgba(0, 0, 0, 0.18)" }}
+          className="top-[calc(12vh+64px)] z-[60] w-[calc(100%-32px)] max-w-[460px] translate-y-0 gap-0 overflow-visible rounded-xl p-0 shadow-[0_14px_32px_rgba(0,0,0,0.24)]"
           data-reminder-editor-dialog="true"
           style={{
-            backgroundColor: "var(--bg-primary)",
-            border: "1px solid var(--border-color)",
+            backgroundColor:
+              "color-mix(in srgb, var(--bg-tertiary) 36%, var(--bg-primary))",
+            border: "none",
             color: "var(--text-primary)",
           }}
         >
           <div className="animate-fade-in motion-reduce:animate-none">
-            <div className="flex h-11 items-center justify-between border-b border-[var(--border-color)] px-4">
-              <Dialog.Title className="text-sm font-semibold">
+            <div className="flex h-12 items-center justify-between border-b border-[var(--border-color)] px-5">
+              <Dialog.Title className="text-[15px] font-semibold">
                 {editingReminder ? "修改提醒事项" : "新建提醒事项"}
               </Dialog.Title>
               <Dialog.Close
                 aria-label="关闭"
-                className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-color)]"
+                className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-color)]"
               >
                 <X aria-hidden="true" className="h-4 w-4" />
               </Dialog.Close>
@@ -256,9 +259,10 @@ export function ReminderEditorDialog() {
             <Dialog.Description className="sr-only">
               设置提醒标题、日期时间和重复频率
             </Dialog.Description>
-            <div className="px-4 pb-3 pt-3">
+            <div className="px-5 pb-4 pt-4">
               <div>
                 <Input
+                  aria-label="提醒标题"
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
                   placeholder="标题"
@@ -279,12 +283,8 @@ export function ReminderEditorDialog() {
               </div>
 
               <div
-                className="mt-3 overflow-visible rounded-lg border border-[var(--border-color)]"
+                className="mt-4 overflow-visible border-y border-[var(--border-color)]"
                 data-testid="reminder-settings-group"
-                style={{
-                  backgroundColor:
-                    "color-mix(in srgb, var(--bg-secondary) 42%, var(--bg-primary))",
-                }}
               >
                 <ReminderSettingRow
                   icon={<CalendarDays className="h-4 w-4" />}
@@ -348,10 +348,10 @@ export function ReminderEditorDialog() {
             </div>
 
             <div
-              className="flex justify-end gap-2 border-t border-[var(--border-color)] px-4 py-2.5"
+              className="flex justify-end gap-2 rounded-b-xl border-t border-[var(--border-color)] px-5 py-3"
               style={{
                 backgroundColor:
-                  "color-mix(in srgb, var(--bg-secondary) 32%, var(--bg-primary))",
+                  "color-mix(in srgb, var(--bg-secondary) 38%, var(--bg-primary))",
               }}
             >
               <Button type="button" variant="secondary" onClick={closeEditor}>
@@ -390,7 +390,7 @@ function ReminderSettingRow({
   children,
 }: ReminderSettingRowProps) {
   return (
-    <div className="grid min-h-11 grid-cols-[18px_minmax(0,1fr)_minmax(112px,132px)] items-center gap-2.5 px-3 py-1.5">
+    <div className="grid min-h-12 grid-cols-[20px_minmax(0,1fr)_minmax(120px,140px)] items-center gap-3 px-2 py-2">
       <div
         className="flex h-5 w-5 items-center justify-center"
         style={{ color: "var(--text-muted)" }}

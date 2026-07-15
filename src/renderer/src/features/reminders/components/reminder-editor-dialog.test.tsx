@@ -44,7 +44,7 @@ describe("ReminderEditorDialog", () => {
     });
   });
 
-  it("renders a compact layered editor with a grouped schedule hierarchy", () => {
+  it("renders a layered editor with a flat schedule hierarchy", () => {
     render(<ReminderEditorDialog />);
 
     const dialog = screen.getByRole("dialog", { name: "新建提醒事项" });
@@ -52,22 +52,22 @@ describe("ReminderEditorDialog", () => {
     const settingsGroup = screen.getByTestId("reminder-settings-group");
 
     expect(dialog).toHaveClass(
-      "top-[calc(12vh+72px)]",
-      "max-w-[420px]",
+      "top-[calc(12vh+64px)]",
+      "max-w-[460px]",
       "translate-y-0",
     );
     expect(screen.getByRole("heading", { name: "新建提醒事项" })).toHaveClass(
-      "text-sm",
+      "text-[15px]",
       "font-semibold",
     );
     expect(screen.getByRole("button", { name: "关闭" })).toHaveClass(
-      "h-6",
-      "w-6",
+      "h-7",
+      "w-7",
       "rounded-md",
     );
     expect(titleInput).toHaveClass("h-9", "text-sm");
-    expect(settingsGroup).toHaveClass("rounded-lg", "border");
-    expect(settingsGroup).not.toHaveClass("border-y");
+    expect(settingsGroup).toHaveClass("border-y");
+    expect(settingsGroup).not.toHaveClass("rounded-lg", "border");
     expect(settingsGroup).toContainElement(screen.getByText("日期"));
     expect(settingsGroup).toContainElement(screen.getByText("时间"));
     expect(settingsGroup).toContainElement(screen.getByText("重复"));
@@ -77,7 +77,10 @@ describe("ReminderEditorDialog", () => {
   it("uses an explicit primary action with the existing disabled rule", () => {
     render(<ReminderEditorDialog />);
 
-    expect(screen.getByRole("button", { name: "保存提醒" })).toBeDisabled();
+    const saveButton = screen.getByRole("button", { name: "保存提醒" });
+
+    expect(saveButton).toBeDisabled();
+    expect(saveButton.parentElement).toHaveClass("rounded-b-xl");
   });
 
   it("renders the associated file as muted secondary text", () => {
@@ -170,7 +173,7 @@ describe("ReminderEditorDialog", () => {
     expect(rows).toHaveLength(3);
     rows.forEach((row) => {
       expect(row).toHaveClass(
-        "grid-cols-[18px_minmax(0,1fr)_minmax(112px,132px)]",
+        "grid-cols-[20px_minmax(0,1fr)_minmax(120px,140px)]",
       );
       expect(row).not.toHaveClass(
         "transition-colors",
@@ -212,6 +215,7 @@ describe("ReminderEditorDialog", () => {
   it("only closes the editor when cancelling from an open list", async () => {
     const user = userEvent.setup();
     useReminderStore.setState({
+      isEditorOpen: false,
       isListOpen: true,
       draftFilePath: null,
     });
@@ -222,7 +226,33 @@ describe("ReminderEditorDialog", () => {
       </>,
     );
 
+    await user.click(screen.getByRole("button", { name: "新建提醒事项" }));
     await user.click(screen.getByRole("button", { name: "取消" }));
+
+    expect(useReminderStore.getState()).toMatchObject({
+      isEditorOpen: false,
+      isListOpen: true,
+    });
+  });
+
+  it("only closes the editor when clicking outside from an open list", async () => {
+    const user = userEvent.setup();
+    useReminderStore.setState({
+      isEditorOpen: false,
+      isListOpen: true,
+      draftFilePath: null,
+    });
+    render(
+      <>
+        <ReminderEditorDialog />
+        <ReminderListDialog />
+      </>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "新建提醒事项" }));
+    fireEvent.pointerDown(document.body);
+    fireEvent.mouseDown(document.body);
+    fireEvent.click(document.body);
 
     expect(useReminderStore.getState()).toMatchObject({
       isEditorOpen: false,
@@ -233,6 +263,7 @@ describe("ReminderEditorDialog", () => {
   it("only closes the editor when saving from an open list", async () => {
     const user = userEvent.setup();
     useReminderStore.setState({
+      isEditorOpen: false,
       isListOpen: true,
       draftFilePath: null,
     });
@@ -243,6 +274,7 @@ describe("ReminderEditorDialog", () => {
       </>,
     );
 
+    await user.click(screen.getByRole("button", { name: "新建提醒事项" }));
     await user.type(screen.getByPlaceholderText("标题"), "喝水");
     await user.click(screen.getByRole("button", { name: "保存提醒" }));
 

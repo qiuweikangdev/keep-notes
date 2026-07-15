@@ -68,9 +68,7 @@ describe("ReminderListDialog", () => {
       "brightness-[0.82]",
       "saturate-75",
     );
-    expect(screen.getByTestId("reminder-list-editor-mask")).toHaveClass(
-      "bg-black/[0.08]",
-    );
+    expect(screen.queryByTestId("reminder-list-editor-mask")).toBeNull();
   });
 
   it("keeps the reminder list open when selecting from a row context menu", async () => {
@@ -203,6 +201,7 @@ describe("ReminderListDialog", () => {
     });
 
     expect(dialog).toHaveClass("max-w-[520px]", "top-[12vh]", "translate-y-0");
+    expect(dialog).toHaveClass("z-50", "shadow-[0_4px_8px_rgba(0,0,0,0.16)]");
     expect(search).toHaveClass("border-0", "bg-transparent");
     expect(screen.queryByRole("button", { name: "关闭" })).toBeNull();
     expect(screen.getByRole("button", { name: "新建提醒事项" })).toBeVisible();
@@ -223,11 +222,7 @@ describe("ReminderListDialog", () => {
   it("renders an inline empty state", () => {
     render(<ReminderListDialog />);
 
-    expect(screen.getByText("没有提醒事项")).toHaveClass(
-      "px-3",
-      "pb-4",
-      "pt-2",
-    );
+    expect(screen.getByText("没有提醒事项")).toHaveClass("font-medium");
   });
 
   it("renders compact tabs and search-style result rows", () => {
@@ -245,7 +240,7 @@ describe("ReminderListDialog", () => {
     expect(screen.getByRole("tablist")).toHaveClass("flex", "gap-1");
     expect(screen.getByRole("tab", { name: "今天" })).toHaveClass(
       "w-auto",
-      "px-2",
+      "px-2.5",
     );
     expect(screen.getByRole("button", { name: /Read notes/ })).toHaveClass(
       "flex",
