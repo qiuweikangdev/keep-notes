@@ -92,10 +92,10 @@ describe("SettingsModal about tab", () => {
 
     expect(screen.getByRole("dialog")).toHaveClass(
       "flex",
-      "h-[calc(100vh-32px)]",
-      "max-h-[640px]",
-      "w-[calc(100vw-32px)]",
-      "max-w-[780px]",
+      "h-[min(640px,calc(100vh-32px))]",
+      "max-h-none",
+      "w-[min(780px,calc(100vw-32px))]",
+      "max-w-none",
       "flex-col",
     );
     expect(screen.getByTestId("settings-layout")).toHaveClass(

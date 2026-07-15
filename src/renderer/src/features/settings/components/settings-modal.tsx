@@ -761,7 +761,7 @@ export function SettingsModal() {
     >
       <DialogContent
         ref={contentRef}
-        className="flex h-[calc(100vh-32px)] max-h-[640px] w-[calc(100vw-32px)] max-w-[780px] flex-col gap-0 overflow-visible p-0"
+        className="flex h-[min(640px,calc(100vh-32px))] max-h-none w-[min(780px,calc(100vw-32px))] max-w-none flex-col gap-0 overflow-visible p-0"
         onInteractOutside={(event) => {
           // 导出设置的下拉内容使用 Portal，避免被弹窗滚动区域裁切。
           if (isExportSettingsDropdownEvent(event)) {

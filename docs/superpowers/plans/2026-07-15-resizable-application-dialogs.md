@@ -452,7 +452,7 @@ git commit -m "refactor: unify diff dialog geometry"
 
 **Interfaces:**
 - Consumes: `useResizableDialog({ isOpen, minWidth, minHeight })` and `DialogResizeHandles`.
-- Produces: a Settings surface capped at `780 × 640` and reduced to the viewport minus 32 px when necessary.
+- Produces: a Settings surface with a preferred `780 × 640` default, reduced for small viewports and expandable up to the viewport margins.
 - Produces: `data-settings-layout`, `data-settings-content`, `data-dialog-drag-handle`, and eight resize handles.
 
 - [ ] **Step 1: Wrap Settings tests with the provider and write failing layout tests**
@@ -479,10 +479,10 @@ it("keeps the Settings surface inside small application windows", () => {
   render(<SettingsModal />);
   const dialog = screen.getByRole("dialog", { name: "设置" });
   expect(dialog).toHaveClass(
-    "h-[calc(100vh-32px)]",
-    "max-h-[640px]",
-    "w-[calc(100vw-32px)]",
-    "max-w-[780px]",
+    "h-[min(640px,calc(100vh-32px))]",
+    "max-h-none",
+    "w-[min(780px,calc(100vw-32px))]",
+    "max-w-none",
     "flex-col",
   );
   expect(screen.getByTestId("settings-layout")).toHaveClass("min-h-0", "flex-1");
@@ -541,7 +541,7 @@ Attach the ref and replace only the current `DialogContent` class string; preser
 ```tsx
 <DialogContent
   ref={contentRef}
-  className="flex h-[calc(100vh-32px)] max-h-[640px] w-[calc(100vw-32px)] max-w-[780px] flex-col gap-0 overflow-visible p-0"
+  className="flex h-[min(640px,calc(100vh-32px))] max-h-none w-[min(780px,calc(100vw-32px))] max-w-none flex-col gap-0 overflow-visible p-0"
   onInteractOutside={(event) => {
     if (isExportSettingsDropdownEvent(event)) event.preventDefault();
   }}
@@ -650,10 +650,10 @@ it("uses responsive shared geometry for the main Git surface", async () => {
   await screen.findByText("changed.md");
   const dialog = document.querySelector<HTMLElement>('[data-git-dialog="main"]')!;
   expect(dialog).toHaveClass(
-    "h-[82vh]",
-    "max-h-[calc(100vh-32px)]",
-    "w-[calc(100vw-32px)]",
-    "max-w-[680px]",
+    "h-[min(82vh,calc(100vh-32px))]",
+    "max-h-none",
+    "w-[min(680px,calc(100vw-32px))]",
+    "max-w-none",
   );
   expect(dialog.querySelector("[data-dialog-drag-handle]")).toBeInTheDocument();
   expect(dialog.querySelectorAll("[data-dialog-resize-handle]")).toHaveLength(8);
@@ -725,7 +725,7 @@ Replace the main surface opening element with:
 <div
   ref={contentRef}
   data-git-dialog="main"
-  className="fixed left-1/2 top-1/2 flex h-[82vh] max-h-[calc(100vh-32px)] w-[calc(100vw-32px)] max-w-[680px] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl shadow-2xl"
+  className="fixed left-1/2 top-1/2 flex h-[min(82vh,calc(100vh-32px))] max-h-none w-[min(680px,calc(100vw-32px))] max-w-none -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl shadow-2xl"
   style={{ backgroundColor: "var(--bg-secondary)" }}
   onClick={(event) => event.stopPropagation()}
 >

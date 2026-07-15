@@ -187,10 +187,10 @@ describe("GitPanel", () => {
       '[data-git-dialog="main"]',
     );
     expect(dialog).toHaveClass(
-      "h-[82vh]",
-      "max-h-[calc(100vh-32px)]",
-      "w-[calc(100vw-32px)]",
-      "max-w-[680px]",
+      "h-[min(82vh,calc(100vh-32px))]",
+      "max-h-none",
+      "w-[min(680px,calc(100vw-32px))]",
+      "max-w-none",
     );
     expect(
       dialog?.querySelector("[data-dialog-drag-handle]"),
@@ -614,7 +614,7 @@ describe("GitPanel", () => {
 
     await screen.findByText("changed.md");
     expect(screen.getByText("Git 操作").closest(".shadow-2xl")).toHaveClass(
-      "h-[82vh]",
+      "h-[min(82vh,calc(100vh-32px))]",
     );
     expect(screen.queryByRole("tab", { name: "历史" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "查看 Git 历史" }));

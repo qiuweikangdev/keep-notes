@@ -78,7 +78,7 @@ Move `DragResizeProvider` from inside `HomePage` to the application surface that
 
 ### Settings dialog
 
-The default maximum surface remains approximately 780 px wide and 640 px tall. Its actual default width and height are capped by the viewport minus the safety margins.
+The preferred default surface remains approximately 780 px wide and 640 px tall. Its actual default width and height are capped by the viewport minus the safety margins, but user resizing may grow the surface beyond those preferred dimensions up to the viewport bounds.
 
 Replace the fixed 540 px content-body height with a flex column layout:
 
@@ -91,7 +91,7 @@ The surface uses responsive width and height constraints even before a user resi
 
 ### Git dialog
 
-The main Git operation surface keeps its current visual default of approximately 680 px wide and 82 vh tall, capped by the viewport margins. Its header becomes the drag handle, and the surface receives the shared resize handles.
+The main Git operation surface keeps its current visual default of approximately 680 px wide and 82 vh tall, capped by the viewport margins. Its header becomes the drag handle, and the surface receives the shared resize handles. The 680 px width and 82 vh height are preferred defaults rather than resize maxima.
 
 The existing compact loading and non-repository messages remain compact. They receive responsive maximum width and height constraints so they cannot overflow, but they do not need large resizable work areas because they contain no dense content.
 

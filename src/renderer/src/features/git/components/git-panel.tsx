@@ -1642,7 +1642,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       <div
         ref={contentRef}
         data-git-dialog="main"
-        className="fixed left-1/2 top-1/2 flex h-[82vh] max-h-[calc(100vh-32px)] w-[calc(100vw-32px)] max-w-[680px] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl shadow-2xl"
+        className="fixed left-1/2 top-1/2 flex h-[min(82vh,calc(100vh-32px))] max-h-none w-[min(680px,calc(100vw-32px))] max-w-none -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl shadow-2xl"
         style={{ backgroundColor: "var(--bg-secondary)" }}
         onClick={(e) => e.stopPropagation()}
       >
