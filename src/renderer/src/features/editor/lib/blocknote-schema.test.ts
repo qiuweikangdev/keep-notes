@@ -340,7 +340,7 @@ describe("editor BlockNote schema", () => {
     ).toBe("solid");
     expect(
       (cursorRule as CSSStyleRule).style.getPropertyValue("border-left-width"),
-    ).toBe("2px");
+    ).toBe("var(--editor-code-block-cursor-width, 2px)");
 
     output.destroy?.();
   });

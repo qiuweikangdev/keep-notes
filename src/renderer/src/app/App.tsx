@@ -17,6 +17,8 @@ import { useShortcutsStore } from "@/store/shortcuts.store";
 import { useReminderStore } from "@/store/reminder.store";
 import { APP_BEHAVIOR_CONFIG } from "@/config/app-behavior";
 
+const CODE_BLOCK_CURSOR_VISUAL_WIDTH = 2;
+
 /**
  * 将 KeyboardEvent 转换为内部快捷键字符串
  */
@@ -93,6 +95,42 @@ export function App() {
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [handleKeyDown]);
+
+  useEffect(() => {
+    const getZoomFactor = window.electronAPI?.getZoomFactor;
+    if (!getZoomFactor) return;
+
+    let isActive = true;
+    let devicePixelRatio = window.devicePixelRatio;
+    const syncCodeBlockCursorWidth = () => {
+      void getZoomFactor().then((zoomFactor) => {
+        if (!isActive || !Number.isFinite(zoomFactor) || zoomFactor <= 0)
+          return;
+
+        // Electron 页面缩放会同步压缩 CSS 像素，按缩放比例反向补偿，保持代码光标约 2 个物理像素宽。
+        document.documentElement.style.setProperty(
+          "--editor-code-block-cursor-width",
+          `${CODE_BLOCK_CURSOR_VISUAL_WIDTH / zoomFactor}px`,
+        );
+      });
+    };
+    const handleZoomChange = () => {
+      if (window.devicePixelRatio === devicePixelRatio) return;
+      devicePixelRatio = window.devicePixelRatio;
+      syncCodeBlockCursorWidth();
+    };
+
+    syncCodeBlockCursorWidth();
+    window.addEventListener("resize", handleZoomChange);
+
+    return () => {
+      isActive = false;
+      window.removeEventListener("resize", handleZoomChange);
+      document.documentElement.style.removeProperty(
+        "--editor-code-block-cursor-width",
+      );
+    };
+  }, []);
 
   useEffect(() => {
     void loadReminders();

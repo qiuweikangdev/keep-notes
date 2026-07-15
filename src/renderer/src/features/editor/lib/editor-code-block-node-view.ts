@@ -149,7 +149,7 @@ const editorCodeMirrorTheme = CodeMirrorView.theme({
   "&.cm-focused .cm-cursor": {
     borderLeftColor: "var(--editor-code-block-cursor)",
     borderLeftStyle: "solid",
-    borderLeftWidth: "2px",
+    borderLeftWidth: "var(--editor-code-block-cursor-width, 2px)",
   },
   ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
     backgroundColor: "var(--accent-color)",

@@ -400,7 +400,9 @@ describe("blocknote overrides stylesheet", () => {
       /border-left-color:\s*var\(--editor-code-block-cursor\) !important;/,
     );
     expect(cursorRule).toMatch(/border-left-style:\s*solid !important;/);
-    expect(cursorRule).toMatch(/border-left-width:\s*2px !important;/);
+    expect(cursorRule).toMatch(
+      /border-left-width:\s*var\(--editor-code-block-cursor-width, 2px\) !important;/,
+    );
   });
 
   it("draws a fallback cursor while an empty CodeMirror document has no cursor layer", () => {
@@ -411,7 +413,7 @@ describe("blocknote overrides stylesheet", () => {
     expect(cursorRule).toMatch(/content:\s*"";/);
     expect(cursorRule).toMatch(/position:\s*absolute;/);
     expect(cursorRule).toMatch(
-      /border-left:\s*2px solid var\(--editor-code-block-cursor\);/,
+      /border-left:\s*var\(--editor-code-block-cursor-width, 2px\) solid\s+var\(--editor-code-block-cursor\);/,
     );
   });
 

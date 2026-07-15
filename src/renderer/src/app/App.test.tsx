@@ -4,6 +4,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useReminderStore } from "@/store/reminder.store";
@@ -282,6 +283,13 @@ import { App } from "./App";
 describe("App shortcuts", () => {
   afterEach(() => {
     cleanup();
+    Object.defineProperty(window, "devicePixelRatio", {
+      configurable: true,
+      value: 1,
+    });
+    document.documentElement.style.removeProperty(
+      "--editor-code-block-cursor-width",
+    );
   });
 
   beforeEach(() => {
@@ -298,6 +306,7 @@ describe("App shortcuts", () => {
       configurable: true,
       value: {
         getPlatform: () => "darwin",
+        getZoomFactor: vi.fn(async () => 1),
         listReminders: vi.fn(async () => []),
         onRemindersChanged: vi.fn(() => () => undefined),
         onReminderTriggered: vi.fn(() => () => undefined),
@@ -317,6 +326,39 @@ describe("App shortcuts", () => {
     expect(
       screen.getByTestId("application-dialog-provider-state"),
     ).toHaveTextContent("true");
+  });
+
+  it("keeps the code-block cursor at two visual pixels across interface zoom", async () => {
+    const getZoomFactor = vi.fn(async () => 0.5);
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: { ...window.electronAPI, getZoomFactor },
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(
+        document.documentElement.style.getPropertyValue(
+          "--editor-code-block-cursor-width",
+        ),
+      ).toBe("4px");
+    });
+
+    getZoomFactor.mockResolvedValueOnce(1);
+    Object.defineProperty(window, "devicePixelRatio", {
+      configurable: true,
+      value: 2,
+    });
+    fireEvent(window, new Event("resize"));
+
+    await waitFor(() => {
+      expect(
+        document.documentElement.style.getPropertyValue(
+          "--editor-code-block-cursor-width",
+        ),
+      ).toBe("2px");
+    });
   });
 
   it("allows the page button to toggle the mounted sidebar panel", () => {

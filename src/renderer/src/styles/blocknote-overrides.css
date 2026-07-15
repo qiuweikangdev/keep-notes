@@ -475,7 +475,7 @@
 .editor-code-block__codemirror .cm-editor.cm-focused .cm-cursor {
   border-left-color: var(--editor-code-block-cursor) !important;
   border-left-style: solid !important;
-  border-left-width: 2px !important;
+  border-left-width: var(--editor-code-block-cursor-width, 2px) !important;
 }
 
 .editor-code-block__codemirror
@@ -488,7 +488,8 @@
   top: 0;
   left: 0;
   height: 1.6rem;
-  border-left: 2px solid var(--editor-code-block-cursor);
+  border-left: var(--editor-code-block-cursor-width, 2px) solid
+    var(--editor-code-block-cursor);
   pointer-events: none;
 }
 
