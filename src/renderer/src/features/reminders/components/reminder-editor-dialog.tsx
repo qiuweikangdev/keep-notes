@@ -436,7 +436,7 @@ function DatePickerControl({
     <div className="relative" ref={pickerRef}>
       <button
         type="button"
-        data-theme-control="true"
+        data-reminder-setting-control="true"
         disabled={disabled}
         aria-expanded={open}
         className={`${controlClassName} flex w-full items-center justify-between gap-2`}
@@ -572,7 +572,7 @@ function TimePickerControl({
     <div className="relative" ref={pickerRef}>
       <button
         type="button"
-        data-theme-control="true"
+        data-reminder-setting-control="true"
         disabled={disabled}
         aria-expanded={open}
         className={`${controlClassName} flex w-full items-center justify-between gap-2`}
@@ -685,7 +685,7 @@ function RepeatPickerControl({
     <div className="relative" ref={pickerRef}>
       <button
         type="button"
-        data-theme-control="true"
+        data-reminder-setting-control="true"
         aria-expanded={open}
         className={`${controlClassName} flex w-full items-center justify-between gap-2`}
         style={{

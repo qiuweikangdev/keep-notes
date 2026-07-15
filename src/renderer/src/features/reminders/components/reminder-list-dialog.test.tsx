@@ -62,12 +62,15 @@ describe("ReminderListDialog", () => {
     expect(dialog).toBeVisible();
     expect(dialog).toHaveAttribute("data-editor-open", "true");
     expect(dialog).toHaveAttribute("inert");
-    expect(dialog).toHaveClass(
-      "pointer-events-none",
+    expect(dialog).toHaveClass("pointer-events-none");
+    expect(dialog).not.toHaveClass(
+      "opacity-60",
       "brightness-[0.82]",
       "saturate-75",
     );
-    expect(dialog).not.toHaveClass("opacity-60");
+    expect(screen.getByTestId("reminder-list-editor-mask")).toHaveClass(
+      "bg-black/[0.08]",
+    );
   });
 
   it("keeps the reminder list open when selecting from a row context menu", async () => {

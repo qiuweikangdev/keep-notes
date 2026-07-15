@@ -405,6 +405,11 @@ button[data-theme-control="true"]:not(:disabled):hover {
   color: var(--text-primary) !important;
 }
 
+button[data-reminder-setting-control="true"]:not(:disabled):hover {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+}
+
 button[data-theme-control="true"] {
   transition:
     background-color 160ms ease,

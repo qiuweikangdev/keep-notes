@@ -163,7 +163,9 @@ describe("ReminderEditorDialog", () => {
 
     const settingsGroup = screen.getByTestId("reminder-settings-group");
     const rows = settingsGroup.querySelectorAll("div.grid");
-    const controls = settingsGroup.querySelectorAll("button[aria-expanded]");
+    const controls = settingsGroup.querySelectorAll(
+      'button[data-reminder-setting-control="true"]',
+    );
 
     expect(rows).toHaveLength(3);
     rows.forEach((row) => {
@@ -178,6 +180,7 @@ describe("ReminderEditorDialog", () => {
     expect(controls).toHaveLength(3);
     controls.forEach((control) => {
       expect(control).toHaveClass("w-full");
+      expect(control).not.toHaveAttribute("data-theme-control");
     });
   });
 

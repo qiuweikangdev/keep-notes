@@ -93,10 +93,8 @@ export function ReminderListDialog() {
       >
         <DialogContent
           showCloseButton={false}
-          className={`top-[12vh] max-w-[520px] translate-y-0 gap-0 overflow-hidden rounded-xl p-0 shadow-lg transition-[filter] duration-150 sm:rounded-xl ${
-            isEditorOpen
-              ? "pointer-events-none brightness-[0.82] saturate-75"
-              : ""
+          className={`top-[12vh] max-w-[520px] translate-y-0 gap-0 overflow-hidden rounded-xl p-0 shadow-lg sm:rounded-xl ${
+            isEditorOpen ? "pointer-events-none" : ""
           }`}
           data-editor-open={isEditorOpen ? "true" : undefined}
           data-reminder-list-dialog="true"
@@ -115,6 +113,13 @@ export function ReminderListDialog() {
             color: "var(--text-primary)",
           }}
         >
+          {isEditorOpen ? (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 z-10 rounded-xl bg-black/[0.08]"
+              data-testid="reminder-list-editor-mask"
+            />
+          ) : null}
           <Dialog.Title className="sr-only">提醒事项</Dialog.Title>
           <Dialog.Description className="sr-only">
             查看、搜索、编辑和完成笔记提醒事项
