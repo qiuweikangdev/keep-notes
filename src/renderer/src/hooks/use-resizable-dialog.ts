@@ -1,5 +1,8 @@
 import {
   useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
   useRef,
   type PointerEventHandler,
   type RefObject,
@@ -16,6 +19,15 @@ interface ResizeGeometry {
   top: number;
 }
 
+interface ViewportBounds {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  width: number;
+  height: number;
+}
+
 interface ResizeSession {
   pointerId: number;
   direction: ResizeDirection;
@@ -24,23 +36,50 @@ interface ResizeSession {
   startRect: ResizeGeometry;
 }
 
-interface ResizableDialogResult {
+interface DragSession {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  offsetX: number;
+  offsetY: number;
+  width: number;
+  height: number;
+  activated: boolean;
+}
+
+type PointerHandlers = {
+  onPointerDown: PointerEventHandler<HTMLElement>;
+  onPointerMove: PointerEventHandler<HTMLElement>;
+  onPointerUp: PointerEventHandler<HTMLElement>;
+  onPointerCancel: PointerEventHandler<HTMLElement>;
+};
+
+export interface ResizableDialogOptions {
+  isOpen?: boolean;
+  minWidth?: number;
+  minHeight?: number;
+  viewportMargin?: number;
+  dragActivationDistance?: number;
+}
+
+export interface ResizableDialogResult {
   contentRef: RefObject<HTMLDivElement | null>;
-  resizeHandleProps: Record<
-    ResizeDirection,
-    {
-      onPointerDown: PointerEventHandler<HTMLElement>;
-      onPointerMove: PointerEventHandler<HTMLElement>;
-      onPointerUp: PointerEventHandler<HTMLElement>;
-      onPointerCancel: PointerEventHandler<HTMLElement>;
-    }
-  >;
+  dragHandleProps: PointerHandlers;
+  resizeHandleProps: Record<ResizeDirection, PointerHandlers>;
+  resetGeometry: () => void;
   resetSize: () => void;
 }
 
-const MIN_WIDTH = 480;
-const MIN_HEIGHT = 280;
-const VIEWPORT_MARGIN = 16;
+const RESIZE_DIRECTIONS: ResizeDirection[] = [
+  "n",
+  "s",
+  "e",
+  "w",
+  "ne",
+  "nw",
+  "se",
+  "sw",
+];
 
 function clamp(value: number, minimum: number, maximum: number): number {
   if (maximum < minimum) return minimum;
@@ -74,136 +113,310 @@ function clearGeometry(target: HTMLElement) {
   target.style.removeProperty("transition");
 }
 
-function computeNext(
+function getViewportBounds(margin: number): ViewportBounds {
+  const horizontalMargin = window.innerWidth > margin * 2 ? margin : 0;
+  const verticalMargin = window.innerHeight > margin * 2 ? margin : 0;
+
+  return {
+    left: horizontalMargin,
+    top: verticalMargin,
+    right: window.innerWidth - horizontalMargin,
+    bottom: window.innerHeight - verticalMargin,
+    width: Math.max(1, window.innerWidth - horizontalMargin * 2),
+    height: Math.max(1, window.innerHeight - verticalMargin * 2),
+  };
+}
+
+function constrainGeometry(
+  geometry: ResizeGeometry,
+  minWidth: number,
+  minHeight: number,
+  margin: number,
+): ResizeGeometry {
+  const bounds = getViewportBounds(margin);
+  const width = clamp(
+    geometry.width,
+    Math.min(minWidth, bounds.width),
+    bounds.width,
+  );
+  const height = clamp(
+    geometry.height,
+    Math.min(minHeight, bounds.height),
+    bounds.height,
+  );
+
+  return {
+    width,
+    height,
+    left: clamp(geometry.left, bounds.left, bounds.right - width),
+    top: clamp(geometry.top, bounds.top, bounds.bottom - height),
+  };
+}
+
+function computeResizeGeometry(
   direction: ResizeDirection,
   start: ResizeGeometry,
   deltaX: number,
   deltaY: number,
+  minWidth: number,
+  minHeight: number,
+  margin: number,
 ): ResizeGeometry {
-  const maxWidth = Math.max(MIN_WIDTH, window.innerWidth - VIEWPORT_MARGIN * 2);
-  const maxHeight = Math.max(
-    MIN_HEIGHT,
-    window.innerHeight - VIEWPORT_MARGIN * 2,
-  );
+  const bounds = getViewportBounds(margin);
+  const effectiveMinWidth = Math.min(minWidth, bounds.width);
+  const effectiveMinHeight = Math.min(minHeight, bounds.height);
+  const startRight = start.left + start.width;
+  const startBottom = start.top + start.height;
 
-  let width = start.width;
-  let height = start.height;
   let left = start.left;
+  let right = startRight;
   let top = start.top;
+  let bottom = startBottom;
 
   if (direction.includes("e")) {
-    width = clamp(start.width + deltaX, MIN_WIDTH, maxWidth);
-  }
-  if (direction.includes("s")) {
-    height = clamp(start.height + deltaY, MIN_HEIGHT, maxHeight);
+    right = clamp(
+      startRight + deltaX,
+      start.left + effectiveMinWidth,
+      bounds.right,
+    );
   }
   if (direction.includes("w")) {
-    const minDeltaW = start.width - maxWidth;
-    const maxDeltaW = start.width - MIN_WIDTH;
-    const dx = clamp(deltaX, minDeltaW, maxDeltaW);
-    width = start.width - dx;
-    left = start.left + dx;
+    left = clamp(
+      start.left + deltaX,
+      bounds.left,
+      startRight - effectiveMinWidth,
+    );
+  }
+  if (direction.includes("s")) {
+    bottom = clamp(
+      startBottom + deltaY,
+      start.top + effectiveMinHeight,
+      bounds.bottom,
+    );
   }
   if (direction.includes("n")) {
-    const minDeltaH = start.height - maxHeight;
-    const maxDeltaH = start.height - MIN_HEIGHT;
-    const dy = clamp(deltaY, minDeltaH, maxDeltaH);
-    height = start.height - dy;
-    top = start.top + dy;
+    top = clamp(
+      start.top + deltaY,
+      bounds.top,
+      startBottom - effectiveMinHeight,
+    );
   }
 
-  // 视口边界保护。
-  left = clamp(
-    left,
-    VIEWPORT_MARGIN,
-    window.innerWidth - VIEWPORT_MARGIN - width,
+  return constrainGeometry(
+    {
+      width: right - left,
+      height: bottom - top,
+      left,
+      top,
+    },
+    minWidth,
+    minHeight,
+    margin,
   );
-  top = clamp(
-    top,
-    VIEWPORT_MARGIN,
-    window.innerHeight - VIEWPORT_MARGIN - height,
-  );
-
-  return { width, height, left, top };
 }
 
-export function useResizableDialog(): ResizableDialogResult {
+export function useResizableDialog({
+  isOpen = true,
+  minWidth = 480,
+  minHeight = 280,
+  viewportMargin = 16,
+  dragActivationDistance = 8,
+}: ResizableDialogOptions = {}): ResizableDialogResult {
   const contentRef = useRef<HTMLDivElement | null>(null);
-  const { startResize, endResize } = useDragResize();
+  const dragSessionRef = useRef<DragSession | null>(null);
+  const resizeSessionRef = useRef<ResizeSession | null>(null);
+  const { startDrag, endDrag, startResize, endResize } = useDragResize();
 
-  const sessionRef = useRef<ResizeSession | null>(null);
-  const handlersRef = useRef<ResizableDialogResult["resizeHandleProps"]>(
-    {} as never,
-  );
+  const resetGeometry = useCallback(() => {
+    if (dragSessionRef.current?.activated) endDrag();
+    if (resizeSessionRef.current) endResize();
+    dragSessionRef.current = null;
+    resizeSessionRef.current = null;
 
-  const getHandlers = (direction: ResizeDirection) => {
-    if (handlersRef.current[direction]) {
-      return handlersRef.current[direction];
-    }
+    if (contentRef.current) clearGeometry(contentRef.current);
+  }, [endDrag, endResize]);
 
+  useLayoutEffect(() => {
+    if (isOpen) resetGeometry();
+  }, [isOpen, resetGeometry]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleViewportResize = () => {
+      const target = contentRef.current;
+      if (!target) return;
+      applyGeometry(
+        target,
+        constrainGeometry(
+          captureGeometry(target),
+          minWidth,
+          minHeight,
+          viewportMargin,
+        ),
+      );
+    };
+
+    window.addEventListener("resize", handleViewportResize);
+    return () => window.removeEventListener("resize", handleViewportResize);
+  }, [isOpen, minHeight, minWidth, viewportMargin]);
+
+  useEffect(() => {
+    return () => {
+      if (dragSessionRef.current?.activated) endDrag();
+      if (resizeSessionRef.current) endResize();
+    };
+  }, [endDrag, endResize]);
+
+  const dragHandleProps = useMemo<PointerHandlers>(() => {
     const onPointerDown: PointerEventHandler<HTMLElement> = (event) => {
       if (event.button !== 0 || !contentRef.current) return;
       event.preventDefault();
-      event.stopPropagation();
       event.currentTarget.setPointerCapture?.(event.pointerId);
-      sessionRef.current = {
+      dragSessionRef.current = {
         pointerId: event.pointerId,
-        direction,
         startX: event.clientX,
         startY: event.clientY,
-        startRect: captureGeometry(contentRef.current),
+        offsetX: 0,
+        offsetY: 0,
+        width: 0,
+        height: 0,
+        activated: false,
       };
-      startResize();
     };
 
     const onPointerMove: PointerEventHandler<HTMLElement> = (event) => {
-      const session = sessionRef.current;
-      if (!session || session.pointerId !== event.pointerId) return;
-      if (!contentRef.current) return;
-      const next = computeNext(
-        session.direction,
-        session.startRect,
-        event.clientX - session.startX,
-        event.clientY - session.startY,
+      const session = dragSessionRef.current;
+      const target = contentRef.current;
+      if (!session || session.pointerId !== event.pointerId || !target) return;
+
+      if (!session.activated) {
+        const deltaX = event.clientX - session.startX;
+        const deltaY = event.clientY - session.startY;
+        if (
+          Math.abs(deltaX) < dragActivationDistance &&
+          Math.abs(deltaY) < dragActivationDistance
+        ) {
+          return;
+        }
+
+        const rect = target.getBoundingClientRect();
+        session.offsetX = event.clientX - rect.left;
+        session.offsetY = event.clientY - rect.top;
+        session.width = rect.width;
+        session.height = rect.height;
+        session.activated = true;
+        target.style.setProperty("transition", "none", "important");
+        target.style.setProperty("left", `${rect.left}px`, "important");
+        target.style.setProperty("top", `${rect.top}px`, "important");
+        target.style.setProperty("transform", "none", "important");
+        startDrag();
+        return;
+      }
+
+      applyGeometry(
+        target,
+        constrainGeometry(
+          {
+            width: session.width,
+            height: session.height,
+            left: event.clientX - session.offsetX,
+            top: event.clientY - session.offsetY,
+          },
+          minWidth,
+          minHeight,
+          viewportMargin,
+        ),
       );
-      applyGeometry(contentRef.current, next);
     };
 
     const finish: PointerEventHandler<HTMLElement> = (event) => {
-      const session = sessionRef.current;
+      const session = dragSessionRef.current;
       if (!session || session.pointerId !== event.pointerId) return;
       event.currentTarget.releasePointerCapture?.(event.pointerId);
-      sessionRef.current = null;
-      endResize();
+      dragSessionRef.current = null;
+      if (session.activated) endDrag();
     };
 
-    const handlers = {
+    return {
       onPointerDown,
       onPointerMove,
       onPointerUp: finish,
       onPointerCancel: finish,
     };
-    handlersRef.current[direction] = handlers;
+  }, [
+    dragActivationDistance,
+    endDrag,
+    minHeight,
+    minWidth,
+    startDrag,
+    viewportMargin,
+  ]);
+
+  const resizeHandleProps = useMemo(() => {
+    const handlers = {} as Record<ResizeDirection, PointerHandlers>;
+
+    for (const direction of RESIZE_DIRECTIONS) {
+      const onPointerDown: PointerEventHandler<HTMLElement> = (event) => {
+        if (event.button !== 0 || !contentRef.current) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        contentRef.current.style.setProperty("transition", "none", "important");
+        resizeSessionRef.current = {
+          pointerId: event.pointerId,
+          direction,
+          startX: event.clientX,
+          startY: event.clientY,
+          startRect: captureGeometry(contentRef.current),
+        };
+        startResize();
+      };
+
+      const onPointerMove: PointerEventHandler<HTMLElement> = (event) => {
+        const session = resizeSessionRef.current;
+        const target = contentRef.current;
+        if (!session || session.pointerId !== event.pointerId || !target)
+          return;
+
+        applyGeometry(
+          target,
+          computeResizeGeometry(
+            session.direction,
+            session.startRect,
+            event.clientX - session.startX,
+            event.clientY - session.startY,
+            minWidth,
+            minHeight,
+            viewportMargin,
+          ),
+        );
+      };
+
+      const finish: PointerEventHandler<HTMLElement> = (event) => {
+        const session = resizeSessionRef.current;
+        if (!session || session.pointerId !== event.pointerId) return;
+        event.currentTarget.releasePointerCapture?.(event.pointerId);
+        resizeSessionRef.current = null;
+        endResize();
+      };
+
+      handlers[direction] = {
+        onPointerDown,
+        onPointerMove,
+        onPointerUp: finish,
+        onPointerCancel: finish,
+      };
+    }
+
     return handlers;
+  }, [endResize, minHeight, minWidth, startResize, viewportMargin]);
+
+  return {
+    contentRef,
+    dragHandleProps,
+    resizeHandleProps,
+    resetGeometry,
+    resetSize: resetGeometry,
   };
-
-  const resetSize = useCallback(() => {
-    sessionRef.current = null;
-    const target = contentRef.current;
-    if (!target) return;
-    clearGeometry(target);
-  }, []);
-
-  const resizeHandleProps: ResizableDialogResult["resizeHandleProps"] = {
-    n: getHandlers("n"),
-    s: getHandlers("s"),
-    e: getHandlers("e"),
-    w: getHandlers("w"),
-    ne: getHandlers("ne"),
-    nw: getHandlers("nw"),
-    se: getHandlers("se"),
-    sw: getHandlers("sw"),
-  };
-
-  return { contentRef, resizeHandleProps, resetSize };
 }
