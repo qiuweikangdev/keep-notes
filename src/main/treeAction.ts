@@ -213,21 +213,12 @@ async function deleteItem(pathStr: string, treeData: any[], isFile = false) {
 
 export async function deleteFileOrFolder(
   pathStr: string,
-  title: string,
+  _title: string,
   treeData: any[],
 ) {
   const result = await fsPromises.stat(pathStr);
-  const { response } = await dialog.showMessageBox({
-    title: "警告",
-    message: `是否要删除 ${title}`,
-    type: "warning",
-    buttons: ["确定", "取消"],
-  });
-
-  if (response === 0) {
-    return await deleteItem(pathStr, treeData, result.isFile());
-  }
-  return { code: CodeResult.Fail };
+  // 渲染进程已通过应用内对话框完成确认，主进程只负责执行删除。
+  return deleteItem(pathStr, treeData, result.isFile());
 }
 
 export async function moveFileOrFolder(

@@ -4,7 +4,9 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CodeResult, type TreeNode } from "../shared/types";
 
-vi.mock("electron", () => ({ dialog: {} }));
+const showMessageBox = vi.hoisted(() => vi.fn());
+
+vi.mock("electron", () => ({ dialog: { showMessageBox } }));
 vi.mock("./utils", () => ({
   deleteTreeNode: (treeData: TreeNode[]) => treeData,
   findNodeByKey: (treeData: TreeNode[], key: string) =>
@@ -13,7 +15,12 @@ vi.mock("./utils", () => ({
   updateFilePaths: () => undefined,
 }));
 
-import { createFile, createFolder, rename } from "./treeAction";
+import {
+  createFile,
+  createFolder,
+  deleteFileOrFolder,
+  rename,
+} from "./treeAction";
 
 describe("tree actions", () => {
   const tempRoots: string[] = [];
@@ -25,9 +32,26 @@ describe("tree actions", () => {
   }
 
   afterEach(() => {
+    showMessageBox.mockReset();
     for (const root of tempRoots.splice(0)) {
       fs.rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  it("deletes a file without showing a native confirmation dialog", async () => {
+    const root = createTempRoot();
+    const filePath = path.join(root, "daily.md");
+    fs.writeFileSync(filePath, "content");
+    const treeData: TreeNode[] = [{ title: "daily.md", key: filePath }];
+
+    const result = await deleteFileOrFolder(filePath, "daily.md", treeData);
+
+    expect(showMessageBox).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      code: CodeResult.Success,
+      data: { treeData: [] },
+    });
+    expect(fs.existsSync(filePath)).toBe(false);
   });
 
   it("rejects an existing file name with a user-facing message", async () => {
