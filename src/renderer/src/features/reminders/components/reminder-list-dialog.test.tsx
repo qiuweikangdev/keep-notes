@@ -53,6 +53,18 @@ describe("ReminderListDialog", () => {
     });
   });
 
+  it("keeps the list visible but inert while the editor is open", () => {
+    useReminderStore.setState({ isEditorOpen: true });
+    render(<ReminderListDialog />);
+
+    const dialog = screen.getByRole("dialog", { name: "提醒事项" });
+
+    expect(dialog).toBeVisible();
+    expect(dialog).toHaveAttribute("data-editor-open", "true");
+    expect(dialog).toHaveAttribute("inert");
+    expect(dialog).toHaveClass("pointer-events-none", "opacity-60");
+  });
+
   it("keeps the reminder list open when selecting from a row context menu", async () => {
     const user = userEvent.setup();
     useReminderStore.setState({

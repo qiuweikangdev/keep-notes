@@ -36,6 +36,7 @@ function isReminderNestedPortalTarget(target: EventTarget | null): boolean {
 export function ReminderListDialog() {
   const reminders = useReminderStore((state) => state.reminders);
   const isListOpen = useReminderStore((state) => state.isListOpen);
+  const isEditorOpen = useReminderStore((state) => state.isEditorOpen);
   const closeList = useReminderStore((state) => state.closeList);
   const openCreateDialog = useReminderStore((state) => state.openCreateDialog);
   const openEditDialog = useReminderStore((state) => state.openEditDialog);
@@ -92,7 +93,12 @@ export function ReminderListDialog() {
       >
         <DialogContent
           showCloseButton={false}
-          className="top-[12vh] max-w-[520px] translate-y-0 gap-0 overflow-hidden rounded-xl p-0 shadow-lg sm:rounded-xl"
+          className={`top-[12vh] max-w-[520px] translate-y-0 gap-0 overflow-hidden rounded-xl p-0 shadow-lg transition-[opacity,filter] duration-150 sm:rounded-xl ${
+            isEditorOpen ? "pointer-events-none opacity-60 saturate-50" : ""
+          }`}
+          data-editor-open={isEditorOpen ? "true" : undefined}
+          data-reminder-list-dialog="true"
+          inert={isEditorOpen}
           onEscapeKeyDown={(event) => {
             if (isContextMenuOpen) {
               event.preventDefault();
