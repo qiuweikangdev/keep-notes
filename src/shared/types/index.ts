@@ -135,6 +135,13 @@ export interface SaveImageAttachmentResult {
   url: string;
 }
 
+export interface CloseSaveSnapshot {
+  groupId: string;
+  tabId: string;
+  content: string;
+  filePath: string | null;
+}
+
 export interface WindowOpenTarget {
   rootPath: string;
   filePath?: string;
