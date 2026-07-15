@@ -1,7 +1,7 @@
 import { BlockNoteEditor } from "@blocknote/core";
 import { BlockNoteView } from "@blocknote/mantine";
 import { foldEffect, foldable, foldedRanges } from "@codemirror/language";
-import { EditorView } from "@codemirror/view";
+import { EditorView, getDrawSelectionConfig } from "@codemirror/view";
 import { AllSelection } from "@tiptap/pm/state";
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -257,6 +257,41 @@ describe("editor BlockNote schema", () => {
     expect(
       output.dom.querySelector(".editor-code-block__codemirror .cm-editor"),
     ).not.toBe(null);
+
+    output.destroy?.();
+  });
+
+  it("keeps the focused code block cursor continuously visible", () => {
+    const output = editorBlockSpecs.codeBlock.implementation.render.call(
+      {
+        blockContentDOMAttributes: {},
+        props: undefined,
+        renderType: "nodeView",
+      },
+      {
+        id: "block-1",
+        type: "codeBlock",
+        props: { language: "text" },
+        content: "",
+        children: [],
+      } as never,
+      {
+        isEditable: true,
+        updateBlock: vi.fn(),
+      } as never,
+    ) as {
+      destroy?: () => void;
+      dom: HTMLElement;
+    };
+    const editorElement = output.dom.querySelector<HTMLElement>(
+      ".editor-code-block__codemirror .cm-editor",
+    );
+    const view = EditorView.findFromDOM(editorElement as HTMLElement);
+
+    expect(view).not.toBe(null);
+    expect(
+      getDrawSelectionConfig((view as EditorView).state).cursorBlinkRate,
+    ).toBe(0);
 
     output.destroy?.();
   });

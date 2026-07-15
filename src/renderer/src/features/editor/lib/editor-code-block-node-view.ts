@@ -684,7 +684,7 @@ class EditorCodeBlockNodeView {
       foldService.of(getCodeMirrorFallbackFoldRange),
       codeFolding(),
       history(),
-      drawSelection(),
+      drawSelection({ cursorBlinkRate: 0 }),
       dropCursor(),
       crosshairCursor(),
       highlightActiveLine(),
