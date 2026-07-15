@@ -1,16 +1,30 @@
 import {
+  act,
   cleanup,
   fireEvent,
-  render,
+  render as baseRender,
   screen,
   waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DragResizeProvider } from "@/components/drag-resize-provider";
 import { SettingsModal } from "./settings-modal";
 import { useEditorStore } from "@/store/editor.store";
 import { useUIStore } from "@/store/ui.store";
 import { useExportStore } from "@/store/export.store";
 import { DEFAULT_EXPORT_CONFIG } from "@/types";
+
+function render(
+  ui: Parameters<typeof baseRender>[0],
+  options?: Parameters<typeof baseRender>[1],
+) {
+  return baseRender(ui, {
+    ...options,
+    wrapper: ({ children }) => (
+      <DragResizeProvider debounceMs={0}>{children}</DragResizeProvider>
+    ),
+  });
+}
 
 describe("SettingsModal about tab", () => {
   const electronAPI = {
@@ -71,6 +85,64 @@ describe("SettingsModal about tab", () => {
     cleanup();
     document.body.removeAttribute("data-scroll-locked");
     document.body.style.pointerEvents = "";
+  });
+
+  it("keeps the dialog inside small application windows", () => {
+    render(<SettingsModal />);
+
+    expect(screen.getByRole("dialog")).toHaveClass(
+      "flex",
+      "h-[calc(100vh-32px)]",
+      "max-h-[640px]",
+      "w-[calc(100vw-32px)]",
+      "max-w-[780px]",
+      "flex-col",
+    );
+    expect(screen.getByTestId("settings-layout")).toHaveClass(
+      "min-h-0",
+      "flex-1",
+    );
+    expect(screen.getByTestId("settings-navigation")).toHaveClass(
+      "w-[180px]",
+      "sm:w-[220px]",
+      "overflow-y-auto",
+    );
+    expect(screen.getByTestId("settings-content")).toHaveClass(
+      "min-w-0",
+      "overflow-y-auto",
+    );
+  });
+
+  it("uses the shared drag handle and all resize handles", () => {
+    render(<SettingsModal />);
+
+    expect(document.querySelector("[data-dialog-drag-handle]")).not.toBeNull();
+    expect(
+      document.querySelectorAll("[data-dialog-resize-handle]"),
+    ).toHaveLength(8);
+  });
+
+  it("restores default geometry after closing and reopening", async () => {
+    render(<SettingsModal />);
+
+    const dialog = screen.getByRole("dialog");
+    dialog.style.width = "600px";
+    dialog.style.height = "420px";
+    dialog.style.left = "24px";
+    dialog.style.top = "30px";
+    dialog.style.transform = "none";
+
+    act(() => useUIStore.getState().setSettingsOpen(false));
+    act(() => useUIStore.getState().setSettingsOpen(true));
+
+    await waitFor(() => {
+      const reopenedDialog = screen.getByRole("dialog");
+      expect(reopenedDialog.style.width).toBe("");
+      expect(reopenedDialog.style.height).toBe("");
+      expect(reopenedDialog.style.left).toBe("");
+      expect(reopenedDialog.style.top).toBe("");
+      expect(reopenedDialog.style.transform).toBe("");
+    });
   });
 
   it("shows app metadata and triggers update checks from the about tab", async () => {

@@ -3,6 +3,8 @@ import { useUIStore } from "@/store/ui.store";
 import { useEditorStore } from "@/store/editor.store";
 import { useTheme } from "@/hooks/use-theme";
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
+import { DialogResizeHandles } from "@/components/ui/dialog-resize-handles";
+import { useResizableDialog } from "@/hooks/use-resizable-dialog";
 import { ThemeModeSelector } from "@/components/ui/theme-mode-selector";
 import { SettingRow } from "@/components/ui/setting-row";
 import { Switch } from "@/components/ui/switch";
@@ -134,6 +136,13 @@ export function SettingsModal() {
   );
   const [zoomFactor, setZoomFactor] = useState(1);
   const [isZoomLoading, setIsZoomLoading] = useState(true);
+  const { contentRef, dragHandleProps, resizeHandleProps } = useResizableDialog(
+    {
+      isOpen: isSettingsOpen,
+      minWidth: 480,
+      minHeight: 360,
+    },
+  );
   const editorPaddingProgress =
     ((Math.max(appearance.padding, EDITOR_PADDING_MIN) - EDITOR_PADDING_MIN) /
       (EDITOR_PADDING_MAX - EDITOR_PADDING_MIN)) *
@@ -751,7 +760,8 @@ export function SettingsModal() {
       onOpenChange={handleOpenChange}
     >
       <DialogContent
-        className="sm:max-w-[780px] sm:max-h-[640px] overflow-visible p-0"
+        ref={contentRef}
+        className="flex h-[calc(100vh-32px)] max-h-[640px] w-[calc(100vw-32px)] max-w-[780px] flex-col gap-0 overflow-visible p-0"
         onInteractOutside={(event) => {
           // 导出设置的下拉内容使用 Portal，避免被弹窗滚动区域裁切。
           if (isExportSettingsDropdownEvent(event)) {
@@ -765,7 +775,11 @@ export function SettingsModal() {
           }
         }}
       >
-        <DialogHeader className="px-8 pt-8 pb-0">
+        <DialogHeader
+          data-dialog-drag-handle
+          {...dragHandleProps}
+          className="flex-shrink-0 select-none px-8 pb-4 pt-8"
+        >
           <Dialog.Title style={{ color: "var(--text-primary)" }}>
             设置
           </Dialog.Title>
@@ -774,10 +788,14 @@ export function SettingsModal() {
           </Dialog.Description>
         </DialogHeader>
 
-        <div className="flex gap-0 overflow-hidden" style={{ height: "540px" }}>
+        <div
+          data-testid="settings-layout"
+          className="flex min-h-0 flex-1 gap-0 overflow-hidden"
+        >
           {/* 左侧导航 */}
           <div
-            className="w-[220px] flex-shrink-0 px-2 overflow-y-auto"
+            data-testid="settings-navigation"
+            className="w-[180px] flex-shrink-0 overflow-y-auto px-2 sm:w-[220px]"
             style={{
               borderRight: "1px solid var(--border-color)",
               paddingTop: "20px",
@@ -822,11 +840,15 @@ export function SettingsModal() {
           </div>
 
           {/* 右侧内容 */}
-          <div className="flex-1 overflow-y-auto px-6 py-4">
+          <div
+            data-testid="settings-content"
+            className="min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6"
+          >
             {renderContent()}
           </div>
         </div>
         <div ref={setExportDropdownPortalContainer} className="contents" />
+        <DialogResizeHandles resizeHandleProps={resizeHandleProps} />
       </DialogContent>
     </Dialog.Root>
   );
