@@ -170,6 +170,10 @@ describe("ReminderEditorDialog", () => {
       expect(row).toHaveClass(
         "grid-cols-[18px_minmax(0,1fr)_minmax(112px,132px)]",
       );
+      expect(row).not.toHaveClass(
+        "transition-colors",
+        "hover:bg-[var(--hover-bg)]",
+      );
     });
     expect(controls).toHaveLength(3);
     controls.forEach((control) => {

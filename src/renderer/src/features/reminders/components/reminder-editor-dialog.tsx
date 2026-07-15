@@ -390,7 +390,7 @@ function ReminderSettingRow({
   children,
 }: ReminderSettingRowProps) {
   return (
-    <div className="grid min-h-11 grid-cols-[18px_minmax(0,1fr)_minmax(112px,132px)] items-center gap-2.5 px-3 py-1.5 transition-colors first:rounded-t-lg last:rounded-b-lg hover:bg-[var(--hover-bg)]">
+    <div className="grid min-h-11 grid-cols-[18px_minmax(0,1fr)_minmax(112px,132px)] items-center gap-2.5 px-3 py-1.5">
       <div
         className="flex h-5 w-5 items-center justify-center"
         style={{ color: "var(--text-muted)" }}
