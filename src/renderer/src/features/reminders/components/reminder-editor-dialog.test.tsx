@@ -44,7 +44,7 @@ describe("ReminderEditorDialog", () => {
     });
   });
 
-  it("renders a layered editor with a flat schedule hierarchy", () => {
+  it("renders a compact layered editor with a grouped schedule hierarchy", () => {
     render(<ReminderEditorDialog />);
 
     const dialog = screen.getByRole("dialog", { name: "新建提醒事项" });
@@ -52,22 +52,22 @@ describe("ReminderEditorDialog", () => {
     const settingsGroup = screen.getByTestId("reminder-settings-group");
 
     expect(dialog).toHaveClass(
-      "top-[calc(12vh+88px)]",
-      "max-w-[460px]",
+      "top-[calc(12vh+72px)]",
+      "max-w-[420px]",
       "translate-y-0",
     );
     expect(screen.getByRole("heading", { name: "新建提醒事项" })).toHaveClass(
-      "text-[15px]",
+      "text-sm",
       "font-semibold",
     );
     expect(screen.getByRole("button", { name: "关闭" })).toHaveClass(
-      "h-7",
-      "w-7",
+      "h-6",
+      "w-6",
       "rounded-md",
     );
     expect(titleInput).toHaveClass("h-9", "text-sm");
-    expect(settingsGroup).toHaveClass("border-y");
-    expect(settingsGroup).not.toHaveClass("rounded-lg");
+    expect(settingsGroup).toHaveClass("rounded-lg", "border");
+    expect(settingsGroup).not.toHaveClass("border-y");
     expect(settingsGroup).toContainElement(screen.getByText("日期"));
     expect(settingsGroup).toContainElement(screen.getByText("时间"));
     expect(settingsGroup).toContainElement(screen.getByText("重复"));
@@ -168,7 +168,7 @@ describe("ReminderEditorDialog", () => {
     expect(rows).toHaveLength(3);
     rows.forEach((row) => {
       expect(row).toHaveClass(
-        "grid-cols-[20px_minmax(0,1fr)_minmax(120px,140px)]",
+        "grid-cols-[18px_minmax(0,1fr)_minmax(112px,132px)]",
       );
     });
     expect(controls).toHaveLength(3);

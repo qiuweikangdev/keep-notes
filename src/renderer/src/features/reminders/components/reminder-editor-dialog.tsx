@@ -46,7 +46,7 @@ const repeatOptions: Array<{
 ];
 
 const controlClassName =
-  "h-9 rounded-md border px-3 text-[13px] outline-none transition-colors focus:border-[var(--accent-color)]";
+  "h-8 rounded-md border px-2.5 text-[13px] outline-none transition-colors focus:border-[var(--accent-color)]";
 
 const weekdayLabels = ["日", "一", "二", "三", "四", "五", "六"];
 const hourOptions = Array.from({ length: 24 }, (_, index) =>
@@ -233,7 +233,7 @@ export function ReminderEditorDialog() {
       >
         <DialogContent
           showCloseButton={false}
-          className="top-[calc(12vh+88px)] z-[60] w-[calc(100%-32px)] max-w-[460px] translate-y-0 gap-0 overflow-visible rounded-xl p-0 shadow-lg"
+          className="top-[calc(12vh+72px)] z-[60] w-[calc(100%-32px)] max-w-[420px] translate-y-0 gap-0 overflow-visible rounded-xl p-0 shadow-xl"
           data-reminder-editor-dialog="true"
           style={{
             backgroundColor: "var(--bg-primary)",
@@ -242,13 +242,13 @@ export function ReminderEditorDialog() {
           }}
         >
           <div className="animate-fade-in motion-reduce:animate-none">
-            <div className="flex h-12 items-center justify-between border-b border-[var(--border-color)] px-4">
-              <Dialog.Title className="text-[15px] font-semibold">
+            <div className="flex h-11 items-center justify-between border-b border-[var(--border-color)] px-4">
+              <Dialog.Title className="text-sm font-semibold">
                 {editingReminder ? "修改提醒事项" : "新建提醒事项"}
               </Dialog.Title>
               <Dialog.Close
                 aria-label="关闭"
-                className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-color)]"
+                className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-color)]"
               >
                 <X aria-hidden="true" className="h-4 w-4" />
               </Dialog.Close>
@@ -256,7 +256,7 @@ export function ReminderEditorDialog() {
             <Dialog.Description className="sr-only">
               设置提醒标题、日期时间和重复频率
             </Dialog.Description>
-            <div className="px-4 pb-4 pt-4">
+            <div className="px-4 pb-3 pt-3">
               <div>
                 <Input
                   value={title}
@@ -279,8 +279,12 @@ export function ReminderEditorDialog() {
               </div>
 
               <div
-                className="mt-4 overflow-visible border-y border-[var(--border-color)]"
+                className="mt-3 overflow-visible rounded-lg border border-[var(--border-color)]"
                 data-testid="reminder-settings-group"
+                style={{
+                  backgroundColor:
+                    "color-mix(in srgb, var(--bg-secondary) 42%, var(--bg-primary))",
+                }}
               >
                 <ReminderSettingRow
                   icon={<CalendarDays className="h-4 w-4" />}
@@ -344,10 +348,10 @@ export function ReminderEditorDialog() {
             </div>
 
             <div
-              className="flex justify-end gap-2 border-t border-[var(--border-color)] px-4 py-3"
+              className="flex justify-end gap-2 border-t border-[var(--border-color)] px-4 py-2.5"
               style={{
                 backgroundColor:
-                  "color-mix(in srgb, var(--bg-secondary) 48%, var(--bg-primary))",
+                  "color-mix(in srgb, var(--bg-secondary) 32%, var(--bg-primary))",
               }}
             >
               <Button type="button" variant="secondary" onClick={closeEditor}>
@@ -386,7 +390,7 @@ function ReminderSettingRow({
   children,
 }: ReminderSettingRowProps) {
   return (
-    <div className="grid min-h-12 grid-cols-[20px_minmax(0,1fr)_minmax(120px,140px)] items-center gap-3 px-3 py-2 transition-colors hover:bg-[var(--hover-bg)]">
+    <div className="grid min-h-11 grid-cols-[18px_minmax(0,1fr)_minmax(112px,132px)] items-center gap-2.5 px-3 py-1.5 transition-colors first:rounded-t-lg last:rounded-b-lg hover:bg-[var(--hover-bg)]">
       <div
         className="flex h-5 w-5 items-center justify-center"
         style={{ color: "var(--text-muted)" }}

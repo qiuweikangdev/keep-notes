@@ -93,8 +93,10 @@ export function ReminderListDialog() {
       >
         <DialogContent
           showCloseButton={false}
-          className={`top-[12vh] max-w-[520px] translate-y-0 gap-0 overflow-hidden rounded-xl p-0 shadow-lg transition-[opacity,filter] duration-150 sm:rounded-xl ${
-            isEditorOpen ? "pointer-events-none opacity-60 saturate-50" : ""
+          className={`top-[12vh] max-w-[520px] translate-y-0 gap-0 overflow-hidden rounded-xl p-0 shadow-lg transition-[filter] duration-150 sm:rounded-xl ${
+            isEditorOpen
+              ? "pointer-events-none brightness-[0.82] saturate-75"
+              : ""
           }`}
           data-editor-open={isEditorOpen ? "true" : undefined}
           data-reminder-list-dialog="true"
