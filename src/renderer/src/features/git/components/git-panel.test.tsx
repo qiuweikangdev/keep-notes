@@ -200,6 +200,21 @@ describe("GitPanel", () => {
     ).toHaveLength(8);
   });
 
+  it("anchors drag coordinates to the viewport instead of the centered flex layout", async () => {
+    render(<GitPanel isOpen onClose={vi.fn()} />);
+
+    await screen.findByText("changed.md");
+    expect(
+      document.querySelector<HTMLElement>('[data-git-dialog="main"]'),
+    ).toHaveClass(
+      "fixed",
+      "left-1/2",
+      "top-1/2",
+      "-translate-x-1/2",
+      "-translate-y-1/2",
+    );
+  });
+
   it("keeps the Git loading surface compact but viewport safe", () => {
     electronMocks.detectGitRepo.mockReturnValueOnce(
       new Promise(() => undefined),

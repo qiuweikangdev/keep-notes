@@ -119,6 +119,7 @@ Settings and Git content containers use `min-height: 0` and internal overflow sc
 - Release pointer capture when an interaction ends normally.
 - Clear interaction state on cancellation and component cleanup.
 - Avoid layout jumps by disabling transitions before converting a centered dialog to explicit left and top coordinates.
+- Every draggable surface uses viewport-fixed positioning. Its default centered classes provide `left: 50%`, `top: 50%`, and the centering transform so the shared hook can replace them with viewport `left` and `top` coordinates without compounding a flex-layout offset.
 - Preserve current outside-click and nested-portal protections for Settings export menus and Git confirmation dialogs.
 - Do not close a dialog as a side effect of initiating a drag or resize.
 
