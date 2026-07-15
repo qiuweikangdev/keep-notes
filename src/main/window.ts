@@ -8,7 +8,7 @@ import { registerWindowShortcuts } from "./shortcuts";
 import { getCachedDirtyState } from "./ipc/editor.ipc";
 import { MAC_TRAFFIC_LIGHT_POSITION } from "../shared/title-bar";
 import { IPC_CHANNELS } from "../shared/constants";
-import type { WindowOpenTarget } from "../shared/types";
+import type { CloseSaveSnapshot, WindowOpenTarget } from "../shared/types";
 
 // 平台判断
 const isMac = process.platform === "darwin";
@@ -130,7 +130,7 @@ export async function openPathInNewWindow(
   }
 }
 
-async function checkAndCloseWindow(win: BrowserWindow): Promise<void> {
+export async function checkAndCloseWindow(win: BrowserWindow): Promise<void> {
   if (win.isDestroyed()) return;
 
   try {
@@ -170,69 +170,51 @@ async function checkAndCloseWindow(win: BrowserWindow): Promise<void> {
     }
   } catch (error) {
     console.error("Error during close:", error);
-    if (!win.isDestroyed()) {
-      win.destroy();
-    }
   }
 }
 
-async function saveAndClose(win: BrowserWindow): Promise<void> {
+export async function saveAndClose(win: BrowserWindow): Promise<void> {
   if (win.isDestroyed()) return;
 
   try {
-    // 获取渲染进程的内容和文件路径
-    const editorState = await win.webContents.executeJavaScript(
-      `JSON.stringify({
-        content: window.__getEditorContent ? window.__getEditorContent() : '',
-        filePath: window.__getFilePath ? window.__getFilePath() : null
-      })`,
-    );
+    while (!win.isDestroyed()) {
+      const serializedSnapshot = await win.webContents.executeJavaScript(
+        "JSON.stringify(window.__getNextDirtyEditor ? window.__getNextDirtyEditor() : null)",
+      );
+      const snapshot = JSON.parse(
+        serializedSnapshot,
+      ) as CloseSaveSnapshot | null;
 
-    const { content, filePath } = JSON.parse(editorState);
-
-    if (!content) {
-      win.destroy();
-      return;
-    }
-
-    // 如果有文件路径，直接保存
-    if (filePath) {
-      await fs.promises.writeFile(filePath, content, "utf-8");
-      if (!win.isDestroyed()) {
-        await win.webContents.executeJavaScript(
-          `window.__onSaveSuccess && window.__onSaveSuccess()`,
-        );
+      if (!snapshot) {
         win.destroy();
+        return;
       }
-      return;
-    }
 
-    // 无文件路径，弹出另存为对话框
-    const saveResult = await dialog.showSaveDialog(win, {
-      title: "保存文件",
-      defaultPath: "未命名.md",
-      filters: [
-        { name: "Markdown", extensions: ["md"] },
-        { name: "所有文件", extensions: ["*"] },
-      ],
-    });
+      let savedPath = snapshot.filePath;
+      if (!savedPath) {
+        const saveResult = await dialog.showSaveDialog(win, {
+          title: "保存文件",
+          defaultPath: "未命名.md",
+          filters: [
+            { name: "Markdown", extensions: ["md"] },
+            { name: "所有文件", extensions: ["*"] },
+          ],
+        });
 
-    if (win.isDestroyed()) return;
-
-    if (!saveResult.canceled && saveResult.filePath) {
-      await fs.promises.writeFile(saveResult.filePath, content, "utf-8");
-      if (!win.isDestroyed()) {
-        await win.webContents.executeJavaScript(
-          `window.__onSaveAsSuccess && window.__onSaveAsSuccess("${saveResult.filePath.replace(/\\/g, "\\\\")}")`,
-        );
-        win.destroy();
+        if (win.isDestroyed()) return;
+        if (saveResult.canceled || !saveResult.filePath) return;
+        savedPath = saveResult.filePath;
       }
+
+      await fs.promises.writeFile(savedPath, snapshot.content, "utf-8");
+      if (win.isDestroyed()) return;
+
+      // 按快照身份通知渲染进程保存成功，再继续处理下一个脏标签。
+      await win.webContents.executeJavaScript(
+        `window.__onCloseSaveSuccess && window.__onCloseSaveSuccess(${JSON.stringify(snapshot.groupId)}, ${JSON.stringify(snapshot.tabId)}, ${JSON.stringify(savedPath)})`,
+      );
     }
-    // 如果取消，不做任何操作（窗口保持打开）
   } catch (error) {
     console.error("Error during save:", error);
-    if (!win.isDestroyed()) {
-      win.destroy();
-    }
   }
 }

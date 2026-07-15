@@ -1,11 +1,20 @@
+import fs from "node:fs";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  checkAndCloseWindow,
   createWindow,
   openPathInNewWindow,
   resolveWindowOpenTarget,
+  saveAndClose,
   type WindowOpenTarget,
 } from "./window";
+
+const electronMocks = vi.hoisted(() => ({
+  showMessageBox: vi.fn(),
+  showSaveDialog: vi.fn(),
+}));
+const getCachedDirtyState = vi.hoisted(() => vi.fn(() => false));
 
 const BrowserWindowMock = vi.hoisted(() =>
   vi.fn(function BrowserWindow(
@@ -32,7 +41,7 @@ vi.mock("electron", () => ({
   BrowserWindow: BrowserWindowMock,
   app: { isPackaged: true },
   shell: { openExternal: vi.fn() },
-  dialog: { showMessageBox: vi.fn(), showSaveDialog: vi.fn() },
+  dialog: electronMocks,
 }));
 
 vi.mock("@electron-toolkit/utils", () => ({
@@ -44,7 +53,7 @@ vi.mock("./shortcuts", () => ({
 }));
 
 vi.mock("./ipc/editor.ipc", () => ({
-  getCachedDirtyState: vi.fn(() => false),
+  getCachedDirtyState,
 }));
 
 vi.mock("../../resources/icon.png?asset", () => ({
@@ -123,5 +132,91 @@ describe("openPathInNewWindow", () => {
       rootPath: path.dirname(filePath),
       filePath,
     });
+  });
+});
+
+describe("window close draft protection", () => {
+  const writeFile = vi.spyOn(fs.promises, "writeFile");
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getCachedDirtyState.mockReturnValue(true);
+    writeFile.mockResolvedValue();
+  });
+
+  afterEach(() => {
+    writeFile.mockReset();
+  });
+
+  it("shows the save confirmation when the renderer reports any dirty tab", async () => {
+    electronMocks.showMessageBox.mockResolvedValue({ response: 2 });
+    const win = {
+      isDestroyed: vi.fn(() => false),
+      destroy: vi.fn(),
+    } as unknown as Electron.BrowserWindow;
+
+    await checkAndCloseWindow(win);
+
+    expect(electronMocks.showMessageBox).toHaveBeenCalledTimes(1);
+    expect(win.destroy).not.toHaveBeenCalled();
+  });
+
+  it("saves an untitled draft by identity and closes after no dirty tabs remain", async () => {
+    const executeJavaScript = vi
+      .fn()
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          groupId: "group-1",
+          tabId: "tab-draft",
+          content: "draft",
+          filePath: null,
+        }),
+      )
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce("null");
+    const win = {
+      isDestroyed: vi.fn(() => false),
+      destroy: vi.fn(),
+      webContents: { executeJavaScript },
+    } as unknown as Electron.BrowserWindow;
+    electronMocks.showSaveDialog.mockResolvedValue({
+      canceled: false,
+      filePath: "C:\\notes\\draft.md",
+    });
+
+    await saveAndClose(win);
+
+    expect(writeFile).toHaveBeenCalledWith(
+      "C:\\notes\\draft.md",
+      "draft",
+      "utf-8",
+    );
+    expect(executeJavaScript.mock.calls[1][0]).toContain(
+      "__onCloseSaveSuccess",
+    );
+    expect(executeJavaScript.mock.calls[1][0]).toContain("tab-draft");
+    expect(win.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the window open when Save As is canceled", async () => {
+    const executeJavaScript = vi.fn().mockResolvedValueOnce(
+      JSON.stringify({
+        groupId: "group-1",
+        tabId: "tab-draft",
+        content: "draft",
+        filePath: null,
+      }),
+    );
+    const win = {
+      isDestroyed: vi.fn(() => false),
+      destroy: vi.fn(),
+      webContents: { executeJavaScript },
+    } as unknown as Electron.BrowserWindow;
+    electronMocks.showSaveDialog.mockResolvedValue({ canceled: true });
+
+    await saveAndClose(win);
+
+    expect(writeFile).not.toHaveBeenCalled();
+    expect(win.destroy).not.toHaveBeenCalled();
   });
 });
