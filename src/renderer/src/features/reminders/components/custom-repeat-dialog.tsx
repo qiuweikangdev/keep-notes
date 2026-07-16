@@ -15,7 +15,7 @@ const unitOptions: Array<{ label: string; value: ReminderRepeatUnit }> = [
 ];
 
 const repeatControlClassName =
-  "h-9 rounded-md border-0 px-3 text-[13px] outline-none transition-colors focus-visible:ring-1 focus-visible:ring-[var(--accent-color)]";
+  "h-9 rounded-md border px-3 text-[13px] outline-none transition-colors focus:border-[var(--text-muted)] focus:ring-0";
 
 function useCloseOnOutsideInteraction(
   open: boolean,
@@ -89,7 +89,7 @@ export function CustomRepeatDialog({
         overlayClassName="z-[70]"
         overlayStyle={{ backgroundColor: "rgba(0, 0, 0, 0.22)" }}
         onPointerDownOutside={() => onOpenChange(false)}
-        className="z-[71] w-[calc(100%-32px)] max-w-[336px] gap-0 overflow-visible rounded-xl p-0 shadow-[0_10px_28px_rgba(0,0,0,0.24)]"
+        className="z-[71] w-[calc(100%-32px)] max-w-[336px] gap-0 overflow-visible rounded-xl p-0 shadow-[0_12px_28px_rgba(0,0,0,0.24)]"
         data-custom-repeat-dialog="true"
         style={{
           backgroundColor:
@@ -98,7 +98,7 @@ export function CustomRepeatDialog({
           color: "var(--text-primary)",
         }}
       >
-        <div className="flex h-12 items-center justify-between px-4">
+        <div className="flex h-11 items-center justify-between border-b border-[var(--border-color)] px-4">
           <Dialog.Title className="flex items-center gap-2 text-sm font-semibold">
             <Repeat2
               aria-hidden="true"
@@ -120,7 +120,7 @@ export function CustomRepeatDialog({
           设置提醒事项的自定义重复间隔
         </Dialog.Description>
 
-        <div className="px-4 pb-3 pt-1">
+        <div className="px-4 py-4">
           <label
             htmlFor="custom-repeat-interval"
             className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]"
@@ -141,14 +141,16 @@ export function CustomRepeatDialog({
               onChange={(event) => setInterval(event.target.value)}
               aria-label="重复间隔"
               aria-invalid={!isValid}
-              className={`${repeatControlClassName} w-16 shrink-0 px-2 text-center font-semibold`}
+              className={`${repeatControlClassName} w-20 shrink-0 px-2 text-center font-semibold`}
               style={{
                 backgroundColor: "var(--bg-secondary)",
-                border: isValid ? "none" : "1px solid var(--danger-color)",
+                borderColor: isValid
+                  ? "var(--border-color)"
+                  : "var(--danger-color)",
                 color: "var(--text-primary)",
               }}
             />
-            <div className="w-36 shrink-0">
+            <div className="w-24 shrink-0">
               <UnitPickerControl
                 value={unit}
                 open={isUnitOpen}
@@ -167,9 +169,15 @@ export function CustomRepeatDialog({
           ) : null}
         </div>
 
-        <div className="flex justify-end gap-2 rounded-b-xl px-4 pb-4 pt-1.5">
+        <div
+          className="flex justify-end gap-2 rounded-b-xl border-t border-[var(--border-color)] px-4 py-3"
+          style={{
+            backgroundColor:
+              "color-mix(in srgb, var(--bg-secondary) 38%, var(--bg-primary))",
+          }}
+        >
           <Dialog.Close asChild>
-            <Button type="button" variant="ghost">
+            <Button type="button" variant="secondary">
               取消
             </Button>
           </Dialog.Close>
@@ -211,7 +219,7 @@ function UnitPickerControl({
         className={`${repeatControlClassName} flex w-full items-center justify-between gap-2 font-medium`}
         style={{
           backgroundColor: "var(--bg-secondary)",
-          borderColor: "transparent",
+          borderColor: "var(--border-color)",
           color: "var(--text-primary)",
         }}
         onClick={() => onOpenChange(!open)}
@@ -224,9 +232,11 @@ function UnitPickerControl({
       </button>
       {open ? (
         <div
-          className="absolute left-0 top-[calc(100%+6px)] z-[82] w-full rounded-lg border-0 p-1.5 shadow-[0_10px_28px_rgba(0,0,0,0.24)]"
+          className="absolute left-0 top-[calc(100%+6px)] z-[82] w-full rounded-lg border p-1.5 shadow-[0_6px_12px_rgba(0,0,0,0.16)]"
+          data-testid="custom-repeat-unit-menu"
           style={{
             backgroundColor: "var(--bg-primary)",
+            borderColor: "var(--border-color)",
             color: "var(--text-primary)",
           }}
         >
