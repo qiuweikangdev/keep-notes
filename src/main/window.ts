@@ -8,10 +8,11 @@ import { registerWindowShortcuts } from "./shortcuts";
 import { getCachedDirtyState } from "./ipc/editor.ipc";
 import { MAC_TRAFFIC_LIGHT_POSITION } from "../shared/title-bar";
 import { IPC_CHANNELS } from "../shared/constants";
-import type { WindowOpenTarget } from "../shared/types";
+import type { CloseSaveSnapshot, WindowOpenTarget } from "../shared/types";
 
 // 平台判断
 const isMac = process.platform === "darwin";
+const closeInProgressWindows = new WeakSet<BrowserWindow>();
 
 // macOS: 使用原生标题栏隐藏模式，显示红绿灯按钮
 // Windows/Linux: 使用无边框透明窗口，自定义标题栏
@@ -74,8 +75,14 @@ export function createWindow(initialTarget?: WindowOpenTarget): BrowserWindow {
     if (win.isDestroyed()) return;
 
     event.preventDefault();
+    if (closeInProgressWindows.has(win)) return;
 
-    checkAndCloseWindow(win);
+    // 必须在第一次异步关闭检查前同步占用当前窗口，避免重复事件并发保存同一批草稿。
+    closeInProgressWindows.add(win);
+    return checkAndCloseWindow(win).finally(() => {
+      // 取消或失败时窗口仍然存在，需要释放占用以允许用户再次关闭。
+      if (!win.isDestroyed()) closeInProgressWindows.delete(win);
+    });
   });
 
   if (is.dev && process.env.ELECTRON_RENDERER_URL) {
@@ -130,11 +137,23 @@ export async function openPathInNewWindow(
   }
 }
 
-async function checkAndCloseWindow(win: BrowserWindow): Promise<void> {
+function isCloseSaveSnapshot(value: unknown): value is CloseSaveSnapshot {
+  if (typeof value !== "object" || value === null) return false;
+
+  const snapshot = value as Record<string, unknown>;
+  return (
+    typeof snapshot.groupId === "string" &&
+    typeof snapshot.tabId === "string" &&
+    typeof snapshot.content === "string" &&
+    (typeof snapshot.filePath === "string" || snapshot.filePath === null)
+  );
+}
+
+export async function checkAndCloseWindow(win: BrowserWindow): Promise<void> {
   if (win.isDestroyed()) return;
 
   try {
-    const isDirty = getCachedDirtyState();
+    const isDirty = getCachedDirtyState(win);
 
     if (isDirty) {
       const result = await dialog.showMessageBox(win, {
@@ -170,69 +189,65 @@ async function checkAndCloseWindow(win: BrowserWindow): Promise<void> {
     }
   } catch (error) {
     console.error("Error during close:", error);
-    if (!win.isDestroyed()) {
-      win.destroy();
-    }
   }
 }
 
-async function saveAndClose(win: BrowserWindow): Promise<void> {
+export async function saveAndClose(win: BrowserWindow): Promise<void> {
   if (win.isDestroyed()) return;
 
   try {
-    // 获取渲染进程的内容和文件路径
-    const editorState = await win.webContents.executeJavaScript(
-      `JSON.stringify({
-        content: window.__getEditorContent ? window.__getEditorContent() : '',
-        filePath: window.__getFilePath ? window.__getFilePath() : null
-      })`,
-    );
+    while (!win.isDestroyed()) {
+      const serializedSnapshot = await win.webContents.executeJavaScript(
+        `(() => {
+          if (typeof window.__getNextDirtyEditor !== "function") {
+            throw new Error("Close-save snapshot bridge is unavailable");
+          }
+          return JSON.stringify(window.__getNextDirtyEditor());
+        })()`,
+      );
+      const parsedSnapshot: unknown = JSON.parse(serializedSnapshot);
 
-    const { content, filePath } = JSON.parse(editorState);
-
-    if (!content) {
-      win.destroy();
-      return;
-    }
-
-    // 如果有文件路径，直接保存
-    if (filePath) {
-      await fs.promises.writeFile(filePath, content, "utf-8");
-      if (!win.isDestroyed()) {
-        await win.webContents.executeJavaScript(
-          `window.__onSaveSuccess && window.__onSaveSuccess()`,
-        );
+      if (parsedSnapshot === null) {
         win.destroy();
+        return;
       }
-      return;
-    }
 
-    // 无文件路径，弹出另存为对话框
-    const saveResult = await dialog.showSaveDialog(win, {
-      title: "保存文件",
-      defaultPath: "未命名.md",
-      filters: [
-        { name: "Markdown", extensions: ["md"] },
-        { name: "所有文件", extensions: ["*"] },
-      ],
-    });
-
-    if (win.isDestroyed()) return;
-
-    if (!saveResult.canceled && saveResult.filePath) {
-      await fs.promises.writeFile(saveResult.filePath, content, "utf-8");
-      if (!win.isDestroyed()) {
-        await win.webContents.executeJavaScript(
-          `window.__onSaveAsSuccess && window.__onSaveAsSuccess("${saveResult.filePath.replace(/\\/g, "\\\\")}")`,
-        );
-        win.destroy();
+      // 渲染进程数据属于跨进程输入，必须逐字段校验后才能用于写盘。
+      if (!isCloseSaveSnapshot(parsedSnapshot)) {
+        throw new Error("Invalid close-save snapshot");
       }
+      const snapshot = parsedSnapshot;
+
+      let savedPath = snapshot.filePath;
+      if (!savedPath) {
+        const saveResult = await dialog.showSaveDialog(win, {
+          title: "保存文件",
+          defaultPath: "未命名.md",
+          filters: [
+            { name: "Markdown", extensions: ["md"] },
+            { name: "所有文件", extensions: ["*"] },
+          ],
+        });
+
+        if (win.isDestroyed()) return;
+        if (saveResult.canceled || !saveResult.filePath) return;
+        savedPath = saveResult.filePath;
+      }
+
+      await fs.promises.writeFile(savedPath, snapshot.content, "utf-8");
+      if (win.isDestroyed()) return;
+
+      // 仅在回调存在时确认本次快照保存，并把写盘内容传回以检测并发编辑。
+      await win.webContents.executeJavaScript(
+        `(() => {
+          if (typeof window.__onCloseSaveSuccess !== "function") {
+            throw new Error("Close-save success bridge is unavailable");
+          }
+          return window.__onCloseSaveSuccess(${JSON.stringify(snapshot.groupId)}, ${JSON.stringify(snapshot.tabId)}, ${JSON.stringify(savedPath)}, ${JSON.stringify(snapshot.content)});
+        })()`,
+      );
     }
-    // 如果取消，不做任何操作（窗口保持打开）
   } catch (error) {
     console.error("Error during save:", error);
-    if (!win.isDestroyed()) {
-      win.destroy();
-    }
   }
 }
