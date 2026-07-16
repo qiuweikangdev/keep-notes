@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
-import { Check, ChevronRight, X } from "lucide-react";
+import { Check, ChevronRight, Repeat2, X } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,8 +94,12 @@ export function CustomRepeatDialog({
         }}
       >
         <div className="flex h-11 items-center justify-between border-b border-[var(--border-color)] px-4">
-          <Dialog.Title className="text-sm font-semibold">
-            自定义重复
+          <Dialog.Title className="flex items-center gap-2 text-sm font-semibold">
+            <Repeat2
+              aria-hidden="true"
+              className="h-4 w-4 text-[var(--text-muted)]"
+            />
+            <span>自定义重复</span>
           </Dialog.Title>
           <Dialog.Close
             aria-label="关闭"
@@ -129,7 +133,7 @@ export function CustomRepeatDialog({
               onChange={(event) => setInterval(event.target.value)}
               aria-label="重复间隔"
               aria-invalid={!isValid}
-              className={`${repeatControlClassName} w-16 shrink-0 px-2 text-center font-semibold`}
+              className={`${repeatControlClassName} w-20 shrink-0 px-2 text-center font-semibold`}
               style={{
                 backgroundColor: "var(--bg-secondary)",
                 borderColor: isValid
@@ -138,7 +142,7 @@ export function CustomRepeatDialog({
                 color: "var(--text-primary)",
               }}
             />
-            <div className="min-w-0 flex-1">
+            <div className="w-24 shrink-0">
               <UnitPickerControl
                 value={unit}
                 open={isUnitOpen}

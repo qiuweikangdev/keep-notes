@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
 import {
+  Bell,
+  BellPlus,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -245,8 +247,19 @@ export function ReminderEditorDialog() {
         >
           <div className="animate-fade-in motion-reduce:animate-none">
             <div className="flex h-11 items-center justify-between border-b border-[var(--border-color)] px-4">
-              <Dialog.Title className="text-sm font-semibold">
-                {editingReminder ? "修改提醒事项" : "新建提醒事项"}
+              <Dialog.Title className="flex items-center gap-2 text-sm font-semibold">
+                {editingReminder ? (
+                  <Bell
+                    aria-hidden="true"
+                    className="h-4 w-4 text-[var(--text-muted)]"
+                  />
+                ) : (
+                  <BellPlus
+                    aria-hidden="true"
+                    className="h-4 w-4 text-[var(--text-muted)]"
+                  />
+                )}
+                <span>{editingReminder ? "修改提醒事项" : "新建提醒事项"}</span>
               </Dialog.Title>
               <Dialog.Close
                 aria-label="关闭"
@@ -717,7 +730,7 @@ function RepeatPickerControl({
                     type="button"
                     data-theme-control="true"
                     data-selected={isSelected ? "true" : undefined}
-                    className="flex h-10 w-full items-center justify-between rounded-lg px-3 text-left text-[14px] font-semibold"
+                    className="flex h-10 w-full items-center justify-between rounded-lg px-3 text-left text-[14px] font-normal"
                     onClick={() => onChange(option.value)}
                   >
                     <span>{option.label}</span>

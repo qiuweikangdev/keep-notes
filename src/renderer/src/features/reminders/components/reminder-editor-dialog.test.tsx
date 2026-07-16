@@ -57,6 +57,9 @@ describe("ReminderEditorDialog", () => {
       "translate-y-0",
     );
     expect(screen.getByRole("heading", { name: "新建提醒事项" })).toHaveClass(
+      "flex",
+      "items-center",
+      "gap-2",
       "text-sm",
       "font-semibold",
     );
@@ -163,6 +166,17 @@ describe("ReminderEditorDialog", () => {
       screen.getByRole("dialog", { name: "新建提醒事项" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /每天/ })).toBeInTheDocument();
+  });
+
+  it("uses normal weight for repeat menu options", async () => {
+    const user = userEvent.setup();
+    render(<ReminderEditorDialog />);
+
+    await user.click(screen.getByRole("button", { name: /永不/ }));
+
+    expect(screen.getAllByRole("button", { name: "永不" }).at(-1)).toHaveClass(
+      "font-normal",
+    );
   });
 
   it("renders date, time, and repeat as compact independent rows", () => {

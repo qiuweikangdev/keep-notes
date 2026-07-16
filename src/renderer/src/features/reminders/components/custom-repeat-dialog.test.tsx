@@ -28,10 +28,17 @@ describe("CustomRepeatDialog", () => {
 
     expect(dialog).toHaveClass("max-w-[336px]", "rounded-xl");
     expect(screen.getByText("重复规则")).toBeVisible();
+    expect(screen.getByRole("heading", { name: "自定义重复" })).toHaveClass(
+      "flex",
+      "items-center",
+      "gap-2",
+    );
     expect(intervalInput).toHaveClass("h-9", "w-16", "text-center");
-    expect(screen.getByRole("button", { name: "重复单位" })).toHaveClass(
-      "h-9",
-      "w-full",
+    const unitPicker = screen.getByRole("button", { name: "重复单位" });
+    expect(unitPicker).toHaveClass("h-9", "w-full");
+    expect(unitPicker.parentElement?.parentElement).toHaveClass(
+      "w-36",
+      "shrink-0",
     );
 
     await user.clear(intervalInput);
