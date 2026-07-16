@@ -29,7 +29,9 @@ const electronMocks = vi.hoisted(() => {
     readonly show = vi.fn(() => {
       this.visible = true;
     });
-    readonly focus = vi.fn();
+    readonly focus = vi.fn(() => {
+      this.handlers.get("focus")?.();
+    });
     readonly hide = vi.fn(() => {
       this.visible = false;
     });

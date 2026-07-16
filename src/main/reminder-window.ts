@@ -16,6 +16,7 @@ const REMINDER_EDITOR_WINDOW_MIN_HEIGHT = 280;
 const REMINDER_EDITOR_WINDOW_MAX_HEIGHT = 700;
 const REMINDER_EDITOR_LAYER_OFFSET_Y = 40;
 const MAX_GLOBAL_SHORTCUTS = 4;
+export const DEFAULT_REMINDER_SHORTCUT = "CmdOrCtrl+Alt+R";
 
 let reminderWindow: BrowserWindow | null = null;
 let reminderEditorWindow: BrowserWindow | null = null;
@@ -23,6 +24,8 @@ let reminderEditorWindowReady = false;
 let shouldRevealReminderEditorWindow = false;
 let registeredShortcutKeys: string[] = [];
 let shouldCenterNextResize = true;
+let ignoreReminderWindowBlur = false;
+let reminderBlurGuardTimer: ReturnType<typeof setTimeout> | null = null;
 
 function toElectronAccelerator(key: string): string {
   return key
@@ -53,9 +56,27 @@ function notifyReminderWindowShown(win: BrowserWindow): void {
   win.webContents.send(IPC_CHANNELS.REMINDER.WINDOW_SHOWN);
 }
 
+function clearReminderWindowBlurGuard(): void {
+  ignoreReminderWindowBlur = false;
+  if (reminderBlurGuardTimer !== null) {
+    clearTimeout(reminderBlurGuardTimer);
+    reminderBlurGuardTimer = null;
+  }
+}
+
+function armReminderWindowBlurGuard(): void {
+  clearReminderWindowBlurGuard();
+  ignoreReminderWindowBlur = true;
+  reminderBlurGuardTimer = setTimeout(() => {
+    ignoreReminderWindowBlur = false;
+    reminderBlurGuardTimer = null;
+  }, 500);
+}
+
 function revealReminderWindow(win: BrowserWindow): void {
   if (win.isDestroyed()) return;
 
+  armReminderWindowBlurGuard();
   win.setAlwaysOnTop(true, "floating");
   win.show();
   win.focus();
@@ -332,7 +353,10 @@ export function showReminderWindow(): BrowserWindow {
   });
 
   reminderWindow = win;
+  win.on("focus", clearReminderWindowBlurGuard);
   win.on("blur", () => {
+    if (ignoreReminderWindowBlur) return;
+
     const editorIsVisible =
       reminderEditorWindow !== null &&
       !reminderEditorWindow.isDestroyed() &&
@@ -360,6 +384,7 @@ export function hideReminderWindow(): void {
 }
 
 export function destroyReminderWindow(): void {
+  clearReminderWindowBlurGuard();
   destroyReminderEditorWindow();
   if (reminderWindow && !reminderWindow.isDestroyed()) {
     reminderWindow.destroy();

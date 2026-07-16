@@ -10,7 +10,11 @@ import { initializeReminderIpc } from "./ipc/reminder.ipc";
 import { initializeNotificationIpc } from "./ipc/notification.ipc";
 import { initializeExportIpc } from "./ipc/export.ipc";
 import { registerWindowsZoomInShortcut } from "./zoom-shortcuts";
-import { disposeReminderWindow } from "./reminder-window";
+import {
+  configureReminderGlobalShortcuts,
+  DEFAULT_REMINDER_SHORTCUT,
+  disposeReminderWindow,
+} from "./reminder-window";
 
 const APP_ID = "com.keep-notes";
 const APP_NAME = "Keep Notes";
@@ -55,6 +59,8 @@ app.whenReady().then(async () => {
   registerAppMenu();
 
   registerAllIpc();
+  // 主窗口渲染层尚未加载时也要先注册默认全局快捷键，避免启动早期按键无响应。
+  configureReminderGlobalShortcuts([DEFAULT_REMINDER_SHORTCUT]);
   await initializeReminderIpc();
   await initializeNotificationIpc();
   await initializeExportIpc();
