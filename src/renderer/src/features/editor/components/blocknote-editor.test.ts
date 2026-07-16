@@ -1608,6 +1608,36 @@ describe("BlockNoteEditor persistent session runtime", () => {
 
     session.view.unmount();
   });
+
+  it("routes a file-tree drop from the portal editor to its active pane", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    setupSessionTab("C:/notes/current.md");
+    const session = renderRealSession("C:/notes/current.md");
+
+    await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    const scrollContainer = session.view.container.querySelector<HTMLElement>(
+      ".editor-rich-scroll",
+    )!;
+    const draggedPath = "C:/notes/dragged.md";
+    const dataTransfer = {
+      files: [],
+      getData: vi.fn(() => draggedPath),
+      types: ["application/x-keep-notes-file"],
+    } as unknown as DataTransfer;
+
+    fireEvent.dragOver(scrollContainer, { dataTransfer });
+    fireEvent.drop(scrollContainer, { dataTransfer });
+
+    expect(session.callbacks.onFileDrop).toHaveBeenCalledWith(draggedPath, {
+      groupId: "group-session",
+      paneKey: "group-session:tab-session",
+      path: "C:/notes/current.md",
+      tabId: "tab-session",
+    });
+
+    session.view.unmount();
+  });
 });
 
 function setupSessionTab(
@@ -1659,6 +1689,7 @@ function renderRealSession(
 function createRealSession(path: string, sourceContent = "# Initial") {
   const runtime = { current: null as RichBlockNoteRuntime | null };
   const callbacks = {
+    onFileDrop: vi.fn(),
     onMarkdownChange: vi.fn((content: string) => {
       const diffState = useDiffStore.getState();
       if (diffState.isOpen && diffState.filePath === path) {
@@ -1678,6 +1709,7 @@ function createRealSession(path: string, sourceContent = "# Initial") {
       path,
     }),
     getBoundTabIds: () => ["tab-session"],
+    onFileDrop: callbacks.onFileDrop,
     onMarkdownChange: callbacks.onMarkdownChange,
     onWordCountChange: callbacks.onWordCountChange,
     onParseStateChange: callbacks.onParseStateChange,

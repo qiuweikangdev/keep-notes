@@ -1,5 +1,4 @@
 import { useEditorStore } from "@/store/editor.store";
-import { useElectron } from "@/hooks/use-electron";
 import {
   FileText,
   X,
@@ -11,21 +10,9 @@ import {
   editorSaveCoordinator,
   flushEditorChange,
 } from "../lib/editor-runtime";
-import {
-  getDraggedFilePath,
-  isEditorFileDrag,
-} from "../lib/editor-drag-session";
 import { editorSplitPaintCoordinator } from "../lib/editor-performance";
 import { selectTabBarSignature } from "../lib/editor-view-selectors";
 import { EditorToolbar } from "./editor-toolbar";
-
-// 支持的文件扩展名
-const SUPPORTED_EXTENSIONS = [".md", ".txt"];
-
-// 检查文件是否支持
-function isSupportedFile(filePath: string): boolean {
-  return SUPPORTED_EXTENSIONS.some((ext) => filePath.endsWith(ext));
-}
 
 interface EditorTabBarProps {
   groupId: string;
@@ -75,7 +62,6 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
   const removeTab = useEditorStore((state) => state.removeTab);
   const addTab = useEditorStore((state) => state.addTab);
   const addPanelGroup = useEditorStore((state) => state.addPanelGroup);
-  const { openFile } = useElectron();
 
   const group = useEditorStore
     .getState()
@@ -85,7 +71,6 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
     y: number;
     tabId: string;
   } | null>(null);
-  const [isDragOver, setIsDragOver] = useState(false);
 
   // 关闭右键菜单
   useEffect(() => {
@@ -173,62 +158,13 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
     setContextMenu(null);
   };
 
-  // 拖拽事件处理
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    if (!isEditorFileDrag(e.dataTransfer.types)) return;
-    e.preventDefault();
-    e.stopPropagation();
-    e.dataTransfer.dropEffect = "copy";
-    setIsDragOver(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    if (!isEditorFileDrag(e.dataTransfer.types)) return;
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(false);
-  }, []);
-
-  const handleDrop = useCallback(
-    async (e: React.DragEvent) => {
-      if (!isEditorFileDrag(e.dataTransfer.types)) return;
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragOver(false);
-
-      // 获取拖拽文件路径，支持文件树拖拽和系统文件拖拽。
-      const filePath = getDraggedFilePath(e.dataTransfer);
-      if (!filePath || !isSupportedFile(filePath)) return;
-
-      // 检查当前活动标签页是否已经是该文件
-      const state = useEditorStore.getState();
-      const activeGroup = state.panelGroups.find((g) => g.id === groupId);
-      if (activeGroup) {
-        const activeTab = activeGroup.tabs.find(
-          (t) => t.id === activeGroup.activeTabId,
-        );
-        // 如果当前标签页已经是目标文件，不需要操作
-        if (activeTab && activeTab.filePath === filePath) {
-          return;
-        }
-      }
-
-      // 打开文件，指定目标面板组
-      await openFile(filePath, groupId);
-    },
-    [groupId, openFile],
-  );
-
   return (
     <div
       className="flex h-[35px] flex-shrink-0 items-center relative"
       style={{
-        backgroundColor: isDragOver ? "var(--hover-bg)" : "var(--bg-secondary)",
+        backgroundColor: "var(--bg-secondary)",
         borderBottom: "1px solid var(--border-color)",
       }}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
     >
       {/* 标签页列表 */}
       <div className="flex flex-1 overflow-x-auto scrollbar-none h-full">

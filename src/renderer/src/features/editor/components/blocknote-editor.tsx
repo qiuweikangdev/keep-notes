@@ -38,6 +38,11 @@ import { useEditorStore, type EditorState } from "@/store/editor.store";
 import { useTreeStore } from "@/store/tree.store";
 import { editorCache, richPaneViewStateRegistry } from "../lib/editor-runtime";
 import {
+  getDraggedFilePath,
+  isEditorFileDrag,
+  isSupportedEditorFilePath,
+} from "../lib/editor-drag-session";
+import {
   isUntitledDocumentPath,
   matchesEditorDocumentPath,
 } from "../lib/editor-document-path";
@@ -198,6 +203,10 @@ export interface RichEditorSessionController {
   path: string;
   getActiveBinding: () => RichEditorBinding | null;
   getBoundTabIds: () => string[];
+  onFileDrop: (
+    filePath: string,
+    binding: RichEditorBinding,
+  ) => Promise<void> | void;
   onMarkdownChange: (content: string) => void;
   onWordCountChange: (count: number) => void;
   onParseStateChange: (message: string | null) => void;
@@ -1998,18 +2007,37 @@ function MountedBlockNoteEditor({
 
   const blockExternalFileDrop = useCallback((event: React.DragEvent) => {
     const types = event.dataTransfer.types;
-    if (
-      !types.includes("blocknote/html") &&
-      (types.includes("application/x-keep-notes-file") ||
-        types.includes("Files"))
-    ) {
-      event.preventDefault();
+    if (types.includes("blocknote/html") || !isEditorFileDrag(types)) {
+      return false;
     }
+
+    event.preventDefault();
+    event.stopPropagation();
+    return true;
   }, []);
 
   const markUserIntent = useCallback(() => {
     changeGateRef.current.markUserIntent();
   }, []);
+
+  const handleDropCapture = useCallback(
+    (event: React.DragEvent) => {
+      if (!blockExternalFileDrop(event)) {
+        markUserIntent();
+        return;
+      }
+
+      const filePath = getDraggedFilePath(event.dataTransfer);
+      if (!filePath || !isSupportedEditorFilePath(filePath)) return;
+
+      const binding = controllerRef.current.getActiveBinding();
+      if (!binding) return;
+
+      // Portal 中的富文本事件不会稳定经过所属面板，直接按当前绑定转交文件打开。
+      void controllerRef.current.onFileDrop(filePath, binding);
+    },
+    [blockExternalFileDrop, markUserIntent],
+  );
 
   const handleFocus = useCallback(() => {
     const binding = controllerRef.current.getActiveBinding();
@@ -2191,10 +2219,7 @@ function MountedBlockNoteEditor({
       onCompositionStartCapture={markUserIntent}
       onDragStartCapture={markUserIntent}
       onDragOverCapture={blockExternalFileDrop}
-      onDropCapture={(event) => {
-        markUserIntent();
-        blockExternalFileDrop(event);
-      }}
+      onDropCapture={handleDropCapture}
     >
       <BlockNoteView
         {...richEditorDefaultUIProps}

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { useElectron } from "@/hooks/use-electron";
 import { useDiffStore } from "@/store/diff.store";
 import type { EditorState } from "@/store/editor.store";
 import { useEditorStore } from "@/store/editor.store";
@@ -115,6 +116,7 @@ function selectSynchronizedTabIds(
 export function RichDocumentSessionHost({
   path,
 }: RichDocumentSessionHostProps) {
+  const { openFile } = useElectron();
   const normalizedPath = normalizeRichDocumentPath(path);
   const isUntitledDocument = isUntitledDocumentPath(normalizedPath);
   const [ioPath] = useState(() =>
@@ -175,6 +177,7 @@ export function RichDocumentSessionHost({
       getActiveBinding,
       getBoundTabIds: () =>
         richDocumentSessionManager.getBoundTabIds(normalizedPath),
+      onFileDrop: (filePath, binding) => openFile(filePath, binding.groupId),
       onMarkdownChange: (content) => {
         const store = useEditorStore.getState();
         const synchronizedTabIds = selectSynchronizedTabIds(
@@ -235,7 +238,7 @@ export function RichDocumentSessionHost({
       onRuntimeReady: (runtime) =>
         richDocumentSessionManager.registerRuntime(normalizedPath, runtime),
     };
-  }, [ioPath, isUntitledDocument, normalizedPath]);
+  }, [ioPath, isUntitledDocument, normalizedPath, openFile]);
 
   useEffect(() => {
     if (isUntitledDocument) return;

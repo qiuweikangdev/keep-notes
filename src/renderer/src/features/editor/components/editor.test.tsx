@@ -49,7 +49,13 @@ vi.mock("react-resizable-panels", () => ({
 
 vi.mock("./editor-tab-bar", () => ({
   EditorTabBar: ({ groupId }: { groupId: string }) => (
-    <div>tab-bar-{groupId}</div>
+    <div
+      data-testid={`tab-bar-${groupId}`}
+      onDragOver={(event) => event.stopPropagation()}
+      onDrop={(event) => event.stopPropagation()}
+    >
+      tab-bar-{groupId}
+    </div>
   ),
 }));
 
@@ -414,6 +420,46 @@ describe("Editor split panels", () => {
     });
     render(<Editor />);
     const target = screen.getByTestId("workspace-group-2");
+    const draggedPath = "C:/notes/dragged.md";
+    const dataTransfer = {
+      dropEffect: "none",
+      files: [],
+      getData: vi.fn(() => draggedPath),
+      types: ["application/x-keep-notes-file"],
+    } as unknown as DataTransfer;
+
+    fireEvent.dragOver(target, { dataTransfer });
+    fireEvent.drop(target, { dataTransfer });
+
+    await vi.waitFor(() => {
+      expect(electronMocks.openFile).toHaveBeenCalledWith(
+        draggedPath,
+        "group-2",
+      );
+    });
+  });
+
+  it("captures a file-tree drop over nested tab-bar controls", async () => {
+    useEditorStore.setState({
+      panelGroups: [
+        {
+          id: "group-1",
+          activeTabId: "tab-1",
+          direction: "horizontal",
+          tabs: [createTab("tab-1", "C:/notes/left.md")],
+        },
+        {
+          id: "group-2",
+          activeTabId: "tab-2",
+          direction: "horizontal",
+          splitParentGroupId: "group-1",
+          tabs: [createTab("tab-2", "C:/notes/right.md")],
+        },
+      ],
+      activeGroupId: "group-1",
+    });
+    render(<Editor />);
+    const target = screen.getByTestId("tab-bar-group-2");
     const draggedPath = "C:/notes/dragged.md";
     const dataTransfer = {
       dropEffect: "none",

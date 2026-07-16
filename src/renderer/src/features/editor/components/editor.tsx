@@ -20,6 +20,7 @@ import {
 import {
   getDraggedFilePath,
   isEditorFileDrag,
+  isSupportedEditorFilePath,
 } from "../lib/editor-drag-session";
 import { EditorPanelSurfaceRegistry } from "../lib/editor-panel-surface-registry";
 import { richDocumentSessionManager } from "../lib/editor-runtime";
@@ -34,8 +35,6 @@ import {
   matchesEditorDocumentPath,
 } from "../lib/editor-document-path";
 
-// 支持的文件扩展名
-const SUPPORTED_EXTENSIONS = [".md", ".txt"];
 // 鼠标不扩展命中区，避免覆盖相邻编辑器的滚动条；触控设备保留较大范围。
 const EDITOR_PANEL_RESIZE_HIT_AREA_MARGINS = { coarse: 30, fine: 0 };
 
@@ -104,11 +103,6 @@ function EditorDevelopmentDiagnostics() {
     };
   }, []);
   return null;
-}
-
-// 检查文件是否支持
-function isSupportedFile(filePath: string): boolean {
-  return SUPPORTED_EXTENSIONS.some((ext) => filePath.endsWith(ext));
 }
 
 function getPanelResizeHandleStyle(
@@ -286,6 +280,11 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
     }
     e.preventDefault();
     e.stopPropagation();
+
+    const nextTarget = e.relatedTarget;
+    if (nextTarget instanceof Node && e.currentTarget.contains(nextTarget)) {
+      return;
+    }
     setIsDragOver(false);
   }, []);
 
@@ -300,7 +299,7 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
 
       // 获取拖拽的文件路径
       const filePath = getDraggedFilePath(e.dataTransfer);
-      if (!filePath || !isSupportedFile(filePath)) return;
+      if (!filePath || !isSupportedEditorFilePath(filePath)) return;
 
       // 检查当前活动标签页是否已经是该文件
       const state = useEditorStore.getState();
@@ -326,47 +325,23 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
   // 没有标签页时显示空白状态
   if (!group.activeTabId || group.tabs.length === 0) {
     return (
-      <div className="flex flex-col h-full overflow-hidden relative">
+      <div
+        className="flex flex-col h-full overflow-hidden relative"
+        onDragOverCapture={handleDragOver}
+        onDragLeaveCapture={handleDragLeave}
+        onDropCapture={handleDrop}
+      >
         <EditorTabBar groupId={groupId} />
         <div
           className="flex-1 flex items-center justify-center relative"
           style={{ backgroundColor: "var(--bg-primary)" }}
-          onDragOverCapture={handleDragOver}
-          onDragLeaveCapture={handleDragLeave}
-          onDropCapture={handleDrop}
         >
           <div className="text-center" style={{ color: "var(--text-muted)" }}>
             <p className="text-sm">没有打开的文件</p>
             <p className="text-xs mt-1">从文件树点击或拖拽文件到此处打开</p>
           </div>
-          {/* 拖拽高亮边框 */}
-          {isDragOver && (
-            <div
-              className="absolute inset-0 pointer-events-none z-50"
-              style={{
-                border: "2px solid var(--accent-color)",
-                backgroundColor: "var(--accent-color)",
-                opacity: 0.1,
-              }}
-            />
-          )}
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col h-full overflow-hidden relative">
-      <EditorTabBar groupId={groupId} />
-      <div
-        className="flex-1 overflow-hidden relative"
-        onDragOverCapture={handleDragOver}
-        onDragLeaveCapture={handleDragLeave}
-        onDropCapture={handleDrop}
-      >
-        {/* 渲染编辑器 */}
-        <EditorWorkspace groupId={groupId} tabId={group.activeTabId} />
-        {/* 拖拽高亮边框 */}
+        {/* 面板统一接管拖拽，确保标签栏、工具按钮和编辑器内容拥有一致的落点。 */}
         {isDragOver && (
           <div
             className="absolute inset-0 pointer-events-none z-50"
@@ -378,6 +353,32 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
           />
         )}
       </div>
+    );
+  }
+
+  return (
+    <div
+      className="flex flex-col h-full overflow-hidden relative"
+      onDragOverCapture={handleDragOver}
+      onDragLeaveCapture={handleDragLeave}
+      onDropCapture={handleDrop}
+    >
+      <EditorTabBar groupId={groupId} />
+      <div className="flex-1 overflow-hidden relative">
+        {/* 渲染编辑器 */}
+        <EditorWorkspace groupId={groupId} tabId={group.activeTabId} />
+      </div>
+      {/* 拖拽高亮覆盖整个面板，反馈与实际可放置区域保持一致。 */}
+      {isDragOver && (
+        <div
+          className="absolute inset-0 pointer-events-none z-50"
+          style={{
+            border: "2px solid var(--accent-color)",
+            backgroundColor: "var(--accent-color)",
+            opacity: 0.1,
+          }}
+        />
+      )}
     </div>
   );
 }
