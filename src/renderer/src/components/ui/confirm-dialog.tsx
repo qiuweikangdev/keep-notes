@@ -1,6 +1,13 @@
+import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { X } from "lucide-react";
-import type { MouseEvent } from "react";
+import { CircleAlert } from "lucide-react";
+import { useRef, type MouseEvent } from "react";
+
+type ConfirmDialogVariant = "default" | "danger";
+
+function stopPortalClick(event: MouseEvent) {
+  event.stopPropagation();
+}
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -9,6 +16,7 @@ interface ConfirmDialogProps {
   description?: string;
   confirmText?: string;
   cancelText?: string;
+  variant?: ConfirmDialogVariant;
   onConfirm: () => void | Promise<void>;
 }
 
@@ -19,15 +27,15 @@ export function ConfirmDialog({
   description,
   confirmText = "确认",
   cancelText = "取消",
+  variant = "default",
   onConfirm,
 }: ConfirmDialogProps) {
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+  const isDanger = variant === "danger";
+
   const handleConfirm = async () => {
     await onConfirm();
     onOpenChange(false);
-  };
-
-  const stopPortalClick = (event: MouseEvent) => {
-    event.stopPropagation();
   };
 
   return (
@@ -35,63 +43,60 @@ export function ConfirmDialog({
       <Dialog.Portal>
         <Dialog.Overlay
           className="fixed inset-0 z-50"
-          style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
+          style={{ backgroundColor: "rgba(0, 0, 0, 0.4)" }}
           onClick={stopPortalClick}
         />
         <Dialog.Content
-          className="fixed left-[50%] top-[50%] z-50 w-full max-w-[400px] translate-x-[-50%] translate-y-[-50%] rounded-lg shadow-lg overflow-hidden"
+          className="fixed left-1/2 top-1/2 z-50 w-[calc(100vw-32px)] max-w-[360px] -translate-x-1/2 -translate-y-1/2 rounded-lg p-5 outline-none"
           style={{
-            backgroundColor: "var(--bg-secondary)",
+            backgroundColor: "var(--bg-primary)",
+            border: "1px solid var(--border-color)",
+            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.16)",
+            color: "var(--text-primary)",
+          }}
+          onOpenAutoFocus={(event) => {
+            // 危险操作默认聚焦取消按钮，避免用户按回车时误确认。
+            event.preventDefault();
+            cancelButtonRef.current?.focus();
           }}
           onClick={stopPortalClick}
         >
-          {/* 标题行：左侧标题 + 右侧关闭按钮 */}
-          <div
-            className="flex items-center justify-between p-4"
-            style={{ borderBottom: "1px solid var(--border-color)" }}
+          <Dialog.Title className="flex items-center gap-1.5 text-sm font-medium leading-5">
+            {isDanger ? (
+              <CircleAlert
+                aria-hidden="true"
+                className="h-4 w-4 shrink-0"
+                style={{ color: "var(--danger-color)" }}
+              />
+            ) : null}
+            {title}
+          </Dialog.Title>
+          <Dialog.Description
+            className={description ? "mt-2 text-[13px] leading-5" : "sr-only"}
+            style={{ color: "var(--text-secondary)" }}
           >
-            <Dialog.Title
-              className="font-medium"
-              style={{ color: "var(--text-primary)" }}
-            >
-              {title}
-            </Dialog.Title>
-            <Dialog.Close asChild>
-              <button className="p-1 rounded-lg transition-colors hover:bg-[var(--hover-bg)]">
-                <X className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
-              </button>
-            </Dialog.Close>
-          </div>
+            {description ?? "请确认是否继续此操作。"}
+          </Dialog.Description>
 
-          {/* 内容区域 */}
-          {description ? (
-            <div className="p-4">
-              <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                {description}
-              </p>
-            </div>
-          ) : null}
-
-          {/* 按钮区域 */}
-          <div
-            className="flex items-center justify-end gap-2 p-4"
-            style={{ borderTop: "1px solid var(--border-color)" }}
-          >
+          <div className="mt-5 flex items-center justify-end gap-1.5">
             <Dialog.Close asChild>
-              <button
+              <Button
+                ref={cancelButtonRef}
                 type="button"
-                className="px-4 py-1.5 text-sm rounded-md bg-transparent text-[var(--text-primary)] border border-[var(--border-color)] transition-colors hover:bg-[var(--hover-bg)]"
+                size="sm"
+                variant="ghost"
               >
                 {cancelText}
-              </button>
+              </Button>
             </Dialog.Close>
-            <button
+            <Button
               type="button"
-              onClick={handleConfirm}
-              className="px-4 py-1.5 text-sm rounded-md bg-[var(--bg-tertiary)] text-[var(--text-primary)] transition-colors hover:bg-[var(--hover-bg)]"
+              size="sm"
+              variant={isDanger ? "destructive" : "default"}
+              onClick={() => void handleConfirm()}
             >
               {confirmText}
-            </button>
+            </Button>
           </div>
         </Dialog.Content>
       </Dialog.Portal>
