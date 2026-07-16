@@ -339,17 +339,12 @@ describe("ReminderListDialog", () => {
     const header = dialog.querySelector<HTMLElement>(
       '[data-reminder-list-header="true"]',
     );
-    expect(dialog).toHaveAttribute(
-      "style",
-      expect.stringContaining(
-        "background-color: var(--bg-primary); border: 1px solid var(--border-color);",
-      ),
-    );
+    expect(dialog.style.backgroundColor).toBe("var(--bg-primary)");
+    expect(dialog.style.border).toBe("1px solid var(--border-color)");
     expect(dialog).toHaveClass("shadow-[0_4px_8px_rgba(0,0,0,0.16)]");
     expect(header).toHaveClass("border-b", "border-[var(--border-color)]");
-    expect(header).toHaveAttribute(
-      "style",
-      "background-color: color-mix(in srgb, var(--bg-secondary) 24%, var(--bg-primary));",
+    expect(header?.style.backgroundColor).toBe(
+      "color-mix(in srgb, var(--bg-secondary) 24%, var(--bg-primary))",
     );
   });
 
