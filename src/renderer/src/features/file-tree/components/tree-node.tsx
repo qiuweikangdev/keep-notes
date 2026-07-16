@@ -740,7 +740,7 @@ export const TreeNode = memo(function TreeNode({
           confirmState.type === "delete"
             ? "确定要删除「" +
               (confirmState.data?.title ?? "") +
-              "」吗？此操作不可撤销。"
+              "」并移到回收站吗？可在系统回收站中恢复。"
             : "确定要将「" +
               (confirmState.data?.title ?? "") +
               "」移动到「" +

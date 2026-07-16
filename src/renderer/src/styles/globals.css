@@ -325,12 +325,12 @@ button[data-ui-button="true"][data-variant="ghost"] {
 button[data-ui-button="true"][data-variant="destructive"] {
   background-color: color-mix(
     in srgb,
-    var(--danger-color) 16%,
+    var(--danger-color) 8%,
     var(--bg-primary)
   );
   border-color: color-mix(
     in srgb,
-    var(--danger-color) 30%,
+    var(--danger-color) 24%,
     var(--border-color)
   );
   color: var(--danger-color);
@@ -341,12 +341,12 @@ button[data-ui-button="true"][data-variant="destructive"]:not(:disabled):not(
 ):hover {
   background-color: color-mix(
     in srgb,
-    var(--danger-color) 22%,
+    var(--danger-color) 13%,
     var(--bg-primary)
   ) !important;
   border-color: color-mix(
     in srgb,
-    var(--danger-color) 42%,
+    var(--danger-color) 32%,
     var(--border-color)
   );
   color: var(--danger-color) !important;
@@ -357,9 +357,14 @@ button[data-ui-button="true"][data-variant="destructive"]:not(:disabled):not(
 ):active {
   background-color: color-mix(
     in srgb,
-    var(--danger-color) 30%,
+    var(--danger-color) 18%,
     var(--bg-primary)
   ) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--danger-color) 38%,
+    var(--border-color)
+  );
   color: var(--danger-color) !important;
 }
 

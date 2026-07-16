@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { CircleAlert } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { useRef, type MouseEvent } from "react";
 
 type ConfirmDialogVariant = "default" | "danger";
@@ -63,7 +63,7 @@ export function ConfirmDialog({
         >
           <Dialog.Title className="flex items-center gap-1.5 text-sm font-medium leading-5">
             {isDanger ? (
-              <CircleAlert
+              <Trash2
                 aria-hidden="true"
                 className="h-4 w-4 shrink-0"
                 style={{ color: "var(--danger-color)" }}
@@ -84,7 +84,7 @@ export function ConfirmDialog({
                 ref={cancelButtonRef}
                 type="button"
                 size="sm"
-                variant="ghost"
+                variant="outline"
               >
                 {cancelText}
               </Button>

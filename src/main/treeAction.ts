@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { randomUUID } from "node:crypto";
 import { basename, dirname, join, normalize, sep } from "node:path";
-import { dialog } from "electron";
+import { dialog, shell } from "electron";
 import { CodeResult } from "../shared/types";
 import {
   deleteTreeNode,
@@ -180,11 +180,8 @@ export async function rename(pathStr: string, title: string, treeData: any[]) {
 
 async function deleteItem(pathStr: string, treeData: any[], isFile = false) {
   try {
-    if (isFile) {
-      await fsPromises.unlink(pathStr);
-    } else {
-      await fsPromises.rmdir(pathStr, { recursive: true });
-    }
+    // 交由系统回收站处理，Windows 可在回收站、macOS 可在废纸篓中恢复。
+    await shell.trashItem(pathStr);
 
     const parentPath = dirname(pathStr);
     const targetNode = findNodeByKey(treeData, parentPath);
@@ -200,7 +197,7 @@ async function deleteItem(pathStr: string, treeData: any[], isFile = false) {
 
     return {
       code: CodeResult.Success,
-      message: isFile ? "文件删除成功" : "文件夹删除成功",
+      message: isFile ? "文件已移至回收站" : "文件夹已移至回收站",
       data: { treeData },
     };
   } catch (e) {

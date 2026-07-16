@@ -5,8 +5,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CodeResult, type TreeNode } from "../shared/types";
 
 const showMessageBox = vi.hoisted(() => vi.fn());
+const trashItem = vi.hoisted(() => vi.fn());
 
-vi.mock("electron", () => ({ dialog: { showMessageBox } }));
+vi.mock("electron", () => ({
+  dialog: { showMessageBox },
+  shell: { trashItem },
+}));
 vi.mock("./utils", () => ({
   deleteTreeNode: (treeData: TreeNode[]) => treeData,
   findNodeByKey: (treeData: TreeNode[], key: string) =>
@@ -33,20 +37,25 @@ describe("tree actions", () => {
 
   afterEach(() => {
     showMessageBox.mockReset();
+    trashItem.mockReset();
     for (const root of tempRoots.splice(0)) {
       fs.rmSync(root, { recursive: true, force: true });
     }
   });
 
-  it("deletes a file without showing a native confirmation dialog", async () => {
+  it("moves a file to the system trash without showing a native confirmation dialog", async () => {
     const root = createTempRoot();
     const filePath = path.join(root, "daily.md");
     fs.writeFileSync(filePath, "content");
     const treeData: TreeNode[] = [{ title: "daily.md", key: filePath }];
+    trashItem.mockImplementation(async (targetPath: string) => {
+      fs.rmSync(targetPath, { force: true });
+    });
 
     const result = await deleteFileOrFolder(filePath, "daily.md", treeData);
 
     expect(showMessageBox).not.toHaveBeenCalled();
+    expect(trashItem).toHaveBeenCalledWith(filePath);
     expect(result).toMatchObject({
       code: CodeResult.Success,
       data: { treeData: [] },

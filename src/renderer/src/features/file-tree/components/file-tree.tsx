@@ -1058,7 +1058,7 @@ export function FileTree() {
         open={confirmState.open}
         onOpenChange={(open) => setConfirmState((prev) => ({ ...prev, open }))}
         title="确认删除"
-        description={`确定要删除「${confirmState.title}」吗？此操作不可撤销。`}
+        description={`确定要删除「${confirmState.title}」并移到回收站吗？可在系统回收站中恢复。`}
         confirmText="删除"
         variant="danger"
         onConfirm={handleDeleteConfirm}

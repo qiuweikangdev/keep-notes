@@ -87,6 +87,14 @@ describe("ReminderListDialog", () => {
     expect(
       screen.getByRole("dialog", { name: "删除提醒事项" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "取消" })).toHaveAttribute(
+      "data-variant",
+      "outline",
+    );
+    expect(screen.getByRole("button", { name: "删除" })).toHaveAttribute(
+      "data-variant",
+      "destructive",
+    );
 
     await user.click(screen.getByRole("button", { name: "取消" }));
 

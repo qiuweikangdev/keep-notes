@@ -220,6 +220,7 @@ export function ReminderListDialog() {
             : undefined
         }
         confirmText="删除"
+        variant="danger"
         onConfirm={async () => {
           if (deleteTarget) {
             await deleteReminder(deleteTarget.id);
