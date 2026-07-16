@@ -29,13 +29,34 @@ textarea[aria-label="Markdown 源码"] {
 }
 
 ::highlight(keep-notes-find-match) {
-  background-color: rgba(245, 158, 11, 0.34);
+  background-color: color-mix(in srgb, var(--accent-color) 38%, transparent);
   color: inherit;
 }
 
 ::highlight(keep-notes-find-active-match) {
-  background-color: rgba(245, 158, 11, 0.72);
+  background-color: color-mix(in srgb, var(--accent-color) 70%, transparent);
   color: inherit;
+}
+
+[data-editor-find-highlight-overlay="true"] {
+  position: fixed;
+  z-index: 49;
+  inset: 0;
+  pointer-events: none;
+}
+
+[data-editor-find-highlight="true"] {
+  position: absolute;
+  border-radius: 3px;
+  background-color: color-mix(in srgb, var(--accent-color) 38%, transparent);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--accent-color) 42%, transparent);
+}
+
+[data-editor-find-highlight-active="true"] {
+  background-color: color-mix(in srgb, var(--accent-color) 70%, transparent);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--accent-color) 88%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {

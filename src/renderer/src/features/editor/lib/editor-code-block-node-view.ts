@@ -146,14 +146,21 @@ const editorCodeMirrorTheme = CodeMirrorView.theme({
   ".cm-activeLine, .cm-activeLineGutter": {
     backgroundColor: "transparent",
   },
-  "&.cm-focused .cm-cursor": {
+  "&.cm-focused:hover .cm-cursor": {
     borderLeftColor: "var(--editor-code-block-cursor)",
     borderLeftStyle: "solid",
     borderLeftWidth: "var(--editor-code-block-cursor-width, 2px)",
   },
-  ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
+  "&.cm-focused:not(:hover) .cm-cursor": {
+    borderLeftColor: "transparent",
+  },
+  "&.cm-focused:hover .cm-selectionBackground": {
     backgroundColor: "var(--accent-color)",
   },
+  "&:not(.cm-focused) .cm-selectionBackground, &.cm-focused:not(:hover) .cm-selectionBackground":
+    {
+      backgroundColor: "transparent",
+    },
   "&.cm-focused": {
     outline: "none",
   },
@@ -484,6 +491,16 @@ class EditorCodeBlockNodeView {
 
   private focusAfterMountFrame: number | null = null;
 
+  private readonly clearCodeMirrorSelectionOnPointerLeave = () => {
+    const selection = this.codeMirror.state.selection.main;
+    if (selection.empty) return;
+
+    // 鼠标离开整个代码块后折叠真实选区，避免 CodeMirror 基础主题继续绘制残留高亮。
+    this.codeMirror.dispatch({
+      selection: EditorSelection.cursor(selection.head),
+    });
+  };
+
   private readonly closeLanguagePickerOnPointerDown = (event: PointerEvent) => {
     const target = event.target;
     if (!(target instanceof Node)) {
@@ -579,6 +596,10 @@ class EditorCodeBlockNodeView {
       true,
     );
     this.dom.addEventListener("mousedown", this.focusCodeMirrorFromShell);
+    this.dom.addEventListener(
+      "mouseleave",
+      this.clearCodeMirrorSelectionOnPointerLeave,
+    );
     this.focusAfterMountFrame = window.requestAnimationFrame(() => {
       this.focusAfterMountFrame = null;
       if (!this.dom.isConnected || !this.isProseMirrorSelectionInsideBlock()) {
@@ -610,6 +631,10 @@ class EditorCodeBlockNodeView {
       this.focusAfterMountFrame = null;
     }
     this.dom.removeEventListener("mousedown", this.focusCodeMirrorFromShell);
+    this.dom.removeEventListener(
+      "mouseleave",
+      this.clearCodeMirrorSelectionOnPointerLeave,
+    );
     this.codeMirror.contentDOM.removeEventListener(
       "keydown",
       this.handleNativeKeyDown,
