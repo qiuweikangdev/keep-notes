@@ -15,9 +15,9 @@ const unitOptions: Array<{ label: string; value: ReminderRepeatUnit }> = [
 ];
 
 const repeatControlClassName =
-  "h-9 rounded-md px-3 text-[13px] outline-none transition-colors focus:border-[var(--text-muted)] focus:ring-0";
+  "h-9 rounded-md border-0 px-3 text-[13px] outline-none transition-colors focus-visible:ring-1 focus-visible:ring-[var(--accent-color)]";
 
-function useCloseOnOutsidePointerDown(
+function useCloseOnOutsideInteraction(
   open: boolean,
   containerRef: RefObject<HTMLElement>,
   onClose: () => void,
@@ -25,7 +25,7 @@ function useCloseOnOutsidePointerDown(
   useEffect(() => {
     if (!open) return;
 
-    // 自定义下拉是自绘浮层，点击控件外部时主动关闭，避免菜单遮挡后续操作。
+    // 自定义下拉是自绘浮层，点击控件外部或窗口失焦时主动关闭。
     const handlePointerDown = (event: PointerEvent) => {
       if (
         event.target instanceof Node &&
@@ -35,9 +35,14 @@ function useCloseOnOutsidePointerDown(
       }
       onClose();
     };
+    const handleWindowBlur = () => onClose();
 
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    window.addEventListener("blur", handleWindowBlur);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+      window.removeEventListener("blur", handleWindowBlur);
+    };
   }, [containerRef, onClose, open]);
 }
 
@@ -84,7 +89,7 @@ export function CustomRepeatDialog({
         overlayClassName="z-[70]"
         overlayStyle={{ backgroundColor: "rgba(0, 0, 0, 0.22)" }}
         onPointerDownOutside={() => onOpenChange(false)}
-        className="z-[71] w-[calc(100%-32px)] max-w-[336px] gap-0 overflow-visible rounded-xl p-0 shadow-[0_12px_28px_rgba(0,0,0,0.24)]"
+        className="z-[71] w-[calc(100%-32px)] max-w-[336px] gap-0 overflow-visible rounded-xl p-0 shadow-[0_10px_28px_rgba(0,0,0,0.24)]"
         data-custom-repeat-dialog="true"
         style={{
           backgroundColor:
@@ -93,7 +98,7 @@ export function CustomRepeatDialog({
           color: "var(--text-primary)",
         }}
       >
-        <div className="flex h-11 items-center justify-between border-b border-[var(--border-color)] px-4">
+        <div className="flex h-12 items-center justify-between px-4">
           <Dialog.Title className="flex items-center gap-2 text-sm font-semibold">
             <Repeat2
               aria-hidden="true"
@@ -101,18 +106,21 @@ export function CustomRepeatDialog({
             />
             <span>自定义重复</span>
           </Dialog.Title>
-          <Dialog.Close
+          <button
+            type="button"
             aria-label="关闭"
-            className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-color)]"
+            data-custom-repeat-close="true"
+            className="-mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-color)]"
+            onClick={() => onOpenChange(false)}
           >
             <X aria-hidden="true" className="h-4 w-4" />
-          </Dialog.Close>
+          </button>
         </div>
         <Dialog.Description className="sr-only">
           设置提醒事项的自定义重复间隔
         </Dialog.Description>
 
-        <div className="px-4 py-4">
+        <div className="px-4 pb-3 pt-1">
           <label
             htmlFor="custom-repeat-interval"
             className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]"
@@ -133,16 +141,14 @@ export function CustomRepeatDialog({
               onChange={(event) => setInterval(event.target.value)}
               aria-label="重复间隔"
               aria-invalid={!isValid}
-              className={`${repeatControlClassName} w-20 shrink-0 px-2 text-center font-semibold`}
+              className={`${repeatControlClassName} w-16 shrink-0 px-2 text-center font-semibold`}
               style={{
                 backgroundColor: "var(--bg-secondary)",
-                borderColor: isValid
-                  ? "var(--border-color)"
-                  : "var(--danger-color)",
+                border: isValid ? "none" : "1px solid var(--danger-color)",
                 color: "var(--text-primary)",
               }}
             />
-            <div className="w-24 shrink-0">
+            <div className="w-36 shrink-0">
               <UnitPickerControl
                 value={unit}
                 open={isUnitOpen}
@@ -161,15 +167,9 @@ export function CustomRepeatDialog({
           ) : null}
         </div>
 
-        <div
-          className="flex justify-end gap-2 rounded-b-xl border-t border-[var(--border-color)] px-4 py-3"
-          style={{
-            backgroundColor:
-              "color-mix(in srgb, var(--bg-secondary) 38%, var(--bg-primary))",
-          }}
-        >
+        <div className="flex justify-end gap-2 rounded-b-xl px-4 pb-4 pt-1.5">
           <Dialog.Close asChild>
-            <Button type="button" variant="secondary">
+            <Button type="button" variant="ghost">
               取消
             </Button>
           </Dialog.Close>
@@ -199,7 +199,7 @@ function UnitPickerControl({
   const selectedLabel =
     unitOptions.find((option) => option.value === value)?.label ?? "天";
 
-  useCloseOnOutsidePointerDown(open, pickerRef, () => onOpenChange(false));
+  useCloseOnOutsideInteraction(open, pickerRef, () => onOpenChange(false));
 
   return (
     <div className="relative" ref={pickerRef}>
@@ -208,10 +208,10 @@ function UnitPickerControl({
         data-theme-control="true"
         aria-label="重复单位"
         aria-expanded={open}
-        className={`${repeatControlClassName} flex w-full items-center justify-between gap-2 border font-medium`}
+        className={`${repeatControlClassName} flex w-full items-center justify-between gap-2 font-medium`}
         style={{
           backgroundColor: "var(--bg-secondary)",
-          borderColor: "var(--border-color)",
+          borderColor: "transparent",
           color: "var(--text-primary)",
         }}
         onClick={() => onOpenChange(!open)}
@@ -224,10 +224,9 @@ function UnitPickerControl({
       </button>
       {open ? (
         <div
-          className="absolute left-0 top-[calc(100%+6px)] z-[82] w-full rounded-lg border p-1.5 shadow-[0_6px_12px_rgba(0,0,0,0.16)]"
+          className="absolute left-0 top-[calc(100%+6px)] z-[82] w-full rounded-lg border-0 p-1.5 shadow-[0_10px_28px_rgba(0,0,0,0.24)]"
           style={{
             backgroundColor: "var(--bg-primary)",
-            borderColor: "var(--border-color)",
             color: "var(--text-primary)",
           }}
         >

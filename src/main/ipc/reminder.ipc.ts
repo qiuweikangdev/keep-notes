@@ -2,6 +2,16 @@ import { BrowserWindow, ipcMain } from "electron";
 import { IPC_CHANNELS } from "../../shared/constants";
 import type { Reminder, ReminderInput } from "../../shared/types";
 import { reminderService } from "../reminders";
+import {
+  configureReminderGlobalShortcuts,
+  closeReminderEditorWindow,
+  hideReminderWindow,
+  resizeReminderEditorWindow,
+  resizeReminderWindow,
+  showReminderEditorWindow,
+  showReminderWindow,
+} from "../reminder-window";
+import { getBrowserWindow } from "../utils";
 
 function broadcastReminders(): void {
   const reminders = reminderService.getSnapshot();
@@ -51,5 +61,53 @@ export function registerReminderIpc(): void {
 
   ipcMain.handle(IPC_CHANNELS.REMINDER.COMPLETE, async (_, id: string) => {
     return reminderService.complete(id);
+  });
+
+  ipcMain.handle(
+    IPC_CHANNELS.REMINDER.SET_GLOBAL_SHORTCUT,
+    (_, keys: unknown) => {
+      if (
+        !Array.isArray(keys) ||
+        !keys.every((key) => typeof key === "string" && key.length <= 100)
+      ) {
+        return { success: false, failedKeys: [] };
+      }
+
+      return configureReminderGlobalShortcuts(keys);
+    },
+  );
+
+  ipcMain.on(IPC_CHANNELS.REMINDER.SHOW_WINDOW, () => {
+    showReminderWindow();
+  });
+
+  ipcMain.on(IPC_CHANNELS.REMINDER.HIDE_WINDOW, () => {
+    hideReminderWindow();
+  });
+
+  ipcMain.on(IPC_CHANNELS.REMINDER.RESIZE_WINDOW, (event, height: unknown) => {
+    resizeReminderWindow(getBrowserWindow(event), height);
+  });
+
+  ipcMain.on(
+    IPC_CHANNELS.REMINDER.SHOW_EDITOR_WINDOW,
+    (_, reminderId: unknown) => {
+      showReminderEditorWindow(
+        typeof reminderId === "string" && reminderId.length <= 100
+          ? reminderId
+          : undefined,
+      );
+    },
+  );
+
+  ipcMain.on(
+    IPC_CHANNELS.REMINDER.RESIZE_EDITOR_WINDOW,
+    (event, height: unknown) => {
+      resizeReminderEditorWindow(getBrowserWindow(event), height);
+    },
+  );
+
+  ipcMain.on(IPC_CHANNELS.REMINDER.CLOSE_EDITOR_WINDOW, (event) => {
+    closeReminderEditorWindow(getBrowserWindow(event));
   });
 }

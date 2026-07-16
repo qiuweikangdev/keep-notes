@@ -18,6 +18,14 @@ const MENU_CONTENT_CLASS =
 const MENU_ITEM_CLASS =
   "flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-[13px] outline-none data-[highlighted]:bg-[var(--hover-bg)]";
 const MENU_SEPARATOR_CLASS = "my-1 h-px bg-[var(--border-color)]";
+const FLOATING_WINDOW_VERTICAL_MARGIN = 16;
+const FLOATING_HEADER_HEIGHT = 80;
+const FLOATING_RESULT_MAX_HEIGHT = 320;
+const FLOATING_EMPTY_RESULT_HEIGHT = 44;
+const FLOATING_RESULT_PADDING = 16;
+const FLOATING_RESULT_GAP = 2;
+const FLOATING_RESULT_ROW_HEIGHT = 32;
+const FLOATING_RESULT_ROW_WITH_FILE_HEIGHT = 44;
 
 const tabs: Array<{ label: string; value: ReminderListTab }> = [
   { label: "今天", value: "today" },
@@ -33,7 +41,44 @@ function isReminderNestedPortalTarget(target: EventTarget | null): boolean {
   );
 }
 
-export function ReminderListDialog() {
+function getFloatingWindowHeight(reminders: readonly Reminder[]): number {
+  if (reminders.length === 0) {
+    return (
+      FLOATING_HEADER_HEIGHT +
+      FLOATING_EMPTY_RESULT_HEIGHT +
+      FLOATING_WINDOW_VERTICAL_MARGIN
+    );
+  }
+
+  const rowsHeight = reminders.reduce(
+    (height, reminder) =>
+      height +
+      (reminder.fileName
+        ? FLOATING_RESULT_ROW_WITH_FILE_HEIGHT
+        : FLOATING_RESULT_ROW_HEIGHT),
+    0,
+  );
+  const gapsHeight = (reminders.length - 1) * FLOATING_RESULT_GAP;
+  const resultHeight = Math.min(
+    FLOATING_RESULT_PADDING + rowsHeight + gapsHeight,
+    FLOATING_RESULT_MAX_HEIGHT,
+  );
+
+  return (
+    FLOATING_HEADER_HEIGHT + resultHeight + FLOATING_WINDOW_VERTICAL_MARGIN
+  );
+}
+
+interface ReminderListDialogProps {
+  presentation?: "dialog" | "floating-window";
+  onRequestClose?: () => void;
+}
+
+export function ReminderListDialog({
+  presentation = "dialog",
+  onRequestClose,
+}: ReminderListDialogProps = {}) {
+  const isFloatingWindow = presentation === "floating-window";
   const reminders = useReminderStore((state) => state.reminders);
   const isListOpen = useReminderStore((state) => state.isListOpen);
   const isEditorOpen = useReminderStore((state) => state.isEditorOpen);
@@ -55,10 +100,18 @@ export function ReminderListDialog() {
   );
 
   const handleEdit = (reminder: Reminder) => {
+    if (isFloatingWindow) {
+      window.electronAPI.showReminderEditorWindow(reminder.id);
+      return;
+    }
     openEditDialog(reminder.id);
   };
 
   const handleCreate = () => {
+    if (isFloatingWindow) {
+      window.electronAPI.showReminderEditorWindow();
+      return;
+    }
     openCreateDialog();
   };
 
@@ -84,6 +137,15 @@ export function ReminderListDialog() {
     setIsContextMenuOpen(false);
   }, [isListOpen]);
 
+  useEffect(() => {
+    if (!isFloatingWindow || !isListOpen) return;
+
+    // 列表行高固定，直接按完整数据计算窗口尺寸，避免当前视口参与测量造成循环裁剪。
+    window.electronAPI?.resizeReminderWindow?.(
+      getFloatingWindowHeight(visibleReminders),
+    );
+  }, [isFloatingWindow, isListOpen, visibleReminders]);
+
   return (
     <>
       <Dialog.Root
@@ -91,17 +153,27 @@ export function ReminderListDialog() {
         open={isListOpen}
         onOpenChange={(open) => {
           // 编辑器是列表之上的子任务，子层关闭时不能连带关闭父列表。
-          if (!open && !hasNestedLayer) closeList();
+          if (!open && !hasNestedLayer) {
+            closeList();
+            onRequestClose?.();
+          }
         }}
       >
         <DialogContent
           showCloseButton={false}
-          overlayClassName="z-40"
-          overlayStyle={{ backgroundColor: "rgba(0, 0, 0, 0.3)" }}
-          className={`top-[12vh] z-50 max-w-[520px] translate-y-0 gap-0 overflow-hidden rounded-xl p-0 shadow-[0_4px_8px_rgba(0,0,0,0.16)] sm:rounded-xl ${
-            isEditorOpen ? "pointer-events-none" : ""
-          }`}
+          overlayClassName={isFloatingWindow ? "hidden" : "z-40"}
+          overlayStyle={{
+            backgroundColor: isFloatingWindow
+              ? "transparent"
+              : "rgba(0, 0, 0, 0.3)",
+          }}
+          className={`${
+            isFloatingWindow ? "top-2" : "top-[12vh]"
+          } z-50 max-w-[520px] translate-y-0 gap-0 overflow-hidden rounded-xl p-0 shadow-[0_10px_28px_rgba(0,0,0,0.22)] sm:rounded-xl ${
+            isFloatingWindow ? "max-h-[calc(100vh-16px)]" : ""
+          } ${isEditorOpen ? "pointer-events-none" : ""}`}
           data-editor-open={isEditorOpen ? "true" : undefined}
+          data-floating-window={isFloatingWindow ? "true" : undefined}
           data-reminder-list-dialog="true"
           inert={isEditorOpen}
           onEscapeKeyDown={(event) => {
@@ -113,8 +185,9 @@ export function ReminderListDialog() {
           onInteractOutside={preventDialogDismissFromNestedLayer}
           onPointerDownOutside={preventDialogDismissFromNestedLayer}
           style={{
-            backgroundColor: "var(--bg-primary)",
-            border: "1px solid var(--border-color)",
+            backgroundColor:
+              "color-mix(in srgb, var(--bg-primary) 96%, var(--bg-secondary))",
+            border: "none",
             color: "var(--text-primary)",
           }}
         >
@@ -123,14 +196,18 @@ export function ReminderListDialog() {
             查看、搜索、编辑和完成笔记提醒事项
           </Dialog.Description>
           <Tabs.Root
+            className={
+              isFloatingWindow ? "flex min-h-0 flex-col overflow-hidden" : ""
+            }
             value={tab}
             onValueChange={(value) => setTab(value as ReminderListTab)}
           >
             <div
-              className="border-b border-[var(--border-color)]"
+              className="shrink-0"
+              data-reminder-list-header="true"
               style={{
                 backgroundColor:
-                  "color-mix(in srgb, var(--bg-secondary) 24%, var(--bg-primary))",
+                  "color-mix(in srgb, var(--bg-secondary) 30%, var(--bg-primary))",
               }}
             >
               <div className="flex h-11 items-center gap-2.5 px-3.5">
@@ -144,6 +221,7 @@ export function ReminderListDialog() {
                   placeholder="搜索提醒事项"
                   role="searchbox"
                   type="text"
+                  autoFocus={isFloatingWindow}
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                 />
@@ -177,9 +255,10 @@ export function ReminderListDialog() {
               <Tabs.Content
                 key={item.value}
                 value={item.value}
-                className={`max-h-[320px] overflow-y-auto outline-none ${
-                  visibleReminders.length > 0 ? "p-2" : "p-1.5"
-                }`}
+                className={`min-h-0 max-h-[320px] overflow-y-auto overscroll-contain outline-none ${
+                  isFloatingWindow ? "flex-1" : ""
+                } ${visibleReminders.length > 0 ? "p-2" : "p-1.5"}`}
+                data-reminder-scroll-region="true"
               >
                 {visibleReminders.length > 0 ? (
                   <div className="space-y-0.5">

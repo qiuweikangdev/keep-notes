@@ -6,6 +6,7 @@ import {
 } from "@/store/shortcuts.store";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Tooltip } from "@/components/ui/tooltip";
+import { showAppToast } from "@/lib/app-toast";
 import {
   Search,
   Trash2,
@@ -16,6 +17,21 @@ import {
   Pencil,
 } from "lucide-react";
 
+const SHORTCUT_GRID_TEMPLATE = "minmax(0, 1fr) 200px 64px";
+
+function getPlatformDisplayKeys(keys: string[]): string[] {
+  const isMac = navigator.platform.toUpperCase().includes("MAC");
+  if (isMac || keys.length <= 1) return keys;
+
+  return keys.filter((key) => {
+    if (!key.includes("CmdOrCtrl+") || !key.includes("Alt+")) return true;
+
+    // Windows 默认导航同时提供 Alt 和 Ctrl+Alt 绑定，只隐藏确有对应项的重复组合。
+    const fallbackKey = key.replace("CmdOrCtrl+", "");
+    return !keys.includes(fallbackKey);
+  });
+}
+
 /**
  * 将内部快捷键表示转换为用户可读的显示格式
  * 例如 "CmdOrCtrl+N" -> "Ctrl+N" (非 macOS) 或 "⌘N" (macOS)
@@ -24,18 +40,7 @@ import {
 function formatKeys(keys: string[]): string {
   if (keys.length === 0) return "未指定";
   const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
-
-  // 根据平台过滤：macOS 只显示含 CmdOrCtrl 的绑定，Windows 过滤同时含 CmdOrCtrl 和 Alt 的绑定
-  const filtered = keys.filter((key) => {
-    const hasCmdOrCtrl = key.includes("CmdOrCtrl");
-    const hasAlt = key.includes("Alt+");
-    // 只有同时包含 CmdOrCtrl 和 Alt 的绑定才在 Windows 上过滤
-    if (!isMac && hasCmdOrCtrl && hasAlt) return false;
-    return true;
-  });
-
-  // 如果过滤后没有匹配的，回退显示所有
-  const displayKeys = filtered.length > 0 ? filtered : keys;
+  const displayKeys = getPlatformDisplayKeys(keys);
 
   return displayKeys
     .map((key) => {
@@ -106,7 +111,7 @@ function KeyBindingCell({
   conflictName,
 }: {
   shortcut: ShortcutConfig;
-  onUpdateKeys: (keys: string[]) => void;
+  onUpdateKeys: (keys: string[]) => Promise<boolean>;
   /** 与其它快捷键冲突时显示的提示文本 */
   conflictName?: string;
 }) {
@@ -122,8 +127,9 @@ function KeyBindingCell({
   };
 
   const handleSaveEmpty = () => {
-    onUpdateKeys([]);
-    setIsEditing(false);
+    void onUpdateKeys([]).then((saved) => {
+      if (saved) setIsEditing(false);
+    });
   };
 
   const handleKeyDown = useCallback(
@@ -150,8 +156,9 @@ function KeyBindingCell({
       const keyStr = eventToKeyString(e);
       // 捕获到有效快捷键后立即保存并退出编辑
       if (keyStr) {
-        onUpdateKeys([keyStr]);
-        setIsEditing(false);
+        void onUpdateKeys([keyStr]).then((saved) => {
+          if (saved) setIsEditing(false);
+        });
       }
     },
     [onUpdateKeys],
@@ -170,11 +177,11 @@ function KeyBindingCell({
 
   if (isEditing) {
     return (
-      <div className="flex items-center gap-3 flex-nowrap min-w-0">
+      <div className="flex w-full min-w-0 flex-nowrap items-center gap-2">
         <div
           ref={inputRef}
           tabIndex={0}
-          className="flex items-center justify-center h-7 px-3 rounded-md text-xs cursor-text transition-all whitespace-nowrap min-w-[140px] flex-1"
+          className="flex h-7 min-w-[128px] flex-1 cursor-text items-center justify-center whitespace-nowrap rounded-md px-3 text-xs transition-all"
           style={{
             backgroundColor: "var(--bg-tertiary)",
             border: "1px solid var(--accent-color)",
@@ -203,29 +210,16 @@ function KeyBindingCell({
     );
   }
 
-  const hasKeys = shortcut.keys.length > 0;
-
-  // 根据平台过滤：macOS 只显示含 CmdOrCtrl 的绑定，Windows 只显示不含 CmdOrCtrl 的绑定
-  const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
-  const displayKeys = hasKeys
-    ? shortcut.keys.filter((key) => {
-        const hasCmdOrCtrl = key.includes("CmdOrCtrl");
-        const hasAlt = key.includes("Alt+");
-        // 只有同时包含 CmdOrCtrl 和 Alt 的绑定才在 Windows 上过滤
-        // 其他绑定（如 CmdOrCtrl+N）在 Windows 上正常显示
-        if (!isMac && hasCmdOrCtrl && hasAlt) return false;
-        return true;
-      })
-    : [];
+  const displayKeys = getPlatformDisplayKeys(shortcut.keys);
   const hasDisplayKeys = displayKeys.length > 0;
 
   return (
-    <div className="flex items-center gap-1.5 group/cell min-w-0">
+    <div className="group/cell flex w-full min-w-0 items-center gap-1.5">
       {hasDisplayKeys ? (
         displayKeys.map((keyCombo, idx) => (
           <span
             key={idx}
-            className="inline-flex items-center h-7 px-2.5 rounded-md text-xs font-medium whitespace-nowrap transition-all"
+            className="inline-flex h-7 min-w-[88px] items-center justify-center whitespace-nowrap rounded-md px-2.5 text-xs font-medium transition-all"
             style={{
               backgroundColor: "var(--bg-tertiary)",
               color: "var(--text-primary)",
@@ -245,7 +239,7 @@ function KeyBindingCell({
         ))
       ) : (
         <span
-          className="inline-flex items-center h-7 px-2.5 rounded-md text-xs whitespace-nowrap transition-all"
+          className="inline-flex h-7 min-w-[88px] items-center justify-center whitespace-nowrap rounded-md px-2.5 text-xs transition-all"
           style={{
             backgroundColor: "transparent",
             color: "var(--text-muted)",
@@ -269,7 +263,7 @@ function KeyBindingCell({
           <Tooltip.Trigger asChild>
             <button
               onClick={handleStartEdit}
-              className="flex items-center justify-center w-5 h-5 rounded transition-all opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md opacity-0 transition-all group-hover/item:opacity-100 focus-visible:opacity-100"
               style={{ color: "var(--text-muted)" }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.color = "var(--accent-color)";
@@ -441,8 +435,20 @@ export function ShortcutsSettings() {
   }, [shortcuts]);
 
   const handleUpdateKeys = useCallback(
-    (id: ShortcutAction, keys: string[]) => {
+    async (id: ShortcutAction, keys: string[]): Promise<boolean> => {
+      if (
+        id === "openReminderWindow" &&
+        window.electronAPI?.setReminderGlobalShortcut
+      ) {
+        const result = await window.electronAPI.setReminderGlobalShortcut(keys);
+        if (!result.success) {
+          showAppToast("该全局快捷键已被系统或其他应用占用，请换一个组合");
+          return false;
+        }
+      }
+
       updateShortcutKeys(id, keys);
+      return true;
     },
     [updateShortcutKeys],
   );
@@ -494,20 +500,49 @@ export function ShortcutsSettings() {
     switch (confirmState.type) {
       case "delete":
         if (confirmState.shortcutId) {
-          updateShortcutKeys(confirmState.shortcutId, []);
+          await handleUpdateKeys(confirmState.shortcutId, []);
         }
         break;
       case "resetOne":
         if (confirmState.shortcutId) {
-          resetShortcut(confirmState.shortcutId);
+          const defaultShortcut = defaultShortcuts.find(
+            (shortcut) => shortcut.id === confirmState.shortcutId,
+          );
+          if (confirmState.shortcutId === "openReminderWindow") {
+            if (!defaultShortcut) break;
+            const updated = await handleUpdateKeys(
+              confirmState.shortcutId,
+              defaultShortcut.keys,
+            );
+            if (!updated) return;
+          } else {
+            resetShortcut(confirmState.shortcutId);
+          }
         }
         break;
-      case "resetAll":
+      case "resetAll": {
+        const reminderDefault = defaultShortcuts.find(
+          (shortcut) => shortcut.id === "openReminderWindow",
+        );
+        if (reminderDefault) {
+          const updated = await handleUpdateKeys(
+            reminderDefault.id,
+            reminderDefault.keys,
+          );
+          if (!updated) return;
+        }
         resetAllShortcuts();
         break;
+      }
     }
     setConfirmState((prev) => ({ ...prev, open: false }));
-  }, [confirmState, resetShortcut, resetAllShortcuts, updateShortcutKeys]);
+  }, [
+    confirmState,
+    defaultShortcuts,
+    handleUpdateKeys,
+    resetShortcut,
+    resetAllShortcuts,
+  ]);
 
   return (
     <div className="space-y-4">
@@ -575,9 +610,10 @@ export function ShortcutsSettings() {
       >
         {/* 表头 */}
         <div
-          className="grid items-center px-4 py-2 text-xs font-medium"
+          className="grid items-center gap-x-3 px-4 py-2 text-xs font-medium"
+          data-shortcut-header="true"
           style={{
-            gridTemplateColumns: "minmax(0, 1fr) 200px 64px",
+            gridTemplateColumns: SHORTCUT_GRID_TEMPLATE,
             color: "var(--text-muted)",
             backgroundColor: "var(--bg-tertiary)",
             borderBottom: "1px solid var(--border-color)",
@@ -611,9 +647,10 @@ export function ShortcutsSettings() {
               return (
                 <div
                   key={shortcut.id}
-                  className="grid items-center px-4 py-2.5 transition-colors group/item"
+                  className="group/item grid min-h-[58px] items-center gap-x-3 px-4 py-2.5 transition-colors"
+                  data-shortcut-row={shortcut.id}
                   style={{
-                    gridTemplateColumns: "minmax(0, 1fr) 200px 64px",
+                    gridTemplateColumns: SHORTCUT_GRID_TEMPLATE,
                     borderBottom: isLast
                       ? "none"
                       : "1px solid var(--border-color)",
@@ -657,7 +694,10 @@ export function ShortcutsSettings() {
                   </div>
 
                   {/* 按键绑定 */}
-                  <div className="min-w-0 overflow-hidden">
+                  <div
+                    className="flex min-w-0 items-center"
+                    data-shortcut-binding={shortcut.id}
+                  >
                     <KeyBindingCell
                       shortcut={shortcut}
                       onUpdateKeys={(keys) =>

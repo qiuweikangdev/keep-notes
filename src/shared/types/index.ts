@@ -246,6 +246,11 @@ export interface ReminderInput {
   customRepeat?: ReminderRepeatCustomRule;
 }
 
+export interface ShortcutRegistrationResult {
+  success: boolean;
+  failedKeys: string[];
+}
+
 export enum LeftAreaEnum {
   File = "file",
   Outline = "outline",

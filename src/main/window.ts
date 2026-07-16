@@ -9,10 +9,12 @@ import { getCachedDirtyState } from "./ipc/editor.ipc";
 import { MAC_TRAFFIC_LIGHT_POSITION } from "../shared/title-bar";
 import { IPC_CHANNELS } from "../shared/constants";
 import type { CloseSaveSnapshot, WindowOpenTarget } from "../shared/types";
+import { destroyReminderWindow } from "./reminder-window";
 
 // 平台判断
 const isMac = process.platform === "darwin";
 const closeInProgressWindows = new WeakSet<BrowserWindow>();
+const mainWindows = new Set<BrowserWindow>();
 
 // macOS: 使用原生标题栏隐藏模式，显示红绿灯按钮
 // Windows/Linux: 使用无边框透明窗口，自定义标题栏
@@ -46,6 +48,12 @@ const windowConfig: Electron.BrowserWindowConstructorOptions = {
 
 export function createWindow(initialTarget?: WindowOpenTarget): BrowserWindow {
   const win = new BrowserWindow(windowConfig);
+  mainWindows.add(win);
+
+  win.once("closed", () => {
+    mainWindows.delete(win);
+    if (mainWindows.size === 0) destroyReminderWindow();
+  });
 
   registerWindowShortcuts(win);
 

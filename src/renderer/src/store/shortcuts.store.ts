@@ -11,6 +11,7 @@ export type ShortcutAction =
   | "saveFile"
   | "openSearch"
   | "openSearchAlt"
+  | "openReminderWindow"
   | "navigateBack"
   | "navigateForward";
 
@@ -103,6 +104,13 @@ function createDefaultShortcuts(
 ): ShortcutConfig[] {
   const shortcuts: ShortcutConfig[] = [
     {
+      id: "openReminderWindow",
+      name: "搜索提醒事项",
+      description: "在浮动小窗口中打开并搜索提醒事项",
+      keys: ["CmdOrCtrl+Alt+R"],
+      isSystem: true,
+    },
+    {
       id: "newFile",
       name: "新建文件",
       description: "创建一个新的空白文件",
@@ -179,17 +187,23 @@ function normalizePersistedShortcutsState(
 ): Partial<ShortcutsState> | undefined {
   if (!persistedState) return persistedState;
 
+  const currentDefaults = createDefaultShortcuts(platform);
+  const persistedShortcuts = persistedState.shortcuts ?? [];
+  const persistedById = new Map(
+    persistedShortcuts.map((shortcut) => [shortcut.id, shortcut]),
+  );
+  const mergedShortcuts = currentDefaults.map((defaultShortcut) => {
+    const persistedShortcut = persistedById.get(defaultShortcut.id);
+    return persistedShortcut
+      ? { ...defaultShortcut, ...persistedShortcut }
+      : defaultShortcut;
+  });
+
   return {
     ...persistedState,
-    shortcuts: persistedState.shortcuts
-      ? normalizeShortcutListForPlatform(persistedState.shortcuts, platform)
-      : persistedState.shortcuts,
-    defaultShortcuts: persistedState.defaultShortcuts
-      ? normalizeShortcutListForPlatform(
-          persistedState.defaultShortcuts,
-          platform,
-        )
-      : persistedState.defaultShortcuts,
+    shortcuts: normalizeShortcutListForPlatform(mergedShortcuts, platform),
+    // 默认值必须跟随当前版本，不能继续复用旧版本持久化的快照。
+    defaultShortcuts: currentDefaults,
   };
 }
 
@@ -240,7 +254,7 @@ export const useShortcutsStore = create<ShortcutsState>()(
     }),
     {
       name: "shortcuts-storage",
-      version: 2,
+      version: 3,
       migrate: (persistedState) =>
         normalizePersistedShortcutsState(
           persistedState as Partial<ShortcutsState> | undefined,

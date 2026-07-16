@@ -50,4 +50,25 @@ describe("CustomRepeatDialog", () => {
     expect(onConfirm).toHaveBeenCalledWith({ interval: 2, unit: "week" });
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
+
+  it("provides a stable enlarged close-button hit area", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+
+    render(
+      <CustomRepeatDialog
+        open
+        onConfirm={vi.fn()}
+        onOpenChange={onOpenChange}
+      />,
+    );
+
+    const closeButton = screen.getByRole("button", { name: "关闭" });
+    expect(closeButton).toHaveAttribute("data-custom-repeat-close", "true");
+    expect(closeButton).toHaveClass("h-9", "w-9", "shrink-0");
+
+    await user.click(closeButton);
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
 });

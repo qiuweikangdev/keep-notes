@@ -1318,3 +1318,51 @@ select {
   > .git-panel-tooltip__content {
   transform: translateY(2px);
 }
+
+/* 浮窗空白区域交给 Electron 原生拖拽，交互控件继续接收鼠标事件。 */
+[data-reminder-list-dialog="true"][data-floating-window="true"] {
+  -webkit-app-region: drag;
+}
+
+[data-reminder-scroll-region="true"] {
+  scrollbar-gutter: stable;
+}
+
+[data-reminder-list-dialog="true"][data-floating-window="true"]
+  :is(
+    button,
+    input,
+    textarea,
+    select,
+    a,
+    [contenteditable="true"],
+    [data-reminder-scroll-region="true"]
+  ) {
+  -webkit-app-region: no-drag;
+}
+
+[data-reminder-editor-dialog="true"][data-floating-window="true"] {
+  -webkit-app-region: no-drag;
+}
+
+[data-reminder-editor-drag-region="true"] {
+  -webkit-app-region: drag;
+}
+
+[data-reminder-editor-dialog="true"][data-floating-window="true"]
+  :is(
+    button,
+    input,
+    textarea,
+    select,
+    a,
+    [contenteditable="true"],
+    [data-reminder-editor-interactive-region="true"]
+  ) {
+  -webkit-app-region: no-drag;
+}
+
+[data-custom-repeat-dialog="true"] {
+  -webkit-app-region: no-drag;
+  pointer-events: auto;
+}

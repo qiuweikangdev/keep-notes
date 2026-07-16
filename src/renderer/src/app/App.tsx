@@ -16,6 +16,8 @@ import { useUIStore } from "@/store/ui.store";
 import { useShortcutsStore } from "@/store/shortcuts.store";
 import { useReminderStore } from "@/store/reminder.store";
 import { APP_BEHAVIOR_CONFIG } from "@/config/app-behavior";
+import { useTheme } from "@/hooks/use-theme";
+import { showAppToast } from "@/lib/app-toast";
 
 const CODE_BLOCK_CURSOR_VISUAL_WIDTH = 2;
 
@@ -42,6 +44,16 @@ function eventToKeyString(e: KeyboardEvent): string | null {
 }
 
 export function App() {
+  const windowType = new URLSearchParams(window.location.search).get("window");
+
+  if (windowType === "reminders") return <ReminderWindowApplication />;
+  if (windowType === "reminder-editor") {
+    return <ReminderEditorWindowApplication />;
+  }
+  return <MainApplication />;
+}
+
+function MainApplication() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const appearance = useEditorStore((s) => s.appearance);
   const isSettingsOpen = useUIStore((state) => state.isSettingsOpen);
@@ -52,6 +64,13 @@ export function App() {
   );
   const subscribeToReminderTriggers = useReminderStore(
     (s) => s.subscribeToReminderTriggers,
+  );
+
+  const reminderShortcutKeys = useMemo(
+    () =>
+      shortcuts.find((shortcut) => shortcut.id === "openReminderWindow")
+        ?.keys ?? [],
+    [shortcuts],
   );
 
   // 初始化键盘快捷键
@@ -142,6 +161,21 @@ export function App() {
     };
   }, [loadReminders, subscribeToReminderChanges, subscribeToReminderTriggers]);
 
+  useEffect(() => {
+    const setGlobalShortcut = window.electronAPI?.setReminderGlobalShortcut;
+    if (!setGlobalShortcut) return;
+
+    let isActive = true;
+    void setGlobalShortcut(reminderShortcutKeys).then((result) => {
+      if (!isActive || result.success) return;
+      showAppToast("提醒事项快捷键被系统或其他应用占用，请重新配置");
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [reminderShortcutKeys]);
+
   // 监听来自菜单的搜索事件
   useEffect(() => {
     const handleOpenSearch = () => setIsSearchOpen(true);
@@ -182,6 +216,95 @@ export function App() {
           ) : null}
           <ExportController />
           <ExportSuccessToast />
+        </div>
+      </DragResizeProvider>
+    </Tooltip.Provider>
+  );
+}
+
+function ReminderWindowApplication() {
+  const [viewKey, setViewKey] = useState(0);
+  const loadReminders = useReminderStore((state) => state.loadReminders);
+  const subscribeToReminderChanges = useReminderStore(
+    (state) => state.subscribeToReminderChanges,
+  );
+  const openList = useReminderStore((state) => state.openList);
+
+  // 独立浮窗使用与主应用相同的主题，并保持透明窗口背景。
+  useTheme({ transparentBackground: true });
+
+  useEffect(() => {
+    openList();
+    void loadReminders();
+    const unsubscribeChanges = subscribeToReminderChanges();
+    const unsubscribeShown = window.electronAPI.onReminderWindowShown?.(() => {
+      setViewKey((current) => current + 1);
+      openList();
+    });
+
+    return () => {
+      unsubscribeChanges();
+      unsubscribeShown?.();
+    };
+  }, [loadReminders, openList, subscribeToReminderChanges]);
+
+  return (
+    <Tooltip.Provider delayDuration={300}>
+      <DragResizeProvider>
+        <div className="h-screen w-screen overflow-hidden bg-transparent">
+          <ReminderListDialog
+            key={viewKey}
+            presentation="floating-window"
+            onRequestClose={() => window.electronAPI.hideReminderWindow?.()}
+          />
+        </div>
+      </DragResizeProvider>
+    </Tooltip.Provider>
+  );
+}
+
+function ReminderEditorWindowApplication() {
+  const [initialized, setInitialized] = useState(false);
+  const loadReminders = useReminderStore((state) => state.loadReminders);
+  const isEditorOpen = useReminderStore((state) => state.isEditorOpen);
+  const openCreateDialog = useReminderStore((state) => state.openCreateDialog);
+  const openEditDialog = useReminderStore((state) => state.openEditDialog);
+  const reminderId = useMemo(
+    () => new URLSearchParams(window.location.search).get("reminderId"),
+    [],
+  );
+
+  useTheme({ transparentBackground: true });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void loadReminders().then(() => {
+      if (cancelled) return;
+      if (reminderId) {
+        openEditDialog(reminderId);
+      } else {
+        openCreateDialog();
+      }
+      setInitialized(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadReminders, openCreateDialog, openEditDialog, reminderId]);
+
+  useEffect(() => {
+    if (initialized && !isEditorOpen) {
+      window.electronAPI.closeReminderEditorWindow();
+    }
+  }, [initialized, isEditorOpen]);
+
+  return (
+    <Tooltip.Provider delayDuration={300}>
+      <DragResizeProvider>
+        <div className="h-screen w-screen overflow-hidden bg-transparent">
+          <ReminderEditorDialog presentation="floating-window" />
         </div>
       </DragResizeProvider>
     </Tooltip.Provider>

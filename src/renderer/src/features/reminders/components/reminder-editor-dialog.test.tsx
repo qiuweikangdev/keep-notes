@@ -168,6 +168,53 @@ describe("ReminderEditorDialog", () => {
     expect(screen.getByRole("button", { name: /每天/ })).toBeInTheDocument();
   });
 
+  it("closes repeat options when clicking elsewhere in the editor", async () => {
+    const user = userEvent.setup();
+    render(<ReminderEditorDialog presentation="floating-window" />);
+
+    await user.click(screen.getByRole("button", { name: /永不/ }));
+    expect(screen.getByRole("button", { name: "每小时" })).toBeInTheDocument();
+
+    const settingsGroup = screen.getByTestId("reminder-settings-group");
+    expect(settingsGroup.parentElement).toHaveAttribute(
+      "data-reminder-editor-interactive-region",
+      "true",
+    );
+    await user.click(screen.getByText("日期"));
+
+    expect(
+      screen.queryByRole("button", { name: "每小时" }),
+    ).not.toBeInTheDocument();
+    expect(useReminderStore.getState().isEditorOpen).toBe(true);
+  });
+
+  it("limits native window dragging to the floating editor header", () => {
+    render(<ReminderEditorDialog presentation="floating-window" />);
+
+    const heading = screen.getByRole("heading", { name: "新建提醒事项" });
+    const dialog = screen.getByRole("dialog", { name: "新建提醒事项" });
+
+    expect(dialog).toHaveAttribute("data-floating-window", "true");
+    expect(
+      heading.closest('[data-reminder-editor-drag-region="true"]'),
+    ).toBeInTheDocument();
+  });
+
+  it("closes repeat options when the editor window loses focus", async () => {
+    const user = userEvent.setup();
+    render(<ReminderEditorDialog presentation="floating-window" />);
+
+    await user.click(screen.getByRole("button", { name: /永不/ }));
+    expect(screen.getByRole("button", { name: "每小时" })).toBeInTheDocument();
+
+    act(() => window.dispatchEvent(new Event("blur")));
+
+    expect(
+      screen.queryByRole("button", { name: "每小时" }),
+    ).not.toBeInTheDocument();
+    expect(useReminderStore.getState().isEditorOpen).toBe(true);
+  });
+
   it("uses normal weight for repeat menu options", async () => {
     const user = userEvent.setup();
     render(<ReminderEditorDialog />);

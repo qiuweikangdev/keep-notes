@@ -20,6 +20,7 @@ import type {
   ReminderInput,
   SaveImageAttachmentInput,
   SaveImageAttachmentResult,
+  ShortcutRegistrationResult,
   NotificationChannelType,
   NotificationConfig,
   ExportConfig,
@@ -122,6 +123,16 @@ export interface ElectronAPI {
   completeReminder: (id: string) => Promise<Reminder>;
   onRemindersChanged: (callback: (reminders: Reminder[]) => void) => () => void;
   onReminderTriggered: (callback: (reminder: Reminder) => void) => () => void;
+  setReminderGlobalShortcut: (
+    keys: string[],
+  ) => Promise<ShortcutRegistrationResult>;
+  showReminderWindow: () => void;
+  hideReminderWindow: () => void;
+  resizeReminderWindow: (height: number) => void;
+  showReminderEditorWindow: (reminderId?: string) => void;
+  resizeReminderEditorWindow: (height: number) => void;
+  closeReminderEditorWindow: () => void;
+  onReminderWindowShown: (callback: () => void) => () => void;
   // Notification
   getNotificationConfig: () => Promise<NotificationConfig>;
   setNotificationConfig: (config: NotificationConfig) => Promise<void>;

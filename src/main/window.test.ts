@@ -58,6 +58,7 @@ const BrowserWindowMock = vi.hoisted(() =>
         send: vi.fn(),
       },
       on: vi.fn(),
+      once: vi.fn(),
       loadFile: vi.fn(),
       loadURL: vi.fn(),
       isDestroyed: vi.fn(() => false),

@@ -10,6 +10,7 @@ import { initializeReminderIpc } from "./ipc/reminder.ipc";
 import { initializeNotificationIpc } from "./ipc/notification.ipc";
 import { initializeExportIpc } from "./ipc/export.ipc";
 import { registerWindowsZoomInShortcut } from "./zoom-shortcuts";
+import { disposeReminderWindow } from "./reminder-window";
 
 const APP_ID = "com.keep-notes";
 const APP_NAME = "Keep Notes";
@@ -70,4 +71,8 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+app.on("will-quit", () => {
+  disposeReminderWindow();
 });
