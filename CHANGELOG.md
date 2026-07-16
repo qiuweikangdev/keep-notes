@@ -1,3 +1,45 @@
+# [2.13.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.12.0...v2.13.0) (2026-07-16)
+
+
+### Bug Fixes
+
+* allow dialogs to resize beyond defaults ([d6971c5](https://github.com/qiuweikangdev/keep-notes/commit/d6971c530acc681a7a5318c8b818d5936a4723c4))
+* avoid duplicate delete confirmation ([f45bd68](https://github.com/qiuweikangdev/keep-notes/commit/f45bd68ea5806c49db46025c8f33a957f60a1263))
+* harden draft close save bridge ([af29ca6](https://github.com/qiuweikangdev/keep-notes/commit/af29ca649823f801e2655540d48a2d288552ebfe))
+* improve code cursor and popover visibility ([c9b3302](https://github.com/qiuweikangdev/keep-notes/commit/c9b3302acc622c1a4b140486ca810263f6db99da))
+* increase code block cursor contrast ([8ece722](https://github.com/qiuweikangdev/keep-notes/commit/8ece722fb53dad34f34ffbb0e01083c052b3285f))
+* isolate window close state ([cf0ca29](https://github.com/qiuweikangdev/keep-notes/commit/cf0ca29ce9696acf0ca0baa3b697449c1bed1300))
+* keep code block cursor visible ([c5c4ffe](https://github.com/qiuweikangdev/keep-notes/commit/c5c4ffe72cd3bdba742d009f1db3f6300de05b2d))
+* preserve code block cursor focus ([d164908](https://github.com/qiuweikangdev/keep-notes/commit/d164908a75431394f40cb48a13a047e17e01d12d))
+* preserve code cursor width across zoom ([47811f5](https://github.com/qiuweikangdev/keep-notes/commit/47811f54ccd3072983a3943385a34041632853b7))
+* preserve edited untitled tabs ([981756c](https://github.com/qiuweikangdev/keep-notes/commit/981756c49bf162f70f1b2254c320dccac4ff8f05))
+* preserve nested quote lists ([6ffa2bf](https://github.com/qiuweikangdev/keep-notes/commit/6ffa2bf61de5cf0b2dfcc7671d8e0c6436fe60cb))
+* preserve parent quote side menu hover ([c16c54c](https://github.com/qiuweikangdev/keep-notes/commit/c16c54c831c47cdde42df6e2b6ec99e1f8b3f498))
+* prevent git dialog drag offset ([2245e7c](https://github.com/qiuweikangdev/keep-notes/commit/2245e7cae7c5ff1b812a2214f6b8526c92e658f4))
+* refine reminder editor backdrop and hover ([90cf386](https://github.com/qiuweikangdev/keep-notes/commit/90cf3860422d785ee2c4458e68cd3f46e6ac7e05))
+* route file drops from rich editor panes ([fcb096e](https://github.com/qiuweikangdev/keep-notes/commit/fcb096ee56038c765aded221b20f9a5f8c8bff76))
+* save untitled drafts before closing ([46a99e4](https://github.com/qiuweikangdev/keep-notes/commit/46a99e49de97ae71eee92c8fa3260dbbbdbd1eca))
+* show cursor in empty code blocks ([f9dea24](https://github.com/qiuweikangdev/keep-notes/commit/f9dea24fda4eec6d0119afe3142c36379886a3dd))
+* stabilize block drag targets across editor surfaces ([4c10bfc](https://github.com/qiuweikangdev/keep-notes/commit/4c10bfcc16d5566098225f11db07f30024004298))
+* track dirty drafts across tabs ([a77b341](https://github.com/qiuweikangdev/keep-notes/commit/a77b34158f81b741624732d407d44694f1a223d9))
+* validate close save snapshots ([956f50a](https://github.com/qiuweikangdev/keep-notes/commit/956f50a1e8bc27e126fd0b8eb52d47b46c6064e7))
+
+
+### Features
+
+* file tree sort ([87597e6](https://github.com/qiuweikangdev/keep-notes/commit/87597e6cd439594a293301d6a5872c69874dfe99))
+* make settings dialog responsive ([3be1158](https://github.com/qiuweikangdev/keep-notes/commit/3be1158ef46cde6bef111f0ebd56c3a480c2c283))
+* move deleted files to system trash ([e61b381](https://github.com/qiuweikangdev/keep-notes/commit/e61b38113210f1a906a50f55ab0c486444d49e21))
+* optimize git pop-up ([8e7ba8b](https://github.com/qiuweikangdev/keep-notes/commit/8e7ba8ba387dd7c1b01c694f6f726db15ef7ff6a))
+* resize and drag git dialog ([1f724ff](https://github.com/qiuweikangdev/keep-notes/commit/1f724fff0c7bd5adb76950093fc023194b62cb6f))
+* share dialog drag and resize behavior ([962aac9](https://github.com/qiuweikangdev/keep-notes/commit/962aac9d1f8db4901717cfb409565ecfde3cbbd1))
+
+
+## Commit Summary
+
+- Compared with: v2.12.0
+- Total commits: 44
+
 # [2.12.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.11.0...v2.12.0) (2026-07-14)
 
 
