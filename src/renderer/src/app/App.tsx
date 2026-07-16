@@ -235,6 +235,7 @@ function ReminderWindowApplication() {
 
   useEffect(() => {
     openList();
+    window.electronAPI.prewarmReminderEditorWindow?.();
     void loadReminders();
     const unsubscribeChanges = subscribeToReminderChanges();
     const unsubscribeShown = window.electronAPI.onReminderWindowShown?.(() => {

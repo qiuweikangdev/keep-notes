@@ -44,8 +44,16 @@ export const reminderApi = {
     ipcRenderer.send(IPC_CHANNELS.REMINDER.HIDE_WINDOW);
   },
 
+  returnToMainWindow: (): void => {
+    ipcRenderer.send(IPC_CHANNELS.REMINDER.RETURN_TO_MAIN_WINDOW);
+  },
+
   resizeReminderWindow: (height: number): void => {
     ipcRenderer.send(IPC_CHANNELS.REMINDER.RESIZE_WINDOW, height);
+  },
+
+  prewarmReminderEditorWindow: (): void => {
+    ipcRenderer.send(IPC_CHANNELS.REMINDER.PREWARM_EDITOR_WINDOW);
   },
 
   showReminderEditorWindow: (reminderId?: string): void => {

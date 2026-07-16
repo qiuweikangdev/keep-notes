@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   checkAndCloseWindow,
   createWindow,
+  focusMainWindow,
   openPathInNewWindow,
   resolveWindowOpenTarget,
   saveAndClose,
@@ -62,8 +63,11 @@ const BrowserWindowMock = vi.hoisted(() =>
       loadFile: vi.fn(),
       loadURL: vi.fn(),
       isDestroyed: vi.fn(() => false),
+      isMinimized: vi.fn(() => false),
       destroy: vi.fn(),
+      restore: vi.fn(),
       show: vi.fn(),
+      focus: vi.fn(),
     };
   }),
 );
@@ -142,6 +146,17 @@ describe("createWindow", () => {
         icon: "mock-icon.png",
       }),
     );
+  });
+
+  it("restores and focuses the latest main application window", () => {
+    const win = createWindow();
+    vi.mocked(win.isMinimized).mockReturnValue(true);
+
+    focusMainWindow();
+
+    expect(win.restore).toHaveBeenCalledOnce();
+    expect(win.show).toHaveBeenCalledOnce();
+    expect(win.focus).toHaveBeenCalledOnce();
   });
 });
 

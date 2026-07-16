@@ -6,12 +6,14 @@ import {
   configureReminderGlobalShortcuts,
   closeReminderEditorWindow,
   hideReminderWindow,
+  prewarmReminderEditorWindow,
   resizeReminderEditorWindow,
   resizeReminderWindow,
   showReminderEditorWindow,
   showReminderWindow,
 } from "../reminder-window";
 import { getBrowserWindow } from "../utils";
+import { focusMainWindow } from "../window";
 
 function broadcastReminders(): void {
   const reminders = reminderService.getSnapshot();
@@ -85,8 +87,17 @@ export function registerReminderIpc(): void {
     hideReminderWindow();
   });
 
+  ipcMain.on(IPC_CHANNELS.REMINDER.RETURN_TO_MAIN_WINDOW, () => {
+    hideReminderWindow();
+    focusMainWindow();
+  });
+
   ipcMain.on(IPC_CHANNELS.REMINDER.RESIZE_WINDOW, (event, height: unknown) => {
     resizeReminderWindow(getBrowserWindow(event), height);
+  });
+
+  ipcMain.on(IPC_CHANNELS.REMINDER.PREWARM_EDITOR_WINDOW, () => {
+    prewarmReminderEditorWindow();
   });
 
   ipcMain.on(

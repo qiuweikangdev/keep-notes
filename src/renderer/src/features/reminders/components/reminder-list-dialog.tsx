@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Bell, CheckCircle2, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import {
+  Bell,
+  CheckCircle2,
+  Pencil,
+  PictureInPicture2,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ContextMenu } from "@/components/ui/context-menu";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -234,6 +242,20 @@ export function ReminderListDialog({
                 >
                   <Plus aria-hidden="true" className="h-4 w-4" />
                 </button>
+                {isFloatingWindow ? (
+                  <button
+                    aria-label="返回应用"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-color)]"
+                    title="返回应用"
+                    type="button"
+                    onClick={() => window.electronAPI.returnToMainWindow()}
+                  >
+                    <PictureInPicture2
+                      aria-hidden="true"
+                      className="h-3.5 w-3.5"
+                    />
+                  </button>
+                ) : null}
               </div>
               <Tabs.List
                 aria-label="提醒事项筛选"

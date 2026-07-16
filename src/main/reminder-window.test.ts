@@ -3,6 +3,7 @@ import {
   configureReminderGlobalShortcuts,
   closeReminderEditorWindow,
   disposeReminderWindow,
+  prewarmReminderEditorWindow,
   resizeReminderEditorWindow,
   resizeReminderWindow,
   showReminderEditorWindow,
@@ -14,6 +15,7 @@ const electronMocks = vi.hoisted(() => {
 
   class MockBrowserWindow {
     private destroyed = false;
+    private visible = false;
     private bounds: Electron.Rectangle;
     readonly options: Electron.BrowserWindowConstructorOptions;
     readonly handlers = new Map<string, Handler>();
@@ -24,14 +26,22 @@ const electronMocks = vi.hoisted(() => {
       this.bounds = { ...bounds };
     });
     readonly setAlwaysOnTop = vi.fn();
-    readonly show = vi.fn();
+    readonly show = vi.fn(() => {
+      this.visible = true;
+    });
     readonly focus = vi.fn();
-    readonly hide = vi.fn();
+    readonly hide = vi.fn(() => {
+      this.visible = false;
+    });
+    readonly isVisible = vi.fn(() => this.visible);
     readonly destroy = vi.fn(() => {
       this.destroyed = true;
       this.handlers.get("closed")?.();
     });
     readonly once = vi.fn((event: string, handler: Handler) => {
+      this.handlers.set(event, handler);
+    });
+    readonly on = vi.fn((event: string, handler: Handler) => {
       this.handlers.set(event, handler);
     });
     readonly loadURL = vi.fn(async () => {
@@ -183,6 +193,27 @@ describe("reminder window global shortcut", () => {
     expect(electronMocks.windows[0].setBounds).not.toHaveBeenCalled();
   });
 
+  it("hides the reminder list when its native window loses focus", () => {
+    showReminderWindow();
+    const win = electronMocks.windows[0];
+    win.hide.mockClear();
+
+    win.handlers.get("blur")?.();
+
+    expect(win.hide).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the reminder list visible while its editor child has focus", () => {
+    showReminderWindow();
+    showReminderEditorWindow();
+    const listWindow = electronMocks.windows[0];
+    listWindow.hide.mockClear();
+
+    listWindow.handlers.get("blur")?.();
+
+    expect(listWindow.hide).not.toHaveBeenCalled();
+  });
+
   it("opens a separate content-sized reminder editor window", () => {
     const editorWindow = showReminderEditorWindow();
     const win = electronMocks.windows[0];
@@ -211,6 +242,32 @@ describe("reminder window global shortcut", () => {
 
     closeReminderEditorWindow(editorWindow);
     expect(win.destroy).toHaveBeenCalled();
+  });
+
+  it("reuses a prewarmed editor window for instant reminder creation", () => {
+    const prewarmedWindow = prewarmReminderEditorWindow();
+    const win = electronMocks.windows[0];
+
+    expect(win.show).not.toHaveBeenCalled();
+
+    const shownWindow = showReminderEditorWindow();
+
+    expect(shownWindow).toBe(prewarmedWindow);
+    expect(electronMocks.windows).toHaveLength(1);
+    expect(win.show).toHaveBeenCalledOnce();
+    expect(win.focus).toHaveBeenCalledOnce();
+  });
+
+  it("closes the editor on native blur and prepares the next editor", () => {
+    showReminderWindow();
+    showReminderEditorWindow();
+    const editorWindow = electronMocks.windows[1];
+
+    editorWindow.handlers.get("blur")?.();
+
+    expect(editorWindow.destroy).toHaveBeenCalledOnce();
+    expect(electronMocks.windows).toHaveLength(3);
+    expect(electronMocks.windows[2].show).not.toHaveBeenCalled();
   });
 
   it("layers the reminder editor over the centered reminder list", () => {

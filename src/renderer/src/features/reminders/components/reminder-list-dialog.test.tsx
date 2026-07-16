@@ -393,4 +393,43 @@ describe("ReminderListDialog", () => {
       }
     }
   });
+
+  it("returns to the main application from the floating header", async () => {
+    const user = userEvent.setup();
+    const previousElectronApi = Object.getOwnPropertyDescriptor(
+      window,
+      "electronAPI",
+    );
+    const returnToMainWindow = vi.fn();
+
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: {
+        ...window.electronAPI,
+        returnToMainWindow,
+      },
+    });
+
+    try {
+      render(<ReminderListDialog presentation="floating-window" />);
+      const createButton = screen.getByRole("button", {
+        name: "新建提醒事项",
+      });
+      const returnButton = screen.getByRole("button", { name: "返回应用" });
+      await user.click(returnButton);
+
+      expect(returnToMainWindow).toHaveBeenCalledOnce();
+      expect(
+        createButton.compareDocumentPosition(returnButton) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(returnButton.querySelector("svg")).toHaveClass("h-3.5", "w-3.5");
+    } finally {
+      if (previousElectronApi) {
+        Object.defineProperty(window, "electronAPI", previousElectronApi);
+      } else {
+        Reflect.deleteProperty(window, "electronAPI");
+      }
+    }
+  });
 });

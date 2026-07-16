@@ -128,7 +128,9 @@ export interface ElectronAPI {
   ) => Promise<ShortcutRegistrationResult>;
   showReminderWindow: () => void;
   hideReminderWindow: () => void;
+  returnToMainWindow: () => void;
   resizeReminderWindow: (height: number) => void;
+  prewarmReminderEditorWindow: () => void;
   showReminderEditorWindow: (reminderId?: string) => void;
   resizeReminderEditorWindow: (height: number) => void;
   closeReminderEditorWindow: () => void;

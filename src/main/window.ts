@@ -102,6 +102,20 @@ export function createWindow(initialTarget?: WindowOpenTarget): BrowserWindow {
   return win;
 }
 
+export function focusMainWindow(): void {
+  const windows = [...mainWindows];
+  const win = windows
+    .toReversed()
+    .find((candidate) => !candidate.isDestroyed());
+
+  if (!win) return;
+
+  // 从提醒浮窗返回时恢复最靠后的应用窗口，并把它带回前台。
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
+
 export async function resolveWindowOpenTarget(
   targetPath: string,
   stat: typeof fs.promises.stat = fs.promises.stat,

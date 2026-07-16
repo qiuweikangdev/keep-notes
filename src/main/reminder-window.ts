@@ -19,6 +19,8 @@ const MAX_GLOBAL_SHORTCUTS = 4;
 
 let reminderWindow: BrowserWindow | null = null;
 let reminderEditorWindow: BrowserWindow | null = null;
+let reminderEditorWindowReady = false;
+let shouldRevealReminderEditorWindow = false;
 let registeredShortcutKeys: string[] = [];
 let shouldCenterNextResize = true;
 
@@ -168,11 +170,10 @@ function loadReminderEditorWindow(
   });
 }
 
-export function showReminderEditorWindow(reminderId?: string): BrowserWindow {
-  if (reminderEditorWindow && !reminderEditorWindow.isDestroyed()) {
-    reminderEditorWindow.destroy();
-  }
-
+function createReminderEditorWindow(
+  reminderId: string | undefined,
+  revealWhenReady: boolean,
+): BrowserWindow {
   const parentWindow =
     reminderWindow && !reminderWindow.isDestroyed() ? reminderWindow : null;
   const win = new BrowserWindow({
@@ -197,16 +198,66 @@ export function showReminderEditorWindow(reminderId?: string): BrowserWindow {
   });
 
   reminderEditorWindow = win;
+  reminderEditorWindowReady = false;
+  shouldRevealReminderEditorWindow = revealWhenReady;
   win.once("ready-to-show", () => {
-    if (win.isDestroyed()) return;
-    win.setAlwaysOnTop(true, "floating");
-    win.show();
-    win.focus();
+    if (win !== reminderEditorWindow || win.isDestroyed()) return;
+    reminderEditorWindowReady = true;
+    if (shouldRevealReminderEditorWindow) revealReminderEditorWindow(win);
+  });
+  win.on("blur", () => {
+    if (win !== reminderEditorWindow || win.isDestroyed()) return;
+    closeReminderEditorWindow(win);
   });
   win.once("closed", () => {
-    if (reminderEditorWindow === win) reminderEditorWindow = null;
+    if (reminderEditorWindow !== win) return;
+    reminderEditorWindow = null;
+    reminderEditorWindowReady = false;
+    shouldRevealReminderEditorWindow = false;
   });
   loadReminderEditorWindow(win, reminderId);
+
+  return win;
+}
+
+function revealReminderEditorWindow(win: BrowserWindow): void {
+  if (win !== reminderEditorWindow || win.isDestroyed()) return;
+
+  const currentBounds = win.getBounds();
+  const targetBounds = getReminderEditorWindowBounds();
+  win.setBounds({ ...targetBounds, height: currentBounds.height });
+  win.setAlwaysOnTop(true, "floating");
+  win.show();
+  win.focus();
+}
+
+function destroyReminderEditorWindow(): void {
+  const win = reminderEditorWindow;
+  reminderEditorWindow = null;
+  reminderEditorWindowReady = false;
+  shouldRevealReminderEditorWindow = false;
+
+  if (win && !win.isDestroyed()) win.destroy();
+}
+
+export function prewarmReminderEditorWindow(): BrowserWindow {
+  if (reminderEditorWindow && !reminderEditorWindow.isDestroyed()) {
+    return reminderEditorWindow;
+  }
+
+  // 列表打开后后台加载创建表单，用户点击“+”时只需显示已就绪窗口。
+  return createReminderEditorWindow(undefined, false);
+}
+
+export function showReminderEditorWindow(reminderId?: string): BrowserWindow {
+  if (reminderId) {
+    destroyReminderEditorWindow();
+    return createReminderEditorWindow(reminderId, true);
+  }
+
+  const win = prewarmReminderEditorWindow();
+  shouldRevealReminderEditorWindow = true;
+  if (reminderEditorWindowReady) revealReminderEditorWindow(win);
 
   return win;
 }
@@ -244,10 +295,13 @@ export function resizeReminderEditorWindow(
 
 export function closeReminderEditorWindow(win?: BrowserWindow | null): void {
   if (win && win !== reminderEditorWindow) return;
-  if (reminderEditorWindow && !reminderEditorWindow.isDestroyed()) {
-    reminderEditorWindow.destroy();
-  }
-  reminderEditorWindow = null;
+  const shouldPrewarm =
+    reminderWindow !== null &&
+    !reminderWindow.isDestroyed() &&
+    reminderWindow.isVisible();
+
+  destroyReminderEditorWindow();
+  if (shouldPrewarm) prewarmReminderEditorWindow();
 }
 
 export function showReminderWindow(): BrowserWindow {
@@ -278,6 +332,15 @@ export function showReminderWindow(): BrowserWindow {
   });
 
   reminderWindow = win;
+  win.on("blur", () => {
+    const editorIsVisible =
+      reminderEditorWindow !== null &&
+      !reminderEditorWindow.isDestroyed() &&
+      reminderEditorWindow.isVisible();
+
+    // 新建/编辑提醒是父浮窗上的子任务，切换到子浮窗时保留列表层级。
+    if (!editorIsVisible) hideReminderWindow();
+  });
   win.once("ready-to-show", () => revealReminderWindow(win));
   win.once("closed", () => {
     if (reminderWindow === win) {
@@ -297,6 +360,7 @@ export function hideReminderWindow(): void {
 }
 
 export function destroyReminderWindow(): void {
+  destroyReminderEditorWindow();
   if (reminderWindow && !reminderWindow.isDestroyed()) {
     reminderWindow.destroy();
   }
@@ -364,6 +428,5 @@ export function configureReminderGlobalShortcuts(
 export function disposeReminderWindow(): void {
   unregisterKeys(registeredShortcutKeys);
   registeredShortcutKeys = [];
-  closeReminderEditorWindow();
   destroyReminderWindow();
 }
