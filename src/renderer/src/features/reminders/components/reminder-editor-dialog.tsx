@@ -216,7 +216,11 @@ export function ReminderEditorDialog({
       if (contentHeight <= 0) return;
 
       const expandedHeight =
-        openPicker === "date" || isCustomOpen ? 620 : openPicker ? 520 : 0;
+        openPicker === "date" || openPicker === "repeat" || isCustomOpen
+          ? 620
+          : openPicker
+            ? 520
+            : 0;
       const windowHeight = Math.max(
         contentHeight + FLOATING_EDITOR_VERTICAL_MARGIN,
         expandedHeight,
@@ -416,6 +420,7 @@ export function ReminderEditorDialog({
                     <RepeatPickerControl
                       value={repeat}
                       open={openPicker === "repeat"}
+                      opensBelow={isFloatingWindow}
                       onOpenChange={(open) =>
                         setOpenPicker(open ? "repeat" : null)
                       }
@@ -733,6 +738,7 @@ function TimePickerColumn({ options, value, onSelect }: TimePickerColumnProps) {
 interface RepeatPickerControlProps {
   value: ReminderRepeatPreset;
   open: boolean;
+  opensBelow: boolean;
   onChange: (value: ReminderRepeatPreset) => void;
   onOpenChange: (open: boolean) => void;
 }
@@ -740,6 +746,7 @@ interface RepeatPickerControlProps {
 function RepeatPickerControl({
   value,
   open,
+  opensBelow,
   onChange,
   onOpenChange,
 }: RepeatPickerControlProps) {
@@ -771,7 +778,9 @@ function RepeatPickerControl({
       </button>
       {open ? (
         <div
-          className="absolute bottom-[calc(100%+8px)] right-0 z-[80] w-[184px] rounded-xl border p-2 shadow-lg"
+          className={`absolute ${
+            opensBelow ? "top-[calc(100%+8px)]" : "bottom-[calc(100%+8px)]"
+          } right-0 z-[80] w-[184px] rounded-xl border p-2 shadow-lg`}
           data-testid="reminder-repeat-menu"
           style={{
             backgroundColor: "var(--bg-primary)",

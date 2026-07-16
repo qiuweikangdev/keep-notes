@@ -16,6 +16,7 @@ describe("ReminderEditorDialog", () => {
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   beforeEach(() => {
@@ -255,8 +256,16 @@ describe("ReminderEditorDialog", () => {
     );
   });
 
-  it("keeps the bordered repeat menu above its trigger", async () => {
+  it("keeps the bordered repeat menu below its trigger in the floating window", async () => {
     const user = userEvent.setup();
+    const resizeReminderEditorWindow = vi.fn();
+    window.electronAPI = {
+      ...window.electronAPI,
+      resizeReminderEditorWindow,
+    };
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 0, 400, 400),
+    );
     render(<ReminderEditorDialog presentation="floating-window" />);
 
     await user.click(screen.getByRole("button", { name: /永不/ }));
@@ -264,7 +273,25 @@ describe("ReminderEditorDialog", () => {
     const menu = screen.getByTestId("reminder-repeat-menu");
     const options = menu.firstElementChild;
 
+    expect(menu).toHaveClass("top-[calc(100%+8px)]", "border", "shadow-lg");
+    expect(menu).not.toHaveClass("bottom-[calc(100%+8px)]");
+    expect(menu.style.backgroundColor).toBe("var(--bg-primary)");
+    expect(menu.style.borderColor).toBe("var(--border-color)");
+    expect(options).toHaveClass("max-h-[240px]", "overflow-y-auto");
+    expect(resizeReminderEditorWindow).toHaveBeenCalledWith(620);
+  });
+
+  it("keeps the bordered repeat menu above its trigger in the normal dialog", async () => {
+    const user = userEvent.setup();
+    render(<ReminderEditorDialog />);
+
+    await user.click(screen.getByRole("button", { name: /永不/ }));
+
+    const menu = screen.getByTestId("reminder-repeat-menu");
+    const options = menu.firstElementChild;
+
     expect(menu).toHaveClass("bottom-[calc(100%+8px)]", "border", "shadow-lg");
+    expect(menu).not.toHaveClass("top-[calc(100%+8px)]");
     expect(menu.style.backgroundColor).toBe("var(--bg-primary)");
     expect(menu.style.borderColor).toBe("var(--border-color)");
     expect(options).toHaveClass("max-h-[240px]", "overflow-y-auto");
