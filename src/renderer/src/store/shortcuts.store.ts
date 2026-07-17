@@ -106,15 +106,15 @@ function createDefaultShortcuts(
   const shortcuts: ShortcutConfig[] = [
     {
       id: "openReminderWindow",
-      name: "搜索提醒事项",
-      description: "在浮动小窗口中打开并搜索提醒事项",
+      name: "提醒事项浮窗",
+      description: "浮动小窗口中打开提醒事项",
       keys: ["CmdOrCtrl+Alt+R"],
       isSystem: true,
     },
     {
       id: "openQuickEditorWindow",
-      name: "打开快速编辑",
-      description: "在浮动小窗口中打开一个空白编辑器",
+      name: "编辑器浮窗",
+      description: "浮动小窗口中打开编辑器",
       keys: ["CmdOrCtrl+Alt+N"],
       isSystem: true,
     },
