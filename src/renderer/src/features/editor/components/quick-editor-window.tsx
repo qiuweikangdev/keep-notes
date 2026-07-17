@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { BlockNoteView } from "@blocknote/mantine";
 import { useCreateBlockNote, useEditorChange } from "@blocknote/react";
 import type { BlockNoteEditor as CoreBlockNoteEditor } from "@blocknote/core";
-import { PictureInPicture2, X } from "lucide-react";
+import { PictureInPicture2, Plus, X } from "lucide-react";
 import type { CloseSaveSnapshot } from "@shared/types";
 import { useTheme } from "@/hooks/use-theme";
 import { useEditorStore } from "@/store/editor.store";
@@ -179,6 +179,15 @@ export function QuickEditorWindow() {
       <header className="quick-editor-window__titlebar">
         <div className="quick-editor-window__drag-region" aria-hidden="true" />
         <div className="quick-editor-window__actions">
+          <button
+            aria-label="新建浮窗编辑器"
+            className="quick-editor-window__action"
+            title="新建浮窗编辑器"
+            type="button"
+            onClick={() => window.electronAPI.createQuickEditorWindow()}
+          >
+            <Plus aria-hidden="true" className="h-4 w-4" />
+          </button>
           <button
             aria-label="返回应用"
             className="quick-editor-window__action"

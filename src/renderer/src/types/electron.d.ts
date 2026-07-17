@@ -139,6 +139,7 @@ export interface ElectronAPI {
     keys: string[],
   ) => Promise<ShortcutRegistrationResult>;
   showQuickEditorWindow: () => void;
+  createQuickEditorWindow: () => void;
   closeQuickEditorWindow: () => void;
   returnToMainWindowFromQuickEditor: (content: string) => void;
   consumeQuickEditorContent: () => Promise<string | null>;

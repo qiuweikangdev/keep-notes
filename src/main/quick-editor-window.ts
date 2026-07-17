@@ -16,9 +16,10 @@ const MAX_GLOBAL_SHORTCUTS = 4;
 export const DEFAULT_QUICK_EDITOR_SHORTCUT = "CmdOrCtrl+Alt+N";
 
 let quickEditorWindow: BrowserWindow | null = null;
+const quickEditorWindows = new Set<BrowserWindow>();
 let registeredShortcutKeys: string[] = [];
-let closeInProgress = false;
-let pendingQuickEditorContent: string | null = null;
+const closingQuickEditorWindows = new Set<BrowserWindow>();
+const pendingQuickEditorContents: string[] = [];
 
 function toElectronAccelerator(key: string): string {
   return key
@@ -29,15 +30,27 @@ function toElectronAccelerator(key: string): string {
     .replace(/ArrowDown/g, "Down");
 }
 
-function getQuickEditorWindowBounds(): Electron.Rectangle {
+function getQuickEditorWindowBounds(
+  existingWindowCount: number,
+): Electron.Rectangle {
   const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
   const { workArea } = display;
   const width = Math.min(QUICK_EDITOR_WINDOW_WIDTH, workArea.width);
   const height = Math.min(QUICK_EDITOR_WINDOW_HEIGHT, workArea.height);
+  // 多个浮窗按级联偏移展示，避免新窗口完全遮住已有编辑器。
+  const offset = Math.min(existingWindowCount, 6) * 28;
+  const centeredX = Math.round(workArea.x + (workArea.width - width) / 2);
+  const centeredY = Math.round(workArea.y + (workArea.height - height) / 2);
 
   return {
-    x: Math.round(workArea.x + (workArea.width - width) / 2),
-    y: Math.round(workArea.y + (workArea.height - height) / 2),
+    x: Math.min(
+      Math.max(workArea.x, centeredX + offset),
+      workArea.x + workArea.width - width,
+    ),
+    y: Math.min(
+      Math.max(workArea.y, centeredY + offset),
+      workArea.y + workArea.height - height,
+    ),
     width,
     height,
   };
@@ -70,7 +83,11 @@ export function showQuickEditorWindow(): BrowserWindow {
     return quickEditorWindow;
   }
 
-  const bounds = getQuickEditorWindowBounds();
+  return createQuickEditorWindow();
+}
+
+export function createQuickEditorWindow(): BrowserWindow {
+  const bounds = getQuickEditorWindowBounds(quickEditorWindows.size);
   const win = new BrowserWindow({
     ...bounds,
     minWidth: QUICK_EDITOR_WINDOW_MIN_WIDTH,
@@ -94,8 +111,10 @@ export function showQuickEditorWindow(): BrowserWindow {
     },
   });
 
-  quickEditorWindow = win;
-  closeInProgress = false;
+  quickEditorWindows.add(win);
+  if (!quickEditorWindow || quickEditorWindow.isDestroyed()) {
+    quickEditorWindow = win;
+  }
 
   let hasRevealed = false;
   const revealWhenReady = () => {
@@ -112,20 +131,24 @@ export function showQuickEditorWindow(): BrowserWindow {
     if (win.isDestroyed()) return;
 
     event.preventDefault();
-    if (closeInProgress) return;
+    if (closingQuickEditorWindows.has(win)) return;
 
     // 关闭入口统一经过脏状态检查，避免标题栏按钮和系统快捷键产生不同行为。
-    closeInProgress = true;
+    closingQuickEditorWindows.add(win);
     void checkAndCloseWindow(win).finally(() => {
       if (!win.isDestroyed()) {
-        closeInProgress = false;
+        closingQuickEditorWindows.delete(win);
       }
     });
   });
 
   win.once("closed", () => {
-    if (quickEditorWindow === win) quickEditorWindow = null;
-    closeInProgress = false;
+    quickEditorWindows.delete(win);
+    closingQuickEditorWindows.delete(win);
+    if (quickEditorWindow === win) {
+      quickEditorWindow =
+        [...quickEditorWindows].find((window) => !window.isDestroyed()) ?? null;
+    }
   });
 
   loadQuickEditorWindow(win);
@@ -135,7 +158,7 @@ export function showQuickEditorWindow(): BrowserWindow {
 export function closeQuickEditorWindow(
   win: BrowserWindow | null = quickEditorWindow,
 ): void {
-  if (!win || win !== quickEditorWindow || win.isDestroyed()) return;
+  if (!win || !quickEditorWindows.has(win) || win.isDestroyed()) return;
   win.close();
 }
 
@@ -146,7 +169,7 @@ export function returnToMainWindowFromQuickEditor(
   if (
     typeof content !== "string" ||
     !win ||
-    win !== quickEditorWindow ||
+    !quickEditorWindows.has(win) ||
     win.isDestroyed()
   ) {
     return;
@@ -155,25 +178,25 @@ export function returnToMainWindowFromQuickEditor(
   const mainWindow = getMainWindow();
   if (!mainWindow) return;
 
-  // 主进程先保留草稿，主窗口切焦或热重载后仍能主动消费，不依赖一次性通知。
-  pendingQuickEditorContent = content;
+  // 每个浮窗独立入队，主窗口切焦或热重载后仍能按顺序消费草稿。
+  pendingQuickEditorContents.push(content);
   mainWindow.webContents.send(IPC_CHANNELS.QUICK_EDITOR.IMPORT_CONTENT);
-  destroyQuickEditorWindow();
+  win.destroy();
   focusMainWindow();
 }
 
 export function consumePendingQuickEditorContent(): string | null {
-  const content = pendingQuickEditorContent;
-  pendingQuickEditorContent = null;
-  return content;
+  return pendingQuickEditorContents.shift() ?? null;
 }
 
 export function destroyQuickEditorWindow(): void {
-  closeInProgress = false;
-  if (quickEditorWindow && !quickEditorWindow.isDestroyed()) {
-    quickEditorWindow.destroy();
-  }
+  const windows = [...quickEditorWindows];
+  quickEditorWindows.clear();
+  closingQuickEditorWindows.clear();
   quickEditorWindow = null;
+  windows.forEach((win) => {
+    if (!win.isDestroyed()) win.destroy();
+  });
 }
 
 function unregisterKeys(keys: string[]): void {
@@ -234,6 +257,6 @@ export function configureQuickEditorGlobalShortcuts(
 export function disposeQuickEditorWindow(): void {
   unregisterKeys(registeredShortcutKeys);
   registeredShortcutKeys = [];
-  pendingQuickEditorContent = null;
+  pendingQuickEditorContents.length = 0;
   destroyQuickEditorWindow();
 }

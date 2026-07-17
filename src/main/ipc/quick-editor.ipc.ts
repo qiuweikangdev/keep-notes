@@ -4,6 +4,7 @@ import {
   closeQuickEditorWindow,
   configureQuickEditorGlobalShortcuts,
   consumePendingQuickEditorContent,
+  createQuickEditorWindow,
   returnToMainWindowFromQuickEditor,
   showQuickEditorWindow,
 } from "../quick-editor-window";
@@ -26,6 +27,10 @@ export function registerQuickEditorIpc(): void {
 
   ipcMain.on(IPC_CHANNELS.QUICK_EDITOR.SHOW_WINDOW, () => {
     showQuickEditorWindow();
+  });
+
+  ipcMain.on(IPC_CHANNELS.QUICK_EDITOR.CREATE_WINDOW, () => {
+    createQuickEditorWindow();
   });
 
   ipcMain.on(IPC_CHANNELS.QUICK_EDITOR.CLOSE_WINDOW, (event) => {

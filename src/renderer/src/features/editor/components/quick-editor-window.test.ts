@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -90,7 +90,9 @@ describe("quick editor content detection", () => {
         removeListener: vi.fn(),
       })),
     );
+    const createQuickEditorWindow = vi.fn();
     vi.stubGlobal("electronAPI", {
+      createQuickEditorWindow,
       closeQuickEditorWindow: vi.fn(),
       returnToMainWindowFromQuickEditor: vi.fn(),
       updateDirtyState: vi.fn(),
@@ -101,5 +103,8 @@ describe("quick editor content detection", () => {
     expect(
       screen.getByRole("main", { name: "快速编辑器" }),
     ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "新建浮窗编辑器" }));
+    expect(createQuickEditorWindow).toHaveBeenCalledOnce();
   });
 });

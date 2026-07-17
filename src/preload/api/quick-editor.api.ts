@@ -39,6 +39,10 @@ export const quickEditorApi = {
     ipcRenderer.send(IPC_CHANNELS.QUICK_EDITOR.SHOW_WINDOW);
   },
 
+  createQuickEditorWindow: (): void => {
+    ipcRenderer.send(IPC_CHANNELS.QUICK_EDITOR.CREATE_WINDOW);
+  },
+
   closeQuickEditorWindow: (): void => {
     ipcRenderer.send(IPC_CHANNELS.QUICK_EDITOR.CLOSE_WINDOW);
   },

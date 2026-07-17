@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   configureQuickEditorGlobalShortcuts,
   consumePendingQuickEditorContent,
+  createQuickEditorWindow,
   disposeQuickEditorWindow,
   returnToMainWindowFromQuickEditor,
   showQuickEditorWindow,
@@ -154,6 +155,26 @@ describe("quick editor floating window", () => {
     );
     expect(win.show).toHaveBeenCalledTimes(2);
     expect(win.focus).toHaveBeenCalledTimes(2);
+  });
+
+  it("creates additional independent floating editors with offset bounds", () => {
+    const first = showQuickEditorWindow();
+    const second = createQuickEditorWindow();
+
+    expect(second).not.toBe(first);
+    expect(electronMocks.windows).toHaveLength(2);
+    expect(electronMocks.windows[1].options).toMatchObject({
+      x: 428,
+      y: 268,
+      width: 640,
+      height: 420,
+    });
+
+    returnToMainWindowFromQuickEditor("second draft", second);
+
+    expect(second.destroy).toHaveBeenCalledOnce();
+    expect(first.destroy).not.toHaveBeenCalled();
+    expect(consumePendingQuickEditorContent()).toBe("second draft");
   });
 
   it("checks unsaved content before closing", async () => {
