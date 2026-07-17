@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { randomUUID } from "node:crypto";
 import { basename, dirname, join, normalize, sep } from "node:path";
-import { dialog, shell } from "electron";
+import { shell } from "electron";
 import { CodeResult } from "../shared/types";
 import {
   deleteTreeNode,
@@ -229,18 +229,7 @@ export async function moveFileOrFolder(
     const isFile = sourceResult.isFile();
     const isTargetFile = targetResult.isFile();
 
-    const { response } = await dialog.showMessageBox({
-      type: "warning",
-      buttons: ["确定", "取消"],
-      title: "确认移动",
-      message: `确认将 ${basename(sourcePath)} 移动到 ${basename(targetPath)} 吗？`,
-      cancelId: -1,
-    });
-
-    if ([1, -1].includes(response)) {
-      return { code: CodeResult.Fail };
-    }
-
+    // 渲染进程已通过应用内对话框完成确认，主进程只负责执行移动。
     const newPath = isTargetFile
       ? join(dirname(targetPath), basename(sourcePath))
       : join(targetPath, basename(sourcePath));

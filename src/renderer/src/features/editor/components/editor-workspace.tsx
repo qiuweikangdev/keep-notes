@@ -12,6 +12,7 @@ import { useEditorStore } from "@/store/editor.store";
 import {
   editorCache,
   editorSaveCoordinator,
+  richDocumentSessionManager,
   subscribeToEditorFile,
 } from "../lib/editor-runtime";
 import { selectEditorWorkspaceSignature } from "../lib/editor-view-selectors";
@@ -26,12 +27,13 @@ import {
   type FindTextOptions,
 } from "../lib/find-in-file";
 import {
-  applyEditorFindHighlights,
   clearEditorFindHighlights,
   collectEditorFindRanges,
+  renderEditorFindHighlightFallback,
   selectEditorFindRanges,
   scrollRangeIntoView,
 } from "../lib/editor-find-highlights";
+import { editorFindController } from "../lib/editor-find-controller";
 import { EditorStateView } from "./editor-state-view";
 import { FindWidget } from "./find-widget";
 import { MarkdownSourceEditor } from "./markdown-source-editor";
@@ -135,16 +137,29 @@ export function EditorWorkspace({
       return;
     }
 
+    let clearFallbackHighlights = () => undefined;
     const frame = requestAnimationFrame(() => {
-      const root = editorRootRef.current;
+      // 完整富文本表面常驻 body，并通过 transform 移动到当前 pane；搜索必须读取真实表面而非 pane 内的预览副本。
+      const root =
+        (tabDocumentPath
+          ? richDocumentSessionManager.getRuntime(tabDocumentPath)?.surface
+          : null) ?? editorRootRef.current;
       if (!root) return;
       const ranges = collectEditorFindRanges(root, findQuery, findOptions);
-      applyEditorFindHighlights(ranges, activeFindIndex);
+      // Electron 在可移动的富文本表面中可能暴露 Highlight API 却不实际绘制，
+      // 覆盖层是唯一渲染来源，确保每个匹配项都能稳定显示。
+      clearEditorFindHighlights();
+      clearFallbackHighlights = renderEditorFindHighlightFallback(
+        root,
+        ranges,
+        activeFindIndex,
+      );
       scrollRangeIntoView(ranges[activeFindIndex]);
     });
 
     return () => {
       cancelAnimationFrame(frame);
+      clearFallbackHighlights();
     };
   }, [
     activeFindIndex,
@@ -152,6 +167,7 @@ export function EditorWorkspace({
     findQuery,
     isFindOpen,
     tabContent,
+    tabDocumentPath,
     tabMode,
   ]);
 
@@ -208,6 +224,10 @@ export function EditorWorkspace({
   const openFindWidget = useCallback(() => {
     setIsFindOpen(true);
   }, []);
+
+  useEffect(() => {
+    return editorFindController.register(groupId, tabId, openFindWidget);
+  }, [groupId, openFindWidget, tabId]);
 
   const closeFindWidget = useCallback(() => {
     setIsFindOpen(false);
@@ -302,11 +322,14 @@ export function EditorWorkspace({
       return;
     }
 
-    const root = editorRootRef.current;
+    const root =
+      (tabDocumentPath
+        ? richDocumentSessionManager.getRuntime(tabDocumentPath)?.surface
+        : null) ?? editorRootRef.current;
     if (!root) return;
     const ranges = collectEditorFindRanges(root, findQuery, findOptions);
     selectEditorFindRanges(ranges);
-  }, [findOptions, findQuery, rawMatches, tabMode]);
+  }, [findOptions, findQuery, rawMatches, tabDocumentPath, tabMode]);
 
   if (!tab) {
     return <EditorStateView status="empty" />;

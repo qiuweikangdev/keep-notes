@@ -1,9 +1,14 @@
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { Trash2 } from "lucide-react";
+import {
+  CircleAlert,
+  Trash2,
+  TriangleAlert,
+  type LucideIcon,
+} from "lucide-react";
 import { useRef, type MouseEvent } from "react";
 
-type ConfirmDialogVariant = "default" | "danger";
+type ConfirmDialogVariant = "default" | "warning" | "danger";
 
 function stopPortalClick(event: MouseEvent) {
   event.stopPropagation();
@@ -17,6 +22,7 @@ interface ConfirmDialogProps {
   confirmText?: string;
   cancelText?: string;
   variant?: ConfirmDialogVariant;
+  icon?: LucideIcon;
   onConfirm: () => void | Promise<void>;
 }
 
@@ -28,10 +34,20 @@ export function ConfirmDialog({
   confirmText = "确认",
   cancelText = "取消",
   variant = "default",
+  icon,
   onConfirm,
 }: ConfirmDialogProps) {
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const isDanger = variant === "danger";
+  const isWarning = variant === "warning";
+  const defaultIcon = isDanger
+    ? Trash2
+    : isWarning
+      ? TriangleAlert
+      : CircleAlert;
+  const TitleIcon = icon ?? defaultIcon;
+  const titleIconColor =
+    isDanger || isWarning ? "var(--danger-color)" : "var(--text-muted)";
 
   const handleConfirm = async () => {
     await onConfirm();
@@ -62,13 +78,11 @@ export function ConfirmDialog({
           onClick={stopPortalClick}
         >
           <Dialog.Title className="flex items-center gap-1.5 text-sm font-medium leading-5">
-            {isDanger ? (
-              <Trash2
-                aria-hidden="true"
-                className="h-4 w-4 shrink-0"
-                style={{ color: "var(--danger-color)" }}
-              />
-            ) : null}
+            <TitleIcon
+              aria-hidden="true"
+              className="h-4 w-4 shrink-0"
+              style={{ color: titleIconColor }}
+            />
             {title}
           </Dialog.Title>
           <Dialog.Description

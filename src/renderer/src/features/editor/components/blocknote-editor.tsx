@@ -77,6 +77,7 @@ import {
   createEditorCodeLineTarget,
   readEditorCodeViewportAnchor,
 } from "../lib/editor-code-viewport";
+import { EDITOR_EMPTY_PLACEHOLDER } from "../lib/editor-placeholder";
 import {
   chooseCapturedEditorViewport,
   chooseRestoredEditorScrollTop,
@@ -90,6 +91,7 @@ import {
 import { flushPendingEditorOutlineNavigation } from "../lib/editor-outline-navigation";
 import { createParseFallback } from "../lib/editor-parse-fallback";
 import {
+  moveCursorAfterUploadedImage,
   readImageFileAsArrayBuffer,
   readImageFileAsDataUrl,
 } from "../lib/editor-image";
@@ -100,6 +102,8 @@ import { selectCodeBlockContent } from "./editor-code-block";
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 import "@/styles/blocknote-overrides.css";
+
+export { moveCursorAfterUploadedImage } from "../lib/editor-image";
 
 interface RichEditorSelectionTarget {
   prosemirrorView?: {
@@ -134,17 +138,6 @@ interface RichEditorHeadingShortcutEvent {
   preventDefault: () => void;
   shiftKey?: boolean;
   stopPropagation: () => void;
-}
-
-interface UploadedImageCursorEditor {
-  document: Array<{ id: string; type: string }>;
-  getBlock: (blockId: string) => { id: string; type: string } | undefined;
-  insertBlocks: (
-    blocksToInsert: Array<{ type: "paragraph"; content: string }>,
-    referenceBlock: string,
-    placement: "after",
-  ) => Array<{ id: string }>;
-  setTextCursorPosition: (blockId: string, placement: "start") => void;
 }
 
 interface OutlineNavigationCursorEditor {
@@ -1077,33 +1070,6 @@ export function handleRichEditorHeadingShortcut(
   return true;
 }
 
-export function moveCursorAfterUploadedImage(
-  editor: UploadedImageCursorEditor | null,
-  blockId: string | undefined,
-): boolean {
-  if (!editor || !blockId) return false;
-
-  const uploadedBlock = editor.getBlock(blockId);
-  if (uploadedBlock?.type !== "image") return false;
-
-  const blockIndex = editor.document.findIndex((block) => block.id === blockId);
-  const nextBlock = blockIndex >= 0 ? editor.document[blockIndex + 1] : null;
-  const targetBlock =
-    nextBlock?.type === "paragraph"
-      ? nextBlock
-      : editor.insertBlocks(
-          [{ type: "paragraph", content: "" }],
-          blockId,
-          "after",
-        )[0];
-
-  if (!targetBlock?.id) return false;
-
-  // 粘贴图片后把光标移到图片后的文本块，避免图片块保持选中并立即弹出文件操作栏。
-  editor.setTextCursorPosition(targetBlock.id, "start");
-  return true;
-}
-
 export async function uploadEditorImageFileAsAttachment(
   file: File,
   context: UploadedImageAttachmentContext,
@@ -1192,6 +1158,7 @@ function BlockNoteEditorInner(props: BlockNoteEditorInnerProps) {
       (proxies) =>
         CoreBlockNoteEditor.create({
           initialContent: undefined,
+          placeholders: { default: EDITOR_EMPTY_PLACEHOLDER },
           resolveFileUrl: proxies.resolveFileUrl,
           schema: editorSchema,
           uploadFile: proxies.uploadFile,

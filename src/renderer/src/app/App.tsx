@@ -11,13 +11,70 @@ import {
 } from "@/features/reminders";
 import { ExportController, ExportSuccessToast } from "@/features/export";
 import { HomePage } from "@/pages/home";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useUIStore } from "@/store/ui.store";
 import { useShortcutsStore } from "@/store/shortcuts.store";
 import { useReminderStore } from "@/store/reminder.store";
 import { APP_BEHAVIOR_CONFIG } from "@/config/app-behavior";
+import { useTheme } from "@/hooks/use-theme";
+import { showAppToast } from "@/lib/app-toast";
+import { QuickEditorWindow } from "@/features/editor/components/quick-editor-window";
+import { editorFindController } from "@/features/editor/lib/editor-find-controller";
+import type { QuickEditorWindowContent } from "@shared/types";
 
 const CODE_BLOCK_CURSOR_VISUAL_WIDTH = 2;
+
+function getQuickEditorSourceKey(
+  source: NonNullable<QuickEditorWindowContent["source"]>,
+): string {
+  return `${source.groupId}:${source.tabId}:${source.filePath ?? ""}`;
+}
+
+function restoreQuickEditorSource(content: QuickEditorWindowContent): void {
+  const state = useEditorStore.getState();
+  const source = content.source;
+  if (!source) {
+    state.openQuickEditorDraft(content.content);
+    return;
+  }
+
+  const exactMatch = state.panelGroups
+    .find((group) => group.id === source.groupId)
+    ?.tabs.find(
+      (tab) => tab.id === source.tabId && tab.filePath === source.filePath,
+    );
+  const pathMatch = source.filePath
+    ? state.panelGroups
+        .flatMap((group) =>
+          group.tabs.map((tab) => ({ groupId: group.id, tab })),
+        )
+        .find(({ tab }) => tab.filePath === source.filePath)
+    : undefined;
+  const target = exactMatch
+    ? { groupId: source.groupId, tab: exactMatch }
+    : pathMatch;
+
+  if (!target) {
+    state.openQuickEditorDraft(content.content);
+    return;
+  }
+
+  // 优先恢复原始标签；标签已移动或重建时，再通过文件路径定位同一文档。
+  if (target.tab.content !== content.content) {
+    state.setTabContent(target.groupId, target.tab.id, content.content);
+    if (target.tab.filePath) {
+      state.syncFileContent(
+        target.tab.filePath,
+        content.content,
+        target.tab.id,
+      );
+    }
+    if (target.tab.mode === "rich") {
+      state.incrementTabReloadKey(target.groupId, target.tab.id);
+    }
+  }
+  state.setActiveTab(target.groupId, target.tab.id);
+}
 
 /**
  * 将 KeyboardEvent 转换为内部快捷键字符串
@@ -42,6 +99,17 @@ function eventToKeyString(e: KeyboardEvent): string | null {
 }
 
 export function App() {
+  const windowType = new URLSearchParams(window.location.search).get("window");
+
+  if (windowType === "reminders") return <ReminderWindowApplication />;
+  if (windowType === "reminder-editor") {
+    return <ReminderEditorWindowApplication />;
+  }
+  if (windowType === "quick-editor") return <QuickEditorWindowApplication />;
+  return <MainApplication />;
+}
+
+function MainApplication() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const appearance = useEditorStore((s) => s.appearance);
   const isSettingsOpen = useUIStore((state) => state.isSettingsOpen);
@@ -52,6 +120,20 @@ export function App() {
   );
   const subscribeToReminderTriggers = useReminderStore(
     (s) => s.subscribeToReminderTriggers,
+  );
+  const receivedQuickEditorContentsRef = useRef(new Map<string, string>());
+
+  const reminderShortcutKeys = useMemo(
+    () =>
+      shortcuts.find((shortcut) => shortcut.id === "openReminderWindow")
+        ?.keys ?? [],
+    [shortcuts],
+  );
+  const quickEditorShortcutKeys = useMemo(
+    () =>
+      shortcuts.find((shortcut) => shortcut.id === "openQuickEditorWindow")
+        ?.keys ?? [],
+    [shortcuts],
   );
 
   // 初始化键盘快捷键
@@ -75,10 +157,31 @@ export function App() {
     return keys;
   }, [shortcuts]);
 
+  const openActiveEditorFind = useCallback(() => {
+    const editorState = useEditorStore.getState();
+    const activeGroup = editorState.panelGroups.find(
+      (group) => group.id === editorState.activeGroupId,
+    );
+    const tabId = activeGroup?.activeTabId;
+    if (!activeGroup || !tabId) return;
+
+    editorFindController.open(activeGroup.id, tabId);
+  }, []);
+
   // 处理搜索快捷键
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (isSettingsOpen) return;
+
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        !e.altKey &&
+        e.key.toLowerCase() === "f"
+      ) {
+        e.preventDefault();
+        openActiveEditorFind();
+        return;
+      }
 
       const keyString = eventToKeyString(e);
       if (keyString && searchKeyStrings.has(keyString)) {
@@ -86,7 +189,7 @@ export function App() {
         setIsSearchOpen(true);
       }
     },
-    [searchKeyStrings, isSettingsOpen],
+    [openActiveEditorFind, searchKeyStrings, isSettingsOpen],
   );
 
   useEffect(() => {
@@ -142,6 +245,116 @@ export function App() {
     };
   }, [loadReminders, subscribeToReminderChanges, subscribeToReminderTriggers]);
 
+  useEffect(() => {
+    const setGlobalShortcut = window.electronAPI?.setReminderGlobalShortcut;
+    if (!setGlobalShortcut) return;
+
+    let isActive = true;
+    void setGlobalShortcut(reminderShortcutKeys).then((result) => {
+      if (!isActive || result.success) return;
+      showAppToast("提醒事项快捷键被系统或其他应用占用，请重新配置");
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [reminderShortcutKeys]);
+
+  useEffect(() => {
+    const setGlobalShortcut = window.electronAPI?.setQuickEditorGlobalShortcut;
+    if (!setGlobalShortcut) return;
+
+    let isActive = true;
+    void setGlobalShortcut(quickEditorShortcutKeys).then((result) => {
+      if (!isActive || result.success) return;
+      showAppToast("快速编辑快捷键被系统或其他应用占用，请重新配置");
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [quickEditorShortcutKeys]);
+
+  useEffect(() => {
+    const unsubscribe = useEditorStore.subscribe((state, previousState) => {
+      for (const group of state.panelGroups) {
+        const previousGroup = previousState.panelGroups.find(
+          (item) => item.id === group.id,
+        );
+        if (!previousGroup) continue;
+
+        for (const tab of group.tabs) {
+          const previousTab = previousGroup.tabs.find(
+            (item) => item.id === tab.id,
+          );
+          if (!previousTab || previousTab.content === tab.content) continue;
+
+          const source = {
+            groupId: group.id,
+            tabId: tab.id,
+            filePath: tab.filePath,
+          };
+          const sourceKey = getQuickEditorSourceKey(source);
+          if (
+            receivedQuickEditorContentsRef.current.get(sourceKey) ===
+            tab.content
+          ) {
+            receivedQuickEditorContentsRef.current.delete(sourceKey);
+            continue;
+          }
+
+          window.electronAPI.syncQuickEditorContent({
+            content: tab.content,
+            source,
+          });
+        }
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    let isActive = true;
+    const importContent = (content: QuickEditorWindowContent) => {
+      restoreQuickEditorSource(content);
+    };
+    const consumeContent = () => {
+      void window.electronAPI
+        .consumeQuickEditorContent()
+        .then((content) => {
+          if (isActive && content !== null) importContent(content);
+        })
+        .catch(() => undefined);
+    };
+    const unsubscribe =
+      window.electronAPI.onQuickEditorContentImported(importContent);
+
+    // 初始化和窗口重新获得焦点时都主动拉取，避免一次性 IPC 通知因热重载或切焦而丢失。
+    consumeContent();
+    window.addEventListener("focus", consumeContent);
+
+    return () => {
+      isActive = false;
+      unsubscribe();
+      window.removeEventListener("focus", consumeContent);
+    };
+  }, []);
+
+  useEffect(() => {
+    const applyLiveContent = (content: QuickEditorWindowContent) => {
+      if (content.source) {
+        receivedQuickEditorContentsRef.current.set(
+          getQuickEditorSourceKey(content.source),
+          content.content,
+        );
+      }
+      restoreQuickEditorSource(content);
+    };
+
+    return window.electronAPI.onQuickEditorContentUpdated(applyLiveContent);
+  }, []);
+
   // 监听来自菜单的搜索事件
   useEffect(() => {
     const handleOpenSearch = () => setIsSearchOpen(true);
@@ -184,6 +397,110 @@ export function App() {
           <ExportSuccessToast />
         </div>
       </DragResizeProvider>
+    </Tooltip.Provider>
+  );
+}
+
+function ReminderWindowApplication() {
+  const [viewKey, setViewKey] = useState(0);
+  const loadReminders = useReminderStore((state) => state.loadReminders);
+  const subscribeToReminderChanges = useReminderStore(
+    (state) => state.subscribeToReminderChanges,
+  );
+  const openList = useReminderStore((state) => state.openList);
+
+  // 独立浮窗使用与主应用相同的主题，并保持透明窗口背景。
+  useTheme({ transparentBackground: true });
+
+  useEffect(() => {
+    openList();
+    window.electronAPI.prewarmReminderEditorWindow?.();
+    void loadReminders();
+    const unsubscribeChanges = subscribeToReminderChanges();
+    const unsubscribeShown = window.electronAPI.onReminderWindowShown?.(() => {
+      setViewKey((current) => current + 1);
+      openList();
+    });
+
+    return () => {
+      unsubscribeChanges();
+      unsubscribeShown?.();
+    };
+  }, [loadReminders, openList, subscribeToReminderChanges]);
+
+  return (
+    <Tooltip.Provider delayDuration={300}>
+      <DragResizeProvider>
+        <div className="h-screen w-screen overflow-hidden bg-transparent">
+          <ReminderListDialog
+            key={viewKey}
+            presentation="floating-window"
+            onRequestClose={() => window.electronAPI.hideReminderWindow?.()}
+          />
+        </div>
+      </DragResizeProvider>
+    </Tooltip.Provider>
+  );
+}
+
+function ReminderEditorWindowApplication() {
+  const [initialized, setInitialized] = useState(false);
+  const loadReminders = useReminderStore((state) => state.loadReminders);
+  const isEditorOpen = useReminderStore((state) => state.isEditorOpen);
+  const openCreateDialog = useReminderStore((state) => state.openCreateDialog);
+  const openEditDialog = useReminderStore((state) => state.openEditDialog);
+  const reminderId = useMemo(
+    () => new URLSearchParams(window.location.search).get("reminderId"),
+    [],
+  );
+
+  useTheme({ transparentBackground: true });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void loadReminders().then(() => {
+      if (cancelled) return;
+      if (reminderId) {
+        openEditDialog(reminderId);
+      } else {
+        openCreateDialog();
+      }
+      setInitialized(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadReminders, openCreateDialog, openEditDialog, reminderId]);
+
+  useEffect(() => {
+    if (initialized && !isEditorOpen) {
+      window.electronAPI.closeReminderEditorWindow();
+    }
+  }, [initialized, isEditorOpen]);
+
+  return (
+    <Tooltip.Provider delayDuration={300}>
+      <DragResizeProvider>
+        <div className="h-screen w-screen overflow-hidden bg-transparent">
+          <ReminderEditorDialog presentation="floating-window" />
+        </div>
+      </DragResizeProvider>
+    </Tooltip.Provider>
+  );
+}
+
+function QuickEditorWindowApplication() {
+  useEffect(() => {
+    document.title = "快速编辑";
+  }, []);
+
+  return (
+    <Tooltip.Provider delayDuration={300}>
+      <div className="h-screen w-screen overflow-hidden bg-transparent">
+        <QuickEditorWindow />
+      </div>
     </Tooltip.Provider>
   );
 }

@@ -90,6 +90,13 @@ function renderToolbar({
 describe("EditorToolbar diff action", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: {
+        createQuickEditorWindow: vi.fn(),
+        getPlatform: vi.fn(),
+      },
+    });
     electronMocks.detectGitRepo.mockResolvedValue({
       code: CodeResult.Success,
       data: { isGitRepo: true },
@@ -229,6 +236,25 @@ describe("EditorToolbar diff action", () => {
     expect(onNewTab).toHaveBeenCalledTimes(1);
   });
 
+  it("opens the active tab content in a floating editor", async () => {
+    renderToolbar();
+
+    await screen.findByRole("button", { name: "标签页操作" });
+    openActionMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "浮动窗口" }));
+
+    await waitFor(() => {
+      expect(window.electronAPI.createQuickEditorWindow).toHaveBeenCalledWith({
+        content: "# same",
+        source: {
+          groupId: "group-1",
+          tabId: "tab-1",
+          filePath: "/notes/readme.md",
+        },
+      });
+    });
+  });
+
   it("reveals the current file from the tab action menu", async () => {
     renderToolbar();
 
@@ -289,6 +315,7 @@ describe("EditorToolbar diff action", () => {
       screen.getAllByRole("menuitem").map((item) => item.textContent),
     ).toEqual([
       "新建标签页",
+      "浮动窗口",
       "在资源管理器中显示",
       "编辑模式切换",
       "向右拆分面板",
@@ -322,6 +349,7 @@ describe("EditorToolbar diff action", () => {
       screen.getAllByRole("menuitem").map((item) => item.textContent),
     ).toEqual([
       "新建标签页",
+      "浮动窗口",
       "在资源管理器中显示",
       "编辑模式切换",
       "向右拆分面板",

@@ -104,6 +104,7 @@ export interface EditorState {
 
   // 标签页操作
   addTab: (groupId: string, filePath?: string | null) => string;
+  openQuickEditorDraft: (content: string) => string | null;
   removeTab: (groupId: string, tabId: string) => void;
   setActiveTab: (groupId: string, tabId: string) => void;
   moveTab: (
@@ -364,6 +365,60 @@ export const useEditorStore = create<EditorState>()(
             ),
           }));
           return newTab.id;
+        },
+
+        openQuickEditorDraft: (content: string) => {
+          if (!content.trim()) return null;
+
+          const state = get();
+          const activeGroup =
+            state.panelGroups.find(
+              (group) => group.id === state.activeGroupId,
+            ) ?? state.panelGroups[0];
+          if (!activeGroup) return null;
+
+          const activeTab = activeGroup.tabs.find(
+            (tab) => tab.id === activeGroup.activeTabId,
+          );
+          const canReuseActiveTab =
+            activeTab?.filePath === null &&
+            activeTab.pendingFilePath === null &&
+            !activeTab.isDirty &&
+            activeTab.loadStatus !== "loading" &&
+            activeTab.content.trim().length === 0;
+          const targetTab = canReuseActiveTab ? activeTab : createDefaultTab();
+          const importedTab: EditorTab = {
+            ...targetTab,
+            content,
+            wordCount: content.length,
+            isDirty: true,
+            reloadKey: targetTab.reloadKey + 1,
+            mode: "rich",
+            loadStatus: "ready",
+            saveStatus: "dirty",
+            errorMessage: null,
+            parseErrorMessage: null,
+            scrollTop: 0,
+          };
+
+          // 草稿以一次原子更新进入当前面板，避免编辑器先挂载空标签再二次刷新。
+          set((current) => ({
+            activeGroupId: activeGroup.id,
+            panelGroups: current.panelGroups.map((group) => {
+              if (group.id !== activeGroup.id) return group;
+              return {
+                ...group,
+                activeTabId: importedTab.id,
+                tabs: canReuseActiveTab
+                  ? group.tabs.map((tab) =>
+                      tab.id === importedTab.id ? importedTab : tab,
+                    )
+                  : [...group.tabs, importedTab],
+              };
+            }),
+          }));
+
+          return importedTab.id;
         },
 
         // 移除标签页

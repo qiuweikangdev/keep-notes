@@ -9,10 +9,12 @@ import { getCachedDirtyState } from "./ipc/editor.ipc";
 import { MAC_TRAFFIC_LIGHT_POSITION } from "../shared/title-bar";
 import { IPC_CHANNELS } from "../shared/constants";
 import type { CloseSaveSnapshot, WindowOpenTarget } from "../shared/types";
+import { destroyReminderWindow } from "./reminder-window";
 
 // 平台判断
 const isMac = process.platform === "darwin";
 const closeInProgressWindows = new WeakSet<BrowserWindow>();
+const mainWindows = new Set<BrowserWindow>();
 
 // macOS: 使用原生标题栏隐藏模式，显示红绿灯按钮
 // Windows/Linux: 使用无边框透明窗口，自定义标题栏
@@ -46,6 +48,12 @@ const windowConfig: Electron.BrowserWindowConstructorOptions = {
 
 export function createWindow(initialTarget?: WindowOpenTarget): BrowserWindow {
   const win = new BrowserWindow(windowConfig);
+  mainWindows.add(win);
+
+  win.once("closed", () => {
+    mainWindows.delete(win);
+    if (mainWindows.size === 0) destroyReminderWindow();
+  });
 
   registerWindowShortcuts(win);
 
@@ -92,6 +100,26 @@ export function createWindow(initialTarget?: WindowOpenTarget): BrowserWindow {
   }
 
   return win;
+}
+
+export function getMainWindow(): BrowserWindow | null {
+  const windows = [...mainWindows];
+  return (
+    windows.toReversed().find((candidate) => !candidate.isDestroyed()) ?? null
+  );
+}
+
+export function focusMainWindow(): void {
+  const win = getMainWindow();
+
+  if (!win) return;
+
+  // macOS 需要先激活应用进程，再恢复并提升主窗口，否则浮窗隐藏后焦点可能留在其他应用。
+  if (isMac) app.focus({ steal: true });
+  if (win.isMinimized()) win.restore();
+  win.show();
+  if (isMac) win.moveTop();
+  win.focus();
 }
 
 export async function resolveWindowOpenTarget(
@@ -202,7 +230,7 @@ export async function saveAndClose(win: BrowserWindow): Promise<void> {
           if (typeof window.__getNextDirtyEditor !== "function") {
             throw new Error("Close-save snapshot bridge is unavailable");
           }
-          return JSON.stringify(window.__getNextDirtyEditor());
+          return Promise.resolve(window.__getNextDirtyEditor()).then((snapshot) => JSON.stringify(snapshot));
         })()`,
       );
       const parsedSnapshot: unknown = JSON.parse(serializedSnapshot);

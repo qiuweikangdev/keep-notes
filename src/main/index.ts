@@ -3,13 +3,23 @@ import { join } from "node:path";
 import { BrowserWindow, app, session } from "electron";
 import { electronApp, optimizer } from "@electron-toolkit/utils";
 import icon from "../../resources/icon.png?asset";
-import { createWindow } from "./window";
+import { createWindow, focusMainWindow } from "./window";
 import { registerAllIpc } from "./ipc";
 import { registerAppMenu } from "./menu";
 import { initializeReminderIpc } from "./ipc/reminder.ipc";
 import { initializeNotificationIpc } from "./ipc/notification.ipc";
 import { initializeExportIpc } from "./ipc/export.ipc";
 import { registerWindowsZoomInShortcut } from "./zoom-shortcuts";
+import {
+  configureReminderGlobalShortcuts,
+  DEFAULT_REMINDER_SHORTCUT,
+  disposeReminderWindow,
+} from "./reminder-window";
+import {
+  configureQuickEditorGlobalShortcuts,
+  DEFAULT_QUICK_EDITOR_SHORTCUT,
+  disposeQuickEditorWindow,
+} from "./quick-editor-window";
 
 const APP_ID = "com.keep-notes";
 const APP_NAME = "Keep Notes";
@@ -29,45 +39,64 @@ if (!app.isPackaged) {
   }
 }
 
-app.whenReady().then(async () => {
-  electronApp.setAppUserModelId(APP_ID);
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
 
-  // 开发模式下运行的是 Electron.app，显式设置 Dock 图标可避免显示默认 Electron 图标。
-  if (process.platform === "darwin" && app.dock) {
-    app.dock.setIcon(icon);
-  }
-
-  app.on("browser-window-created", (_, window) => {
-    optimizer.watchWindowShortcuts(window, { zoom: true });
-    registerWindowsZoomInShortcut(window);
+if (!hasSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    // 重复启动只唤醒已有主窗口，避免多个进程争抢全局快捷键。
+    focusMainWindow();
   });
 
-  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-    callback({
-      responseHeaders: {
-        ...details.responseHeaders,
-      },
+  app.whenReady().then(async () => {
+    electronApp.setAppUserModelId(APP_ID);
+
+    // 开发模式下运行的是 Electron.app，显式设置 Dock 图标可避免显示默认 Electron 图标。
+    if (process.platform === "darwin" && app.dock) {
+      app.dock.setIcon(icon);
+    }
+
+    app.on("browser-window-created", (_, window) => {
+      optimizer.watchWindowShortcuts(window, { zoom: true });
+      registerWindowsZoomInShortcut(window);
+    });
+
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+        },
+      });
+    });
+
+    // 注册 macOS 应用菜单
+    registerAppMenu();
+
+    registerAllIpc();
+    // 主窗口渲染层尚未加载时也要先注册默认全局快捷键，避免启动早期按键无响应。
+    configureReminderGlobalShortcuts([DEFAULT_REMINDER_SHORTCUT]);
+    configureQuickEditorGlobalShortcuts([DEFAULT_QUICK_EDITOR_SHORTCUT]);
+    await initializeReminderIpc();
+    await initializeNotificationIpc();
+    await initializeExportIpc();
+    createWindow();
+
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow();
+      }
     });
   });
-
-  // 注册 macOS 应用菜单
-  registerAppMenu();
-
-  registerAllIpc();
-  await initializeReminderIpc();
-  await initializeNotificationIpc();
-  await initializeExportIpc();
-  createWindow();
-
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
-  });
-});
+}
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+app.on("will-quit", () => {
+  disposeReminderWindow();
+  disposeQuickEditorWindow();
 });

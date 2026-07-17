@@ -1,0 +1,188 @@
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
+import { createElement } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  createQuickEditorImageUploader,
+  hasMeaningfulQuickEditorContent,
+  QuickEditorWindow,
+  uploadQuickEditorImage,
+} from "./quick-editor-window";
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
+
+describe("quick editor content detection", () => {
+  it("treats the initial empty paragraph as clean", () => {
+    expect(
+      hasMeaningfulQuickEditorContent([
+        { type: "paragraph", content: [], children: [] },
+      ]),
+    ).toBe(false);
+  });
+
+  it("detects text, nested blocks, and non-paragraph content", () => {
+    expect(
+      hasMeaningfulQuickEditorContent([
+        { type: "paragraph", content: [{ type: "text", text: "笔记" }] },
+      ]),
+    ).toBe(true);
+    expect(
+      hasMeaningfulQuickEditorContent([
+        {
+          type: "paragraph",
+          content: [],
+          children: [{ type: "heading", content: [] }],
+        },
+      ]),
+    ).toBe(true);
+    expect(
+      hasMeaningfulQuickEditorContent([{ type: "image", content: [] }]),
+    ).toBe(true);
+  });
+
+  it("embeds pasted images in the quick-editor draft", async () => {
+    const file = new File([Uint8Array.from([1, 2, 3])], "clip.png", {
+      type: "image/png",
+    });
+
+    await expect(uploadQuickEditorImage(file)).resolves.toBe(
+      "data:image/png;base64,AQID",
+    );
+  });
+
+  it("moves the cursor after a pasted image instead of selecting the image", async () => {
+    const setTextCursorPosition = vi.fn();
+    const editor = {
+      document: [
+        { id: "image-1", type: "image" },
+        { id: "paragraph-1", type: "paragraph" },
+      ],
+      getBlock: vi.fn(() => ({ id: "image-1", type: "image" })),
+      insertBlocks: vi.fn(),
+      setTextCursorPosition,
+    };
+    const uploader = createQuickEditorImageUploader(
+      () => editor,
+      (callback) => callback(),
+    );
+    const file = new File([Uint8Array.from([1, 2, 3])], "clip.png", {
+      type: "image/png",
+    });
+
+    await uploader(file, "image-1");
+
+    expect(setTextCursorPosition).toHaveBeenCalledWith("paragraph-1", "start");
+  });
+
+  it("creates a standalone BlockNote editor without an outer provider", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        addEventListener: vi.fn(),
+        addListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+        matches: false,
+        media: query,
+        onchange: null,
+        removeEventListener: vi.fn(),
+        removeListener: vi.fn(),
+      })),
+    );
+    const createQuickEditorWindow = vi.fn();
+    const onQuickEditorInitialContent = vi.fn(
+      (callback: (content: { content: string; source: null }) => void) => {
+        callback({ content: "222", source: null });
+        return () => undefined;
+      },
+    );
+    vi.stubGlobal("electronAPI", {
+      createQuickEditorWindow,
+      onQuickEditorInitialContent,
+      onQuickEditorContentUpdated: vi.fn(() => () => undefined),
+      closeQuickEditorWindow: vi.fn(),
+      returnToMainWindowFromQuickEditor: vi.fn(),
+      syncQuickEditorContent: vi.fn(),
+      updateDirtyState: vi.fn(),
+    });
+
+    render(createElement(QuickEditorWindow));
+
+    expect(
+      screen.getByRole("main", { name: "快速编辑器" }),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("222")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "新建浮窗编辑器" }));
+    expect(createQuickEditorWindow).toHaveBeenCalledOnce();
+  });
+
+  it("applies live source-tab updates without returning to the application", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        addEventListener: vi.fn(),
+        addListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+        matches: false,
+        media: query,
+        onchange: null,
+        removeEventListener: vi.fn(),
+        removeListener: vi.fn(),
+      })),
+    );
+    const source = {
+      groupId: "group-1",
+      tabId: "tab-1",
+      filePath: "/notes/readme.md",
+    };
+    let liveContentListener:
+      | ((content: { content: string; source: typeof source }) => void)
+      | undefined;
+    const onQuickEditorContentUpdated = vi.fn(
+      (
+        callback: (content: { content: string; source: typeof source }) => void,
+      ) => {
+        liveContentListener = callback;
+        return () => undefined;
+      },
+    );
+    vi.stubGlobal("electronAPI", {
+      createQuickEditorWindow: vi.fn(),
+      onQuickEditorInitialContent: vi.fn(
+        (
+          callback: (content: {
+            content: string;
+            source: typeof source;
+          }) => void,
+        ) => {
+          callback({ content: "# Initial", source });
+          return () => undefined;
+        },
+      ),
+      onQuickEditorContentUpdated,
+      closeQuickEditorWindow: vi.fn(),
+      returnToMainWindowFromQuickEditor: vi.fn(),
+      syncQuickEditorContent: vi.fn(),
+      updateDirtyState: vi.fn(),
+    });
+
+    render(createElement(QuickEditorWindow));
+
+    expect(await screen.findByText("Initial")).toBeInTheDocument();
+    expect(onQuickEditorContentUpdated).toHaveBeenCalledOnce();
+
+    act(() => {
+      liveContentListener?.({ content: "# Live update", source });
+    });
+
+    expect(await screen.findByText("Live update")).toBeInTheDocument();
+  });
+});

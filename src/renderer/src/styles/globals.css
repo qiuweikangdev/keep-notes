@@ -29,13 +29,34 @@ textarea[aria-label="Markdown 源码"] {
 }
 
 ::highlight(keep-notes-find-match) {
-  background-color: rgba(245, 158, 11, 0.34);
+  background-color: color-mix(in srgb, var(--accent-color) 38%, transparent);
   color: inherit;
 }
 
 ::highlight(keep-notes-find-active-match) {
-  background-color: rgba(245, 158, 11, 0.72);
+  background-color: color-mix(in srgb, var(--accent-color) 70%, transparent);
   color: inherit;
+}
+
+[data-editor-find-highlight-overlay="true"] {
+  position: fixed;
+  z-index: 49;
+  inset: 0;
+  pointer-events: none;
+}
+
+[data-editor-find-highlight="true"] {
+  position: absolute;
+  border-radius: 3px;
+  background-color: color-mix(in srgb, var(--accent-color) 38%, transparent);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--accent-color) 42%, transparent);
+}
+
+[data-editor-find-highlight-active="true"] {
+  background-color: color-mix(in srgb, var(--accent-color) 70%, transparent);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--accent-color) 88%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1317,4 +1338,52 @@ select {
 .git-panel-tooltip--align-end.git-panel-tooltip--hidden
   > .git-panel-tooltip__content {
   transform: translateY(2px);
+}
+
+/* 浮窗空白区域交给 Electron 原生拖拽，交互控件继续接收鼠标事件。 */
+[data-reminder-list-dialog="true"][data-floating-window="true"] {
+  -webkit-app-region: drag;
+}
+
+[data-reminder-scroll-region="true"] {
+  scrollbar-gutter: stable;
+}
+
+[data-reminder-list-dialog="true"][data-floating-window="true"]
+  :is(
+    button,
+    input,
+    textarea,
+    select,
+    a,
+    [contenteditable="true"],
+    [data-reminder-scroll-region="true"]
+  ) {
+  -webkit-app-region: no-drag;
+}
+
+[data-reminder-editor-dialog="true"][data-floating-window="true"] {
+  -webkit-app-region: no-drag;
+}
+
+[data-reminder-editor-drag-region="true"] {
+  -webkit-app-region: drag;
+}
+
+[data-reminder-editor-dialog="true"][data-floating-window="true"]
+  :is(
+    button,
+    input,
+    textarea,
+    select,
+    a,
+    [contenteditable="true"],
+    [data-reminder-editor-interactive-region="true"]
+  ) {
+  -webkit-app-region: no-drag;
+}
+
+[data-custom-repeat-dialog="true"] {
+  -webkit-app-region: no-drag;
+  pointer-events: auto;
 }

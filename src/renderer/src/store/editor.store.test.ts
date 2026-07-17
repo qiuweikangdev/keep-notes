@@ -84,6 +84,54 @@ describe("editor store", () => {
     });
   });
 
+  it("opens a quick-editor draft in a new unnamed tab without replacing a file", () => {
+    const tabId = useEditorStore
+      .getState()
+      .openQuickEditorDraft("# Quick draft\n");
+
+    const state = useEditorStore.getState();
+    const group = state.panelGroups[0];
+    const importedTab = group.tabs.find((tab) => tab.id === tabId);
+
+    expect(group.tabs).toHaveLength(2);
+    expect(group.activeTabId).toBe(tabId);
+    expect(importedTab).toMatchObject({
+      filePath: null,
+      content: "# Quick draft\n",
+      isDirty: true,
+      mode: "rich",
+      loadStatus: "ready",
+      saveStatus: "dirty",
+    });
+  });
+
+  it("reuses the current clean unnamed tab for a quick-editor draft", () => {
+    useEditorStore.setState((state) => ({
+      panelGroups: state.panelGroups.map((group) => ({
+        ...group,
+        tabs: group.tabs.map((tab) => ({
+          ...tab,
+          filePath: null,
+          content: "",
+          isDirty: false,
+        })),
+      })),
+    }));
+
+    const tabId = useEditorStore
+      .getState()
+      .openQuickEditorDraft("![clip](data:image/png;base64,AQID)");
+    const group = useEditorStore.getState().panelGroups[0];
+
+    expect(group.tabs).toHaveLength(1);
+    expect(tabId).toBe("tab-1");
+    expect(group.tabs[0]).toMatchObject({
+      content: "![clip](data:image/png;base64,AQID)",
+      isDirty: true,
+      reloadKey: 1,
+    });
+  });
+
   it("keeps outline heading state stable when extracted headings are unchanged", () => {
     const headings = [
       { id: "heading-1", text: "Intro", level: 1 },

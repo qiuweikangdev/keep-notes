@@ -2,6 +2,7 @@ import { BlockNoteEditor } from "@blocknote/core";
 import { SideMenuExtension } from "@blocknote/core/extensions";
 import { BlockNoteView } from "@blocknote/mantine";
 import { foldEffect, foldable, foldedRanges } from "@codemirror/language";
+import { EditorSelection } from "@codemirror/state";
 import { EditorView, getDrawSelectionConfig } from "@codemirror/view";
 import { AllSelection, NodeSelection, TextSelection } from "@tiptap/pm/state";
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
@@ -328,7 +329,7 @@ describe("editor BlockNote schema", () => {
     const cursorRule = cursorRules.find(
       (rule) =>
         (rule as CSSStyleRule).selectorText.endsWith(
-          ".cm-focused .cm-cursor",
+          ".cm-focused:hover .cm-cursor",
         ) &&
         (rule as CSSStyleRule).style.getPropertyValue("border-left-color") ===
           "var(--editor-code-block-cursor)",
@@ -1272,6 +1273,43 @@ describe("editor BlockNote schema", () => {
     await user.click(codePane as HTMLElement);
 
     expect(getCodeMirrorView(container).hasFocus).toBe(true);
+  });
+
+  it("collapses the CodeMirror selection when the mouse leaves", async () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "codeBlock",
+          props: { language: "js" },
+          content: "const a = 1",
+        },
+      ],
+    });
+
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    await waitFor(() => {
+      expect(getCodeMirrorView(container).state.doc.toString()).toBe(
+        "const a = 1",
+      );
+    });
+
+    const view = getCodeMirrorView(container);
+    view.focus();
+    view.dispatch({ selection: EditorSelection.range(10, 11) });
+    expect(view.state.selection.main.empty).toBe(false);
+
+    const codeBlock = container.querySelector<HTMLElement>(
+      ".editor-code-block-shell",
+    );
+    expect(codeBlock).not.toBe(null);
+
+    fireEvent.mouseLeave(codeBlock as HTMLElement);
+
+    expect(view.state.selection.main.empty).toBe(true);
+    expect(view.state.selection.main.head).toBe(11);
   });
 
   it("shows the cursor when clicking an empty code block", async () => {

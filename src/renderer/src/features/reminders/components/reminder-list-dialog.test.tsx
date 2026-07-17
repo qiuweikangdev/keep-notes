@@ -6,7 +6,7 @@ import {
   screen,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useReminderStore } from "@/store/reminder.store";
 import type { Reminder } from "@/types";
 import { ReminderListDialog } from "./reminder-list-dialog";
@@ -26,6 +26,7 @@ const reminder: Reminder = {
 describe("ReminderListDialog", () => {
   afterEach(() => {
     cleanup();
+    vi.restoreAllMocks();
   });
 
   beforeEach(() => {
@@ -208,7 +209,12 @@ describe("ReminderListDialog", () => {
       name: "搜索提醒事项",
     });
 
-    expect(dialog).toHaveClass("max-w-[520px]", "top-[12vh]", "translate-y-0");
+    expect(dialog).toHaveClass(
+      "max-w-[520px]",
+      "top-[12vh]",
+      "w-[calc(100%-32px)]",
+      "translate-y-0",
+    );
     expect(dialog).toHaveClass("z-50", "shadow-[0_4px_8px_rgba(0,0,0,0.16)]");
     expect(search).toHaveClass("border-0", "bg-transparent");
     expect(screen.queryByRole("button", { name: "关闭" })).toBeNull();
@@ -312,5 +318,142 @@ describe("ReminderListDialog", () => {
     expect(
       screen.getByRole("button", { name: /Read notes/ }),
     ).toBeInTheDocument();
+  });
+
+  it("marks the floating reminder surface as draggable", () => {
+    render(<ReminderListDialog presentation="floating-window" />);
+
+    const dialog = screen.getByRole("dialog");
+    const results = screen.getByRole("tabpanel");
+
+    expect(dialog).toHaveAttribute("data-floating-window", "true");
+    expect(dialog).toHaveClass(
+      "w-[calc(100%-16px)]",
+      "max-h-[calc(100vh-16px)]",
+    );
+    expect(results).toHaveAttribute("data-reminder-scroll-region", "true");
+    expect(results).toHaveClass(
+      "min-h-0",
+      "flex-1",
+      "overflow-y-auto",
+      "overscroll-contain",
+    );
+  });
+
+  it("restores the published floating reminder surface", () => {
+    render(<ReminderListDialog presentation="floating-window" />);
+
+    const dialog = screen.getByRole("dialog", { name: "提醒事项" });
+    const header = dialog.querySelector<HTMLElement>(
+      '[data-reminder-list-header="true"]',
+    );
+    expect(dialog.style.backgroundColor).toBe("var(--bg-primary)");
+    expect(dialog.style.border).toBe("1px solid var(--border-color)");
+    expect(dialog).toHaveClass("shadow-[0_4px_8px_rgba(0,0,0,0.16)]");
+    expect(header).toHaveClass("border-b", "border-[var(--border-color)]");
+    expect(header?.style.backgroundColor).toBe(
+      "color-mix(in srgb, var(--bg-secondary) 24%, var(--bg-primary))",
+    );
+  });
+
+  it("sizes a floating window from the full scrollable list height", () => {
+    const previousElectronApi = Object.getOwnPropertyDescriptor(
+      window,
+      "electronAPI",
+    );
+    const resizeReminderWindow = vi.fn();
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: { resizeReminderWindow },
+    });
+    useReminderStore.setState({
+      reminders: Array.from({ length: 12 }, (_, index) => ({
+        ...reminder,
+        id: `reminder-${index}`,
+        scheduledAt: new Date().toISOString(),
+      })),
+    });
+
+    try {
+      render(<ReminderListDialog presentation="floating-window" />);
+
+      expect(resizeReminderWindow).toHaveBeenCalledWith(419);
+    } finally {
+      if (previousElectronApi) {
+        Object.defineProperty(window, "electronAPI", previousElectronApi);
+      } else {
+        Reflect.deleteProperty(window, "electronAPI");
+      }
+    }
+  });
+
+  it("opens a separate editor window from the floating create button", async () => {
+    const user = userEvent.setup();
+    const previousElectronApi = Object.getOwnPropertyDescriptor(
+      window,
+      "electronAPI",
+    );
+    const showReminderEditorWindow = vi.fn();
+
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: {
+        ...window.electronAPI,
+        showReminderEditorWindow,
+      },
+    });
+
+    try {
+      render(<ReminderListDialog presentation="floating-window" />);
+      await user.click(screen.getByRole("button", { name: "新建提醒事项" }));
+
+      expect(showReminderEditorWindow).toHaveBeenCalledWith();
+      expect(useReminderStore.getState().isEditorOpen).toBe(false);
+    } finally {
+      if (previousElectronApi) {
+        Object.defineProperty(window, "electronAPI", previousElectronApi);
+      } else {
+        Reflect.deleteProperty(window, "electronAPI");
+      }
+    }
+  });
+
+  it("returns to the main application from the floating header", async () => {
+    const user = userEvent.setup();
+    const previousElectronApi = Object.getOwnPropertyDescriptor(
+      window,
+      "electronAPI",
+    );
+    const returnToMainWindow = vi.fn();
+
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: {
+        ...window.electronAPI,
+        returnToMainWindow,
+      },
+    });
+
+    try {
+      render(<ReminderListDialog presentation="floating-window" />);
+      const createButton = screen.getByRole("button", {
+        name: "新建提醒事项",
+      });
+      const returnButton = screen.getByRole("button", { name: "返回应用" });
+      await user.click(returnButton);
+
+      expect(returnToMainWindow).toHaveBeenCalledOnce();
+      expect(
+        createButton.compareDocumentPosition(returnButton) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(returnButton.querySelector("svg")).toHaveClass("h-3.5", "w-3.5");
+    } finally {
+      if (previousElectronApi) {
+        Object.defineProperty(window, "electronAPI", previousElectronApi);
+      } else {
+        Reflect.deleteProperty(window, "electronAPI");
+      }
+    }
   });
 });

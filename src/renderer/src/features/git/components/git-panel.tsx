@@ -595,7 +595,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
 
   // 处理 diff 比较
   const handleDiffFile = useCallback(
-    async (filePath: string) => {
+    async (filePath: string, isDeleted = false) => {
       const dir = getCurrentDir();
       if (!dir) return;
 
@@ -607,15 +607,17 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
 
         // 获取编辑器中的内容（如果已打开）
         let editorContent = "";
-        const matchedTab = useEditorStore
-          .getState()
-          .panelGroups.flatMap((g) => g.tabs)
-          .find((t) => t.filePath === fullPath);
-        if (matchedTab?.content) {
-          editorContent = matchedTab.content;
-        } else {
-          // 从磁盘读取
-          editorContent = await window.electronAPI.readFile(fullPath);
+        if (!isDeleted) {
+          const matchedTab = useEditorStore
+            .getState()
+            .panelGroups.flatMap((g) => g.tabs)
+            .find((t) => t.filePath === fullPath);
+          if (matchedTab?.content) {
+            editorContent = matchedTab.content;
+          } else {
+            // 从磁盘读取
+            editorContent = await window.electronAPI.readFile(fullPath);
+          }
         }
 
         // 获取 HEAD 中的内容
@@ -1069,7 +1071,10 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       <GitPanelTooltip label="查看差异" side="bottom">
         <button
           type="button"
-          onClick={() => handleDiffFile(filePath)}
+          onClick={(event) => {
+            event.stopPropagation();
+            handleDiffFile(filePath, badge?.kind === "deleted");
+          }}
           data-theme-control="true"
           className="rounded p-1 transition-colors hover:bg-[var(--hover-bg)]"
           style={{ color: "var(--text-muted)" }}
@@ -1082,7 +1087,10 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         <GitPanelTooltip label="打开文件" side="bottom">
           <button
             type="button"
-            onClick={() => handleOpenFile(filePath)}
+            onClick={(event) => {
+              event.stopPropagation();
+              handleOpenFile(filePath);
+            }}
             data-theme-control="true"
             className="rounded p-1 transition-colors hover:bg-[var(--hover-bg)]"
             style={{ color: "var(--text-muted)" }}
@@ -1095,7 +1103,10 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       <GitPanelTooltip label="放弃更改" side="bottom">
         <button
           type="button"
-          onClick={() => handleDiscardChanges(filePath)}
+          onClick={(event) => {
+            event.stopPropagation();
+            handleDiscardChanges(filePath);
+          }}
           data-theme-control="true"
           className="rounded p-1 transition-colors hover:bg-[var(--hover-bg)]"
           style={{ color: "var(--text-muted)" }}
@@ -1119,7 +1130,16 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     return (
       <div
         key={filePath}
-        className="group flex h-8 items-center border-b text-sm transition-colors hover:bg-[var(--hover-bg)]"
+        role="button"
+        tabIndex={0}
+        onClick={() => handleDiffFile(filePath, isDeleted)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            handleDiffFile(filePath, isDeleted);
+          }
+        }}
+        className="group flex h-8 cursor-pointer items-center border-b text-sm transition-colors hover:bg-[var(--hover-bg)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-color)] focus-visible:ring-inset"
         style={{
           borderColor: "var(--border-color)",
           paddingLeft: `${12 + depth * 18}px`,
@@ -1129,6 +1149,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         <input
           type="checkbox"
           checked={isFileStaged(filePath)}
+          onClick={(event) => event.stopPropagation()}
           onChange={() => toggleFileStaging(filePath)}
           className="mr-2 h-3.5 w-3.5 shrink-0 cursor-pointer rounded"
           style={{ accentColor: "var(--accent-color)" }}
@@ -1462,13 +1483,11 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                     const statusMeta = getCommitFileStatusMeta(file.status);
                     const displayPath = getCommitFileDisplayPath(file);
                     return (
-                      <button
+                      <div
                         key={`${file.status}:${file.oldPath || ""}:${file.path}`}
-                        type="button"
                         onClick={() => handleDiffCommitFile(file)}
                         data-theme-control="true"
-                        aria-label={`查看 ${displayPath} 的提交差异`}
-                        className="flex h-8 w-full items-center border-b px-3 text-left text-sm transition-colors last:border-b-0 hover:bg-[var(--hover-bg)]"
+                        className="group flex h-8 w-full cursor-pointer items-center border-b px-3 text-left text-sm transition-colors last:border-b-0 hover:bg-[var(--hover-bg)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-color)] focus-visible:ring-inset"
                         style={{ borderColor: "var(--border-color)" }}
                       >
                         <File
@@ -1482,6 +1501,40 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                         >
                           {displayPath}
                         </span>
+                        <div className="ml-2 flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                          <GitPanelTooltip label="查看差异" side="bottom">
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleDiffCommitFile(file);
+                              }}
+                              data-theme-control="true"
+                              className="rounded p-1 transition-colors hover:bg-[var(--active-bg)]"
+                              style={{ color: "var(--text-muted)" }}
+                              aria-label="查看差异"
+                            >
+                              <GitCompare className="h-3.5 w-3.5" />
+                            </button>
+                          </GitPanelTooltip>
+                          {file.status !== "D" ? (
+                            <GitPanelTooltip label="打开文件" side="bottom">
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  handleOpenFile(file.path);
+                                }}
+                                data-theme-control="true"
+                                className="rounded p-1 transition-colors hover:bg-[var(--active-bg)]"
+                                style={{ color: "var(--text-muted)" }}
+                                aria-label={`打开 ${file.path}`}
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </button>
+                            </GitPanelTooltip>
+                          ) : null}
+                        </div>
                         <span
                           className="ml-3 font-mono text-xs"
                           style={{ color: "#73c991" }}
@@ -1501,7 +1554,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                         >
                           {statusMeta.label}
                         </span>
-                      </button>
+                      </div>
                     );
                   })
                 ) : (
@@ -2156,6 +2209,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                   : `"${confirmDialog.filePath}" 的更改`
               } 吗？`
         }
+        variant="warning"
         confirmText="确定"
         onConfirm={confirmDiscardChanges}
       />

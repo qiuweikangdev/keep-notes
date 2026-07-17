@@ -26,6 +26,8 @@ import {
 } from "../lib/reminder-format";
 import { CustomRepeatDialog } from "./custom-repeat-dialog";
 
+const FLOATING_EDITOR_VERTICAL_MARGIN = 16;
+
 const repeatOptions: Array<{
   label: string;
   value: ReminderRepeatPreset;
@@ -110,7 +112,7 @@ function getInitialState(
   };
 }
 
-function useCloseOnOutsidePointerDown(
+function useCloseOnOutsideInteraction(
   open: boolean,
   containerRef: RefObject<HTMLElement>,
   onClose: () => void,
@@ -118,7 +120,7 @@ function useCloseOnOutsidePointerDown(
   useEffect(() => {
     if (!open) return;
 
-    // 自绘浮层不经过 Radix Popover，统一监听外部点击来模拟系统浮窗的收起体验。
+    // 编辑器和列表可能位于不同原生窗口，既监听文档外部点击，也在窗口失焦时收起浮层。
     const handlePointerDown = (event: PointerEvent) => {
       if (
         event.target instanceof Node &&
@@ -128,13 +130,25 @@ function useCloseOnOutsidePointerDown(
       }
       onClose();
     };
+    const handleWindowBlur = () => onClose();
 
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    window.addEventListener("blur", handleWindowBlur);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+      window.removeEventListener("blur", handleWindowBlur);
+    };
   }, [containerRef, onClose, open]);
 }
 
-export function ReminderEditorDialog() {
+interface ReminderEditorDialogProps {
+  presentation?: "dialog" | "floating-window";
+}
+
+export function ReminderEditorDialog({
+  presentation = "dialog",
+}: ReminderEditorDialogProps = {}) {
+  const isFloatingWindow = presentation === "floating-window";
   const reminders = useReminderStore((state) => state.reminders);
   const isEditorOpen = useReminderStore((state) => state.isEditorOpen);
   const editingReminderId = useReminderStore(
@@ -171,6 +185,7 @@ export function ReminderEditorDialog() {
   const [displayMonth, setDisplayMonth] = useState(() =>
     parseDateValue(initialState.date),
   );
+  const editorContentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isEditorOpen) {
@@ -188,6 +203,41 @@ export function ReminderEditorDialog() {
     setOpenPicker(null);
     setDisplayMonth(parseDateValue(nextInitialState.date));
   }, [draftFilePath, editingReminder, isEditorOpen]);
+
+  useEffect(() => {
+    if (!isFloatingWindow || !isEditorOpen) return;
+
+    const content = editorContentRef.current;
+    if (!content) return;
+
+    let lastHeight = 0;
+    const resizeWindowToContent = () => {
+      const contentHeight = Math.ceil(content.getBoundingClientRect().height);
+      if (contentHeight <= 0) return;
+
+      const expandedHeight =
+        openPicker === "date" || openPicker === "repeat" || isCustomOpen
+          ? 620
+          : openPicker
+            ? 520
+            : 0;
+      const windowHeight = Math.max(
+        contentHeight + FLOATING_EDITOR_VERTICAL_MARGIN,
+        expandedHeight,
+      );
+      if (windowHeight === lastHeight) return;
+
+      lastHeight = windowHeight;
+      window.electronAPI.resizeReminderEditorWindow(windowHeight);
+    };
+
+    resizeWindowToContent();
+    if (typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver(resizeWindowToContent);
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [isCustomOpen, isEditorOpen, isFloatingWindow, openPicker]);
 
   const filePath = editingReminder?.filePath ?? draftFilePath ?? "";
   const fileName = getFileName(filePath);
@@ -233,12 +283,24 @@ export function ReminderEditorDialog() {
         }}
       >
         <DialogContent
+          ref={editorContentRef}
           showCloseButton={false}
-          overlayClassName="z-[55]"
-          overlayStyle={{ backgroundColor: "rgba(0, 0, 0, 0.18)" }}
-          className="top-[calc(12vh+56px)] z-[60] w-[calc(100%-32px)] max-w-[408px] translate-y-0 gap-0 overflow-visible rounded-xl p-0 shadow-[0_12px_28px_rgba(0,0,0,0.24)]"
+          overlayClassName={isFloatingWindow ? "hidden" : "z-[55]"}
+          overlayStyle={{
+            backgroundColor: isFloatingWindow
+              ? "transparent"
+              : "rgba(0, 0, 0, 0.18)",
+          }}
+          className={`${
+            isFloatingWindow ? "top-2" : ""
+          } z-[60] w-[calc(100%-32px)] max-w-[408px] translate-y-0 gap-0 overflow-visible rounded-xl p-0 shadow-[0_12px_28px_rgba(0,0,0,0.24)]`}
+          data-floating-window={isFloatingWindow ? "true" : undefined}
           data-reminder-editor-dialog="true"
           style={{
+            // 小高度视口（例如 macOS 的 Retina 缩放）中优先保留底部操作区。
+            top: isFloatingWindow
+              ? undefined
+              : "max(16px, min(calc(12vh + 56px), calc(100vh - 332px)))",
             backgroundColor:
               "color-mix(in srgb, var(--bg-tertiary) 36%, var(--bg-primary))",
             border: "none",
@@ -246,7 +308,12 @@ export function ReminderEditorDialog() {
           }}
         >
           <div className="animate-fade-in motion-reduce:animate-none">
-            <div className="flex h-11 items-center justify-between border-b border-[var(--border-color)] px-4">
+            <div
+              className="flex h-11 items-center justify-between border-b border-[var(--border-color)] px-4"
+              data-reminder-editor-drag-region={
+                isFloatingWindow ? "true" : undefined
+              }
+            >
               <Dialog.Title className="flex items-center gap-2 text-sm font-semibold">
                 {editingReminder ? (
                   <Bell
@@ -271,7 +338,10 @@ export function ReminderEditorDialog() {
             <Dialog.Description className="sr-only">
               设置提醒标题、日期时间和重复频率
             </Dialog.Description>
-            <div className="px-4 pb-4 pt-4">
+            <div
+              className="px-4 pb-4 pt-4"
+              data-reminder-editor-interactive-region="true"
+            >
               <div>
                 <Input
                   id="reminder-title"
@@ -354,6 +424,7 @@ export function ReminderEditorDialog() {
                     <RepeatPickerControl
                       value={repeat}
                       open={openPicker === "repeat"}
+                      opensBelow={isFloatingWindow}
                       onOpenChange={(open) =>
                         setOpenPicker(open ? "repeat" : null)
                       }
@@ -379,6 +450,7 @@ export function ReminderEditorDialog() {
 
             <div
               className="flex justify-end gap-2 rounded-b-xl border-t border-[var(--border-color)] px-4 py-3"
+              data-reminder-editor-interactive-region="true"
               style={{
                 backgroundColor:
                   "color-mix(in srgb, var(--bg-secondary) 38%, var(--bg-primary))",
@@ -435,7 +507,7 @@ function DatePickerControl({
   const todayValue = formatDateValue(new Date());
   const monthTitle = `${displayMonth.getFullYear()}年 ${displayMonth.getMonth() + 1}月`;
 
-  useCloseOnOutsidePointerDown(open, pickerRef, () => onOpenChange(false));
+  useCloseOnOutsideInteraction(open, pickerRef, () => onOpenChange(false));
 
   return (
     <div className="relative" ref={pickerRef}>
@@ -567,7 +639,7 @@ function TimePickerControl({
   const pickerRef = useRef<HTMLDivElement>(null);
   const [selectedHour, selectedMinute] = value.split(":");
 
-  useCloseOnOutsidePointerDown(open, pickerRef, () => onOpenChange(false));
+  useCloseOnOutsideInteraction(open, pickerRef, () => onOpenChange(false));
 
   const updateTime = (nextHour: string, nextMinute: string) => {
     onChange(`${nextHour}:${nextMinute}`);
@@ -670,6 +742,7 @@ function TimePickerColumn({ options, value, onSelect }: TimePickerColumnProps) {
 interface RepeatPickerControlProps {
   value: ReminderRepeatPreset;
   open: boolean;
+  opensBelow: boolean;
   onChange: (value: ReminderRepeatPreset) => void;
   onOpenChange: (open: boolean) => void;
 }
@@ -677,6 +750,7 @@ interface RepeatPickerControlProps {
 function RepeatPickerControl({
   value,
   open,
+  opensBelow,
   onChange,
   onOpenChange,
 }: RepeatPickerControlProps) {
@@ -684,7 +758,7 @@ function RepeatPickerControl({
   const selectedLabel =
     repeatOptions.find((option) => option.value === value)?.label ?? "永不";
 
-  useCloseOnOutsidePointerDown(open, pickerRef, () => onOpenChange(false));
+  useCloseOnOutsideInteraction(open, pickerRef, () => onOpenChange(false));
 
   return (
     <div className="relative" ref={pickerRef}>
@@ -708,7 +782,10 @@ function RepeatPickerControl({
       </button>
       {open ? (
         <div
-          className="absolute bottom-[calc(100%+8px)] right-0 z-[80] w-[184px] rounded-xl border p-2 shadow-lg"
+          className={`absolute ${
+            opensBelow ? "top-[calc(100%+8px)]" : "bottom-[calc(100%+8px)]"
+          } right-0 z-[80] w-[184px] rounded-xl border p-2 shadow-lg`}
+          data-testid="reminder-repeat-menu"
           style={{
             backgroundColor: "var(--bg-primary)",
             borderColor: "var(--border-color)",

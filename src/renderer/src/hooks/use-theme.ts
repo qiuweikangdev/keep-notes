@@ -3,17 +3,50 @@ import { getThemeConfig, resolveTheme, type ThemeName } from "@/config/themes";
 import { useUIStore } from "@/store/ui.store";
 
 const THEME_CLASSES = ["light", "dark", "nord", "dracula", "solarized"];
+const THEME_NAMES: readonly ThemeName[] = [
+  "light",
+  "dark",
+  "nord",
+  "dracula",
+  "solarized",
+  "system",
+];
+const UI_STORAGE_KEY = "ui-storage";
 
-export function useTheme() {
+function getPersistedAppTheme(value: string | null): ThemeName | null {
+  if (!value) return null;
+
+  try {
+    const persisted = JSON.parse(value) as {
+      state?: { theme?: unknown };
+    };
+    return THEME_NAMES.includes(persisted.state?.theme as ThemeName)
+      ? (persisted.state?.theme as ThemeName)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+interface UseThemeOptions {
+  transparentBackground?: boolean;
+  themeOverride?: ThemeName;
+}
+
+export function useTheme({
+  transparentBackground = false,
+  themeOverride,
+}: UseThemeOptions = {}) {
   const theme = useUIStore((state) => state.theme);
   const setTheme = useUIStore((state) => state.setTheme);
   const [, refreshSystemTheme] = useState(0);
+  const effectiveTheme = themeOverride ?? theme;
 
   // 每次渲染都同步解析主题，避免主题变量和 BlockNote 的色彩方案出现短暂错位。
-  const resolvedTheme = resolveTheme(theme);
+  const resolvedTheme = resolveTheme(effectiveTheme);
 
   useEffect(() => {
-    if (theme !== "system") return;
+    if (effectiveTheme !== "system") return;
 
     // 仅在跟随系统时订阅系统配色变化，通过刷新触发一次同步重新解析。
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -24,7 +57,34 @@ export function useTheme() {
     mediaQuery.addEventListener("change", handleChange);
 
     return () => mediaQuery.removeEventListener("change", handleChange);
-  }, [theme]);
+  }, [effectiveTheme]);
+
+  useLayoutEffect(() => {
+    if (themeOverride) return;
+
+    const persistedTheme = getPersistedAppTheme(
+      localStorage.getItem(UI_STORAGE_KEY),
+    );
+    if (persistedTheme && persistedTheme !== useUIStore.getState().theme) {
+      setTheme(persistedTheme);
+    }
+  }, [setTheme, themeOverride]);
+
+  useEffect(() => {
+    if (themeOverride) return;
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== UI_STORAGE_KEY) return;
+
+      const nextTheme = getPersistedAppTheme(event.newValue);
+      if (nextTheme && nextTheme !== useUIStore.getState().theme) {
+        setTheme(nextTheme);
+      }
+    };
+
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, [setTheme, themeOverride]);
 
   // 在浏览器绘制前批量提交全局主题变量，与本次 React 渲染保持同一帧生效。
   useLayoutEffect(() => {
@@ -43,7 +103,9 @@ export function useTheme() {
     root.style.setProperty("--active-bg", config.colors.activeBg);
     root.style.setProperty("--accent-color", config.colors.accentColor);
 
-    body.style.backgroundColor = config.colors.bgPrimary;
+    body.style.backgroundColor = transparentBackground
+      ? "transparent"
+      : config.colors.bgPrimary;
     body.style.color = config.colors.textPrimary;
 
     root.classList.remove(...THEME_CLASSES);
@@ -52,18 +114,9 @@ export function useTheme() {
     body.classList.add(resolvedTheme);
     root.setAttribute(
       "data-theme",
-      theme === "system" ? "system" : resolvedTheme,
+      effectiveTheme === "system" ? "system" : resolvedTheme,
     );
-
-    localStorage.setItem("theme", theme);
-  }, [theme, resolvedTheme]);
-
-  useEffect(() => {
-    const savedTheme = localStorage.getItem("theme") as ThemeName | null;
-    if (savedTheme && savedTheme !== theme) {
-      setTheme(savedTheme);
-    }
-  }, []);
+  }, [effectiveTheme, resolvedTheme, transparentBackground]);
 
   const changeTheme = useCallback(
     (newTheme: ThemeName) => {

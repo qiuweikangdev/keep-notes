@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   checkAndCloseWindow,
   createWindow,
+  focusMainWindow,
   openPathInNewWindow,
   resolveWindowOpenTarget,
   saveAndClose,
@@ -13,6 +14,7 @@ import {
 const electronMocks = vi.hoisted(() => ({
   showMessageBox: vi.fn(),
   showSaveDialog: vi.fn(),
+  focusApp: vi.fn(),
 }));
 const getCachedDirtyState = vi.hoisted(() => vi.fn(() => false));
 
@@ -58,18 +60,23 @@ const BrowserWindowMock = vi.hoisted(() =>
         send: vi.fn(),
       },
       on: vi.fn(),
+      once: vi.fn(),
       loadFile: vi.fn(),
       loadURL: vi.fn(),
       isDestroyed: vi.fn(() => false),
+      isMinimized: vi.fn(() => false),
       destroy: vi.fn(),
+      restore: vi.fn(),
       show: vi.fn(),
+      moveTop: vi.fn(),
+      focus: vi.fn(),
     };
   }),
 );
 
 vi.mock("electron", () => ({
   BrowserWindow: BrowserWindowMock,
-  app: { isPackaged: true },
+  app: { isPackaged: true, focus: electronMocks.focusApp },
   shell: { openExternal: vi.fn() },
   dialog: electronMocks,
 }));
@@ -141,6 +148,29 @@ describe("createWindow", () => {
         icon: "mock-icon.png",
       }),
     );
+  });
+
+  it("activates and raises the latest main application window", () => {
+    const win = createWindow();
+    vi.mocked(win.isMinimized).mockReturnValue(true);
+
+    focusMainWindow();
+
+    expect(win.restore).toHaveBeenCalledOnce();
+    expect(win.show).toHaveBeenCalledOnce();
+    expect(win.focus).toHaveBeenCalledOnce();
+
+    if (process.platform === "darwin") {
+      expect(electronMocks.focusApp).toHaveBeenCalledOnce();
+      expect(electronMocks.focusApp).toHaveBeenCalledWith({ steal: true });
+      expect(win.moveTop).toHaveBeenCalledOnce();
+      expect(electronMocks.focusApp.mock.invocationCallOrder[0]).toBeLessThan(
+        vi.mocked(win.show).mock.invocationCallOrder[0],
+      );
+    } else {
+      expect(electronMocks.focusApp).not.toHaveBeenCalled();
+      expect(win.moveTop).not.toHaveBeenCalled();
+    }
   });
 });
 

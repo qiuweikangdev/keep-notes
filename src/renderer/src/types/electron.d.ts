@@ -20,6 +20,8 @@ import type {
   ReminderInput,
   SaveImageAttachmentInput,
   SaveImageAttachmentResult,
+  QuickEditorWindowContent,
+  ShortcutRegistrationResult,
   NotificationChannelType,
   NotificationConfig,
   ExportConfig,
@@ -122,6 +124,38 @@ export interface ElectronAPI {
   completeReminder: (id: string) => Promise<Reminder>;
   onRemindersChanged: (callback: (reminders: Reminder[]) => void) => () => void;
   onReminderTriggered: (callback: (reminder: Reminder) => void) => () => void;
+  setReminderGlobalShortcut: (
+    keys: string[],
+  ) => Promise<ShortcutRegistrationResult>;
+  showReminderWindow: () => void;
+  hideReminderWindow: () => void;
+  returnToMainWindow: () => void;
+  resizeReminderWindow: (height: number) => void;
+  prewarmReminderEditorWindow: () => void;
+  showReminderEditorWindow: (reminderId?: string) => void;
+  resizeReminderEditorWindow: (height: number) => void;
+  closeReminderEditorWindow: () => void;
+  onReminderWindowShown: (callback: () => void) => () => void;
+  setQuickEditorGlobalShortcut: (
+    keys: string[],
+  ) => Promise<ShortcutRegistrationResult>;
+  showQuickEditorWindow: () => void;
+  createQuickEditorWindow: (content?: QuickEditorWindowContent) => void;
+  syncQuickEditorContent: (content: QuickEditorWindowContent) => void;
+  onQuickEditorInitialContent: (
+    callback: (content: QuickEditorWindowContent) => void,
+  ) => () => void;
+  onQuickEditorContentUpdated: (
+    callback: (content: QuickEditorWindowContent) => void,
+  ) => () => void;
+  closeQuickEditorWindow: () => void;
+  returnToMainWindowFromQuickEditor: (
+    content: QuickEditorWindowContent,
+  ) => void;
+  consumeQuickEditorContent: () => Promise<QuickEditorWindowContent | null>;
+  onQuickEditorContentImported: (
+    callback: (content: QuickEditorWindowContent) => void,
+  ) => () => void;
   // Notification
   getNotificationConfig: () => Promise<NotificationConfig>;
   setNotificationConfig: (config: NotificationConfig) => Promise<void>;

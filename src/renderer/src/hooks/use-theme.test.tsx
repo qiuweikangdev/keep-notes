@@ -71,4 +71,69 @@ describe("useTheme", () => {
     expect(result.current.isDark).toBe(true);
     expect(document.documentElement.classList.contains("dark")).toBe(true);
   });
+
+  it("keeps standalone floating windows transparent", () => {
+    renderHook(() => useTheme({ transparentBackground: true }));
+
+    expect(document.body.style.backgroundColor).toBe("transparent");
+    expect(
+      document.documentElement.style.getPropertyValue("--bg-primary"),
+    ).toBe("#ffffff");
+  });
+
+  it("restores the application theme from shared persisted settings", () => {
+    useUIStore.setState({ theme: "dark" });
+    localStorage.setItem(
+      "ui-storage",
+      JSON.stringify({ state: { theme: "light" }, version: 0 }),
+    );
+
+    const { result } = renderHook(() =>
+      useTheme({ transparentBackground: true }),
+    );
+
+    expect(result.current.isDark).toBe(false);
+    expect(document.documentElement.classList.contains("light")).toBe(true);
+  });
+
+  it("follows application theme changes from another window", () => {
+    const { result } = renderHook(() =>
+      useTheme({ transparentBackground: true }),
+    );
+
+    act(() => {
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: "ui-storage",
+          newValue: JSON.stringify({
+            state: { theme: "dark" },
+            version: 0,
+          }),
+        }),
+      );
+    });
+
+    expect(result.current.isDark).toBe(true);
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+  });
+
+  it("lets an isolated floating window follow the system theme", () => {
+    const media = installColorSchemeMedia(true);
+    localStorage.setItem("theme", "light");
+
+    const { result } = renderHook(() =>
+      useTheme({ transparentBackground: true, themeOverride: "system" }),
+    );
+
+    expect(result.current.isDark).toBe(true);
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+    expect(document.documentElement.dataset.theme).toBe("system");
+    expect(localStorage.getItem("theme")).toBe("light");
+
+    act(() => media.setMatches(false));
+
+    expect(result.current.isDark).toBe(false);
+    expect(document.documentElement.classList.contains("light")).toBe(true);
+    expect(localStorage.getItem("theme")).toBe("light");
+  });
 });

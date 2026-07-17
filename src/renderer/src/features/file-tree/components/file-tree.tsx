@@ -13,6 +13,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   File,
   Folder,
+  FolderInput,
   FolderOpen,
   ChevronRight,
   List,
@@ -1883,6 +1884,7 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
         open={moveConfirm.open}
         onOpenChange={(open) => setMoveConfirm((prev) => ({ ...prev, open }))}
         title="确认移动"
+        icon={FolderInput}
         description={`确定要将「${moveConfirm.title}」移动到「${dropTargetFolderTitle}」文件夹中吗？`}
         confirmText="移动"
         onConfirm={handleMoveConfirm}

@@ -212,6 +212,16 @@ export function useKeyboardShortcuts() {
           // 搜索快捷键在 App.tsx 中单独处理（需要设置 state）
           break;
 
+        case "openReminderWindow":
+          e.preventDefault();
+          window.electronAPI.showReminderWindow?.();
+          break;
+
+        case "openQuickEditorWindow":
+          e.preventDefault();
+          window.electronAPI.showQuickEditorWindow?.();
+          break;
+
         case "navigateBack":
           e.preventDefault();
           window.__navigateBack?.();

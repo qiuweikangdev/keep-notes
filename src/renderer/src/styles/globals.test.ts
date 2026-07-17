@@ -20,4 +20,10 @@ describe("global scrollbar styles", () => {
       /\.file-tree-scrollbar-track\s*\{[\s\S]*width:\s*8px;/,
     );
   });
+
+  it("keeps the floating reminder result list interactive while the window is draggable", () => {
+    expect(stylesheet).toMatch(
+      /\[data-reminder-list-dialog="true"\]\[data-floating-window="true"\][\s\S]*\[data-reminder-scroll-region="true"\][\s\S]*-webkit-app-region:\s*no-drag;/,
+    );
+  });
 });
