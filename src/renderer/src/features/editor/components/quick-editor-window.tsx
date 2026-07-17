@@ -15,6 +15,7 @@ import {
   readImageFileAsDataUrl,
   type UploadedImageCursorEditor,
 } from "../lib/editor-image";
+import { EDITOR_EMPTY_PLACEHOLDER } from "../lib/editor-placeholder";
 import { serializeMarkdown } from "../lib/markdown";
 
 import "@blocknote/core/fonts/inter.css";
@@ -106,6 +107,7 @@ export function QuickEditorWindow() {
     ),
   );
   const editor = useCreateBlockNote({
+    placeholders: { default: EDITOR_EMPTY_PLACEHOLDER },
     schema: editorSchema,
     uploadFile: handleImageUploadRef.current,
   });

@@ -77,6 +77,7 @@ import {
   createEditorCodeLineTarget,
   readEditorCodeViewportAnchor,
 } from "../lib/editor-code-viewport";
+import { EDITOR_EMPTY_PLACEHOLDER } from "../lib/editor-placeholder";
 import {
   chooseCapturedEditorViewport,
   chooseRestoredEditorScrollTop,
@@ -1157,6 +1158,7 @@ function BlockNoteEditorInner(props: BlockNoteEditorInnerProps) {
       (proxies) =>
         CoreBlockNoteEditor.create({
           initialContent: undefined,
+          placeholders: { default: EDITOR_EMPTY_PLACEHOLDER },
           resolveFileUrl: proxies.resolveFileUrl,
           schema: editorSchema,
           uploadFile: proxies.uploadFile,
