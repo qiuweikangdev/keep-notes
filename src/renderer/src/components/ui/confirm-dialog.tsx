@@ -1,9 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { Trash2 } from "lucide-react";
+import { Trash2, TriangleAlert } from "lucide-react";
 import { useRef, type MouseEvent } from "react";
 
-type ConfirmDialogVariant = "default" | "danger";
+type ConfirmDialogVariant = "default" | "warning" | "danger";
 
 function stopPortalClick(event: MouseEvent) {
   event.stopPropagation();
@@ -32,6 +32,7 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const isDanger = variant === "danger";
+  const isWarning = variant === "warning";
 
   const handleConfirm = async () => {
     await onConfirm();
@@ -64,6 +65,12 @@ export function ConfirmDialog({
           <Dialog.Title className="flex items-center gap-1.5 text-sm font-medium leading-5">
             {isDanger ? (
               <Trash2
+                aria-hidden="true"
+                className="h-4 w-4 shrink-0"
+                style={{ color: "var(--danger-color)" }}
+              />
+            ) : isWarning ? (
+              <TriangleAlert
                 aria-hidden="true"
                 className="h-4 w-4 shrink-0"
                 style={{ color: "var(--danger-color)" }}

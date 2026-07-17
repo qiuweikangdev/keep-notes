@@ -2156,6 +2156,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                   : `"${confirmDialog.filePath}" 的更改`
               } 吗？`
         }
+        variant="warning"
         confirmText="确定"
         onConfirm={confirmDiscardChanges}
       />

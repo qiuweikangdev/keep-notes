@@ -296,6 +296,7 @@ export function EditorToolbar({
         onOpenChange={setConfirmDiscard}
         title="确认放弃更改"
         description={`确定要放弃 "${tab?.filePath?.split(/[\\/]/).pop() ?? "当前文件"}" 的更改吗？`}
+        variant="warning"
         confirmText="确定"
         onConfirm={handleDiscard}
       />

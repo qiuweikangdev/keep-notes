@@ -296,6 +296,7 @@ function HomePageContent() {
         onOpenChange={setConfirmDiscardOpen}
         title="确认放弃更改"
         description={`确定要放弃 "${fileName || "当前文件"}" 的更改吗？`}
+        variant="warning"
         confirmText="确定"
         onConfirm={handleConfirmDiscard}
       />
