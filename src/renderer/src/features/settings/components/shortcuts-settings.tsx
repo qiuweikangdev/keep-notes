@@ -809,7 +809,11 @@ export function ShortcutsSettings() {
         title={confirmState.title}
         description={confirmState.description}
         confirmText={confirmState.confirmText}
-        variant={confirmState.type === "resetAll" ? "danger" : "default"}
+        variant={
+          confirmState.type === "delete" || confirmState.type === "resetAll"
+            ? "danger"
+            : "default"
+        }
         onConfirm={handleConfirm}
       />
     </div>

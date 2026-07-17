@@ -10,6 +10,7 @@ import {
   ChevronRight,
   File,
   Folder,
+  FolderInput,
   FolderOpen,
   Plus,
   FolderPlus,
@@ -736,6 +737,7 @@ export const TreeNode = memo(function TreeNode({
         open={confirmState.open}
         onOpenChange={(open) => setConfirmState((prev) => ({ ...prev, open }))}
         title={confirmState.type === "delete" ? "确认删除" : "确认移动"}
+        icon={confirmState.type === "move" ? FolderInput : undefined}
         description={
           confirmState.type === "delete"
             ? "确定要删除「" +

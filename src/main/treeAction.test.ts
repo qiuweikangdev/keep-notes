@@ -23,6 +23,7 @@ import {
   createFile,
   createFolder,
   deleteFileOrFolder,
+  moveFileOrFolder,
   rename,
 } from "./treeAction";
 
@@ -61,6 +62,25 @@ describe("tree actions", () => {
       data: { treeData: [] },
     });
     expect(fs.existsSync(filePath)).toBe(false);
+  });
+
+  it("moves a file without showing a native confirmation dialog", async () => {
+    const root = createTempRoot();
+    const sourcePath = path.join(root, "daily.md");
+    const targetPath = path.join(root, "archive");
+    fs.writeFileSync(sourcePath, "content");
+    fs.mkdirSync(targetPath);
+    const treeData: TreeNode[] = [
+      { title: "daily.md", key: sourcePath },
+      { title: "archive", key: targetPath, children: [] },
+    ];
+
+    const result = await moveFileOrFolder(sourcePath, targetPath, treeData);
+
+    expect(showMessageBox).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ code: CodeResult.Success });
+    expect(fs.existsSync(sourcePath)).toBe(false);
+    expect(fs.existsSync(path.join(targetPath, "daily.md"))).toBe(true);
   });
 
   it("rejects an existing file name with a user-facing message", async () => {
