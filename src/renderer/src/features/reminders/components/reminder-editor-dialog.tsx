@@ -292,11 +292,15 @@ export function ReminderEditorDialog({
               : "rgba(0, 0, 0, 0.18)",
           }}
           className={`${
-            isFloatingWindow ? "top-2" : "top-[calc(12vh+56px)]"
+            isFloatingWindow ? "top-2" : ""
           } z-[60] w-[calc(100%-32px)] max-w-[408px] translate-y-0 gap-0 overflow-visible rounded-xl p-0 shadow-[0_12px_28px_rgba(0,0,0,0.24)]`}
           data-floating-window={isFloatingWindow ? "true" : undefined}
           data-reminder-editor-dialog="true"
           style={{
+            // 小高度视口（例如 macOS 的 Retina 缩放）中优先保留底部操作区。
+            top: isFloatingWindow
+              ? undefined
+              : "max(16px, min(calc(12vh + 56px), calc(100vh - 332px)))",
             backgroundColor:
               "color-mix(in srgb, var(--bg-tertiary) 36%, var(--bg-primary))",
             border: "none",
