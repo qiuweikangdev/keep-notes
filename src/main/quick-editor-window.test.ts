@@ -254,6 +254,21 @@ describe("quick editor floating window", () => {
     });
   });
 
+  it("closes a source-linked editor without showing the unsaved-content prompt", () => {
+    const win = createQuickEditorWindow({
+      content: "# Synced note",
+      source: {
+        groupId: "group-1",
+        tabId: "tab-1",
+        filePath: "/notes/synced.md",
+      },
+    });
+
+    win.close();
+
+    expect(windowMocks.checkAndCloseWindow).not.toHaveBeenCalled();
+  });
+
   it("imports the draft and returns without opening the close confirmation", () => {
     const win = showQuickEditorWindow();
 

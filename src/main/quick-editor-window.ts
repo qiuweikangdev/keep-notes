@@ -186,6 +186,9 @@ export function createQuickEditorWindow(
   win.on("close", (event) => {
     if (win.isDestroyed()) return;
 
+    // 已关联来源标签的浮窗内容会实时回写，关闭时无需再走独立草稿的保存确认。
+    if (quickEditorWindowSources.has(win)) return;
+
     event.preventDefault();
     if (closingQuickEditorWindows.has(win)) return;
 
