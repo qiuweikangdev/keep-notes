@@ -17,6 +17,10 @@ describe("ShortcutsSettings", () => {
           success: true,
           failedKeys: [],
         })),
+        setQuickEditorGlobalShortcut: vi.fn(async () => ({
+          success: true,
+          failedKeys: [],
+        })),
       },
     });
 
@@ -42,6 +46,18 @@ describe("ShortcutsSettings", () => {
       within(reminderRow as HTMLElement).getByText("Ctrl+Alt+R"),
     ).toBeVisible();
     expect(within(reminderRow as HTMLElement).queryByText("未指定")).toBeNull();
+
+    const quickEditorRow = document.querySelector(
+      '[data-shortcut-row="openQuickEditorWindow"]',
+    );
+    expect(quickEditorRow).not.toBeNull();
+    expect(
+      within(quickEditorRow as HTMLElement).getByText("Ctrl+Alt+N"),
+    ).toBeVisible();
+    expect(
+      (reminderRow?.compareDocumentPosition(quickEditorRow as HTMLElement) ??
+        0) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("uses one grid and consistent keycap sizing for headers and rows", () => {

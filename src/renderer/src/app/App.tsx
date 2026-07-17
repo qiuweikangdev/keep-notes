@@ -18,6 +18,7 @@ import { useReminderStore } from "@/store/reminder.store";
 import { APP_BEHAVIOR_CONFIG } from "@/config/app-behavior";
 import { useTheme } from "@/hooks/use-theme";
 import { showAppToast } from "@/lib/app-toast";
+import { QuickEditorWindow } from "@/features/editor/components/quick-editor-window";
 
 const CODE_BLOCK_CURSOR_VISUAL_WIDTH = 2;
 
@@ -50,6 +51,7 @@ export function App() {
   if (windowType === "reminder-editor") {
     return <ReminderEditorWindowApplication />;
   }
+  if (windowType === "quick-editor") return <QuickEditorWindowApplication />;
   return <MainApplication />;
 }
 
@@ -69,6 +71,12 @@ function MainApplication() {
   const reminderShortcutKeys = useMemo(
     () =>
       shortcuts.find((shortcut) => shortcut.id === "openReminderWindow")
+        ?.keys ?? [],
+    [shortcuts],
+  );
+  const quickEditorShortcutKeys = useMemo(
+    () =>
+      shortcuts.find((shortcut) => shortcut.id === "openQuickEditorWindow")
         ?.keys ?? [],
     [shortcuts],
   );
@@ -175,6 +183,21 @@ function MainApplication() {
       isActive = false;
     };
   }, [reminderShortcutKeys]);
+
+  useEffect(() => {
+    const setGlobalShortcut = window.electronAPI?.setQuickEditorGlobalShortcut;
+    if (!setGlobalShortcut) return;
+
+    let isActive = true;
+    void setGlobalShortcut(quickEditorShortcutKeys).then((result) => {
+      if (!isActive || result.success) return;
+      showAppToast("快速编辑快捷键被系统或其他应用占用，请重新配置");
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [quickEditorShortcutKeys]);
 
   // 监听来自菜单的搜索事件
   useEffect(() => {
@@ -308,6 +331,20 @@ function ReminderEditorWindowApplication() {
           <ReminderEditorDialog presentation="floating-window" />
         </div>
       </DragResizeProvider>
+    </Tooltip.Provider>
+  );
+}
+
+function QuickEditorWindowApplication() {
+  useEffect(() => {
+    document.title = "快速编辑";
+  }, []);
+
+  return (
+    <Tooltip.Provider delayDuration={300}>
+      <div className="h-screen w-screen overflow-hidden bg-transparent">
+        <QuickEditorWindow />
+      </div>
     </Tooltip.Provider>
   );
 }

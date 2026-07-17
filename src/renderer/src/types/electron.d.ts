@@ -135,6 +135,12 @@ export interface ElectronAPI {
   resizeReminderEditorWindow: (height: number) => void;
   closeReminderEditorWindow: () => void;
   onReminderWindowShown: (callback: () => void) => () => void;
+  setQuickEditorGlobalShortcut: (
+    keys: string[],
+  ) => Promise<ShortcutRegistrationResult>;
+  showQuickEditorWindow: () => void;
+  closeQuickEditorWindow: () => void;
+  returnToMainWindowFromQuickEditor: () => void;
   // Notification
   getNotificationConfig: () => Promise<NotificationConfig>;
   setNotificationConfig: (config: NotificationConfig) => Promise<void>;

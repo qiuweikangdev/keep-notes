@@ -217,6 +217,11 @@ export function useKeyboardShortcuts() {
           window.electronAPI.showReminderWindow?.();
           break;
 
+        case "openQuickEditorWindow":
+          e.preventDefault();
+          window.electronAPI.showQuickEditorWindow?.();
+          break;
+
         case "navigateBack":
           e.preventDefault();
           window.__navigateBack?.();

@@ -366,6 +366,28 @@ function RowActionButton({
 }
 
 /** 快捷键配置面板 */
+async function configureSystemGlobalShortcut(
+  id: ShortcutAction,
+  keys: string[],
+): Promise<boolean> {
+  if (
+    id === "openReminderWindow" &&
+    window.electronAPI?.setReminderGlobalShortcut
+  ) {
+    return (await window.electronAPI.setReminderGlobalShortcut(keys)).success;
+  }
+
+  if (
+    id === "openQuickEditorWindow" &&
+    window.electronAPI?.setQuickEditorGlobalShortcut
+  ) {
+    return (await window.electronAPI.setQuickEditorGlobalShortcut(keys))
+      .success;
+  }
+
+  return true;
+}
+
 export function ShortcutsSettings() {
   const {
     shortcuts,
@@ -436,15 +458,9 @@ export function ShortcutsSettings() {
 
   const handleUpdateKeys = useCallback(
     async (id: ShortcutAction, keys: string[]): Promise<boolean> => {
-      if (
-        id === "openReminderWindow" &&
-        window.electronAPI?.setReminderGlobalShortcut
-      ) {
-        const result = await window.electronAPI.setReminderGlobalShortcut(keys);
-        if (!result.success) {
-          showAppToast("该全局快捷键已被系统或其他应用占用，请换一个组合");
-          return false;
-        }
+      if (!(await configureSystemGlobalShortcut(id, keys))) {
+        showAppToast("该全局快捷键已被系统或其他应用占用，请换一个组合");
+        return false;
       }
 
       updateShortcutKeys(id, keys);
@@ -508,8 +524,7 @@ export function ShortcutsSettings() {
           const defaultShortcut = defaultShortcuts.find(
             (shortcut) => shortcut.id === confirmState.shortcutId,
           );
-          if (confirmState.shortcutId === "openReminderWindow") {
-            if (!defaultShortcut) break;
+          if (defaultShortcut?.isSystem) {
             const updated = await handleUpdateKeys(
               confirmState.shortcutId,
               defaultShortcut.keys,
@@ -521,15 +536,36 @@ export function ShortcutsSettings() {
         }
         break;
       case "resetAll": {
-        const reminderDefault = defaultShortcuts.find(
-          (shortcut) => shortcut.id === "openReminderWindow",
+        const appliedShortcuts: Array<{
+          id: ShortcutAction;
+          previousKeys: string[];
+        }> = [];
+        const systemDefaults = defaultShortcuts.filter(
+          (shortcut) => shortcut.isSystem,
         );
-        if (reminderDefault) {
-          const updated = await handleUpdateKeys(
-            reminderDefault.id,
-            reminderDefault.keys,
+
+        for (const defaultShortcut of systemDefaults) {
+          const previousKeys =
+            shortcuts.find((shortcut) => shortcut.id === defaultShortcut.id)
+              ?.keys ?? [];
+          const success = await configureSystemGlobalShortcut(
+            defaultShortcut.id,
+            defaultShortcut.keys,
           );
-          if (!updated) return;
+          if (!success) {
+            // 多个系统级快捷键必须作为一组恢复，失败时回滚已注册项。
+            await Promise.all(
+              appliedShortcuts.map((shortcut) =>
+                configureSystemGlobalShortcut(
+                  shortcut.id,
+                  shortcut.previousKeys,
+                ),
+              ),
+            );
+            showAppToast("默认全局快捷键被系统或其他应用占用，未执行重置");
+            return;
+          }
+          appliedShortcuts.push({ id: defaultShortcut.id, previousKeys });
         }
         resetAllShortcuts();
         break;
@@ -542,6 +578,7 @@ export function ShortcutsSettings() {
     handleUpdateKeys,
     resetShortcut,
     resetAllShortcuts,
+    shortcuts,
   ]);
 
   return (

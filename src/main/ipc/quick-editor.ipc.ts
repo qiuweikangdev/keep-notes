@@ -1,0 +1,37 @@
+import { ipcMain } from "electron";
+import { IPC_CHANNELS } from "../../shared/constants";
+import {
+  closeQuickEditorWindow,
+  configureQuickEditorGlobalShortcuts,
+  returnToMainWindowFromQuickEditor,
+  showQuickEditorWindow,
+} from "../quick-editor-window";
+import { getBrowserWindow } from "../utils";
+
+export function registerQuickEditorIpc(): void {
+  ipcMain.handle(
+    IPC_CHANNELS.QUICK_EDITOR.SET_GLOBAL_SHORTCUT,
+    (_, keys: unknown) => {
+      if (
+        !Array.isArray(keys) ||
+        !keys.every((key) => typeof key === "string" && key.length <= 100)
+      ) {
+        return { success: false, failedKeys: [] };
+      }
+
+      return configureQuickEditorGlobalShortcuts(keys);
+    },
+  );
+
+  ipcMain.on(IPC_CHANNELS.QUICK_EDITOR.SHOW_WINDOW, () => {
+    showQuickEditorWindow();
+  });
+
+  ipcMain.on(IPC_CHANNELS.QUICK_EDITOR.CLOSE_WINDOW, (event) => {
+    closeQuickEditorWindow(getBrowserWindow(event));
+  });
+
+  ipcMain.on(IPC_CHANNELS.QUICK_EDITOR.RETURN_TO_MAIN_WINDOW, (event) => {
+    returnToMainWindowFromQuickEditor(getBrowserWindow(event));
+  });
+}

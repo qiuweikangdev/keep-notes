@@ -24,6 +24,12 @@ export const IPC_CHANNELS = {
     UPDATE_DIRTY_STATE: "editor:update-dirty-state",
     SAVE_DRAFT: "editor:save-draft",
   },
+  QUICK_EDITOR: {
+    SET_GLOBAL_SHORTCUT: "quick-editor:set-global-shortcut",
+    SHOW_WINDOW: "quick-editor:show-window",
+    CLOSE_WINDOW: "quick-editor:close-window",
+    RETURN_TO_MAIN_WINDOW: "quick-editor:return-to-main-window",
+  },
   FILE: {
     READ: "file:read",
     WRITE: "file:write",

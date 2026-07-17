@@ -1,0 +1,93 @@
+.quick-editor-window {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border-color) 78%, transparent);
+  border-radius: 10px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.quick-editor-window__titlebar {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--border-color) 66%, transparent);
+  background: color-mix(in srgb, var(--bg-secondary) 45%, var(--bg-primary));
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.quick-editor-window__drag-region {
+  min-width: 32px;
+  flex: 1;
+  align-self: stretch;
+}
+
+.quick-editor-window__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-right: 6px;
+  -webkit-app-region: no-drag;
+}
+
+.quick-editor-window__action {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  outline: none;
+}
+
+.quick-editor-window__action:hover {
+  background: var(--hover-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+.quick-editor-window__action:focus-visible {
+  box-shadow: 0 0 0 1px var(--accent-color);
+}
+
+.quick-editor-window__action--close:hover {
+  background: color-mix(
+    in srgb,
+    var(--danger-color) 12%,
+    var(--bg-primary)
+  ) !important;
+  color: var(--danger-color) !important;
+}
+
+.quick-editor-window__editor {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  background: var(--bg-primary);
+}
+
+.quick-editor-window__editor > .bn-container,
+.quick-editor-window__editor .bn-mantine {
+  min-height: 100%;
+  background: transparent !important;
+}
+
+.quick-editor-window__editor .bn-editor {
+  min-height: calc(100vh - 38px);
+  padding: 22px 42px 96px 52px;
+  background: transparent !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quick-editor-window__action {
+    transition: none;
+  }
+}

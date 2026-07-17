@@ -7,6 +7,7 @@ import { registerUpdaterIpc } from "./updater.ipc";
 import { registerReminderIpc } from "./reminder.ipc";
 import { registerNotificationIpc } from "./notification.ipc";
 import { registerExportIpc } from "./export.ipc";
+import { registerQuickEditorIpc } from "./quick-editor.ipc";
 
 export function registerAllIpc(): void {
   registerFileIpc();
@@ -18,4 +19,5 @@ export function registerAllIpc(): void {
   registerReminderIpc();
   registerNotificationIpc();
   registerExportIpc();
+  registerQuickEditorIpc();
 }

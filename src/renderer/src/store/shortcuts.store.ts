@@ -12,6 +12,7 @@ export type ShortcutAction =
   | "openSearch"
   | "openSearchAlt"
   | "openReminderWindow"
+  | "openQuickEditorWindow"
   | "navigateBack"
   | "navigateForward";
 
@@ -108,6 +109,13 @@ function createDefaultShortcuts(
       name: "搜索提醒事项",
       description: "在浮动小窗口中打开并搜索提醒事项",
       keys: ["CmdOrCtrl+Alt+R"],
+      isSystem: true,
+    },
+    {
+      id: "openQuickEditorWindow",
+      name: "打开快速编辑",
+      description: "在浮动小窗口中打开一个空白编辑器",
+      keys: ["CmdOrCtrl+Alt+N"],
       isSystem: true,
     },
     {
@@ -254,7 +262,7 @@ export const useShortcutsStore = create<ShortcutsState>()(
     }),
     {
       name: "shortcuts-storage",
-      version: 3,
+      version: 4,
       migrate: (persistedState) =>
         normalizePersistedShortcutsState(
           persistedState as Partial<ShortcutsState> | undefined,

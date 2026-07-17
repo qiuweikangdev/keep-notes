@@ -45,13 +45,49 @@ describe("useShortcutsStore", () => {
 
   it("places the reminder search shortcut first", async () => {
     const { useShortcutsStore } = await loadShortcutsStore("win32");
-    const [shortcut] = useShortcutsStore.getState().shortcuts;
+    const [shortcut, quickEditorShortcut] =
+      useShortcutsStore.getState().shortcuts;
 
     expect(shortcut).toMatchObject({
       id: "openReminderWindow",
       name: "搜索提醒事项",
       keys: ["CmdOrCtrl+Alt+R"],
       isSystem: true,
+    });
+    expect(quickEditorShortcut).toMatchObject({
+      id: "openQuickEditorWindow",
+      name: "打开快速编辑",
+      keys: ["CmdOrCtrl+Alt+N"],
+      isSystem: true,
+    });
+  });
+
+  it("adds the quick editor shortcut to version 3 persisted settings", async () => {
+    localStorage.setItem(
+      "shortcuts-storage",
+      JSON.stringify({
+        state: {
+          shortcuts: [
+            {
+              id: "openReminderWindow",
+              name: "搜索提醒事项",
+              description: "在浮动小窗口中打开并搜索提醒事项",
+              keys: ["CmdOrCtrl+Alt+R"],
+              isSystem: true,
+            },
+          ],
+          defaultShortcuts: [],
+        },
+        version: 3,
+      }),
+    );
+
+    const { useShortcutsStore } = await loadShortcutsStore("win32");
+    const shortcuts = useShortcutsStore.getState().shortcuts;
+
+    expect(shortcuts[1]).toMatchObject({
+      id: "openQuickEditorWindow",
+      keys: ["CmdOrCtrl+Alt+N"],
     });
   });
 

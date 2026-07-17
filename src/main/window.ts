@@ -224,7 +224,7 @@ export async function saveAndClose(win: BrowserWindow): Promise<void> {
           if (typeof window.__getNextDirtyEditor !== "function") {
             throw new Error("Close-save snapshot bridge is unavailable");
           }
-          return JSON.stringify(window.__getNextDirtyEditor());
+          return Promise.resolve(window.__getNextDirtyEditor()).then((snapshot) => JSON.stringify(snapshot));
         })()`,
       );
       const parsedSnapshot: unknown = JSON.parse(serializedSnapshot);
