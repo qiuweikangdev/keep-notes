@@ -29,8 +29,8 @@ export function registerQuickEditorIpc(): void {
     showQuickEditorWindow();
   });
 
-  ipcMain.on(IPC_CHANNELS.QUICK_EDITOR.CREATE_WINDOW, () => {
-    createQuickEditorWindow();
+  ipcMain.on(IPC_CHANNELS.QUICK_EDITOR.CREATE_WINDOW, (_, content: unknown) => {
+    createQuickEditorWindow(content);
   });
 
   ipcMain.on(IPC_CHANNELS.QUICK_EDITOR.CLOSE_WINDOW, (event) => {

@@ -20,8 +20,55 @@ import { useTheme } from "@/hooks/use-theme";
 import { showAppToast } from "@/lib/app-toast";
 import { QuickEditorWindow } from "@/features/editor/components/quick-editor-window";
 import { editorFindController } from "@/features/editor/lib/editor-find-controller";
+import type { QuickEditorWindowContent } from "@shared/types";
 
 const CODE_BLOCK_CURSOR_VISUAL_WIDTH = 2;
+
+function restoreQuickEditorSource(content: QuickEditorWindowContent): void {
+  const state = useEditorStore.getState();
+  const source = content.source;
+  if (!source) {
+    state.openQuickEditorDraft(content.content);
+    return;
+  }
+
+  const exactMatch = state.panelGroups
+    .find((group) => group.id === source.groupId)
+    ?.tabs.find(
+      (tab) => tab.id === source.tabId && tab.filePath === source.filePath,
+    );
+  const pathMatch = source.filePath
+    ? state.panelGroups
+        .flatMap((group) =>
+          group.tabs.map((tab) => ({ groupId: group.id, tab })),
+        )
+        .find(({ tab }) => tab.filePath === source.filePath)
+    : undefined;
+  const target = exactMatch
+    ? { groupId: source.groupId, tab: exactMatch }
+    : pathMatch;
+
+  if (!target) {
+    state.openQuickEditorDraft(content.content);
+    return;
+  }
+
+  // 优先恢复原始标签；标签已移动或重建时，再通过文件路径定位同一文档。
+  if (target.tab.content !== content.content) {
+    state.setTabContent(target.groupId, target.tab.id, content.content);
+    if (target.tab.filePath) {
+      state.syncFileContent(
+        target.tab.filePath,
+        content.content,
+        target.tab.id,
+      );
+    }
+    if (target.tab.mode === "rich") {
+      state.incrementTabReloadKey(target.groupId, target.tab.id);
+    }
+  }
+  state.setActiveTab(target.groupId, target.tab.id);
+}
 
 /**
  * 将 KeyboardEvent 转换为内部快捷键字符串
@@ -223,8 +270,8 @@ function MainApplication() {
 
   useEffect(() => {
     let isActive = true;
-    const importContent = (content: string) => {
-      useEditorStore.getState().openQuickEditorDraft(content);
+    const importContent = (content: QuickEditorWindowContent) => {
+      restoreQuickEditorSource(content);
     };
     const consumeContent = () => {
       void window.electronAPI

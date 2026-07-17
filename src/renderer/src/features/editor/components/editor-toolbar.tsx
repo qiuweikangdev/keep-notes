@@ -4,6 +4,7 @@ import {
   FolderSearch,
   GitCompare,
   MoreHorizontal,
+  PictureInPicture2,
   Plus,
   SplitSquareHorizontal,
   SplitSquareVertical,
@@ -180,6 +181,29 @@ export function EditorToolbar({
     void handleModeChange(currentTab.mode === "rich" ? "source" : "rich");
   }, [getActiveTab, handleModeChange]);
 
+  const handleOpenFloatingWindow = useCallback(async () => {
+    let currentTab = getActiveTab();
+    if (!currentTab) return;
+
+    if (
+      currentTab.mode === "rich" &&
+      shouldFlushRichEditorBeforeAction(currentTab.content)
+    ) {
+      await flushEditorChange(groupId, currentTab.id);
+      currentTab = getActiveTab();
+    }
+
+    if (!currentTab) return;
+    window.electronAPI.createQuickEditorWindow({
+      content: currentTab.content,
+      source: {
+        groupId,
+        tabId: currentTab.id,
+        filePath: currentTab.filePath,
+      },
+    });
+  }, [getActiveTab, groupId]);
+
   const handleDiscard = useCallback(async () => {
     const currentTab = getActiveTab();
     if (!currentTab?.filePath || !repositoryRoot) return;
@@ -239,6 +263,14 @@ export function EditorToolbar({
             >
               新建标签页
             </EditorActionMenuItem>
+            {tab ? (
+              <EditorActionMenuItem
+                icon={<PictureInPicture2 className="h-3.5 w-3.5" />}
+                onSelect={() => void handleOpenFloatingWindow()}
+              >
+                浮动窗口
+              </EditorActionMenuItem>
+            ) : null}
             {tab?.filePath && !tab.pendingFilePath ? (
               <EditorActionMenuItem
                 icon={<FolderSearch className="h-3.5 w-3.5" />}

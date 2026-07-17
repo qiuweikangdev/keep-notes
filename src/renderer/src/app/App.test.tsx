@@ -14,6 +14,10 @@ import { editorFindController } from "@/features/editor/lib/editor-find-controll
 let menuActionHandler: ((action: string) => void) | null = null;
 const appMocks = vi.hoisted(() => ({
   openQuickEditorDraft: vi.fn(),
+  incrementTabReloadKey: vi.fn(),
+  setActiveTab: vi.fn(),
+  setTabContent: vi.fn(),
+  syncFileContent: vi.fn(),
 }));
 
 const triggeredReminder: Reminder = {
@@ -246,8 +250,25 @@ vi.mock("@/store/editor.store", () => ({
     {
       getState: () => ({
         openQuickEditorDraft: appMocks.openQuickEditorDraft,
+        incrementTabReloadKey: appMocks.incrementTabReloadKey,
+        setActiveTab: appMocks.setActiveTab,
+        setTabContent: appMocks.setTabContent,
+        syncFileContent: appMocks.syncFileContent,
         activeGroupId: "group-1",
-        panelGroups: [{ id: "group-1", activeTabId: "tab-1" }],
+        panelGroups: [
+          {
+            id: "group-1",
+            activeTabId: "tab-1",
+            tabs: [
+              {
+                id: "tab-1",
+                filePath: "/workspace/notes/today.md",
+                content: "# Previous draft",
+                mode: "rich",
+              },
+            ],
+          },
+        ],
         setFilePath: vi.fn(),
         setDirty: vi.fn(),
       }),
@@ -302,6 +323,10 @@ describe("App shortcuts", () => {
   beforeEach(() => {
     menuActionHandler = null;
     appMocks.openQuickEditorDraft.mockClear();
+    appMocks.incrementTabReloadKey.mockClear();
+    appMocks.setActiveTab.mockClear();
+    appMocks.setTabContent.mockClear();
+    appMocks.syncFileContent.mockClear();
     useReminderStore.setState({
       reminders: [],
       isEditorOpen: false,
@@ -339,7 +364,10 @@ describe("App shortcuts", () => {
   });
 
   it("consumes quick-editor content into the active unnamed tab", async () => {
-    const consumeQuickEditorContent = vi.fn(async () => "# Quick draft\n");
+    const consumeQuickEditorContent = vi.fn(async () => ({
+      content: "# Quick draft\n",
+      source: null,
+    }));
     Object.defineProperty(window, "electronAPI", {
       configurable: true,
       value: { ...window.electronAPI, consumeQuickEditorContent },
@@ -352,6 +380,56 @@ describe("App shortcuts", () => {
         "# Quick draft\n",
       );
     });
+  });
+
+  it("restores the source file tab when returning from a floating editor", async () => {
+    const onQuickEditorContentImported = vi.fn(
+      (
+        callback: (content: {
+          content: string;
+          source: {
+            groupId: string;
+            tabId: string;
+            filePath: string | null;
+          } | null;
+        }) => void,
+      ) => {
+        callback({
+          content: "# Updated in floating editor",
+          source: {
+            groupId: "group-1",
+            tabId: "tab-1",
+            filePath: "/workspace/notes/today.md",
+          },
+        });
+        return () => undefined;
+      },
+    );
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: { ...window.electronAPI, onQuickEditorContentImported },
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(appMocks.setTabContent).toHaveBeenCalledWith(
+        "group-1",
+        "tab-1",
+        "# Updated in floating editor",
+      );
+      expect(appMocks.setActiveTab).toHaveBeenCalledWith("group-1", "tab-1");
+      expect(appMocks.syncFileContent).toHaveBeenCalledWith(
+        "/workspace/notes/today.md",
+        "# Updated in floating editor",
+        "tab-1",
+      );
+      expect(appMocks.incrementTabReloadKey).toHaveBeenCalledWith(
+        "group-1",
+        "tab-1",
+      );
+    });
+    expect(appMocks.openQuickEditorDraft).not.toHaveBeenCalled();
   });
 
   it("keeps the code-block cursor at two visual pixels across interface zoom", async () => {

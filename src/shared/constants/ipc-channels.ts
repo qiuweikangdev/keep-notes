@@ -28,6 +28,7 @@ export const IPC_CHANNELS = {
     SET_GLOBAL_SHORTCUT: "quick-editor:set-global-shortcut",
     SHOW_WINDOW: "quick-editor:show-window",
     CREATE_WINDOW: "quick-editor:create-window",
+    INITIAL_CONTENT: "quick-editor:initial-content",
     CLOSE_WINDOW: "quick-editor:close-window",
     RETURN_TO_MAIN_WINDOW: "quick-editor:return-to-main-window",
     IMPORT_CONTENT: "quick-editor:import-content",

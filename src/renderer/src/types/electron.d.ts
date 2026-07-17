@@ -20,6 +20,7 @@ import type {
   ReminderInput,
   SaveImageAttachmentInput,
   SaveImageAttachmentResult,
+  QuickEditorWindowContent,
   ShortcutRegistrationResult,
   NotificationChannelType,
   NotificationConfig,
@@ -139,12 +140,17 @@ export interface ElectronAPI {
     keys: string[],
   ) => Promise<ShortcutRegistrationResult>;
   showQuickEditorWindow: () => void;
-  createQuickEditorWindow: () => void;
+  createQuickEditorWindow: (content?: QuickEditorWindowContent) => void;
+  onQuickEditorInitialContent: (
+    callback: (content: QuickEditorWindowContent) => void,
+  ) => () => void;
   closeQuickEditorWindow: () => void;
-  returnToMainWindowFromQuickEditor: (content: string) => void;
-  consumeQuickEditorContent: () => Promise<string | null>;
+  returnToMainWindowFromQuickEditor: (
+    content: QuickEditorWindowContent,
+  ) => void;
+  consumeQuickEditorContent: () => Promise<QuickEditorWindowContent | null>;
   onQuickEditorContentImported: (
-    callback: (content: string) => void,
+    callback: (content: QuickEditorWindowContent) => void,
   ) => () => void;
   // Notification
   getNotificationConfig: () => Promise<NotificationConfig>;

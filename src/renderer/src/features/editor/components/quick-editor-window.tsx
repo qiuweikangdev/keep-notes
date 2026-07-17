@@ -3,7 +3,10 @@ import { BlockNoteView } from "@blocknote/mantine";
 import { useCreateBlockNote, useEditorChange } from "@blocknote/react";
 import type { BlockNoteEditor as CoreBlockNoteEditor } from "@blocknote/core";
 import { PictureInPicture2, Plus, X } from "lucide-react";
-import type { CloseSaveSnapshot } from "@shared/types";
+import type {
+  CloseSaveSnapshot,
+  QuickEditorWindowContent,
+} from "@shared/types";
 import { useTheme } from "@/hooks/use-theme";
 import { useEditorStore } from "@/store/editor.store";
 import { editorSchema } from "../lib/blocknote-schema";
@@ -92,6 +95,7 @@ export function QuickEditorWindow() {
   const { isDark } = useTheme({ transparentBackground: true });
   const dirtyRef = useRef(false);
   const returnInProgressRef = useRef(false);
+  const sourceRef = useRef<QuickEditorWindowContent["source"]>(null);
   const editorRef = useRef<CoreBlockNoteEditor | null>(null);
   const handleImageUploadRef = useRef(
     createQuickEditorImageUploader(
@@ -162,13 +166,50 @@ export function QuickEditorWindow() {
     return () => window.cancelAnimationFrame(frame);
   }, [editor]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    // 标签页打开的浮窗需要在编辑器就绪后解析初始 Markdown 快照。
+    const applyInitialContent = async (
+      initialContent: QuickEditorWindowContent,
+    ) => {
+      if (cancelled) return;
+      sourceRef.current = initialContent.source;
+      try {
+        const blocks = await editor.tryParseMarkdownToBlocks(
+          initialContent.content,
+        );
+        if (cancelled) return;
+
+        editor.replaceBlocks(editor.document, blocks);
+        syncDirtyState(false);
+      } catch {
+        // Markdown 解析失败时保留空白编辑器，避免浮窗初始化中断。
+      }
+    };
+
+    const unsubscribe = window.electronAPI.onQuickEditorInitialContent(
+      (initialContent) => {
+        void applyInitialContent(initialContent);
+      },
+    );
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [editor, syncDirtyState]);
+
   const handleReturnToApplication = useCallback(async () => {
     if (returnInProgressRef.current) return;
     returnInProgressRef.current = true;
 
     try {
       const content = await serializeMarkdown(editor, editor.document);
-      window.electronAPI.returnToMainWindowFromQuickEditor(content);
+      window.electronAPI.returnToMainWindowFromQuickEditor({
+        content,
+        source: sourceRef.current,
+      });
     } catch {
       returnInProgressRef.current = false;
     }

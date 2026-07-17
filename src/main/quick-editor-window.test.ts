@@ -21,17 +21,21 @@ const windowMocks = vi.hoisted(() => ({
 
 const electronMocks = vi.hoisted(() => {
   type Handler = (...args: unknown[]) => void;
+  let nextWebContentsId = 1;
 
   class MockBrowserWindow {
     private destroyed = false;
     readonly handlers = new Map<string, Handler>();
     readonly options: Electron.BrowserWindowConstructorOptions;
-    readonly webContentsHandlers = new Map<string, Handler>();
+    readonly webContentsHandlers = new Map<string, Handler[]>();
     readonly webContents = {
-      id: 1,
+      id: nextWebContentsId++,
       once: vi.fn((event: string, handler: Handler) => {
-        this.webContentsHandlers.set(event, handler);
+        const handlers = this.webContentsHandlers.get(event) ?? [];
+        handlers.push(handler);
+        this.webContentsHandlers.set(event, handlers);
       }),
+      send: vi.fn(),
     };
     readonly isDestroyed = vi.fn(() => this.destroyed);
     readonly setAlwaysOnTop = vi.fn();
@@ -51,11 +55,15 @@ const electronMocks = vi.hoisted(() => {
       this.handlers.set(event, handler);
     });
     readonly loadURL = vi.fn(async () => {
-      this.webContentsHandlers.get("did-finish-load")?.();
+      this.webContentsHandlers
+        .get("did-finish-load")
+        ?.forEach((handler) => handler());
       this.handlers.get("ready-to-show")?.();
     });
     readonly loadFile = vi.fn(async () => {
-      this.webContentsHandlers.get("did-finish-load")?.();
+      this.webContentsHandlers
+        .get("did-finish-load")
+        ?.forEach((handler) => handler());
       this.handlers.get("ready-to-show")?.();
     });
 
@@ -170,11 +178,44 @@ describe("quick editor floating window", () => {
       height: 420,
     });
 
-    returnToMainWindowFromQuickEditor("second draft", second);
+    returnToMainWindowFromQuickEditor(
+      { content: "second draft", source: null },
+      second,
+    );
 
     expect(second.destroy).toHaveBeenCalledOnce();
     expect(first.destroy).not.toHaveBeenCalled();
-    expect(consumePendingQuickEditorContent()).toBe("second draft");
+    expect(consumePendingQuickEditorContent()).toEqual({
+      content: "second draft",
+      source: null,
+    });
+  });
+
+  it("sends initial content only to the floating editor that owns it", () => {
+    createQuickEditorWindow({ content: "# First draft", source: null });
+    createQuickEditorWindow({ content: "# Second draft", source: null });
+
+    expect(electronMocks.windows[0].webContents.send).toHaveBeenCalledWith(
+      "quick-editor:initial-content",
+      { content: "# First draft", source: null },
+    );
+    expect(electronMocks.windows[1].webContents.send).toHaveBeenCalledWith(
+      "quick-editor:initial-content",
+      { content: "# Second draft", source: null },
+    );
+  });
+
+  it("cleans up a closed window without reading its destroyed webContents", () => {
+    const win = createQuickEditorWindow({ content: "# Draft", source: null });
+    const nativeWindow = electronMocks.windows[0];
+
+    Object.defineProperty(nativeWindow.webContents, "id", {
+      get: () => {
+        throw new Error("Object has been destroyed");
+      },
+    });
+
+    expect(() => win.destroy()).not.toThrow();
   });
 
   it("checks unsaved content before closing", async () => {
@@ -190,12 +231,18 @@ describe("quick editor floating window", () => {
   it("imports the draft and returns without opening the close confirmation", () => {
     const win = showQuickEditorWindow();
 
-    returnToMainWindowFromQuickEditor("quick draft", win);
+    returnToMainWindowFromQuickEditor(
+      { content: "quick draft", source: null },
+      win,
+    );
 
     expect(windowMocks.mainWindow.webContents.send).toHaveBeenCalledWith(
       "quick-editor:import-content",
     );
-    expect(consumePendingQuickEditorContent()).toBe("quick draft");
+    expect(consumePendingQuickEditorContent()).toEqual({
+      content: "quick draft",
+      source: null,
+    });
     expect(consumePendingQuickEditorContent()).toBeNull();
     expect(windowMocks.checkAndCloseWindow).not.toHaveBeenCalled();
     expect(win.destroy).toHaveBeenCalledOnce();
@@ -206,7 +253,10 @@ describe("quick editor floating window", () => {
     const win = showQuickEditorWindow();
     windowMocks.getMainWindow.mockReturnValueOnce(null);
 
-    returnToMainWindowFromQuickEditor("quick draft", win);
+    returnToMainWindowFromQuickEditor(
+      { content: "quick draft", source: null },
+      win,
+    );
 
     expect(win.destroy).not.toHaveBeenCalled();
     expect(windowMocks.focusMainWindow).not.toHaveBeenCalled();

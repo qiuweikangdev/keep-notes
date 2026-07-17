@@ -142,6 +142,16 @@ export interface CloseSaveSnapshot {
   filePath: string | null;
 }
 
+/** 浮窗与来源标签之间传递的编辑器上下文。 */
+export interface QuickEditorWindowContent {
+  content: string;
+  source: {
+    groupId: string;
+    tabId: string;
+    filePath: string | null;
+  } | null;
+}
+
 export interface WindowOpenTarget {
   rootPath: string;
   filePath?: string;

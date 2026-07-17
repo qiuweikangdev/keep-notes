@@ -76,7 +76,7 @@ describe("quick editor content detection", () => {
     expect(setTextCursorPosition).toHaveBeenCalledWith("paragraph-1", "start");
   });
 
-  it("creates a standalone BlockNote editor without an outer provider", () => {
+  it("creates a standalone BlockNote editor without an outer provider", async () => {
     vi.stubGlobal(
       "matchMedia",
       vi.fn((query: string) => ({
@@ -91,8 +91,15 @@ describe("quick editor content detection", () => {
       })),
     );
     const createQuickEditorWindow = vi.fn();
+    const onQuickEditorInitialContent = vi.fn(
+      (callback: (content: { content: string; source: null }) => void) => {
+        callback({ content: "222", source: null });
+        return () => undefined;
+      },
+    );
     vi.stubGlobal("electronAPI", {
       createQuickEditorWindow,
+      onQuickEditorInitialContent,
       closeQuickEditorWindow: vi.fn(),
       returnToMainWindowFromQuickEditor: vi.fn(),
       updateDirtyState: vi.fn(),
@@ -103,6 +110,7 @@ describe("quick editor content detection", () => {
     expect(
       screen.getByRole("main", { name: "快速编辑器" }),
     ).toBeInTheDocument();
+    expect(await screen.findByText("222")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "新建浮窗编辑器" }));
     expect(createQuickEditorWindow).toHaveBeenCalledOnce();

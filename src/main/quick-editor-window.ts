@@ -4,7 +4,10 @@ import { BrowserWindow, globalShortcut, screen } from "electron";
 import { is } from "@electron-toolkit/utils";
 import icon from "../../resources/icon.png?asset";
 import { IPC_CHANNELS } from "../shared/constants";
-import type { ShortcutRegistrationResult } from "../shared/types";
+import type {
+  QuickEditorWindowContent,
+  ShortcutRegistrationResult,
+} from "../shared/types";
 import { checkAndCloseWindow, focusMainWindow, getMainWindow } from "./window";
 
 const QUICK_EDITOR_WINDOW_WIDTH = 640;
@@ -19,7 +22,29 @@ let quickEditorWindow: BrowserWindow | null = null;
 const quickEditorWindows = new Set<BrowserWindow>();
 let registeredShortcutKeys: string[] = [];
 const closingQuickEditorWindows = new Set<BrowserWindow>();
-const pendingQuickEditorContents: string[] = [];
+const pendingQuickEditorContents: QuickEditorWindowContent[] = [];
+
+function normalizeQuickEditorWindowContent(
+  value: unknown,
+): QuickEditorWindowContent | null {
+  if (!value || typeof value !== "object") return null;
+
+  const { content, source } = value as Record<string, unknown>;
+  if (typeof content !== "string") return null;
+  if (source === null) return { content, source: null };
+  if (!source || typeof source !== "object") return null;
+
+  const { groupId, tabId, filePath } = source as Record<string, unknown>;
+  if (
+    typeof groupId !== "string" ||
+    typeof tabId !== "string" ||
+    (typeof filePath !== "string" && filePath !== null)
+  ) {
+    return null;
+  }
+
+  return { content, source: { groupId, tabId, filePath } };
+}
 
 function toElectronAccelerator(key: string): string {
   return key
@@ -86,7 +111,10 @@ export function showQuickEditorWindow(): BrowserWindow {
   return createQuickEditorWindow();
 }
 
-export function createQuickEditorWindow(): BrowserWindow {
+export function createQuickEditorWindow(
+  initialValue: unknown = null,
+): BrowserWindow {
+  const initialContent = normalizeQuickEditorWindowContent(initialValue);
   const bounds = getQuickEditorWindowBounds(quickEditorWindows.size);
   const win = new BrowserWindow({
     ...bounds,
@@ -126,6 +154,16 @@ export function createQuickEditorWindow(): BrowserWindow {
   // 部分 Windows 环境不会稳定触发 ready-to-show，页面加载完成也应立即展示。
   win.once("ready-to-show", revealWhenReady);
   win.webContents.once("did-finish-load", revealWhenReady);
+  if (initialContent) {
+    win.webContents.once("did-finish-load", () => {
+      if (!win.isDestroyed()) {
+        win.webContents.send(
+          IPC_CHANNELS.QUICK_EDITOR.INITIAL_CONTENT,
+          initialContent,
+        );
+      }
+    });
+  }
 
   win.on("close", (event) => {
     if (win.isDestroyed()) return;
@@ -163,15 +201,11 @@ export function closeQuickEditorWindow(
 }
 
 export function returnToMainWindowFromQuickEditor(
-  content: unknown,
+  value: unknown,
   win: BrowserWindow | null = quickEditorWindow,
 ): void {
-  if (
-    typeof content !== "string" ||
-    !win ||
-    !quickEditorWindows.has(win) ||
-    win.isDestroyed()
-  ) {
+  const content = normalizeQuickEditorWindowContent(value);
+  if (!content || !win || !quickEditorWindows.has(win) || win.isDestroyed()) {
     return;
   }
 
@@ -185,7 +219,7 @@ export function returnToMainWindowFromQuickEditor(
   focusMainWindow();
 }
 
-export function consumePendingQuickEditorContent(): string | null {
+export function consumePendingQuickEditorContent(): QuickEditorWindowContent | null {
   return pendingQuickEditorContents.shift() ?? null;
 }
 
