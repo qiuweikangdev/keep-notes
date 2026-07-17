@@ -199,6 +199,33 @@ function MainApplication() {
     };
   }, [quickEditorShortcutKeys]);
 
+  useEffect(() => {
+    let isActive = true;
+    const importContent = (content: string) => {
+      useEditorStore.getState().openQuickEditorDraft(content);
+    };
+    const consumeContent = () => {
+      void window.electronAPI
+        .consumeQuickEditorContent()
+        .then((content) => {
+          if (isActive && content !== null) importContent(content);
+        })
+        .catch(() => undefined);
+    };
+    const unsubscribe =
+      window.electronAPI.onQuickEditorContentImported(importContent);
+
+    // 初始化和窗口重新获得焦点时都主动拉取，避免一次性 IPC 通知因热重载或切焦而丢失。
+    consumeContent();
+    window.addEventListener("focus", consumeContent);
+
+    return () => {
+      isActive = false;
+      unsubscribe();
+      window.removeEventListener("focus", consumeContent);
+    };
+  }, []);
+
   // 监听来自菜单的搜索事件
   useEffect(() => {
     const handleOpenSearch = () => setIsSearchOpen(true);

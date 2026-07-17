@@ -29,6 +29,8 @@ export const IPC_CHANNELS = {
     SHOW_WINDOW: "quick-editor:show-window",
     CLOSE_WINDOW: "quick-editor:close-window",
     RETURN_TO_MAIN_WINDOW: "quick-editor:return-to-main-window",
+    IMPORT_CONTENT: "quick-editor:import-content",
+    CONSUME_CONTENT: "quick-editor:consume-content",
   },
   FILE: {
     READ: "file:read",

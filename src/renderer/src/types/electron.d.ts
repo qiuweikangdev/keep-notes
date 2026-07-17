@@ -140,7 +140,11 @@ export interface ElectronAPI {
   ) => Promise<ShortcutRegistrationResult>;
   showQuickEditorWindow: () => void;
   closeQuickEditorWindow: () => void;
-  returnToMainWindowFromQuickEditor: () => void;
+  returnToMainWindowFromQuickEditor: (content: string) => void;
+  consumeQuickEditorContent: () => Promise<string | null>;
+  onQuickEditorContentImported: (
+    callback: (content: string) => void,
+  ) => () => void;
   // Notification
   getNotificationConfig: () => Promise<NotificationConfig>;
   setNotificationConfig: (config: NotificationConfig) => Promise<void>;

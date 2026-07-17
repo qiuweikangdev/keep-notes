@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   configureQuickEditorGlobalShortcuts,
+  consumePendingQuickEditorContent,
   disposeQuickEditorWindow,
   returnToMainWindowFromQuickEditor,
   showQuickEditorWindow,
@@ -9,6 +10,12 @@ import {
 const windowMocks = vi.hoisted(() => ({
   checkAndCloseWindow: vi.fn(),
   focusMainWindow: vi.fn(),
+  getMainWindow: vi.fn(),
+  mainWindow: {
+    webContents: {
+      send: vi.fn(),
+    },
+  },
 }));
 
 const electronMocks = vi.hoisted(() => {
@@ -101,6 +108,7 @@ describe("quick editor floating window", () => {
     electronMocks.windows.length = 0;
     vi.clearAllMocks();
     electronMocks.register.mockReturnValue(true);
+    windowMocks.getMainWindow.mockReturnValue(windowMocks.mainWindow);
     windowMocks.checkAndCloseWindow.mockImplementation(async (win) => {
       win.destroy();
     });
@@ -158,34 +166,29 @@ describe("quick editor floating window", () => {
     });
   });
 
-  it("focuses the main application only after return closes successfully", async () => {
+  it("imports the draft and returns without opening the close confirmation", () => {
     const win = showQuickEditorWindow();
 
-    returnToMainWindowFromQuickEditor(win);
+    returnToMainWindowFromQuickEditor("quick draft", win);
 
-    await vi.waitFor(() => {
-      expect(windowMocks.focusMainWindow).toHaveBeenCalledOnce();
-    });
+    expect(windowMocks.mainWindow.webContents.send).toHaveBeenCalledWith(
+      "quick-editor:import-content",
+    );
+    expect(consumePendingQuickEditorContent()).toBe("quick draft");
+    expect(consumePendingQuickEditorContent()).toBeNull();
+    expect(windowMocks.checkAndCloseWindow).not.toHaveBeenCalled();
+    expect(win.destroy).toHaveBeenCalledOnce();
+    expect(windowMocks.focusMainWindow).toHaveBeenCalledOnce();
   });
 
-  it("clears the pending return action when closing is cancelled", async () => {
+  it("keeps the quick editor open when no main application is available", () => {
     const win = showQuickEditorWindow();
-    windowMocks.checkAndCloseWindow
-      .mockResolvedValueOnce(undefined)
-      .mockImplementationOnce(async (targetWindow) => {
-        targetWindow.destroy();
-      });
+    windowMocks.getMainWindow.mockReturnValueOnce(null);
 
-    returnToMainWindowFromQuickEditor(win);
-    await vi.waitFor(() => {
-      expect(windowMocks.checkAndCloseWindow).toHaveBeenCalledOnce();
-    });
-    expect(windowMocks.focusMainWindow).not.toHaveBeenCalled();
+    returnToMainWindowFromQuickEditor("quick draft", win);
 
-    win.close();
-    await vi.waitFor(() => {
-      expect(win.destroy).toHaveBeenCalledOnce();
-    });
+    expect(win.destroy).not.toHaveBeenCalled();
     expect(windowMocks.focusMainWindow).not.toHaveBeenCalled();
+    expect(consumePendingQuickEditorContent()).toBeNull();
   });
 });

@@ -2,8 +2,10 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  createQuickEditorImageUploader,
   hasMeaningfulQuickEditorContent,
   QuickEditorWindow,
+  uploadQuickEditorImage,
 } from "./quick-editor-window";
 
 afterEach(() => {
@@ -38,6 +40,40 @@ describe("quick editor content detection", () => {
     expect(
       hasMeaningfulQuickEditorContent([{ type: "image", content: [] }]),
     ).toBe(true);
+  });
+
+  it("embeds pasted images in the quick-editor draft", async () => {
+    const file = new File([Uint8Array.from([1, 2, 3])], "clip.png", {
+      type: "image/png",
+    });
+
+    await expect(uploadQuickEditorImage(file)).resolves.toBe(
+      "data:image/png;base64,AQID",
+    );
+  });
+
+  it("moves the cursor after a pasted image instead of selecting the image", async () => {
+    const setTextCursorPosition = vi.fn();
+    const editor = {
+      document: [
+        { id: "image-1", type: "image" },
+        { id: "paragraph-1", type: "paragraph" },
+      ],
+      getBlock: vi.fn(() => ({ id: "image-1", type: "image" })),
+      insertBlocks: vi.fn(),
+      setTextCursorPosition,
+    };
+    const uploader = createQuickEditorImageUploader(
+      () => editor,
+      (callback) => callback(),
+    );
+    const file = new File([Uint8Array.from([1, 2, 3])], "clip.png", {
+      type: "image/png",
+    });
+
+    await uploader(file, "image-1");
+
+    expect(setTextCursorPosition).toHaveBeenCalledWith("paragraph-1", "start");
   });
 
   it("creates a standalone BlockNote editor without an outer provider", () => {

@@ -102,11 +102,15 @@ export function createWindow(initialTarget?: WindowOpenTarget): BrowserWindow {
   return win;
 }
 
-export function focusMainWindow(): void {
+export function getMainWindow(): BrowserWindow | null {
   const windows = [...mainWindows];
-  const win = windows
-    .toReversed()
-    .find((candidate) => !candidate.isDestroyed());
+  return (
+    windows.toReversed().find((candidate) => !candidate.isDestroyed()) ?? null
+  );
+}
+
+export function focusMainWindow(): void {
+  const win = getMainWindow();
 
   if (!win) return;
 

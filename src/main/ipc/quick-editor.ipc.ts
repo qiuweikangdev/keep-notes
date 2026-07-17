@@ -3,6 +3,7 @@ import { IPC_CHANNELS } from "../../shared/constants";
 import {
   closeQuickEditorWindow,
   configureQuickEditorGlobalShortcuts,
+  consumePendingQuickEditorContent,
   returnToMainWindowFromQuickEditor,
   showQuickEditorWindow,
 } from "../quick-editor-window";
@@ -31,7 +32,14 @@ export function registerQuickEditorIpc(): void {
     closeQuickEditorWindow(getBrowserWindow(event));
   });
 
-  ipcMain.on(IPC_CHANNELS.QUICK_EDITOR.RETURN_TO_MAIN_WINDOW, (event) => {
-    returnToMainWindowFromQuickEditor(getBrowserWindow(event));
+  ipcMain.on(
+    IPC_CHANNELS.QUICK_EDITOR.RETURN_TO_MAIN_WINDOW,
+    (event, content: unknown) => {
+      returnToMainWindowFromQuickEditor(content, getBrowserWindow(event));
+    },
+  );
+
+  ipcMain.handle(IPC_CHANNELS.QUICK_EDITOR.CONSUME_CONTENT, () => {
+    return consumePendingQuickEditorContent();
   });
 }

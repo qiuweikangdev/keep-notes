@@ -11,6 +11,9 @@ import { useReminderStore } from "@/store/reminder.store";
 import type { Reminder } from "@/types";
 
 let menuActionHandler: ((action: string) => void) | null = null;
+const appMocks = vi.hoisted(() => ({
+  openQuickEditorDraft: vi.fn(),
+}));
 
 const triggeredReminder: Reminder = {
   id: "reminder-1",
@@ -241,6 +244,7 @@ vi.mock("@/store/editor.store", () => ({
     },
     {
       getState: () => ({
+        openQuickEditorDraft: appMocks.openQuickEditorDraft,
         setFilePath: vi.fn(),
         setDirty: vi.fn(),
       }),
@@ -294,6 +298,7 @@ describe("App shortcuts", () => {
 
   beforeEach(() => {
     menuActionHandler = null;
+    appMocks.openQuickEditorDraft.mockClear();
     useReminderStore.setState({
       reminders: [],
       isEditorOpen: false,
@@ -310,6 +315,8 @@ describe("App shortcuts", () => {
         listReminders: vi.fn(async () => []),
         onRemindersChanged: vi.fn(() => () => undefined),
         onReminderTriggered: vi.fn(() => () => undefined),
+        consumeQuickEditorContent: vi.fn(async () => null),
+        onQuickEditorContentImported: vi.fn(() => () => undefined),
         onMenuAction: (callback: (action: string) => void) => {
           menuActionHandler = callback;
           return () => {
@@ -326,6 +333,22 @@ describe("App shortcuts", () => {
     expect(
       screen.getByTestId("application-dialog-provider-state"),
     ).toHaveTextContent("true");
+  });
+
+  it("consumes quick-editor content into the active unnamed tab", async () => {
+    const consumeQuickEditorContent = vi.fn(async () => "# Quick draft\n");
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: { ...window.electronAPI, consumeQuickEditorContent },
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(appMocks.openQuickEditorDraft).toHaveBeenCalledWith(
+        "# Quick draft\n",
+      );
+    });
   });
 
   it("keeps the code-block cursor at two visual pixels across interface zoom", async () => {

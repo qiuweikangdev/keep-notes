@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useRef } from "react";
 import { BlockNoteView } from "@blocknote/mantine";
 import { useCreateBlockNote, useEditorChange } from "@blocknote/react";
+import type { BlockNoteEditor as CoreBlockNoteEditor } from "@blocknote/core";
 import { PictureInPicture2, X } from "lucide-react";
 import type { CloseSaveSnapshot } from "@shared/types";
 import { useTheme } from "@/hooks/use-theme";
 import { useEditorStore } from "@/store/editor.store";
 import { editorSchema } from "../lib/blocknote-schema";
+import {
+  moveCursorAfterUploadedImage,
+  readImageFileAsDataUrl,
+  type UploadedImageCursorEditor,
+} from "../lib/editor-image";
 import { serializeMarkdown } from "../lib/markdown";
 
 import "@blocknote/core/fonts/inter.css";
@@ -59,11 +65,45 @@ export function hasMeaningfulQuickEditorContent(
   });
 }
 
+export async function uploadQuickEditorImage(file: File): Promise<string> {
+  const dataUrl = await readImageFileAsDataUrl(file);
+  if (!dataUrl) {
+    throw new Error("Only image files can be uploaded from the editor");
+  }
+
+  return dataUrl;
+}
+
+export function createQuickEditorImageUploader(
+  getEditor: () => UploadedImageCursorEditor | null,
+  schedule: (callback: () => void) => unknown,
+) {
+  return async (file: File, blockId?: string): Promise<string> => {
+    const url = await uploadQuickEditorImage(file);
+    schedule(() => {
+      moveCursorAfterUploadedImage(getEditor(), blockId);
+    });
+    return url;
+  };
+}
+
 export function QuickEditorWindow() {
   const appearance = useEditorStore((state) => state.appearance);
   const { isDark } = useTheme({ transparentBackground: true });
   const dirtyRef = useRef(false);
-  const editor = useCreateBlockNote({ schema: editorSchema });
+  const returnInProgressRef = useRef(false);
+  const editorRef = useRef<CoreBlockNoteEditor | null>(null);
+  const handleImageUploadRef = useRef(
+    createQuickEditorImageUploader(
+      () => editorRef.current,
+      (callback) => window.setTimeout(callback, 0),
+    ),
+  );
+  const editor = useCreateBlockNote({
+    schema: editorSchema,
+    uploadFile: handleImageUploadRef.current,
+  });
+  editorRef.current = editor;
 
   const syncDirtyState = useCallback((isDirty: boolean) => {
     dirtyRef.current = isDirty;
@@ -122,6 +162,18 @@ export function QuickEditorWindow() {
     return () => window.cancelAnimationFrame(frame);
   }, [editor]);
 
+  const handleReturnToApplication = useCallback(async () => {
+    if (returnInProgressRef.current) return;
+    returnInProgressRef.current = true;
+
+    try {
+      const content = await serializeMarkdown(editor, editor.document);
+      window.electronAPI.returnToMainWindowFromQuickEditor(content);
+    } catch {
+      returnInProgressRef.current = false;
+    }
+  }, [editor]);
+
   return (
     <div className="quick-editor-window" data-quick-editor-window="true">
       <header className="quick-editor-window__titlebar">
@@ -132,9 +184,7 @@ export function QuickEditorWindow() {
             className="quick-editor-window__action"
             title="返回应用"
             type="button"
-            onClick={() =>
-              window.electronAPI.returnToMainWindowFromQuickEditor()
-            }
+            onClick={() => void handleReturnToApplication()}
           >
             <PictureInPicture2 aria-hidden="true" className="h-3.5 w-3.5" />
           </button>

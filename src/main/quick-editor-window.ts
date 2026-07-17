@@ -3,8 +3,9 @@ import process from "node:process";
 import { BrowserWindow, globalShortcut, screen } from "electron";
 import { is } from "@electron-toolkit/utils";
 import icon from "../../resources/icon.png?asset";
+import { IPC_CHANNELS } from "../shared/constants";
 import type { ShortcutRegistrationResult } from "../shared/types";
-import { checkAndCloseWindow, focusMainWindow } from "./window";
+import { checkAndCloseWindow, focusMainWindow, getMainWindow } from "./window";
 
 const QUICK_EDITOR_WINDOW_WIDTH = 640;
 const QUICK_EDITOR_WINDOW_HEIGHT = 420;
@@ -17,7 +18,7 @@ export const DEFAULT_QUICK_EDITOR_SHORTCUT = "CmdOrCtrl+Alt+N";
 let quickEditorWindow: BrowserWindow | null = null;
 let registeredShortcutKeys: string[] = [];
 let closeInProgress = false;
-let focusMainAfterClose = false;
+let pendingQuickEditorContent: string | null = null;
 
 function toElectronAccelerator(key: string): string {
   return key
@@ -95,7 +96,6 @@ export function showQuickEditorWindow(): BrowserWindow {
 
   quickEditorWindow = win;
   closeInProgress = false;
-  focusMainAfterClose = false;
 
   let hasRevealed = false;
   const revealWhenReady = () => {
@@ -119,7 +119,6 @@ export function showQuickEditorWindow(): BrowserWindow {
     void checkAndCloseWindow(win).finally(() => {
       if (!win.isDestroyed()) {
         closeInProgress = false;
-        focusMainAfterClose = false;
       }
     });
   });
@@ -127,11 +126,6 @@ export function showQuickEditorWindow(): BrowserWindow {
   win.once("closed", () => {
     if (quickEditorWindow === win) quickEditorWindow = null;
     closeInProgress = false;
-
-    if (focusMainAfterClose) {
-      focusMainAfterClose = false;
-      focusMainWindow();
-    }
   });
 
   loadQuickEditorWindow(win);
@@ -146,15 +140,35 @@ export function closeQuickEditorWindow(
 }
 
 export function returnToMainWindowFromQuickEditor(
+  content: unknown,
   win: BrowserWindow | null = quickEditorWindow,
 ): void {
-  if (!win || win !== quickEditorWindow || win.isDestroyed()) return;
-  focusMainAfterClose = true;
-  win.close();
+  if (
+    typeof content !== "string" ||
+    !win ||
+    win !== quickEditorWindow ||
+    win.isDestroyed()
+  ) {
+    return;
+  }
+
+  const mainWindow = getMainWindow();
+  if (!mainWindow) return;
+
+  // 主进程先保留草稿，主窗口切焦或热重载后仍能主动消费，不依赖一次性通知。
+  pendingQuickEditorContent = content;
+  mainWindow.webContents.send(IPC_CHANNELS.QUICK_EDITOR.IMPORT_CONTENT);
+  destroyQuickEditorWindow();
+  focusMainWindow();
+}
+
+export function consumePendingQuickEditorContent(): string | null {
+  const content = pendingQuickEditorContent;
+  pendingQuickEditorContent = null;
+  return content;
 }
 
 export function destroyQuickEditorWindow(): void {
-  focusMainAfterClose = false;
   closeInProgress = false;
   if (quickEditorWindow && !quickEditorWindow.isDestroyed()) {
     quickEditorWindow.destroy();
@@ -220,5 +234,6 @@ export function configureQuickEditorGlobalShortcuts(
 export function disposeQuickEditorWindow(): void {
   unregisterKeys(registeredShortcutKeys);
   registeredShortcutKeys = [];
+  pendingQuickEditorContent = null;
   destroyQuickEditorWindow();
 }
