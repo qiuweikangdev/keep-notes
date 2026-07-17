@@ -13,6 +13,10 @@ const quickEditorInitialContentListeners = new Set<
   (content: QuickEditorWindowContent) => void
 >();
 const pendingQuickEditorInitialContents: QuickEditorWindowContent[] = [];
+const quickEditorContentUpdatedListeners = new Set<
+  (content: QuickEditorWindowContent) => void
+>();
+const pendingQuickEditorContentUpdates: QuickEditorWindowContent[] = [];
 
 function dispatchQuickEditorContent(content: QuickEditorWindowContent): void {
   if (quickEditorContentListeners.size === 0) {
@@ -34,6 +38,17 @@ function dispatchQuickEditorInitialContent(
   quickEditorInitialContentListeners.forEach((listener) => listener(content));
 }
 
+function dispatchQuickEditorContentUpdated(
+  content: QuickEditorWindowContent,
+): void {
+  if (quickEditorContentUpdatedListeners.size === 0) {
+    pendingQuickEditorContentUpdates.push(content);
+    return;
+  }
+
+  quickEditorContentUpdatedListeners.forEach((listener) => listener(content));
+}
+
 async function consumeAndDispatchQuickEditorContent(): Promise<void> {
   const content = await ipcRenderer.invoke(
     IPC_CHANNELS.QUICK_EDITOR.CONSUME_CONTENT,
@@ -50,6 +65,12 @@ ipcRenderer.on(IPC_CHANNELS.QUICK_EDITOR.IMPORT_CONTENT, () => {
 ipcRenderer.on(IPC_CHANNELS.QUICK_EDITOR.INITIAL_CONTENT, (_, content) => {
   if (content && typeof content === "object") {
     dispatchQuickEditorInitialContent(content as QuickEditorWindowContent);
+  }
+});
+
+ipcRenderer.on(IPC_CHANNELS.QUICK_EDITOR.CONTENT_UPDATED, (_, content) => {
+  if (content && typeof content === "object") {
+    dispatchQuickEditorContentUpdated(content as QuickEditorWindowContent);
   }
 });
 
@@ -71,6 +92,10 @@ export const quickEditorApi = {
     ipcRenderer.send(IPC_CHANNELS.QUICK_EDITOR.CREATE_WINDOW, content);
   },
 
+  syncQuickEditorContent: (content: QuickEditorWindowContent): void => {
+    ipcRenderer.send(IPC_CHANNELS.QUICK_EDITOR.SYNC_CONTENT, content);
+  },
+
   onQuickEditorInitialContent: (
     callback: (content: QuickEditorWindowContent) => void,
   ): (() => void) => {
@@ -81,6 +106,19 @@ export const quickEditorApi = {
 
     return () => {
       quickEditorInitialContentListeners.delete(callback);
+    };
+  },
+
+  onQuickEditorContentUpdated: (
+    callback: (content: QuickEditorWindowContent) => void,
+  ): (() => void) => {
+    quickEditorContentUpdatedListeners.add(callback);
+
+    const pendingContents = pendingQuickEditorContentUpdates.splice(0);
+    pendingContents.forEach((content) => callback(content));
+
+    return () => {
+      quickEditorContentUpdatedListeners.delete(callback);
     };
   },
 

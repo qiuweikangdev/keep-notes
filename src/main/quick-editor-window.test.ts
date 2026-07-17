@@ -205,6 +205,32 @@ describe("quick editor floating window", () => {
     );
   });
 
+  it("broadcasts source-tab edits to every associated floating editor", async () => {
+    const source = {
+      groupId: "group-1",
+      tabId: "tab-1",
+      filePath: "/notes/readme.md",
+    };
+    const content = { content: "# Updated", source };
+    createQuickEditorWindow({ content: "# Initial", source });
+    createQuickEditorWindow({ content: "# Initial", source });
+
+    const quickEditorModule = await import("./quick-editor-window");
+    const moduleWithSync = quickEditorModule as typeof quickEditorModule & {
+      syncQuickEditorContent?: (content: unknown) => void;
+    };
+    moduleWithSync.syncQuickEditorContent?.(content);
+
+    expect(electronMocks.windows[0].webContents.send).toHaveBeenCalledWith(
+      "quick-editor:content-updated",
+      content,
+    );
+    expect(electronMocks.windows[1].webContents.send).toHaveBeenCalledWith(
+      "quick-editor:content-updated",
+      content,
+    );
+  });
+
   it("cleans up a closed window without reading its destroyed webContents", () => {
     const win = createQuickEditorWindow({ content: "# Draft", source: null });
     const nativeWindow = electronMocks.windows[0];

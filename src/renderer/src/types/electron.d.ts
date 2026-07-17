@@ -141,7 +141,11 @@ export interface ElectronAPI {
   ) => Promise<ShortcutRegistrationResult>;
   showQuickEditorWindow: () => void;
   createQuickEditorWindow: (content?: QuickEditorWindowContent) => void;
+  syncQuickEditorContent: (content: QuickEditorWindowContent) => void;
   onQuickEditorInitialContent: (
+    callback: (content: QuickEditorWindowContent) => void,
+  ) => () => void;
+  onQuickEditorContentUpdated: (
     callback: (content: QuickEditorWindowContent) => void,
   ) => () => void;
   closeQuickEditorWindow: () => void;

@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -100,8 +106,10 @@ describe("quick editor content detection", () => {
     vi.stubGlobal("electronAPI", {
       createQuickEditorWindow,
       onQuickEditorInitialContent,
+      onQuickEditorContentUpdated: vi.fn(() => () => undefined),
       closeQuickEditorWindow: vi.fn(),
       returnToMainWindowFromQuickEditor: vi.fn(),
+      syncQuickEditorContent: vi.fn(),
       updateDirtyState: vi.fn(),
     });
 
@@ -114,5 +122,67 @@ describe("quick editor content detection", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "新建浮窗编辑器" }));
     expect(createQuickEditorWindow).toHaveBeenCalledOnce();
+  });
+
+  it("applies live source-tab updates without returning to the application", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        addEventListener: vi.fn(),
+        addListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+        matches: false,
+        media: query,
+        onchange: null,
+        removeEventListener: vi.fn(),
+        removeListener: vi.fn(),
+      })),
+    );
+    const source = {
+      groupId: "group-1",
+      tabId: "tab-1",
+      filePath: "/notes/readme.md",
+    };
+    let liveContentListener:
+      | ((content: { content: string; source: typeof source }) => void)
+      | undefined;
+    const onQuickEditorContentUpdated = vi.fn(
+      (
+        callback: (content: { content: string; source: typeof source }) => void,
+      ) => {
+        liveContentListener = callback;
+        return () => undefined;
+      },
+    );
+    vi.stubGlobal("electronAPI", {
+      createQuickEditorWindow: vi.fn(),
+      onQuickEditorInitialContent: vi.fn(
+        (
+          callback: (content: {
+            content: string;
+            source: typeof source;
+          }) => void,
+        ) => {
+          callback({ content: "# Initial", source });
+          return () => undefined;
+        },
+      ),
+      onQuickEditorContentUpdated,
+      closeQuickEditorWindow: vi.fn(),
+      returnToMainWindowFromQuickEditor: vi.fn(),
+      syncQuickEditorContent: vi.fn(),
+      updateDirtyState: vi.fn(),
+    });
+
+    render(createElement(QuickEditorWindow));
+
+    expect(await screen.findByText("Initial")).toBeInTheDocument();
+    expect(onQuickEditorContentUpdated).toHaveBeenCalledOnce();
+
+    act(() => {
+      liveContentListener?.({ content: "# Live update", source });
+    });
+
+    expect(await screen.findByText("Live update")).toBeInTheDocument();
   });
 });

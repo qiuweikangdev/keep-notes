@@ -12,7 +12,18 @@ import type { Reminder } from "@/types";
 import { editorFindController } from "@/features/editor/lib/editor-find-controller";
 
 let menuActionHandler: ((action: string) => void) | null = null;
+type EditorStoreSnapshot = {
+  panelGroups: Array<{
+    id: string;
+    tabs: Array<{
+      id: string;
+      filePath: string | null;
+      content: string;
+    }>;
+  }>;
+};
 const appMocks = vi.hoisted(() => ({
+  subscribe: vi.fn(() => () => undefined),
   openQuickEditorDraft: vi.fn(),
   incrementTabReloadKey: vi.fn(),
   setActiveTab: vi.fn(),
@@ -272,6 +283,7 @@ vi.mock("@/store/editor.store", () => ({
         setFilePath: vi.fn(),
         setDirty: vi.fn(),
       }),
+      subscribe: appMocks.subscribe,
     },
   ),
 }));
@@ -322,6 +334,7 @@ describe("App shortcuts", () => {
 
   beforeEach(() => {
     menuActionHandler = null;
+    appMocks.subscribe.mockClear();
     appMocks.openQuickEditorDraft.mockClear();
     appMocks.incrementTabReloadKey.mockClear();
     appMocks.setActiveTab.mockClear();
@@ -345,6 +358,8 @@ describe("App shortcuts", () => {
         onReminderTriggered: vi.fn(() => () => undefined),
         consumeQuickEditorContent: vi.fn(async () => null),
         onQuickEditorContentImported: vi.fn(() => () => undefined),
+        onQuickEditorContentUpdated: vi.fn(() => () => undefined),
+        syncQuickEditorContent: vi.fn(),
         onMenuAction: (callback: (action: string) => void) => {
           menuActionHandler = callback;
           return () => {
@@ -430,6 +445,100 @@ describe("App shortcuts", () => {
       );
     });
     expect(appMocks.openQuickEditorDraft).not.toHaveBeenCalled();
+  });
+
+  it("applies live floating-editor updates to the source tab", async () => {
+    const onQuickEditorContentUpdated = vi.fn(
+      (
+        callback: (content: {
+          content: string;
+          source: {
+            groupId: string;
+            tabId: string;
+            filePath: string | null;
+          } | null;
+        }) => void,
+      ) => {
+        callback({
+          content: "# Live floating update",
+          source: {
+            groupId: "group-1",
+            tabId: "tab-1",
+            filePath: "/workspace/notes/today.md",
+          },
+        });
+        return () => undefined;
+      },
+    );
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: { ...window.electronAPI, onQuickEditorContentUpdated },
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(appMocks.setTabContent).toHaveBeenCalledWith(
+        "group-1",
+        "tab-1",
+        "# Live floating update",
+      );
+    });
+  });
+
+  it("pushes source-tab edits to the associated floating editor", () => {
+    render(<App />);
+
+    const storeListener = appMocks.subscribe.mock.calls[0]?.[0] as
+      | ((
+          state: EditorStoreSnapshot,
+          previousState: EditorStoreSnapshot,
+        ) => void)
+      | undefined;
+    expect(storeListener).toBeTypeOf("function");
+    if (!storeListener) return;
+
+    const previousState: EditorStoreSnapshot = {
+      panelGroups: [
+        {
+          id: "group-1",
+          tabs: [
+            {
+              id: "tab-1",
+              filePath: "/workspace/notes/today.md",
+              content: "# Previous draft",
+            },
+          ],
+        },
+      ],
+    };
+    const state: EditorStoreSnapshot = {
+      panelGroups: [
+        {
+          id: "group-1",
+          tabs: [
+            {
+              id: "tab-1",
+              filePath: "/workspace/notes/today.md",
+              content: "# Live tab update",
+            },
+          ],
+        },
+      ],
+    };
+
+    act(() => {
+      storeListener(state, previousState);
+    });
+
+    expect(window.electronAPI.syncQuickEditorContent).toHaveBeenCalledWith({
+      content: "# Live tab update",
+      source: {
+        groupId: "group-1",
+        tabId: "tab-1",
+        filePath: "/workspace/notes/today.md",
+      },
+    });
   });
 
   it("keeps the code-block cursor at two visual pixels across interface zoom", async () => {

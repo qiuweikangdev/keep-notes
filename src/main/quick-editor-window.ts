@@ -23,6 +23,10 @@ const quickEditorWindows = new Set<BrowserWindow>();
 let registeredShortcutKeys: string[] = [];
 const closingQuickEditorWindows = new Set<BrowserWindow>();
 const pendingQuickEditorContents: QuickEditorWindowContent[] = [];
+const quickEditorWindowSources = new Map<
+  BrowserWindow,
+  NonNullable<QuickEditorWindowContent["source"]>
+>();
 
 function normalizeQuickEditorWindowContent(
   value: unknown,
@@ -44,6 +48,17 @@ function normalizeQuickEditorWindowContent(
   }
 
   return { content, source: { groupId, tabId, filePath } };
+}
+
+function hasSameQuickEditorSource(
+  left: NonNullable<QuickEditorWindowContent["source"]>,
+  right: NonNullable<QuickEditorWindowContent["source"]>,
+): boolean {
+  return (
+    left.groupId === right.groupId &&
+    left.tabId === right.tabId &&
+    left.filePath === right.filePath
+  );
 }
 
 function toElectronAccelerator(key: string): string {
@@ -140,6 +155,9 @@ export function createQuickEditorWindow(
   });
 
   quickEditorWindows.add(win);
+  if (initialContent?.source) {
+    quickEditorWindowSources.set(win, initialContent.source);
+  }
   if (!quickEditorWindow || quickEditorWindow.isDestroyed()) {
     quickEditorWindow = win;
   }
@@ -182,6 +200,7 @@ export function createQuickEditorWindow(
 
   win.once("closed", () => {
     quickEditorWindows.delete(win);
+    quickEditorWindowSources.delete(win);
     closingQuickEditorWindows.delete(win);
     if (quickEditorWindow === win) {
       quickEditorWindow =
@@ -219,6 +238,49 @@ export function returnToMainWindowFromQuickEditor(
   focusMainWindow();
 }
 
+/** 在关联的标签页与浮窗之间广播实时编辑快照。 */
+export function syncQuickEditorContent(
+  value: unknown,
+  sender: BrowserWindow | null = null,
+): void {
+  const incomingContent = normalizeQuickEditorWindowContent(value);
+  if (!incomingContent?.source) return;
+
+  const senderIsQuickEditor = sender !== null && quickEditorWindows.has(sender);
+  const source = senderIsQuickEditor
+    ? quickEditorWindowSources.get(sender!)
+    : incomingContent.source;
+  if (!source) return;
+
+  const content: QuickEditorWindowContent = {
+    content: incomingContent.content,
+    source,
+  };
+
+  if (senderIsQuickEditor) {
+    const mainWindow = getMainWindow();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(
+        IPC_CHANNELS.QUICK_EDITOR.CONTENT_UPDATED,
+        content,
+      );
+    }
+  }
+
+  for (const win of quickEditorWindows) {
+    const windowSource = quickEditorWindowSources.get(win);
+    if (
+      win === sender ||
+      win.isDestroyed() ||
+      !windowSource ||
+      !hasSameQuickEditorSource(windowSource, source)
+    ) {
+      continue;
+    }
+    win.webContents.send(IPC_CHANNELS.QUICK_EDITOR.CONTENT_UPDATED, content);
+  }
+}
+
 export function consumePendingQuickEditorContent(): QuickEditorWindowContent | null {
   return pendingQuickEditorContents.shift() ?? null;
 }
@@ -226,6 +288,7 @@ export function consumePendingQuickEditorContent(): QuickEditorWindowContent | n
 export function destroyQuickEditorWindow(): void {
   const windows = [...quickEditorWindows];
   quickEditorWindows.clear();
+  quickEditorWindowSources.clear();
   closingQuickEditorWindows.clear();
   quickEditorWindow = null;
   windows.forEach((win) => {

@@ -7,6 +7,7 @@ import {
   createQuickEditorWindow,
   returnToMainWindowFromQuickEditor,
   showQuickEditorWindow,
+  syncQuickEditorContent,
 } from "../quick-editor-window";
 import { getBrowserWindow } from "../utils";
 
@@ -32,6 +33,13 @@ export function registerQuickEditorIpc(): void {
   ipcMain.on(IPC_CHANNELS.QUICK_EDITOR.CREATE_WINDOW, (_, content: unknown) => {
     createQuickEditorWindow(content);
   });
+
+  ipcMain.on(
+    IPC_CHANNELS.QUICK_EDITOR.SYNC_CONTENT,
+    (event, content: unknown) => {
+      syncQuickEditorContent(content, getBrowserWindow(event));
+    },
+  );
 
   ipcMain.on(IPC_CHANNELS.QUICK_EDITOR.CLOSE_WINDOW, (event) => {
     closeQuickEditorWindow(getBrowserWindow(event));

@@ -11,7 +11,7 @@ import {
 } from "@/features/reminders";
 import { ExportController, ExportSuccessToast } from "@/features/export";
 import { HomePage } from "@/pages/home";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useUIStore } from "@/store/ui.store";
 import { useShortcutsStore } from "@/store/shortcuts.store";
 import { useReminderStore } from "@/store/reminder.store";
@@ -23,6 +23,12 @@ import { editorFindController } from "@/features/editor/lib/editor-find-controll
 import type { QuickEditorWindowContent } from "@shared/types";
 
 const CODE_BLOCK_CURSOR_VISUAL_WIDTH = 2;
+
+function getQuickEditorSourceKey(
+  source: NonNullable<QuickEditorWindowContent["source"]>,
+): string {
+  return `${source.groupId}:${source.tabId}:${source.filePath ?? ""}`;
+}
 
 function restoreQuickEditorSource(content: QuickEditorWindowContent): void {
   const state = useEditorStore.getState();
@@ -115,6 +121,7 @@ function MainApplication() {
   const subscribeToReminderTriggers = useReminderStore(
     (s) => s.subscribeToReminderTriggers,
   );
+  const receivedQuickEditorContentsRef = useRef(new Map<string, string>());
 
   const reminderShortcutKeys = useMemo(
     () =>
@@ -269,6 +276,45 @@ function MainApplication() {
   }, [quickEditorShortcutKeys]);
 
   useEffect(() => {
+    const unsubscribe = useEditorStore.subscribe((state, previousState) => {
+      for (const group of state.panelGroups) {
+        const previousGroup = previousState.panelGroups.find(
+          (item) => item.id === group.id,
+        );
+        if (!previousGroup) continue;
+
+        for (const tab of group.tabs) {
+          const previousTab = previousGroup.tabs.find(
+            (item) => item.id === tab.id,
+          );
+          if (!previousTab || previousTab.content === tab.content) continue;
+
+          const source = {
+            groupId: group.id,
+            tabId: tab.id,
+            filePath: tab.filePath,
+          };
+          const sourceKey = getQuickEditorSourceKey(source);
+          if (
+            receivedQuickEditorContentsRef.current.get(sourceKey) ===
+            tab.content
+          ) {
+            receivedQuickEditorContentsRef.current.delete(sourceKey);
+            continue;
+          }
+
+          window.electronAPI.syncQuickEditorContent({
+            content: tab.content,
+            source,
+          });
+        }
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
     let isActive = true;
     const importContent = (content: QuickEditorWindowContent) => {
       restoreQuickEditorSource(content);
@@ -293,6 +339,20 @@ function MainApplication() {
       unsubscribe();
       window.removeEventListener("focus", consumeContent);
     };
+  }, []);
+
+  useEffect(() => {
+    const applyLiveContent = (content: QuickEditorWindowContent) => {
+      if (content.source) {
+        receivedQuickEditorContentsRef.current.set(
+          getQuickEditorSourceKey(content.source),
+          content.content,
+        );
+      }
+      restoreQuickEditorSource(content);
+    };
+
+    return window.electronAPI.onQuickEditorContentUpdated(applyLiveContent);
   }, []);
 
   // 监听来自菜单的搜索事件

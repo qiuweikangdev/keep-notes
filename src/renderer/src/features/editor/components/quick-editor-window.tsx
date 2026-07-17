@@ -96,6 +96,8 @@ export function QuickEditorWindow() {
   const dirtyRef = useRef(false);
   const returnInProgressRef = useRef(false);
   const sourceRef = useRef<QuickEditorWindowContent["source"]>(null);
+  const lastSyncedContentRef = useRef<string | null>(null);
+  const syncRevisionRef = useRef(0);
   const editorRef = useRef<CoreBlockNoteEditor | null>(null);
   const handleImageUploadRef = useRef(
     createQuickEditorImageUploader(
@@ -114,12 +116,31 @@ export function QuickEditorWindow() {
     window.electronAPI.updateDirtyState(isDirty);
   }, []);
 
+  const syncContentToSource = useCallback(() => {
+    const source = sourceRef.current;
+    if (!source) return;
+
+    const revision = ++syncRevisionRef.current;
+    void serializeMarkdown(editor, editor.document).then((content) => {
+      if (
+        revision !== syncRevisionRef.current ||
+        content === lastSyncedContentRef.current
+      ) {
+        return;
+      }
+
+      lastSyncedContentRef.current = content;
+      window.electronAPI.syncQuickEditorContent({ content, source });
+    });
+  }, [editor]);
+
   useEditorChange(() => {
     syncDirtyState(
       hasMeaningfulQuickEditorContent(
         editor.document as unknown as QuickEditorBlock[],
       ),
     );
+    syncContentToSource();
   }, editor);
 
   useEffect(() => {
@@ -175,6 +196,7 @@ export function QuickEditorWindow() {
     ) => {
       if (cancelled) return;
       sourceRef.current = initialContent.source;
+      lastSyncedContentRef.current = initialContent.content;
       try {
         const blocks = await editor.tryParseMarkdownToBlocks(
           initialContent.content,
@@ -191,6 +213,34 @@ export function QuickEditorWindow() {
     const unsubscribe = window.electronAPI.onQuickEditorInitialContent(
       (initialContent) => {
         void applyInitialContent(initialContent);
+      },
+    );
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [editor, syncDirtyState]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const applyLiveContent = async (content: QuickEditorWindowContent) => {
+      if (cancelled) return;
+      sourceRef.current = content.source;
+      lastSyncedContentRef.current = content.content;
+      try {
+        const blocks = await editor.tryParseMarkdownToBlocks(content.content);
+        if (cancelled) return;
+
+        editor.replaceBlocks(editor.document, blocks);
+        syncDirtyState(false);
+      } catch {
+        // Markdown 解析失败时保留当前编辑器，避免实时同步中断。
+      }
+    };
+    const unsubscribe = window.electronAPI.onQuickEditorContentUpdated(
+      (content) => {
+        void applyLiveContent(content);
       },
     );
 
