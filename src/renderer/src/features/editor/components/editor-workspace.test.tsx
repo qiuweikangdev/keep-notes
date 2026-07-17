@@ -1,8 +1,9 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useEditorStore } from "@/store/editor.store";
 import { subscribeToEditorFile } from "../lib/editor-runtime";
+import { editorFindController } from "../lib/editor-find-controller";
 import { EditorWorkspace } from "./editor-workspace";
 
 vi.mock("@/hooks/use-electron", () => ({
@@ -107,6 +108,18 @@ describe("EditorWorkspace split rich editor mount", () => {
     expect(screen.getByTestId("rich-document-pane")).toHaveTextContent(
       "group-1:tab-untitled:keep-notes-untitled://tab-untitled",
     );
+  });
+
+  it("opens the find widget when the controller targets its active tab", () => {
+    render(<EditorWorkspace groupId="group-1" tabId="tab-1" />);
+
+    act(() => {
+      editorFindController.open("group-1", "tab-1");
+    });
+
+    expect(
+      screen.getByRole("search", { name: "文件内搜索与替换" }),
+    ).toBeInTheDocument();
   });
 
   it("keeps the current rich pane mounted while the next file is loading", () => {

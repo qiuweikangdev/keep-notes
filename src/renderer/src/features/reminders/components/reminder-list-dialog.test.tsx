@@ -210,7 +210,7 @@ describe("ReminderListDialog", () => {
     });
 
     expect(dialog).toHaveClass("max-w-[520px]", "top-[12vh]", "translate-y-0");
-    expect(dialog).toHaveClass("z-50", "shadow-[0_10px_28px_rgba(0,0,0,0.22)]");
+    expect(dialog).toHaveClass("z-50", "shadow-[0_4px_8px_rgba(0,0,0,0.16)]");
     expect(search).toHaveClass("border-0", "bg-transparent");
     expect(screen.queryByRole("button", { name: "关闭" })).toBeNull();
     expect(screen.getByRole("button", { name: "新建提醒事项" })).toBeVisible();
@@ -332,6 +332,22 @@ describe("ReminderListDialog", () => {
     );
   });
 
+  it("restores the published floating reminder surface", () => {
+    render(<ReminderListDialog presentation="floating-window" />);
+
+    const dialog = screen.getByRole("dialog", { name: "提醒事项" });
+    const header = dialog.querySelector<HTMLElement>(
+      '[data-reminder-list-header="true"]',
+    );
+    expect(dialog.style.backgroundColor).toBe("var(--bg-primary)");
+    expect(dialog.style.border).toBe("1px solid var(--border-color)");
+    expect(dialog).toHaveClass("shadow-[0_4px_8px_rgba(0,0,0,0.16)]");
+    expect(header).toHaveClass("border-b", "border-[var(--border-color)]");
+    expect(header?.style.backgroundColor).toBe(
+      "color-mix(in srgb, var(--bg-secondary) 24%, var(--bg-primary))",
+    );
+  });
+
   it("sizes a floating window from the full scrollable list height", () => {
     const previousElectronApi = Object.getOwnPropertyDescriptor(
       window,
@@ -353,7 +369,7 @@ describe("ReminderListDialog", () => {
     try {
       render(<ReminderListDialog presentation="floating-window" />);
 
-      expect(resizeReminderWindow).toHaveBeenCalledWith(416);
+      expect(resizeReminderWindow).toHaveBeenCalledWith(419);
     } finally {
       if (previousElectronApi) {
         Object.defineProperty(window, "electronAPI", previousElectronApi);

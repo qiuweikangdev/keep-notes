@@ -49,7 +49,7 @@ const repeatOptions: Array<{
 ];
 
 const controlClassName =
-  "h-9 rounded-md border-0 px-2.5 text-[13px] outline-none transition-colors focus-visible:ring-1 focus-visible:ring-[var(--accent-color)]";
+  "h-9 rounded-md border px-2.5 text-[13px] outline-none transition-colors focus:border-[var(--text-muted)] focus:ring-0";
 
 const weekdayLabels = ["日", "一", "二", "三", "四", "五", "六"];
 const hourOptions = Array.from({ length: 24 }, (_, index) =>
@@ -216,7 +216,11 @@ export function ReminderEditorDialog({
       if (contentHeight <= 0) return;
 
       const expandedHeight =
-        openPicker === "date" || isCustomOpen ? 620 : openPicker ? 520 : 0;
+        openPicker === "date" || openPicker === "repeat" || isCustomOpen
+          ? 620
+          : openPicker
+            ? 520
+            : 0;
       const windowHeight = Math.max(
         contentHeight + FLOATING_EDITOR_VERTICAL_MARGIN,
         expandedHeight,
@@ -289,7 +293,7 @@ export function ReminderEditorDialog({
           }}
           className={`${
             isFloatingWindow ? "top-2" : "top-[calc(12vh+56px)]"
-          } z-[60] w-[calc(100%-32px)] max-w-[408px] translate-y-0 gap-0 overflow-visible rounded-xl p-0 shadow-[0_10px_28px_rgba(0,0,0,0.24)]`}
+          } z-[60] w-[calc(100%-32px)] max-w-[408px] translate-y-0 gap-0 overflow-visible rounded-xl p-0 shadow-[0_12px_28px_rgba(0,0,0,0.24)]`}
           data-floating-window={isFloatingWindow ? "true" : undefined}
           data-reminder-editor-dialog="true"
           style={{
@@ -301,7 +305,7 @@ export function ReminderEditorDialog({
         >
           <div className="animate-fade-in motion-reduce:animate-none">
             <div
-              className="flex h-12 items-center justify-between px-4"
+              className="flex h-11 items-center justify-between border-b border-[var(--border-color)] px-4"
               data-reminder-editor-drag-region={
                 isFloatingWindow ? "true" : undefined
               }
@@ -331,7 +335,7 @@ export function ReminderEditorDialog({
               设置提醒标题、日期时间和重复频率
             </Dialog.Description>
             <div
-              className="px-4 pb-3 pt-1"
+              className="px-4 pb-4 pt-4"
               data-reminder-editor-interactive-region="true"
             >
               <div>
@@ -341,11 +345,11 @@ export function ReminderEditorDialog({
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
                   placeholder="输入提醒内容"
-                  className="h-9 border-0 px-3 py-1 text-sm focus-visible:ring-1 focus-visible:ring-[var(--accent-color)]"
+                  className="h-9 px-3 py-1 text-sm focus:border-[var(--text-muted)] focus:ring-0"
                   style={{
                     backgroundColor:
                       "color-mix(in srgb, var(--bg-secondary) 72%, var(--bg-primary))",
-                    border: "none",
+                    border: "1px solid var(--border-color)",
                     color: "var(--text-primary)",
                   }}
                   autoFocus
@@ -416,6 +420,7 @@ export function ReminderEditorDialog({
                     <RepeatPickerControl
                       value={repeat}
                       open={openPicker === "repeat"}
+                      opensBelow={isFloatingWindow}
                       onOpenChange={(open) =>
                         setOpenPicker(open ? "repeat" : null)
                       }
@@ -440,10 +445,14 @@ export function ReminderEditorDialog({
             </div>
 
             <div
-              className="flex justify-end gap-2 rounded-b-xl px-4 pb-4 pt-1.5"
+              className="flex justify-end gap-2 rounded-b-xl border-t border-[var(--border-color)] px-4 py-3"
               data-reminder-editor-interactive-region="true"
+              style={{
+                backgroundColor:
+                  "color-mix(in srgb, var(--bg-secondary) 38%, var(--bg-primary))",
+              }}
             >
-              <Button type="button" variant="ghost" onClick={closeEditor}>
+              <Button type="button" variant="secondary" onClick={closeEditor}>
                 取消
               </Button>
               <Button type="button" disabled={!canSave} onClick={handleSave}>
@@ -506,7 +515,7 @@ function DatePickerControl({
         className={`${controlClassName} flex w-full items-center justify-between gap-2`}
         style={{
           backgroundColor: "var(--bg-secondary)",
-          borderColor: "transparent",
+          borderColor: "var(--border-color)",
           color: "var(--text-primary)",
         }}
         onClick={() => onOpenChange(!open)}
@@ -519,9 +528,10 @@ function DatePickerControl({
       </button>
       {open ? (
         <div
-          className="absolute right-0 top-[calc(100%+8px)] z-[80] w-[284px] rounded-lg border-0 p-3 shadow-[0_10px_28px_rgba(0,0,0,0.24)]"
+          className="absolute right-0 top-[calc(100%+8px)] z-[80] w-[284px] rounded-lg border p-3 shadow-lg"
           style={{
             backgroundColor: "var(--bg-primary)",
+            borderColor: "var(--border-color)",
             color: "var(--text-primary)",
           }}
         >
@@ -641,7 +651,7 @@ function TimePickerControl({
         className={`${controlClassName} flex w-full items-center justify-between gap-2`}
         style={{
           backgroundColor: "var(--bg-secondary)",
-          borderColor: "transparent",
+          borderColor: "var(--border-color)",
           color: "var(--text-primary)",
         }}
         onClick={() => onOpenChange(!open)}
@@ -651,9 +661,10 @@ function TimePickerControl({
       </button>
       {open ? (
         <div
-          className="absolute right-0 top-[calc(100%+8px)] z-[80] w-[212px] rounded-lg border-0 p-2 shadow-[0_10px_28px_rgba(0,0,0,0.24)]"
+          className="absolute right-0 top-[calc(100%+8px)] z-[80] w-[212px] rounded-lg border p-2 shadow-lg"
           style={{
             backgroundColor: "var(--bg-primary)",
+            borderColor: "var(--border-color)",
             color: "var(--text-primary)",
           }}
         >
@@ -727,6 +738,7 @@ function TimePickerColumn({ options, value, onSelect }: TimePickerColumnProps) {
 interface RepeatPickerControlProps {
   value: ReminderRepeatPreset;
   open: boolean;
+  opensBelow: boolean;
   onChange: (value: ReminderRepeatPreset) => void;
   onOpenChange: (open: boolean) => void;
 }
@@ -734,6 +746,7 @@ interface RepeatPickerControlProps {
 function RepeatPickerControl({
   value,
   open,
+  opensBelow,
   onChange,
   onOpenChange,
 }: RepeatPickerControlProps) {
@@ -752,7 +765,7 @@ function RepeatPickerControl({
         className={`${controlClassName} flex w-full items-center justify-between gap-2`}
         style={{
           backgroundColor: "var(--bg-secondary)",
-          borderColor: "transparent",
+          borderColor: "var(--border-color)",
           color: "var(--text-primary)",
         }}
         onClick={() => onOpenChange(!open)}
@@ -765,9 +778,13 @@ function RepeatPickerControl({
       </button>
       {open ? (
         <div
-          className="absolute right-0 top-[calc(100%+8px)] z-[80] w-[184px] rounded-xl border-0 p-2 shadow-[0_10px_28px_rgba(0,0,0,0.24)]"
+          className={`absolute ${
+            opensBelow ? "top-[calc(100%+8px)]" : "bottom-[calc(100%+8px)]"
+          } right-0 z-[80] w-[184px] rounded-xl border p-2 shadow-lg`}
+          data-testid="reminder-repeat-menu"
           style={{
             backgroundColor: "var(--bg-primary)",
+            borderColor: "var(--border-color)",
             color: "var(--text-primary)",
           }}
         >
@@ -776,7 +793,12 @@ function RepeatPickerControl({
               const isSelected = option.value === value;
               return (
                 <div key={option.value}>
-                  {option.separated ? <div className="h-2" /> : null}
+                  {option.separated ? (
+                    <div
+                      className="my-1 h-px"
+                      style={{ backgroundColor: "var(--border-color)" }}
+                    />
+                  ) : null}
                   <button
                     type="button"
                     data-theme-control="true"

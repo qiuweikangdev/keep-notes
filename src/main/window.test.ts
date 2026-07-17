@@ -14,6 +14,7 @@ import {
 const electronMocks = vi.hoisted(() => ({
   showMessageBox: vi.fn(),
   showSaveDialog: vi.fn(),
+  focusApp: vi.fn(),
 }));
 const getCachedDirtyState = vi.hoisted(() => vi.fn(() => false));
 
@@ -67,6 +68,7 @@ const BrowserWindowMock = vi.hoisted(() =>
       destroy: vi.fn(),
       restore: vi.fn(),
       show: vi.fn(),
+      moveTop: vi.fn(),
       focus: vi.fn(),
     };
   }),
@@ -74,7 +76,7 @@ const BrowserWindowMock = vi.hoisted(() =>
 
 vi.mock("electron", () => ({
   BrowserWindow: BrowserWindowMock,
-  app: { isPackaged: true },
+  app: { isPackaged: true, focus: electronMocks.focusApp },
   shell: { openExternal: vi.fn() },
   dialog: electronMocks,
 }));
@@ -148,7 +150,7 @@ describe("createWindow", () => {
     );
   });
 
-  it("restores and focuses the latest main application window", () => {
+  it("activates and raises the latest main application window", () => {
     const win = createWindow();
     vi.mocked(win.isMinimized).mockReturnValue(true);
 
@@ -157,6 +159,18 @@ describe("createWindow", () => {
     expect(win.restore).toHaveBeenCalledOnce();
     expect(win.show).toHaveBeenCalledOnce();
     expect(win.focus).toHaveBeenCalledOnce();
+
+    if (process.platform === "darwin") {
+      expect(electronMocks.focusApp).toHaveBeenCalledOnce();
+      expect(electronMocks.focusApp).toHaveBeenCalledWith({ steal: true });
+      expect(win.moveTop).toHaveBeenCalledOnce();
+      expect(electronMocks.focusApp.mock.invocationCallOrder[0]).toBeLessThan(
+        vi.mocked(win.show).mock.invocationCallOrder[0],
+      );
+    } else {
+      expect(electronMocks.focusApp).not.toHaveBeenCalled();
+      expect(win.moveTop).not.toHaveBeenCalled();
+    }
   });
 });
 

@@ -384,16 +384,23 @@ describe("blocknote overrides stylesheet", () => {
 
   it("keeps CodeMirror selection color consistent with rich text selection", () => {
     expect(
-      getRule(".editor-code-block__codemirror .cm-selectionBackground"),
+      getRule(
+        ".editor-code-block__codemirror .cm-editor.cm-focused:hover .cm-selectionBackground",
+      ),
     ).toMatch(/background-color:\s*var\(--accent-color\) !important;/);
+    expect(
+      getRule(
+        ".editor-code-block__codemirror .cm-editor.cm-focused:not(:hover) .cm-selectionBackground, .editor-code-block__codemirror .cm-editor:not(.cm-focused) .cm-selectionBackground",
+      ),
+    ).toMatch(/background-color:\s*transparent !important;/);
     expect(
       getRule(".editor-code-block__codemirror .cm-content ::selection"),
     ).toMatch(/background-color:\s*var\(--accent-color\) !important;/);
   });
 
-  it("keeps the focused CodeMirror cursor high contrast in live styles", () => {
+  it("only shows the focused CodeMirror cursor while the pointer is inside", () => {
     const cursorRule = getRule(
-      ".editor-code-block__codemirror .cm-editor.cm-focused .cm-cursor",
+      ".editor-code-block__codemirror .cm-editor.cm-focused:hover .cm-cursor",
     );
 
     expect(cursorRule).toMatch(
@@ -403,11 +410,16 @@ describe("blocknote overrides stylesheet", () => {
     expect(cursorRule).toMatch(
       /border-left-width:\s*var\(--editor-code-block-cursor-width, 2px\) !important;/,
     );
+    expect(
+      getRule(
+        ".editor-code-block__codemirror .cm-editor.cm-focused:not(:hover) .cm-cursor",
+      ),
+    ).toMatch(/border-left-color:\s*transparent !important;/);
   });
 
   it("draws a fallback cursor while an empty CodeMirror document has no cursor layer", () => {
     const cursorRule = getRule(
-      ".editor-code-block__codemirror .cm-editor.cm-focused:not(:has(.cm-cursor-primary)) .cm-content > .cm-line:only-child:has(> br:only-child)::before",
+      ".editor-code-block__codemirror .cm-editor.cm-focused:hover:not(:has(.cm-cursor-primary)) .cm-content > .cm-line:only-child:has(> br:only-child)::before",
     );
 
     expect(cursorRule).toMatch(/content:\s*"";/);

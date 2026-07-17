@@ -19,6 +19,7 @@ import { APP_BEHAVIOR_CONFIG } from "@/config/app-behavior";
 import { useTheme } from "@/hooks/use-theme";
 import { showAppToast } from "@/lib/app-toast";
 import { QuickEditorWindow } from "@/features/editor/components/quick-editor-window";
+import { editorFindController } from "@/features/editor/lib/editor-find-controller";
 
 const CODE_BLOCK_CURSOR_VISUAL_WIDTH = 2;
 
@@ -102,10 +103,31 @@ function MainApplication() {
     return keys;
   }, [shortcuts]);
 
+  const openActiveEditorFind = useCallback(() => {
+    const editorState = useEditorStore.getState();
+    const activeGroup = editorState.panelGroups.find(
+      (group) => group.id === editorState.activeGroupId,
+    );
+    const tabId = activeGroup?.activeTabId;
+    if (!activeGroup || !tabId) return;
+
+    editorFindController.open(activeGroup.id, tabId);
+  }, []);
+
   // 处理搜索快捷键
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (isSettingsOpen) return;
+
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        !e.altKey &&
+        e.key.toLowerCase() === "f"
+      ) {
+        e.preventDefault();
+        openActiveEditorFind();
+        return;
+      }
 
       const keyString = eventToKeyString(e);
       if (keyString && searchKeyStrings.has(keyString)) {
@@ -113,7 +135,7 @@ function MainApplication() {
         setIsSearchOpen(true);
       }
     },
-    [searchKeyStrings, isSettingsOpen],
+    [openActiveEditorFind, searchKeyStrings, isSettingsOpen],
   );
 
   useEffect(() => {

@@ -16,6 +16,7 @@ describe("ReminderEditorDialog", () => {
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   beforeEach(() => {
@@ -50,18 +51,31 @@ describe("ReminderEditorDialog", () => {
     const dialog = screen.getByRole("dialog", { name: "新建提醒事项" });
     const titleInput = screen.getByRole("textbox", { name: "提醒标题" });
     const settingsGroup = screen.getByTestId("reminder-settings-group");
+    const heading = screen.getByRole("heading", { name: "新建提醒事项" });
+    const header = heading.parentElement;
+    const scheduleControls = settingsGroup.querySelectorAll<HTMLElement>(
+      'button[data-reminder-setting-control="true"]',
+    );
 
     expect(dialog).toHaveClass(
       "top-[calc(12vh+56px)]",
       "max-w-[408px]",
       "translate-y-0",
     );
-    expect(screen.getByRole("heading", { name: "新建提醒事项" })).toHaveClass(
+    expect(heading).toHaveClass(
       "flex",
       "items-center",
       "gap-2",
       "text-sm",
       "font-semibold",
+    );
+    expect(dialog.style.backgroundColor).toBe(
+      "color-mix(in srgb, var(--bg-tertiary) 36%, var(--bg-primary))",
+    );
+    expect(header).toHaveClass(
+      "h-11",
+      "border-b",
+      "border-[var(--border-color)]",
     );
     expect(screen.getByRole("button", { name: "关闭" })).toHaveClass(
       "h-7",
@@ -69,6 +83,11 @@ describe("ReminderEditorDialog", () => {
       "rounded-md",
     );
     expect(titleInput).toHaveClass("h-9", "text-sm");
+    expect(titleInput.style.border).toBe("1px solid var(--border-color)");
+    scheduleControls.forEach((control) => {
+      expect(control).toHaveClass("border");
+      expect(control.style.borderColor).toBe("var(--border-color)");
+    });
     expect(settingsGroup).toHaveClass(
       "mt-4",
       "space-y-2.5",
@@ -85,9 +104,20 @@ describe("ReminderEditorDialog", () => {
     render(<ReminderEditorDialog />);
 
     const saveButton = screen.getByRole("button", { name: "保存提醒" });
+    const cancelButton = screen.getByRole("button", { name: "取消" });
+    const footer = saveButton.parentElement;
 
     expect(saveButton).toBeDisabled();
-    expect(saveButton.parentElement).toHaveClass("rounded-b-xl");
+    expect(cancelButton).toHaveAttribute("data-variant", "secondary");
+    expect(saveButton).toHaveAttribute("data-variant", "default");
+    expect(footer).toHaveClass(
+      "border-t",
+      "border-[var(--border-color)]",
+      "py-3",
+    );
+    expect(footer?.style.backgroundColor).toBe(
+      "color-mix(in srgb, var(--bg-secondary) 38%, var(--bg-primary))",
+    );
   });
 
   it("renders the associated file as muted secondary text", () => {
@@ -224,6 +254,47 @@ describe("ReminderEditorDialog", () => {
     expect(screen.getAllByRole("button", { name: "永不" }).at(-1)).toHaveClass(
       "font-normal",
     );
+  });
+
+  it("keeps the bordered repeat menu below its trigger in the floating window", async () => {
+    const user = userEvent.setup();
+    const resizeReminderEditorWindow = vi.fn();
+    window.electronAPI = {
+      ...window.electronAPI,
+      resizeReminderEditorWindow,
+    };
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 0, 400, 400),
+    );
+    render(<ReminderEditorDialog presentation="floating-window" />);
+
+    await user.click(screen.getByRole("button", { name: /永不/ }));
+
+    const menu = screen.getByTestId("reminder-repeat-menu");
+    const options = menu.firstElementChild;
+
+    expect(menu).toHaveClass("top-[calc(100%+8px)]", "border", "shadow-lg");
+    expect(menu).not.toHaveClass("bottom-[calc(100%+8px)]");
+    expect(menu.style.backgroundColor).toBe("var(--bg-primary)");
+    expect(menu.style.borderColor).toBe("var(--border-color)");
+    expect(options).toHaveClass("max-h-[240px]", "overflow-y-auto");
+    expect(resizeReminderEditorWindow).toHaveBeenCalledWith(620);
+  });
+
+  it("keeps the bordered repeat menu above its trigger in the normal dialog", async () => {
+    const user = userEvent.setup();
+    render(<ReminderEditorDialog />);
+
+    await user.click(screen.getByRole("button", { name: /永不/ }));
+
+    const menu = screen.getByTestId("reminder-repeat-menu");
+    const options = menu.firstElementChild;
+
+    expect(menu).toHaveClass("bottom-[calc(100%+8px)]", "border", "shadow-lg");
+    expect(menu).not.toHaveClass("top-[calc(100%+8px)]");
+    expect(menu.style.backgroundColor).toBe("var(--bg-primary)");
+    expect(menu.style.borderColor).toBe("var(--border-color)");
+    expect(options).toHaveClass("max-h-[240px]", "overflow-y-auto");
   });
 
   it("renders date, time, and repeat as compact independent rows", () => {

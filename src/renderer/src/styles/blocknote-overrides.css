@@ -482,14 +482,19 @@
   min-width: max-content;
 }
 
-.editor-code-block__codemirror .cm-editor.cm-focused .cm-cursor {
+.editor-code-block__codemirror .cm-editor.cm-focused:hover .cm-cursor {
   border-left-color: var(--editor-code-block-cursor) !important;
   border-left-style: solid !important;
   border-left-width: var(--editor-code-block-cursor-width, 2px) !important;
 }
 
+.editor-code-block__codemirror .cm-editor.cm-focused:not(:hover) .cm-cursor {
+  /* CodeMirror 的焦点类可能晚于鼠标移出更新，避免残留光标被误认为文本选区。 */
+  border-left-color: transparent !important;
+}
+
 .editor-code-block__codemirror
-  .cm-editor.cm-focused:not(:has(.cm-cursor-primary))
+  .cm-editor.cm-focused:hover:not(:has(.cm-cursor-primary))
   .cm-content
   > .cm-line:only-child:has(> br:only-child)::before {
   /* 空文档尚未生成 CodeMirror 光标层时，补绘与正常光标一致的插入线。 */
@@ -535,12 +540,19 @@
   text-align: center;
 }
 
-.editor-code-block__codemirror .cm-selectionBackground {
+.editor-code-block__codemirror
+  .cm-editor.cm-focused:hover
+  .cm-selectionBackground {
   background-color: var(--accent-color) !important;
 }
 
-.editor-code-block__codemirror .cm-focused .cm-selectionBackground {
-  background-color: var(--accent-color) !important;
+.editor-code-block__codemirror
+  .cm-editor.cm-focused:not(:hover)
+  .cm-selectionBackground,
+.editor-code-block__codemirror
+  .cm-editor:not(.cm-focused)
+  .cm-selectionBackground {
+  background-color: transparent !important;
 }
 
 .editor-code-block__codemirror .cm-content ::selection {

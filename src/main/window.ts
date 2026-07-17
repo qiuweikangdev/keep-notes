@@ -114,9 +114,11 @@ export function focusMainWindow(): void {
 
   if (!win) return;
 
-  // 从提醒浮窗返回时恢复最靠后的应用窗口，并把它带回前台。
+  // macOS 需要先激活应用进程，再恢复并提升主窗口，否则浮窗隐藏后焦点可能留在其他应用。
+  if (isMac) app.focus({ steal: true });
   if (win.isMinimized()) win.restore();
   win.show();
+  if (isMac) win.moveTop();
   win.focus();
 }
 

@@ -28,6 +28,8 @@ const MENU_ITEM_CLASS =
 const MENU_SEPARATOR_CLASS = "my-1 h-px bg-[var(--border-color)]";
 const FLOATING_WINDOW_VERTICAL_MARGIN = 16;
 const FLOATING_HEADER_HEIGHT = 80;
+const FLOATING_SURFACE_BORDER_HEIGHT = 2;
+const FLOATING_HEADER_DIVIDER_HEIGHT = 1;
 const FLOATING_RESULT_MAX_HEIGHT = 320;
 const FLOATING_EMPTY_RESULT_HEIGHT = 44;
 const FLOATING_RESULT_PADDING = 16;
@@ -50,12 +52,14 @@ function isReminderNestedPortalTarget(target: EventTarget | null): boolean {
 }
 
 function getFloatingWindowHeight(reminders: readonly Reminder[]): number {
+  const frameHeight =
+    FLOATING_HEADER_HEIGHT +
+    FLOATING_WINDOW_VERTICAL_MARGIN +
+    FLOATING_SURFACE_BORDER_HEIGHT +
+    FLOATING_HEADER_DIVIDER_HEIGHT;
+
   if (reminders.length === 0) {
-    return (
-      FLOATING_HEADER_HEIGHT +
-      FLOATING_EMPTY_RESULT_HEIGHT +
-      FLOATING_WINDOW_VERTICAL_MARGIN
-    );
+    return frameHeight + FLOATING_EMPTY_RESULT_HEIGHT;
   }
 
   const rowsHeight = reminders.reduce(
@@ -72,9 +76,7 @@ function getFloatingWindowHeight(reminders: readonly Reminder[]): number {
     FLOATING_RESULT_MAX_HEIGHT,
   );
 
-  return (
-    FLOATING_HEADER_HEIGHT + resultHeight + FLOATING_WINDOW_VERTICAL_MARGIN
-  );
+  return frameHeight + resultHeight;
 }
 
 interface ReminderListDialogProps {
@@ -177,7 +179,7 @@ export function ReminderListDialog({
           }}
           className={`${
             isFloatingWindow ? "top-2" : "top-[12vh]"
-          } z-50 max-w-[520px] translate-y-0 gap-0 overflow-hidden rounded-xl p-0 shadow-[0_10px_28px_rgba(0,0,0,0.22)] sm:rounded-xl ${
+          } z-50 max-w-[520px] translate-y-0 gap-0 overflow-hidden rounded-xl p-0 shadow-[0_4px_8px_rgba(0,0,0,0.16)] sm:rounded-xl ${
             isFloatingWindow ? "max-h-[calc(100vh-16px)]" : ""
           } ${isEditorOpen ? "pointer-events-none" : ""}`}
           data-editor-open={isEditorOpen ? "true" : undefined}
@@ -193,9 +195,8 @@ export function ReminderListDialog({
           onInteractOutside={preventDialogDismissFromNestedLayer}
           onPointerDownOutside={preventDialogDismissFromNestedLayer}
           style={{
-            backgroundColor:
-              "color-mix(in srgb, var(--bg-primary) 96%, var(--bg-secondary))",
-            border: "none",
+            backgroundColor: "var(--bg-primary)",
+            border: "1px solid var(--border-color)",
             color: "var(--text-primary)",
           }}
         >
@@ -211,11 +212,11 @@ export function ReminderListDialog({
             onValueChange={(value) => setTab(value as ReminderListTab)}
           >
             <div
-              className="shrink-0"
+              className="shrink-0 border-b border-[var(--border-color)]"
               data-reminder-list-header="true"
               style={{
                 backgroundColor:
-                  "color-mix(in srgb, var(--bg-secondary) 30%, var(--bg-primary))",
+                  "color-mix(in srgb, var(--bg-secondary) 24%, var(--bg-primary))",
               }}
             >
               <div className="flex h-11 items-center gap-2.5 px-3.5">

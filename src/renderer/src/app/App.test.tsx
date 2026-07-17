@@ -9,6 +9,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useReminderStore } from "@/store/reminder.store";
 import type { Reminder } from "@/types";
+import { editorFindController } from "@/features/editor/lib/editor-find-controller";
 
 let menuActionHandler: ((action: string) => void) | null = null;
 const appMocks = vi.hoisted(() => ({
@@ -234,7 +235,7 @@ vi.mock("@/store/editor.store", () => ({
         },
         filePath: null,
         content: "",
-        panelGroups: [],
+        panelGroups: [{ id: "group-1", activeTabId: "tab-1" }],
         activeGroupId: "group-1",
         setFilePath: vi.fn(),
         resetEditor: vi.fn(),
@@ -245,6 +246,8 @@ vi.mock("@/store/editor.store", () => ({
     {
       getState: () => ({
         openQuickEditorDraft: appMocks.openQuickEditorDraft,
+        activeGroupId: "group-1",
+        panelGroups: [{ id: "group-1", activeTabId: "tab-1" }],
         setFilePath: vi.fn(),
         setDirty: vi.fn(),
       }),
@@ -420,6 +423,16 @@ describe("App shortcuts", () => {
       "data-collapsed",
       "false",
     );
+  });
+
+  it("opens file search for the active editor when pressing Cmd+F", () => {
+    const openEditorFind = vi.spyOn(editorFindController, "open");
+    render(<App />);
+
+    fireEvent.keyDown(window, { key: "f", metaKey: true });
+
+    expect(openEditorFind).toHaveBeenCalledWith("group-1", "tab-1");
+    openEditorFind.mockRestore();
   });
 
   it("opens global search when receiving the title bar search event", () => {
