@@ -1,3 +1,37 @@
+# [2.14.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.13.0...v2.14.0) (2026-07-17)
+
+
+### Bug Fixes
+
+* activate main window from reminder popup ([dae2f3f](https://github.com/qiuweikangdev/keep-notes/commit/dae2f3fb52763f21cf5729a7a9c3c9152059da43))
+* make reminder shortcut reliable on startup ([5233e5a](https://github.com/qiuweikangdev/keep-notes/commit/5233e5ad71d3171213faa7699d8247cf98bf89a2))
+* position floating reminder repeat menu ([02c14d7](https://github.com/qiuweikangdev/keep-notes/commit/02c14d7967ac3d4381e9843528a69e3977a5299c))
+* resolve merge conflicts ([a9498eb](https://github.com/qiuweikangdev/keep-notes/commit/a9498eb81b14efb63bb54091aafdfd2933c63310))
+* skip save prompt for synced floating editors ([cc851f2](https://github.com/qiuweikangdev/keep-notes/commit/cc851f2ab0d837687b4b8a6f5970889dcbc60378))
+* stabilize editor search and code selection highlights ([3b00d0b](https://github.com/qiuweikangdev/keep-notes/commit/3b00d0beb138403a21d4429bf62680030565cb23))
+* stabilize reminder floating window layout ([aac9477](https://github.com/qiuweikangdev/keep-notes/commit/aac9477ca61bba28d63766720989e20c0d220b68))
+* sync floating editor content in real time ([0ca2a76](https://github.com/qiuweikangdev/keep-notes/commit/0ca2a76d9ff5c3904c01ea73eb1e14cb266943d3))
+* transfer quick editor drafts reliably ([4cf38f5](https://github.com/qiuweikangdev/keep-notes/commit/4cf38f582407d5a6d0b2c17ed62f50945f94c9bd))
+* unify move confirmation dialog ([24b494c](https://github.com/qiuweikangdev/keep-notes/commit/24b494c7af7a2299b4c959195e5feed5fe495199))
+* update editor empty state placeholder ([a1c399d](https://github.com/qiuweikangdev/keep-notes/commit/a1c399dea4f2ea8459a93182799e51071284f7cf))
+
+
+### Features
+
+* add discard confirmation warning icon ([81fc141](https://github.com/qiuweikangdev/keep-notes/commit/81fc141b753e2e8f5b5da6a44916e53f95b72a67))
+* add quick editor floating window ([f523ea6](https://github.com/qiuweikangdev/keep-notes/commit/f523ea6f2a9eb6f82278a9788fbcfbd8a397a63d))
+* improve git file actions ([85a67c3](https://github.com/qiuweikangdev/keep-notes/commit/85a67c37b7b19770b41b3f0a2b522379da3708bf))
+* improve reminder floating windows ([c0de14d](https://github.com/qiuweikangdev/keep-notes/commit/c0de14d49ac3cb02f711053dab3d55b2cdca0982))
+* optimize reminder floating windows ([dfc3695](https://github.com/qiuweikangdev/keep-notes/commit/dfc36958ca68a1f8c85cd0f5c19efc6b7a5f7095))
+* restore source tab from floating editor ([0f7c746](https://github.com/qiuweikangdev/keep-notes/commit/0f7c74630f1416c391450eee796a81a28359183b))
+* support multiple quick editor windows ([f19d912](https://github.com/qiuweikangdev/keep-notes/commit/f19d912cb419cd888a0e2a583418590d8c0e6cdf))
+
+
+## Commit Summary
+
+- Compared with: v2.13.0
+- Total commits: 26
+
 # [2.13.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.12.0...v2.13.0) (2026-07-16)
 
 
