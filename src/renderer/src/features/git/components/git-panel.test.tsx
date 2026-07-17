@@ -92,6 +92,12 @@ describe("GitPanel", () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: {
+        readFile: vi.fn().mockResolvedValue("working tree content"),
+      },
+    });
     treeStoreMock.treeRoot = { key: "/notes", title: "notes" };
     treeStoreMock.expandedKeys = new Set<string>();
     electronMocks.detectGitRepo.mockResolvedValue({
@@ -172,6 +178,10 @@ describe("GitPanel", () => {
         oldContent: "old content",
         newContent: "new content",
       },
+    });
+    electronMocks.getFileHeadContent.mockResolvedValue({
+      code: CodeResult.Success,
+      data: "head content",
     });
   });
 
@@ -502,6 +512,24 @@ describe("GitPanel", () => {
     expect(screen.queryByText("changed.md")).not.toBeInTheDocument();
   });
 
+  it("opens a diff when clicking a file in the status list", async () => {
+    render(<GitPanel isOpen onClose={vi.fn()} />);
+
+    fireEvent.click(await screen.findByText("changed.md"));
+
+    await waitFor(() => {
+      expect(electronMocks.getFileHeadContent).toHaveBeenCalledWith(
+        "/notes",
+        "changed.md",
+      );
+      expect(diffStoreMock.openDiff).toHaveBeenCalledWith(
+        "changed.md",
+        "head content",
+        "working tree content",
+      );
+    });
+  });
+
   it("adds tips to icon-only controls and hides the single-line commit scrollbar", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
@@ -641,11 +669,7 @@ describe("GitPanel", () => {
     expect(screen.getByText("+12")).toBeInTheDocument();
     expect(screen.getByText("-3")).toBeInTheDocument();
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "查看 src/renderer/src/features/git/components/git-panel.tsx 的提交差异",
-      }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "查看差异" }));
 
     expect(diffStoreMock.openDiff).toHaveBeenCalledWith(
       "src/renderer/src/features/git/components/git-panel.tsx",
@@ -674,6 +698,69 @@ describe("GitPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "查看文件状态" }));
     expect(await screen.findByText("changed.md")).toBeInTheDocument();
+  });
+
+  it("provides diff and open controls for commit files, except deleted files", async () => {
+    electronMocks.getCommitDetail.mockResolvedValueOnce({
+      code: CodeResult.Success,
+      data: {
+        hash: "1111111111111111111111111111111111111111",
+        shortHash: "1111111",
+        parents: ["0000000000000000000000000000000000000000"],
+        authorName: "qiuweikang",
+        authorEmail: "qiuweikang@example.com",
+        committerName: "qiuweikang",
+        committerEmail: "qiuweikang@example.com",
+        date: "2026-07-01T10:00:00+08:00",
+        subject: "feat: add git history",
+        body: "feat: add git history",
+        files: [
+          {
+            path: "changed.md",
+            status: "M",
+            additions: 2,
+            deletions: 1,
+          },
+          {
+            path: "removed.md",
+            status: "D",
+            additions: 0,
+            deletions: 4,
+          },
+        ],
+      },
+    });
+
+    render(<GitPanel isOpen onClose={vi.fn()} />);
+
+    await screen.findByText("changed.md");
+    fireEvent.click(screen.getByRole("button", { name: "查看 Git 历史" }));
+    fireEvent.click(await screen.findByText("feat: add git history"));
+
+    const diffButtons = await screen.findAllByRole("button", {
+      name: "查看差异",
+    });
+    expect(diffButtons).toHaveLength(2);
+    expect(
+      screen.getByRole("button", { name: "打开 changed.md" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "打开 removed.md" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(diffButtons[0]);
+    expect(electronMocks.getCommitFileContent).toHaveBeenCalledWith(
+      "/notes",
+      "1111111111111111111111111111111111111111",
+      "changed.md",
+      "M",
+      undefined,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "打开 changed.md" }));
+    await waitFor(() => {
+      expect(electronMocks.openFile).toHaveBeenCalledWith("/notes/changed.md");
+    });
   });
 
   it("resets transient state whenever the Git panel opens", async () => {
