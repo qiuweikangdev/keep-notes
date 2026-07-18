@@ -52,6 +52,15 @@ function getReminderWindowBounds(
   };
 }
 
+function getWindowZoomFactor(win: BrowserWindow): number {
+  const zoomFactor = win.webContents.getZoomFactor();
+  return Number.isFinite(zoomFactor) && zoomFactor > 0 ? zoomFactor : 1;
+}
+
+function getScaledWindowSize(size: number, zoomFactor: number): number {
+  return Math.ceil(size * zoomFactor);
+}
+
 function notifyReminderWindowShown(win: BrowserWindow): void {
   win.webContents.send(IPC_CHANNELS.REMINDER.WINDOW_SHOWN);
 }
@@ -102,22 +111,36 @@ export function resizeReminderWindow(
     x: Math.round(bounds.x + bounds.width / 2),
     y: Math.round(bounds.y + bounds.height / 2),
   });
+  const zoomFactor = getWindowZoomFactor(win);
+  const width = Math.min(
+    getScaledWindowSize(REMINDER_WINDOW_WIDTH, zoomFactor),
+    display.workArea.width,
+  );
   const height = Math.min(
-    Math.max(Math.ceil(requestedHeight), REMINDER_WINDOW_MIN_HEIGHT),
-    Math.min(REMINDER_WINDOW_MAX_HEIGHT, display.workArea.height),
+    Math.max(
+      getScaledWindowSize(requestedHeight, zoomFactor),
+      getScaledWindowSize(REMINDER_WINDOW_MIN_HEIGHT, zoomFactor),
+    ),
+    Math.min(
+      getScaledWindowSize(REMINDER_WINDOW_MAX_HEIGHT, zoomFactor),
+      display.workArea.height,
+    ),
   );
 
-  if (height === bounds.height) {
+  if (height === bounds.height && width === bounds.width) {
     shouldCenterNextResize = false;
     return;
   }
 
-  // 首次按内容调整高度时保持视觉居中；之后保留用户拖动后的左上角位置。
+  // 页面缩放会改变 CSS 像素与原生窗口 DIP 的比例，首次同步时保持居中。
+  const x = shouldCenterNextResize
+    ? Math.round(display.workArea.x + (display.workArea.width - width) / 2)
+    : bounds.x;
   const y = shouldCenterNextResize
     ? Math.round(display.workArea.y + (display.workArea.height - height) / 2)
     : bounds.y;
 
-  win.setBounds({ ...bounds, y, height });
+  win.setBounds({ ...bounds, x, y, width, height });
   shouldCenterNextResize = false;
 }
 
@@ -302,16 +325,31 @@ export function resizeReminderEditorWindow(
     x: Math.round(bounds.x + bounds.width / 2),
     y: Math.round(bounds.y + bounds.height / 2),
   });
-  const height = Math.min(
-    Math.max(Math.ceil(requestedHeight), REMINDER_EDITOR_WINDOW_MIN_HEIGHT),
-    Math.min(REMINDER_EDITOR_WINDOW_MAX_HEIGHT, display.workArea.height),
+  const zoomFactor = getWindowZoomFactor(win);
+  const width = Math.min(
+    getScaledWindowSize(REMINDER_EDITOR_WINDOW_WIDTH, zoomFactor),
+    display.workArea.width,
   );
-  const y = Math.min(
-    Math.max(bounds.y, display.workArea.y),
-    display.workArea.y + display.workArea.height - height,
+  const height = Math.min(
+    Math.max(
+      getScaledWindowSize(requestedHeight, zoomFactor),
+      getScaledWindowSize(REMINDER_EDITOR_WINDOW_MIN_HEIGHT, zoomFactor),
+    ),
+    Math.min(
+      getScaledWindowSize(REMINDER_EDITOR_WINDOW_MAX_HEIGHT, zoomFactor),
+      display.workArea.height,
+    ),
+  );
+  const x = Math.min(
+    Math.max(
+      Math.round(bounds.x + (bounds.width - width) / 2),
+      display.workArea.x,
+    ),
+    display.workArea.x + display.workArea.width - width,
   );
 
-  win.setBounds({ ...bounds, y, height });
+  // 下拉菜单展开时只向下扩展窗口，避免调整窗口高度时把编辑器顶到上方。
+  win.setBounds({ ...bounds, x, width, height });
 }
 
 export function closeReminderEditorWindow(win?: BrowserWindow | null): void {

@@ -57,11 +57,8 @@ describe("ReminderEditorDialog", () => {
       'button[data-reminder-setting-control="true"]',
     );
 
-    expect(dialog).toHaveClass(
-      "top-[calc(12vh+56px)]",
-      "max-w-[408px]",
-      "translate-y-0",
-    );
+    expect(dialog).toHaveClass("max-w-[408px]", "translate-y-0");
+    expect(dialog.style.top).toContain("100vh - 332px");
     expect(heading).toHaveClass(
       "flex",
       "items-center",

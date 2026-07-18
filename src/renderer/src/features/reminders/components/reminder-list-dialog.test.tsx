@@ -209,7 +209,12 @@ describe("ReminderListDialog", () => {
       name: "搜索提醒事项",
     });
 
-    expect(dialog).toHaveClass("max-w-[520px]", "top-[12vh]", "translate-y-0");
+    expect(dialog).toHaveClass(
+      "max-w-[520px]",
+      "top-[12vh]",
+      "w-[calc(100%-32px)]",
+      "translate-y-0",
+    );
     expect(dialog).toHaveClass("z-50", "shadow-[0_4px_8px_rgba(0,0,0,0.16)]");
     expect(search).toHaveClass("border-0", "bg-transparent");
     expect(screen.queryByRole("button", { name: "关闭" })).toBeNull();
@@ -322,7 +327,10 @@ describe("ReminderListDialog", () => {
     const results = screen.getByRole("tabpanel");
 
     expect(dialog).toHaveAttribute("data-floating-window", "true");
-    expect(dialog).toHaveClass("max-h-[calc(100vh-16px)]");
+    expect(dialog).toHaveClass(
+      "w-[calc(100%-16px)]",
+      "max-h-[calc(100vh-16px)]",
+    );
     expect(results).toHaveAttribute("data-reminder-scroll-region", "true");
     expect(results).toHaveClass(
       "min-h-0",

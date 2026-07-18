@@ -19,7 +19,7 @@ const electronMocks = vi.hoisted(() => {
     private bounds: Electron.Rectangle;
     readonly options: Electron.BrowserWindowConstructorOptions;
     readonly handlers = new Map<string, Handler>();
-    readonly webContents = { send: vi.fn() };
+    readonly webContents = { send: vi.fn(), getZoomFactor: vi.fn(() => 1) };
     readonly isDestroyed = vi.fn(() => this.destroyed);
     readonly getBounds = vi.fn(() => ({ ...this.bounds }));
     readonly setBounds = vi.fn((bounds: Electron.Rectangle) => {
@@ -195,6 +195,21 @@ describe("reminder window global shortcut", () => {
     expect(electronMocks.windows[0].setBounds).not.toHaveBeenCalled();
   });
 
+  it("scales the floating list bounds with the renderer zoom", () => {
+    const win = showReminderWindow();
+    const nativeWindow = electronMocks.windows[0];
+    nativeWindow.webContents.getZoomFactor.mockReturnValue(1.25);
+
+    resizeReminderWindow(win, 143);
+
+    expect(nativeWindow.setBounds).toHaveBeenLastCalledWith({
+      x: 385,
+      y: 361,
+      width: 670,
+      height: 179,
+    });
+  });
+
   it("hides the reminder list when its native window loses focus", () => {
     showReminderWindow();
     const win = electronMocks.windows[0];
@@ -240,6 +255,25 @@ describe("reminder window global shortcut", () => {
       y: 240,
       width: 440,
       height: 360,
+    });
+
+    editorWindow.setBounds({ x: 500, y: 360, width: 440, height: 360 });
+    win.setBounds.mockClear();
+    resizeReminderEditorWindow(editorWindow, 620);
+    expect(win.setBounds).toHaveBeenLastCalledWith({
+      x: 500,
+      y: 360,
+      width: 440,
+      height: 620,
+    });
+
+    win.webContents.getZoomFactor.mockReturnValue(1.25);
+    resizeReminderEditorWindow(editorWindow, 400);
+    expect(win.setBounds).toHaveBeenLastCalledWith({
+      x: 445,
+      y: 360,
+      width: 550,
+      height: 500,
     });
 
     closeReminderEditorWindow(editorWindow);

@@ -178,7 +178,9 @@ export function ReminderListDialog({
               : "rgba(0, 0, 0, 0.3)",
           }}
           className={`${
-            isFloatingWindow ? "top-2" : "top-[12vh]"
+            isFloatingWindow
+              ? "top-2 w-[calc(100%-16px)]"
+              : "top-[12vh] w-[calc(100%-32px)]"
           } z-50 max-w-[520px] translate-y-0 gap-0 overflow-hidden rounded-xl p-0 shadow-[0_4px_8px_rgba(0,0,0,0.16)] sm:rounded-xl ${
             isFloatingWindow ? "max-h-[calc(100vh-16px)]" : ""
           } ${isEditorOpen ? "pointer-events-none" : ""}`}
