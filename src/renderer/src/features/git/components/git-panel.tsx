@@ -33,6 +33,10 @@ import {
 } from "../lib/git-status-view";
 import type { GitFileTreeNode, GitStatusBadge } from "../lib/git-status-view";
 import {
+  GIT_STATUS_CHANGE_EVENT,
+  isGitStatusChangeDetail,
+} from "../lib/git-status-change";
+import {
   GitBranch as GitBranchIcon,
   GitCommit,
   Download,
@@ -310,6 +314,30 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       loadGitInfo();
     }
   }, [isOpen, resetPanelState, loadGitInfo]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleGitStatusChange = (event: Event) => {
+      const detail = (event as CustomEvent<unknown>).detail;
+      if (
+        !isGitStatusChangeDetail(detail) ||
+        detail.repositoryRoot !== getCurrentDir()
+      ) {
+        return;
+      }
+
+      void loadGitInfo();
+    };
+
+    window.addEventListener(GIT_STATUS_CHANGE_EVENT, handleGitStatusChange);
+    return () => {
+      window.removeEventListener(
+        GIT_STATUS_CHANGE_EVENT,
+        handleGitStatusChange,
+      );
+    };
+  }, [isOpen, getCurrentDir, loadGitInfo]);
 
   const loadCommitHistory = useCallback(
     async (mode: "reset" | "append" = "reset") => {

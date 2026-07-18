@@ -3,6 +3,7 @@ import { useEditorStore } from "@/store/editor.store";
 import { useTreeStore } from "@/store/tree.store";
 import { CodeResult } from "@/types";
 import { areDiffContentsEqual } from "@/features/diff/lib/diff-content";
+import { notifyGitStatusChange } from "@/features/git/lib/git-status-change";
 import {
   editorCache,
   editorSaveCoordinator,
@@ -85,6 +86,7 @@ export async function discardFileChanges(
   if (result.code !== CodeResult.Success) {
     return { success: false };
   }
+  notifyGitStatusChange(repositoryRoot);
 
   editorSaveCoordinator.cancel(editorFilePath);
   editorCache.delete(editorFilePath);

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { CodeResult } from "@/types";
+import { GIT_STATUS_CHANGE_EVENT } from "@/features/git/lib/git-status-change";
 import {
   useEditorStore,
   type EditorPanelGroup,
@@ -98,15 +99,22 @@ describe("discardFileChanges", () => {
       loadTree: vi.fn().mockResolvedValue(undefined),
     } as unknown as Parameters<typeof discardFileChanges>[2];
 
+    const statusChangeSpy = vi.fn();
+    window.addEventListener(GIT_STATUS_CHANGE_EVENT, statusChangeSpy);
     const result = await discardFileChanges(
       "/notes",
       "/notes/readme.md",
       electron,
       { skipChangeCheck: true },
     );
+    window.removeEventListener(GIT_STATUS_CHANGE_EVENT, statusChangeSpy);
 
     expect(result).toEqual({ success: true });
     expect(electron.discardChanges).toHaveBeenCalledWith("/notes", "readme.md");
+    expect(statusChangeSpy).toHaveBeenCalledOnce();
+    expect((statusChangeSpy.mock.calls[0][0] as CustomEvent).detail).toEqual({
+      repositoryRoot: "/notes",
+    });
   });
 
   it("discards a dirty editor tab when the diff supplies a repository-relative path", async () => {
