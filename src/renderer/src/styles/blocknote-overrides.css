@@ -19,7 +19,7 @@
   --bn-colors-side-menu: var(--text-muted);
   --editor-code-block-bg: #f5f8ff;
   --editor-code-block-text: #0f172a;
-  --editor-code-plain-text: #475569;
+  --editor-code-plain-text: #5b687a;
   --editor-code-block-cursor: #0969da;
   --editor-code-block-muted: #475569;
   --editor-code-block-border: rgba(148, 163, 184, 0.9);
@@ -64,7 +64,7 @@
   --bn-colors-side-menu: var(--text-muted);
   --editor-code-block-bg: #0d1117;
   --editor-code-block-text: #f0f6fc;
-  --editor-code-plain-text: #b7bec8;
+  --editor-code-plain-text: #929ba7;
   --editor-code-block-cursor: #79c0ff;
   --editor-code-block-muted: #8b949e;
   --editor-code-block-border: rgba(86, 96, 116, 0.9);

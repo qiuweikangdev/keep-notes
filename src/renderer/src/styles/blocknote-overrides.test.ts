@@ -31,10 +31,10 @@ describe("blocknote overrides stylesheet", () => {
       /--editor-code-block-bg:\s*#0d1117;/,
     );
     expect(getRule('.bn-root[data-color-scheme="light"]')).toMatch(
-      /--editor-code-plain-text:\s*#475569;/,
+      /--editor-code-plain-text:\s*#5b687a;/,
     );
     expect(getRule('.bn-root[data-color-scheme="dark"]')).toMatch(
-      /--editor-code-plain-text:\s*#b7bec8;/,
+      /--editor-code-plain-text:\s*#929ba7;/,
     );
     expect(getRule('.bn-root[data-color-scheme="light"]')).toMatch(
       /--editor-code-token-keyword:\s*#a626a4;/,
