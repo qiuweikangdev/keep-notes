@@ -35,6 +35,8 @@ export const IPC_CHANNELS = {
     RETURN_TO_MAIN_WINDOW: "quick-editor:return-to-main-window",
     IMPORT_CONTENT: "quick-editor:import-content",
     CONSUME_CONTENT: "quick-editor:consume-content",
+    GET_COLLAPSED: "quick-editor:get-collapsed",
+    SET_COLLAPSED: "quick-editor:set-collapsed",
   },
   FILE: {
     READ: "file:read",

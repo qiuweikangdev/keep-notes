@@ -152,6 +152,11 @@ export interface ElectronAPI {
   returnToMainWindowFromQuickEditor: (
     content: QuickEditorWindowContent,
   ) => void;
+  getQuickEditorCollapsed: () => Promise<boolean>;
+  setQuickEditorCollapsed: (
+    collapsed: boolean,
+    reduceMotion: boolean,
+  ) => Promise<boolean>;
   consumeQuickEditorContent: () => Promise<QuickEditorWindowContent | null>;
   onQuickEditorContentImported: (
     callback: (content: QuickEditorWindowContent) => void,

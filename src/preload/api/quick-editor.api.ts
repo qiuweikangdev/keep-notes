@@ -132,6 +132,21 @@ export const quickEditorApi = {
     ipcRenderer.send(IPC_CHANNELS.QUICK_EDITOR.RETURN_TO_MAIN_WINDOW, content);
   },
 
+  getQuickEditorCollapsed: (): Promise<boolean> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.QUICK_EDITOR.GET_COLLAPSED);
+  },
+
+  setQuickEditorCollapsed: (
+    collapsed: boolean,
+    reduceMotion: boolean,
+  ): Promise<boolean> => {
+    return ipcRenderer.invoke(
+      IPC_CHANNELS.QUICK_EDITOR.SET_COLLAPSED,
+      collapsed,
+      reduceMotion,
+    );
+  },
+
   consumeQuickEditorContent: (): Promise<QuickEditorWindowContent | null> => {
     return ipcRenderer.invoke(IPC_CHANNELS.QUICK_EDITOR.CONSUME_CONTENT);
   },

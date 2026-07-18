@@ -5,7 +5,9 @@ import {
   configureQuickEditorGlobalShortcuts,
   consumePendingQuickEditorContent,
   createQuickEditorWindow,
+  getQuickEditorCollapsed,
   returnToMainWindowFromQuickEditor,
+  setQuickEditorCollapsed,
   showQuickEditorWindow,
   syncQuickEditorContent,
 } from "../quick-editor-window";
@@ -49,6 +51,25 @@ export function registerQuickEditorIpc(): void {
     IPC_CHANNELS.QUICK_EDITOR.RETURN_TO_MAIN_WINDOW,
     (event, content: unknown) => {
       returnToMainWindowFromQuickEditor(content, getBrowserWindow(event));
+    },
+  );
+
+  ipcMain.handle(IPC_CHANNELS.QUICK_EDITOR.GET_COLLAPSED, (event) => {
+    return getQuickEditorCollapsed(getBrowserWindow(event));
+  });
+
+  ipcMain.handle(
+    IPC_CHANNELS.QUICK_EDITOR.SET_COLLAPSED,
+    (event, collapsed: unknown, reduceMotion: unknown) => {
+      if (typeof collapsed !== "boolean" || typeof reduceMotion !== "boolean") {
+        return false;
+      }
+
+      return setQuickEditorCollapsed(
+        getBrowserWindow(event),
+        collapsed,
+        reduceMotion,
+      );
     },
   );
 
