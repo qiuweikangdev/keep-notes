@@ -47,6 +47,8 @@ export const IPC_CHANNELS = {
     OPEN_DIALOG: "file:open-dialog",
     GET_SELECTED_PATH: "file:get-selected-path",
     GENERATE_TREE: "file:generate-tree",
+    GENERATE_FULL_TREE: "file:generate-full-tree",
+    READ_DIRECTORY: "file:read-directory",
     OPEN_IN_EXPLORER: "file:open-in-explorer",
     COPY_PATH: "file:copy-path",
     OPEN_IN_NEW_WINDOW: "file:open-in-new-window",

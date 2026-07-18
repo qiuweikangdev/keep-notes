@@ -100,7 +100,14 @@ describe("WorkspaceWatchRegistry", () => {
     expect(onChange).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
     expect(onChange).toHaveBeenCalledTimes(1);
-    expect(onChange).toHaveBeenCalledWith("notes");
+    expect(onChange).toHaveBeenCalledWith({
+      rootPath: "notes",
+      events: [
+        { eventType: "rename", path: path.join("notes", "a.md") },
+        { eventType: "change", path: path.join("notes", "b.md") },
+      ],
+      hasUnknownPath: false,
+    });
 
     registry.unwatchWorkspace("notes");
     expect(close).toHaveBeenCalledTimes(1);
@@ -127,6 +134,31 @@ describe("WorkspaceWatchRegistry", () => {
     expect(onChange).not.toHaveBeenCalled();
 
     registry.unwatchWorkspace("notes");
+  });
+
+  it("reports an unknown-path fallback when fs.watch omits the file name", () => {
+    vi.useFakeTimers();
+    let listener:
+      | ((eventType: string, fileName: string | Buffer | null) => void)
+      | undefined;
+    const onChange = vi.fn();
+    const registry = new WorkspaceWatchRegistry({
+      watch: (_path, _options, callback) => {
+        listener = callback;
+        return { close: vi.fn() };
+      },
+      debounceMs: 80,
+    });
+
+    registry.watchWorkspace("notes", onChange);
+    listener?.("rename", null);
+    vi.advanceTimersByTime(80);
+
+    expect(onChange).toHaveBeenCalledWith({
+      rootPath: "notes",
+      events: [],
+      hasUnknownPath: true,
+    });
   });
 });
 

@@ -30,6 +30,8 @@ const electronMocks = vi.hoisted(() => ({
   copyPath: vi.fn(),
   openInNewWindow: vi.fn(),
   getFileHeadContent: vi.fn(),
+  loadDirectory: vi.fn(),
+  ensureFullTreeLoaded: vi.fn(),
 }));
 
 const diffStoreMock = vi.hoisted(() => ({
@@ -98,7 +100,47 @@ describe("FileTree context menu", () => {
       treeRoot: { title: "notes", key: "/notes" },
       selectedKey: null,
       expandedKeys: new Set(["/notes"]),
+      loadingDirectoryKeys: new Set(),
+      isTreeFullyLoaded: false,
     });
+  });
+
+  it("expands an unloaded directory immediately and loads its children in the background", () => {
+    electronMocks.loadDirectory.mockResolvedValue(true);
+    useTreeStore.setState({
+      treeData: [
+        {
+          title: "docs",
+          key: "/notes/docs",
+          children: [],
+          isLoaded: false,
+        },
+      ],
+    });
+
+    render(<FileTree />);
+    fireEvent.click(screen.getByText("docs"));
+
+    expect(useTreeStore.getState().expandedKeys.has("/notes/docs")).toBe(true);
+    expect(electronMocks.loadDirectory).toHaveBeenCalledWith("/notes/docs");
+  });
+
+  it("shows only a local directory loading indicator", () => {
+    useTreeStore.setState({
+      treeData: [
+        {
+          title: "docs",
+          key: "/notes/docs",
+          children: [],
+          isLoaded: false,
+        },
+      ],
+      loadingDirectoryKeys: new Set(["/notes/docs"]),
+    });
+
+    render(<FileTree />);
+
+    expect(screen.getByLabelText("正在加载 docs")).toBeInTheDocument();
   });
 
   it("marks the virtualized file tree scroll container for hover scrollbar styling", () => {
@@ -416,6 +458,45 @@ describe("FileTree context menu", () => {
       expect(virtualizerScrollToIndex).toHaveBeenCalledWith(2, {
         align: "center",
       });
+    });
+  });
+
+  it("loads missing ancestor directories before revealing a file", async () => {
+    useTreeStore.setState({
+      treeData: [
+        {
+          title: "docs",
+          key: "/notes/docs",
+          children: [],
+          isLoaded: false,
+        },
+      ],
+      expandedKeys: new Set(["/notes"]),
+    });
+    electronMocks.loadDirectory.mockImplementation(async (directoryPath) => {
+      if (directoryPath === "/notes/docs") {
+        useTreeStore
+          .getState()
+          .replaceDirectoryChildren(directoryPath, [
+            { title: "daily.md", key: "/notes/docs/daily.md" },
+          ]);
+      }
+      return true;
+    });
+    render(<FileTree />);
+
+    window.dispatchEvent(
+      new CustomEvent(REVEAL_FILE_TREE_NODE_EVENT, {
+        detail: { key: "/notes/docs/daily.md", align: "center" },
+      }),
+    );
+
+    await waitFor(() => {
+      expect(electronMocks.loadDirectory).toHaveBeenCalledWith("/notes/docs");
+      expect(useTreeStore.getState().expandedKeys.has("/notes/docs")).toBe(
+        true,
+      );
+      expect(virtualizerScrollToIndex).toHaveBeenCalled();
     });
   });
 });

@@ -9,6 +9,7 @@ import type {
   SaveImageAttachmentResult,
   TreeInfo,
   TreeNode,
+  WorkspaceChangeBatch,
 } from "../../shared/types";
 
 export const fileApi = {
@@ -52,6 +53,19 @@ export const fileApi = {
 
   generateTree: (selectedPath: string): Promise<ApiResponse<TreeInfo>> => {
     return ipcRenderer.invoke(IPC_CHANNELS.FILE.GENERATE_TREE, selectedPath);
+  },
+
+  generateFullTree: (selectedPath: string): Promise<ApiResponse<TreeInfo>> => {
+    return ipcRenderer.invoke(
+      IPC_CHANNELS.FILE.GENERATE_FULL_TREE,
+      selectedPath,
+    );
+  },
+
+  readDirectory: (
+    directoryPath: string,
+  ): Promise<ApiResponse<{ children: TreeNode[] }>> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.FILE.READ_DIRECTORY, directoryPath);
   },
 
   openInExplorer: (targetPath: string): Promise<boolean> => {
@@ -117,9 +131,9 @@ export const fileApi = {
   },
 
   // 注册工作区变化回调，触发后由渲染进程刷新当前文件树。
-  onWorkspaceChanged: (callback: (rootPath: string) => void) => {
-    const handler = (_event: IpcRendererEvent, rootPath: string) => {
-      callback(rootPath);
+  onWorkspaceChanged: (callback: (batch: WorkspaceChangeBatch) => void) => {
+    const handler = (_event: IpcRendererEvent, batch: WorkspaceChangeBatch) => {
+      callback(batch);
     };
     ipcRenderer.on(IPC_CHANNELS.FILE.ON_WORKSPACE_CHANGED, handler);
     return () => {

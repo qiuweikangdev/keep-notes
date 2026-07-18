@@ -26,6 +26,7 @@ import type {
   NotificationConfig,
   ExportConfig,
   ExportFileResult,
+  WorkspaceChangeBatch,
 } from "@shared/types";
 
 export interface ElectronAPI {
@@ -68,6 +69,10 @@ export interface ElectronAPI {
   >;
   getSelectedPath: () => Promise<string | null>;
   generateTree: (selectedPath: string) => Promise<ApiResponse<TreeInfo>>;
+  generateFullTree: (selectedPath: string) => Promise<ApiResponse<TreeInfo>>;
+  readDirectory: (
+    directoryPath: string,
+  ) => Promise<ApiResponse<{ children: TreeNode[] }>>;
   openInExplorer: (targetPath: string) => Promise<boolean>;
   copyPath: (targetPath: string) => Promise<boolean>;
   openInNewWindow: (targetPath: string) => Promise<boolean>;
@@ -109,7 +114,9 @@ export interface ElectronAPI {
   onFileChanged: (
     callback: (filePath: string, content: string) => void,
   ) => () => void;
-  onWorkspaceChanged: (callback: (rootPath: string) => void) => () => void;
+  onWorkspaceChanged: (
+    callback: (batch: WorkspaceChangeBatch) => void,
+  ) => () => void;
   consumeWindowOpenTarget: () => WindowOpenTarget | null;
   onWindowOpenTarget: (
     callback: (target: WindowOpenTarget) => void,

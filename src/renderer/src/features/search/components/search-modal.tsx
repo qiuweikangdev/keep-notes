@@ -161,8 +161,14 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
     (state) => state.recentOpenedFilePaths,
   );
   const setSidebarView = useEditorStore((state) => state.setSidebarView);
-  const { loadTree, openFile } = useElectron();
+  const { loadTree, openFile, ensureFullTreeLoaded } = useElectron();
   const hasWorkspace = Boolean(treeRoot);
+
+  useEffect(() => {
+    if (!isOpen || !treeRoot) return;
+    // 完整文件目录只在用户打开搜索时后台建立，不阻塞工作区和文件打开。
+    void ensureFullTreeLoaded();
+  }, [ensureFullTreeLoaded, isOpen, treeRoot]);
 
   const searchableFiles = useMemo(
     () => collectSearchableFiles(treeData),

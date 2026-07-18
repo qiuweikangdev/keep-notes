@@ -28,6 +28,7 @@ import {
   GitCompare,
   BellPlus,
   FileOutput,
+  LoaderCircle,
 } from "lucide-react";
 import { useEditorStore } from "@/store/editor.store";
 import { OutlinePanel } from "./outline-panel";
@@ -37,6 +38,7 @@ import { toRichPaneKey } from "@/features/editor/lib/rich-pane-view-state";
 import { useTreeStore } from "@/store/tree.store";
 import { useElectron } from "@/hooks/use-electron";
 import { useOverlayScrollbar } from "@/hooks/use-overlay-scrollbar";
+import { getTreePathDirectories } from "@/features/file-tree/tree-data";
 import { useReminderStore } from "@/store/reminder.store";
 import { useDiffStore } from "@/store/diff.store";
 import { showNoDiffContentToast } from "@/features/diff/lib/diff-toast";
@@ -118,6 +120,8 @@ export function FileTree() {
     copyPath,
     openInNewWindow,
     moveItem,
+    loadDirectory,
+    ensureFullTreeLoaded,
   } = useElectron();
 
   const appearance = useEditorStore((s) => s.appearance);
@@ -227,12 +231,29 @@ export function FileTree() {
   );
 
   const revealTreeNode = useCallback(
-    (revealKey: string, align: "auto" | "center" = "center") => {
+    async (revealKey: string, align: "auto" | "center" = "center") => {
       if (!treeRootKey || revealKey === treeRootKey) {
         return false;
       }
 
-      const targetNode = findNodeByKey(treeData, revealKey);
+      // 文件内容读取与树定位互不等待；树定位只逐层补齐尚未读取的祖先目录。
+      for (const directoryPath of getTreePathDirectories(
+        treeRootKey,
+        revealKey,
+      )) {
+        const directoryNode = findNodeByKey(
+          useTreeStore.getState().treeData,
+          directoryPath,
+        );
+        if (!directoryNode?.children) return false;
+        if (directoryNode.isLoaded === false) {
+          const didLoad = await loadDirectory(directoryPath);
+          if (!didLoad) return false;
+        }
+      }
+
+      const latestTreeData = useTreeStore.getState().treeData;
+      const targetNode = findNodeByKey(latestTreeData, revealKey);
       if (!targetNode) {
         return false;
       }
@@ -243,7 +264,7 @@ export function FileTree() {
       // 定位外部打开的文件时，先展开根节点和所有祖先目录，确保虚拟列表能渲染目标行。
       for (const key of [
         treeRootKey,
-        ...findAncestorKeys(treeData, revealKey),
+        ...findAncestorKeys(latestTreeData, revealKey),
       ]) {
         if (!nextExpandedKeys.has(key)) {
           nextExpandedKeys.add(key);
@@ -262,7 +283,7 @@ export function FileTree() {
       });
       return true;
     },
-    [setExpandedKeys, treeData, treeRootKey],
+    [loadDirectory, setExpandedKeys, treeRootKey],
   );
 
   useEffect(() => {
@@ -314,11 +335,6 @@ export function FileTree() {
       return;
     }
 
-    const targetNode = findNodeByKey(treeData, revealKey);
-    if (!targetNode) {
-      return;
-    }
-
     if (
       activeFilePath &&
       selectedKey !== activeFilePath &&
@@ -334,7 +350,6 @@ export function FileTree() {
     selectedKey,
     setSelectedKey,
     sidebarView,
-    treeData,
     treeRootKey,
   ]);
 
@@ -348,9 +363,9 @@ export function FileTree() {
       return;
     }
 
-    if (revealTreeNode(selectedKey, "center")) {
-      lastSelectedRevealKeyRef.current = selectedKey;
-    }
+    void revealTreeNode(selectedKey, "center").then((didReveal) => {
+      if (didReveal) lastSelectedRevealKeyRef.current = selectedKey;
+    });
   }, [revealTreeNode, selectedKey, sidebarView, treeRootKey]);
 
   const doRootCreate = useCallback(async () => {
@@ -422,8 +437,11 @@ export function FileTree() {
     setShowSearch((value) => !value);
     if (showSearch) {
       setSearchQuery("");
+    } else {
+      // 文件搜索显式触发完整目录索引，工作区首次打开仍保持浅层读取。
+      void ensureFullTreeLoaded();
     }
-  }, [showSearch]);
+  }, [ensureFullTreeLoaded, showSearch]);
 
   // 根节点拖拽处理
   const isTreeFileDrag = useCallback((e: React.DragEvent) => {
@@ -560,14 +578,20 @@ export function FileTree() {
           id: ++revealRequestIdRef.current,
           align: "auto",
         });
+        const isExpanding = !useTreeStore
+          .getState()
+          .expandedKeys.has(flatNode.key);
         toggleExpandedKey(flatNode.key);
+        if (isExpanding && flatNode.isLoaded === false) {
+          void loadDirectory(flatNode.key);
+        }
       } else if (flatNode.title.endsWith(".md")) {
         // 调用标题栏的 addToHistory
         window.__addFileToHistory?.(flatNode.key);
         void openFile(flatNode.key);
       }
     },
-    [setSelectedKey, toggleExpandedKey, openFile],
+    [loadDirectory, setSelectedKey, toggleExpandedKey, openFile],
   );
 
   // 处理创建
@@ -576,6 +600,13 @@ export function FileTree() {
       if (!parentKey) {
         setCreatingInfo(null);
       } else {
+        const parentNode = findNodeByKey(
+          useTreeStore.getState().treeData,
+          parentKey,
+        );
+        if (parentNode?.isLoaded === false) {
+          void loadDirectory(parentKey);
+        }
         // 使用 startTransition 批量更新状态，避免多次渲染导致闪烁
         startTransition(() => {
           // 先展开文件夹（直接从 store 获取最新的 expandedKeys）
@@ -588,7 +619,7 @@ export function FileTree() {
         });
       }
     },
-    [toggleExpandedKey],
+    [loadDirectory, toggleExpandedKey],
   );
 
   // 触发删除确认对话框
@@ -1300,6 +1331,9 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
   const isExpanded = useTreeStore((state) =>
     state.expandedKeys.has(flatNode.key),
   );
+  const isDirectoryLoading = useTreeStore((state) =>
+    state.loadingDirectoryKeys.has(flatNode.key),
+  );
   const { renameItem, moveItem, getFileHeadContent } = useElectron();
   const openDiff = useDiffStore((state) => state.openDiff);
   const closeDiff = useDiffStore((state) => state.closeDiff);
@@ -1587,13 +1621,21 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
                     }}
                     className="flex h-[16px] w-[16px] items-center justify-center rounded-sm hover:bg-[var(--hover-bg)]"
                   >
-                    <ChevronRight
-                      className={cn(
-                        "h-3 w-3 transition-transform duration-100",
-                        isExpanded && "rotate-90",
-                      )}
-                      style={{ color: "var(--text-muted)" }}
-                    />
+                    {isDirectoryLoading ? (
+                      <LoaderCircle
+                        aria-label={`正在加载 ${flatNode.title}`}
+                        className="h-3 w-3 animate-spin"
+                        style={{ color: "var(--text-muted)" }}
+                      />
+                    ) : (
+                      <ChevronRight
+                        className={cn(
+                          "h-3 w-3 transition-transform duration-100",
+                          isExpanded && "rotate-90",
+                        )}
+                        style={{ color: "var(--text-muted)" }}
+                      />
+                    )}
                   </button>
                 ) : null}
               </div>

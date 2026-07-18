@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { TreeNode, TreeRoot, DirSettings, DirColorEnum } from "@/types";
+import { replaceDirectoryChildren as mergeDirectoryChildren } from "@/features/file-tree/tree-data";
 
 interface RecentFolder {
   title: string;
@@ -12,6 +13,8 @@ interface TreeState {
   treeRoot: TreeRoot | null;
   selectedKey: string | null;
   expandedKeys: Set<string>;
+  loadingDirectoryKeys: Set<string>;
+  isTreeFullyLoaded: boolean;
   dirSettings: DirSettings;
   recentFolders: RecentFolder[];
 
@@ -20,6 +23,12 @@ interface TreeState {
   setSelectedKey: (key: string | null) => void;
   toggleExpandedKey: (key: string) => void;
   setExpandedKeys: (keys: Iterable<string>) => void;
+  replaceDirectoryChildren: (
+    directoryPath: string,
+    children: TreeNode[],
+  ) => void;
+  setDirectoryLoading: (directoryPath: string, isLoading: boolean) => void;
+  setTreeFullyLoaded: (isLoaded: boolean) => void;
   updateNodeContent: (key: string, content: string) => void;
   setDirSettings: (settings: Partial<DirSettings>) => void;
   addRecentFolder: (folder: RecentFolder) => void;
@@ -34,6 +43,8 @@ export const useTreeStore = create<TreeState>()(
       treeRoot: null,
       selectedKey: null,
       expandedKeys: new Set(),
+      loadingDirectoryKeys: new Set(),
+      isTreeFullyLoaded: false,
       dirSettings: {
         dirColor: "themeColor" as DirColorEnum,
         showIcon: false,
@@ -45,7 +56,17 @@ export const useTreeStore = create<TreeState>()(
         set((state) => {
           const expandedKeys = new Set(state.expandedKeys);
           expandedKeys.add(root.key);
-          return { treeRoot: root, expandedKeys };
+          const isNewWorkspace = state.treeRoot?.key !== root.key;
+          return {
+            treeRoot: root,
+            expandedKeys,
+            ...(isNewWorkspace
+              ? {
+                  isTreeFullyLoaded: false,
+                  loadingDirectoryKeys: new Set<string>(),
+                }
+              : {}),
+          };
         }),
       setSelectedKey: (key) => set({ selectedKey: key }),
       toggleExpandedKey: (key) =>
@@ -57,6 +78,26 @@ export const useTreeStore = create<TreeState>()(
           return { expandedKeys };
         }),
       setExpandedKeys: (keys) => set({ expandedKeys: new Set(keys) }),
+      replaceDirectoryChildren: (directoryPath, children) =>
+        set((state) => {
+          if (!state.treeRoot) return state;
+          return {
+            treeData: mergeDirectoryChildren(
+              state.treeData,
+              state.treeRoot.key,
+              directoryPath,
+              children,
+            ),
+          };
+        }),
+      setDirectoryLoading: (directoryPath, isLoading) =>
+        set((state) => {
+          const loadingDirectoryKeys = new Set(state.loadingDirectoryKeys);
+          if (isLoading) loadingDirectoryKeys.add(directoryPath);
+          else loadingDirectoryKeys.delete(directoryPath);
+          return { loadingDirectoryKeys };
+        }),
+      setTreeFullyLoaded: (isLoaded) => set({ isTreeFullyLoaded: isLoaded }),
       updateNodeContent: (key, content) =>
         set((state) => {
           const updateNode = (nodes: TreeNode[]): TreeNode[] =>
@@ -92,6 +133,8 @@ export const useTreeStore = create<TreeState>()(
           treeRoot: null,
           selectedKey: null,
           expandedKeys: new Set(),
+          loadingDirectoryKeys: new Set(),
+          isTreeFullyLoaded: false,
         }),
     }),
     {

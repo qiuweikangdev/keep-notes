@@ -9,11 +9,13 @@ import { SearchModal } from "./search-modal";
 
 const openFile = vi.fn();
 const loadTree = vi.fn();
+const ensureFullTreeLoaded = vi.fn();
 
 vi.mock("@/hooks/use-electron", () => ({
   useElectron: () => ({
     loadTree,
     openFile,
+    ensureFullTreeLoaded,
   }),
 }));
 
@@ -61,6 +63,8 @@ describe("SearchModal", () => {
   beforeEach(() => {
     openFile.mockReset();
     loadTree.mockReset();
+    ensureFullTreeLoaded.mockReset();
+    ensureFullTreeLoaded.mockResolvedValue(true);
     useTreeStore.setState({
       treeRoot: { title: "notes", key: "C:\\notes" },
       treeData,
@@ -88,6 +92,12 @@ describe("SearchModal", () => {
         "C:\\notes\\docs\\eleventh.md",
       ],
     });
+  });
+
+  it("loads the complete file catalog in the background when opened", () => {
+    render(<SearchModal isOpen onClose={vi.fn()} />);
+
+    expect(ensureFullTreeLoaded).toHaveBeenCalledTimes(1);
   });
 
   afterEach(() => {
