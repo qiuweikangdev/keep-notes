@@ -79,6 +79,7 @@ export interface EditorState {
   panelGroups: EditorPanelGroup[];
   activeGroupId: string;
   recentOpenedFilePaths: string[];
+  fileDragTargetGroupId: string | null;
 
   // 全局状态（保持兼容）
   content: string;
@@ -101,6 +102,8 @@ export interface EditorState {
   ) => void;
   removePanelGroup: (groupId: string) => void;
   setActiveGroupId: (groupId: string) => void;
+  setFileDragTargetGroupId: (groupId: string) => void;
+  clearFileDragTargetGroupId: (groupId?: string) => void;
 
   // 标签页操作
   addTab: (groupId: string, filePath?: string | null) => string;
@@ -261,6 +264,7 @@ export const useEditorStore = create<EditorState>()(
         panelGroups: [defaultGroup],
         activeGroupId: defaultGroup.id,
         recentOpenedFilePaths: [],
+        fileDragTargetGroupId: null,
 
         // 全局状态（保持兼容）
         content: "",
@@ -269,6 +273,23 @@ export const useEditorStore = create<EditorState>()(
         isDirty: false,
         appearance: defaultAppearance,
         reloadKey: 0,
+
+        // 富文本表面常驻 body，拖拽目标需跨 Portal 与所属面板共享。
+        setFileDragTargetGroupId: (groupId) => {
+          // persist 中间件会在每次 set 后写 storage，同值时必须在 set 之前短路。
+          if (get().fileDragTargetGroupId === groupId) return;
+          set({ fileDragTargetGroupId: groupId });
+        },
+        clearFileDragTargetGroupId: (groupId) => {
+          const currentGroupId = get().fileDragTargetGroupId;
+          if (
+            currentGroupId === null ||
+            (groupId && currentGroupId !== groupId)
+          ) {
+            return;
+          }
+          set({ fileDragTargetGroupId: null });
+        },
 
         // 添加新面板组（拆分）
         addPanelGroup: (

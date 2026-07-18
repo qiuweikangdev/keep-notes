@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useEditorStore } from "./editor.store";
 import { richPaneViewStateRegistry } from "@/features/editor/lib/rich-pane-view-state";
@@ -14,6 +14,7 @@ describe("editor store", () => {
       isDirty: true,
       outlineHeadingsByPath: {},
       activeHeadingIdByPane: {},
+      fileDragTargetGroupId: null,
       panelGroups: [
         {
           id: "group-1",
@@ -39,6 +40,22 @@ describe("editor store", () => {
         },
       ],
     });
+  });
+
+  it("skips persistence writes for unchanged file drag targets", () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    setItem.mockClear();
+
+    useEditorStore.getState().setFileDragTargetGroupId("group-1");
+    const writeCountAfterTargetChange = setItem.mock.calls.length;
+    expect(writeCountAfterTargetChange).toBeGreaterThan(0);
+
+    useEditorStore.getState().setFileDragTargetGroupId("group-1");
+    useEditorStore.getState().clearFileDragTargetGroupId("group-2");
+
+    expect(setItem).toHaveBeenCalledTimes(writeCountAfterTargetChange);
+    expect(useEditorStore.getState().fileDragTargetGroupId).toBe("group-1");
+    setItem.mockRestore();
   });
 
   it("clears legacy editor state after closing the last tab", () => {

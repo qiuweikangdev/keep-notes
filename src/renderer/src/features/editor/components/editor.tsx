@@ -261,32 +261,46 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
   const group = useEditorStore
     .getState()
     .panelGroups.find((item) => item.id === groupId);
-  const [isDragOver, setIsDragOver] = useState(false);
+  const isDragOver = useEditorStore(
+    (state) => state.fileDragTargetGroupId === groupId,
+  );
+  const setFileDragTargetGroupId = useEditorStore(
+    (state) => state.setFileDragTargetGroupId,
+  );
+  const clearFileDragTargetGroupId = useEditorStore(
+    (state) => state.clearFileDragTargetGroupId,
+  );
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    // 仅接管文件拖放，BlockNote 表格和普通块拖拽继续交给编辑器处理。
-    if (!isEditorFileDrag(e.dataTransfer.types)) {
-      return;
-    }
-    e.preventDefault();
-    e.stopPropagation();
-    e.dataTransfer.dropEffect = "copy";
-    setIsDragOver(true);
-  }, []);
+  const handleDragOver = useCallback(
+    (e: React.DragEvent) => {
+      // 仅接管文件拖放，BlockNote 表格和普通块拖拽继续交给编辑器处理。
+      if (!isEditorFileDrag(e.dataTransfer.types)) {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = "copy";
+      setFileDragTargetGroupId(groupId);
+    },
+    [groupId, setFileDragTargetGroupId],
+  );
 
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    if (!isEditorFileDrag(e.dataTransfer.types)) {
-      return;
-    }
-    e.preventDefault();
-    e.stopPropagation();
+  const handleDragLeave = useCallback(
+    (e: React.DragEvent) => {
+      if (!isEditorFileDrag(e.dataTransfer.types)) {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
 
-    const nextTarget = e.relatedTarget;
-    if (nextTarget instanceof Node && e.currentTarget.contains(nextTarget)) {
-      return;
-    }
-    setIsDragOver(false);
-  }, []);
+      const nextTarget = e.relatedTarget;
+      if (nextTarget instanceof Node && e.currentTarget.contains(nextTarget)) {
+        return;
+      }
+      clearFileDragTargetGroupId(groupId);
+    },
+    [clearFileDragTargetGroupId, groupId],
+  );
 
   const handleDrop = useCallback(
     async (e: React.DragEvent) => {
@@ -295,7 +309,7 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
       }
       e.preventDefault();
       e.stopPropagation();
-      setIsDragOver(false);
+      clearFileDragTargetGroupId(groupId);
 
       // 获取拖拽的文件路径
       const filePath = getDraggedFilePath(e.dataTransfer);
@@ -317,7 +331,7 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
       // 打开文件，指定目标面板组
       await openFile(filePath, groupId);
     },
-    [groupId, openFile],
+    [clearFileDragTargetGroupId, groupId, openFile],
   );
 
   if (!group) return null;
@@ -344,6 +358,7 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
         {/* 面板统一接管拖拽，确保标签栏、工具按钮和编辑器内容拥有一致的落点。 */}
         {isDragOver && (
           <div
+            data-editor-file-drop-overlay={groupId}
             className="absolute inset-0 pointer-events-none z-50"
             style={{
               border: "2px solid var(--accent-color)",
@@ -371,6 +386,7 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
       {/* 拖拽高亮覆盖整个面板，反馈与实际可放置区域保持一致。 */}
       {isDragOver && (
         <div
+          data-editor-file-drop-overlay={groupId}
           className="absolute inset-0 pointer-events-none z-50"
           style={{
             border: "2px solid var(--accent-color)",
@@ -385,6 +401,9 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
 
 export function Editor() {
   useEditorStore(selectEditorLayoutSignature);
+  const clearFileDragTargetGroupId = useEditorStore(
+    (state) => state.clearFileDragTargetGroupId,
+  );
   const [surfaceRegistry] = useState(() => new EditorPanelSurfaceRegistry());
   const storedPanelGroups = useEditorStore.getState().panelGroups;
   const panelGroups = storedPanelGroups.map(
@@ -395,6 +414,12 @@ export function Editor() {
     }),
   );
   const panelLayout = buildPanelLayout(panelGroups);
+
+  useEffect(() => {
+    const clearFileDragTarget = () => clearFileDragTargetGroupId();
+    document.addEventListener("dragend", clearFileDragTarget);
+    return () => document.removeEventListener("dragend", clearFileDragTarget);
+  }, [clearFileDragTargetGroupId]);
 
   if (!panelLayout) return null;
 
