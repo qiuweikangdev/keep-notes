@@ -1,7 +1,12 @@
 import { BlockNoteEditor } from "@blocknote/core";
 import { SideMenuExtension } from "@blocknote/core/extensions";
 import { BlockNoteView } from "@blocknote/mantine";
-import { foldEffect, foldable, foldedRanges } from "@codemirror/language";
+import {
+  foldEffect,
+  foldable,
+  foldedRanges,
+  syntaxTree,
+} from "@codemirror/language";
 import { EditorSelection } from "@codemirror/state";
 import { EditorView, getDrawSelectionConfig } from "@codemirror/view";
 import { AllSelection, NodeSelection, TextSelection } from "@tiptap/pm/state";
@@ -1094,6 +1099,53 @@ describe("editor BlockNote schema", () => {
       },
       { timeout: 1000 },
     );
+  });
+
+  it("parses Python code blocks for syntax highlighting", async () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "codeBlock",
+          props: { language: "py" },
+          content: "def get_users():\n  return True",
+        },
+      ],
+    });
+
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    await waitFor(() => {
+      expect(
+        syntaxTree(getCodeMirrorView(container).state).toString(),
+      ).toContain("FunctionDefinition");
+    });
+  });
+
+  it("renders fixed-size SVG markers in the code-folding gutter", async () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "codeBlock",
+          props: { language: "ts" },
+          content: "function demo() {\n  return 1;\n}",
+        },
+      ],
+    });
+
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    await waitFor(() => {
+      const marker = container.querySelector<HTMLElement>(
+        ".cm-foldGutter .editor-code-block__fold-marker",
+      );
+
+      expect(marker).not.toBe(null);
+      expect(marker?.querySelector("svg")).not.toBe(null);
+    });
   });
 
   it("renders CodeMirror after creating a TypeScript code block from input", async () => {

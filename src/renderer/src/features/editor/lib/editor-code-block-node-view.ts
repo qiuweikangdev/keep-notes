@@ -11,6 +11,7 @@ import { html } from "@codemirror/lang-html";
 import { javascript } from "@codemirror/lang-javascript";
 import { json } from "@codemirror/lang-json";
 import { markdown } from "@codemirror/lang-markdown";
+import { python } from "@codemirror/lang-python";
 import {
   bracketMatching,
   codeFolding,
@@ -104,6 +105,8 @@ function getCodeMirrorLanguageExtension(language: string): Extension {
       return css();
     case "markdown":
       return markdown();
+    case "python":
+      return python();
     default:
       return [];
   }
@@ -140,8 +143,23 @@ const editorCodeMirrorTheme = CodeMirrorView.theme({
   },
   ".cm-foldGutter .cm-gutterElement": {
     cursor: "pointer",
-    minWidth: "0.85rem",
-    paddingRight: "0.15rem",
+    alignItems: "center",
+    display: "flex",
+    justifyContent: "center",
+    minWidth: "1rem",
+    padding: "0 0.125rem 0 0",
+  },
+  ".editor-code-block__fold-marker": {
+    alignItems: "center",
+    display: "inline-flex",
+    height: "0.875rem",
+    justifyContent: "center",
+    width: "0.875rem",
+  },
+  ".editor-code-block__fold-marker svg": {
+    display: "block",
+    height: "0.875rem",
+    width: "0.875rem",
   },
   ".cm-activeLine, .cm-activeLineGutter": {
     backgroundColor: "transparent",
@@ -400,6 +418,15 @@ function createIconSvg(path: string) {
   svg.appendChild(svgPath);
 
   return svg;
+}
+
+function createCodeFoldMarker(open: boolean) {
+  const marker = document.createElement("span");
+  marker.className = "editor-code-block__fold-marker";
+  marker.title = open ? "Fold line" : "Unfold line";
+  marker.appendChild(createIconSvg(open ? "m7 10 5 5 5-5" : "m10 7 5 5-5 5"));
+
+  return marker;
 }
 
 function createCopyIconSvg() {
@@ -731,6 +758,7 @@ class EditorCodeBlockNodeView {
       ),
       lineNumbers(),
       foldGutter({
+        markerDOM: createCodeFoldMarker,
         domEventHandlers: {
           click: (view, line, event) =>
             toggleCodeMirrorFoldAtLine(view, line, event),
