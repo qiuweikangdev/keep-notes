@@ -6,6 +6,7 @@ import {
   disposeQuickEditorWindow,
   returnToMainWindowFromQuickEditor,
   showQuickEditorWindow,
+  syncQuickEditorContent,
 } from "./quick-editor-window";
 
 const windowMocks = vi.hoisted(() => ({
@@ -13,10 +14,15 @@ const windowMocks = vi.hoisted(() => ({
   focusMainWindow: vi.fn(),
   getMainWindow: vi.fn(),
   mainWindow: {
+    isDestroyed: vi.fn(() => false),
     webContents: {
       send: vi.fn(),
     },
   },
+}));
+
+const fileMocks = vi.hoisted(() => ({
+  writeFileContent: vi.fn(async () => undefined),
 }));
 
 const electronMocks = vi.hoisted(() => {
@@ -83,6 +89,7 @@ const electronMocks = vi.hoisted(() => {
 });
 
 vi.mock("./window", () => windowMocks);
+vi.mock("./file", () => fileMocks);
 
 vi.mock("electron", () => ({
   BrowserWindow: class extends electronMocks.MockBrowserWindow {
@@ -215,11 +222,7 @@ describe("quick editor floating window", () => {
     createQuickEditorWindow({ content: "# Initial", source });
     createQuickEditorWindow({ content: "# Initial", source });
 
-    const quickEditorModule = await import("./quick-editor-window");
-    const moduleWithSync = quickEditorModule as typeof quickEditorModule & {
-      syncQuickEditorContent?: (content: unknown) => void;
-    };
-    moduleWithSync.syncQuickEditorContent?.(content);
+    syncQuickEditorContent(content);
 
     expect(electronMocks.windows[0].webContents.send).toHaveBeenCalledWith(
       "quick-editor:content-updated",
@@ -229,6 +232,27 @@ describe("quick editor floating window", () => {
       "quick-editor:content-updated",
       content,
     );
+  });
+
+  it("writes associated floating-editor updates to the real source file", async () => {
+    const source = {
+      groupId: "group-1",
+      tabId: "tab-1",
+      filePath: "/notes/readme.md",
+    };
+    const win = createQuickEditorWindow({ content: "# Initial", source });
+
+    syncQuickEditorContent(
+      { content: "# Updated in floating editor", source },
+      win,
+    );
+
+    await vi.waitFor(() => {
+      expect(fileMocks.writeFileContent).toHaveBeenCalledWith(
+        "/notes/readme.md",
+        "# Updated in floating editor",
+      );
+    });
   });
 
   it("cleans up a closed window without reading its destroyed webContents", () => {

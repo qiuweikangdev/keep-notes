@@ -8,6 +8,7 @@ import type {
   QuickEditorWindowContent,
   ShortcutRegistrationResult,
 } from "../shared/types";
+import { writeFileContent } from "./file";
 import { checkAndCloseWindow, focusMainWindow, getMainWindow } from "./window";
 
 const QUICK_EDITOR_WINDOW_WIDTH = 640;
@@ -27,6 +28,45 @@ const quickEditorWindowSources = new Map<
   BrowserWindow,
   NonNullable<QuickEditorWindowContent["source"]>
 >();
+const quickEditorFileWrites = new Map<
+  string,
+  { content: string; isWriting: boolean }
+>();
+
+/** 串行写入同一来源文件，并在写入期间只保留最新的浮窗快照。 */
+function persistQuickEditorFile(filePath: string, content: string): void {
+  const current = quickEditorFileWrites.get(filePath);
+  if (current) {
+    current.content = content;
+    return;
+  }
+
+  const state = { content, isWriting: false };
+  quickEditorFileWrites.set(filePath, state);
+
+  const drain = async () => {
+    if (state.isWriting) return;
+    state.isWriting = true;
+
+    while (quickEditorFileWrites.get(filePath) === state) {
+      const snapshot = state.content;
+      try {
+        await writeFileContent(filePath, snapshot);
+      } catch (error) {
+        console.error("Failed to persist quick editor content:", error);
+        quickEditorFileWrites.delete(filePath);
+        return;
+      }
+
+      if (state.content === snapshot) {
+        quickEditorFileWrites.delete(filePath);
+        return;
+      }
+    }
+  };
+
+  void drain();
+}
 
 function normalizeQuickEditorWindowContent(
   value: unknown,
@@ -261,6 +301,11 @@ export function syncQuickEditorContent(
   };
 
   if (senderIsQuickEditor) {
+    if (source.filePath) {
+      // 来源路径取自主进程创建浮窗时保存的关联关系，不信任渲染进程临时传入的路径。
+      persistQuickEditorFile(source.filePath, content.content);
+    }
+
     const mainWindow = getMainWindow();
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(
