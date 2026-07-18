@@ -64,6 +64,11 @@ interface MarkdownLine {
   text: string;
 }
 
+interface SerializedFencedCodeBoundary {
+  firstLine: string;
+  info: string;
+}
+
 interface UnorderedListItemLine {
   content: string;
   indent: string;
@@ -1012,14 +1017,141 @@ function repairEmptyQuoteChildListSource(
   return sourceLines.map((line) => `${line.text}${line.ending}`).join("");
 }
 
+function normalizeFencedCodeInfo(info: string): string {
+  const normalized = info.trim().toLowerCase();
+  return (
+    FENCED_CODE_LANGUAGE_CANDIDATES.find(
+      ({ value }) => value.toLowerCase() === normalized,
+    )?.canonicalId ?? normalized
+  );
+}
+
+function fencedCodeInfosMatch(left: string, right: string): boolean {
+  return normalizeFencedCodeInfo(left) === normalizeFencedCodeInfo(right);
+}
+
+function collectSerializedFencedCodeBoundaries(
+  markdown: string,
+): Array<SerializedFencedCodeBoundary | null> {
+  const lines = splitMarkdownLines(markdown);
+  const boundaries: Array<SerializedFencedCodeBoundary | null> = [];
+  let openingFence: string | null = null;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (openingFence) {
+      if (getClosingFenceMatch(line.text, openingFence)) {
+        openingFence = null;
+      }
+      continue;
+    }
+
+    const openingMatch = line.text.match(FENCED_CODE_OPENING_PATTERN);
+    if (!openingMatch) continue;
+
+    openingFence = openingMatch[2];
+    const nextLine = lines[index + 1];
+    boundaries.push(
+      !nextLine || getClosingFenceMatch(nextLine.text, openingFence)
+        ? null
+        : {
+            firstLine: nextLine.text,
+            info: openingMatch[3].trimStart(),
+          },
+    );
+  }
+
+  return boundaries;
+}
+
+function repairJoinedFencedCodeAfterPreserve(
+  markdown: string,
+  serialized: string,
+): string {
+  const serializedBoundaries =
+    collectSerializedFencedCodeBoundaries(serialized);
+  if (serializedBoundaries.length === 0) return markdown;
+
+  const lines = splitMarkdownLines(markdown);
+  const repairedLines: MarkdownLine[] = [];
+  let boundaryIndex = 0;
+  let changed = false;
+  let openingFence: string | null = null;
+
+  for (const line of lines) {
+    if (openingFence) {
+      if (getClosingFenceMatch(line.text, openingFence)) {
+        openingFence = null;
+      }
+      repairedLines.push(line);
+      continue;
+    }
+
+    const openingMatch = line.text.match(FENCED_CODE_OPENING_PATTERN);
+    if (!openingMatch) {
+      repairedLines.push(line);
+      continue;
+    }
+
+    openingFence = openingMatch[2];
+    const serializedBoundary = serializedBoundaries[boundaryIndex] ?? null;
+    boundaryIndex += 1;
+    if (!serializedBoundary?.firstLine) {
+      repairedLines.push(line);
+      continue;
+    }
+
+    const rawInfo = openingMatch[3];
+    const leadingWhitespaceLength = rawInfo.length - rawInfo.trimStart().length;
+    const leadingWhitespace = rawInfo.slice(0, leadingWhitespaceLength);
+    const candidateInfoAndFirstLine = rawInfo.slice(leadingWhitespaceLength);
+    if (!candidateInfoAndFirstLine.endsWith(serializedBoundary.firstLine)) {
+      repairedLines.push(line);
+      continue;
+    }
+
+    const candidateInfo = candidateInfoAndFirstLine.slice(
+      0,
+      -serializedBoundary.firstLine.length,
+    );
+    if (!fencedCodeInfosMatch(candidateInfo, serializedBoundary.info)) {
+      repairedLines.push(line);
+      continue;
+    }
+
+    // 仅当本次序列化结果证明语言与首行原本分开时，恢复被源码合并吞掉的换行。
+    repairedLines.push({
+      ending: line.ending || "\n",
+      text: `${openingMatch[1]}${openingMatch[2]}${leadingWhitespace}${candidateInfo}`,
+    });
+    repairedLines.push({
+      ending: line.ending,
+      text: serializedBoundary.firstLine,
+    });
+    changed = true;
+  }
+
+  if (!changed) return markdown;
+
+  return preserveSourceEnding(
+    markdown,
+    repairedLines.map((line) => `${line.text}${line.ending}`).join(""),
+  );
+}
+
 function repairMarkdownSourceAfterPreserve(
   source: string,
   markdown: string,
   serialized: string,
 ) {
+  const sourceEndingPreserved = preserveSourceEnding(source, markdown);
+  const fencedCodeSeparated = repairJoinedFencedCodeAfterPreserve(
+    sourceEndingPreserved,
+    serialized,
+  );
   const normalized = normalizeUnorderedListMarkers(
     source,
-    repairMarkdownSourceBeforeParse(preserveSourceEnding(source, markdown)),
+    repairMarkdownSourceBeforeParse(fencedCodeSeparated),
   );
   return repairEmptyQuoteChildListSource(normalized, serialized);
 }
