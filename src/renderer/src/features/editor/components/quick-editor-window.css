@@ -82,7 +82,7 @@
 
 .quick-editor-window__editor .bn-editor {
   min-height: calc(100vh - 38px);
-  padding: 22px 42px 96px 64px;
+  padding: 22px 42px 96px 72px;
   background: transparent !important;
 }
 

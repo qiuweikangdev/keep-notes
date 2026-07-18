@@ -18,6 +18,6 @@ describe("quick editor window stylesheet", () => {
     )?.[1];
 
     expect(editorRule).toBeDefined();
-    expect(editorRule).toMatch(/padding:\s*22px 42px 96px 64px;/);
+    expect(editorRule).toMatch(/padding:\s*22px 42px 96px 72px;/);
   });
 });
