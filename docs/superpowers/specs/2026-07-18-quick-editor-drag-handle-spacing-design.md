@@ -2,7 +2,7 @@
 
 ## Goal
 
-Give the floating quick editor's left-side BlockNote controls 12 pixels of breathing room from the window border while preserving their alignment with the editable content.
+Give the floating quick editor's left-side BlockNote controls 20 pixels of additional breathing room from the window border while preserving their alignment with the editable content.
 
 ## Scope
 
@@ -13,13 +13,13 @@ Give the floating quick editor's left-side BlockNote controls 12 pixels of breat
 
 ## Design
 
-Increase the left padding of `.quick-editor-window__editor .bn-editor` from `52px` to `64px`. BlockNote positions its add and drag controls relative to the editor content, so increasing this padding shifts both the controls and content 12 pixels to the right. The existing top, right, and bottom padding values remain unchanged.
+Increase the left padding of `.quick-editor-window__editor .bn-editor` from its original `52px` to `72px`. This follow-up adds 8 pixels to the current `64px` value. BlockNote positions its add and drag controls relative to the editor content, so increasing this padding shifts both the controls and content together. The existing top, right, and bottom padding values remain unchanged.
 
 This is preferred over translating `.bn-side-menu`, which would reduce the gap between the controls and content, and over padding the scroll container, which would change the available scroll surface.
 
 ## Verification
 
-- Add a focused CSS regression assertion for the quick editor's `64px` left padding.
+- Update the focused CSS regression assertion for the quick editor's `72px` left padding.
 - Run the focused test first to observe the expected failure before changing production CSS.
 - Run the focused test again after the CSS change.
 - Run `pnpm typecheck`, `pnpm lint`, and `pnpm build`.
