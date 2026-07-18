@@ -41,8 +41,8 @@ The code block shell will expose its normalized language through a
 only the CodeMirror content foreground and weight. Theme-scoped custom
 properties will supply the two neutral foreground colors:
 
-- Light theme: `#475569`
-- Dark theme: `#b7bec8`
+- Light theme: `#5b687a`
+- Dark theme: `#929ba7`
 
 Both languages will use `font-weight: 400`. The existing code block background
 and all interaction colors remain unchanged.
@@ -77,8 +77,12 @@ tokens. Parsed languages will retain their existing default text color and
 syntax-token colors.
 
 The foreground values remain comfortably readable against the existing code
-block backgrounds while reducing brightness and weight. The design does not
-lower opacity, so selection, focus, and antialiasing remain predictable.
+block backgrounds while reducing brightness and weight. The light pair has a
+`5.33:1` contrast ratio, and the dark pair has a `6.73:1` ratio. This is a
+deliberate reduction from the first iteration, whose dark pair reached
+`10.10:1` and still appeared too bright in the running application. The design
+does not lower opacity, so selection, focus, and antialiasing remain
+predictable.
 
 ## Alternatives Considered
 
