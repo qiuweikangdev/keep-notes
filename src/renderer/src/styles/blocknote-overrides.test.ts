@@ -31,6 +31,12 @@ describe("blocknote overrides stylesheet", () => {
       /--editor-code-block-bg:\s*#0d1117;/,
     );
     expect(getRule('.bn-root[data-color-scheme="light"]')).toMatch(
+      /--editor-code-plain-text:\s*#475569;/,
+    );
+    expect(getRule('.bn-root[data-color-scheme="dark"]')).toMatch(
+      /--editor-code-plain-text:\s*#b7bec8;/,
+    );
+    expect(getRule('.bn-root[data-color-scheme="light"]')).toMatch(
       /--editor-code-token-keyword:\s*#a626a4;/,
     );
     expect(getRule('.bn-root[data-color-scheme="light"]')).toMatch(
@@ -306,6 +312,24 @@ describe("blocknote overrides stylesheet", () => {
     );
     expect(getRule(".editor-code-block-language-trigger > svg")).toMatch(
       /flex-shrink:\s*0;/,
+    );
+  });
+
+  it("softens only Bash and Text code content", () => {
+    const plainCodeRule = getRule(
+      `:is(
+        .editor-code-block-shell[data-language="bash"],
+        .editor-code-block-shell[data-language="text"]
+      )
+        .editor-code-block__codemirror
+        .cm-content`,
+    );
+
+    expect(plainCodeRule).toBeDefined();
+    expect(plainCodeRule).toMatch(/color:\s*var\(--editor-code-plain-text\);/);
+    expect(plainCodeRule).toMatch(/font-weight:\s*400;/);
+    expect(stylesheet).not.toMatch(
+      /data-language="(?:javascript|typescript|css|json|python)"[^}]*--editor-code-plain-text/,
     );
   });
 

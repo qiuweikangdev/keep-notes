@@ -351,6 +351,62 @@ describe("editor BlockNote schema", () => {
     output.destroy?.();
   });
 
+  it.each(["bash", "text"])(
+    "exposes the normalized %s language on the code block shell",
+    async (language) => {
+      setupMatchMedia();
+      const editor = BlockNoteEditor.create({
+        schema: editorSchema,
+        initialContent: [
+          {
+            type: "codeBlock",
+            props: { language },
+            content: "plain content",
+          },
+        ],
+      });
+      const { container } = render(createElement(BlockNoteView, { editor }));
+
+      await waitFor(() => {
+        expect(
+          container.querySelector<HTMLElement>(".editor-code-block-shell")
+            ?.dataset.language,
+        ).toBe(language);
+      });
+    },
+  );
+
+  it("keeps the shell language synchronized after a code language change", async () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "codeBlock",
+          props: { language: "js" },
+          content: "echo ready",
+        },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+    const getShell = () =>
+      container.querySelector<HTMLElement>(".editor-code-block-shell");
+
+    await waitFor(() => {
+      expect(getShell()?.dataset.language).toBe("javascript");
+    });
+
+    editor.updateBlock(editor.document[0], { props: { language: "bash" } });
+    await waitFor(() => {
+      expect(getShell()?.dataset.language).toBe("bash");
+    });
+
+    editor.updateBlock(editor.document[0], { props: { language: "python" } });
+    await waitFor(() => {
+      expect(getShell()?.dataset.language).toBe("python");
+    });
+  });
+
   it("continues undoing in BlockNote after CodeMirror history is exhausted", async () => {
     setupMatchMedia();
     const editor = BlockNoteEditor.create({

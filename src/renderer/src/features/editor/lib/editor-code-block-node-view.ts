@@ -592,6 +592,7 @@ class EditorCodeBlockNodeView {
     this.dom = document.createElement("div");
     this.dom.className =
       "editor-code-block-shell editor-code-block relative rounded-md border border-[var(--border-color)] bg-[var(--bg-secondary)]";
+    this.dom.dataset.language = this.language;
     this.dom.contentEditable = "false";
 
     const toolbar = this.createToolbar();
@@ -949,6 +950,7 @@ class EditorCodeBlockNodeView {
     if (this.language === normalizedLanguage) return;
 
     this.language = normalizedLanguage;
+    this.dom.dataset.language = normalizedLanguage;
     this.languageButton.querySelector("span")!.textContent =
       getCodeBlockLanguageShortLabel(normalizedLanguage);
     this.codeMirror.dispatch({

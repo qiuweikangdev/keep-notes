@@ -19,6 +19,7 @@
   --bn-colors-side-menu: var(--text-muted);
   --editor-code-block-bg: #f5f8ff;
   --editor-code-block-text: #0f172a;
+  --editor-code-plain-text: #475569;
   --editor-code-block-cursor: #0969da;
   --editor-code-block-muted: #475569;
   --editor-code-block-border: rgba(148, 163, 184, 0.9);
@@ -63,6 +64,7 @@
   --bn-colors-side-menu: var(--text-muted);
   --editor-code-block-bg: #0d1117;
   --editor-code-block-text: #f0f6fc;
+  --editor-code-plain-text: #b7bec8;
   --editor-code-block-cursor: #79c0ff;
   --editor-code-block-muted: #8b949e;
   --editor-code-block-border: rgba(86, 96, 116, 0.9);
@@ -480,6 +482,17 @@
 
 .editor-code-block__codemirror .cm-editor {
   min-width: max-content;
+}
+
+/* Bash 与 Text 没有语法着色，降低默认前景对比度和字重以减少视觉刺激。 */
+:is(
+    .editor-code-block-shell[data-language="bash"],
+    .editor-code-block-shell[data-language="text"]
+  )
+  .editor-code-block__codemirror
+  .cm-content {
+  color: var(--editor-code-plain-text);
+  font-weight: 400;
 }
 
 .editor-code-block__codemirror .cm-editor.cm-focused:hover .cm-cursor {
