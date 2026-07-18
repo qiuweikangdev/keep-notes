@@ -11,8 +11,10 @@
 ## Global Constraints
 
 - Work directly in the current `dev` workspace; do not create a worktree.
-- Light-theme Bash/Text foreground must be `#475569`.
-- Dark-theme Bash/Text foreground must be `#b7bec8`.
+- Light-theme Bash/Text foreground must be `#5b687a` (`5.33:1` contrast
+  against the existing code background).
+- Dark-theme Bash/Text foreground must be `#929ba7` (`6.73:1` contrast
+  against the existing code background).
 - Bash/Text content must use `font-weight: 400`.
 - Do not change code block backgrounds, controls, line numbers, cursor, selection, folding, spacing, or save behavior.
 - Do not change syntax-highlighted languages.
@@ -113,10 +115,10 @@ Extend the existing theme-color test in `blocknote-overrides.test.ts`:
 
 ```ts
 expect(getRule('.bn-root[data-color-scheme="light"]')).toMatch(
-  /--editor-code-plain-text:\s*#475569;/,
+  /--editor-code-plain-text:\s*#5b687a;/,
 );
 expect(getRule('.bn-root[data-color-scheme="dark"]')).toMatch(
-  /--editor-code-plain-text:\s*#b7bec8;/,
+  /--editor-code-plain-text:\s*#929ba7;/,
 );
 ```
 
@@ -177,10 +179,10 @@ In the light and dark `.bn-root` token blocks in `blocknote-overrides.css`, add:
 
 ```css
 /* Light */
---editor-code-plain-text: #475569;
+--editor-code-plain-text: #5b687a;
 
 /* Dark */
---editor-code-plain-text: #b7bec8;
+--editor-code-plain-text: #929ba7;
 ```
 
 After the `.editor-code-block__codemirror .cm-editor` rule, add:
