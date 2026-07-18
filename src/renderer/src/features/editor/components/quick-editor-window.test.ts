@@ -4,6 +4,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
 } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -105,6 +106,8 @@ describe("quick editor content detection", () => {
     );
     vi.stubGlobal("electronAPI", {
       createQuickEditorWindow,
+      getQuickEditorCollapsed: vi.fn(async () => false),
+      setQuickEditorCollapsed: vi.fn(async (collapsed: boolean) => collapsed),
       onQuickEditorInitialContent,
       onQuickEditorContentUpdated: vi.fn(() => () => undefined),
       closeQuickEditorWindow: vi.fn(),
@@ -156,6 +159,8 @@ describe("quick editor content detection", () => {
     );
     vi.stubGlobal("electronAPI", {
       createQuickEditorWindow: vi.fn(),
+      getQuickEditorCollapsed: vi.fn(async () => false),
+      setQuickEditorCollapsed: vi.fn(async (collapsed: boolean) => collapsed),
       onQuickEditorInitialContent: vi.fn(
         (
           callback: (content: {
@@ -184,5 +189,78 @@ describe("quick editor content detection", () => {
     });
 
     expect(await screen.findByText("Live update")).toBeInTheDocument();
+  });
+
+  it("collapses with a single chevron and restores editor focus", async () => {
+    let resolveCollapse: ((collapsed: boolean) => void) | undefined;
+    const setQuickEditorCollapsed = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<boolean>((resolve) => {
+            resolveCollapse = resolve;
+          }),
+      )
+      .mockResolvedValueOnce(false);
+
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        addEventListener: vi.fn(),
+        addListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+        matches: false,
+        media: query,
+        onchange: null,
+        removeEventListener: vi.fn(),
+        removeListener: vi.fn(),
+      })),
+    );
+    vi.stubGlobal("electronAPI", {
+      createQuickEditorWindow: vi.fn(),
+      getQuickEditorCollapsed: vi.fn(async () => false),
+      setQuickEditorCollapsed,
+      onQuickEditorInitialContent: vi.fn(
+        (callback: (content: { content: string; source: null }) => void) => {
+          callback({ content: "Preserved draft", source: null });
+          return () => undefined;
+        },
+      ),
+      onQuickEditorContentUpdated: vi.fn(() => () => undefined),
+      closeQuickEditorWindow: vi.fn(),
+      returnToMainWindowFromQuickEditor: vi.fn(),
+      syncQuickEditorContent: vi.fn(),
+      updateDirtyState: vi.fn(),
+    });
+
+    render(createElement(QuickEditorWindow));
+
+    expect(await screen.findByText("Preserved draft")).toBeInTheDocument();
+    const collapseButton = await screen.findByRole("button", {
+      name: "折叠编辑器",
+    });
+    expect(collapseButton.querySelector("svg")).toHaveAttribute("width", "15");
+
+    fireEvent.click(collapseButton);
+    expect(setQuickEditorCollapsed).toHaveBeenCalledWith(true, false);
+    expect(collapseButton).toBeDisabled();
+
+    await act(async () => {
+      resolveCollapse?.(true);
+    });
+    const expandButton = await screen.findByRole("button", {
+      name: "展开编辑器",
+    });
+    const hiddenEditor = screen.getByRole("main", { hidden: true });
+    expect(hiddenEditor).toHaveAttribute("aria-label", "快速编辑器");
+    expect(hiddenEditor).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByText("Preserved draft")).toBeInTheDocument();
+
+    expandButton.focus();
+    fireEvent.click(expandButton);
+    expect(setQuickEditorCollapsed).toHaveBeenLastCalledWith(false, false);
+    await waitFor(() => {
+      expect(screen.getByRole("textbox")).toHaveFocus();
+    });
   });
 });

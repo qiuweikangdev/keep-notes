@@ -1,8 +1,14 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BlockNoteView } from "@blocknote/mantine";
 import { useCreateBlockNote, useEditorChange } from "@blocknote/react";
 import type { BlockNoteEditor as CoreBlockNoteEditor } from "@blocknote/core";
-import { PictureInPicture2, Plus, X } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  PictureInPicture2,
+  Plus,
+  X,
+} from "lucide-react";
 import type {
   CloseSaveSnapshot,
   QuickEditorWindowContent,
@@ -100,6 +106,9 @@ export function QuickEditorWindow() {
   const lastSyncedContentRef = useRef<string | null>(null);
   const syncRevisionRef = useRef(0);
   const editorRef = useRef<CoreBlockNoteEditor | null>(null);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [collapseTarget, setCollapseTarget] = useState<boolean | null>(null);
+  const [isCollapseTransitioning, setIsCollapseTransitioning] = useState(false);
   const handleImageUploadRef = useRef(
     createQuickEditorImageUploader(
       () => editorRef.current,
@@ -112,6 +121,16 @@ export function QuickEditorWindow() {
     uploadFile: handleImageUploadRef.current,
   });
   editorRef.current = editor;
+
+  useEffect(() => {
+    let cancelled = false;
+    void window.electronAPI.getQuickEditorCollapsed().then((collapsed) => {
+      if (!cancelled) setIsCollapsed(collapsed);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const syncDirtyState = useCallback((isDirty: boolean) => {
     dirtyRef.current = isDirty;
@@ -267,14 +286,62 @@ export function QuickEditorWindow() {
     }
   }, [editor]);
 
+  const handleToggleCollapsed = useCallback(async () => {
+    if (isCollapseTransitioning) return;
+
+    const nextCollapsed = !isCollapsed;
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    setCollapseTarget(nextCollapsed);
+    setIsCollapseTransitioning(true);
+
+    try {
+      const collapsed = await window.electronAPI.setQuickEditorCollapsed(
+        nextCollapsed,
+        reduceMotion,
+      );
+      setIsCollapsed(collapsed);
+
+      if (!collapsed) {
+        window.requestAnimationFrame(() => editor.focus());
+      }
+    } finally {
+      setCollapseTarget(null);
+      setIsCollapseTransitioning(false);
+    }
+  }, [editor, isCollapsed, isCollapseTransitioning]);
+
+  const editorIsHidden = isCollapsed || collapseTarget === true;
+
   return (
-    <div className="quick-editor-window" data-quick-editor-window="true">
+    <div
+      className="quick-editor-window"
+      data-collapsed={editorIsHidden ? "true" : "false"}
+      data-quick-editor-window="true"
+    >
       <header className="quick-editor-window__titlebar">
+        <div className="quick-editor-window__actions quick-editor-window__actions--left">
+          <button
+            aria-label={isCollapsed ? "展开编辑器" : "折叠编辑器"}
+            className="quick-editor-window__action quick-editor-window__action--collapse"
+            disabled={isCollapseTransitioning}
+            title={isCollapsed ? "展开编辑器" : "折叠编辑器"}
+            type="button"
+            onClick={() => void handleToggleCollapsed()}
+          >
+            {isCollapsed ? (
+              <ChevronDown aria-hidden="true" size={15} />
+            ) : (
+              <ChevronUp aria-hidden="true" size={15} />
+            )}
+          </button>
+        </div>
         <div className="quick-editor-window__drag-region" aria-hidden="true" />
-        <div className="quick-editor-window__actions">
+        <div className="quick-editor-window__actions quick-editor-window__actions--right">
           <button
             aria-label="新建浮窗编辑器"
-            className="quick-editor-window__action"
+            className="quick-editor-window__action quick-editor-window__action--secondary"
             title="新建浮窗编辑器"
             type="button"
             onClick={() => window.electronAPI.createQuickEditorWindow()}
@@ -283,7 +350,7 @@ export function QuickEditorWindow() {
           </button>
           <button
             aria-label="返回应用"
-            className="quick-editor-window__action"
+            className="quick-editor-window__action quick-editor-window__action--secondary"
             title="返回应用"
             type="button"
             onClick={() => void handleReturnToApplication()}
@@ -302,7 +369,11 @@ export function QuickEditorWindow() {
         </div>
       </header>
 
-      <main className="quick-editor-window__editor" aria-label="快速编辑器">
+      <main
+        aria-hidden={editorIsHidden || undefined}
+        aria-label="快速编辑器"
+        className="quick-editor-window__editor"
+      >
         <BlockNoteView
           editor={editor}
           theme={isDark ? "dark" : "light"}
