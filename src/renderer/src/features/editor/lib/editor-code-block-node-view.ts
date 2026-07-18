@@ -86,6 +86,9 @@ const codeMirrorFallbackFoldRangeCache = new WeakMap<
 
 function getCodeMirrorLanguageExtension(language: string): Extension {
   switch (language) {
+    case "bash":
+    case "text":
+      return Prec.high(editorPlainCodeMirrorTheme);
     case "javascript":
       return javascript();
     case "typescript":
@@ -181,6 +184,17 @@ const editorCodeMirrorTheme = CodeMirrorView.theme({
     },
   "&.cm-focused": {
     outline: "none",
+  },
+});
+
+const editorPlainCodeMirrorTheme = CodeMirrorView.theme({
+  ".cm-scroller": {
+    fontFamily:
+      '"PingFang SC", "Microsoft YaHei UI", "Noto Sans CJK SC", system-ui, sans-serif',
+  },
+  ".cm-content": {
+    color: "var(--editor-code-block-text)",
+    fontWeight: "400",
   },
 });
 

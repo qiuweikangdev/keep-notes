@@ -391,19 +391,29 @@ describe("editor BlockNote schema", () => {
     const { container } = render(createElement(BlockNoteView, { editor }));
     const getShell = () =>
       container.querySelector<HTMLElement>(".editor-code-block-shell");
+    const getContentFontWeight = () =>
+      getComputedStyle(getCodeMirrorView(container).contentDOM).fontWeight;
+    const getScrollerFontFamily = () =>
+      getComputedStyle(getCodeMirrorView(container).scrollDOM).fontFamily;
 
     await waitFor(() => {
       expect(getShell()?.dataset.language).toBe("javascript");
+      expect(getContentFontWeight()).toBe("600");
+      expect(getScrollerFontFamily()).toContain('"SF Mono"');
     });
 
     editor.updateBlock(editor.document[0], { props: { language: "bash" } });
     await waitFor(() => {
       expect(getShell()?.dataset.language).toBe("bash");
+      expect(getContentFontWeight()).toBe("400");
+      expect(getScrollerFontFamily()).toContain('"PingFang SC"');
     });
 
     editor.updateBlock(editor.document[0], { props: { language: "python" } });
     await waitFor(() => {
       expect(getShell()?.dataset.language).toBe("python");
+      expect(getContentFontWeight()).toBe("600");
+      expect(getScrollerFontFamily()).toContain('"SF Mono"');
     });
   });
 

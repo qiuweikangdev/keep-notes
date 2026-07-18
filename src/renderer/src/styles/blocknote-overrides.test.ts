@@ -31,12 +31,6 @@ describe("blocknote overrides stylesheet", () => {
       /--editor-code-block-bg:\s*#0d1117;/,
     );
     expect(getRule('.bn-root[data-color-scheme="light"]')).toMatch(
-      /--editor-code-plain-text:\s*#5b687a;/,
-    );
-    expect(getRule('.bn-root[data-color-scheme="dark"]')).toMatch(
-      /--editor-code-plain-text:\s*#929ba7;/,
-    );
-    expect(getRule('.bn-root[data-color-scheme="light"]')).toMatch(
       /--editor-code-token-keyword:\s*#a626a4;/,
     );
     expect(getRule('.bn-root[data-color-scheme="light"]')).toMatch(
@@ -315,7 +309,7 @@ describe("blocknote overrides stylesheet", () => {
     );
   });
 
-  it("softens only Bash and Text code content", () => {
+  it("pins Bash and Text to the default code color at regular weight", () => {
     const plainCodeRule = getRule(
       `:is(
         .editor-code-block-shell[data-language="bash"],
@@ -326,11 +320,12 @@ describe("blocknote overrides stylesheet", () => {
     );
 
     expect(plainCodeRule).toBeDefined();
-    expect(plainCodeRule).toMatch(/color:\s*var\(--editor-code-plain-text\);/);
-    expect(plainCodeRule).toMatch(/font-weight:\s*400;/);
-    expect(stylesheet).not.toMatch(
-      /data-language="(?:javascript|typescript|css|json|python)"[^}]*--editor-code-plain-text/,
+    expect(plainCodeRule).toMatch(/color:\s*var\(--editor-code-block-text\);/);
+    expect(plainCodeRule).toMatch(
+      /font-family:\s*"PingFang SC",\s*"Microsoft YaHei UI",\s*"Noto Sans CJK SC",\s*system-ui,\s*sans-serif;/,
     );
+    expect(plainCodeRule).toMatch(/font-weight:\s*400;/);
+    expect(stylesheet).not.toMatch(/--editor-code-plain-text/);
   });
 
   it("styles inline code marks inside rich editor text blocks", () => {

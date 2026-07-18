@@ -19,7 +19,6 @@
   --bn-colors-side-menu: var(--text-muted);
   --editor-code-block-bg: #f5f8ff;
   --editor-code-block-text: #0f172a;
-  --editor-code-plain-text: #5b687a;
   --editor-code-block-cursor: #0969da;
   --editor-code-block-muted: #475569;
   --editor-code-block-border: rgba(148, 163, 184, 0.9);
@@ -64,7 +63,6 @@
   --bn-colors-side-menu: var(--text-muted);
   --editor-code-block-bg: #0d1117;
   --editor-code-block-text: #f0f6fc;
-  --editor-code-plain-text: #929ba7;
   --editor-code-block-cursor: #79c0ff;
   --editor-code-block-muted: #8b949e;
   --editor-code-block-border: rgba(86, 96, 116, 0.9);
@@ -484,14 +482,17 @@
   min-width: max-content;
 }
 
-/* Bash 与 Text 没有语法着色，降低默认前景对比度和字重以减少视觉刺激。 */
+/* Bash 与 Text 使用常规字重，并明确继承代码块主色，避免旧主题残留导致颜色变淡。 */
 :is(
     .editor-code-block-shell[data-language="bash"],
     .editor-code-block-shell[data-language="text"]
   )
   .editor-code-block__codemirror
   .cm-content {
-  color: var(--editor-code-plain-text);
+  color: var(--editor-code-block-text);
+  font-family:
+    "PingFang SC", "Microsoft YaHei UI", "Noto Sans CJK SC", system-ui,
+    sans-serif;
   font-weight: 400;
 }
 
