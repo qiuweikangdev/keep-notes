@@ -2,17 +2,16 @@ import { useEffect, useState } from "react";
 import { useNotificationStore } from "@/store/notification.store";
 import { SettingRow } from "@/components/ui/setting-row";
 import { Switch } from "@/components/ui/switch";
-import { Button } from "@/components/ui/button";
 import { ColorPicker } from "@/components/ui/color-picker";
 import type { NotificationSizePreset } from "@/types";
 import {
   DEFAULT_DESKTOP_NOTIFICATION_APPEARANCE,
   DEFAULT_NOTIFICATION_CONFIG,
 } from "@/types";
-import { Loader2, CheckCircle2, XCircle, ChevronDown } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 
 export function NotificationSettings() {
-  const { config, loadConfig, updateConfig, testChannel, subscribeToChanges } =
+  const { config, loadConfig, updateConfig, subscribeToChanges } =
     useNotificationStore();
 
   const [appName, setAppName] = useState(config.desktop.appName);
@@ -23,11 +22,6 @@ export function NotificationSettings() {
     String(config.desktop.titleFontSize),
   );
   const [isSizePresetOpen, setIsSizePresetOpen] = useState(false);
-  const [isTestingDesktop, setIsTestingDesktop] = useState(false);
-  const [desktopTestResult, setDesktopTestResult] = useState<{
-    success: boolean;
-    error?: string;
-  } | null>(null);
 
   useEffect(() => {
     void loadConfig();
@@ -46,12 +40,11 @@ export function NotificationSettings() {
     config.desktop.titleFontSize,
   ]);
 
-  /** 更新桌面通知配置后清空上一次测试结果，避免旧结果误导当前配置。 */
+  /** 更新桌面通知配置。 */
   const updateDesktopConfig = async (
     desktop: Partial<typeof config.desktop>,
   ) => {
     await updateConfig({ desktop });
-    setDesktopTestResult(null);
   };
 
   /** 保存应用通知弹窗顶部标题，空值恢复默认应用名 */
@@ -85,18 +78,6 @@ export function NotificationSettings() {
     await updateDesktopConfig({ titleFontSize: nextFontSize });
   };
 
-  /** 发送自定义桌面通知测试，确认主进程通知窗口可用 */
-  const handleTestDesktopNotification = async () => {
-    setIsTestingDesktop(true);
-    setDesktopTestResult(null);
-    try {
-      const result = await testChannel("desktop");
-      setDesktopTestResult(result);
-    } finally {
-      setIsTestingDesktop(false);
-    }
-  };
-
   const sizePresetLabels: Record<NotificationSizePreset, string> = {
     small: "小",
     medium: "默认",
@@ -123,63 +104,14 @@ export function NotificationSettings() {
       {/* 桌面通知 */}
       <div style={{ borderBottom: "1px solid var(--border-color)" }}>
         <SettingRow label="桌面通知" description="提醒到期时显示应用通知弹窗">
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleTestDesktopNotification}
-              disabled={isTestingDesktop || !config.desktop.enabled}
-              className="h-7 gap-1.5 px-2.5 text-xs"
-            >
-              {isTestingDesktop ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                "测试通知"
-              )}
-            </Button>
-            <Switch
-              ariaLabel="桌面通知"
-              checked={config.desktop.enabled}
-              onCheckedChange={(checked) => {
-                void updateDesktopConfig({ enabled: checked });
-              }}
-            />
-          </div>
-        </SettingRow>
-        {desktopTestResult ? (
-          <div
-            className="mx-4 mb-3 flex items-center gap-2 rounded-md px-3 py-2 text-xs"
-            style={{
-              backgroundColor: desktopTestResult.success
-                ? "rgba(34, 197, 94, 0.1)"
-                : "rgba(239, 68, 68, 0.1)",
-              border: `1px solid ${desktopTestResult.success ? "rgba(34, 197, 94, 0.3)" : "rgba(239, 68, 68, 0.3)"}`,
+          <Switch
+            ariaLabel="桌面通知"
+            checked={config.desktop.enabled}
+            onCheckedChange={(checked) => {
+              void updateDesktopConfig({ enabled: checked });
             }}
-          >
-            {desktopTestResult.success ? (
-              <>
-                <CheckCircle2
-                  className="h-3.5 w-3.5 flex-shrink-0"
-                  style={{ color: "var(--success-color, #22c55e)" }}
-                />
-                <span style={{ color: "var(--success-color, #22c55e)" }}>
-                  测试通知已发送
-                </span>
-              </>
-            ) : (
-              <>
-                <XCircle
-                  className="h-3.5 w-3.5 flex-shrink-0"
-                  style={{ color: "var(--error-color, #ef4444)" }}
-                />
-                <span style={{ color: "var(--error-color, #ef4444)" }}>
-                  {desktopTestResult.error || "桌面通知发送失败"}
-                </span>
-              </>
-            )}
-          </div>
-        ) : null}
+          />
+        </SettingRow>
       </div>
 
       <div style={{ borderBottom: "1px solid var(--border-color)" }}>

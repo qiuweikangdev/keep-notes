@@ -317,6 +317,17 @@ describe("NotificationSettings", () => {
     expect(screen.queryByText("QQ 邮箱推送")).not.toBeInTheDocument();
   });
 
+  it("does not render desktop notification test controls", async () => {
+    render(<NotificationSettings />);
+
+    await screen.findByText("桌面通知");
+
+    expect(
+      screen.queryByRole("button", { name: "测试通知" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("测试通知已发送")).not.toBeInTheDocument();
+  });
+
   it("updates bottom action visibility and notification size preset", async () => {
     render(<NotificationSettings />);
 
