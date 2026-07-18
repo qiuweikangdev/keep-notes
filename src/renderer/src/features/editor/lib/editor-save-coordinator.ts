@@ -98,6 +98,21 @@ export class EditorSaveCoordinator {
     this.pending.delete(path);
   }
 
+  async cancelAndWait(path: string): Promise<void> {
+    while (true) {
+      const pending = this.pending.get(path);
+      if (!pending) return;
+
+      if (pending.timer) {
+        clearTimeout(pending.timer);
+      }
+      this.pending.delete(path);
+
+      // 已进入 IPC 写盘的任务无法中断；等待其结束后再允许 Git 恢复文件。
+      await pending.inFlight;
+    }
+  }
+
   isOwnWrite(path: string, content: string): boolean {
     const recentWrites = this.pruneExpiredOwnWrites(path);
     if (!recentWrites) {
