@@ -4,7 +4,9 @@ import {
   consumePendingQuickEditorContent,
   createQuickEditorWindow,
   disposeQuickEditorWindow,
+  getQuickEditorCollapsed,
   returnToMainWindowFromQuickEditor,
+  setQuickEditorCollapsed,
   showQuickEditorWindow,
   syncQuickEditorContent,
 } from "./quick-editor-window";
@@ -31,6 +33,7 @@ const electronMocks = vi.hoisted(() => {
 
   class MockBrowserWindow {
     private destroyed = false;
+    private bounds: Electron.Rectangle;
     readonly handlers = new Map<string, Handler>();
     readonly options: Electron.BrowserWindowConstructorOptions;
     readonly webContentsHandlers = new Map<string, Handler[]>();
@@ -44,6 +47,11 @@ const electronMocks = vi.hoisted(() => {
       send: vi.fn(),
     };
     readonly isDestroyed = vi.fn(() => this.destroyed);
+    readonly getBounds = vi.fn(() => ({ ...this.bounds }));
+    readonly setBounds = vi.fn((bounds: Electron.Rectangle) => {
+      this.bounds = { ...bounds };
+    });
+    readonly setMinimumSize = vi.fn();
     readonly setAlwaysOnTop = vi.fn();
     readonly show = vi.fn();
     readonly focus = vi.fn();
@@ -75,6 +83,12 @@ const electronMocks = vi.hoisted(() => {
 
     constructor(options: Electron.BrowserWindowConstructorOptions) {
       this.options = options;
+      this.bounds = {
+        x: options.x ?? 0,
+        y: options.y ?? 0,
+        width: options.width ?? 0,
+        height: options.height ?? 0,
+      };
     }
   }
 
@@ -157,8 +171,8 @@ describe("quick editor floating window", () => {
       y: 240,
       width: 640,
       height: 420,
-      minWidth: 440,
-      minHeight: 300,
+      minWidth: 80,
+      minHeight: 80,
       frame: false,
       transparent: true,
       alwaysOnTop: true,
@@ -170,6 +184,115 @@ describe("quick editor floating window", () => {
     );
     expect(win.show).toHaveBeenCalledTimes(2);
     expect(win.focus).toHaveBeenCalledTimes(2);
+  });
+
+  it("collapses upward and restores the previous height", async () => {
+    vi.useFakeTimers();
+    try {
+      const win = createQuickEditorWindow();
+      const nativeWindow = electronMocks.windows[0];
+      nativeWindow.setBounds({ x: 320, y: 180, width: 520, height: 360 });
+      nativeWindow.setBounds.mockClear();
+
+      const collapse = setQuickEditorCollapsed(win, true);
+      expect(nativeWindow.setMinimumSize).toHaveBeenCalledWith(80, 38);
+      await vi.advanceTimersByTimeAsync(160);
+      await expect(collapse).resolves.toBe(true);
+      expect(nativeWindow.getBounds()).toEqual({
+        x: 320,
+        y: 180,
+        width: 520,
+        height: 38,
+      });
+      expect(getQuickEditorCollapsed(win)).toBe(true);
+
+      const expand = setQuickEditorCollapsed(win, false);
+      await vi.advanceTimersByTimeAsync(160);
+      await expect(expand).resolves.toBe(false);
+      expect(nativeWindow.getBounds()).toEqual({
+        x: 320,
+        y: 180,
+        width: 520,
+        height: 360,
+      });
+      expect(nativeWindow.setMinimumSize).toHaveBeenLastCalledWith(80, 80);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("applies reduced-motion collapse without animation frames", async () => {
+    const win = createQuickEditorWindow();
+    const nativeWindow = electronMocks.windows[0];
+    nativeWindow.setBounds.mockClear();
+
+    await expect(setQuickEditorCollapsed(win, true, true)).resolves.toBe(true);
+
+    expect(nativeWindow.setBounds).toHaveBeenCalledTimes(1);
+    expect(nativeWindow.getBounds()).toMatchObject({ height: 38 });
+  });
+
+  it("keeps collapse state and restore height isolated per window", async () => {
+    const first = createQuickEditorWindow();
+    const second = createQuickEditorWindow();
+    electronMocks.windows[0].setBounds({
+      x: 10,
+      y: 20,
+      width: 300,
+      height: 240,
+    });
+    electronMocks.windows[1].setBounds({
+      x: 40,
+      y: 50,
+      width: 280,
+      height: 190,
+    });
+
+    await setQuickEditorCollapsed(first, true, true);
+
+    expect(getQuickEditorCollapsed(first)).toBe(true);
+    expect(getQuickEditorCollapsed(second)).toBe(false);
+    expect(electronMocks.windows[0].getBounds()).toMatchObject({ height: 38 });
+    expect(electronMocks.windows[1].getBounds()).toMatchObject({ height: 190 });
+
+    await setQuickEditorCollapsed(first, false, true);
+    expect(electronMocks.windows[0].getBounds()).toMatchObject({ height: 240 });
+  });
+
+  it("reuses an in-flight transition and clears it when destroyed", async () => {
+    vi.useFakeTimers();
+    try {
+      const win = createQuickEditorWindow();
+      const nativeWindow = electronMocks.windows[0];
+
+      const firstRequest = setQuickEditorCollapsed(win, true);
+      const duplicateRequest = setQuickEditorCollapsed(win, true);
+      expect(duplicateRequest).toBe(firstRequest);
+
+      win.destroy();
+      await expect(firstRequest).resolves.toBe(false);
+      expect(getQuickEditorCollapsed(win)).toBe(false);
+      expect(nativeWindow.setBounds).not.toHaveBeenLastCalledWith(
+        expect.objectContaining({ height: 38 }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("ignores collapse requests for windows outside the quick-editor set", async () => {
+    const unrelated = new electronMocks.MockBrowserWindow({
+      x: 1,
+      y: 2,
+      width: 300,
+      height: 200,
+    });
+
+    await expect(setQuickEditorCollapsed(unrelated, true, true)).resolves.toBe(
+      false,
+    );
+    expect(unrelated.setMinimumSize).not.toHaveBeenCalled();
+    expect(unrelated.setBounds).not.toHaveBeenCalled();
   });
 
   it("creates additional independent floating editors with offset bounds", () => {

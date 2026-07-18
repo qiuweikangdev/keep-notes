@@ -13,9 +13,19 @@ import { checkAndCloseWindow, focusMainWindow, getMainWindow } from "./window";
 
 const QUICK_EDITOR_WINDOW_WIDTH = 640;
 const QUICK_EDITOR_WINDOW_HEIGHT = 420;
-const QUICK_EDITOR_WINDOW_MIN_WIDTH = 440;
-const QUICK_EDITOR_WINDOW_MIN_HEIGHT = 300;
+const QUICK_EDITOR_WINDOW_MIN_WIDTH = 80;
+const QUICK_EDITOR_WINDOW_MIN_HEIGHT = 80;
+const QUICK_EDITOR_COLLAPSED_HEIGHT = 38;
+const QUICK_EDITOR_COLLAPSE_DURATION = 160;
+const QUICK_EDITOR_COLLAPSE_FRAME_INTERVAL = 16;
 const MAX_GLOBAL_SHORTCUTS = 4;
+
+interface QuickEditorCollapseState {
+  cancelAnimation: (() => void) | null;
+  collapsed: boolean;
+  expandedHeight: number;
+  transition: Promise<boolean> | null;
+}
 
 export const DEFAULT_QUICK_EDITOR_SHORTCUT = "CmdOrCtrl+Alt+N";
 
@@ -31,6 +41,10 @@ const quickEditorWindowSources = new Map<
 const quickEditorFileWrites = new Map<
   string,
   { content: string; isWriting: boolean }
+>();
+const quickEditorCollapseStates = new Map<
+  BrowserWindow,
+  QuickEditorCollapseState
 >();
 
 /** 串行写入同一来源文件，并在写入期间只保留最新的浮窗快照。 */
@@ -157,6 +171,80 @@ function loadQuickEditorWindow(win: BrowserWindow): void {
   });
 }
 
+function createQuickEditorCollapseState(
+  expandedHeight: number,
+): QuickEditorCollapseState {
+  return {
+    cancelAnimation: null,
+    collapsed: false,
+    expandedHeight,
+    transition: null,
+  };
+}
+
+function clearQuickEditorCollapseState(win: BrowserWindow): void {
+  const state = quickEditorCollapseStates.get(win);
+  state?.cancelAnimation?.();
+  quickEditorCollapseStates.delete(win);
+}
+
+function animateQuickEditorHeight(
+  win: BrowserWindow,
+  state: QuickEditorCollapseState,
+  targetHeight: number,
+  reduceMotion: boolean,
+): Promise<boolean> {
+  const startHeight = win.getBounds().height;
+  if (reduceMotion || startHeight === targetHeight) {
+    const bounds = win.getBounds();
+    win.setBounds({ ...bounds, height: targetHeight });
+    return Promise.resolve(true);
+  }
+
+  const frameCount = Math.ceil(
+    QUICK_EDITOR_COLLAPSE_DURATION / QUICK_EDITOR_COLLAPSE_FRAME_INTERVAL,
+  );
+
+  return new Promise((resolve) => {
+    let frame = 0;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let settled = false;
+
+    const finish = (completed: boolean) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      state.cancelAnimation = null;
+      resolve(completed);
+    };
+
+    const step = () => {
+      if (win.isDestroyed()) {
+        finish(false);
+        return;
+      }
+
+      frame += 1;
+      const progress = Math.min(frame / frameCount, 1);
+      const easedProgress = 1 - (1 - progress) ** 3;
+      const height = Math.round(
+        startHeight + (targetHeight - startHeight) * easedProgress,
+      );
+      const bounds = win.getBounds();
+      win.setBounds({ ...bounds, height });
+
+      if (progress === 1) {
+        finish(true);
+        return;
+      }
+      timer = setTimeout(step, QUICK_EDITOR_COLLAPSE_FRAME_INTERVAL);
+    };
+
+    state.cancelAnimation = () => finish(false);
+    timer = setTimeout(step, QUICK_EDITOR_COLLAPSE_FRAME_INTERVAL);
+  });
+}
+
 export function showQuickEditorWindow(): BrowserWindow {
   if (quickEditorWindow && !quickEditorWindow.isDestroyed()) {
     revealQuickEditorWindow(quickEditorWindow);
@@ -195,6 +283,10 @@ export function createQuickEditorWindow(
   });
 
   quickEditorWindows.add(win);
+  quickEditorCollapseStates.set(
+    win,
+    createQuickEditorCollapseState(bounds.height),
+  );
   if (initialContent?.source) {
     quickEditorWindowSources.set(win, initialContent.source);
   }
@@ -245,6 +337,7 @@ export function createQuickEditorWindow(
     quickEditorWindows.delete(win);
     quickEditorWindowSources.delete(win);
     closingQuickEditorWindows.delete(win);
+    clearQuickEditorCollapseState(win);
     if (quickEditorWindow === win) {
       quickEditorWindow =
         [...quickEditorWindows].find((window) => !window.isDestroyed()) ?? null;
@@ -253,6 +346,74 @@ export function createQuickEditorWindow(
 
   loadQuickEditorWindow(win);
   return win;
+}
+
+export function getQuickEditorCollapsed(win: BrowserWindow | null): boolean {
+  if (!win || win.isDestroyed() || !quickEditorWindows.has(win)) return false;
+  return quickEditorCollapseStates.get(win)?.collapsed ?? false;
+}
+
+export function setQuickEditorCollapsed(
+  win: BrowserWindow | null,
+  collapsed: boolean,
+  reduceMotion = false,
+): Promise<boolean> {
+  if (!win || win.isDestroyed() || !quickEditorWindows.has(win)) {
+    return Promise.resolve(false);
+  }
+
+  const state = quickEditorCollapseStates.get(win);
+  if (!state) return Promise.resolve(false);
+  if (state.transition) return state.transition;
+  if (state.collapsed === collapsed) return Promise.resolve(collapsed);
+
+  const currentBounds = win.getBounds();
+  if (collapsed) {
+    state.expandedHeight = Math.max(
+      currentBounds.height,
+      QUICK_EDITOR_WINDOW_MIN_HEIGHT,
+    );
+    win.setMinimumSize(
+      QUICK_EDITOR_WINDOW_MIN_WIDTH,
+      QUICK_EDITOR_COLLAPSED_HEIGHT,
+    );
+  }
+
+  const targetHeight = collapsed
+    ? QUICK_EDITOR_COLLAPSED_HEIGHT
+    : Math.max(state.expandedHeight, QUICK_EDITOR_WINDOW_MIN_HEIGHT);
+
+  // 原生窗口尺寸只能由主进程逐帧调整，同时保持当前顶部和水平边界不变。
+  const transition = animateQuickEditorHeight(
+    win,
+    state,
+    targetHeight,
+    reduceMotion,
+  ).then((completed) => {
+    if (
+      !completed ||
+      win.isDestroyed() ||
+      quickEditorCollapseStates.get(win) !== state
+    ) {
+      return false;
+    }
+
+    state.collapsed = collapsed;
+    if (!collapsed) {
+      win.setMinimumSize(
+        QUICK_EDITOR_WINDOW_MIN_WIDTH,
+        QUICK_EDITOR_WINDOW_MIN_HEIGHT,
+      );
+    }
+    return collapsed;
+  });
+
+  state.transition = transition.finally(() => {
+    if (quickEditorCollapseStates.get(win) === state) {
+      state.transition = null;
+    }
+  });
+  return state.transition;
 }
 
 export function closeQuickEditorWindow(
@@ -335,6 +496,7 @@ export function consumePendingQuickEditorContent(): QuickEditorWindowContent | n
 
 export function destroyQuickEditorWindow(): void {
   const windows = [...quickEditorWindows];
+  windows.forEach(clearQuickEditorCollapseState);
   quickEditorWindows.clear();
   quickEditorWindowSources.clear();
   closingQuickEditorWindows.clear();
