@@ -232,6 +232,29 @@ describe("quick editor floating window", () => {
     expect(nativeWindow.getBounds()).toMatchObject({ height: 38 });
   });
 
+  it("uses elapsed time when an animation frame is delayed", async () => {
+    vi.useFakeTimers();
+    let elapsed = 0;
+    const now = vi.spyOn(Date, "now").mockImplementation(() => elapsed);
+    let collapse: Promise<boolean> | undefined;
+    try {
+      const win = createQuickEditorWindow();
+      const nativeWindow = electronMocks.windows[0];
+
+      collapse = setQuickEditorCollapsed(win, true);
+      elapsed = 1_000;
+      await vi.advanceTimersByTimeAsync(16);
+
+      expect(nativeWindow.getBounds()).toMatchObject({ height: 38 });
+      await expect(collapse).resolves.toBe(true);
+    } finally {
+      await vi.runAllTimersAsync();
+      await collapse;
+      now.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   it("keeps collapse state and restore height isolated per window", async () => {
     const first = createQuickEditorWindow();
     const second = createQuickEditorWindow();

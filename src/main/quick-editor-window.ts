@@ -201,12 +201,9 @@ function animateQuickEditorHeight(
     return Promise.resolve(true);
   }
 
-  const frameCount = Math.ceil(
-    QUICK_EDITOR_COLLAPSE_DURATION / QUICK_EDITOR_COLLAPSE_FRAME_INTERVAL,
-  );
+  const startedAt = Date.now();
 
   return new Promise((resolve) => {
-    let frame = 0;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let settled = false;
 
@@ -224,8 +221,8 @@ function animateQuickEditorHeight(
         return;
       }
 
-      frame += 1;
-      const progress = Math.min(frame / frameCount, 1);
+      const elapsed = Math.max(Date.now() - startedAt, 0);
+      const progress = Math.min(elapsed / QUICK_EDITOR_COLLAPSE_DURATION, 1);
       const easedProgress = 1 - (1 - progress) ** 3;
       const height = Math.round(
         startHeight + (targetHeight - startHeight) * easedProgress,

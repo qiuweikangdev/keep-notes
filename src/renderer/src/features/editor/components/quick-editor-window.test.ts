@@ -263,4 +263,99 @@ describe("quick editor content detection", () => {
       expect(screen.getByRole("textbox")).toHaveFocus();
     });
   });
+
+  it("waits for collapsed-state hydration before enabling the control", async () => {
+    let resolveInitialState: ((collapsed: boolean) => void) | undefined;
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        addEventListener: vi.fn(),
+        addListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+        matches: false,
+        media: query,
+        onchange: null,
+        removeEventListener: vi.fn(),
+        removeListener: vi.fn(),
+      })),
+    );
+    vi.stubGlobal("electronAPI", {
+      createQuickEditorWindow: vi.fn(),
+      getQuickEditorCollapsed: vi.fn(
+        () =>
+          new Promise<boolean>((resolve) => {
+            resolveInitialState = resolve;
+          }),
+      ),
+      setQuickEditorCollapsed: vi.fn(),
+      onQuickEditorInitialContent: vi.fn(() => () => undefined),
+      onQuickEditorContentUpdated: vi.fn(() => () => undefined),
+      closeQuickEditorWindow: vi.fn(),
+      returnToMainWindowFromQuickEditor: vi.fn(),
+      syncQuickEditorContent: vi.fn(),
+      updateDirtyState: vi.fn(),
+    });
+
+    render(createElement(QuickEditorWindow));
+
+    const collapseButton = screen.getByRole("button", {
+      name: "折叠编辑器",
+    });
+    expect(collapseButton).toBeDisabled();
+
+    await act(async () => {
+      resolveInitialState?.(true);
+    });
+
+    expect(
+      await screen.findByRole("button", { name: "展开编辑器" }),
+    ).toBeEnabled();
+    expect(screen.getByRole("textbox", { hidden: true })).not.toHaveFocus();
+  });
+
+  it("resynchronizes collapsed state after a transition request fails", async () => {
+    const getQuickEditorCollapsed = vi
+      .fn()
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        addEventListener: vi.fn(),
+        addListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+        matches: false,
+        media: query,
+        onchange: null,
+        removeEventListener: vi.fn(),
+        removeListener: vi.fn(),
+      })),
+    );
+    vi.stubGlobal("electronAPI", {
+      createQuickEditorWindow: vi.fn(),
+      getQuickEditorCollapsed,
+      setQuickEditorCollapsed: vi.fn(async () => {
+        throw new Error("collapse failed");
+      }),
+      onQuickEditorInitialContent: vi.fn(() => () => undefined),
+      onQuickEditorContentUpdated: vi.fn(() => () => undefined),
+      closeQuickEditorWindow: vi.fn(),
+      returnToMainWindowFromQuickEditor: vi.fn(),
+      syncQuickEditorContent: vi.fn(),
+      updateDirtyState: vi.fn(),
+    });
+
+    render(createElement(QuickEditorWindow));
+
+    const collapseButton = await screen.findByRole("button", {
+      name: "折叠编辑器",
+    });
+    await waitFor(() => expect(collapseButton).toBeEnabled());
+    fireEvent.click(collapseButton);
+
+    expect(
+      await screen.findByRole("button", { name: "展开编辑器" }),
+    ).toBeEnabled();
+    expect(getQuickEditorCollapsed).toHaveBeenCalledTimes(2);
+  });
 });

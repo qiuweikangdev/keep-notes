@@ -107,6 +107,7 @@ export function QuickEditorWindow() {
   const syncRevisionRef = useRef(0);
   const editorRef = useRef<CoreBlockNoteEditor | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapseStateReady, setIsCollapseStateReady] = useState(false);
   const [collapseTarget, setCollapseTarget] = useState<boolean | null>(null);
   const [isCollapseTransitioning, setIsCollapseTransitioning] = useState(false);
   const handleImageUploadRef = useRef(
@@ -122,15 +123,25 @@ export function QuickEditorWindow() {
   });
   editorRef.current = editor;
 
+  const readCollapsedState = useCallback(async (): Promise<boolean | null> => {
+    try {
+      return await window.electronAPI.getQuickEditorCollapsed();
+    } catch {
+      return null;
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
-    void window.electronAPI.getQuickEditorCollapsed().then((collapsed) => {
-      if (!cancelled) setIsCollapsed(collapsed);
+    void readCollapsedState().then((collapsed) => {
+      if (cancelled) return;
+      if (collapsed !== null) setIsCollapsed(collapsed);
+      setIsCollapseStateReady(true);
     });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [readCollapsedState]);
 
   const syncDirtyState = useCallback((isDirty: boolean) => {
     dirtyRef.current = isDirty;
@@ -204,9 +215,10 @@ export function QuickEditorWindow() {
   }, [editor, syncDirtyState]);
 
   useEffect(() => {
+    if (!isCollapseStateReady || isCollapsed) return;
     const frame = window.requestAnimationFrame(() => editor.focus());
     return () => window.cancelAnimationFrame(frame);
-  }, [editor]);
+  }, [editor, isCollapsed, isCollapseStateReady]);
 
   useEffect(() => {
     let cancelled = false;
@@ -287,7 +299,7 @@ export function QuickEditorWindow() {
   }, [editor]);
 
   const handleToggleCollapsed = useCallback(async () => {
-    if (isCollapseTransitioning) return;
+    if (!isCollapseStateReady || isCollapseTransitioning) return;
 
     const nextCollapsed = !isCollapsed;
     const reduceMotion = window.matchMedia(
@@ -302,15 +314,20 @@ export function QuickEditorWindow() {
         reduceMotion,
       );
       setIsCollapsed(collapsed);
-
-      if (!collapsed) {
-        window.requestAnimationFrame(() => editor.focus());
-      }
+    } catch {
+      // IPC 异常后重新读取主进程状态，避免图标与原生窗口尺寸失去同步。
+      const collapsed = await readCollapsedState();
+      if (collapsed !== null) setIsCollapsed(collapsed);
     } finally {
       setCollapseTarget(null);
       setIsCollapseTransitioning(false);
     }
-  }, [editor, isCollapsed, isCollapseTransitioning]);
+  }, [
+    isCollapsed,
+    isCollapseStateReady,
+    isCollapseTransitioning,
+    readCollapsedState,
+  ]);
 
   const editorIsHidden = isCollapsed || collapseTarget === true;
 
@@ -325,7 +342,7 @@ export function QuickEditorWindow() {
           <button
             aria-label={isCollapsed ? "展开编辑器" : "折叠编辑器"}
             className="quick-editor-window__action quick-editor-window__action--collapse"
-            disabled={isCollapseTransitioning}
+            disabled={!isCollapseStateReady || isCollapseTransitioning}
             title={isCollapsed ? "展开编辑器" : "折叠编辑器"}
             type="button"
             onClick={() => void handleToggleCollapsed()}
