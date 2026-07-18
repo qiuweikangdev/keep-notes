@@ -23,6 +23,8 @@ import {
   XCircle,
   Download,
   Loader2,
+  Settings as SettingsIcon,
+  X,
 } from "lucide-react";
 import { ShortcutsSettings } from "./shortcuts-settings";
 import { NotificationSettings } from "./notification-settings";
@@ -761,7 +763,14 @@ export function SettingsModal() {
     >
       <DialogContent
         ref={contentRef}
-        className="flex h-[min(640px,calc(100vh-32px))] max-h-none w-[min(780px,calc(100vw-32px))] max-w-none flex-col gap-0 overflow-visible p-0"
+        showCloseButton={false}
+        overlayStyle={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
+        className="flex h-[min(640px,calc(100vh-32px))] max-h-none w-[min(780px,calc(100vw-32px))] max-w-none flex-col gap-0 overflow-visible rounded-xl p-0 shadow-2xl"
+        style={{
+          backgroundColor: "var(--bg-secondary)",
+          border: "none",
+          color: "var(--text-primary)",
+        }}
         onInteractOutside={(event) => {
           // 导出设置的下拉内容使用 Portal，避免被弹窗滚动区域裁切。
           if (isExportSettingsDropdownEvent(event)) {
@@ -778,11 +787,37 @@ export function SettingsModal() {
         <DialogHeader
           data-dialog-drag-handle
           {...dragHandleProps}
-          className="flex-shrink-0 select-none px-8 pb-4 pt-8"
+          className="flex-shrink-0 select-none space-y-0"
+          style={{ borderBottom: "1px solid var(--border-color)" }}
         >
-          <Dialog.Title style={{ color: "var(--text-primary)" }}>
-            设置
-          </Dialog.Title>
+          <div className="flex items-center justify-between p-4">
+            <div className="flex items-center gap-2">
+              <SettingsIcon
+                data-testid="settings-dialog-icon"
+                className="h-5 w-5"
+                style={{ color: "var(--text-muted)" }}
+                aria-hidden="true"
+              />
+              <Dialog.Title
+                className="text-sm font-medium leading-5"
+                style={{ color: "var(--text-primary)" }}
+              >
+                设置
+              </Dialog.Title>
+            </div>
+            <Dialog.Close asChild>
+              <button
+                type="button"
+                onPointerDown={(event) => event.stopPropagation()}
+                data-theme-control="true"
+                className="rounded-lg p-1"
+                style={{ color: "var(--text-muted)" }}
+                aria-label="关闭设置"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </Dialog.Close>
+          </div>
           <Dialog.Description className="sr-only">
             配置应用外观、快捷键、应用通知、导出选项和关于信息。
           </Dialog.Description>
@@ -795,43 +830,35 @@ export function SettingsModal() {
           {/* 左侧导航 */}
           <div
             data-testid="settings-navigation"
-            className="w-[180px] flex-shrink-0 overflow-y-auto px-2 sm:w-[220px]"
-            style={{
-              borderRight: "1px solid var(--border-color)",
-              paddingTop: "20px",
-              paddingBottom: "20px",
-            }}
+            className="w-[180px] flex-shrink-0 overflow-y-auto p-2 sm:w-[220px]"
+            style={{ borderRight: "1px solid var(--border-color)" }}
           >
             {settingsMenuItems.map((item) => {
               const isActive = activeTab === item.id;
               const Icon = item.icon;
               return (
                 <button
+                  type="button"
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all rounded-lg mb-1"
+                  aria-current={isActive ? "page" : undefined}
+                  data-selected={isActive ? "true" : undefined}
+                  className="mb-1 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left"
                   style={{
                     backgroundColor: isActive
                       ? "var(--active-bg)"
                       : "transparent",
-                    color: "var(--text-primary)",
-                    width: "calc(100% - 8px)",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isActive)
-                      e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isActive)
-                      e.currentTarget.style.backgroundColor = "transparent";
+                    color: isActive
+                      ? "var(--accent-color)"
+                      : "var(--text-primary)",
                   }}
                 >
-                  <Icon className="h-4 w-4 flex-shrink-0" />
+                  <Icon className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
                   <span className="text-sm font-medium">{item.label}</span>
                   {isActive && (
                     <ChevronRight
-                      className="h-3 w-3 flex-shrink-0 ml-auto"
-                      style={{ color: "var(--text-muted)" }}
+                      className="ml-auto h-3 w-3 flex-shrink-0"
+                      aria-hidden="true"
                     />
                   )}
                 </button>
@@ -843,6 +870,7 @@ export function SettingsModal() {
           <div
             data-testid="settings-content"
             className="min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6"
+            style={{ backgroundColor: "var(--bg-primary)" }}
           >
             {renderContent()}
           </div>
