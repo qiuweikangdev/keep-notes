@@ -12,6 +12,7 @@ import {
   createQuickEditorImageUploader,
   hasMeaningfulQuickEditorContent,
   QuickEditorWindow,
+  resolveQuickEditorMarkdown,
   uploadQuickEditorImage,
 } from "./quick-editor-window";
 
@@ -125,6 +126,57 @@ describe("quick editor content detection", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "新建浮窗编辑器" }));
     expect(createQuickEditorWindow).toHaveBeenCalledOnce();
+  });
+
+  it("does not rewrite unordered-list markers when linked content opens", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        addEventListener: vi.fn(),
+        addListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+        matches: false,
+        media: query,
+        onchange: null,
+        removeEventListener: vi.fn(),
+        removeListener: vi.fn(),
+      })),
+    );
+    const source = {
+      groupId: "group-1",
+      tabId: "tab-1",
+      filePath: "/notes/readme.md",
+    };
+    const syncQuickEditorContent = vi.fn();
+    vi.stubGlobal("electronAPI", {
+      createQuickEditorWindow: vi.fn(),
+      getQuickEditorCollapsed: vi.fn(async () => false),
+      setQuickEditorCollapsed: vi.fn(async (collapsed: boolean) => collapsed),
+      onQuickEditorInitialContent: vi.fn(
+        (
+          callback: (content: {
+            content: string;
+            source: typeof source;
+          }) => void,
+        ) => {
+          callback({ content: "- alpha\n- beta\n", source });
+          return () => undefined;
+        },
+      ),
+      onQuickEditorContentUpdated: vi.fn(() => () => undefined),
+      closeQuickEditorWindow: vi.fn(),
+      returnToMainWindowFromQuickEditor: vi.fn(),
+      syncQuickEditorContent,
+      updateDirtyState: vi.fn(),
+    });
+
+    render(createElement(QuickEditorWindow));
+
+    expect(await screen.findByText("alpha")).toBeInTheDocument();
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 50));
+    });
+    expect(syncQuickEditorContent).not.toHaveBeenCalled();
   });
 
   it("applies live source-tab updates without returning to the application", async () => {
@@ -357,5 +409,26 @@ describe("quick editor content detection", () => {
       await screen.findByRole("button", { name: "展开编辑器" }),
     ).toBeEnabled();
     expect(getQuickEditorCollapsed).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("quick editor Markdown source preservation", () => {
+  it("keeps the original unordered-list markers when opening content", () => {
+    const source = "- alpha\n- beta\n";
+    const blockNoteBaseline = "* alpha\n* beta\n";
+
+    expect(
+      resolveQuickEditorMarkdown(source, blockNoteBaseline, blockNoteBaseline),
+    ).toBe(source);
+  });
+
+  it("maps actual list edits back onto the original marker style", () => {
+    expect(
+      resolveQuickEditorMarkdown(
+        "- alpha\n- beta\n",
+        "* alpha\n* beta\n",
+        "* updated\n* beta\n",
+      ),
+    ).toBe("- updated\n- beta\n");
   });
 });

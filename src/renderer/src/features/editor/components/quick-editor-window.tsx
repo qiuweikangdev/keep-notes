@@ -22,7 +22,11 @@ import {
   type UploadedImageCursorEditor,
 } from "../lib/editor-image";
 import { EDITOR_EMPTY_PLACEHOLDER } from "../lib/editor-placeholder";
-import { serializeMarkdown } from "../lib/markdown";
+import {
+  markdownEquals,
+  preserveMarkdownSource,
+  serializeMarkdown,
+} from "../lib/markdown";
 
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
@@ -97,6 +101,15 @@ export function createQuickEditorImageUploader(
   };
 }
 
+export function resolveQuickEditorMarkdown(
+  source: string | null,
+  baseline: string | null,
+  serialized: string,
+): string {
+  if (source === null || baseline === null) return serialized;
+  return preserveMarkdownSource(source, baseline, serialized);
+}
+
 export function QuickEditorWindow() {
   const appearance = useEditorStore((state) => state.appearance);
   const { isDark } = useTheme({ transparentBackground: true });
@@ -104,6 +117,7 @@ export function QuickEditorWindow() {
   const returnInProgressRef = useRef(false);
   const sourceRef = useRef<QuickEditorWindowContent["source"]>(null);
   const lastSyncedContentRef = useRef<string | null>(null);
+  const serializedBaselineRef = useRef<string | null>(null);
   const syncRevisionRef = useRef(0);
   const editorRef = useRef<CoreBlockNoteEditor | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -150,16 +164,24 @@ export function QuickEditorWindow() {
 
   const syncContentToSource = useCallback(() => {
     const source = sourceRef.current;
-    if (!source) return;
+    const sourceContent = lastSyncedContentRef.current;
+    const baseline = serializedBaselineRef.current;
+    if (!source || sourceContent === null || baseline === null) return;
 
     const revision = ++syncRevisionRef.current;
-    void serializeMarkdown(editor, editor.document).then((content) => {
-      if (
-        revision !== syncRevisionRef.current ||
-        content === lastSyncedContentRef.current
-      ) {
+    void serializeMarkdown(editor, editor.document).then((serialized) => {
+      if (revision !== syncRevisionRef.current) {
         return;
       }
+
+      // 与主编辑器保持一致：以加载时的序列化结果为基线，只把真实编辑映射回原始 Markdown。
+      const content = resolveQuickEditorMarkdown(
+        sourceContent,
+        baseline,
+        serialized,
+      );
+      serializedBaselineRef.current = serialized;
+      if (markdownEquals(content, sourceContent)) return;
 
       lastSyncedContentRef.current = content;
       window.electronAPI.syncQuickEditorContent({ content, source });
@@ -182,7 +204,12 @@ export function QuickEditorWindow() {
     bridgeWindow["__getNextDirtyEditor"] = async () => {
       if (!dirtyRef.current) return null;
 
-      const content = await serializeMarkdown(editor, editor.document);
+      const serialized = await serializeMarkdown(editor, editor.document);
+      const content = resolveQuickEditorMarkdown(
+        lastSyncedContentRef.current,
+        serializedBaselineRef.current,
+        serialized,
+      );
       if (!content.trim()) {
         syncDirtyState(false);
         return null;
@@ -203,7 +230,12 @@ export function QuickEditorWindow() {
       savedContent,
     ) => {
       // 写盘期间若又发生编辑，继续保留脏状态并进入下一轮关闭保存检查。
-      const currentContent = await serializeMarkdown(editor, editor.document);
+      const serialized = await serializeMarkdown(editor, editor.document);
+      const currentContent = resolveQuickEditorMarkdown(
+        lastSyncedContentRef.current,
+        serializedBaselineRef.current,
+        serialized,
+      );
       syncDirtyState(currentContent !== savedContent);
     };
 
@@ -228,14 +260,17 @@ export function QuickEditorWindow() {
       initialContent: QuickEditorWindowContent,
     ) => {
       if (cancelled) return;
-      sourceRef.current = initialContent.source;
-      lastSyncedContentRef.current = initialContent.content;
+      const revision = ++syncRevisionRef.current;
       try {
         const blocks = await editor.tryParseMarkdownToBlocks(
           initialContent.content,
         );
-        if (cancelled) return;
+        const baseline = await serializeMarkdown(editor, blocks);
+        if (cancelled || revision !== syncRevisionRef.current) return;
 
+        sourceRef.current = initialContent.source;
+        lastSyncedContentRef.current = initialContent.content;
+        serializedBaselineRef.current = baseline;
         editor.replaceBlocks(editor.document, blocks);
         syncDirtyState(false);
       } catch {
@@ -259,12 +294,15 @@ export function QuickEditorWindow() {
     let cancelled = false;
     const applyLiveContent = async (content: QuickEditorWindowContent) => {
       if (cancelled) return;
-      sourceRef.current = content.source;
-      lastSyncedContentRef.current = content.content;
+      const revision = ++syncRevisionRef.current;
       try {
         const blocks = await editor.tryParseMarkdownToBlocks(content.content);
-        if (cancelled) return;
+        const baseline = await serializeMarkdown(editor, blocks);
+        if (cancelled || revision !== syncRevisionRef.current) return;
 
+        sourceRef.current = content.source;
+        lastSyncedContentRef.current = content.content;
+        serializedBaselineRef.current = baseline;
         editor.replaceBlocks(editor.document, blocks);
         syncDirtyState(false);
       } catch {
@@ -288,7 +326,12 @@ export function QuickEditorWindow() {
     returnInProgressRef.current = true;
 
     try {
-      const content = await serializeMarkdown(editor, editor.document);
+      const serialized = await serializeMarkdown(editor, editor.document);
+      const content = resolveQuickEditorMarkdown(
+        lastSyncedContentRef.current,
+        serializedBaselineRef.current,
+        serialized,
+      );
       window.electronAPI.returnToMainWindowFromQuickEditor({
         content,
         source: sourceRef.current,
