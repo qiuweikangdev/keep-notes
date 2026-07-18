@@ -593,7 +593,7 @@ button:focus-visible {
   background-color: rgba(0, 0, 0, 0.2);
   opacity: 0;
   cursor: default;
-  transition: opacity 700ms ease;
+  transition: opacity 240ms cubic-bezier(0.25, 1, 0.5, 1);
   will-change: opacity, transform;
 }
 
@@ -603,6 +603,12 @@ button:focus-visible {
 
 .file-tree-scroll-shell:hover .file-tree-scrollbar-thumb {
   opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .file-tree-scrollbar-thumb {
+    transition-duration: 0.01ms;
+  }
 }
 
 .dark .file-tree-scrollbar-thumb,

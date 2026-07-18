@@ -7,7 +7,6 @@
   memo,
   startTransition,
   type KeyboardEvent,
-  type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
@@ -37,6 +36,7 @@ import { normalizeRichDocumentPath } from "@/features/editor/lib/rich-document-s
 import { toRichPaneKey } from "@/features/editor/lib/rich-pane-view-state";
 import { useTreeStore } from "@/store/tree.store";
 import { useElectron } from "@/hooks/use-electron";
+import { useOverlayScrollbar } from "@/hooks/use-overlay-scrollbar";
 import { useReminderStore } from "@/store/reminder.store";
 import { useDiffStore } from "@/store/diff.store";
 import { showNoDiffContentToast } from "@/features/diff/lib/diff-toast";
@@ -1103,18 +1103,20 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
   openInNewWindow,
   openCreateReminder,
 }: VirtualizedTreeListProps) {
-  const parentRef = useRef<HTMLDivElement>(null);
-  const scrollbarTrackRef = useRef<HTMLDivElement>(null);
-  const scrollbarThumbRef = useRef<HTMLDivElement>(null);
-  const scrollbarDragStateRef = useRef<{
-    pointerId: number;
-    startThumbOffset: number;
-    startY: number;
-  } | null>(null);
   const rows = useMemo(
     () => buildFileTreeRows(flatNodes, creatingInfo?.parentKey),
     [creatingInfo?.parentKey, flatNodes],
   );
+  const {
+    scrollContainerRef: parentRef,
+    scrollbarTrackRef,
+    scrollbarThumbRef,
+    syncScrollbarThumb,
+    handleScrollbarTrackPointerDown,
+    handleScrollbarThumbPointerDown,
+    handleScrollbarThumbPointerMove,
+    handleScrollbarThumbPointerEnd,
+  } = useOverlayScrollbar(rows.length);
 
   const getItemKey = useCallback(
     (index: number) => rows[index]?.key ?? index,
@@ -1166,124 +1168,6 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
 
     return () => cancelAnimationFrame(frame);
   }, [creatingRowIndex, virtualizer]);
-
-  const getScrollbarMetrics = useCallback(() => {
-    const container = parentRef.current;
-    if (!container) return null;
-
-    const { clientHeight, scrollHeight, scrollTop } = container;
-    const scrollableHeight = scrollHeight - clientHeight;
-    if (scrollableHeight <= 0) return null;
-
-    const thumbHeight = Math.max(
-      24,
-      (clientHeight * clientHeight) / scrollHeight,
-    );
-    const maxThumbOffset = clientHeight - thumbHeight;
-    const thumbOffset = (scrollTop / scrollableHeight) * maxThumbOffset;
-
-    return { maxThumbOffset, scrollableHeight, thumbHeight, thumbOffset };
-  }, []);
-
-  const syncScrollbarThumb = useCallback(() => {
-    const thumb = scrollbarThumbRef.current;
-    const metrics = getScrollbarMetrics();
-    if (!thumb) return;
-    if (!metrics) {
-      thumb.hidden = true;
-      return;
-    }
-
-    // 按内容与视口比例同步覆盖式滚动条，避免滚动事件触发 React 重渲。
-    thumb.hidden = false;
-    thumb.style.height = `${metrics.thumbHeight}px`;
-    thumb.style.transform = `translateY(${metrics.thumbOffset}px)`;
-  }, [getScrollbarMetrics]);
-
-  const scrollToThumbOffset = useCallback(
-    (thumbOffset: number) => {
-      const container = parentRef.current;
-      const metrics = getScrollbarMetrics();
-      if (!container || !metrics) return;
-
-      const boundedOffset = Math.min(
-        Math.max(0, thumbOffset),
-        metrics.maxThumbOffset,
-      );
-      container.scrollTop =
-        (boundedOffset / metrics.maxThumbOffset) * metrics.scrollableHeight;
-      syncScrollbarThumb();
-    },
-    [getScrollbarMetrics, syncScrollbarThumb],
-  );
-
-  const handleScrollbarTrackPointerDown = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      const track = scrollbarTrackRef.current;
-      const metrics = getScrollbarMetrics();
-      if (!track || !metrics) return;
-
-      const trackBounds = track.getBoundingClientRect();
-      scrollToThumbOffset(
-        event.clientY - trackBounds.top - metrics.thumbHeight / 2,
-      );
-    },
-    [getScrollbarMetrics, scrollToThumbOffset],
-  );
-
-  const handleScrollbarThumbPointerDown = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      const metrics = getScrollbarMetrics();
-      if (!metrics) return;
-
-      event.preventDefault();
-      event.stopPropagation();
-      scrollbarDragStateRef.current = {
-        pointerId: event.pointerId,
-        startThumbOffset: metrics.thumbOffset,
-        startY: event.clientY,
-      };
-      event.currentTarget.setPointerCapture?.(event.pointerId);
-    },
-    [getScrollbarMetrics],
-  );
-
-  const handleScrollbarThumbPointerMove = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      const dragState = scrollbarDragStateRef.current;
-      if (!dragState || dragState.pointerId !== event.pointerId) return;
-
-      scrollToThumbOffset(
-        dragState.startThumbOffset + event.clientY - dragState.startY,
-      );
-    },
-    [scrollToThumbOffset],
-  );
-
-  const handleScrollbarThumbPointerEnd = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (scrollbarDragStateRef.current?.pointerId !== event.pointerId) return;
-
-      scrollbarDragStateRef.current = null;
-      event.currentTarget.releasePointerCapture?.(event.pointerId);
-    },
-    [],
-  );
-
-  useEffect(() => {
-    const frame = requestAnimationFrame(syncScrollbarThumb);
-    return () => cancelAnimationFrame(frame);
-  }, [rows.length, syncScrollbarThumb]);
-
-  useEffect(() => {
-    const container = parentRef.current;
-    if (!container || typeof ResizeObserver === "undefined") return;
-
-    const observer = new ResizeObserver(syncScrollbarThumb);
-    observer.observe(container);
-
-    return () => observer.disconnect();
-  }, [syncScrollbarThumb]);
 
   return (
     <div className="file-tree-scroll-shell group relative min-h-0 flex-1">
