@@ -1,3 +1,40 @@
+# [2.15.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.14.0...v2.15.0) (2026-07-19)
+
+
+### Bug Fixes
+
+* harden quick editor collapse state ([8f9bd99](https://github.com/qiuweikangdev/keep-notes/commit/8f9bd9986cf3992a7aa94e50be696ad3315f508e))
+* improve code block Python highlighting ([bb807a7](https://github.com/qiuweikangdev/keep-notes/commit/bb807a72823cfff7eece622a81fc69490cb7b359))
+* keep code fence language separate ([1e8a484](https://github.com/qiuweikangdev/keep-notes/commit/1e8a484c8677226aecd326ae8e20ae643071b848))
+* keep editor file drag highlight visible ([986d117](https://github.com/qiuweikangdev/keep-notes/commit/986d1176532385708d1d53c59689679067d6d666))
+* persist linked floating editor changes ([c40e05d](https://github.com/qiuweikangdev/keep-notes/commit/c40e05d2cb105b3a8b7e2f4729d309325f18d422))
+* preserve diff state when discarding changes ([d541432](https://github.com/qiuweikangdev/keep-notes/commit/d54143253dc37da6807d2e5aac7a05608c5576b3))
+* preserve list markers in floating editor ([d1659c6](https://github.com/qiuweikangdev/keep-notes/commit/d1659c6109c5d3c8c2ab211fb1470113368d0cbc))
+* prevent IME rename confirmation ([9b04a54](https://github.com/qiuweikangdev/keep-notes/commit/9b04a54dabf6a96cea337afcbbb50f3f80910c0f))
+* refresh git status after discarding file changes ([f3c8cbd](https://github.com/qiuweikangdev/keep-notes/commit/f3c8cbd8e33d154dcd5767c95d4a2b43e982fa7e))
+* unify mixed-script code block typography ([565933b](https://github.com/qiuweikangdev/keep-notes/commit/565933bdd93b24ae220ecf96b1c0f36678981e44))
+
+
+### Features
+
+* add hover scrollbar behavior to outline ([8e8487f](https://github.com/qiuweikangdev/keep-notes/commit/8e8487fd9ee2602e1a060b1e99dcf178716da4e5))
+* add quick editor collapse animation ([7f2d584](https://github.com/qiuweikangdev/keep-notes/commit/7f2d58473b9f78c3f65b68bd8630e415530a5b14))
+* add quick editor collapse control ([72db327](https://github.com/qiuweikangdev/keep-notes/commit/72db327996a62fb409be9fbe4e8b061d817d3b69))
+* add recent folder search shortcuts ([f1fc625](https://github.com/qiuweikangdev/keep-notes/commit/f1fc625468de9dc03b2d4bfc83ad854ec018b7e2))
+* expose quick editor collapse controls ([e028ea6](https://github.com/qiuweikangdev/keep-notes/commit/e028ea671f4f5f5b7a31f576a27578f5239251a1))
+* remove desktop notification test control ([5db4167](https://github.com/qiuweikangdev/keep-notes/commit/5db416751f581f89449352314e6c1011300ceeae))
+
+
+### Performance Improvements
+
+* load file tree directories on demand ([e05218e](https://github.com/qiuweikangdev/keep-notes/commit/e05218e95039b84cdb45a0426bd9bc79732eb3b7))
+
+
+## Commit Summary
+
+- Compared with: v2.14.0
+- Total commits: 38
+
 # [2.14.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.13.0...v2.14.0) (2026-07-17)
 
 
