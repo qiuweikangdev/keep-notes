@@ -1,3 +1,21 @@
+# [2.16.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.15.0...v2.16.0) (2026-07-19)
+
+
+### Bug Fixes
+
+* preserve editor scroll during quick editor sync ([30601a8](https://github.com/qiuweikangdev/keep-notes/commit/30601a84dc2bab3015abe09de39dc0d2701b3eff))
+
+
+### Features
+
+* add find and replace to quick editor ([ca7c937](https://github.com/qiuweikangdev/keep-notes/commit/ca7c937d003bc316f4376329d3232f98b645f354))
+
+
+## Commit Summary
+
+- Compared with: v2.15.0
+- Total commits: 2
+
 # [2.15.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.14.0...v2.15.0) (2026-07-19)
 
 
