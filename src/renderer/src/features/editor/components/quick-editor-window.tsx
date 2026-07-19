@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import { BlockNoteView } from "@blocknote/mantine";
 import { useCreateBlockNote, useEditorChange } from "@blocknote/react";
 import type { BlockNoteEditor as CoreBlockNoteEditor } from "@blocknote/core";
@@ -23,10 +30,25 @@ import {
 } from "../lib/editor-image";
 import { EDITOR_EMPTY_PLACEHOLDER } from "../lib/editor-placeholder";
 import {
+  clearEditorFindHighlights,
+  collectEditorFindRanges,
+  renderEditorFindHighlightFallback,
+  selectEditorFindRanges,
+  scrollRangeIntoView,
+} from "../lib/editor-find-highlights";
+import {
+  findTextMatches,
+  getSteppedMatchIndex,
+  replaceAllTextMatches,
+  replaceTextMatch,
+  type FindTextOptions,
+} from "../lib/find-in-file";
+import {
   markdownEquals,
   preserveMarkdownSource,
   serializeMarkdown,
 } from "../lib/markdown";
+import { FindWidget } from "./find-widget";
 
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
@@ -120,10 +142,19 @@ export function QuickEditorWindow() {
   const serializedBaselineRef = useRef<string | null>(null);
   const syncRevisionRef = useRef(0);
   const editorRef = useRef<CoreBlockNoteEditor | null>(null);
+  const isFindOpenRef = useRef(false);
+  const replacementUndoStackRef = useRef<string[]>([]);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isCollapseStateReady, setIsCollapseStateReady] = useState(false);
   const [collapseTarget, setCollapseTarget] = useState<boolean | null>(null);
   const [isCollapseTransitioning, setIsCollapseTransitioning] = useState(false);
+  const [isFindOpen, setIsFindOpen] = useState(false);
+  const [isReplaceOpen, setIsReplaceOpen] = useState(false);
+  const [findContent, setFindContent] = useState("");
+  const [findQuery, setFindQuery] = useState("");
+  const [replacement, setReplacement] = useState("");
+  const [findOptions, setFindOptions] = useState<FindTextOptions>({});
+  const [activeFindIndex, setActiveFindIndex] = useState(-1);
   const handleImageUploadRef = useRef(
     createQuickEditorImageUploader(
       () => editorRef.current,
@@ -136,6 +167,12 @@ export function QuickEditorWindow() {
     uploadFile: handleImageUploadRef.current,
   });
   editorRef.current = editor;
+
+  const rawMatches = useMemo(
+    () =>
+      findQuery ? findTextMatches(findContent, findQuery, findOptions) : [],
+    [findContent, findOptions, findQuery],
+  );
 
   const readCollapsedState = useCallback(async (): Promise<boolean | null> => {
     try {
@@ -166,7 +203,8 @@ export function QuickEditorWindow() {
     const source = sourceRef.current;
     const sourceContent = lastSyncedContentRef.current;
     const baseline = serializedBaselineRef.current;
-    if (!source || sourceContent === null || baseline === null) return;
+    const shouldRefreshFind = isFindOpenRef.current;
+    if (!source && !shouldRefreshFind) return;
 
     const revision = ++syncRevisionRef.current;
     void serializeMarkdown(editor, editor.document).then((serialized) => {
@@ -181,9 +219,11 @@ export function QuickEditorWindow() {
         serialized,
       );
       serializedBaselineRef.current = serialized;
+      lastSyncedContentRef.current = content;
+      if (shouldRefreshFind) setFindContent(content);
+      if (!source || sourceContent === null) return;
       if (markdownEquals(content, sourceContent)) return;
 
-      lastSyncedContentRef.current = content;
       window.electronAPI.syncQuickEditorContent({ content, source });
     });
   }, [editor]);
@@ -196,6 +236,163 @@ export function QuickEditorWindow() {
     );
     syncContentToSource();
   }, editor);
+
+  useEffect(() => {
+    setActiveFindIndex(findQuery && rawMatches.length > 0 ? 0 : -1);
+  }, [
+    findOptions.matchCase,
+    findOptions.useRegex,
+    findOptions.wholeWord,
+    findQuery,
+    rawMatches.length,
+  ]);
+
+  useEffect(() => {
+    setActiveFindIndex((currentIndex) => {
+      if (rawMatches.length === 0) return -1;
+      if (currentIndex < 0) return 0;
+      return Math.min(currentIndex, rawMatches.length - 1);
+    });
+  }, [rawMatches.length]);
+
+  useEffect(() => {
+    if (!isFindOpen || !findQuery) {
+      clearEditorFindHighlights();
+      return;
+    }
+
+    let clearFallbackHighlights = () => undefined;
+    const frame = window.requestAnimationFrame(() => {
+      const root = editor.domElement;
+      if (!root) return;
+      const ranges = collectEditorFindRanges(root, findQuery, findOptions);
+      clearEditorFindHighlights();
+      clearFallbackHighlights = renderEditorFindHighlightFallback(
+        root,
+        ranges,
+        activeFindIndex,
+      );
+      scrollRangeIntoView(ranges[activeFindIndex]);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      clearFallbackHighlights();
+    };
+  }, [
+    activeFindIndex,
+    editor,
+    findContent,
+    findOptions,
+    findQuery,
+    isFindOpen,
+  ]);
+
+  useEffect(
+    () => () => {
+      clearEditorFindHighlights();
+    },
+    [],
+  );
+
+  const openFindWidget = useCallback(() => {
+    isFindOpenRef.current = true;
+    setIsFindOpen(true);
+    // 独立浮窗平时无需持续序列化；打开搜索时再刷新当前 Markdown 快照。
+    syncContentToSource();
+  }, [syncContentToSource]);
+
+  const closeFindWidget = useCallback(() => {
+    isFindOpenRef.current = false;
+    setIsFindOpen(false);
+    clearEditorFindHighlights();
+  }, []);
+
+  const handleKeyDownCapture = useCallback(
+    (event: KeyboardEvent<HTMLDivElement>) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        event.stopPropagation();
+        openFindWidget();
+      }
+    },
+    [openFindWidget],
+  );
+
+  const stepMatch = useCallback(
+    (direction: 1 | -1) => {
+      setActiveFindIndex((currentIndex) =>
+        getSteppedMatchIndex(currentIndex, rawMatches.length, direction),
+      );
+    },
+    [rawMatches.length],
+  );
+
+  const applyFindReplacement = useCallback(
+    async (content: string, shouldPushUndo = true) => {
+      const currentContent = findContent;
+      if (content === currentContent) return;
+      const revision = ++syncRevisionRef.current;
+
+      try {
+        const blocks = await editor.tryParseMarkdownToBlocks(content);
+        const baseline = await serializeMarkdown(editor, blocks);
+        if (revision !== syncRevisionRef.current) return;
+
+        if (shouldPushUndo) {
+          replacementUndoStackRef.current.push(currentContent);
+        }
+        const source = sourceRef.current;
+        lastSyncedContentRef.current = content;
+        serializedBaselineRef.current = baseline;
+        setFindContent(content);
+        editor.replaceBlocks(editor.document, blocks);
+
+        // 替换属于明确编辑，更新基线后主动同步一次，避免初始化保护把它识别为无变化。
+        if (source) {
+          window.electronAPI.syncQuickEditorContent({ content, source });
+        }
+      } catch {
+        // 替换后的 Markdown 无法解析时保留当前内容，避免损坏浮窗草稿。
+      }
+    },
+    [editor, findContent],
+  );
+
+  const replaceCurrentMatch = useCallback(() => {
+    const match = rawMatches[activeFindIndex];
+    if (!match) return;
+    void applyFindReplacement(
+      replaceTextMatch(findContent, match, replacement),
+    );
+  }, [
+    activeFindIndex,
+    applyFindReplacement,
+    findContent,
+    rawMatches,
+    replacement,
+  ]);
+
+  const replaceAllMatches = useCallback(() => {
+    if (rawMatches.length === 0) return;
+    void applyFindReplacement(
+      replaceAllTextMatches(findContent, rawMatches, replacement),
+    );
+  }, [applyFindReplacement, findContent, rawMatches, replacement]);
+
+  const undoLastReplacement = useCallback(() => {
+    const previousContent = replacementUndoStackRef.current.pop();
+    if (previousContent === undefined) return;
+    void applyFindReplacement(previousContent, false);
+  }, [applyFindReplacement]);
+
+  const selectAllMatches = useCallback(() => {
+    if (!findQuery || rawMatches.length === 0) return;
+    const root = editor.domElement;
+    if (!root) return;
+    const ranges = collectEditorFindRanges(root, findQuery, findOptions);
+    selectEditorFindRanges(ranges);
+  }, [editor, findOptions, findQuery, rawMatches.length]);
 
   useEffect(() => {
     const bridgeWindow = window as QuickEditorBridgeWindow;
@@ -271,6 +468,8 @@ export function QuickEditorWindow() {
         sourceRef.current = initialContent.source;
         lastSyncedContentRef.current = initialContent.content;
         serializedBaselineRef.current = baseline;
+        replacementUndoStackRef.current.length = 0;
+        setFindContent(initialContent.content);
         editor.replaceBlocks(editor.document, blocks);
         syncDirtyState(false);
       } catch {
@@ -303,6 +502,8 @@ export function QuickEditorWindow() {
         sourceRef.current = content.source;
         lastSyncedContentRef.current = content.content;
         serializedBaselineRef.current = baseline;
+        replacementUndoStackRef.current.length = 0;
+        setFindContent(content.content);
         editor.replaceBlocks(editor.document, blocks);
         syncDirtyState(false);
       } catch {
@@ -379,6 +580,7 @@ export function QuickEditorWindow() {
       className="quick-editor-window"
       data-collapsed={editorIsHidden ? "true" : "false"}
       data-quick-editor-window="true"
+      onKeyDownCapture={handleKeyDownCapture}
     >
       <header className="quick-editor-window__titlebar">
         <div className="quick-editor-window__actions quick-editor-window__actions--left">
@@ -434,15 +636,36 @@ export function QuickEditorWindow() {
         aria-label="快速编辑器"
         className="quick-editor-window__editor"
       >
-        <BlockNoteView
-          editor={editor}
-          theme={isDark ? "dark" : "light"}
-          spellCheck={false}
-          style={{
-            fontSize: `${appearance.fontSize}px`,
-            lineHeight: appearance.lineHeight,
-          }}
+        <FindWidget
+          isOpen={isFindOpen}
+          isReplaceOpen={isReplaceOpen}
+          query={findQuery}
+          replacement={replacement}
+          activeIndex={activeFindIndex}
+          matchCount={rawMatches.length}
+          options={findOptions}
+          onQueryChange={setFindQuery}
+          onReplacementChange={setReplacement}
+          onStep={stepMatch}
+          onClose={closeFindWidget}
+          onToggleReplace={() => setIsReplaceOpen((current) => !current)}
+          onOptionsChange={setFindOptions}
+          onReplaceCurrent={replaceCurrentMatch}
+          onReplaceAll={replaceAllMatches}
+          onSelectAllMatches={selectAllMatches}
+          onUndoReplace={undoLastReplacement}
         />
+        <div className="quick-editor-window__scroll">
+          <BlockNoteView
+            editor={editor}
+            theme={isDark ? "dark" : "light"}
+            spellCheck={false}
+            style={{
+              fontSize: `${appearance.fontSize}px`,
+              lineHeight: appearance.lineHeight,
+            }}
+          />
+        </div>
       </main>
     </div>
   );

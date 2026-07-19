@@ -42,4 +42,17 @@ describe("quick editor window stylesheet", () => {
     expect(collapsedRule).toMatch(/visibility:\s*hidden;/);
     expect(collapsedRule).toMatch(/pointer-events:\s*none;/);
   });
+
+  it("keeps the find widget fixed above a separately scrollable editor", () => {
+    const editorRule = stylesheet.match(
+      /\.quick-editor-window__editor\s*\{([\s\S]*?)\n\}/,
+    )?.[1];
+    const scrollRule = stylesheet.match(
+      /\.quick-editor-window__scroll\s*\{([\s\S]*?)\n\}/,
+    )?.[1];
+
+    expect(editorRule).toMatch(/position:\s*relative;/);
+    expect(editorRule).toMatch(/overflow:\s*hidden;/);
+    expect(scrollRule).toMatch(/overflow:\s*auto;/);
+  });
 });

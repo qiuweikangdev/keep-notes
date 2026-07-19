@@ -19,6 +19,8 @@ import {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  Reflect.deleteProperty(Range.prototype, "getClientRects");
+  Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
 });
 
 describe("quick editor content detection", () => {
@@ -177,6 +179,82 @@ describe("quick editor content detection", () => {
       await new Promise((resolve) => window.setTimeout(resolve, 50));
     });
     expect(syncQuickEditorContent).not.toHaveBeenCalled();
+  });
+
+  it("opens search from the editor shortcut and replaces the active match", async () => {
+    Object.defineProperty(Range.prototype, "getClientRects", {
+      configurable: true,
+      value: () => [],
+    });
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(),
+    });
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        addEventListener: vi.fn(),
+        addListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+        matches: false,
+        media: query,
+        onchange: null,
+        removeEventListener: vi.fn(),
+        removeListener: vi.fn(),
+      })),
+    );
+    const source = {
+      groupId: "group-1",
+      tabId: "tab-1",
+      filePath: "/notes/readme.md",
+    };
+    const syncQuickEditorContent = vi.fn();
+    vi.stubGlobal("electronAPI", {
+      createQuickEditorWindow: vi.fn(),
+      getQuickEditorCollapsed: vi.fn(async () => false),
+      setQuickEditorCollapsed: vi.fn(async (collapsed: boolean) => collapsed),
+      onQuickEditorInitialContent: vi.fn(
+        (
+          callback: (content: {
+            content: string;
+            source: typeof source;
+          }) => void,
+        ) => {
+          callback({ content: "alpha beta alpha", source });
+          return () => undefined;
+        },
+      ),
+      onQuickEditorContentUpdated: vi.fn(() => () => undefined),
+      closeQuickEditorWindow: vi.fn(),
+      returnToMainWindowFromQuickEditor: vi.fn(),
+      syncQuickEditorContent,
+      updateDirtyState: vi.fn(),
+    });
+
+    render(createElement(QuickEditorWindow));
+
+    const editor = await screen.findByRole("main", { name: "快速编辑器" });
+    fireEvent.keyDown(editor, { key: "f", metaKey: true });
+
+    const searchInput = screen.getByPlaceholderText("查找");
+    await waitFor(() => expect(searchInput).toHaveFocus());
+    fireEvent.change(searchInput, { target: { value: "alpha" } });
+    expect(screen.getByText("1/2")).toBeInTheDocument();
+
+    fireEvent.keyDown(searchInput, { key: "Enter" });
+    expect(screen.getByText("2/2")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "展开替换" }));
+    fireEvent.change(screen.getByPlaceholderText("替换"), {
+      target: { value: "omega" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "替换当前匹配" }));
+
+    await waitFor(() => {
+      expect(syncQuickEditorContent).toHaveBeenCalledWith({
+        content: "alpha beta omega",
+        source,
+      });
+    });
   });
 
   it("applies live source-tab updates without returning to the application", async () => {

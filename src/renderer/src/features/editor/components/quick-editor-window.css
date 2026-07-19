@@ -80,10 +80,16 @@
 }
 
 .quick-editor-window__editor {
+  position: relative;
   min-height: 0;
   flex: 1;
-  overflow: auto;
+  overflow: hidden;
   background: var(--bg-primary);
+}
+
+.quick-editor-window__scroll {
+  height: 100%;
+  overflow: auto;
 }
 
 .quick-editor-window[data-collapsed="true"] .quick-editor-window__editor {
@@ -91,7 +97,7 @@
   pointer-events: none;
 }
 
-.quick-editor-window__editor > .bn-container,
+.quick-editor-window__scroll > .bn-container,
 .quick-editor-window__editor .bn-mantine {
   min-height: 100%;
   background: transparent !important;
