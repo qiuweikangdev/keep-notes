@@ -43,6 +43,7 @@ interface RestoredScrollTopOptions {
   nextPath: string | null;
   currentScrollTop: number;
   cachedScrollTop: number | null | undefined;
+  preserveCurrentScroll?: boolean;
 }
 
 interface CapturedEditorViewportOptions {
@@ -50,6 +51,37 @@ interface CapturedEditorViewportOptions {
   now: number;
   pending: EditorViewportSnapshot | null;
   suppressUntil: number;
+}
+
+const viewportPreservationVersions = new Map<string, number>();
+
+function normalizeViewportPath(path: string): string {
+  return path.replaceAll("\\", "/");
+}
+
+export function requestEditorViewportPreservation(path: string): number {
+  const normalizedPath = normalizeViewportPath(path);
+  const version = (viewportPreservationVersions.get(normalizedPath) ?? 0) + 1;
+  viewportPreservationVersions.set(normalizedPath, version);
+  return version;
+}
+
+export function readEditorViewportPreservation(
+  path: string | null,
+): number | null {
+  if (!path) return null;
+  return viewportPreservationVersions.get(normalizeViewportPath(path)) ?? null;
+}
+
+export function completeEditorViewportPreservation(
+  path: string | null,
+  version: number,
+): void {
+  if (!path) return;
+  const normalizedPath = normalizeViewportPath(path);
+  if (viewportPreservationVersions.get(normalizedPath) === version) {
+    viewportPreservationVersions.delete(normalizedPath);
+  }
 }
 
 export function readEditorScrollTop(element: EditorScrollHost | null): number {
@@ -68,8 +100,13 @@ export function chooseCapturedEditorViewport({
 }
 
 export function chooseRestoredEditorScrollTop(
-  _options: RestoredScrollTopOptions,
+  options: RestoredScrollTopOptions,
 ): number {
+  if (options.preserveCurrentScroll) {
+    return Number.isFinite(options.currentScrollTop)
+      ? Math.max(0, options.currentScrollTop)
+      : 0;
+  }
   // 文件加载和刷新都从顶部开始，避免跨文件或历史会话恢复旧滚动位置。
   return 0;
 }

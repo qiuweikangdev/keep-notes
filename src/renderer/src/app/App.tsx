@@ -20,6 +20,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { showAppToast } from "@/lib/app-toast";
 import { QuickEditorWindow } from "@/features/editor/components/quick-editor-window";
 import { editorFindController } from "@/features/editor/lib/editor-find-controller";
+import { requestEditorViewportPreservation } from "@/features/editor/lib/editor-viewport";
 import type { QuickEditorWindowContent } from "@shared/types";
 
 const CODE_BLOCK_CURSOR_VISUAL_WIDTH = 2;
@@ -61,6 +62,10 @@ function restoreQuickEditorSource(content: QuickEditorWindowContent): void {
 
   // 优先恢复原始标签；标签已移动或重建时，再通过文件路径定位同一文档。
   if (target.tab.content !== content.content) {
+    if (target.tab.mode === "rich" && target.tab.filePath) {
+      // 浮窗实时同步只替换正文，不应把关联富文本面板视为一次用户触发的刷新。
+      requestEditorViewportPreservation(target.tab.filePath);
+    }
     state.setTabContent(target.groupId, target.tab.id, content.content);
     if (target.tab.filePath) {
       state.syncFileContent(

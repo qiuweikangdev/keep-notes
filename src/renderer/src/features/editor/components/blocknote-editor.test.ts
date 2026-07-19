@@ -25,6 +25,7 @@ import {
   editorSaveCoordinator,
   richPaneViewStateRegistry,
 } from "../lib/editor-runtime";
+import { requestEditorViewportPreservation } from "../lib/editor-viewport";
 import { RichPreviewCache } from "../lib/rich-preview-cache";
 import {
   BlockNoteEditor,
@@ -1107,6 +1108,38 @@ describe("BlockNoteEditor persistent session runtime", () => {
     });
 
     expect(scrollContainer.scrollTop).toBe(360);
+    session.view.unmount();
+  });
+
+  it("preserves the live editor scroll position during a floating-editor reload", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/floating-editor-reload.md";
+    setupSessionTab(path);
+    const session = renderRealSession(path);
+
+    await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    const scrollContainer = session.view.container.querySelector<HTMLElement>(
+      ".editor-rich-scroll",
+    )!;
+    scrollContainer.scrollTop = 360;
+    requestEditorViewportPreservation(path);
+
+    session.view.rerender(
+      createElement(BlockNoteEditor, {
+        content: "# Updated from floating editor",
+        controller: session.controller,
+        reloadKey: 1,
+        surface: session.surface,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(session.runtime.current?.editor.document[0].content).toEqual([
+        expect.objectContaining({ text: "Updated from floating editor" }),
+      ]);
+      expect(scrollContainer.scrollTop).toBe(360);
+    });
     session.view.unmount();
   });
 

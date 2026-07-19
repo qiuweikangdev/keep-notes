@@ -81,7 +81,9 @@ import { EDITOR_EMPTY_PLACEHOLDER } from "../lib/editor-placeholder";
 import {
   chooseCapturedEditorViewport,
   chooseRestoredEditorScrollTop,
+  completeEditorViewportPreservation,
   readEditorViewportAnchor,
+  readEditorViewportPreservation,
   readEditorScrollTop,
   resolveEditorViewportTargetOffset,
   restoreEditorScrollTop,
@@ -1637,6 +1639,7 @@ function MountedBlockNoteEditor({
     const scrollContainer = scrollContainerRef.current;
     if (!scrollContainer) return;
 
+    if (readEditorViewportPreservation(path) !== null) return;
     // 文件切换或重载开始时立即回到顶部，不等待 Markdown 解析和 BlockNote 替换完成。
     scrollContainer.scrollTop = 0;
   }, [path, reloadKey]);
@@ -1805,6 +1808,7 @@ function MountedBlockNoteEditor({
   useEffect(() => {
     lifecycleActiveRef.current = true;
     const applyToken = ++applyTokenRef.current;
+    const viewportPreservationVersion = readEditorViewportPreservation(path);
     baselineSerializationRef.current = null;
     cacheAppliedDocument();
     suppressChangeRef.current = true;
@@ -1852,6 +1856,7 @@ function MountedBlockNoteEditor({
           nextPath: path,
           currentScrollTop,
           cachedScrollTop: undefined,
+          preserveCurrentScroll: viewportPreservationVersion !== null,
         });
         serializedBaselineRef.current = cached?.serializedBaseline ?? null;
         if (path) {
@@ -1916,6 +1921,12 @@ function MountedBlockNoteEditor({
         controllerRef.current.onParseStateChange(fallback.message);
       } finally {
         if (applyToken === applyTokenRef.current) {
+          if (viewportPreservationVersion !== null) {
+            completeEditorViewportPreservation(
+              path,
+              viewportPreservationVersion,
+            );
+          }
           queueMicrotask(() => {
             suppressChangeRef.current = false;
           });

@@ -10,6 +10,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useReminderStore } from "@/store/reminder.store";
 import type { Reminder } from "@/types";
 import { editorFindController } from "@/features/editor/lib/editor-find-controller";
+import {
+  completeEditorViewportPreservation,
+  readEditorViewportPreservation,
+} from "@/features/editor/lib/editor-viewport";
 
 let menuActionHandler: ((action: string) => void) | null = null;
 type EditorStoreSnapshot = {
@@ -333,6 +337,15 @@ describe("App shortcuts", () => {
   });
 
   beforeEach(() => {
+    const viewportVersion = readEditorViewportPreservation(
+      "/workspace/notes/today.md",
+    );
+    if (viewportVersion !== null) {
+      completeEditorViewportPreservation(
+        "/workspace/notes/today.md",
+        viewportVersion,
+      );
+    }
     menuActionHandler = null;
     appMocks.subscribe.mockClear();
     appMocks.openQuickEditorDraft.mockClear();
@@ -484,6 +497,9 @@ describe("App shortcuts", () => {
         "# Live floating update",
       );
     });
+    expect(
+      readEditorViewportPreservation("/workspace/notes/today.md"),
+    ).not.toBeNull();
   });
 
   it("pushes source-tab edits to the associated floating editor", () => {

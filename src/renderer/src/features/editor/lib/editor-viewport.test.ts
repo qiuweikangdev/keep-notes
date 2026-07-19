@@ -3,8 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 import {
   chooseCapturedEditorViewport,
   chooseRestoredEditorScrollTop,
+  completeEditorViewportPreservation,
+  readEditorViewportPreservation,
   readEditorViewportAnchor,
   readEditorScrollTop,
+  requestEditorViewportPreservation,
   restoreEditorScrollTop,
   resolveEditorViewportTargetOffset,
   scheduleStableEditorBlockScroll,
@@ -50,6 +53,29 @@ describe("editor viewport", () => {
         cachedScrollTop: 88,
       }),
     ).toBe(0);
+  });
+
+  it("preserves the current scroll offset for a requested live reload", () => {
+    expect(
+      chooseRestoredEditorScrollTop({
+        currentPath: "a.md",
+        nextPath: "a.md",
+        currentScrollTop: 420,
+        cachedScrollTop: null,
+        preserveCurrentScroll: true,
+      }),
+    ).toBe(420);
+  });
+
+  it("keeps a newer viewport preservation request pending", () => {
+    const firstVersion = requestEditorViewportPreservation("C:\\notes\\a.md");
+    const secondVersion = requestEditorViewportPreservation("C:/notes/a.md");
+
+    completeEditorViewportPreservation("C:/notes/a.md", firstVersion);
+    expect(readEditorViewportPreservation("C:/notes/a.md")).toBe(secondVersion);
+
+    completeEditorViewportPreservation("C:/notes/a.md", secondVersion);
+    expect(readEditorViewportPreservation("C:/notes/a.md")).toBeNull();
   });
 
   it("keeps the requested viewport while a pane restore is still settling", () => {
