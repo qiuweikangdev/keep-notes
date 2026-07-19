@@ -74,6 +74,7 @@ function HomePageContent() {
   const { loadTree, openFile } = electron;
   const repositoryRoot = useTreeStore((state) => state.treeRoot?.key ?? null);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
+  const confirmDiscardOpenRef = useRef(false);
   const [toast, setToast] = useState<{
     message: string;
     variant: AppToastVariant;
@@ -160,7 +161,19 @@ function HomePageContent() {
   };
 
   const handleRequestDiscard = useCallback(() => {
+    confirmDiscardOpenRef.current = true;
     setConfirmDiscardOpen(true);
+  }, []);
+
+  const handleDiffClose = useCallback(() => {
+    // 确认框通过 Portal 打开时会被外层 Dialog 识别为外部交互，此时不能清空差异状态。
+    if (confirmDiscardOpenRef.current) return;
+    closeDiff();
+  }, [closeDiff]);
+
+  const handleConfirmDiscardOpenChange = useCallback((open: boolean) => {
+    confirmDiscardOpenRef.current = open;
+    setConfirmDiscardOpen(open);
   }, []);
 
   const handleConfirmDiscard = async () => {
@@ -171,9 +184,17 @@ function HomePageContent() {
     }
 
     if (!filePath || !repositoryRoot) return;
-    const result = await discardFileChanges(repositoryRoot, filePath, electron);
+    // 弹窗中已展示了明确差异，确认后直接执行，避免再次读取瞬时 Git 状态造成误判。
+    const result = await discardFileChanges(
+      repositoryRoot,
+      filePath,
+      electron,
+      {
+        skipChangeCheck: true,
+      },
+    );
     if (!result.success) {
-      showToastMessage(DIFF_NO_CHANGES_MESSAGE);
+      showToastMessage("放弃更改失败", "error");
       return;
     }
 
@@ -276,7 +297,7 @@ function HomePageContent() {
 
       <DiffDialog
         isOpen={isOpen}
-        onClose={closeDiff}
+        onClose={handleDiffClose}
         contentRef={contentRef}
         dragHandleProps={dragHandleProps}
         resizeHandleProps={resizeHandleProps}
@@ -293,7 +314,7 @@ function HomePageContent() {
 
       <ConfirmDialog
         open={confirmDiscardOpen}
-        onOpenChange={setConfirmDiscardOpen}
+        onOpenChange={handleConfirmDiscardOpenChange}
         title="确认放弃更改"
         description={`确定要放弃 "${fileName || "当前文件"}" 的更改吗？`}
         variant="warning"

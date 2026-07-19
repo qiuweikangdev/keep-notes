@@ -394,12 +394,13 @@ describe("EditorCodeBlock", () => {
 
   it("exposes stable selectors for code block styling", async () => {
     const user = userEvent.setup();
-    renderCodeBlock("javascript");
+    renderCodeBlock("text");
 
     const code = screen.getByTestId("editor-code-block-content");
     const shell = code.closest(".editor-code-block-shell");
 
     expect(shell).toBeInTheDocument();
+    expect(shell).toHaveAttribute("data-language", "text");
     expect(
       shell?.querySelector(".editor-code-block-language-trigger"),
     ).toBeInTheDocument();
@@ -420,6 +421,50 @@ describe("EditorCodeBlock", () => {
       shell?.querySelector(".editor-code-block-language-popover"),
     ).toBeInTheDocument();
   });
+
+  it.each([
+    ["text", "400"],
+    ["bash", "400"],
+    ["javascript", "600"],
+  ])("renders %s code content with font weight %s", (language, fontWeight) => {
+    renderCodeBlock(language);
+
+    const content = getCodeMirrorContent();
+
+    expect(content).not.toBeNull();
+    expect(getComputedStyle(content as Element).fontWeight).toBe(fontWeight);
+  });
+
+  it("keeps the default CodeMirror text color for plain code", () => {
+    renderCodeBlock("text");
+    const plainColor = getComputedStyle(
+      getCodeMirrorContent() as Element,
+    ).color;
+
+    cleanup();
+    renderCodeBlock("javascript");
+
+    expect(plainColor).toBe(
+      getComputedStyle(getCodeMirrorContent() as Element).color,
+    );
+  });
+
+  it.each(["text", "bash"])(
+    "uses one mixed-script font family for %s content",
+    (language) => {
+      renderCodeBlock(language);
+
+      const fontFamily = getComputedStyle(
+        screen
+          .getByTestId("editor-code-block-codemirror")
+          .querySelector(".cm-scroller") as Element,
+      ).fontFamily;
+
+      expect(fontFamily).toContain('"PingFang SC"');
+      expect(fontFamily).toContain('"Microsoft YaHei UI"');
+      expect(fontFamily).not.toContain('"SF Mono"');
+    },
+  );
 
   it("renders CodeMirror while keeping the BlockNote content host", async () => {
     renderCodeBlock("json");

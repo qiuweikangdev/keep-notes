@@ -83,7 +83,7 @@ async function createItem(
     const newItem = {
       title: isFolder ? title : `${title}.md`,
       key: newPath,
-      ...(isFolder ? { children: [] } : {}),
+      ...(isFolder ? { children: [], isLoaded: false } : {}),
     };
 
     if (targetNode) {
@@ -245,15 +245,22 @@ export async function moveFileOrFolder(
 
     await fsPromises.rename(sourcePath, newPath);
 
+    const sourceNode = findNodeByKey(treeData, sourcePath);
     const treeDataResult = deleteTreeNode(treeData, sourcePath);
     const targetNode = findNodeByKey(treeDataResult, newTargetPath);
 
     if (targetNode) {
       if (!targetNode.children) targetNode.children = [];
-      targetNode.children.push({
-        key: newPath,
-        title: basename(newPath),
-      });
+      const movedNode = sourceNode ?? {
+        key: sourcePath,
+        title: basename(sourcePath),
+        ...(isFile ? {} : { children: [], isLoaded: false }),
+      };
+      // 已加载目录移动后继续复用子树，并同步所有后代路径，避免暂时退化成文件节点。
+      updateFilePaths(movedNode, newPath);
+      movedNode.key = newPath;
+      movedNode.title = basename(newPath);
+      targetNode.children.push(movedNode);
     }
 
     const newTreeData = await treeDataSort(treeDataResult);

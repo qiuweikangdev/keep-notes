@@ -20,7 +20,16 @@ interface SearchResult {
   subtitle: string;
 }
 
-const RECENT_RESULT_LIMIT = 10;
+interface SearchResultGroup {
+  label: "文件" | "目录";
+  results: SearchResult[];
+}
+
+type SearchDisplayItem =
+  | { type: "heading"; key: string; label: SearchResultGroup["label"] }
+  | { type: "result"; result: SearchResult; resultIndex: number };
+
+const RECENT_GROUP_LIMIT = 5;
 const SEARCHABLE_EXTENSIONS = new Set([".md", ".txt"]);
 
 function getFileExtension(title: string): string {
@@ -92,7 +101,7 @@ function getRecentOpenedFiles(
     seen.add(filePath);
     recentFiles.push(file);
 
-    if (recentFiles.length >= RECENT_RESULT_LIMIT) break;
+    if (recentFiles.length >= RECENT_GROUP_LIMIT) break;
   }
 
   return recentFiles;
@@ -124,6 +133,18 @@ function createFileResult(file: TreeNode, rootPath?: string): SearchResult {
   };
 }
 
+function createFolderResult(folder: {
+  title: string;
+  path: string;
+}): SearchResult {
+  return {
+    kind: "folder",
+    key: folder.path,
+    title: folder.title,
+    subtitle: folder.path,
+  };
+}
+
 export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -140,8 +161,14 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
     (state) => state.recentOpenedFilePaths,
   );
   const setSidebarView = useEditorStore((state) => state.setSidebarView);
-  const { loadTree, openFile } = useElectron();
+  const { loadTree, openFile, ensureFullTreeLoaded } = useElectron();
   const hasWorkspace = Boolean(treeRoot);
+
+  useEffect(() => {
+    if (!isOpen || !treeRoot) return;
+    // 完整文件目录只在用户打开搜索时后台建立，不阻塞工作区和文件打开。
+    void ensureFullTreeLoaded();
+  }, [ensureFullTreeLoaded, isOpen, treeRoot]);
 
   const searchableFiles = useMemo(
     () => collectSearchableFiles(treeData),
@@ -157,33 +184,29 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
     [panelGroups, recentOpenedFilePaths, selectedKey],
   );
 
-  const results = useMemo<SearchResult[]>(() => {
-    const normalizedQuery = query.trim().toLowerCase();
+  const normalizedQuery = query.trim().toLowerCase();
+  const hasQuery = normalizedQuery.length > 0;
 
-    if (!hasWorkspace) {
-      return recentFolders
-        .filter((folder) => {
-          if (!normalizedQuery) return true;
-          return (
-            folder.title.toLowerCase().includes(normalizedQuery) ||
-            folder.path.toLowerCase().includes(normalizedQuery)
-          );
-        })
-        .slice(0, RECENT_RESULT_LIMIT)
-        .map((folder) => ({
-          kind: "folder",
-          key: folder.path,
-          title: folder.title,
-          subtitle: folder.path,
-        }));
-    }
+  const recentFileResults = useMemo(
+    () =>
+      hasWorkspace
+        ? getRecentOpenedFiles(searchableFiles, defaultCandidateFilePaths).map(
+            (file) => createFileResult(file, treeRoot?.key),
+          )
+        : [],
+    [defaultCandidateFilePaths, hasWorkspace, searchableFiles, treeRoot?.key],
+  );
 
-    if (!normalizedQuery) {
-      return getRecentOpenedFiles(
-        searchableFiles,
-        defaultCandidateFilePaths,
-      ).map((file) => createFileResult(file, treeRoot?.key));
-    }
+  const recentFolderResults = useMemo(
+    () =>
+      recentFolders
+        .slice(0, RECENT_GROUP_LIMIT)
+        .map((folder) => createFolderResult(folder)),
+    [recentFolders],
+  );
+
+  const searchedFileResults = useMemo(() => {
+    if (!hasWorkspace || !normalizedQuery) return [];
 
     return searchableFiles
       .filter((file) => {
@@ -194,14 +217,46 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
         );
       })
       .map((file) => createFileResult(file, treeRoot?.key));
-  }, [
-    defaultCandidateFilePaths,
-    hasWorkspace,
-    query,
-    recentFolders,
-    searchableFiles,
-    treeRoot?.key,
-  ]);
+  }, [hasWorkspace, normalizedQuery, searchableFiles, treeRoot?.key]);
+
+  const resultGroups = useMemo<SearchResultGroup[]>(() => {
+    if (hasQuery) {
+      return searchedFileResults.length > 0
+        ? [{ label: "文件", results: searchedFileResults }]
+        : [];
+    }
+
+    const groups: SearchResultGroup[] = [];
+    if (recentFileResults.length > 0) {
+      groups.push({ label: "文件", results: recentFileResults });
+    }
+    if (recentFolderResults.length > 0) {
+      groups.push({ label: "目录", results: recentFolderResults });
+    }
+    return groups;
+  }, [hasQuery, recentFileResults, recentFolderResults, searchedFileResults]);
+
+  const results = useMemo(
+    () => resultGroups.flatMap((group) => group.results),
+    [resultGroups],
+  );
+
+  const displayItems = useMemo<SearchDisplayItem[]>(() => {
+    let resultIndex = 0;
+
+    return resultGroups.flatMap((group) => [
+      {
+        type: "heading" as const,
+        key: `heading-${group.label}`,
+        label: group.label,
+      },
+      ...group.results.map((result) => ({
+        type: "result" as const,
+        result,
+        resultIndex: resultIndex++,
+      })),
+    ]);
+  }, [resultGroups]);
 
   const openSelectedResult = useCallback(
     (result: SearchResult) => {
@@ -305,9 +360,6 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
 
   if (!isOpen) return null;
 
-  const hasQuery = query.trim().length > 0;
-  const resultTypeLabel = hasWorkspace ? "文件" : "目录";
-
   return createPortal(
     <div className="pointer-events-none fixed inset-x-0 top-0 z-50 flex items-start justify-center pt-[12vh]">
       <div
@@ -328,7 +380,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
             }
             aria-controls="search-results"
             className="h-full min-w-0 flex-1 appearance-none border-0 bg-transparent p-0 text-sm text-[var(--text-primary)] shadow-none outline-none ring-0 placeholder:text-[var(--text-muted)] focus:border-0 focus:border-transparent focus:outline-none focus:ring-0"
-            placeholder={`搜索${resultTypeLabel}`}
+            placeholder="搜索文件"
             role="searchbox"
             style={{ border: 0, boxShadow: "none" }}
             type="text"
@@ -350,26 +402,35 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
           ) : null}
         </div>
 
-        <div className="px-3 pb-1 pt-0 text-xs text-[var(--text-muted)]">
-          {resultTypeLabel}
-        </div>
-
         {results.length > 0 ? (
           <div
             id="search-results"
-            aria-label={hasQuery ? "搜索结果" : `最近打开${resultTypeLabel}`}
-            className="max-h-[320px] overflow-y-auto px-1.5 pb-2"
+            aria-label={hasQuery ? "搜索结果" : "最近打开项目"}
+            className="max-h-[376px] overflow-y-auto px-1.5 pb-2"
             role="listbox"
           >
-            {results.map((result, index) => {
-              const selected = index === selectedIndex;
+            {displayItems.map((item) => {
+              if (item.type === "heading") {
+                return (
+                  <div
+                    key={item.key}
+                    className="px-2 pb-1 pt-1 text-xs text-[var(--text-muted)]"
+                    role="presentation"
+                  >
+                    {item.label}
+                  </div>
+                );
+              }
+
+              const { result, resultIndex } = item;
+              const selected = resultIndex === selectedIndex;
 
               return (
                 <button
-                  id={`search-result-${index}`}
-                  key={result.key}
+                  id={`search-result-${resultIndex}`}
+                  key={`${result.kind}-${result.key}`}
                   ref={(element) => {
-                    resultRefs.current[index] = element;
+                    resultRefs.current[resultIndex] = element;
                   }}
                   aria-selected={selected}
                   className={`flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm transition-colors ${
@@ -406,9 +467,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
           </div>
         ) : (
           <div className="px-4 pb-5 pt-2 text-[13px] text-[var(--text-muted)]">
-            {hasQuery
-              ? `没有找到匹配${resultTypeLabel}`
-              : `暂无最近打开${resultTypeLabel}`}
+            {hasQuery ? "没有找到匹配文件" : "暂无最近打开的文件或目录"}
           </div>
         )}
       </div>

@@ -7,7 +7,6 @@
   memo,
   startTransition,
   type KeyboardEvent,
-  type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
@@ -29,6 +28,7 @@ import {
   GitCompare,
   BellPlus,
   FileOutput,
+  LoaderCircle,
 } from "lucide-react";
 import { useEditorStore } from "@/store/editor.store";
 import { OutlinePanel } from "./outline-panel";
@@ -37,6 +37,8 @@ import { normalizeRichDocumentPath } from "@/features/editor/lib/rich-document-s
 import { toRichPaneKey } from "@/features/editor/lib/rich-pane-view-state";
 import { useTreeStore } from "@/store/tree.store";
 import { useElectron } from "@/hooks/use-electron";
+import { useOverlayScrollbar } from "@/hooks/use-overlay-scrollbar";
+import { getTreePathDirectories } from "@/features/file-tree/tree-data";
 import { useReminderStore } from "@/store/reminder.store";
 import { useDiffStore } from "@/store/diff.store";
 import { showNoDiffContentToast } from "@/features/diff/lib/diff-toast";
@@ -118,6 +120,8 @@ export function FileTree() {
     copyPath,
     openInNewWindow,
     moveItem,
+    loadDirectory,
+    ensureFullTreeLoaded,
   } = useElectron();
 
   const appearance = useEditorStore((s) => s.appearance);
@@ -227,12 +231,29 @@ export function FileTree() {
   );
 
   const revealTreeNode = useCallback(
-    (revealKey: string, align: "auto" | "center" = "center") => {
+    async (revealKey: string, align: "auto" | "center" = "center") => {
       if (!treeRootKey || revealKey === treeRootKey) {
         return false;
       }
 
-      const targetNode = findNodeByKey(treeData, revealKey);
+      // 文件内容读取与树定位互不等待；树定位只逐层补齐尚未读取的祖先目录。
+      for (const directoryPath of getTreePathDirectories(
+        treeRootKey,
+        revealKey,
+      )) {
+        const directoryNode = findNodeByKey(
+          useTreeStore.getState().treeData,
+          directoryPath,
+        );
+        if (!directoryNode?.children) return false;
+        if (directoryNode.isLoaded === false) {
+          const didLoad = await loadDirectory(directoryPath);
+          if (!didLoad) return false;
+        }
+      }
+
+      const latestTreeData = useTreeStore.getState().treeData;
+      const targetNode = findNodeByKey(latestTreeData, revealKey);
       if (!targetNode) {
         return false;
       }
@@ -243,7 +264,7 @@ export function FileTree() {
       // 定位外部打开的文件时，先展开根节点和所有祖先目录，确保虚拟列表能渲染目标行。
       for (const key of [
         treeRootKey,
-        ...findAncestorKeys(treeData, revealKey),
+        ...findAncestorKeys(latestTreeData, revealKey),
       ]) {
         if (!nextExpandedKeys.has(key)) {
           nextExpandedKeys.add(key);
@@ -262,7 +283,7 @@ export function FileTree() {
       });
       return true;
     },
-    [setExpandedKeys, treeData, treeRootKey],
+    [loadDirectory, setExpandedKeys, treeRootKey],
   );
 
   useEffect(() => {
@@ -314,11 +335,6 @@ export function FileTree() {
       return;
     }
 
-    const targetNode = findNodeByKey(treeData, revealKey);
-    if (!targetNode) {
-      return;
-    }
-
     if (
       activeFilePath &&
       selectedKey !== activeFilePath &&
@@ -334,7 +350,6 @@ export function FileTree() {
     selectedKey,
     setSelectedKey,
     sidebarView,
-    treeData,
     treeRootKey,
   ]);
 
@@ -348,9 +363,9 @@ export function FileTree() {
       return;
     }
 
-    if (revealTreeNode(selectedKey, "center")) {
-      lastSelectedRevealKeyRef.current = selectedKey;
-    }
+    void revealTreeNode(selectedKey, "center").then((didReveal) => {
+      if (didReveal) lastSelectedRevealKeyRef.current = selectedKey;
+    });
   }, [revealTreeNode, selectedKey, sidebarView, treeRootKey]);
 
   const doRootCreate = useCallback(async () => {
@@ -422,8 +437,11 @@ export function FileTree() {
     setShowSearch((value) => !value);
     if (showSearch) {
       setSearchQuery("");
+    } else {
+      // 文件搜索显式触发完整目录索引，工作区首次打开仍保持浅层读取。
+      void ensureFullTreeLoaded();
     }
-  }, [showSearch]);
+  }, [ensureFullTreeLoaded, showSearch]);
 
   // 根节点拖拽处理
   const isTreeFileDrag = useCallback((e: React.DragEvent) => {
@@ -560,14 +578,20 @@ export function FileTree() {
           id: ++revealRequestIdRef.current,
           align: "auto",
         });
+        const isExpanding = !useTreeStore
+          .getState()
+          .expandedKeys.has(flatNode.key);
         toggleExpandedKey(flatNode.key);
+        if (isExpanding && flatNode.isLoaded === false) {
+          void loadDirectory(flatNode.key);
+        }
       } else if (flatNode.title.endsWith(".md")) {
         // 调用标题栏的 addToHistory
         window.__addFileToHistory?.(flatNode.key);
         void openFile(flatNode.key);
       }
     },
-    [setSelectedKey, toggleExpandedKey, openFile],
+    [loadDirectory, setSelectedKey, toggleExpandedKey, openFile],
   );
 
   // 处理创建
@@ -576,6 +600,13 @@ export function FileTree() {
       if (!parentKey) {
         setCreatingInfo(null);
       } else {
+        const parentNode = findNodeByKey(
+          useTreeStore.getState().treeData,
+          parentKey,
+        );
+        if (parentNode?.isLoaded === false) {
+          void loadDirectory(parentKey);
+        }
         // 使用 startTransition 批量更新状态，避免多次渲染导致闪烁
         startTransition(() => {
           // 先展开文件夹（直接从 store 获取最新的 expandedKeys）
@@ -588,7 +619,7 @@ export function FileTree() {
         });
       }
     },
-    [toggleExpandedKey],
+    [loadDirectory, toggleExpandedKey],
   );
 
   // 触发删除确认对话框
@@ -1103,18 +1134,20 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
   openInNewWindow,
   openCreateReminder,
 }: VirtualizedTreeListProps) {
-  const parentRef = useRef<HTMLDivElement>(null);
-  const scrollbarTrackRef = useRef<HTMLDivElement>(null);
-  const scrollbarThumbRef = useRef<HTMLDivElement>(null);
-  const scrollbarDragStateRef = useRef<{
-    pointerId: number;
-    startThumbOffset: number;
-    startY: number;
-  } | null>(null);
   const rows = useMemo(
     () => buildFileTreeRows(flatNodes, creatingInfo?.parentKey),
     [creatingInfo?.parentKey, flatNodes],
   );
+  const {
+    scrollContainerRef: parentRef,
+    scrollbarTrackRef,
+    scrollbarThumbRef,
+    syncScrollbarThumb,
+    handleScrollbarTrackPointerDown,
+    handleScrollbarThumbPointerDown,
+    handleScrollbarThumbPointerMove,
+    handleScrollbarThumbPointerEnd,
+  } = useOverlayScrollbar(rows.length);
 
   const getItemKey = useCallback(
     (index: number) => rows[index]?.key ?? index,
@@ -1166,124 +1199,6 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
 
     return () => cancelAnimationFrame(frame);
   }, [creatingRowIndex, virtualizer]);
-
-  const getScrollbarMetrics = useCallback(() => {
-    const container = parentRef.current;
-    if (!container) return null;
-
-    const { clientHeight, scrollHeight, scrollTop } = container;
-    const scrollableHeight = scrollHeight - clientHeight;
-    if (scrollableHeight <= 0) return null;
-
-    const thumbHeight = Math.max(
-      24,
-      (clientHeight * clientHeight) / scrollHeight,
-    );
-    const maxThumbOffset = clientHeight - thumbHeight;
-    const thumbOffset = (scrollTop / scrollableHeight) * maxThumbOffset;
-
-    return { maxThumbOffset, scrollableHeight, thumbHeight, thumbOffset };
-  }, []);
-
-  const syncScrollbarThumb = useCallback(() => {
-    const thumb = scrollbarThumbRef.current;
-    const metrics = getScrollbarMetrics();
-    if (!thumb) return;
-    if (!metrics) {
-      thumb.hidden = true;
-      return;
-    }
-
-    // 按内容与视口比例同步覆盖式滚动条，避免滚动事件触发 React 重渲。
-    thumb.hidden = false;
-    thumb.style.height = `${metrics.thumbHeight}px`;
-    thumb.style.transform = `translateY(${metrics.thumbOffset}px)`;
-  }, [getScrollbarMetrics]);
-
-  const scrollToThumbOffset = useCallback(
-    (thumbOffset: number) => {
-      const container = parentRef.current;
-      const metrics = getScrollbarMetrics();
-      if (!container || !metrics) return;
-
-      const boundedOffset = Math.min(
-        Math.max(0, thumbOffset),
-        metrics.maxThumbOffset,
-      );
-      container.scrollTop =
-        (boundedOffset / metrics.maxThumbOffset) * metrics.scrollableHeight;
-      syncScrollbarThumb();
-    },
-    [getScrollbarMetrics, syncScrollbarThumb],
-  );
-
-  const handleScrollbarTrackPointerDown = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      const track = scrollbarTrackRef.current;
-      const metrics = getScrollbarMetrics();
-      if (!track || !metrics) return;
-
-      const trackBounds = track.getBoundingClientRect();
-      scrollToThumbOffset(
-        event.clientY - trackBounds.top - metrics.thumbHeight / 2,
-      );
-    },
-    [getScrollbarMetrics, scrollToThumbOffset],
-  );
-
-  const handleScrollbarThumbPointerDown = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      const metrics = getScrollbarMetrics();
-      if (!metrics) return;
-
-      event.preventDefault();
-      event.stopPropagation();
-      scrollbarDragStateRef.current = {
-        pointerId: event.pointerId,
-        startThumbOffset: metrics.thumbOffset,
-        startY: event.clientY,
-      };
-      event.currentTarget.setPointerCapture?.(event.pointerId);
-    },
-    [getScrollbarMetrics],
-  );
-
-  const handleScrollbarThumbPointerMove = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      const dragState = scrollbarDragStateRef.current;
-      if (!dragState || dragState.pointerId !== event.pointerId) return;
-
-      scrollToThumbOffset(
-        dragState.startThumbOffset + event.clientY - dragState.startY,
-      );
-    },
-    [scrollToThumbOffset],
-  );
-
-  const handleScrollbarThumbPointerEnd = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (scrollbarDragStateRef.current?.pointerId !== event.pointerId) return;
-
-      scrollbarDragStateRef.current = null;
-      event.currentTarget.releasePointerCapture?.(event.pointerId);
-    },
-    [],
-  );
-
-  useEffect(() => {
-    const frame = requestAnimationFrame(syncScrollbarThumb);
-    return () => cancelAnimationFrame(frame);
-  }, [rows.length, syncScrollbarThumb]);
-
-  useEffect(() => {
-    const container = parentRef.current;
-    if (!container || typeof ResizeObserver === "undefined") return;
-
-    const observer = new ResizeObserver(syncScrollbarThumb);
-    observer.observe(container);
-
-    return () => observer.disconnect();
-  }, [syncScrollbarThumb]);
 
   return (
     <div className="file-tree-scroll-shell group relative min-h-0 flex-1">
@@ -1409,12 +1324,16 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
     title: string;
   }>({ open: false, sourcePath: "", targetPath: "", title: "" });
   const renameInputRef = useRef<HTMLInputElement>(null);
+  const isRenameComposingRef = useRef(false);
   const dragDepthRef = useRef(0);
   const setTreeData = useTreeStore((state) => state.setTreeData);
   const expandedKeys = useTreeStore((state) => state.expandedKeys);
   const toggleExpandedKey = useTreeStore((state) => state.toggleExpandedKey);
   const isExpanded = useTreeStore((state) =>
     state.expandedKeys.has(flatNode.key),
+  );
+  const isDirectoryLoading = useTreeStore((state) =>
+    state.loadingDirectoryKeys.has(flatNode.key),
   );
   const { renameItem, moveItem, getFileHeadContent } = useElectron();
   const openDiff = useDiffStore((state) => state.openDiff);
@@ -1466,6 +1385,14 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
   // 重命名键盘事件
   const handleRenameKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
+      const isComposing =
+        isRenameComposingRef.current ||
+        e.nativeEvent.isComposing ||
+        e.keyCode === 229;
+
+      // 输入法组合态下的 Enter 仅用于确认候选字，不能提交重命名。
+      if (isComposing) return;
+
       if (e.key === "Enter") {
         void handleRenameConfirm();
       }
@@ -1703,13 +1630,21 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
                     }}
                     className="flex h-[16px] w-[16px] items-center justify-center rounded-sm hover:bg-[var(--hover-bg)]"
                   >
-                    <ChevronRight
-                      className={cn(
-                        "h-3 w-3 transition-transform duration-100",
-                        isExpanded && "rotate-90",
-                      )}
-                      style={{ color: "var(--text-muted)" }}
-                    />
+                    {isDirectoryLoading ? (
+                      <LoaderCircle
+                        aria-label={`正在加载 ${flatNode.title}`}
+                        className="h-3 w-3 animate-spin"
+                        style={{ color: "var(--text-muted)" }}
+                      />
+                    ) : (
+                      <ChevronRight
+                        className={cn(
+                          "h-3 w-3 transition-transform duration-100",
+                          isExpanded && "rotate-90",
+                        )}
+                        style={{ color: "var(--text-muted)" }}
+                      />
+                    )}
                   </button>
                 ) : null}
               </div>
@@ -1734,6 +1669,12 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
                   value={renameValue}
                   onChange={(e) => setRenameValue(e.target.value)}
                   onKeyDown={handleRenameKeyDown}
+                  onCompositionStart={() => {
+                    isRenameComposingRef.current = true;
+                  }}
+                  onCompositionEnd={() => {
+                    isRenameComposingRef.current = false;
+                  }}
                   onBlur={() =>
                     setTimeout(() => void handleRenameConfirm(), 100)
                   }

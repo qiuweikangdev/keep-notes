@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useOverlayScrollbar } from "@/hooks/use-overlay-scrollbar";
 import { OutlineHeadingItem } from "./outline-heading-item";
 
 interface Heading {
@@ -20,15 +21,25 @@ export function OutlinePanel({
   resetKey,
   onHeadingClick,
 }: OutlinePanelProps) {
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const activeItemRef = useRef<HTMLButtonElement>(null);
+  const {
+    scrollContainerRef,
+    scrollbarTrackRef,
+    scrollbarThumbRef,
+    syncScrollbarThumb,
+    handleScrollbarTrackPointerDown,
+    handleScrollbarThumbPointerDown,
+    handleScrollbarThumbPointerMove,
+    handleScrollbarThumbPointerEnd,
+  } = useOverlayScrollbar(headings.length);
 
   // 打开或切换文件时，大纲列表始终从顶部开始，不复用上一个文件的滚动位置。
   useEffect(() => {
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTop = 0;
+      syncScrollbarThumb();
     }
-  }, [resetKey]);
+  }, [resetKey, scrollContainerRef, syncScrollbarThumb]);
 
   // 当活跃标题变化时，自动滚动到对应位置
   useEffect(() => {
@@ -51,33 +62,55 @@ export function OutlinePanel({
           containerRect.top -
           container.clientHeight / 2 +
           item.clientHeight / 2;
+        syncScrollbarThumb();
       }
     }
-  }, [activeHeadingId]);
+  }, [activeHeadingId, scrollContainerRef, syncScrollbarThumb]);
 
   return (
     <div className="flex h-full flex-col">
-      <div ref={scrollContainerRef} className="flex-1 overflow-auto py-2">
-        {headings.length === 0 ? (
+      <div className="file-tree-scroll-shell relative min-h-0 flex-1">
+        <div
+          ref={scrollContainerRef}
+          className="file-tree-scroll-container h-full overflow-auto py-2"
+          onScroll={syncScrollbarThumb}
+        >
+          {headings.length === 0 ? (
+            <div
+              className="px-3 py-2 text-[13px]"
+              style={{ color: "var(--text-muted)" }}
+            >
+              暂无标题
+            </div>
+          ) : (
+            headings.map((heading) => (
+              <OutlineHeadingItem
+                key={heading.id}
+                id={heading.id}
+                text={heading.text}
+                level={heading.level}
+                isActive={heading.id === activeHeadingId}
+                onClick={onHeadingClick}
+                ref={heading.id === activeHeadingId ? activeItemRef : undefined}
+              />
+            ))
+          )}
+        </div>
+        <div
+          ref={scrollbarTrackRef}
+          aria-hidden="true"
+          className="file-tree-scrollbar-track"
+          onPointerDown={handleScrollbarTrackPointerDown}
+        >
           <div
-            className="px-3 py-2 text-[13px]"
-            style={{ color: "var(--text-muted)" }}
-          >
-            暂无标题
-          </div>
-        ) : (
-          headings.map((heading) => (
-            <OutlineHeadingItem
-              key={heading.id}
-              id={heading.id}
-              text={heading.text}
-              level={heading.level}
-              isActive={heading.id === activeHeadingId}
-              onClick={onHeadingClick}
-              ref={heading.id === activeHeadingId ? activeItemRef : undefined}
-            />
-          ))
-        )}
+            ref={scrollbarThumbRef}
+            className="file-tree-scrollbar-thumb"
+            onPointerCancel={handleScrollbarThumbPointerEnd}
+            onPointerDown={handleScrollbarThumbPointerDown}
+            onPointerMove={handleScrollbarThumbPointerMove}
+            onPointerUp={handleScrollbarThumbPointerEnd}
+          />
+        </div>
       </div>
     </div>
   );

@@ -13,6 +13,7 @@ export interface FlatNode {
   level: number;
   isFolder: boolean;
   hasChildren: boolean;
+  isLoaded?: boolean;
   parentKey: string | null;
 }
 
@@ -61,7 +62,8 @@ export function flattenTree(
 
   for (const node of nodes) {
     const isFolder = Array.isArray(node.children);
-    const hasChildren = Boolean(node.children?.length);
+    const hasChildren =
+      isFolder && (!node.isLoaded || Boolean(node.children?.length));
 
     result.push({
       key: node.key,
@@ -69,6 +71,7 @@ export function flattenTree(
       level,
       isFolder,
       hasChildren,
+      isLoaded: node.isLoaded,
       parentKey,
     });
 

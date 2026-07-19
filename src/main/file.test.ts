@@ -3,7 +3,12 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { loadImageAsDataUrl, readDirectory, saveImageAttachment } from "./file";
+import {
+  loadImageAsDataUrl,
+  readDirectory,
+  readDirectoryShallow,
+  saveImageAttachment,
+} from "./file";
 
 vi.mock("electron", () => ({
   clipboard: {
@@ -57,6 +62,29 @@ describe("readDirectory", () => {
       "1-intro.md",
       "2-plan.md",
       "10-summary.md",
+    ]);
+  });
+
+  it("reads only direct children for the initial workspace tree", async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "keep-notes-tree-"),
+    );
+    tempRoots.push(root);
+    const docsPath = path.join(root, "docs");
+    await fs.promises.mkdir(docsPath);
+    await fs.promises.writeFile(path.join(docsPath, "nested.md"), "");
+    await fs.promises.writeFile(path.join(root, "root.md"), "");
+
+    const tree = await readDirectoryShallow(root);
+
+    expect(tree).toEqual([
+      {
+        title: "docs",
+        key: docsPath,
+        children: [],
+        isLoaded: false,
+      },
+      { title: "root.md", key: path.join(root, "root.md") },
     ]);
   });
 });

@@ -16,7 +16,11 @@ vi.mock("./utils", () => ({
   findNodeByKey: (treeData: TreeNode[], key: string) =>
     treeData.find((node) => node.key === key) ?? null,
   treeDataSort: async (treeData: TreeNode[]) => treeData,
-  updateFilePaths: () => undefined,
+  updateFilePaths: (node: TreeNode, newPath: string) => {
+    for (const child of node.children ?? []) {
+      child.key = child.key.replace(node.key, newPath);
+    }
+  },
 }));
 
 import {
@@ -81,6 +85,41 @@ describe("tree actions", () => {
     expect(result).toMatchObject({ code: CodeResult.Success });
     expect(fs.existsSync(sourcePath)).toBe(false);
     expect(fs.existsSync(path.join(targetPath, "daily.md"))).toBe(true);
+  });
+
+  it("keeps loaded folder metadata when moving a directory", async () => {
+    const root = createTempRoot();
+    const sourcePath = path.join(root, "drafts");
+    const targetPath = path.join(root, "archive");
+    const nestedFilePath = path.join(sourcePath, "daily.md");
+    fs.mkdirSync(sourcePath);
+    fs.mkdirSync(targetPath);
+    fs.writeFileSync(nestedFilePath, "content");
+    const treeData: TreeNode[] = [
+      {
+        title: "drafts",
+        key: sourcePath,
+        children: [{ title: "daily.md", key: nestedFilePath }],
+        isLoaded: true,
+      },
+      {
+        title: "archive",
+        key: targetPath,
+        children: [],
+        isLoaded: true,
+      },
+    ];
+
+    const result = await moveFileOrFolder(sourcePath, targetPath, treeData);
+    const movedPath = path.join(targetPath, "drafts");
+    const movedNode = result.data?.treeData[1].children?.[0];
+
+    expect(movedNode).toMatchObject({
+      title: "drafts",
+      key: movedPath,
+      isLoaded: true,
+      children: [{ key: path.join(movedPath, "daily.md") }],
+    });
   });
 
   it("rejects an existing file name with a user-facing message", async () => {

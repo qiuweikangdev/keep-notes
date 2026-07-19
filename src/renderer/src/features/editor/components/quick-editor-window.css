@@ -22,7 +22,7 @@
 }
 
 .quick-editor-window__drag-region {
-  min-width: 32px;
+  min-width: 0;
   flex: 1;
   align-self: stretch;
 }
@@ -31,8 +31,15 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  padding-right: 6px;
   -webkit-app-region: no-drag;
+}
+
+.quick-editor-window__actions--left {
+  padding-left: 6px;
+}
+
+.quick-editor-window__actions--right {
+  padding-right: 6px;
 }
 
 .quick-editor-window__action {
@@ -47,6 +54,11 @@
   color: var(--text-muted);
   cursor: pointer;
   outline: none;
+}
+
+.quick-editor-window__action:disabled {
+  cursor: default;
+  opacity: 0.58;
 }
 
 .quick-editor-window__action:hover {
@@ -74,6 +86,11 @@
   background: var(--bg-primary);
 }
 
+.quick-editor-window[data-collapsed="true"] .quick-editor-window__editor {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .quick-editor-window__editor > .bn-container,
 .quick-editor-window__editor .bn-mantine {
   min-height: 100%;
@@ -82,8 +99,14 @@
 
 .quick-editor-window__editor .bn-editor {
   min-height: calc(100vh - 38px);
-  padding: 22px 42px 96px 52px;
+  padding: 22px 42px 96px 72px;
   background: transparent !important;
+}
+
+@media (max-width: 164px) {
+  .quick-editor-window__action--secondary {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

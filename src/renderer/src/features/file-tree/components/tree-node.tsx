@@ -117,6 +117,7 @@ export const TreeNode = memo(function TreeNode({
   }>({ type: "delete", open: false });
 
   const renameInputRef = useRef<HTMLInputElement>(null);
+  const isRenameComposingRef = useRef(false);
   const createInputRef = useRef<HTMLInputElement>(null);
   const rowRef = useRef<HTMLDivElement>(null);
 
@@ -277,6 +278,14 @@ export const TreeNode = memo(function TreeNode({
 
   const handleRenameKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
+      const isComposing =
+        isRenameComposingRef.current ||
+        e.nativeEvent.isComposing ||
+        e.keyCode === 229;
+
+      // 输入法组合态下的 Enter 仅用于确认候选字，不能提交重命名。
+      if (isComposing) return;
+
       if (e.key === "Enter") {
         void handleRenameConfirm();
       }
@@ -609,6 +618,12 @@ export const TreeNode = memo(function TreeNode({
                   value={renameValue}
                   onChange={(e) => setRenameValue(e.target.value)}
                   onKeyDown={handleRenameKeyDown}
+                  onCompositionStart={() => {
+                    isRenameComposingRef.current = true;
+                  }}
+                  onCompositionEnd={() => {
+                    isRenameComposingRef.current = false;
+                  }}
                   onBlur={() =>
                     setTimeout(() => void handleRenameConfirm(), 100)
                   }

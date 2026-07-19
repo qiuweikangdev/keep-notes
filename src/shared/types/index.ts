@@ -16,8 +16,21 @@ export interface TreeNode {
   title: string;
   key: string;
   children?: TreeNode[];
+  /** 目录的直属子项是否已经从磁盘读取；文件不设置此字段。 */
+  isLoaded?: boolean;
   content?: string;
   selectable?: boolean;
+}
+
+export interface WorkspaceChangeEvent {
+  eventType: "change" | "rename";
+  path: string;
+}
+
+export interface WorkspaceChangeBatch {
+  rootPath: string;
+  events: WorkspaceChangeEvent[];
+  hasUnknownPath: boolean;
 }
 
 export interface GitConfig {

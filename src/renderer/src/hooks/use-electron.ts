@@ -6,7 +6,7 @@ import type {
   GitCommitOptions,
   GitCommitFileStatus,
 } from "@/types";
-import type { ReminderInput } from "@shared/types";
+import type { ReminderInput, WorkspaceChangeBatch } from "@shared/types";
 import { useTreeStore } from "@/store/tree.store";
 import { useEditorStore } from "@/store/editor.store";
 import { useUserStore } from "@/store/user.store";
@@ -16,6 +16,8 @@ import {
   flushEditorChange,
 } from "@/features/editor/lib/editor-runtime";
 import { selectFileOpenTabId } from "@/features/editor/lib/editor-tab-opening";
+import { findNodeByKey } from "@/features/file-tree/utils";
+import { getDirectoriesToRefresh } from "@/features/file-tree/tree-data";
 import {
   selectAddRecentFolder,
   selectIncrementReloadKey,
@@ -28,36 +30,177 @@ import {
 let watchedWorkspacePath: string | null = null;
 let unsubscribeWorkspaceChanged: (() => void) | null = null;
 let workspaceRefreshInFlight = false;
-let pendingWorkspaceRefreshPath: string | null = null;
+let pendingWorkspaceChangeBatch: WorkspaceChangeBatch | null = null;
+const directoryLoadPromises = new Map<string, Promise<boolean>>();
+let fullTreeLoad: { rootPath: string; promise: Promise<boolean> } | undefined;
 
-async function refreshWorkspaceTree(rootPath: string): Promise<void> {
+function mergeWorkspaceChangeBatches(
+  current: WorkspaceChangeBatch | null,
+  incoming: WorkspaceChangeBatch,
+): WorkspaceChangeBatch {
+  if (!current || current.rootPath !== incoming.rootPath) return incoming;
+
+  const eventsByPath = new Map(
+    current.events.map((event) => [event.path, event]),
+  );
+  for (const event of incoming.events) {
+    const previous = eventsByPath.get(event.path);
+    eventsByPath.set(event.path, {
+      ...event,
+      eventType: previous?.eventType === "rename" ? "rename" : event.eventType,
+    });
+  }
+
+  return {
+    rootPath: incoming.rootPath,
+    events: [...eventsByPath.values()],
+    hasUnknownPath: current.hasUnknownPath || incoming.hasUnknownPath,
+  };
+}
+
+async function loadDirectoryChildren(
+  directoryPath: string,
+  force = false,
+): Promise<boolean> {
+  const state = useTreeStore.getState();
+  const rootPath = state.treeRoot?.key;
+  if (!rootPath) return false;
+
+  if (!force && directoryPath !== rootPath) {
+    const directoryNode = findNodeByKey(state.treeData, directoryPath);
+    if (directoryNode?.isLoaded) return true;
+  }
+
+  const requestKey = `${rootPath}\u0000${directoryPath}`;
+  const existingRequest = directoryLoadPromises.get(requestKey);
+  if (existingRequest) return existingRequest;
+
+  const request = (async () => {
+    let loadingTimer: ReturnType<typeof setTimeout> | undefined;
+    if (directoryPath !== rootPath) {
+      loadingTimer = setTimeout(() => {
+        if (useTreeStore.getState().treeRoot?.key === rootPath) {
+          useTreeStore.getState().setDirectoryLoading(directoryPath, true);
+        }
+      }, 120);
+    }
+
+    try {
+      const result = await window.electronAPI.readDirectory(directoryPath);
+      const latestState = useTreeStore.getState();
+      if (
+        result.code !== CodeResult.Success ||
+        !result.data ||
+        latestState.treeRoot?.key !== rootPath
+      ) {
+        return false;
+      }
+
+      latestState.replaceDirectoryChildren(directoryPath, result.data.children);
+      return true;
+    } catch (error) {
+      console.error("Failed to load directory:", error);
+      return false;
+    } finally {
+      if (loadingTimer) clearTimeout(loadingTimer);
+      if (useTreeStore.getState().treeRoot?.key === rootPath) {
+        useTreeStore.getState().setDirectoryLoading(directoryPath, false);
+      }
+    }
+  })();
+
+  directoryLoadPromises.set(requestKey, request);
+  try {
+    return await request;
+  } finally {
+    if (directoryLoadPromises.get(requestKey) === request) {
+      directoryLoadPromises.delete(requestKey);
+    }
+  }
+}
+
+async function ensureFullWorkspaceTree(): Promise<boolean> {
+  const state = useTreeStore.getState();
+  const rootPath = state.treeRoot?.key;
+  if (!rootPath) return false;
+  if (state.isTreeFullyLoaded) return true;
+  if (fullTreeLoad?.rootPath === rootPath) return fullTreeLoad.promise;
+
+  const promise = (async () => {
+    try {
+      const result = await window.electronAPI.generateFullTree(rootPath);
+      const latestState = useTreeStore.getState();
+      if (
+        result.code !== CodeResult.Success ||
+        !result.data ||
+        latestState.treeRoot?.key !== rootPath
+      ) {
+        return false;
+      }
+
+      latestState.setTreeData(result.data.treeData);
+      latestState.setTreeFullyLoaded(true);
+      return true;
+    } catch (error) {
+      console.error("Failed to load complete workspace tree:", error);
+      return false;
+    }
+  })();
+
+  fullTreeLoad = { rootPath, promise };
+  try {
+    return await promise;
+  } finally {
+    if (fullTreeLoad?.promise === promise) fullTreeLoad = undefined;
+  }
+}
+
+async function refreshDirectories(directoryPaths: string[]) {
+  let nextIndex = 0;
+  const workerCount = Math.min(8, directoryPaths.length);
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (nextIndex < directoryPaths.length) {
+        const directoryPath = directoryPaths[nextIndex++];
+        await loadDirectoryChildren(directoryPath, true);
+      }
+    }),
+  );
+}
+
+async function refreshWorkspaceTree(
+  changeBatch: WorkspaceChangeBatch,
+): Promise<void> {
   if (workspaceRefreshInFlight) {
-    pendingWorkspaceRefreshPath = rootPath;
+    pendingWorkspaceChangeBatch = mergeWorkspaceChangeBatches(
+      pendingWorkspaceChangeBatch,
+      changeBatch,
+    );
     return;
   }
 
   workspaceRefreshInFlight = true;
   try {
     const currentRoot = useTreeStore.getState().treeRoot;
-    if (currentRoot?.key !== rootPath) return;
+    if (currentRoot?.key !== changeBatch.rootPath) return;
 
-    const result = await window.electronAPI.generateTree(rootPath);
-    const latestRoot = useTreeStore.getState().treeRoot;
-    if (
-      result.code === CodeResult.Success &&
-      result.data &&
-      latestRoot?.key === rootPath
-    ) {
-      // 工作区事件只刷新树结构，不触碰编辑器内容，避免外部保存时界面闪动。
-      useTreeStore.getState().setTreeData(result.data.treeData);
-      useTreeStore.getState().setTreeRoot(result.data.treeRoot);
-    }
+    const state = useTreeStore.getState();
+    const hasStructuralChange =
+      changeBatch.hasUnknownPath ||
+      changeBatch.events.some((event) => event.eventType === "rename");
+    if (hasStructuralChange) state.setTreeFullyLoaded(false);
+
+    const directoryPaths = getDirectoriesToRefresh(changeBatch, state.treeData);
+    await refreshDirectories(directoryPaths);
   } finally {
     workspaceRefreshInFlight = false;
-    const pendingPath = pendingWorkspaceRefreshPath;
-    pendingWorkspaceRefreshPath = null;
-    if (pendingPath && useTreeStore.getState().treeRoot?.key === pendingPath) {
-      void refreshWorkspaceTree(pendingPath);
+    const pendingBatch = pendingWorkspaceChangeBatch;
+    pendingWorkspaceChangeBatch = null;
+    if (
+      pendingBatch &&
+      useTreeStore.getState().treeRoot?.key === pendingBatch.rootPath
+    ) {
+      void refreshWorkspaceTree(pendingBatch);
     }
   }
 }
@@ -66,8 +209,8 @@ function ensureWorkspaceChangeSubscription(): void {
   if (unsubscribeWorkspaceChanged) return;
 
   unsubscribeWorkspaceChanged = window.electronAPI.onWorkspaceChanged(
-    (rootPath) => {
-      void refreshWorkspaceTree(rootPath);
+    (changeBatch) => {
+      void refreshWorkspaceTree(changeBatch);
     },
   );
 }
@@ -97,11 +240,20 @@ export function useElectron() {
   );
   const githubInfo = useUserStore((state) => state.githubInfo);
 
+  const loadDirectory = useCallback((directoryPath: string, force = false) => {
+    return loadDirectoryChildren(directoryPath, force);
+  }, []);
+
+  const ensureFullTreeLoaded = useCallback(() => {
+    return ensureFullWorkspaceTree();
+  }, []);
+
   const openFolder = useCallback(async () => {
     const result = await window.electronAPI.openDialog();
     if (result.code === CodeResult.Success && result.data) {
       setTreeData(result.data.treeData);
       setTreeRoot(result.data.treeRoot);
+      useTreeStore.getState().setTreeFullyLoaded(false);
       // 记录到最近使用的目录
       addRecentFolder({
         title: result.data.treeRoot.title,
@@ -119,6 +271,7 @@ export function useElectron() {
       if (result.code === CodeResult.Success && result.data) {
         setTreeData(result.data.treeData);
         setTreeRoot(result.data.treeRoot);
+        useTreeStore.getState().setTreeFullyLoaded(false);
         // 记录到最近使用的目录
         addRecentFolder({
           title: result.data.treeRoot.title,
@@ -455,6 +608,8 @@ export function useElectron() {
   return {
     openFolder,
     loadTree,
+    loadDirectory,
+    ensureFullTreeLoaded,
     openFile,
     saveFile,
     createFile,

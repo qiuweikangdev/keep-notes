@@ -7,6 +7,7 @@ import {
   type ExternalOpenAppId,
   type SaveImageAttachmentInput,
   type SaveImageAttachmentResult,
+  type TreeNode,
 } from "../shared/types";
 import { compareFileTreeTitles } from "../shared/file-tree-sort";
 import { listExternalOpenApps, openWithExternalApp } from "./external-open";
@@ -76,6 +77,7 @@ export async function readDirectory(directoryPath: string) {
           key: path.join(directoryPath, dir),
           selectable: subtree && subtree.length > 0,
           children: subtree || [],
+          isLoaded: true,
         };
       }),
     );
@@ -89,6 +91,50 @@ export async function readDirectory(directoryPath: string) {
     ];
 
     return tree;
+  } catch (error) {
+    console.error("Error while reading directory:", error);
+    return null;
+  }
+}
+
+export async function readDirectoryShallow(
+  directoryPath: string,
+): Promise<TreeNode[] | null> {
+  try {
+    const entries = await fs.promises.readdir(directoryPath, {
+      withFileTypes: true,
+    });
+    const directories: TreeNode[] = [];
+    const markdownFiles: TreeNode[] = [];
+
+    for (const entry of entries) {
+      const entryPath = path.join(directoryPath, entry.name);
+      if (shouldIgnoreFsWatchPath(entryPath)) continue;
+
+      let isDirectory = entry.isDirectory();
+      let isFile = entry.isFile();
+      if (entry.isSymbolicLink()) {
+        // 仅符号链接需要额外 stat；普通目录项直接复用 Dirent，避免逐项系统调用。
+        const stats = await fs.promises.stat(entryPath);
+        isDirectory = stats.isDirectory();
+        isFile = stats.isFile();
+      }
+
+      if (isDirectory && !entry.name.startsWith(".")) {
+        directories.push({
+          title: entry.name,
+          key: entryPath,
+          children: [],
+          isLoaded: false,
+        });
+      } else if (isFile && path.extname(entry.name) === ".md") {
+        markdownFiles.push({ title: entry.name, key: entryPath });
+      }
+    }
+
+    directories.sort((a, b) => compareFileTreeTitles(a.title, b.title));
+    markdownFiles.sort((a, b) => compareFileTreeTitles(a.title, b.title));
+    return [...directories, ...markdownFiles];
   } catch (error) {
     console.error("Error while reading directory:", error);
     return null;
@@ -302,6 +348,21 @@ export async function updateLocalDirectory(treeData: any[], basePath: string) {
 }
 
 export async function genDirTreByPath(selectedPath: string) {
+  const directoryTree = await readDirectoryShallow(selectedPath);
+  const treeRoot = {
+    title: basename(selectedPath),
+    key: selectedPath,
+  };
+  return {
+    code: CodeResult.Success,
+    data: {
+      treeData: directoryTree || [],
+      treeRoot,
+    },
+  };
+}
+
+export async function genFullDirTreeByPath(selectedPath: string) {
   const directoryTree = await readDirectory(selectedPath);
   const treeRoot = {
     title: basename(selectedPath),
@@ -352,7 +413,7 @@ export async function openDialog(win: Electron.BrowserWindow) {
 
     if (!result.canceled) {
       const selectedPath = result.filePaths[0];
-      const directoryTree = await readDirectory(selectedPath);
+      const directoryTree = await readDirectoryShallow(selectedPath);
       const treeRoot = {
         title: basename(selectedPath),
         key: selectedPath,

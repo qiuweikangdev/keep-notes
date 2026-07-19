@@ -1983,6 +1983,35 @@ function MountedBlockNoteEditor({
     return true;
   }, []);
 
+  const handleFileDragOverCapture = useCallback(
+    (event: React.DragEvent) => {
+      if (!blockExternalFileDrop(event)) return;
+
+      const binding = controllerRef.current.getActiveBinding();
+      if (!binding) return;
+      useEditorStore.getState().setFileDragTargetGroupId(binding.groupId);
+    },
+    [blockExternalFileDrop],
+  );
+
+  const handleFileDragLeaveCapture = useCallback(
+    (event: React.DragEvent<HTMLDivElement>) => {
+      if (!blockExternalFileDrop(event)) return;
+
+      const nextTarget = event.relatedTarget;
+      if (
+        nextTarget instanceof Node &&
+        event.currentTarget.contains(nextTarget)
+      ) {
+        return;
+      }
+
+      const binding = controllerRef.current.getActiveBinding();
+      useEditorStore.getState().clearFileDragTargetGroupId(binding?.groupId);
+    },
+    [blockExternalFileDrop],
+  );
+
   const markUserIntent = useCallback(() => {
     changeGateRef.current.markUserIntent();
   }, []);
@@ -1993,6 +2022,8 @@ function MountedBlockNoteEditor({
         markUserIntent();
         return;
       }
+
+      useEditorStore.getState().clearFileDragTargetGroupId();
 
       const filePath = getDraggedFilePath(event.dataTransfer);
       if (!filePath || !isSupportedEditorFilePath(filePath)) return;
@@ -2185,7 +2216,8 @@ function MountedBlockNoteEditor({
       onCutCapture={markUserIntent}
       onCompositionStartCapture={markUserIntent}
       onDragStartCapture={markUserIntent}
-      onDragOverCapture={blockExternalFileDrop}
+      onDragOverCapture={handleFileDragOverCapture}
+      onDragLeaveCapture={handleFileDragLeaveCapture}
       onDropCapture={handleDropCapture}
     >
       <BlockNoteView

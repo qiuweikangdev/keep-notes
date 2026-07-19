@@ -113,6 +113,52 @@ describe("SettingsModal about tab", () => {
     );
   });
 
+  it("uses the Git dialog visual language for its frame and title bar", () => {
+    render(<SettingsModal />);
+
+    const dialog = screen.getByRole("dialog");
+    const dragHandle = dialog.querySelector<HTMLElement>(
+      "[data-dialog-drag-handle]",
+    );
+
+    expect(dialog).toHaveClass("rounded-xl", "shadow-2xl");
+    expect(dialog).toHaveStyle({
+      backgroundColor: "var(--bg-secondary)",
+      border: "none",
+    });
+    expect(dragHandle?.style.borderBottom).toBe(
+      "1px solid var(--border-color)",
+    );
+    expect(screen.getByTestId("settings-dialog-icon")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "关闭设置" }),
+    ).toBeInTheDocument();
+  });
+
+  it("uses semantic selected navigation and a primary content surface", () => {
+    render(<SettingsModal />);
+
+    const appearanceButton = screen.getByRole("button", { name: /外观/ });
+    const aboutButton = screen.getByRole("button", { name: /关于/ });
+
+    expect(appearanceButton).toHaveAttribute("aria-current", "page");
+    expect(appearanceButton).toHaveAttribute("data-selected", "true");
+    expect(appearanceButton).toHaveStyle({
+      backgroundColor: "var(--active-bg)",
+      color: "var(--accent-color)",
+    });
+    expect(screen.getByTestId("settings-content")).toHaveStyle({
+      backgroundColor: "var(--bg-primary)",
+    });
+
+    fireEvent.click(aboutButton);
+
+    expect(appearanceButton).not.toHaveAttribute("aria-current");
+    expect(appearanceButton).not.toHaveAttribute("data-selected");
+    expect(aboutButton).toHaveAttribute("aria-current", "page");
+    expect(aboutButton).toHaveAttribute("data-selected", "true");
+  });
+
   it("uses the shared drag handle and all resize handles", () => {
     render(<SettingsModal />);
 

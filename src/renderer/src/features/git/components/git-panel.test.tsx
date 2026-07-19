@@ -9,6 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DragResizeProvider } from "@/components/drag-resize-provider";
 import { CodeResult } from "@/types";
+import { notifyGitStatusChange } from "../lib/git-status-change";
 import { GitPanel } from "./git-panel";
 
 const render = (
@@ -527,6 +528,36 @@ describe("GitPanel", () => {
         "head content",
         "working tree content",
       );
+    });
+  });
+
+  it("refreshes file status after another dialog discards changes", async () => {
+    render(<GitPanel isOpen onClose={vi.fn()} />);
+
+    await screen.findByText("changed.md");
+    electronMocks.getGitStatus.mockResolvedValue({
+      code: CodeResult.Success,
+      data: {
+        current: "main",
+        tracking: "origin/main",
+        files: [],
+        ahead: 0,
+        behind: 0,
+        created: [],
+        not_added: [],
+        modified: [],
+        deleted: [],
+        renamed: [],
+        staged: [],
+        conflicted: [],
+      },
+    });
+
+    notifyGitStatusChange("/notes");
+
+    await waitFor(() => {
+      expect(electronMocks.getGitStatus).toHaveBeenCalledTimes(2);
+      expect(screen.queryByText("changed.md")).not.toBeInTheDocument();
     });
   });
 

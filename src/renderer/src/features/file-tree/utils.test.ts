@@ -83,6 +83,26 @@ describe("flattenTree", () => {
       }),
     ]);
   });
+
+  it("keeps an unloaded folder expandable before its children are known", () => {
+    const [folder] = flattenTree(
+      [
+        {
+          key: "/notes/docs",
+          title: "docs",
+          children: [],
+          isLoaded: false,
+        },
+      ],
+      new Set(),
+    );
+
+    expect(folder).toMatchObject({
+      isFolder: true,
+      hasChildren: true,
+      isLoaded: false,
+    });
+  });
 });
 
 describe("buildFileTreeRows", () => {

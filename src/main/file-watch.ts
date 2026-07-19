@@ -1,5 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
+import type {
+  WorkspaceChangeBatch,
+  WorkspaceChangeEvent,
+} from "../shared/types";
 
 const IGNORED_EXACT_NAMES = new Set([
   ".git",
@@ -36,8 +40,10 @@ interface FileContentWatchRegistryOptions {
 
 interface WorkspaceWatchEntry {
   watcher: WatchHandle;
-  onChange: (rootPath: string) => void;
+  onChange: (batch: WorkspaceChangeBatch) => void;
   debounceTimer: ReturnType<typeof setTimeout> | null;
+  pendingEvents: Map<string, WorkspaceChangeEvent>;
+  hasUnknownPath: boolean;
 }
 
 interface FileContentWatchEntry {
@@ -92,24 +98,48 @@ export class WorkspaceWatchRegistry {
     this.debounceMs = options.debounceMs ?? 120;
   }
 
-  watchWorkspace(rootPath: string, onChange: (rootPath: string) => void): void {
+  watchWorkspace(
+    rootPath: string,
+    onChange: (batch: WorkspaceChangeBatch) => void,
+  ): void {
     this.unwatchWorkspace(rootPath);
 
     const watcher = this.watch(
       rootPath,
       { recursive: true },
-      (_eventType, fileName) => {
+      (eventType, fileName) => {
         const eventPath = resolveWatchEventPath(rootPath, fileName);
         if (shouldIgnoreFsWatchPath(eventPath)) return;
 
         const entry = this.watchers.get(rootPath);
         if (!entry) return;
+        if (fileName) {
+          const normalizedEventType =
+            eventType === "rename" ? "rename" : "change";
+          const existingEvent = entry.pendingEvents.get(eventPath);
+          entry.pendingEvents.set(eventPath, {
+            path: eventPath,
+            eventType:
+              existingEvent?.eventType === "rename"
+                ? "rename"
+                : normalizedEventType,
+          });
+        } else {
+          entry.hasUnknownPath = true;
+        }
         if (entry.debounceTimer) clearTimeout(entry.debounceTimer);
 
-        // 文件系统会为一次保存触发多次事件，短窗口内合并刷新能避免侧栏抖动。
+        // 文件系统会为一次保存触发多次事件，保留变化路径并在短窗口内批量通知。
         entry.debounceTimer = setTimeout(() => {
           entry.debounceTimer = null;
-          entry.onChange(rootPath);
+          const batch: WorkspaceChangeBatch = {
+            rootPath,
+            events: [...entry.pendingEvents.values()],
+            hasUnknownPath: entry.hasUnknownPath,
+          };
+          entry.pendingEvents.clear();
+          entry.hasUnknownPath = false;
+          entry.onChange(batch);
         }, this.debounceMs);
       },
     );
@@ -118,6 +148,8 @@ export class WorkspaceWatchRegistry {
       watcher,
       onChange,
       debounceTimer: null,
+      pendingEvents: new Map(),
+      hasUnknownPath: false,
     });
   }
 

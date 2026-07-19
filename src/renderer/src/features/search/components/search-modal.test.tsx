@@ -9,11 +9,13 @@ import { SearchModal } from "./search-modal";
 
 const openFile = vi.fn();
 const loadTree = vi.fn();
+const ensureFullTreeLoaded = vi.fn();
 
 vi.mock("@/hooks/use-electron", () => ({
   useElectron: () => ({
     loadTree,
     openFile,
+    ensureFullTreeLoaded,
   }),
 }));
 
@@ -61,13 +63,19 @@ describe("SearchModal", () => {
   beforeEach(() => {
     openFile.mockReset();
     loadTree.mockReset();
+    ensureFullTreeLoaded.mockReset();
+    ensureFullTreeLoaded.mockResolvedValue(true);
     useTreeStore.setState({
       treeRoot: { title: "notes", key: "C:\\notes" },
       treeData,
       selectedKey: null,
-      recentFolders: [],
+      recentFolders: Array.from({ length: 6 }, (_, index) => ({
+        title: `folder-${index + 1}`,
+        path: `C:\\workspaces\\folder-${index + 1}`,
+      })),
     });
     useEditorStore.setState({
+      panelGroups: [],
       recentOpenedFilePaths: [
         "C:\\notes\\docs\\first.md",
         "C:\\notes\\docs\\second.txt",
@@ -86,15 +94,23 @@ describe("SearchModal", () => {
     });
   });
 
+  it("loads the complete file catalog in the background when opened", () => {
+    render(<SearchModal isOpen onClose={vi.fn()} />);
+
+    expect(ensureFullTreeLoaded).toHaveBeenCalledTimes(1);
+  });
+
   afterEach(() => {
     cleanup();
   });
 
-  it("shows the ten most recently opened searchable files by default", () => {
+  it("shows five recent files followed by five recent folders by default", () => {
     render(<SearchModal isOpen onClose={vi.fn()} />);
 
     const options = screen.getAllByRole("option");
 
+    expect(screen.getByText("文件")).toBeInTheDocument();
+    expect(screen.getByText("目录")).toBeInTheDocument();
     expect(options).toHaveLength(10);
     expect(options.map((option) => option.textContent)).toEqual([
       expect.stringContaining("first.md"),
@@ -102,13 +118,14 @@ describe("SearchModal", () => {
       expect.stringContaining("third.md"),
       expect.stringContaining("fourth.md"),
       expect.stringContaining("fifth.md"),
-      expect.stringContaining("sixth.md"),
-      expect.stringContaining("seventh.md"),
-      expect.stringContaining("eighth.md"),
-      expect.stringContaining("ninth.md"),
-      expect.stringContaining("tenth.md"),
+      expect.stringContaining("folder-1"),
+      expect.stringContaining("folder-2"),
+      expect.stringContaining("folder-3"),
+      expect.stringContaining("folder-4"),
+      expect.stringContaining("folder-5"),
     ]);
-    expect(screen.queryByText("eleventh.md")).not.toBeInTheDocument();
+    expect(screen.queryByText("sixth.md")).not.toBeInTheDocument();
+    expect(screen.queryByText("folder-6")).not.toBeInTheDocument();
     expect(screen.queryByText("image.png")).not.toBeInTheDocument();
   });
 
@@ -147,12 +164,12 @@ describe("SearchModal", () => {
     expect(screen.getByText("fourth.md")).toBeInTheDocument();
   });
 
-  it("shows recent folders when no workspace is open", async () => {
+  it("shows up to five recent folders when no workspace is open", async () => {
     const user = userEvent.setup();
     useTreeStore.setState({
       treeRoot: null,
       treeData: [],
-      recentFolders: Array.from({ length: 11 }, (_, index) => ({
+      recentFolders: Array.from({ length: 6 }, (_, index) => ({
         title: `folder-${index + 1}`,
         path: `C:\\workspaces\\folder-${index + 1}`,
       })),
@@ -162,15 +179,96 @@ describe("SearchModal", () => {
 
     const options = screen.getAllByRole("option");
 
+    expect(screen.queryByText("文件")).not.toBeInTheDocument();
     expect(screen.getByText("目录")).toBeInTheDocument();
-    expect(options).toHaveLength(10);
+    expect(options).toHaveLength(5);
     expect(screen.getByText("folder-1")).toBeInTheDocument();
-    expect(screen.queryByText("folder-11")).not.toBeInTheDocument();
+    expect(screen.queryByText("folder-6")).not.toBeInTheDocument();
 
     await user.click(screen.getByText("folder-1"));
 
     expect(loadTree).toHaveBeenCalledWith("C:\\workspaces\\folder-1");
     expect(openFile).not.toHaveBeenCalled();
+  });
+
+  it("hides recent folders and searches only files after query input", async () => {
+    const user = userEvent.setup();
+    useTreeStore.setState({
+      recentFolders: [
+        {
+          title: "workspace-shortcut",
+          path: "C:\\workspaces\\workspace-shortcut",
+        },
+      ],
+    });
+    render(<SearchModal isOpen onClose={vi.fn()} />);
+
+    await user.type(screen.getByRole("searchbox"), "workspace-shortcut");
+
+    expect(screen.queryByText("目录")).not.toBeInTheDocument();
+    expect(screen.queryByText("workspace-shortcut")).not.toBeInTheDocument();
+    expect(screen.getByText("没有找到匹配文件")).toBeInTheDocument();
+  });
+
+  it("does not search recent folders when no workspace is open", async () => {
+    const user = userEvent.setup();
+    useTreeStore.setState({
+      treeRoot: null,
+      treeData: [],
+      recentFolders: [{ title: "archive", path: "C:\\workspaces\\archive" }],
+    });
+    render(<SearchModal isOpen onClose={vi.fn()} />);
+
+    await user.type(screen.getByRole("searchbox"), "archive");
+
+    expect(screen.queryByRole("option")).not.toBeInTheDocument();
+    expect(screen.queryByText("archive")).not.toBeInTheDocument();
+    expect(screen.getByText("没有找到匹配文件")).toBeInTheDocument();
+  });
+
+  it("opens a folder after keyboard selection crosses the group boundary", async () => {
+    const user = userEvent.setup();
+    useEditorStore.setState({
+      recentOpenedFilePaths: ["C:\\notes\\docs\\first.md"],
+      panelGroups: [],
+    });
+    useTreeStore.setState({
+      selectedKey: null,
+      recentFolders: [{ title: "archive", path: "C:\\workspaces\\archive" }],
+    });
+    const onClose = vi.fn();
+    render(<SearchModal isOpen onClose={onClose} />);
+
+    await user.keyboard("{ArrowDown}{Enter}");
+
+    expect(loadTree).toHaveBeenCalledWith("C:\\workspaces\\archive");
+    expect(openFile).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("omits empty groups and shows one empty default message", () => {
+    useTreeStore.setState({
+      treeRoot: null,
+      treeData: [],
+      selectedKey: null,
+      recentFolders: [],
+    });
+    useEditorStore.setState({
+      recentOpenedFilePaths: [],
+      panelGroups: [],
+    });
+
+    render(<SearchModal isOpen onClose={vi.fn()} />);
+
+    expect(screen.queryByText("文件")).not.toBeInTheDocument();
+    expect(screen.queryByText("目录")).not.toBeInTheDocument();
+    expect(screen.getByText("暂无最近打开的文件或目录")).toBeInTheDocument();
+  });
+
+  it("uses the taller grouped result viewport", () => {
+    render(<SearchModal isOpen onClose={vi.fn()} />);
+
+    expect(screen.getByRole("listbox")).toHaveClass("max-h-[376px]");
   });
 
   it("keeps the search input visually unframed inside the compact modal", () => {

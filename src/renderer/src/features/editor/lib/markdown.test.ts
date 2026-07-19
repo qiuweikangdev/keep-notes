@@ -315,6 +315,18 @@ describe("repairMarkdownSourceBeforeParse", () => {
     expect(repairMarkdownSourceBeforeParse(source)).toBe(source);
   });
 
+  it("does not guess how to split an existing ASCII fence info string", () => {
+    const source = [
+      "```texthtml.h5-layout {",
+      "  color: red;",
+      "}",
+      "```",
+      "",
+    ].join("\n");
+
+    expect(repairMarkdownSourceBeforeParse(source)).toBe(source);
+  });
+
   it("does not repair fence-like text inside an open code block", () => {
     const source = ["````text", "```bash写一个循环", "````", ""].join("\n");
 
@@ -427,6 +439,43 @@ describe("preserveMarkdownSource", () => {
 
     expect(preserveMarkdownSource(source, baseline, edited)).toBe(
       source.replace("Before", "Before edit"),
+    );
+  });
+
+  it.each([
+    { ending: "\n", fence: "```", name: "backtick fences with LF" },
+    { ending: "\r\n", fence: "~~~", name: "tilde fences with CRLF" },
+  ])(
+    "keeps the language and first code line separate for $name",
+    ({ ending, fence }) => {
+      const serialized = [
+        `${fence}text`,
+        "html.h5-layout {",
+        "  color: red;",
+        "}",
+        fence,
+        "",
+      ].join(ending);
+
+      expect(preserveMarkdownSource("", ending, serialized)).toBe(
+        serialized.slice(0, -ending.length),
+      );
+    },
+  );
+
+  it("keeps the fence boundary separate across later code edits", () => {
+    const source = [
+      "```text",
+      "html.h5-layout {",
+      "  color: red;",
+      "}",
+      "```",
+    ].join("\n");
+    const baseline = `${source}\n`;
+    const edited = baseline.replace("color: red", "color: blue");
+
+    expect(preserveMarkdownSource(source, baseline, edited)).toBe(
+      source.replace("color: red", "color: blue"),
     );
   });
 

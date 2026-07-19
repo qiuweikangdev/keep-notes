@@ -1,6 +1,6 @@
 import { ipcMain } from "electron";
 import { IPC_CHANNELS } from "../../shared/constants";
-import type { ExternalOpenAppId } from "../../shared/types";
+import { CodeResult, type ExternalOpenAppId } from "../../shared/types";
 import { getBrowserWindow } from "../utils";
 import {
   readFileContent,
@@ -11,6 +11,8 @@ import {
   openDialog,
   getSelectedPath,
   genDirTreByPath,
+  genFullDirTreeByPath,
+  readDirectoryShallow,
   revealInSystemExplorer,
   copyPathToClipboard,
   listAvailableExternalOpenApps,
@@ -72,6 +74,24 @@ export function registerFileIpc(): void {
     IPC_CHANNELS.FILE.GENERATE_TREE,
     async (_, selectedPath: string) => {
       return genDirTreByPath(selectedPath);
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.FILE.GENERATE_FULL_TREE,
+    async (_, selectedPath: string) => {
+      return genFullDirTreeByPath(selectedPath);
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.FILE.READ_DIRECTORY,
+    async (_, directoryPath: string) => {
+      const children = await readDirectoryShallow(directoryPath);
+      return {
+        code: children ? CodeResult.Success : CodeResult.Fail,
+        data: children ? { children } : undefined,
+      };
     },
   );
 
@@ -142,11 +162,11 @@ export function registerFileIpc(): void {
       if (!win) return;
 
       try {
-        workspaceWatchRegistry.watchWorkspace(rootPath, (changedRootPath) => {
+        workspaceWatchRegistry.watchWorkspace(rootPath, (changeBatch) => {
           if (win.isDestroyed()) return;
           win.webContents.send(
             IPC_CHANNELS.FILE.ON_WORKSPACE_CHANGED,
-            changedRootPath,
+            changeBatch,
           );
         });
 

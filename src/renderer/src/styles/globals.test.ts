@@ -9,9 +9,24 @@ const stylesheet = readFileSync(
 );
 
 describe("global scrollbar styles", () => {
+  it("shows the shared sidebar scrollbar only while its shell is hovered", () => {
+    expect(stylesheet).toMatch(
+      /\.file-tree-scrollbar-thumb\s*\{[\s\S]*opacity:\s*0;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.file-tree-scroll-shell:hover\s+\.file-tree-scrollbar-thumb\s*\{[\s\S]*opacity:\s*1;/,
+    );
+  });
+
   it("fades out the file tree scrollbar after hover ends", () => {
     expect(stylesheet).toMatch(
-      /\.file-tree-scrollbar-thumb\s*\{[\s\S]*transition:\s*opacity\s+240ms\s+ease;/,
+      /\.file-tree-scrollbar-thumb\s*\{[\s\S]*transition:\s*opacity\s+240ms\s+cubic-bezier\(0\.25,\s*1,\s*0\.5,\s*1\);/,
+    );
+  });
+
+  it("disables the scrollbar fade for reduced motion", () => {
+    expect(stylesheet).toMatch(
+      /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*\.file-tree-scrollbar-thumb\s*\{[\s\S]*transition-duration:\s*0\.01ms;/,
     );
   });
 

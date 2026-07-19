@@ -1,8 +1,14 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BlockNoteView } from "@blocknote/mantine";
 import { useCreateBlockNote, useEditorChange } from "@blocknote/react";
 import type { BlockNoteEditor as CoreBlockNoteEditor } from "@blocknote/core";
-import { PictureInPicture2, Plus, X } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  PictureInPicture2,
+  Plus,
+  X,
+} from "lucide-react";
 import type {
   CloseSaveSnapshot,
   QuickEditorWindowContent,
@@ -16,7 +22,11 @@ import {
   type UploadedImageCursorEditor,
 } from "../lib/editor-image";
 import { EDITOR_EMPTY_PLACEHOLDER } from "../lib/editor-placeholder";
-import { serializeMarkdown } from "../lib/markdown";
+import {
+  markdownEquals,
+  preserveMarkdownSource,
+  serializeMarkdown,
+} from "../lib/markdown";
 
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
@@ -91,6 +101,15 @@ export function createQuickEditorImageUploader(
   };
 }
 
+export function resolveQuickEditorMarkdown(
+  source: string | null,
+  baseline: string | null,
+  serialized: string,
+): string {
+  if (source === null || baseline === null) return serialized;
+  return preserveMarkdownSource(source, baseline, serialized);
+}
+
 export function QuickEditorWindow() {
   const appearance = useEditorStore((state) => state.appearance);
   const { isDark } = useTheme({ transparentBackground: true });
@@ -98,8 +117,13 @@ export function QuickEditorWindow() {
   const returnInProgressRef = useRef(false);
   const sourceRef = useRef<QuickEditorWindowContent["source"]>(null);
   const lastSyncedContentRef = useRef<string | null>(null);
+  const serializedBaselineRef = useRef<string | null>(null);
   const syncRevisionRef = useRef(0);
   const editorRef = useRef<CoreBlockNoteEditor | null>(null);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapseStateReady, setIsCollapseStateReady] = useState(false);
+  const [collapseTarget, setCollapseTarget] = useState<boolean | null>(null);
+  const [isCollapseTransitioning, setIsCollapseTransitioning] = useState(false);
   const handleImageUploadRef = useRef(
     createQuickEditorImageUploader(
       () => editorRef.current,
@@ -113,6 +137,26 @@ export function QuickEditorWindow() {
   });
   editorRef.current = editor;
 
+  const readCollapsedState = useCallback(async (): Promise<boolean | null> => {
+    try {
+      return await window.electronAPI.getQuickEditorCollapsed();
+    } catch {
+      return null;
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void readCollapsedState().then((collapsed) => {
+      if (cancelled) return;
+      if (collapsed !== null) setIsCollapsed(collapsed);
+      setIsCollapseStateReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [readCollapsedState]);
+
   const syncDirtyState = useCallback((isDirty: boolean) => {
     dirtyRef.current = isDirty;
     window.electronAPI.updateDirtyState(isDirty);
@@ -120,16 +164,24 @@ export function QuickEditorWindow() {
 
   const syncContentToSource = useCallback(() => {
     const source = sourceRef.current;
-    if (!source) return;
+    const sourceContent = lastSyncedContentRef.current;
+    const baseline = serializedBaselineRef.current;
+    if (!source || sourceContent === null || baseline === null) return;
 
     const revision = ++syncRevisionRef.current;
-    void serializeMarkdown(editor, editor.document).then((content) => {
-      if (
-        revision !== syncRevisionRef.current ||
-        content === lastSyncedContentRef.current
-      ) {
+    void serializeMarkdown(editor, editor.document).then((serialized) => {
+      if (revision !== syncRevisionRef.current) {
         return;
       }
+
+      // 与主编辑器保持一致：以加载时的序列化结果为基线，只把真实编辑映射回原始 Markdown。
+      const content = resolveQuickEditorMarkdown(
+        sourceContent,
+        baseline,
+        serialized,
+      );
+      serializedBaselineRef.current = serialized;
+      if (markdownEquals(content, sourceContent)) return;
 
       lastSyncedContentRef.current = content;
       window.electronAPI.syncQuickEditorContent({ content, source });
@@ -152,7 +204,12 @@ export function QuickEditorWindow() {
     bridgeWindow["__getNextDirtyEditor"] = async () => {
       if (!dirtyRef.current) return null;
 
-      const content = await serializeMarkdown(editor, editor.document);
+      const serialized = await serializeMarkdown(editor, editor.document);
+      const content = resolveQuickEditorMarkdown(
+        lastSyncedContentRef.current,
+        serializedBaselineRef.current,
+        serialized,
+      );
       if (!content.trim()) {
         syncDirtyState(false);
         return null;
@@ -173,7 +230,12 @@ export function QuickEditorWindow() {
       savedContent,
     ) => {
       // 写盘期间若又发生编辑，继续保留脏状态并进入下一轮关闭保存检查。
-      const currentContent = await serializeMarkdown(editor, editor.document);
+      const serialized = await serializeMarkdown(editor, editor.document);
+      const currentContent = resolveQuickEditorMarkdown(
+        lastSyncedContentRef.current,
+        serializedBaselineRef.current,
+        serialized,
+      );
       syncDirtyState(currentContent !== savedContent);
     };
 
@@ -185,9 +247,10 @@ export function QuickEditorWindow() {
   }, [editor, syncDirtyState]);
 
   useEffect(() => {
+    if (!isCollapseStateReady || isCollapsed) return;
     const frame = window.requestAnimationFrame(() => editor.focus());
     return () => window.cancelAnimationFrame(frame);
-  }, [editor]);
+  }, [editor, isCollapsed, isCollapseStateReady]);
 
   useEffect(() => {
     let cancelled = false;
@@ -197,14 +260,17 @@ export function QuickEditorWindow() {
       initialContent: QuickEditorWindowContent,
     ) => {
       if (cancelled) return;
-      sourceRef.current = initialContent.source;
-      lastSyncedContentRef.current = initialContent.content;
+      const revision = ++syncRevisionRef.current;
       try {
         const blocks = await editor.tryParseMarkdownToBlocks(
           initialContent.content,
         );
-        if (cancelled) return;
+        const baseline = await serializeMarkdown(editor, blocks);
+        if (cancelled || revision !== syncRevisionRef.current) return;
 
+        sourceRef.current = initialContent.source;
+        lastSyncedContentRef.current = initialContent.content;
+        serializedBaselineRef.current = baseline;
         editor.replaceBlocks(editor.document, blocks);
         syncDirtyState(false);
       } catch {
@@ -228,12 +294,15 @@ export function QuickEditorWindow() {
     let cancelled = false;
     const applyLiveContent = async (content: QuickEditorWindowContent) => {
       if (cancelled) return;
-      sourceRef.current = content.source;
-      lastSyncedContentRef.current = content.content;
+      const revision = ++syncRevisionRef.current;
       try {
         const blocks = await editor.tryParseMarkdownToBlocks(content.content);
-        if (cancelled) return;
+        const baseline = await serializeMarkdown(editor, blocks);
+        if (cancelled || revision !== syncRevisionRef.current) return;
 
+        sourceRef.current = content.source;
+        lastSyncedContentRef.current = content.content;
+        serializedBaselineRef.current = baseline;
         editor.replaceBlocks(editor.document, blocks);
         syncDirtyState(false);
       } catch {
@@ -257,7 +326,12 @@ export function QuickEditorWindow() {
     returnInProgressRef.current = true;
 
     try {
-      const content = await serializeMarkdown(editor, editor.document);
+      const serialized = await serializeMarkdown(editor, editor.document);
+      const content = resolveQuickEditorMarkdown(
+        lastSyncedContentRef.current,
+        serializedBaselineRef.current,
+        serialized,
+      );
       window.electronAPI.returnToMainWindowFromQuickEditor({
         content,
         source: sourceRef.current,
@@ -267,14 +341,67 @@ export function QuickEditorWindow() {
     }
   }, [editor]);
 
+  const handleToggleCollapsed = useCallback(async () => {
+    if (!isCollapseStateReady || isCollapseTransitioning) return;
+
+    const nextCollapsed = !isCollapsed;
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    setCollapseTarget(nextCollapsed);
+    setIsCollapseTransitioning(true);
+
+    try {
+      const collapsed = await window.electronAPI.setQuickEditorCollapsed(
+        nextCollapsed,
+        reduceMotion,
+      );
+      setIsCollapsed(collapsed);
+    } catch {
+      // IPC 异常后重新读取主进程状态，避免图标与原生窗口尺寸失去同步。
+      const collapsed = await readCollapsedState();
+      if (collapsed !== null) setIsCollapsed(collapsed);
+    } finally {
+      setCollapseTarget(null);
+      setIsCollapseTransitioning(false);
+    }
+  }, [
+    isCollapsed,
+    isCollapseStateReady,
+    isCollapseTransitioning,
+    readCollapsedState,
+  ]);
+
+  const editorIsHidden = isCollapsed || collapseTarget === true;
+
   return (
-    <div className="quick-editor-window" data-quick-editor-window="true">
+    <div
+      className="quick-editor-window"
+      data-collapsed={editorIsHidden ? "true" : "false"}
+      data-quick-editor-window="true"
+    >
       <header className="quick-editor-window__titlebar">
+        <div className="quick-editor-window__actions quick-editor-window__actions--left">
+          <button
+            aria-label={isCollapsed ? "展开编辑器" : "折叠编辑器"}
+            className="quick-editor-window__action quick-editor-window__action--collapse"
+            disabled={!isCollapseStateReady || isCollapseTransitioning}
+            title={isCollapsed ? "展开编辑器" : "折叠编辑器"}
+            type="button"
+            onClick={() => void handleToggleCollapsed()}
+          >
+            {isCollapsed ? (
+              <ChevronDown aria-hidden="true" size={15} />
+            ) : (
+              <ChevronUp aria-hidden="true" size={15} />
+            )}
+          </button>
+        </div>
         <div className="quick-editor-window__drag-region" aria-hidden="true" />
-        <div className="quick-editor-window__actions">
+        <div className="quick-editor-window__actions quick-editor-window__actions--right">
           <button
             aria-label="新建浮窗编辑器"
-            className="quick-editor-window__action"
+            className="quick-editor-window__action quick-editor-window__action--secondary"
             title="新建浮窗编辑器"
             type="button"
             onClick={() => window.electronAPI.createQuickEditorWindow()}
@@ -283,7 +410,7 @@ export function QuickEditorWindow() {
           </button>
           <button
             aria-label="返回应用"
-            className="quick-editor-window__action"
+            className="quick-editor-window__action quick-editor-window__action--secondary"
             title="返回应用"
             type="button"
             onClick={() => void handleReturnToApplication()}
@@ -302,7 +429,11 @@ export function QuickEditorWindow() {
         </div>
       </header>
 
-      <main className="quick-editor-window__editor" aria-label="快速编辑器">
+      <main
+        aria-hidden={editorIsHidden || undefined}
+        aria-label="快速编辑器"
+        className="quick-editor-window__editor"
+      >
         <BlockNoteView
           editor={editor}
           theme={isDark ? "dark" : "light"}

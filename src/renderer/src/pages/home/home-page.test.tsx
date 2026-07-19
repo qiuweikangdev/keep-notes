@@ -1,5 +1,6 @@
 import type { PropsWithChildren } from "react";
 import {
+  act,
   cleanup,
   fireEvent,
   render as baseRender,
@@ -15,6 +16,9 @@ import { APP_TOAST_EVENT } from "@/lib/app-toast";
 
 const closeDiff = vi.fn();
 const discardFileChangesMock = vi.hoisted(() => vi.fn());
+const dialogRootStateMock = vi.hoisted(() => ({
+  onOpenChange: null as ((open: boolean) => void) | null,
+}));
 const diffStateMock = vi.hoisted(() => ({
   isOpen: true,
   source: "worktree" as "worktree" | "history",
@@ -46,8 +50,17 @@ vi.mock("@/components/ui/dialog", () => ({
     const React = require("react");
     return {
       Dialog: {
-        Root: ({ children, open }: PropsWithChildren<{ open?: boolean }>) =>
-          open ? <div data-testid="dialog-root">{children}</div> : null,
+        Root: ({
+          children,
+          open,
+          onOpenChange,
+        }: PropsWithChildren<{
+          open?: boolean;
+          onOpenChange?: (open: boolean) => void;
+        }>) => {
+          dialogRootStateMock.onOpenChange = onOpenChange ?? null;
+          return open ? <div data-testid="dialog-root">{children}</div> : null;
+        },
         Title: ({ children }: PropsWithChildren) => <h2>{children}</h2>,
       },
       DialogContent: React.forwardRef(
@@ -180,6 +193,8 @@ function render(
 
 describe("HomePage", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
+    dialogRootStateMock.onOpenChange = null;
     diffStateMock.isOpen = true;
     diffStateMock.source = "worktree";
     diffStateMock.oldContent = "# old";
@@ -280,7 +295,7 @@ describe("HomePage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows a no-change toast after confirming discard when discard has no content to update", async () => {
+  it("shows an error after confirming discard when discard fails", async () => {
     render(<HomePage />);
 
     fireEvent.click(screen.getByRole("button", { name: "放弃当前文件更改" }));
@@ -289,7 +304,7 @@ describe("HomePage", () => {
     await waitFor(() => {
       expect(discardFileChangesMock).toHaveBeenCalled();
     });
-    expect(screen.getByText("暂无更改内容")).toBeInTheDocument();
+    expect(screen.getByText("放弃更改失败")).toBeInTheDocument();
     expect(
       within(screen.getByTestId("dialog-root")).queryByRole("status"),
     ).not.toBeInTheDocument();
@@ -314,6 +329,46 @@ describe("HomePage", () => {
       within(screen.getByTestId("dialog-root")).queryByRole("status"),
     ).not.toBeInTheDocument();
     expect(closeDiff).not.toHaveBeenCalled();
+  });
+
+  it("forces discard when the popup is already displaying different contents", async () => {
+    discardFileChangesMock.mockResolvedValue({ success: true });
+
+    render(<HomePage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "放弃当前文件更改" }));
+    fireEvent.click(screen.getByRole("button", { name: "确定" }));
+
+    await waitFor(() => {
+      expect(discardFileChangesMock).toHaveBeenCalledWith(
+        "D:\\notes",
+        "D:\\notes\\readme.md",
+        expect.anything(),
+        { skipChangeCheck: true },
+      );
+    });
+    expect(closeDiff).toHaveBeenCalled();
+  });
+
+  it("keeps the diff popup open until the confirmed discard succeeds", async () => {
+    discardFileChangesMock.mockResolvedValue({ success: true });
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+    render(<HomePage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "放弃当前文件更改" }));
+    now.mockReturnValue(1_200);
+    act(() => dialogRootStateMock.onOpenChange?.(false));
+
+    expect(closeDiff).not.toHaveBeenCalled();
+    expect(screen.getByText("确认放弃更改")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "readme.md差异" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "确定" }));
+    await waitFor(() => expect(discardFileChangesMock).toHaveBeenCalled());
+    expect(closeDiff).toHaveBeenCalledTimes(1);
+    now.mockRestore();
   });
 
   it("renders a diff toast from the shared toast event", async () => {

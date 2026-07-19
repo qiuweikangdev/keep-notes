@@ -309,6 +309,25 @@ describe("blocknote overrides stylesheet", () => {
     );
   });
 
+  it("pins Bash and Text to the default code color at regular weight", () => {
+    const plainCodeRule = getRule(
+      `:is(
+        .editor-code-block-shell[data-language="bash"],
+        .editor-code-block-shell[data-language="text"]
+      )
+        .editor-code-block__codemirror
+        .cm-content`,
+    );
+
+    expect(plainCodeRule).toBeDefined();
+    expect(plainCodeRule).toMatch(/color:\s*var\(--editor-code-block-text\);/);
+    expect(plainCodeRule).toMatch(
+      /font-family:\s*"PingFang SC",\s*"Microsoft YaHei UI",\s*"Noto Sans CJK SC",\s*system-ui,\s*sans-serif;/,
+    );
+    expect(plainCodeRule).toMatch(/font-weight:\s*400;/);
+    expect(stylesheet).not.toMatch(/--editor-code-plain-text/);
+  });
+
   it("styles inline code marks inside rich editor text blocks", () => {
     const inlineCodeRule = getRule(
       ":is(.bn-editor, .bn-editor-preview) code:not(.editor-code-block__content)",

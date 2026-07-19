@@ -482,6 +482,20 @@
   min-width: max-content;
 }
 
+/* Bash 与 Text 使用常规字重，并明确继承代码块主色，避免旧主题残留导致颜色变淡。 */
+:is(
+    .editor-code-block-shell[data-language="bash"],
+    .editor-code-block-shell[data-language="text"]
+  )
+  .editor-code-block__codemirror
+  .cm-content {
+  color: var(--editor-code-block-text);
+  font-family:
+    "PingFang SC", "Microsoft YaHei UI", "Noto Sans CJK SC", system-ui,
+    sans-serif;
+  font-weight: 400;
+}
+
 .editor-code-block__codemirror .cm-editor.cm-focused:hover .cm-cursor {
   border-left-color: var(--editor-code-block-cursor) !important;
   border-left-style: solid !important;

@@ -225,6 +225,7 @@ function createTab(id: string, filePath: string) {
 }
 
 beforeEach(() => {
+  useEditorStore.getState().clearFileDragTargetGroupId();
   workspaceLifecycle.renderRichPanes = false;
   workspaceLifecycle.nextInstanceId = 0;
   workspaceLifecycle.instances.clear();
@@ -437,6 +438,67 @@ describe("Editor split panels", () => {
         "group-2",
       );
     });
+  });
+
+  it("highlights the panel targeted by the portal rich editor drag session", () => {
+    useEditorStore.setState({
+      panelGroups: [
+        {
+          id: "group-1",
+          activeTabId: "tab-1",
+          direction: "horizontal",
+          tabs: [createTab("tab-1", "C:/notes/left.md")],
+        },
+        {
+          id: "group-2",
+          activeTabId: "tab-2",
+          direction: "horizontal",
+          splitParentGroupId: "group-1",
+          tabs: [createTab("tab-2", "C:/notes/right.md")],
+        },
+      ],
+      activeGroupId: "group-2",
+    });
+    render(<Editor />);
+
+    act(() => {
+      useEditorStore.setState((state) => ({
+        ...state,
+        fileDragTargetGroupId: "group-2",
+      }));
+    });
+
+    expect(
+      document.querySelector('[data-editor-file-drop-overlay="group-2"]'),
+    ).toBeInTheDocument();
+    expect(
+      document.querySelector('[data-editor-file-drop-overlay="group-1"]'),
+    ).not.toBeInTheDocument();
+  });
+
+  it("clears the highlighted panel when the file drag session ends", () => {
+    useEditorStore.setState({
+      panelGroups: [
+        {
+          id: "group-1",
+          activeTabId: "tab-1",
+          direction: "horizontal",
+          tabs: [createTab("tab-1", "C:/notes/current.md")],
+        },
+      ],
+      activeGroupId: "group-1",
+      fileDragTargetGroupId: "group-1",
+    });
+    render(<Editor />);
+    expect(
+      document.querySelector('[data-editor-file-drop-overlay="group-1"]'),
+    ).toBeInTheDocument();
+
+    fireEvent.dragEnd(document);
+
+    expect(
+      document.querySelector('[data-editor-file-drop-overlay="group-1"]'),
+    ).not.toBeInTheDocument();
   });
 
   it("captures a file-tree drop over nested tab-bar controls", async () => {

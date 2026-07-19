@@ -89,6 +89,7 @@ vi.mock("../lib/markdown", async (importOriginal) => {
 });
 
 beforeEach(() => {
+  useEditorStore.getState().clearFileDragTargetGroupId();
   editorPerformanceMocks.measure.mockClear();
   markdownMocks.serializeMarkdown.mockReset();
   markdownMocks.serializeMarkdown.mockImplementation((...args) =>
@@ -1635,6 +1636,76 @@ describe("BlockNoteEditor persistent session runtime", () => {
       path: "C:/notes/current.md",
       tabId: "tab-session",
     });
+    expect(useEditorStore.getState().fileDragTargetGroupId).toBeNull();
+
+    session.view.unmount();
+  });
+
+  it("does not target a pane for an internal BlockNote drag", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    setupSessionTab("C:/notes/current.md");
+    const session = renderRealSession("C:/notes/current.md");
+
+    await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    const scrollContainer = session.view.container.querySelector<HTMLElement>(
+      ".editor-rich-scroll",
+    )!;
+    const dataTransfer = {
+      types: ["blocknote/html", "application/x-keep-notes-file"],
+    } as unknown as DataTransfer;
+
+    fireEvent.dragOver(scrollContainer, { dataTransfer });
+
+    expect(useEditorStore.getState().fileDragTargetGroupId).toBeNull();
+
+    session.view.unmount();
+  });
+
+  it("targets the active pane while a file crosses the portal editor", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    setupSessionTab("C:/notes/current.md");
+    const session = renderRealSession("C:/notes/current.md");
+
+    await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    const scrollContainer = session.view.container.querySelector<HTMLElement>(
+      ".editor-rich-scroll",
+    )!;
+    const dataTransfer = {
+      types: ["application/x-keep-notes-file"],
+    } as unknown as DataTransfer;
+
+    fireEvent.dragOver(scrollContainer, { dataTransfer });
+
+    expect(useEditorStore.getState().fileDragTargetGroupId).toBe(
+      "group-session",
+    );
+
+    session.view.unmount();
+  });
+
+  it("clears the portal pane target when the file leaves the rich editor", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    setupSessionTab("C:/notes/current.md");
+    const session = renderRealSession("C:/notes/current.md");
+
+    await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    const scrollContainer = session.view.container.querySelector<HTMLElement>(
+      ".editor-rich-scroll",
+    )!;
+    const dataTransfer = {
+      types: ["application/x-keep-notes-file"],
+    } as unknown as DataTransfer;
+    fireEvent.dragOver(scrollContainer, { dataTransfer });
+
+    fireEvent.dragLeave(scrollContainer, {
+      dataTransfer,
+      relatedTarget: document.body,
+    });
+
+    expect(useEditorStore.getState().fileDragTargetGroupId).toBeNull();
 
     session.view.unmount();
   });

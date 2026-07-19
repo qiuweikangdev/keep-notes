@@ -199,6 +199,9 @@ function restoreSourceLineIndentation(sourceLine: string, lineHtml: string) {
 
 function getCodeMirrorLanguageExtension(language: string): Extension {
   switch (language) {
+    case "bash":
+    case "text":
+      return Prec.high(editorPlainCodeMirrorTheme);
     case "javascript":
       return javascript();
     case "typescript":
@@ -267,6 +270,17 @@ const editorCodeMirrorTheme = EditorView.theme({
   },
   "&.cm-focused": {
     outline: "none",
+  },
+});
+
+const editorPlainCodeMirrorTheme = EditorView.theme({
+  ".cm-scroller": {
+    fontFamily:
+      '"PingFang SC", "Microsoft YaHei UI", "Noto Sans CJK SC", system-ui, sans-serif',
+  },
+  ".cm-content": {
+    color: "var(--editor-code-block-text)",
+    fontWeight: "400",
   },
 });
 
@@ -956,6 +970,7 @@ export function EditorCodeBlock({
   return (
     <div
       ref={rootRef}
+      data-language={language}
       className="editor-code-block-shell editor-code-block relative rounded-md border border-[var(--border-color)] bg-[var(--bg-secondary)]"
       onKeyDown={handleKeyDown}
     >

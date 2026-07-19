@@ -86,6 +86,9 @@ const codeMirrorFallbackFoldRangeCache = new WeakMap<
 
 function getCodeMirrorLanguageExtension(language: string): Extension {
   switch (language) {
+    case "bash":
+    case "text":
+      return Prec.high(editorPlainCodeMirrorTheme);
     case "javascript":
       return javascript();
     case "typescript":
@@ -181,6 +184,17 @@ const editorCodeMirrorTheme = CodeMirrorView.theme({
     },
   "&.cm-focused": {
     outline: "none",
+  },
+});
+
+const editorPlainCodeMirrorTheme = CodeMirrorView.theme({
+  ".cm-scroller": {
+    fontFamily:
+      '"PingFang SC", "Microsoft YaHei UI", "Noto Sans CJK SC", system-ui, sans-serif',
+  },
+  ".cm-content": {
+    color: "var(--editor-code-block-text)",
+    fontWeight: "400",
   },
 });
 
@@ -592,6 +606,7 @@ class EditorCodeBlockNodeView {
     this.dom = document.createElement("div");
     this.dom.className =
       "editor-code-block-shell editor-code-block relative rounded-md border border-[var(--border-color)] bg-[var(--bg-secondary)]";
+    this.dom.dataset.language = this.language;
     this.dom.contentEditable = "false";
 
     const toolbar = this.createToolbar();
@@ -949,6 +964,7 @@ class EditorCodeBlockNodeView {
     if (this.language === normalizedLanguage) return;
 
     this.language = normalizedLanguage;
+    this.dom.dataset.language = normalizedLanguage;
     this.languageButton.querySelector("span")!.textContent =
       getCodeBlockLanguageShortLabel(normalizedLanguage);
     this.codeMirror.dispatch({

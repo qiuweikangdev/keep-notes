@@ -35,6 +35,8 @@ export const IPC_CHANNELS = {
     RETURN_TO_MAIN_WINDOW: "quick-editor:return-to-main-window",
     IMPORT_CONTENT: "quick-editor:import-content",
     CONSUME_CONTENT: "quick-editor:consume-content",
+    GET_COLLAPSED: "quick-editor:get-collapsed",
+    SET_COLLAPSED: "quick-editor:set-collapsed",
   },
   FILE: {
     READ: "file:read",
@@ -45,6 +47,8 @@ export const IPC_CHANNELS = {
     OPEN_DIALOG: "file:open-dialog",
     GET_SELECTED_PATH: "file:get-selected-path",
     GENERATE_TREE: "file:generate-tree",
+    GENERATE_FULL_TREE: "file:generate-full-tree",
+    READ_DIRECTORY: "file:read-directory",
     OPEN_IN_EXPLORER: "file:open-in-explorer",
     COPY_PATH: "file:copy-path",
     OPEN_IN_NEW_WINDOW: "file:open-in-new-window",
