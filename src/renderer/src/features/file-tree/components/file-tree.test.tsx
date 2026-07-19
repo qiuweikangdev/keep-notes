@@ -387,6 +387,36 @@ describe("FileTree context menu", () => {
     window.removeEventListener(APP_TOAST_EVENT, toastSpy);
   });
 
+  it("waits for IME composition to finish before confirming a rename", async () => {
+    electronMocks.renameItem.mockResolvedValue({
+      code: CodeResult.Success,
+      data: { treeData: [] },
+    });
+
+    render(<FileTree />);
+
+    fireEvent.contextMenu(await screen.findByText("daily.md"));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /重命名/ }));
+    const input = await screen.findByDisplayValue("daily");
+
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "日报" } });
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+
+    expect(electronMocks.renameItem).not.toHaveBeenCalled();
+
+    fireEvent.compositionEnd(input);
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(electronMocks.renameItem).toHaveBeenCalledWith(
+        "/notes/daily.md",
+        "日报",
+        expect.any(Array),
+      );
+    });
+  });
+
   it("shows a toast when creating a file with an existing name", async () => {
     const toastSpy = vi.fn();
     window.addEventListener(APP_TOAST_EVENT, toastSpy);

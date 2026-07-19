@@ -1324,6 +1324,7 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
     title: string;
   }>({ open: false, sourcePath: "", targetPath: "", title: "" });
   const renameInputRef = useRef<HTMLInputElement>(null);
+  const isRenameComposingRef = useRef(false);
   const dragDepthRef = useRef(0);
   const setTreeData = useTreeStore((state) => state.setTreeData);
   const expandedKeys = useTreeStore((state) => state.expandedKeys);
@@ -1384,6 +1385,14 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
   // 重命名键盘事件
   const handleRenameKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
+      const isComposing =
+        isRenameComposingRef.current ||
+        e.nativeEvent.isComposing ||
+        e.keyCode === 229;
+
+      // 输入法组合态下的 Enter 仅用于确认候选字，不能提交重命名。
+      if (isComposing) return;
+
       if (e.key === "Enter") {
         void handleRenameConfirm();
       }
@@ -1660,6 +1669,12 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
                   value={renameValue}
                   onChange={(e) => setRenameValue(e.target.value)}
                   onKeyDown={handleRenameKeyDown}
+                  onCompositionStart={() => {
+                    isRenameComposingRef.current = true;
+                  }}
+                  onCompositionEnd={() => {
+                    isRenameComposingRef.current = false;
+                  }}
                   onBlur={() =>
                     setTimeout(() => void handleRenameConfirm(), 100)
                   }
