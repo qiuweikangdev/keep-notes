@@ -21,7 +21,11 @@ import { showAppToast } from "@/lib/app-toast";
 import { QuickEditorWindow } from "@/features/editor/components/quick-editor-window";
 import { editorFindController } from "@/features/editor/lib/editor-find-controller";
 import { requestEditorViewportPreservation } from "@/features/editor/lib/editor-viewport";
-import type { QuickEditorWindowContent, ThemeName } from "@shared/types";
+import type {
+  QuickEditorWindowContent,
+  ReminderEditorRequest,
+  ThemeName,
+} from "@shared/types";
 
 const CODE_BLOCK_CURSOR_VISUAL_WIDTH = 2;
 const APP_THEME_NAMES: readonly ThemeName[] = [
@@ -482,48 +486,79 @@ function ReminderWindowApplication() {
 }
 
 function ReminderEditorWindowApplication() {
-  const [initialized, setInitialized] = useState(false);
+  const [activeRequest, setActiveRequest] =
+    useState<ReminderEditorRequest | null>(null);
+  const [appliedRequestId, setAppliedRequestId] = useState<number | null>(null);
   const loadReminders = useReminderStore((state) => state.loadReminders);
   const isEditorOpen = useReminderStore((state) => state.isEditorOpen);
+  const editingReminderId = useReminderStore(
+    (state) => state.editingReminderId,
+  );
   const openCreateDialog = useReminderStore((state) => state.openCreateDialog);
   const openEditDialog = useReminderStore((state) => state.openEditDialog);
-  const reminderId = useMemo(
-    () => new URLSearchParams(window.location.search).get("reminderId"),
-    [],
-  );
   const theme = useReminderWindowTheme();
 
   useTheme({ transparentBackground: true, themeOverride: theme });
 
   useEffect(() => {
     let cancelled = false;
+    const unsubscribe = window.electronAPI.onReminderEditorRequested(
+      (request) => {
+        // 渲染器声明就绪后主进程才会派发请求，此时提醒数据已经可用于初始化表单。
+        if (request.reminderId) {
+          openEditDialog(request.reminderId);
+        } else {
+          openCreateDialog();
+        }
+        setActiveRequest(request);
+      },
+    );
 
     void loadReminders().then(() => {
       if (cancelled) return;
-      if (reminderId) {
-        openEditDialog(reminderId);
-      } else {
-        openCreateDialog();
-      }
-      setInitialized(true);
+      window.electronAPI.notifyReminderEditorRendererReady();
     });
 
     return () => {
       cancelled = true;
+      unsubscribe();
     };
-  }, [loadReminders, openCreateDialog, openEditDialog, reminderId]);
+  }, [loadReminders, openCreateDialog, openEditDialog]);
 
   useEffect(() => {
-    if (initialized && !isEditorOpen) {
+    if (
+      activeRequest === null ||
+      !isEditorOpen ||
+      editingReminderId !== activeRequest.reminderId ||
+      appliedRequestId === activeRequest.requestId
+    ) {
+      return;
+    }
+
+    window.electronAPI.notifyReminderEditorRequestApplied(
+      activeRequest.requestId,
+    );
+    setAppliedRequestId(activeRequest.requestId);
+  }, [activeRequest, appliedRequestId, editingReminderId, isEditorOpen]);
+
+  useEffect(() => {
+    if (
+      activeRequest !== null &&
+      appliedRequestId === activeRequest.requestId &&
+      !isEditorOpen
+    ) {
       window.electronAPI.closeReminderEditorWindow();
     }
-  }, [initialized, isEditorOpen]);
+  }, [activeRequest, appliedRequestId, isEditorOpen]);
 
   return (
     <Tooltip.Provider delayDuration={300}>
       <DragResizeProvider>
         <div className="h-screen w-screen overflow-hidden bg-transparent">
-          <ReminderEditorDialog presentation="floating-window" />
+          <ReminderEditorDialog
+            key={activeRequest?.requestId ?? "prewarm"}
+            presentation="floating-window"
+          />
         </div>
       </DragResizeProvider>
     </Tooltip.Provider>

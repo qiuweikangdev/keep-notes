@@ -37,4 +37,35 @@ describe("reminder window theme preload API", () => {
       handler,
     );
   });
+
+  it("forwards editor requests to the prewarmed renderer", () => {
+    const callback = vi.fn();
+    const unsubscribe = reminderApi.onReminderEditorRequested(callback);
+    const handler = ipcRendererMocks.on.mock.calls[0]?.[1];
+    const request = { requestId: 7, reminderId: "reminder-1" };
+
+    handler?.({}, request);
+    unsubscribe();
+
+    expect(callback).toHaveBeenCalledWith(request);
+    expect(ipcRendererMocks.removeListener).toHaveBeenCalledWith(
+      IPC_CHANNELS.REMINDER.EDITOR_REQUESTED,
+      handler,
+    );
+  });
+
+  it("reports editor renderer and request readiness to the main process", () => {
+    reminderApi.notifyReminderEditorRendererReady();
+    reminderApi.notifyReminderEditorRequestApplied(7);
+
+    expect(ipcRendererMocks.send).toHaveBeenNthCalledWith(
+      1,
+      IPC_CHANNELS.REMINDER.EDITOR_RENDERER_READY,
+    );
+    expect(ipcRendererMocks.send).toHaveBeenNthCalledWith(
+      2,
+      IPC_CHANNELS.REMINDER.EDITOR_REQUEST_APPLIED,
+      7,
+    );
+  });
 });

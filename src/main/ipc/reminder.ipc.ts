@@ -6,6 +6,8 @@ import {
   configureReminderGlobalShortcuts,
   closeReminderEditorWindow,
   hideReminderWindow,
+  markReminderEditorRendererReady,
+  markReminderEditorRequestApplied,
   prewarmReminderEditorWindow,
   resizeReminderEditorWindow,
   resizeReminderWindow,
@@ -113,6 +115,25 @@ export function registerReminderIpc(): void {
           ? reminderId
           : undefined,
       );
+    },
+  );
+
+  ipcMain.on(IPC_CHANNELS.REMINDER.EDITOR_RENDERER_READY, (event) => {
+    markReminderEditorRendererReady(getBrowserWindow(event));
+  });
+
+  ipcMain.on(
+    IPC_CHANNELS.REMINDER.EDITOR_REQUEST_APPLIED,
+    (event, requestId: unknown) => {
+      if (
+        typeof requestId !== "number" ||
+        !Number.isSafeInteger(requestId) ||
+        requestId <= 0
+      ) {
+        return;
+      }
+
+      markReminderEditorRequestApplied(getBrowserWindow(event), requestId);
     },
   );
 

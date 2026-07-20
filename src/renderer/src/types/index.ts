@@ -20,6 +20,7 @@ export type {
   GitCommitDetail,
   GitDetectResult,
   Reminder,
+  ReminderEditorRequest,
   ReminderInput,
   ReminderRepeatCustomRule,
   ReminderRepeatPreset,

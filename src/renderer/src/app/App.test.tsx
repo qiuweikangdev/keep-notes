@@ -8,7 +8,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useReminderStore } from "@/store/reminder.store";
-import type { Reminder } from "@/types";
+import type { Reminder, ReminderEditorRequest } from "@/types";
 import type { ThemeName } from "@/config/themes";
 import { editorFindController } from "@/features/editor/lib/editor-find-controller";
 import {
@@ -428,6 +428,60 @@ describe("App shortcuts", () => {
       transparentBackground: true,
       themeOverride: "dark",
     });
+  });
+
+  it("applies edit requests before revealing the prewarmed reminder editor", async () => {
+    let editorRequestHandler:
+      | ((request: ReminderEditorRequest) => void)
+      | undefined;
+    const notifyReminderEditorRendererReady = vi.fn();
+    const notifyReminderEditorRequestApplied = vi.fn();
+    window.history.replaceState(
+      null,
+      "",
+      "/?window=reminder-editor&theme=light",
+    );
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: {
+        ...window.electronAPI,
+        listReminders: vi.fn(async () => [triggeredReminder]),
+        onReminderEditorRequested: vi.fn(
+          (callback: (request: ReminderEditorRequest) => void) => {
+            editorRequestHandler = callback;
+            return () => undefined;
+          },
+        ),
+        notifyReminderEditorRendererReady,
+        notifyReminderEditorRequestApplied,
+        onReminderWindowThemeChanged: vi.fn(() => () => undefined),
+        resizeReminderEditorWindow: vi.fn(),
+        closeReminderEditorWindow: vi.fn(),
+      },
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(notifyReminderEditorRendererReady).toHaveBeenCalledOnce();
+    });
+
+    act(() => {
+      editorRequestHandler?.({
+        requestId: 7,
+        reminderId: triggeredReminder.id,
+      });
+    });
+
+    await waitFor(() => {
+      expect(notifyReminderEditorRequestApplied).toHaveBeenCalledWith(7);
+    });
+    expect(useReminderStore.getState().editingReminderId).toBe(
+      triggeredReminder.id,
+    );
+    expect(screen.getByLabelText("提醒标题")).toHaveValue(
+      triggeredReminder.title,
+    );
   });
 
   it("publishes the configured application theme for floating windows", () => {

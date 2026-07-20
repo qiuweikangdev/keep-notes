@@ -3,6 +3,8 @@ import {
   configureReminderGlobalShortcuts,
   closeReminderEditorWindow,
   disposeReminderWindow,
+  markReminderEditorRendererReady,
+  markReminderEditorRequestApplied,
   prewarmReminderEditorWindow,
   resizeReminderEditorWindow,
   resizeReminderWindow,
@@ -250,7 +252,10 @@ describe("reminder window global shortcut", () => {
 
   it("keeps the reminder list visible while its editor child has focus", () => {
     showReminderWindow();
-    showReminderEditorWindow();
+    const editorWindow = showReminderEditorWindow();
+    markReminderEditorRendererReady(editorWindow);
+    const request = editorWindow.webContents.send.mock.calls.at(-1)?.[1];
+    markReminderEditorRequestApplied(editorWindow, request.requestId);
     const listWindow = electronMocks.windows[0];
     listWindow.hide.mockClear();
 
@@ -318,6 +323,34 @@ describe("reminder window global shortcut", () => {
 
     expect(shownWindow).toBe(prewarmedWindow);
     expect(electronMocks.windows).toHaveLength(1);
+    expect(win.show).not.toHaveBeenCalled();
+
+    markReminderEditorRendererReady(shownWindow);
+    const request = win.webContents.send.mock.calls.at(-1)?.[1];
+    expect(request).toMatchObject({ reminderId: null });
+
+    markReminderEditorRequestApplied(shownWindow, request.requestId);
+
+    expect(win.show).toHaveBeenCalledOnce();
+    expect(win.focus).toHaveBeenCalledOnce();
+  });
+
+  it("reuses a prewarmed editor window when modifying a reminder", () => {
+    const prewarmedWindow = prewarmReminderEditorWindow();
+    const win = electronMocks.windows[0];
+    markReminderEditorRendererReady(prewarmedWindow);
+
+    const shownWindow = showReminderEditorWindow("reminder-1");
+    const request = win.webContents.send.mock.calls.at(-1)?.[1];
+
+    expect(shownWindow).toBe(prewarmedWindow);
+    expect(electronMocks.windows).toHaveLength(1);
+    expect(win.destroy).not.toHaveBeenCalled();
+    expect(request).toMatchObject({ reminderId: "reminder-1" });
+    expect(win.show).not.toHaveBeenCalled();
+
+    markReminderEditorRequestApplied(shownWindow, request.requestId);
+
     expect(win.show).toHaveBeenCalledOnce();
     expect(win.focus).toHaveBeenCalledOnce();
   });
@@ -336,8 +369,11 @@ describe("reminder window global shortcut", () => {
 
   it("layers the reminder editor over the centered reminder list", () => {
     const listWindow = showReminderWindow();
-    showReminderEditorWindow();
+    const shownWindow = showReminderEditorWindow();
     const editorWindow = electronMocks.windows[1];
+    markReminderEditorRendererReady(shownWindow);
+    const request = editorWindow.webContents.send.mock.calls.at(-1)?.[1];
+    markReminderEditorRequestApplied(shownWindow, request.requestId);
 
     expect(editorWindow.options).toMatchObject({
       x: 500,

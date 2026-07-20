@@ -271,6 +271,11 @@ export interface ReminderInput {
   customRepeat?: ReminderRepeatCustomRule;
 }
 
+export interface ReminderEditorRequest {
+  requestId: number;
+  reminderId: string | null;
+}
+
 export interface ShortcutRegistrationResult {
   success: boolean;
   failedKeys: string[];

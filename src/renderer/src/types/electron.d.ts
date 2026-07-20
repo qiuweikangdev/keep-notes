@@ -18,6 +18,7 @@ import type {
   ExternalOpenApp,
   ExternalOpenAppId,
   Reminder,
+  ReminderEditorRequest,
   ReminderInput,
   SaveImageAttachmentInput,
   SaveImageAttachmentResult,
@@ -146,6 +147,11 @@ export interface ElectronAPI {
   resizeReminderWindow: (height: number) => void;
   prewarmReminderEditorWindow: () => void;
   showReminderEditorWindow: (reminderId?: string) => void;
+  onReminderEditorRequested: (
+    callback: (request: ReminderEditorRequest) => void,
+  ) => () => void;
+  notifyReminderEditorRendererReady: () => void;
+  notifyReminderEditorRequestApplied: (requestId: number) => void;
   resizeReminderEditorWindow: (height: number) => void;
   closeReminderEditorWindow: () => void;
   onReminderWindowShown: (callback: () => void) => () => void;

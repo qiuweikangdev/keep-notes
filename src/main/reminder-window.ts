@@ -4,7 +4,11 @@ import { BrowserWindow, globalShortcut, screen } from "electron";
 import { is } from "@electron-toolkit/utils";
 import icon from "../../resources/icon.png?asset";
 import { IPC_CHANNELS } from "../shared/constants";
-import type { ShortcutRegistrationResult, ThemeName } from "../shared/types";
+import type {
+  ReminderEditorRequest,
+  ShortcutRegistrationResult,
+  ThemeName,
+} from "../shared/types";
 
 const REMINDER_WINDOW_WIDTH = 536;
 const REMINDER_WINDOW_INITIAL_HEIGHT = 180;
@@ -29,7 +33,11 @@ const THEME_NAMES: readonly ThemeName[] = [
 let reminderWindow: BrowserWindow | null = null;
 let reminderEditorWindow: BrowserWindow | null = null;
 let reminderEditorWindowReady = false;
+let reminderEditorRendererReady = false;
 let shouldRevealReminderEditorWindow = false;
+let pendingReminderEditorRequest: ReminderEditorRequest | null = null;
+let appliedReminderEditorRequestId: number | null = null;
+let nextReminderEditorRequestId = 1;
 let registeredShortcutKeys: string[] = [];
 let shouldCenterNextResize = true;
 let ignoreReminderWindowBlur = false;
@@ -223,15 +231,11 @@ function getReminderEditorWindowBounds(): Electron.Rectangle {
   return { x, y, width, height };
 }
 
-function loadReminderEditorWindow(
-  win: BrowserWindow,
-  reminderId?: string,
-): void {
+function loadReminderEditorWindow(win: BrowserWindow): void {
   if (is.dev && process.env.ELECTRON_RENDERER_URL) {
     const rendererUrl = new URL(process.env.ELECTRON_RENDERER_URL);
     rendererUrl.searchParams.set("window", "reminder-editor");
     rendererUrl.searchParams.set("theme", reminderWindowTheme);
-    if (reminderId) rendererUrl.searchParams.set("reminderId", reminderId);
     void win.loadURL(rendererUrl.toString());
     return;
   }
@@ -240,15 +244,11 @@ function loadReminderEditorWindow(
     query: {
       window: "reminder-editor",
       theme: reminderWindowTheme,
-      ...(reminderId ? { reminderId } : {}),
     },
   });
 }
 
-function createReminderEditorWindow(
-  reminderId: string | undefined,
-  revealWhenReady: boolean,
-): BrowserWindow {
+function createReminderEditorWindow(): BrowserWindow {
   const parentWindow =
     reminderWindow && !reminderWindow.isDestroyed() ? reminderWindow : null;
   const win = new BrowserWindow({
@@ -274,11 +274,14 @@ function createReminderEditorWindow(
 
   reminderEditorWindow = win;
   reminderEditorWindowReady = false;
-  shouldRevealReminderEditorWindow = revealWhenReady;
+  reminderEditorRendererReady = false;
+  shouldRevealReminderEditorWindow = false;
+  pendingReminderEditorRequest = null;
+  appliedReminderEditorRequestId = null;
   win.once("ready-to-show", () => {
     if (win !== reminderEditorWindow || win.isDestroyed()) return;
     reminderEditorWindowReady = true;
-    if (shouldRevealReminderEditorWindow) revealReminderEditorWindow(win);
+    tryRevealReminderEditorWindow(win);
   });
   win.on("blur", () => {
     if (win !== reminderEditorWindow || win.isDestroyed()) return;
@@ -288,9 +291,12 @@ function createReminderEditorWindow(
     if (reminderEditorWindow !== win) return;
     reminderEditorWindow = null;
     reminderEditorWindowReady = false;
+    reminderEditorRendererReady = false;
     shouldRevealReminderEditorWindow = false;
+    pendingReminderEditorRequest = null;
+    appliedReminderEditorRequestId = null;
   });
-  loadReminderEditorWindow(win, reminderId);
+  loadReminderEditorWindow(win);
 
   return win;
 }
@@ -306,11 +312,43 @@ function revealReminderEditorWindow(win: BrowserWindow): void {
   win.focus();
 }
 
+function sendPendingReminderEditorRequest(win: BrowserWindow): void {
+  if (
+    win !== reminderEditorWindow ||
+    win.isDestroyed() ||
+    !reminderEditorRendererReady ||
+    pendingReminderEditorRequest === null
+  ) {
+    return;
+  }
+
+  win.webContents.send(
+    IPC_CHANNELS.REMINDER.EDITOR_REQUESTED,
+    pendingReminderEditorRequest,
+  );
+}
+
+function tryRevealReminderEditorWindow(win: BrowserWindow): void {
+  if (
+    !reminderEditorWindowReady ||
+    !shouldRevealReminderEditorWindow ||
+    pendingReminderEditorRequest === null ||
+    appliedReminderEditorRequestId !== pendingReminderEditorRequest.requestId
+  ) {
+    return;
+  }
+
+  revealReminderEditorWindow(win);
+}
+
 function destroyReminderEditorWindow(): void {
   const win = reminderEditorWindow;
   reminderEditorWindow = null;
   reminderEditorWindowReady = false;
+  reminderEditorRendererReady = false;
   shouldRevealReminderEditorWindow = false;
+  pendingReminderEditorRequest = null;
+  appliedReminderEditorRequestId = null;
 
   if (win && !win.isDestroyed()) win.destroy();
 }
@@ -320,21 +358,48 @@ export function prewarmReminderEditorWindow(): BrowserWindow {
     return reminderEditorWindow;
   }
 
-  // 列表打开后后台加载创建表单，用户点击“+”时只需显示已就绪窗口。
-  return createReminderEditorWindow(undefined, false);
+  // 列表打开后提前完成渲染器和提醒数据初始化，新建、修改都复用同一个窗口。
+  return createReminderEditorWindow();
 }
 
 export function showReminderEditorWindow(reminderId?: string): BrowserWindow {
-  if (reminderId) {
-    destroyReminderEditorWindow();
-    return createReminderEditorWindow(reminderId, true);
-  }
-
   const win = prewarmReminderEditorWindow();
+  pendingReminderEditorRequest = {
+    requestId: nextReminderEditorRequestId,
+    reminderId: reminderId ?? null,
+  };
+  nextReminderEditorRequestId += 1;
+  appliedReminderEditorRequestId = null;
   shouldRevealReminderEditorWindow = true;
-  if (reminderEditorWindowReady) revealReminderEditorWindow(win);
+  sendPendingReminderEditorRequest(win);
 
   return win;
+}
+
+export function markReminderEditorRendererReady(
+  win: BrowserWindow | null,
+): void {
+  if (!win || win !== reminderEditorWindow || win.isDestroyed()) return;
+
+  reminderEditorRendererReady = true;
+  sendPendingReminderEditorRequest(win);
+}
+
+export function markReminderEditorRequestApplied(
+  win: BrowserWindow | null,
+  requestId: number,
+): void {
+  if (
+    !win ||
+    win !== reminderEditorWindow ||
+    win.isDestroyed() ||
+    pendingReminderEditorRequest?.requestId !== requestId
+  ) {
+    return;
+  }
+
+  appliedReminderEditorRequestId = requestId;
+  tryRevealReminderEditorWindow(win);
 }
 
 export function resizeReminderEditorWindow(

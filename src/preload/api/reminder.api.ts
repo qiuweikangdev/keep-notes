@@ -2,6 +2,7 @@ import { ipcRenderer, type IpcRendererEvent } from "electron";
 import { IPC_CHANNELS } from "../../shared/constants";
 import type {
   Reminder,
+  ReminderEditorRequest,
   ReminderInput,
   ShortcutRegistrationResult,
   ThemeName,
@@ -78,6 +79,32 @@ export const reminderApi = {
 
   showReminderEditorWindow: (reminderId?: string): void => {
     ipcRenderer.send(IPC_CHANNELS.REMINDER.SHOW_EDITOR_WINDOW, reminderId);
+  },
+
+  onReminderEditorRequested: (
+    callback: (request: ReminderEditorRequest) => void,
+  ): (() => void) => {
+    const handler = (
+      _event: IpcRendererEvent,
+      request: ReminderEditorRequest,
+    ) => {
+      callback(request);
+    };
+    ipcRenderer.on(IPC_CHANNELS.REMINDER.EDITOR_REQUESTED, handler);
+    return () => {
+      ipcRenderer.removeListener(
+        IPC_CHANNELS.REMINDER.EDITOR_REQUESTED,
+        handler,
+      );
+    };
+  },
+
+  notifyReminderEditorRendererReady: (): void => {
+    ipcRenderer.send(IPC_CHANNELS.REMINDER.EDITOR_RENDERER_READY);
+  },
+
+  notifyReminderEditorRequestApplied: (requestId: number): void => {
+    ipcRenderer.send(IPC_CHANNELS.REMINDER.EDITOR_REQUEST_APPLIED, requestId);
   },
 
   resizeReminderEditorWindow: (height: number): void => {
