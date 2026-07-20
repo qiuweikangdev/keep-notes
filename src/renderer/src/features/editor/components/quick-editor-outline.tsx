@@ -29,6 +29,7 @@ export function extractQuickEditorOutlineHeadings(
   blocks: readonly QuickEditorOutlineBlock[],
 ): QuickEditorOutlineHeading[] {
   const headings: QuickEditorOutlineHeading[] = [];
+  // 深度优先遍历以保持父标题先于子标题的文档顺序。
   const visit = (items: readonly QuickEditorOutlineBlock[]) => {
     for (const block of items) {
       if (block.type === "heading") {
