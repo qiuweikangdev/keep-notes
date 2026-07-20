@@ -13,14 +13,17 @@ interface QuickEditorOutlineBlock {
 }
 
 function readInlineText(content: unknown): string {
+  if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
   return content
     .map((item) => {
+      if (typeof item === "string") return item;
       if (!item || typeof item !== "object") return "";
       const record = item as Record<string, unknown>;
-      return record.type === "text" && typeof record.text === "string"
-        ? record.text
-        : "";
+      if (record.type === "text" && typeof record.text === "string") {
+        return record.text;
+      }
+      return readInlineText(record.content);
     })
     .join("");
 }
@@ -64,6 +67,9 @@ export function QuickEditorOutline(props: QuickEditorOutlineProps) {
             <button
               key={heading.id}
               type="button"
+              aria-current={
+                heading.id === props.activeHeadingId ? "location" : undefined
+              }
               className="quick-editor-outline__item"
               data-active={heading.id === props.activeHeadingId || undefined}
               style={{ paddingLeft: `${12 + (heading.level - 1) * 16}px` }}

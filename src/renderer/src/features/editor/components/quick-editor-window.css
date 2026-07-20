@@ -133,7 +133,8 @@
 .quick-editor-outline__list {
   min-height: 0;
   flex: 1;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding-bottom: 8px;
 }
 
@@ -145,6 +146,7 @@
 .quick-editor-outline__item {
   display: flex;
   width: 100%;
+  min-width: 0;
   min-height: 30px;
   align-items: center;
   border: 0;
@@ -154,11 +156,22 @@
   text-align: left;
 }
 
-.quick-editor-outline__item:hover,
-.quick-editor-outline__item:focus-visible {
+.quick-editor-outline__item:hover {
   background: var(--hover-bg);
   color: var(--text-primary);
-  outline: none;
+}
+
+.quick-editor-outline__item:focus-visible {
+  color: var(--text-primary);
+  outline: 2px solid var(--accent-color);
+  outline-offset: -2px;
+}
+
+.quick-editor-outline__item span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .quick-editor-outline__item[data-active="true"] {

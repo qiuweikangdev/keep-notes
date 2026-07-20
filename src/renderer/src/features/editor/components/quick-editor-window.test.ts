@@ -26,6 +26,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
   Reflect.deleteProperty(Range.prototype, "getClientRects");
   Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
@@ -160,6 +161,16 @@ describe("quick editor content detection", () => {
       screen.queryByRole("navigation", { name: "文档大纲" }),
     ).not.toBeInTheDocument();
     expect(createQuickEditorWindow).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    await user.click(screen.getByRole("menuitem", { name: "显示大纲" }));
+    fireEvent.keyDown(screen.getByRole("main", { name: "快速编辑器" }), {
+      key: "Escape",
+    });
+    expect(
+      screen.queryByRole("navigation", { name: "文档大纲" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toHaveFocus();
   });
 
   it("scrolls to a selected outline heading", async () => {
@@ -174,7 +185,7 @@ describe("quick editor content detection", () => {
         addEventListener: vi.fn(),
         addListener: vi.fn(),
         dispatchEvent: vi.fn(),
-        matches: false,
+        matches: query === "(prefers-reduced-motion: reduce)",
         media: query,
         onchange: null,
         removeEventListener: vi.fn(),
@@ -206,7 +217,127 @@ describe("quick editor content detection", () => {
     await user.click(screen.getByRole("menuitem", { name: "显示大纲" }));
     await user.click(screen.getByRole("button", { name: "Details" }));
 
-    expect(scrollIntoView).toHaveBeenCalled();
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      behavior: "auto",
+      block: "start",
+    });
+    expect(screen.getByRole("navigation", { name: "文档大纲" })).toBeVisible();
+  });
+
+  it("coalesces scroll tracking and selects the last visible heading", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        addEventListener: vi.fn(),
+        addListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+        matches: false,
+        media: query,
+        onchange: null,
+        removeEventListener: vi.fn(),
+        removeListener: vi.fn(),
+      })),
+    );
+    vi.stubGlobal("electronAPI", {
+      createQuickEditorWindow: vi.fn(),
+      getQuickEditorCollapsed: vi.fn(async () => false),
+      setQuickEditorCollapsed: vi.fn(async (collapsed: boolean) => collapsed),
+      onQuickEditorInitialContent: vi.fn(
+        (callback: (content: { content: string; source: null }) => void) => {
+          callback({ content: "# Overview\n\n## Details", source: null });
+          return () => undefined;
+        },
+      ),
+      onQuickEditorContentUpdated: vi.fn(() => () => undefined),
+      closeQuickEditorWindow: vi.fn(),
+      returnToMainWindowFromQuickEditor: vi.fn(),
+      syncQuickEditorContent: vi.fn(),
+      updateDirtyState: vi.fn(),
+    });
+
+    const { container } = render(createElement(QuickEditorWindow));
+    expect(await screen.findByText("Details")).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    await user.click(screen.getByRole("menuitem", { name: "显示大纲" }));
+
+    const scrollContainer = container.querySelector(
+      ".quick-editor-window__scroll",
+    );
+    expect(scrollContainer).toBeInstanceOf(HTMLElement);
+    if (!(scrollContainer instanceof HTMLElement)) return;
+    vi.spyOn(scrollContainer, "getBoundingClientRect").mockReturnValue({
+      bottom: 500,
+      height: 500,
+      left: 0,
+      right: 500,
+      top: 0,
+      width: 500,
+      x: 0,
+      y: 0,
+      toJSON: () => undefined,
+    });
+
+    const blockElements = Array.from(
+      container.querySelectorAll<HTMLElement>(
+        '[data-node-type="blockOuter"][data-id]',
+      ),
+    );
+    const overviewBlock = blockElements.find((element) =>
+      element.textContent?.includes("Overview"),
+    );
+    const detailsBlock = blockElements.find((element) =>
+      element.textContent?.includes("Details"),
+    );
+    expect(overviewBlock).toBeInstanceOf(HTMLElement);
+    expect(detailsBlock).toBeInstanceOf(HTMLElement);
+    if (!overviewBlock || !detailsBlock) return;
+    vi.spyOn(overviewBlock, "getBoundingClientRect").mockReturnValue({
+      bottom: 0,
+      height: 30,
+      left: 0,
+      right: 500,
+      top: -30,
+      width: 500,
+      x: 0,
+      y: -30,
+      toJSON: () => undefined,
+    });
+    vi.spyOn(detailsBlock, "getBoundingClientRect").mockReturnValue({
+      bottom: 40,
+      height: 30,
+      left: 0,
+      right: 500,
+      top: 10,
+      width: 500,
+      x: 0,
+      y: 10,
+      toJSON: () => undefined,
+    });
+
+    const frames: FrameRequestCallback[] = [];
+    const requestFrame = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((callback) => {
+        frames.push(callback);
+        return frames.length;
+      });
+    const queryAll = vi.spyOn(Element.prototype, "querySelectorAll");
+
+    fireEvent.scroll(scrollContainer);
+    fireEvent.scroll(scrollContainer);
+
+    expect(requestFrame).toHaveBeenCalledOnce();
+    act(() => frames[0]?.(0));
+    expect(
+      queryAll.mock.calls.filter(
+        ([selector]) => selector === '[data-node-type="blockOuter"][data-id]',
+      ),
+    ).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Details" })).toHaveAttribute(
+      "aria-current",
+      "location",
+    );
   });
 
   it("does not rewrite unordered-list markers when linked content opens", async () => {
@@ -299,7 +430,7 @@ describe("quick editor content detection", () => {
             source: typeof source;
           }) => void,
         ) => {
-          callback({ content: "alpha beta alpha", source });
+          callback({ content: "# alpha beta alpha", source });
           return () => undefined;
         },
       ),
@@ -313,6 +444,10 @@ describe("quick editor content detection", () => {
     render(createElement(QuickEditorWindow));
 
     const editor = await screen.findByRole("main", { name: "快速编辑器" });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    await user.click(screen.getByRole("menuitem", { name: "显示大纲" }));
+    editor.focus();
     fireEvent.keyDown(editor, { key: "f", metaKey: true });
 
     const searchInput = screen.getByPlaceholderText("查找");
@@ -330,10 +465,13 @@ describe("quick editor content detection", () => {
 
     await waitFor(() => {
       expect(syncQuickEditorContent).toHaveBeenCalledWith({
-        content: "alpha beta omega",
+        content: "# alpha beta omega",
         source,
       });
     });
+    expect(
+      screen.getByRole("button", { name: "alpha beta omega" }),
+    ).toBeVisible();
   });
 
   it("applies live source-tab updates without returning to the application", async () => {
@@ -392,12 +530,17 @@ describe("quick editor content detection", () => {
 
     expect(await screen.findByText("Initial")).toBeInTheDocument();
     expect(onQuickEditorContentUpdated).toHaveBeenCalledOnce();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    await user.click(screen.getByRole("menuitem", { name: "显示大纲" }));
+    expect(screen.getByRole("button", { name: "Initial" })).toBeVisible();
 
     act(() => {
       liveContentListener?.({ content: "# Live update", source });
     });
 
     expect(await screen.findByText("Live update")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Live update" })).toBeVisible();
   });
 
   it("collapses with a single chevron and restores editor focus", async () => {
@@ -445,6 +588,10 @@ describe("quick editor content detection", () => {
     render(createElement(QuickEditorWindow));
 
     expect(await screen.findByText("Preserved draft")).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    await user.click(screen.getByRole("menuitem", { name: "显示大纲" }));
+    expect(screen.getByRole("navigation", { name: "文档大纲" })).toBeVisible();
     const collapseButton = await screen.findByRole("button", {
       name: "折叠编辑器",
     });
@@ -464,6 +611,9 @@ describe("quick editor content detection", () => {
     expect(hiddenEditor).toHaveAttribute("aria-label", "快速编辑器");
     expect(hiddenEditor).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByText("Preserved draft")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("navigation", { name: "文档大纲" }),
+    ).not.toBeInTheDocument();
 
     expandButton.focus();
     fireEvent.click(expandButton);
