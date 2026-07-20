@@ -738,9 +738,28 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     () => allFilePaths.filter((path) => isFileStaged(path)),
     [allFilePaths, isFileStaged],
   );
+  const partiallyStagedFilePathSet = useMemo(() => {
+    if (!gitStatus) return new Set<string>();
+
+    // Git 短状态的两列分别表示暂存区和工作区；两列都有状态时，同一文件需要在两个分组中同时展示。
+    return new Set(
+      gitStatus.files
+        .filter(
+          (file) =>
+            ![" ", "?", "!"].includes(file.index) &&
+            ![" ", "!"].includes(file.working_dir),
+        )
+        .map((file) => normalizePanelGitPath(file.path)),
+    );
+  }, [gitStatus]);
   const unstagedFilePaths = useMemo(
-    () => allFilePaths.filter((path) => !isFileStaged(path)),
-    [allFilePaths, isFileStaged],
+    () =>
+      allFilePaths.filter(
+        (path) =>
+          !isFileStaged(path) ||
+          partiallyStagedFilePathSet.has(normalizePanelGitPath(path)),
+      ),
+    [allFilePaths, isFileStaged, partiallyStagedFilePathSet],
   );
   const isInitialGitInfoLoading = isGitInfoLoading && gitStatus === null;
   const isRefreshingGitStatus = isGitInfoLoading && gitStatus !== null;

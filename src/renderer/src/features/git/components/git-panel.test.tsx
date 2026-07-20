@@ -641,6 +641,42 @@ describe("GitPanel", () => {
     );
   });
 
+  it("shows a partially staged file in both change sections", async () => {
+    electronMocks.getGitStatus.mockResolvedValue({
+      code: CodeResult.Success,
+      data: {
+        current: "main",
+        tracking: "origin/main",
+        files: [
+          {
+            path: "partially-staged.md",
+            index: "M",
+            working_dir: "M",
+          },
+        ],
+        ahead: 0,
+        behind: 0,
+        created: [],
+        not_added: [],
+        modified: ["partially-staged.md"],
+        deleted: [],
+        renamed: [],
+        staged: ["partially-staged.md"],
+        conflicted: [],
+      },
+    });
+
+    render(<GitPanel isOpen onClose={vi.fn()} />);
+
+    expect(await screen.findAllByText("partially-staged.md")).toHaveLength(2);
+    expect(
+      screen.getByRole("button", { name: "收起已暂存的更改" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "收起更改" }),
+    ).toBeInTheDocument();
+  });
+
   it("switches between file status and git history with compact icon controls", async () => {
     electronMocks.getCommitHistory
       .mockResolvedValueOnce({

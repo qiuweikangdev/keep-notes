@@ -51,6 +51,22 @@ describe("DiffViewer", () => {
     expect(fileDiffSpy).not.toHaveBeenCalled();
   });
 
+  it("reserves space beside the scrollbar when shown in a resizable dialog", () => {
+    const { container } = render(
+      <DiffViewer
+        oldContent={"# same\n"}
+        newContent={"# same\n"}
+        fileName="readme.md"
+        reserveDialogResizeHandleSpace
+      />,
+    );
+
+    expect(container.querySelector(".diff-viewer__body")).toHaveClass(
+      "mb-3",
+      "mr-3",
+    );
+  });
+
   it("passes dark-theme surface overrides into pierre diff unsafe CSS", async () => {
     render(
       <DiffViewer

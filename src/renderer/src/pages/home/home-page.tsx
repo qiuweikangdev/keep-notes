@@ -491,6 +491,7 @@ function DiffDialog({
               fileName={fileName}
               oldTitle={`${fileName} (HEAD)`}
               newTitle={`${fileName} (编辑器)`}
+              reserveDialogResizeHandleSpace
             />
           )}
         </div>

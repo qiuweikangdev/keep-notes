@@ -17,6 +17,7 @@ interface DiffViewerProps {
   newTitle?: string;
   fileName?: string;
   className?: string;
+  reserveDialogResizeHandleSpace?: boolean;
 }
 
 interface DiffStats {
@@ -214,6 +215,7 @@ export function DiffViewer({
   newTitle = "修改内容",
   fileName = "diff.txt",
   className = "",
+  reserveDialogResizeHandleSpace = false,
 }: DiffViewerProps) {
   const { theme, isDark } = useTheme();
   const diffInput = useMemo(
@@ -336,7 +338,9 @@ export function DiffViewer({
         </div>
       </div>
 
-      <div className="diff-viewer__body min-h-0 flex-1 overflow-auto">
+      <div
+        className={`diff-viewer__body min-h-0 flex-1 overflow-auto ${reserveDialogResizeHandleSpace ? "mb-3 mr-3" : ""}`}
+      >
         {currentStatus === "computing" ? (
           <div className="flex h-full items-center justify-center text-sm text-[var(--text-muted)]">
             正在计算差异…
