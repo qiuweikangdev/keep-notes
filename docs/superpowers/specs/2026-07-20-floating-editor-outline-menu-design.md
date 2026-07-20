@@ -17,7 +17,8 @@ Add an on-demand document outline to the floating editor without increasing perm
   6. `Close floating window`.
 - Do not display or register an outline keyboard shortcut.
 - Disable the outline menu item while the floating editor is collapsed.
-- Render the close item as a destructive action with danger-color hover and focus treatment.
+- Use the same typography, icon color, text color, hover state, and focus state for every menu item, including `Close floating window`.
+- Distinguish the close action only through its final position and the preceding separator; do not apply a danger color or any additional visual emphasis.
 
 ## Outline Drawer
 
