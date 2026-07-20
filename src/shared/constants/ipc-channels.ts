@@ -70,6 +70,8 @@ export const IPC_CHANNELS = {
     ON_CHANGED: "reminder:on-changed",
     ON_TRIGGERED: "reminder:on-triggered",
     SET_GLOBAL_SHORTCUT: "reminder:set-global-shortcut",
+    SET_WINDOW_THEME: "reminder:set-window-theme",
+    WINDOW_THEME_CHANGED: "reminder:window-theme-changed",
     SHOW_WINDOW: "reminder:show-window",
     HIDE_WINDOW: "reminder:hide-window",
     RETURN_TO_MAIN_WINDOW: "reminder:return-to-main-window",

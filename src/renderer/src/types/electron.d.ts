@@ -28,6 +28,7 @@ import type {
   ExportConfig,
   ExportFileResult,
   WorkspaceChangeBatch,
+  ThemeName,
 } from "@shared/types";
 
 export interface ElectronAPI {
@@ -135,6 +136,10 @@ export interface ElectronAPI {
   setReminderGlobalShortcut: (
     keys: string[],
   ) => Promise<ShortcutRegistrationResult>;
+  setReminderWindowTheme: (theme: ThemeName) => void;
+  onReminderWindowThemeChanged: (
+    callback: (theme: ThemeName) => void,
+  ) => () => void;
   showReminderWindow: () => void;
   hideReminderWindow: () => void;
   returnToMainWindow: () => void;

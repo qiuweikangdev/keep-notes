@@ -4,6 +4,7 @@ import type {
   Reminder,
   ReminderInput,
   ShortcutRegistrationResult,
+  ThemeName,
 } from "../../shared/types";
 
 export const reminderApi = {
@@ -34,6 +35,25 @@ export const reminderApi = {
     keys: string[],
   ): Promise<ShortcutRegistrationResult> => {
     return ipcRenderer.invoke(IPC_CHANNELS.REMINDER.SET_GLOBAL_SHORTCUT, keys);
+  },
+
+  setReminderWindowTheme: (theme: ThemeName): void => {
+    ipcRenderer.send(IPC_CHANNELS.REMINDER.SET_WINDOW_THEME, theme);
+  },
+
+  onReminderWindowThemeChanged: (
+    callback: (theme: ThemeName) => void,
+  ): (() => void) => {
+    const handler = (_event: IpcRendererEvent, theme: ThemeName) => {
+      callback(theme);
+    };
+    ipcRenderer.on(IPC_CHANNELS.REMINDER.WINDOW_THEME_CHANGED, handler);
+    return () => {
+      ipcRenderer.removeListener(
+        IPC_CHANNELS.REMINDER.WINDOW_THEME_CHANGED,
+        handler,
+      );
+    };
   },
 
   showReminderWindow: (): void => {

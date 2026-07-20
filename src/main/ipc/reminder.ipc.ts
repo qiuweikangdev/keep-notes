@@ -9,6 +9,7 @@ import {
   prewarmReminderEditorWindow,
   resizeReminderEditorWindow,
   resizeReminderWindow,
+  setReminderWindowTheme,
   showReminderEditorWindow,
   showReminderWindow,
 } from "../reminder-window";
@@ -78,6 +79,10 @@ export function registerReminderIpc(): void {
       return configureReminderGlobalShortcuts(keys);
     },
   );
+
+  ipcMain.on(IPC_CHANNELS.REMINDER.SET_WINDOW_THEME, (_, theme: unknown) => {
+    setReminderWindowTheme(theme);
+  });
 
   ipcMain.on(IPC_CHANNELS.REMINDER.SHOW_WINDOW, () => {
     showReminderWindow();

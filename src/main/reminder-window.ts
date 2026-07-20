@@ -4,7 +4,7 @@ import { BrowserWindow, globalShortcut, screen } from "electron";
 import { is } from "@electron-toolkit/utils";
 import icon from "../../resources/icon.png?asset";
 import { IPC_CHANNELS } from "../shared/constants";
-import type { ShortcutRegistrationResult } from "../shared/types";
+import type { ShortcutRegistrationResult, ThemeName } from "../shared/types";
 
 const REMINDER_WINDOW_WIDTH = 536;
 const REMINDER_WINDOW_INITIAL_HEIGHT = 180;
@@ -17,6 +17,14 @@ const REMINDER_EDITOR_WINDOW_MAX_HEIGHT = 700;
 const REMINDER_EDITOR_LAYER_OFFSET_Y = 40;
 const MAX_GLOBAL_SHORTCUTS = 4;
 export const DEFAULT_REMINDER_SHORTCUT = "CmdOrCtrl+Alt+R";
+const THEME_NAMES: readonly ThemeName[] = [
+  "light",
+  "dark",
+  "nord",
+  "dracula",
+  "solarized",
+  "system",
+];
 
 let reminderWindow: BrowserWindow | null = null;
 let reminderEditorWindow: BrowserWindow | null = null;
@@ -26,6 +34,26 @@ let registeredShortcutKeys: string[] = [];
 let shouldCenterNextResize = true;
 let ignoreReminderWindowBlur = false;
 let reminderBlurGuardTimer: ReturnType<typeof setTimeout> | null = null;
+let reminderWindowTheme: ThemeName = "system";
+
+export function setReminderWindowTheme(theme: unknown): void {
+  if (
+    !THEME_NAMES.includes(theme as ThemeName) ||
+    theme === reminderWindowTheme
+  ) {
+    return;
+  }
+
+  reminderWindowTheme = theme as ThemeName;
+  for (const win of [reminderWindow, reminderEditorWindow]) {
+    if (win && !win.isDestroyed()) {
+      win.webContents.send(
+        IPC_CHANNELS.REMINDER.WINDOW_THEME_CHANGED,
+        reminderWindowTheme,
+      );
+    }
+  }
+}
 
 function toElectronAccelerator(key: string): string {
   return key
@@ -148,12 +176,13 @@ function loadReminderWindow(win: BrowserWindow): void {
   if (is.dev && process.env.ELECTRON_RENDERER_URL) {
     const rendererUrl = new URL(process.env.ELECTRON_RENDERER_URL);
     rendererUrl.searchParams.set("window", "reminders");
+    rendererUrl.searchParams.set("theme", reminderWindowTheme);
     void win.loadURL(rendererUrl.toString());
     return;
   }
 
   void win.loadFile(join(__dirname, "../renderer/index.html"), {
-    query: { window: "reminders" },
+    query: { window: "reminders", theme: reminderWindowTheme },
   });
 }
 
@@ -201,6 +230,7 @@ function loadReminderEditorWindow(
   if (is.dev && process.env.ELECTRON_RENDERER_URL) {
     const rendererUrl = new URL(process.env.ELECTRON_RENDERER_URL);
     rendererUrl.searchParams.set("window", "reminder-editor");
+    rendererUrl.searchParams.set("theme", reminderWindowTheme);
     if (reminderId) rendererUrl.searchParams.set("reminderId", reminderId);
     void win.loadURL(rendererUrl.toString());
     return;
@@ -209,6 +239,7 @@ function loadReminderEditorWindow(
   void win.loadFile(join(__dirname, "../renderer/index.html"), {
     query: {
       window: "reminder-editor",
+      theme: reminderWindowTheme,
       ...(reminderId ? { reminderId } : {}),
     },
   });

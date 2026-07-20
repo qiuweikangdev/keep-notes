@@ -9,6 +9,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useReminderStore } from "@/store/reminder.store";
 import type { Reminder } from "@/types";
+import type { ThemeName } from "@/config/themes";
 import { editorFindController } from "@/features/editor/lib/editor-find-controller";
 import {
   completeEditorViewportPreservation,
@@ -28,6 +29,7 @@ type EditorStoreSnapshot = {
 };
 const appMocks = vi.hoisted(() => ({
   subscribe: vi.fn(() => () => undefined),
+  useTheme: vi.fn(() => ({ toggleTheme: vi.fn() })),
   openQuickEditorDraft: vi.fn(),
   incrementTabReloadKey: vi.fn(),
   setActiveTab: vi.fn(),
@@ -186,9 +188,7 @@ vi.mock("@/hooks/use-electron", () => ({
 }));
 
 vi.mock("@/hooks/use-theme", () => ({
-  useTheme: () => ({
-    toggleTheme: vi.fn(),
-  }),
+  useTheme: appMocks.useTheme,
 }));
 
 vi.mock("@/store/tree.store", () => ({
@@ -207,11 +207,13 @@ vi.mock("@/store/ui.store", () => ({
   useUIStore: Object.assign(
     <T,>(
       selector?: (state: {
+        theme: "light";
         isSettingsOpen: boolean;
         setSettingsOpen: (open: boolean) => void;
       }) => T,
     ) => {
       const state = {
+        theme: "light" as const,
         isSettingsOpen: false,
         setSettingsOpen: vi.fn(),
       };
@@ -219,6 +221,7 @@ vi.mock("@/store/ui.store", () => ({
     },
     {
       getState: () => ({
+        theme: "light" as const,
         isSettingsOpen: false,
         setSettingsOpen: vi.fn(),
       }),
@@ -327,6 +330,7 @@ import { App } from "./App";
 describe("App shortcuts", () => {
   afterEach(() => {
     cleanup();
+    window.history.replaceState(null, "", "/");
     Object.defineProperty(window, "devicePixelRatio", {
       configurable: true,
       value: 1,
@@ -348,6 +352,7 @@ describe("App shortcuts", () => {
     }
     menuActionHandler = null;
     appMocks.subscribe.mockClear();
+    appMocks.useTheme.mockClear();
     appMocks.openQuickEditorDraft.mockClear();
     appMocks.incrementTabReloadKey.mockClear();
     appMocks.setActiveTab.mockClear();
@@ -369,6 +374,7 @@ describe("App shortcuts", () => {
         listReminders: vi.fn(async () => []),
         onRemindersChanged: vi.fn(() => () => undefined),
         onReminderTriggered: vi.fn(() => () => undefined),
+        setReminderWindowTheme: vi.fn(),
         consumeQuickEditorContent: vi.fn(async () => null),
         onQuickEditorContentImported: vi.fn(() => () => undefined),
         onQuickEditorContentUpdated: vi.fn(() => () => undefined),
@@ -389,6 +395,47 @@ describe("App shortcuts", () => {
     expect(
       screen.getByTestId("application-dialog-provider-state"),
     ).toHaveTextContent("true");
+  });
+
+  it("applies live main application theme updates to the reminder window", () => {
+    let themeChanged: ((theme: ThemeName) => void) | undefined;
+    window.history.replaceState(null, "", "/?window=reminders&theme=light");
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: {
+        ...window.electronAPI,
+        prewarmReminderEditorWindow: vi.fn(),
+        onReminderWindowShown: vi.fn(() => () => undefined),
+        onReminderWindowThemeChanged: vi.fn(
+          (callback: (theme: ThemeName) => void) => {
+            themeChanged = callback;
+            return () => undefined;
+          },
+        ),
+      },
+    });
+
+    render(<App />);
+
+    expect(appMocks.useTheme).toHaveBeenCalledWith({
+      transparentBackground: true,
+      themeOverride: "light",
+    });
+
+    act(() => themeChanged?.("dark"));
+
+    expect(appMocks.useTheme).toHaveBeenLastCalledWith({
+      transparentBackground: true,
+      themeOverride: "dark",
+    });
+  });
+
+  it("publishes the configured application theme for floating windows", () => {
+    render(<App />);
+
+    expect(window.electronAPI.setReminderWindowTheme).toHaveBeenCalledWith(
+      "light",
+    );
   });
 
   it("consumes quick-editor content into the active unnamed tab", async () => {

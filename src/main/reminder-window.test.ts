@@ -6,6 +6,7 @@ import {
   prewarmReminderEditorWindow,
   resizeReminderEditorWindow,
   resizeReminderWindow,
+  setReminderWindowTheme,
   showReminderEditorWindow,
   showReminderWindow,
 } from "./reminder-window";
@@ -104,6 +105,7 @@ vi.mock("../../resources/icon.png?asset", () => ({
 describe("reminder window global shortcut", () => {
   beforeEach(() => {
     disposeReminderWindow();
+    setReminderWindowTheme("light");
     electronMocks.windows.length = 0;
     vi.clearAllMocks();
     electronMocks.register.mockReturnValue(true);
@@ -158,11 +160,37 @@ describe("reminder window global shortcut", () => {
     });
     expect(win.loadFile).toHaveBeenCalledWith(
       expect.stringMatching(/renderer[\\/]index\.html$/),
-      { query: { window: "reminders" } },
+      { query: { window: "reminders", theme: "light" } },
     );
     expect(win.show).toHaveBeenCalled();
     expect(win.focus).toHaveBeenCalled();
     expect(win.webContents.send).toHaveBeenCalledWith("reminder:window-shown");
+  });
+
+  it("updates reminder windows when the application theme changes", () => {
+    const listWindow = showReminderWindow();
+    const editorWindow = prewarmReminderEditorWindow();
+
+    setReminderWindowTheme("dark");
+
+    expect(listWindow.webContents.send).toHaveBeenCalledWith(
+      "reminder:window-theme-changed",
+      "dark",
+    );
+    expect(editorWindow.webContents.send).toHaveBeenCalledWith(
+      "reminder:window-theme-changed",
+      "dark",
+    );
+  });
+
+  it("ignores invalid reminder window themes", () => {
+    setReminderWindowTheme("invalid-theme");
+    const win = showReminderWindow();
+
+    expect(win.loadFile).toHaveBeenCalledWith(
+      expect.stringMatching(/renderer[\\/]index\.html$/),
+      { query: { window: "reminders", theme: "light" } },
+    );
   });
 
   it("fits the content, centers the first size, and preserves later positions", () => {
@@ -246,7 +274,7 @@ describe("reminder window global shortcut", () => {
     });
     expect(win.loadFile).toHaveBeenCalledWith(
       expect.stringMatching(/renderer[\\/]index\.html$/),
-      { query: { window: "reminder-editor" } },
+      { query: { window: "reminder-editor", theme: "light" } },
     );
 
     resizeReminderEditorWindow(editorWindow, 360);

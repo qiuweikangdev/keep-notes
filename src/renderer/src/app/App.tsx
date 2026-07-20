@@ -21,9 +21,35 @@ import { showAppToast } from "@/lib/app-toast";
 import { QuickEditorWindow } from "@/features/editor/components/quick-editor-window";
 import { editorFindController } from "@/features/editor/lib/editor-find-controller";
 import { requestEditorViewportPreservation } from "@/features/editor/lib/editor-viewport";
-import type { QuickEditorWindowContent } from "@shared/types";
+import type { QuickEditorWindowContent, ThemeName } from "@shared/types";
 
 const CODE_BLOCK_CURSOR_VISUAL_WIDTH = 2;
+const APP_THEME_NAMES: readonly ThemeName[] = [
+  "light",
+  "dark",
+  "nord",
+  "dracula",
+  "solarized",
+  "system",
+];
+
+function getInitialReminderWindowTheme(): ThemeName {
+  const theme = new URLSearchParams(window.location.search).get("theme");
+  return APP_THEME_NAMES.includes(theme as ThemeName)
+    ? (theme as ThemeName)
+    : "system";
+}
+
+function useReminderWindowTheme(): ThemeName {
+  const [theme, setTheme] = useState(getInitialReminderWindowTheme);
+
+  useEffect(() => {
+    // 独立渲染进程不依赖 localStorage 事件，直接接收主进程转发的应用主题。
+    return window.electronAPI.onReminderWindowThemeChanged(setTheme);
+  }, []);
+
+  return theme;
+}
 
 function getQuickEditorSourceKey(
   source: NonNullable<QuickEditorWindowContent["source"]>,
@@ -117,6 +143,7 @@ export function App() {
 function MainApplication() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const appearance = useEditorStore((s) => s.appearance);
+  const theme = useUIStore((state) => state.theme);
   const isSettingsOpen = useUIStore((state) => state.isSettingsOpen);
   const shortcuts = useShortcutsStore((s) => s.shortcuts);
   const loadReminders = useReminderStore((s) => s.loadReminders);
@@ -143,6 +170,11 @@ function MainApplication() {
 
   // 初始化键盘快捷键
   useKeyboardShortcuts();
+
+  useEffect(() => {
+    // 主进程缓存该配置，供新建和已经打开的提醒浮窗使用。
+    window.electronAPI.setReminderWindowTheme(theme);
+  }, [theme]);
 
   // 平台判断
   const isMac = useMemo(() => {
@@ -413,9 +445,10 @@ function ReminderWindowApplication() {
     (state) => state.subscribeToReminderChanges,
   );
   const openList = useReminderStore((state) => state.openList);
+  const theme = useReminderWindowTheme();
 
   // 独立浮窗使用与主应用相同的主题，并保持透明窗口背景。
-  useTheme({ transparentBackground: true });
+  useTheme({ transparentBackground: true, themeOverride: theme });
 
   useEffect(() => {
     openList();
@@ -458,8 +491,9 @@ function ReminderEditorWindowApplication() {
     () => new URLSearchParams(window.location.search).get("reminderId"),
     [],
   );
+  const theme = useReminderWindowTheme();
 
-  useTheme({ transparentBackground: true });
+  useTheme({ transparentBackground: true, themeOverride: theme });
 
   useEffect(() => {
     let cancelled = false;
