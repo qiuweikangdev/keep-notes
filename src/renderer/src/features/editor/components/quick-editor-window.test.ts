@@ -6,8 +6,9 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createQuickEditorImageUploader,
   hasMeaningfulQuickEditorContent,
@@ -16,11 +17,19 @@ import {
   uploadQuickEditorImage,
 } from "./quick-editor-window";
 
+beforeEach(() => {
+  Object.defineProperty(document, "elementsFromPoint", {
+    configurable: true,
+    value: () => [],
+  });
+});
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   Reflect.deleteProperty(Range.prototype, "getClientRects");
   Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+  Reflect.deleteProperty(document, "elementsFromPoint");
 });
 
 describe("quick editor content detection", () => {
@@ -126,8 +135,78 @@ describe("quick editor content detection", () => {
     ).toBeInTheDocument();
     expect(await screen.findByText("222")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "新建浮窗编辑器" }));
-    expect(createQuickEditorWindow).toHaveBeenCalledOnce();
+    expect(
+      screen.getByRole("button", { name: "更多操作" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "新建浮动窗口" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "返回主窗口" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "关闭浮动窗口" }),
+    ).not.toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    await user.click(screen.getByRole("menuitem", { name: "显示大纲" }));
+    expect(
+      screen.getByRole("navigation", { name: "文档大纲" }),
+    ).toBeInTheDocument();
+
+    fireEvent.pointerDown(screen.getByRole("textbox"));
+    expect(
+      screen.queryByRole("navigation", { name: "文档大纲" }),
+    ).not.toBeInTheDocument();
+    expect(createQuickEditorWindow).not.toHaveBeenCalled();
+  });
+
+  it("scrolls to a selected outline heading", async () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    });
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        addEventListener: vi.fn(),
+        addListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+        matches: false,
+        media: query,
+        onchange: null,
+        removeEventListener: vi.fn(),
+        removeListener: vi.fn(),
+      })),
+    );
+    vi.stubGlobal("electronAPI", {
+      createQuickEditorWindow: vi.fn(),
+      getQuickEditorCollapsed: vi.fn(async () => false),
+      setQuickEditorCollapsed: vi.fn(async (collapsed: boolean) => collapsed),
+      onQuickEditorInitialContent: vi.fn(
+        (callback: (content: { content: string; source: null }) => void) => {
+          callback({ content: "# Overview\n\n## Details", source: null });
+          return () => undefined;
+        },
+      ),
+      onQuickEditorContentUpdated: vi.fn(() => () => undefined),
+      closeQuickEditorWindow: vi.fn(),
+      returnToMainWindowFromQuickEditor: vi.fn(),
+      syncQuickEditorContent: vi.fn(),
+      updateDirtyState: vi.fn(),
+    });
+
+    render(createElement(QuickEditorWindow));
+
+    expect(await screen.findByText("Details")).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    await user.click(screen.getByRole("menuitem", { name: "显示大纲" }));
+    await user.click(screen.getByRole("button", { name: "Details" }));
+
+    expect(scrollIntoView).toHaveBeenCalled();
   });
 
   it("does not rewrite unordered-list markers when linked content opens", async () => {

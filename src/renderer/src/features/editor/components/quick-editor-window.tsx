@@ -9,13 +9,7 @@ import {
 import { BlockNoteView } from "@blocknote/mantine";
 import { useCreateBlockNote, useEditorChange } from "@blocknote/react";
 import type { BlockNoteEditor as CoreBlockNoteEditor } from "@blocknote/core";
-import {
-  ChevronDown,
-  ChevronUp,
-  PictureInPicture2,
-  Plus,
-  X,
-} from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import type {
   CloseSaveSnapshot,
   QuickEditorWindowContent,
@@ -49,6 +43,12 @@ import {
   serializeMarkdown,
 } from "../lib/markdown";
 import { FindWidget } from "./find-widget";
+import { QuickEditorActionsMenu } from "./quick-editor-actions-menu";
+import {
+  extractQuickEditorOutlineHeadings,
+  QuickEditorOutline,
+  type QuickEditorOutlineHeading,
+} from "./quick-editor-outline";
 
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
@@ -132,6 +132,14 @@ export function resolveQuickEditorMarkdown(
   return preserveMarkdownSource(source, baseline, serialized);
 }
 
+function findQuickEditorBlockElement(root: Element | null, blockId: string) {
+  return (
+    Array.from(root?.querySelectorAll<HTMLElement>("[data-id]") ?? []).find(
+      (element) => element.dataset.id === blockId,
+    ) ?? null
+  );
+}
+
 export function QuickEditorWindow() {
   const appearance = useEditorStore((state) => state.appearance);
   const { isDark } = useTheme({ transparentBackground: true });
@@ -142,6 +150,7 @@ export function QuickEditorWindow() {
   const serializedBaselineRef = useRef<string | null>(null);
   const syncRevisionRef = useRef(0);
   const editorRef = useRef<CoreBlockNoteEditor | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isFindOpenRef = useRef(false);
   const replacementUndoStackRef = useRef<string[]>([]);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -150,6 +159,11 @@ export function QuickEditorWindow() {
   const [isCollapseTransitioning, setIsCollapseTransitioning] = useState(false);
   const [isFindOpen, setIsFindOpen] = useState(false);
   const [isReplaceOpen, setIsReplaceOpen] = useState(false);
+  const [isOutlineOpen, setIsOutlineOpen] = useState(false);
+  const [outlineHeadings, setOutlineHeadings] = useState<
+    QuickEditorOutlineHeading[]
+  >([]);
+  const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null);
   const [findContent, setFindContent] = useState("");
   const [findQuery, setFindQuery] = useState("");
   const [replacement, setReplacement] = useState("");
@@ -167,6 +181,17 @@ export function QuickEditorWindow() {
     uploadFile: handleImageUploadRef.current,
   });
   editorRef.current = editor;
+
+  const refreshOutline = useCallback(() => {
+    // 浮窗独立维护大纲，避免多个浮窗与主窗口窗格互相覆盖导航状态。
+    const headings = extractQuickEditorOutlineHeadings(editor.document);
+    setOutlineHeadings(headings);
+    setActiveHeadingId((current) =>
+      current && headings.some((heading) => heading.id === current)
+        ? current
+        : (headings[0]?.id ?? null),
+    );
+  }, [editor]);
 
   const rawMatches = useMemo(
     () =>
@@ -235,6 +260,7 @@ export function QuickEditorWindow() {
       ),
     );
     syncContentToSource();
+    refreshOutline();
   }, editor);
 
   useEffect(() => {
@@ -310,13 +336,53 @@ export function QuickEditorWindow() {
 
   const handleKeyDownCapture = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
+      if (event.key === "Escape" && isOutlineOpen) {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsOutlineOpen(false);
+        editor.focus();
+        return;
+      }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
         event.preventDefault();
         event.stopPropagation();
         openFindWidget();
       }
     },
-    [openFindWidget],
+    [editor, isOutlineOpen, openFindWidget],
+  );
+
+  const handleEditorScroll = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container || outlineHeadings.length === 0) return;
+    const activationTop = container.getBoundingClientRect().top + 24;
+    let nextActiveId = outlineHeadings[0]?.id ?? null;
+    for (const heading of outlineHeadings) {
+      const element = findQuickEditorBlockElement(
+        editor.domElement,
+        heading.id,
+      );
+      if (!element || element.getBoundingClientRect().top > activationTop)
+        break;
+      nextActiveId = heading.id;
+    }
+    setActiveHeadingId(nextActiveId);
+  }, [editor, outlineHeadings]);
+
+  const handleOutlineHeadingSelect = useCallback(
+    (blockId: string) => {
+      const element = findQuickEditorBlockElement(editor.domElement, blockId);
+      if (!element || !editor.getBlock(blockId)) return;
+      editor.setTextCursorPosition(blockId, "start");
+      element.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
+        block: "start",
+      });
+      setActiveHeadingId(blockId);
+    },
+    [editor],
   );
 
   const stepMatch = useCallback(
@@ -347,6 +413,7 @@ export function QuickEditorWindow() {
         serializedBaselineRef.current = baseline;
         setFindContent(content);
         editor.replaceBlocks(editor.document, blocks);
+        refreshOutline();
 
         // 替换属于明确编辑，更新基线后主动同步一次，避免初始化保护把它识别为无变化。
         if (source) {
@@ -356,7 +423,7 @@ export function QuickEditorWindow() {
         // 替换后的 Markdown 无法解析时保留当前内容，避免损坏浮窗草稿。
       }
     },
-    [editor, findContent],
+    [editor, findContent, refreshOutline],
   );
 
   const replaceCurrentMatch = useCallback(() => {
@@ -471,6 +538,7 @@ export function QuickEditorWindow() {
         replacementUndoStackRef.current.length = 0;
         setFindContent(initialContent.content);
         editor.replaceBlocks(editor.document, blocks);
+        refreshOutline();
         syncDirtyState(false);
       } catch {
         // Markdown 解析失败时保留空白编辑器，避免浮窗初始化中断。
@@ -487,7 +555,7 @@ export function QuickEditorWindow() {
       cancelled = true;
       unsubscribe();
     };
-  }, [editor, syncDirtyState]);
+  }, [editor, refreshOutline, syncDirtyState]);
 
   useEffect(() => {
     let cancelled = false;
@@ -505,6 +573,7 @@ export function QuickEditorWindow() {
         replacementUndoStackRef.current.length = 0;
         setFindContent(content.content);
         editor.replaceBlocks(editor.document, blocks);
+        refreshOutline();
         syncDirtyState(false);
       } catch {
         // Markdown 解析失败时保留当前编辑器，避免实时同步中断。
@@ -520,7 +589,7 @@ export function QuickEditorWindow() {
       cancelled = true;
       unsubscribe();
     };
-  }, [editor, syncDirtyState]);
+  }, [editor, refreshOutline, syncDirtyState]);
 
   const handleReturnToApplication = useCallback(async () => {
     if (returnInProgressRef.current) return;
@@ -575,6 +644,10 @@ export function QuickEditorWindow() {
 
   const editorIsHidden = isCollapsed || collapseTarget === true;
 
+  useEffect(() => {
+    if (editorIsHidden) setIsOutlineOpen(false);
+  }, [editorIsHidden]);
+
   return (
     <div
       className="quick-editor-window"
@@ -601,33 +674,14 @@ export function QuickEditorWindow() {
         </div>
         <div className="quick-editor-window__drag-region" aria-hidden="true" />
         <div className="quick-editor-window__actions quick-editor-window__actions--right">
-          <button
-            aria-label="新建浮窗编辑器"
-            className="quick-editor-window__action quick-editor-window__action--secondary"
-            title="新建浮窗编辑器"
-            type="button"
-            onClick={() => window.electronAPI.createQuickEditorWindow()}
-          >
-            <Plus aria-hidden="true" className="h-4 w-4" />
-          </button>
-          <button
-            aria-label="返回应用"
-            className="quick-editor-window__action quick-editor-window__action--secondary"
-            title="返回应用"
-            type="button"
-            onClick={() => void handleReturnToApplication()}
-          >
-            <PictureInPicture2 aria-hidden="true" className="h-3.5 w-3.5" />
-          </button>
-          <button
-            aria-label="关闭快速编辑"
-            className="quick-editor-window__action quick-editor-window__action--close"
-            title="关闭"
-            type="button"
-            onClick={() => window.electronAPI.closeQuickEditorWindow()}
-          >
-            <X aria-hidden="true" className="h-4 w-4" />
-          </button>
+          <QuickEditorActionsMenu
+            isOutlineOpen={isOutlineOpen}
+            isOutlineDisabled={editorIsHidden}
+            onToggleOutline={() => setIsOutlineOpen((current) => !current)}
+            onNewWindow={() => window.electronAPI.createQuickEditorWindow()}
+            onReturnToApplication={() => void handleReturnToApplication()}
+            onCloseWindow={() => window.electronAPI.closeQuickEditorWindow()}
+          />
         </div>
       </header>
 
@@ -655,7 +709,12 @@ export function QuickEditorWindow() {
           onSelectAllMatches={selectAllMatches}
           onUndoReplace={undoLastReplacement}
         />
-        <div className="quick-editor-window__scroll">
+        <div
+          ref={scrollContainerRef}
+          className="quick-editor-window__scroll"
+          onPointerDown={() => setIsOutlineOpen(false)}
+          onScroll={handleEditorScroll}
+        >
           <BlockNoteView
             editor={editor}
             theme={isDark ? "dark" : "light"}
@@ -666,6 +725,13 @@ export function QuickEditorWindow() {
             }}
           />
         </div>
+        {isOutlineOpen && !editorIsHidden ? (
+          <QuickEditorOutline
+            headings={outlineHeadings}
+            activeHeadingId={activeHeadingId}
+            onHeadingSelect={handleOutlineHeadingSelect}
+          />
+        ) : null}
       </main>
     </div>
   );

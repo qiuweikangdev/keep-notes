@@ -70,13 +70,25 @@
   box-shadow: 0 0 0 1px var(--accent-color);
 }
 
-.quick-editor-window__action--close:hover {
-  background: color-mix(
-    in srgb,
-    var(--danger-color) 12%,
-    var(--bg-primary)
-  ) !important;
-  color: var(--danger-color) !important;
+.quick-editor-actions-menu {
+  z-index: 70;
+  min-width: 184px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  padding: 4px;
+  color: var(--text-secondary);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.quick-editor-actions-menu__item {
+  color: var(--text-secondary);
+}
+
+.quick-editor-actions-menu__separator {
+  height: 1px;
+  margin: 4px;
+  background: var(--border-color);
 }
 
 .quick-editor-window__editor {
@@ -90,6 +102,69 @@
 .quick-editor-window__scroll {
   height: 100%;
   overflow: auto;
+}
+
+.quick-editor-outline {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  width: min(240px, calc(100vw - 56px));
+  flex-direction: column;
+  border-left: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  box-shadow: -4px 0 8px rgba(0, 0, 0, 0.1);
+}
+
+.quick-editor-outline__header,
+.quick-editor-outline__empty,
+.quick-editor-outline__item {
+  font-size: 13px;
+}
+
+.quick-editor-outline__header {
+  padding: 12px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.quick-editor-outline__list {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding-bottom: 8px;
+}
+
+.quick-editor-outline__empty {
+  padding: 8px 12px;
+  color: var(--text-muted);
+}
+
+.quick-editor-outline__item {
+  display: flex;
+  width: 100%;
+  min-height: 30px;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  padding-right: 12px;
+  text-align: left;
+}
+
+.quick-editor-outline__item:hover,
+.quick-editor-outline__item:focus-visible {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.quick-editor-outline__item[data-active="true"] {
+  background: var(--active-bg);
+  color: var(--text-primary);
+  font-weight: 500;
 }
 
 .quick-editor-window[data-collapsed="true"] .quick-editor-window__editor {
@@ -116,7 +191,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .quick-editor-window__action {
+  .quick-editor-window__action,
+  .quick-editor-actions-menu,
+  .quick-editor-outline {
     transition: none;
   }
 }
