@@ -20,6 +20,9 @@ describe("quick editor actions menu", () => {
         {...handlers}
       />,
     );
+    expect(screen.getByRole("button", { name: "更多操作" })).toHaveClass(
+      "quick-editor-window__action--menu",
+    );
     await userEvent
       .setup()
       .click(screen.getByRole("button", { name: "更多操作" }));

@@ -70,6 +70,12 @@
   box-shadow: 0 0 0 1px var(--accent-color);
 }
 
+.quick-editor-window__action--menu:focus-visible {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+  box-shadow: none;
+}
+
 .quick-editor-actions-menu {
   z-index: 70;
   min-width: 184px;

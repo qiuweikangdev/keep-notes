@@ -55,4 +55,15 @@ describe("quick editor window stylesheet", () => {
     expect(editorRule).toMatch(/overflow:\s*hidden;/);
     expect(scrollRule).toMatch(/overflow:\s*auto;/);
   });
+
+  it("shows menu trigger focus without a border ring", () => {
+    const menuFocusRule = stylesheet.match(
+      /\.quick-editor-window__action--menu:focus-visible\s*\{([\s\S]*?)\n\}/,
+    )?.[1];
+
+    expect(menuFocusRule).toBeDefined();
+    expect(menuFocusRule).toMatch(/box-shadow:\s*none;/);
+    expect(menuFocusRule).toMatch(/background:\s*var\(--hover-bg\)/);
+    expect(menuFocusRule).toMatch(/color:\s*var\(--text-primary\)/);
+  });
 });

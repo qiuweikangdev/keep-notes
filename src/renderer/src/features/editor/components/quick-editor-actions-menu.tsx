@@ -45,7 +45,7 @@ export function QuickEditorActionsMenu(props: QuickEditorActionsMenuProps) {
         <button
           type="button"
           aria-label="更多操作"
-          className="quick-editor-window__action"
+          className="quick-editor-window__action quick-editor-window__action--menu"
         >
           <MoreHorizontal aria-hidden="true" size={16} />
         </button>
