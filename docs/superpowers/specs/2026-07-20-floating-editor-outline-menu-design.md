@@ -7,15 +7,17 @@ Add an on-demand document outline to the floating editor without increasing perm
 ## Confirmed Interaction
 
 - Keep the existing collapse control on the left side of the title bar.
-- Replace the right-side new-window and return-to-main-window buttons with one `More` menu trigger.
-- Keep the close button directly accessible beside the `More` trigger.
+- Replace all right-side action buttons with one `More` menu trigger.
 - Order the menu items as follows:
   1. `Show outline` or `Hide outline`, depending on the current drawer state.
   2. Separator.
   3. `New floating window`.
   4. `Return to main window`.
+  5. Separator.
+  6. `Close floating window`.
 - Do not display or register an outline keyboard shortcut.
 - Disable the outline menu item while the floating editor is collapsed.
+- Render the close item as a destructive action with danger-color hover and focus treatment.
 
 ## Outline Drawer
 
@@ -52,7 +54,7 @@ Add an on-demand document outline to the floating editor without increasing perm
 
 ## Responsive Behavior
 
-- The title bar always retains collapse, `More`, and close controls.
+- The title bar always retains the collapse control and the `More` trigger.
 - The overlay drawer width is capped for normal windows and constrained to leave a visible portion of the editor in narrow windows.
 - The drawer has independent vertical scrolling for long outlines.
 
@@ -62,4 +64,3 @@ Add an on-demand document outline to the floating editor without increasing perm
 - Run `pnpm typecheck`.
 - Run `pnpm lint`.
 - Run `pnpm build`.
-
