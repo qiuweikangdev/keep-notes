@@ -1,10 +1,105 @@
-import { render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { FindWidget } from "./find-widget";
 
+afterEach(() => {
+  cleanup();
+  document.body.replaceChildren();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
 describe("FindWidget", () => {
+  it("portals an anchored widget outside a translucent ancestor", () => {
+    const translucentRoot = document.createElement("div");
+    translucentRoot.style.opacity = "0.6";
+    const anchor = document.createElement("div");
+    translucentRoot.append(anchor);
+    document.body.append(translucentRoot);
+    let resizeCallback: ResizeObserverCallback | null = null;
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          resizeCallback = callback;
+        }
+
+        observe() {}
+        disconnect() {}
+        unobserve() {}
+      },
+    );
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(1200);
+    const bounds = vi.spyOn(anchor, "getBoundingClientRect").mockReturnValue({
+      x: 200,
+      y: 100,
+      top: 100,
+      right: 1100,
+      bottom: 700,
+      left: 200,
+      width: 900,
+      height: 600,
+      toJSON: () => ({}),
+    });
+
+    render(
+      <FindWidget
+        isOpen
+        isReplaceOpen={false}
+        query="note"
+        replacement=""
+        activeIndex={0}
+        matchCount={1}
+        options={{}}
+        portalAnchor={anchor}
+        onQueryChange={vi.fn()}
+        onReplacementChange={vi.fn()}
+        onStep={vi.fn()}
+        onClose={vi.fn()}
+        onToggleReplace={vi.fn()}
+        onOptionsChange={vi.fn()}
+        onReplaceCurrent={vi.fn()}
+        onReplaceAll={vi.fn()}
+        onSelectAllMatches={vi.fn()}
+        onUndoReplace={vi.fn()}
+      />,
+      { container: anchor },
+    );
+
+    const widget = screen.getByRole("search", {
+      name: "文件内搜索与替换",
+    });
+    expect(translucentRoot).not.toContainElement(widget);
+    expect(widget).toHaveClass("fixed");
+    expect(widget).toHaveStyle({
+      top: "108px",
+      right: "108px",
+      maxWidth: "884px",
+    });
+
+    bounds.mockReturnValue({
+      x: 400,
+      y: 120,
+      top: 120,
+      right: 1150,
+      bottom: 700,
+      left: 400,
+      width: 750,
+      height: 580,
+      toJSON: () => ({}),
+    });
+    act(() => {
+      resizeCallback?.([], {} as ResizeObserver);
+    });
+    expect(widget).toHaveStyle({
+      top: "128px",
+      right: "58px",
+      maxWidth: "734px",
+    });
+  });
+
   it("navigates matches and exposes replace actions", async () => {
     const user = userEvent.setup();
     const onStep = vi.fn();

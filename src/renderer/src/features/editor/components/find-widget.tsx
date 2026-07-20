@@ -1,10 +1,14 @@
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
+  useState,
   type ButtonHTMLAttributes,
+  type CSSProperties,
   type KeyboardEvent,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   ChevronDown,
   ChevronRight,
@@ -25,6 +29,7 @@ interface FindWidgetProps {
   activeIndex: number;
   matchCount: number;
   options: FindTextOptions;
+  portalAnchor?: HTMLElement | null;
   onQueryChange: (value: string) => void;
   onReplacementChange: (value: string) => void;
   onStep: (direction: 1 | -1) => void;
@@ -41,6 +46,21 @@ interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   label: string;
   children: ReactNode;
   isPressed?: boolean;
+}
+
+interface FindWidgetPosition {
+  top: number;
+  right: number;
+  maxWidth: number;
+}
+
+function getFindWidgetPosition(anchor: HTMLElement): FindWidgetPosition {
+  const bounds = anchor.getBoundingClientRect();
+  return {
+    top: bounds.top + 8,
+    right: Math.max(8, window.innerWidth - bounds.right + 8),
+    maxWidth: Math.max(0, bounds.width - 16),
+  };
 }
 
 function IconButton({
@@ -125,6 +145,7 @@ export function FindWidget({
   activeIndex,
   matchCount,
   options,
+  portalAnchor,
   onQueryChange,
   onReplacementChange,
   onStep,
@@ -137,6 +158,8 @@ export function FindWidget({
   onUndoReplace,
 }: FindWidgetProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [portalPosition, setPortalPosition] =
+    useState<FindWidgetPosition | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -145,6 +168,28 @@ export function FindWidget({
       inputRef.current?.select();
     });
   }, [isOpen]);
+
+  useLayoutEffect(() => {
+    if (!isOpen || !portalAnchor) return;
+
+    // 主窗口通过 Portal 脱离透明父层后，持续同步所属编辑器面板的视口位置。
+    const updatePosition = () => {
+      setPortalPosition(getFindWidgetPosition(portalAnchor));
+    };
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+
+    if (typeof ResizeObserver === "undefined") {
+      return () => window.removeEventListener("resize", updatePosition);
+    }
+
+    const resizeObserver = new ResizeObserver(updatePosition);
+    resizeObserver.observe(portalAnchor);
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [isOpen, portalAnchor]);
 
   if (!isOpen) return null;
 
@@ -178,13 +223,24 @@ export function FindWidget({
     }
   };
 
-  return (
+  const portalStyle: CSSProperties | undefined = portalAnchor
+    ? portalPosition
+      ? {
+          top: portalPosition.top,
+          right: portalPosition.right,
+          maxWidth: portalPosition.maxWidth,
+        }
+      : { visibility: "hidden" }
+    : undefined;
+
+  const widget = (
     <Tooltip.Provider delayDuration={200}>
       <div
         data-editor-find-ignore
         role="search"
         aria-label="文件内搜索与替换"
-        className="absolute right-2 top-2 z-50 flex w-[492px] max-w-[calc(100%-16px)] overflow-visible rounded-md border border-[var(--border-color)] bg-[var(--bg-secondary)] shadow-xl"
+        className={`${portalAnchor ? "fixed" : "absolute right-2 top-2"} z-50 flex w-[492px] max-w-[calc(100%-16px)] overflow-visible rounded-md border border-[var(--border-color)] bg-[var(--bg-secondary)] shadow-xl`}
+        style={portalStyle}
         onKeyDown={handleWidgetKeyDown}
         onPointerDown={(event) => event.stopPropagation()}
       >
@@ -285,4 +341,6 @@ export function FindWidget({
       </div>
     </Tooltip.Provider>
   );
+
+  return portalAnchor ? createPortal(widget, document.body) : widget;
 }

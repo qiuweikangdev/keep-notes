@@ -110,16 +110,20 @@ describe("EditorWorkspace split rich editor mount", () => {
     );
   });
 
-  it("opens the find widget when the controller targets its active tab", () => {
-    render(<EditorWorkspace groupId="group-1" tabId="tab-1" />);
+  it("opens the find widget outside the translucent editor tree", () => {
+    const { container } = render(
+      <EditorWorkspace groupId="group-1" tabId="tab-1" />,
+    );
 
     act(() => {
       editorFindController.open("group-1", "tab-1");
     });
 
-    expect(
-      screen.getByRole("search", { name: "文件内搜索与替换" }),
-    ).toBeInTheDocument();
+    const widget = screen.getByRole("search", {
+      name: "文件内搜索与替换",
+    });
+    expect(widget).toBeInTheDocument();
+    expect(container).not.toContainElement(widget);
   });
 
   it("keeps the current rich pane mounted while the next file is loading", () => {

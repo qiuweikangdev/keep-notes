@@ -361,6 +361,7 @@ export function EditorWorkspace({
         activeIndex={activeFindIndex}
         matchCount={rawMatches.length}
         options={findOptions}
+        portalAnchor={editorRootRef.current}
         onQueryChange={setFindQuery}
         onReplacementChange={setReplacement}
         onStep={stepMatch}
