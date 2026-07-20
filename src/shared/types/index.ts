@@ -63,6 +63,8 @@ export interface GitStatus {
   conflicted: string[];
 }
 
+export type GitFileContentSource = "HEAD" | "INDEX";
+
 // Git 分支信息
 export interface GitBranch {
   name: string;

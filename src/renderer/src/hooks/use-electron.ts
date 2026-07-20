@@ -5,6 +5,7 @@ import type {
   GitConfig,
   GitCommitOptions,
   GitCommitFileStatus,
+  GitFileContentSource,
 } from "@/types";
 import type { ReminderInput, WorkspaceChangeBatch } from "@shared/types";
 import { useTreeStore } from "@/store/tree.store";
@@ -551,10 +552,14 @@ export function useElectron() {
     return window.gitAPI.getFileDiff(dirPath, filePath);
   }, []);
 
-  // 获取文件在 HEAD 中的内容
+  // 获取文件在 HEAD 或暂存区中的内容
   const getFileHeadContent = useCallback(
-    async (dirPath: string, filePath: string) => {
-      return window.gitAPI.getFileHeadContent(dirPath, filePath);
+    async (
+      dirPath: string,
+      filePath: string,
+      source: GitFileContentSource = "HEAD",
+    ) => {
+      return window.gitAPI.getFileHeadContent(dirPath, filePath, source);
     },
     [],
   );

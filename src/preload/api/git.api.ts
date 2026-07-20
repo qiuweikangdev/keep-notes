@@ -11,6 +11,7 @@ import type {
   GitCommitFileContent,
   GitCommitFileStatus,
   GitCommitLogItem,
+  GitFileContentSource,
 } from "../../shared/types";
 
 export const gitApi = {
@@ -103,15 +104,17 @@ export const gitApi = {
     );
   },
 
-  // 获取文件在 HEAD 中的内容
+  // 获取文件在 HEAD 或暂存区中的内容
   getFileHeadContent: (
     dirPath: string,
     filePath: string,
+    source?: GitFileContentSource,
   ): Promise<ApiResponse<string>> => {
     return ipcRenderer.invoke(
       IPC_CHANNELS.GIT.GET_FILE_HEAD_CONTENT,
       dirPath,
       filePath,
+      source,
     );
   },
 

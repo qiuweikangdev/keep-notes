@@ -3,6 +3,7 @@ import {
   fireEvent,
   render as baseRender,
   screen,
+  within,
   waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -180,10 +181,12 @@ describe("GitPanel", () => {
         newContent: "new content",
       },
     });
-    electronMocks.getFileHeadContent.mockResolvedValue({
-      code: CodeResult.Success,
-      data: "head content",
-    });
+    electronMocks.getFileHeadContent.mockImplementation(
+      async (_dirPath: string, _filePath: string, source = "HEAD") => ({
+        code: CodeResult.Success,
+        data: source === "INDEX" ? "index content" : "head content",
+      }),
+    );
   });
 
   afterEach(() => {
@@ -513,7 +516,7 @@ describe("GitPanel", () => {
     expect(screen.queryByText("changed.md")).not.toBeInTheDocument();
   });
 
-  it("opens a diff when clicking a file in the status list", async () => {
+  it("opens an unstaged diff between the index and working tree", async () => {
     render(<GitPanel isOpen onClose={vi.fn()} />);
 
     fireEvent.click(await screen.findByText("changed.md"));
@@ -522,11 +525,66 @@ describe("GitPanel", () => {
       expect(electronMocks.getFileHeadContent).toHaveBeenCalledWith(
         "/notes",
         "changed.md",
+        "INDEX",
       );
       expect(diffStoreMock.openDiff).toHaveBeenCalledWith(
         "changed.md",
-        "head content",
+        "index content",
         "working tree content",
+      );
+    });
+  });
+
+  it("opens a staged diff between HEAD and the index", async () => {
+    electronMocks.getGitStatus.mockResolvedValue({
+      code: CodeResult.Success,
+      data: {
+        current: "main",
+        tracking: "origin/main",
+        files: [
+          {
+            path: "partially-staged.md",
+            index: "M",
+            working_dir: "M",
+          },
+        ],
+        ahead: 0,
+        behind: 0,
+        created: [],
+        not_added: [],
+        modified: ["partially-staged.md"],
+        deleted: [],
+        renamed: [],
+        staged: ["partially-staged.md"],
+        conflicted: [],
+      },
+    });
+
+    render(<GitPanel isOpen onClose={vi.fn()} />);
+
+    const stagedSection = (
+      await screen.findByRole("button", { name: "收起已暂存的更改" })
+    ).closest("section");
+    expect(stagedSection).not.toBeNull();
+    fireEvent.click(
+      within(stagedSection as HTMLElement).getByText("partially-staged.md"),
+    );
+
+    await waitFor(() => {
+      expect(electronMocks.getFileHeadContent).toHaveBeenCalledWith(
+        "/notes",
+        "partially-staged.md",
+        "HEAD",
+      );
+      expect(electronMocks.getFileHeadContent).toHaveBeenCalledWith(
+        "/notes",
+        "partially-staged.md",
+        "INDEX",
+      );
+      expect(diffStoreMock.openDiff).toHaveBeenCalledWith(
+        "partially-staged.md",
+        "head content",
+        "index content",
       );
     });
   });

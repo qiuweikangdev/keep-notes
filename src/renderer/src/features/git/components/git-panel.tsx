@@ -74,6 +74,7 @@ const DISCARD_ALL_CHANGES = "__ALL_GIT_CHANGES__";
 
 type GitPanelTab = "changes" | "history";
 type GitFooterOperation = "pull" | "push" | "commit" | "commit-and-push";
+type GitChangeSection = "staged" | "unstaged";
 
 const formatGitHistoryDate = (date: string) => {
   const parsed = new Date(date);
@@ -623,45 +624,52 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
 
   // 处理 diff 比较
   const handleDiffFile = useCallback(
-    async (filePath: string, isDeleted = false) => {
+    async (filePath: string, variant: GitChangeSection, isDeleted = false) => {
       const dir = getCurrentDir();
       if (!dir) return;
 
       try {
-        // 构造完整路径，使用与 handleOpenFile 相同的方式
         const sep = dir.includes("\\") ? "\\" : "/";
         const normalizedFile = filePath.replace(/[/\\]/g, sep);
         const fullPath = dir + sep + normalizedFile;
 
-        // 获取编辑器中的内容（如果已打开）
-        let editorContent = "";
-        if (!isDeleted) {
+        const readGitContent = async (source: "HEAD" | "INDEX") => {
+          const result = await getFileHeadContent(dir, filePath, source);
+          return result.code === CodeResult.Success ? (result.data ?? "") : "";
+        };
+        const readWorkingContent = async () => {
+          if (isDeleted) return "";
+
           const matchedTab = useEditorStore
             .getState()
-            .panelGroups.flatMap((g) => g.tabs)
-            .find((t) => t.filePath === fullPath);
+            .panelGroups.flatMap((group) => group.tabs)
+            .find((tab) => tab.filePath === fullPath);
           if (matchedTab?.content) {
-            editorContent = matchedTab.content;
-          } else {
-            // 从磁盘读取
-            editorContent = await window.electronAPI.readFile(fullPath);
+            return matchedTab.content;
           }
-        }
 
-        // 获取 HEAD 中的内容
-        let baseContent = "";
-        const headResult = await getFileHeadContent(dir, filePath);
-        if (headResult.code === CodeResult.Success) {
-          baseContent = headResult.data ?? "";
-        }
+          return window.electronAPI.readFile(fullPath);
+        };
 
-        if (areDiffContentsEqual(baseContent, editorContent)) {
+        // 已暂存比较 HEAD 与 INDEX；未暂存比较 INDEX 与工作区，避免部分暂存文件混入另一侧改动。
+        const [baseContent, changedContent] =
+          variant === "staged"
+            ? await Promise.all([
+                readGitContent("HEAD"),
+                readGitContent("INDEX"),
+              ])
+            : await Promise.all([
+                readGitContent("INDEX"),
+                readWorkingContent(),
+              ]);
+
+        if (areDiffContentsEqual(baseContent, changedContent)) {
           showNoDiffContentToast();
           return;
         }
 
-        openDiff(filePath, baseContent, editorContent);
-        updateContent(baseContent, editorContent);
+        openDiff(filePath, baseContent, changedContent);
+        updateContent(baseContent, changedContent);
       } catch (error) {
         console.error("Failed to read file for diff:", error);
         closeDiff();
@@ -1112,7 +1120,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
 
   const renderFileActions = (
     filePath: string,
-    badge?: GitStatusBadge | null,
+    variant: GitChangeSection,
+    isDeleted: boolean,
   ) => (
     <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
       <GitPanelTooltip label="查看差异" side="bottom">
@@ -1120,7 +1129,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           type="button"
           onClick={(event) => {
             event.stopPropagation();
-            handleDiffFile(filePath, badge?.kind === "deleted");
+            handleDiffFile(filePath, variant, isDeleted);
           }}
           data-theme-control="true"
           className="rounded p-1 transition-colors hover:bg-[var(--hover-bg)]"
@@ -1130,7 +1139,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           <GitCompare className="h-3.5 w-3.5" />
         </button>
       </GitPanelTooltip>
-      {badge?.kind !== "deleted" ? (
+      {!isDeleted ? (
         <GitPanelTooltip label="打开文件" side="bottom">
           <button
             type="button"
@@ -1168,22 +1177,30 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
   const renderFileRow = (
     filePath: string,
     label: string,
+    variant: GitChangeSection,
     depth = 0,
     showTreeGuide = false,
   ) => {
     const badge = fileBadgeMap.get(filePath);
-    const isDeleted = badge?.kind === "deleted";
+    const normalizedPath = normalizePanelGitPath(filePath);
+    const rawStatus = gitStatus?.files.find(
+      (file) => normalizePanelGitPath(file.path) === normalizedPath,
+    );
+    const sectionStatus =
+      variant === "staged" ? rawStatus?.index : rawStatus?.working_dir;
+    const isDeleted =
+      sectionStatus === "D" || (!rawStatus && badge?.kind === "deleted");
 
     return (
       <div
         key={filePath}
         role="button"
         tabIndex={0}
-        onClick={() => handleDiffFile(filePath, isDeleted)}
+        onClick={() => handleDiffFile(filePath, variant, isDeleted)}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
-            handleDiffFile(filePath, isDeleted);
+            handleDiffFile(filePath, variant, isDeleted);
           }
         }}
         className="group flex h-8 cursor-pointer items-center border-b text-sm transition-colors hover:bg-[var(--hover-bg)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-color)] focus-visible:ring-inset"
@@ -1217,16 +1234,20 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           {label}
         </span>
         <div className="ml-2 flex shrink-0 items-center gap-1">
-          {renderFileActions(filePath, badge)}
+          {renderFileActions(filePath, variant, isDeleted)}
           {renderStatusBadge(badge)}
         </div>
       </div>
     );
   };
 
-  const renderTreeNode = (node: GitFileTreeNode, depth = 0) => {
+  const renderTreeNode = (
+    node: GitFileTreeNode,
+    variant: GitChangeSection,
+    depth = 0,
+  ) => {
     if (node.isFile) {
-      return renderFileRow(node.path, node.name, depth, true);
+      return renderFileRow(node.path, node.name, variant, depth, true);
     }
 
     const isExpanded = expandedDirs.has(node.path);
@@ -1302,7 +1323,9 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           <span className="w-4 shrink-0" />
         </div>
         {isExpanded
-          ? node.children.map((child) => renderTreeNode(child, depth + 1))
+          ? node.children.map((child) =>
+              renderTreeNode(child, variant, depth + 1),
+            )
           : null}
       </div>
     );
@@ -1311,7 +1334,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
   const renderFileSection = (
     title: string,
     files: string[],
-    variant: "staged" | "unstaged",
+    variant: GitChangeSection,
   ) => {
     if (files.length === 0) return null;
 
@@ -1397,8 +1420,12 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         </div>
         {isExpanded
           ? treeView
-            ? buildGitFileTree(files).map((node) => renderTreeNode(node))
-            : files.map((filePath) => renderFileRow(filePath, filePath))
+            ? buildGitFileTree(files).map((node) =>
+                renderTreeNode(node, variant),
+              )
+            : files.map((filePath) =>
+                renderFileRow(filePath, filePath, variant),
+              )
           : null}
       </section>
     );

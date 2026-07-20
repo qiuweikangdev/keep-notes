@@ -14,6 +14,7 @@ import type {
   GitCommitFileContent,
   GitCommitFileStatus,
   GitCommitLogItem,
+  GitFileContentSource,
 } from "../shared/types";
 
 // 获取 Git 实例
@@ -568,10 +569,11 @@ export async function getFileDiff(
   }
 }
 
-// 获取文件在 HEAD 中的内容
+// 获取文件在 HEAD 或暂存区中的内容
 export async function getFileHeadContent(
   dirPath: string,
   filePath: string,
+  source: GitFileContentSource = "HEAD",
 ): Promise<ApiResponse<string>> {
   try {
     const git = getGitInstance(dirPath);
@@ -579,7 +581,8 @@ export async function getFileHeadContent(
       ? path.relative(dirPath, filePath)
       : filePath;
     const gitPath = relativePath.replace(/\\/g, "/");
-    const content = await git.raw(["show", `HEAD:${gitPath}`]);
+    const revision = source === "INDEX" ? "" : "HEAD";
+    const content = await git.raw(["show", `${revision}:${gitPath}`]);
 
     return {
       code: CodeResult.Success,

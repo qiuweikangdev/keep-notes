@@ -10,6 +10,7 @@ export type {
   ThemeName,
   MenuActionOptions,
   GitFileStatus,
+  GitFileContentSource,
   GitStatus,
   GitBranch,
   GitCommitOptions,

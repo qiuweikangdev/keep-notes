@@ -26,6 +26,7 @@ import type {
   GitConfig,
   GitCommitOptions,
   GitCommitFileStatus,
+  GitFileContentSource,
 } from "../../shared/types";
 
 export function registerGitIpc(): void {
@@ -121,11 +122,16 @@ export function registerGitIpc(): void {
     },
   );
 
-  // 获取文件在 HEAD 中的内容
+  // 获取文件在 HEAD 或暂存区中的内容
   ipcMain.handle(
     IPC_CHANNELS.GIT.GET_FILE_HEAD_CONTENT,
-    async (_, dirPath: string, filePath: string) => {
-      return getFileHeadContent(dirPath, filePath);
+    async (
+      _,
+      dirPath: string,
+      filePath: string,
+      source?: GitFileContentSource,
+    ) => {
+      return getFileHeadContent(dirPath, filePath, source);
     },
   );
 
