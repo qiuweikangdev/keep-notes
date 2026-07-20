@@ -224,7 +224,7 @@ describe("quick editor content detection", () => {
     expect(screen.getByRole("navigation", { name: "文档大纲" })).toBeVisible();
   });
 
-  it("coalesces scroll tracking and selects the last visible heading", async () => {
+  it("refreshes the active heading on open and cancels coalesced scroll work on close", async () => {
     vi.stubGlobal(
       "matchMedia",
       vi.fn((query: string) => ({
@@ -258,8 +258,6 @@ describe("quick editor content detection", () => {
     const { container } = render(createElement(QuickEditorWindow));
     expect(await screen.findByText("Details")).toBeInTheDocument();
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "更多操作" }));
-    await user.click(screen.getByRole("menuitem", { name: "显示大纲" }));
 
     const scrollContainer = container.querySelector(
       ".quick-editor-window__scroll",
@@ -324,8 +322,13 @@ describe("quick editor content detection", () => {
       });
     const queryAll = vi.spyOn(Element.prototype, "querySelectorAll");
 
+    // 抽屉关闭时滚动不做大纲计算，但再次打开必须按当前视口同步活动标题。
     fireEvent.scroll(scrollContainer);
     fireEvent.scroll(scrollContainer);
+    expect(requestFrame).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    await user.click(screen.getByRole("menuitem", { name: "显示大纲" }));
 
     expect(requestFrame).toHaveBeenCalledOnce();
     act(() => frames[0]?.(0));
@@ -338,6 +341,17 @@ describe("quick editor content detection", () => {
       "aria-current",
       "location",
     );
+
+    requestFrame.mockClear();
+    queryAll.mockClear();
+    const cancelFrame = vi.spyOn(window, "cancelAnimationFrame");
+    fireEvent.scroll(scrollContainer);
+    fireEvent.scroll(scrollContainer);
+    expect(requestFrame).toHaveBeenCalledOnce();
+
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    await user.click(screen.getByRole("menuitem", { name: "隐藏大纲" }));
+    expect(cancelFrame).toHaveBeenCalledOnce();
   });
 
   it("does not rewrite unordered-list markers when linked content opens", async () => {

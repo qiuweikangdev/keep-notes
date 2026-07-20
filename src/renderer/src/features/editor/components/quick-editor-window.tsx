@@ -173,7 +173,7 @@ export function QuickEditorWindow() {
   const syncRevisionRef = useRef(0);
   const editorRef = useRef<CoreBlockNoteEditor | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const scrollTrackingFrameRef = useRef<number | null>(null);
+  const activeHeadingFrameRef = useRef<number | null>(null);
   const isFindOpenRef = useRef(false);
   const isOutlineOpenRef = useRef(false);
   const outlineDirtyRef = useRef(true);
@@ -215,6 +215,37 @@ export function QuickEditorWindow() {
     setActiveHeadingId(nextHeadingId);
   }, []);
 
+  const cancelActiveHeadingUpdate = useCallback(() => {
+    if (activeHeadingFrameRef.current === null) return;
+    window.cancelAnimationFrame(activeHeadingFrameRef.current);
+    activeHeadingFrameRef.current = null;
+  }, []);
+
+  const scheduleActiveHeadingUpdate = useCallback(() => {
+    if (!isOutlineOpenRef.current || activeHeadingFrameRef.current !== null) {
+      return;
+    }
+
+    // 打开、内容刷新与滚动共用同一帧调度，避免重复读取布局。
+    activeHeadingFrameRef.current = window.requestAnimationFrame(() => {
+      activeHeadingFrameRef.current = null;
+      const container = scrollContainerRef.current;
+      const headings = outlineHeadingsRef.current;
+      if (!container || headings.length === 0) return;
+
+      const activationTop = container.getBoundingClientRect().top + 24;
+      const blockElements = getQuickEditorBlockElementLookup(editor.domElement);
+      let nextActiveId = headings[0]?.id ?? null;
+      for (const heading of headings) {
+        const element = blockElements.get(heading.id);
+        if (!element || element.getBoundingClientRect().top > activationTop)
+          break;
+        nextActiveId = heading.id;
+      }
+      updateActiveHeading(nextActiveId);
+    });
+  }, [editor, updateActiveHeading]);
+
   const refreshOutline = useCallback(() => {
     // 浮窗独立维护大纲；只有标题快照真实变化时才触发 React 更新。
     const headings = extractQuickEditorOutlineHeadings(editor.document);
@@ -232,7 +263,8 @@ export function QuickEditorWindow() {
         ? current
         : (headings[0]?.id ?? null),
     );
-  }, [editor, updateActiveHeading]);
+    scheduleActiveHeadingUpdate();
+  }, [editor, scheduleActiveHeadingUpdate, updateActiveHeading]);
 
   const handleOutlineDocumentChange = useCallback(() => {
     // 抽屉关闭时只记录脏标记，避免每次输入都遍历整篇文档。
@@ -247,9 +279,14 @@ export function QuickEditorWindow() {
     (isOpen: boolean) => {
       isOutlineOpenRef.current = isOpen;
       setIsOutlineOpen(isOpen);
-      if (isOpen && outlineDirtyRef.current) refreshOutline();
+      if (!isOpen) {
+        cancelActiveHeadingUpdate();
+        return;
+      }
+      if (outlineDirtyRef.current) refreshOutline();
+      else scheduleActiveHeadingUpdate();
     },
-    [refreshOutline],
+    [cancelActiveHeadingUpdate, refreshOutline, scheduleActiveHeadingUpdate],
   );
 
   const rawMatches = useMemo(
@@ -412,37 +449,12 @@ export function QuickEditorWindow() {
   );
 
   const handleEditorScroll = useCallback(() => {
-    if (!isOutlineOpenRef.current || scrollTrackingFrameRef.current !== null) {
-      return;
-    }
-
-    // 原生滚动事件合并到每帧一次，并在该帧内只构建一次块 ID 索引。
-    scrollTrackingFrameRef.current = window.requestAnimationFrame(() => {
-      scrollTrackingFrameRef.current = null;
-      const container = scrollContainerRef.current;
-      const headings = outlineHeadingsRef.current;
-      if (!container || headings.length === 0) return;
-
-      const activationTop = container.getBoundingClientRect().top + 24;
-      const blockElements = getQuickEditorBlockElementLookup(editor.domElement);
-      let nextActiveId = headings[0]?.id ?? null;
-      for (const heading of headings) {
-        const element = blockElements.get(heading.id);
-        if (!element || element.getBoundingClientRect().top > activationTop)
-          break;
-        nextActiveId = heading.id;
-      }
-      updateActiveHeading(nextActiveId);
-    });
-  }, [editor, updateActiveHeading]);
+    scheduleActiveHeadingUpdate();
+  }, [scheduleActiveHeadingUpdate]);
 
   useEffect(
-    () => () => {
-      if (scrollTrackingFrameRef.current !== null) {
-        window.cancelAnimationFrame(scrollTrackingFrameRef.current);
-      }
-    },
-    [],
+    () => () => cancelActiveHeadingUpdate(),
+    [cancelActiveHeadingUpdate],
   );
 
   const handleOutlineHeadingSelect = useCallback(
