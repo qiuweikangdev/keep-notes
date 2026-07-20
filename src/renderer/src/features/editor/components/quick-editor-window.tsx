@@ -9,13 +9,7 @@ import {
 import { BlockNoteView } from "@blocknote/mantine";
 import { useCreateBlockNote, useEditorChange } from "@blocknote/react";
 import type { BlockNoteEditor as CoreBlockNoteEditor } from "@blocknote/core";
-import {
-  ChevronDown,
-  ChevronUp,
-  PictureInPicture2,
-  Plus,
-  X,
-} from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import type {
   CloseSaveSnapshot,
   QuickEditorWindowContent,
@@ -49,6 +43,12 @@ import {
   serializeMarkdown,
 } from "../lib/markdown";
 import { FindWidget } from "./find-widget";
+import { QuickEditorActionsMenu } from "./quick-editor-actions-menu";
+import {
+  extractQuickEditorOutlineHeadings,
+  QuickEditorOutline,
+  type QuickEditorOutlineHeading,
+} from "./quick-editor-outline";
 
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
@@ -132,6 +132,36 @@ export function resolveQuickEditorMarkdown(
   return preserveMarkdownSource(source, baseline, serialized);
 }
 
+function findQuickEditorBlockElement(root: Element | null, blockId: string) {
+  return getQuickEditorBlockElementLookup(root).get(blockId) ?? null;
+}
+
+function getQuickEditorBlockElementLookup(root: Element | null) {
+  const elements = root?.querySelectorAll<HTMLElement>(
+    '[data-node-type="blockOuter"][data-id]',
+  );
+  return new Map(
+    Array.from(elements ?? [], (element) => [element.dataset.id, element]),
+  );
+}
+
+function quickEditorHeadingSnapshotsEqual(
+  previous: readonly QuickEditorOutlineHeading[],
+  next: readonly QuickEditorOutlineHeading[],
+) {
+  return (
+    previous.length === next.length &&
+    previous.every((heading, index) => {
+      const candidate = next[index];
+      return (
+        candidate?.id === heading.id &&
+        candidate.level === heading.level &&
+        candidate.text === heading.text
+      );
+    })
+  );
+}
+
 export function QuickEditorWindow() {
   const appearance = useEditorStore((state) => state.appearance);
   const { isDark } = useTheme({ transparentBackground: true });
@@ -142,7 +172,13 @@ export function QuickEditorWindow() {
   const serializedBaselineRef = useRef<string | null>(null);
   const syncRevisionRef = useRef(0);
   const editorRef = useRef<CoreBlockNoteEditor | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const activeHeadingFrameRef = useRef<number | null>(null);
   const isFindOpenRef = useRef(false);
+  const isOutlineOpenRef = useRef(false);
+  const outlineDirtyRef = useRef(true);
+  const outlineHeadingsRef = useRef<QuickEditorOutlineHeading[]>([]);
+  const activeHeadingIdRef = useRef<string | null>(null);
   const replacementUndoStackRef = useRef<string[]>([]);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isCollapseStateReady, setIsCollapseStateReady] = useState(false);
@@ -150,6 +186,11 @@ export function QuickEditorWindow() {
   const [isCollapseTransitioning, setIsCollapseTransitioning] = useState(false);
   const [isFindOpen, setIsFindOpen] = useState(false);
   const [isReplaceOpen, setIsReplaceOpen] = useState(false);
+  const [isOutlineOpen, setIsOutlineOpen] = useState(false);
+  const [outlineHeadings, setOutlineHeadings] = useState<
+    QuickEditorOutlineHeading[]
+  >([]);
+  const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null);
   const [findContent, setFindContent] = useState("");
   const [findQuery, setFindQuery] = useState("");
   const [replacement, setReplacement] = useState("");
@@ -167,6 +208,86 @@ export function QuickEditorWindow() {
     uploadFile: handleImageUploadRef.current,
   });
   editorRef.current = editor;
+
+  const updateActiveHeading = useCallback((nextHeadingId: string | null) => {
+    if (activeHeadingIdRef.current === nextHeadingId) return;
+    activeHeadingIdRef.current = nextHeadingId;
+    setActiveHeadingId(nextHeadingId);
+  }, []);
+
+  const cancelActiveHeadingUpdate = useCallback(() => {
+    if (activeHeadingFrameRef.current === null) return;
+    window.cancelAnimationFrame(activeHeadingFrameRef.current);
+    activeHeadingFrameRef.current = null;
+  }, []);
+
+  const scheduleActiveHeadingUpdate = useCallback(() => {
+    if (!isOutlineOpenRef.current || activeHeadingFrameRef.current !== null) {
+      return;
+    }
+
+    // 打开、内容刷新与滚动共用同一帧调度，避免重复读取布局。
+    activeHeadingFrameRef.current = window.requestAnimationFrame(() => {
+      activeHeadingFrameRef.current = null;
+      const container = scrollContainerRef.current;
+      const headings = outlineHeadingsRef.current;
+      if (!container || headings.length === 0) return;
+
+      const activationTop = container.getBoundingClientRect().top + 24;
+      const blockElements = getQuickEditorBlockElementLookup(editor.domElement);
+      let nextActiveId = headings[0]?.id ?? null;
+      for (const heading of headings) {
+        const element = blockElements.get(heading.id);
+        if (!element || element.getBoundingClientRect().top > activationTop)
+          break;
+        nextActiveId = heading.id;
+      }
+      updateActiveHeading(nextActiveId);
+    });
+  }, [editor, updateActiveHeading]);
+
+  const refreshOutline = useCallback(() => {
+    // 浮窗独立维护大纲；只有标题快照真实变化时才触发 React 更新。
+    const headings = extractQuickEditorOutlineHeadings(editor.document);
+    outlineDirtyRef.current = false;
+    if (
+      !quickEditorHeadingSnapshotsEqual(outlineHeadingsRef.current, headings)
+    ) {
+      outlineHeadingsRef.current = headings;
+      setOutlineHeadings(headings);
+    }
+
+    const current = activeHeadingIdRef.current;
+    updateActiveHeading(
+      current && headings.some((heading) => heading.id === current)
+        ? current
+        : (headings[0]?.id ?? null),
+    );
+    scheduleActiveHeadingUpdate();
+  }, [editor, scheduleActiveHeadingUpdate, updateActiveHeading]);
+
+  const handleOutlineDocumentChange = useCallback(() => {
+    // 抽屉关闭时只记录脏标记，避免每次输入都遍历整篇文档。
+    if (!isOutlineOpenRef.current) {
+      outlineDirtyRef.current = true;
+      return;
+    }
+    refreshOutline();
+  }, [refreshOutline]);
+
+  const setOutlineVisibility = useCallback(
+    (isOpen: boolean) => {
+      isOutlineOpenRef.current = isOpen;
+      setIsOutlineOpen(isOpen);
+      if (!isOpen) {
+        cancelActiveHeadingUpdate();
+        return;
+      }
+      if (outlineDirtyRef.current) refreshOutline();
+      else scheduleActiveHeadingUpdate();
+    },
+    [cancelActiveHeadingUpdate, refreshOutline, scheduleActiveHeadingUpdate],
+  );
 
   const rawMatches = useMemo(
     () =>
@@ -235,6 +356,7 @@ export function QuickEditorWindow() {
       ),
     );
     syncContentToSource();
+    handleOutlineDocumentChange();
   }, editor);
 
   useEffect(() => {
@@ -310,13 +432,45 @@ export function QuickEditorWindow() {
 
   const handleKeyDownCapture = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
+      if (event.key === "Escape" && isOutlineOpen) {
+        event.preventDefault();
+        event.stopPropagation();
+        setOutlineVisibility(false);
+        editor.focus();
+        return;
+      }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
         event.preventDefault();
         event.stopPropagation();
         openFindWidget();
       }
     },
-    [openFindWidget],
+    [editor, isOutlineOpen, openFindWidget, setOutlineVisibility],
+  );
+
+  const handleEditorScroll = useCallback(() => {
+    scheduleActiveHeadingUpdate();
+  }, [scheduleActiveHeadingUpdate]);
+
+  useEffect(
+    () => () => cancelActiveHeadingUpdate(),
+    [cancelActiveHeadingUpdate],
+  );
+
+  const handleOutlineHeadingSelect = useCallback(
+    (blockId: string) => {
+      const element = findQuickEditorBlockElement(editor.domElement, blockId);
+      if (!element || !editor.getBlock(blockId)) return;
+      editor.setTextCursorPosition(blockId, "start");
+      element.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
+        block: "start",
+      });
+      updateActiveHeading(blockId);
+    },
+    [editor, updateActiveHeading],
   );
 
   const stepMatch = useCallback(
@@ -575,6 +729,10 @@ export function QuickEditorWindow() {
 
   const editorIsHidden = isCollapsed || collapseTarget === true;
 
+  useEffect(() => {
+    if (editorIsHidden) setOutlineVisibility(false);
+  }, [editorIsHidden, setOutlineVisibility]);
+
   return (
     <div
       className="quick-editor-window"
@@ -601,33 +759,16 @@ export function QuickEditorWindow() {
         </div>
         <div className="quick-editor-window__drag-region" aria-hidden="true" />
         <div className="quick-editor-window__actions quick-editor-window__actions--right">
-          <button
-            aria-label="新建浮窗编辑器"
-            className="quick-editor-window__action quick-editor-window__action--secondary"
-            title="新建浮窗编辑器"
-            type="button"
-            onClick={() => window.electronAPI.createQuickEditorWindow()}
-          >
-            <Plus aria-hidden="true" className="h-4 w-4" />
-          </button>
-          <button
-            aria-label="返回应用"
-            className="quick-editor-window__action quick-editor-window__action--secondary"
-            title="返回应用"
-            type="button"
-            onClick={() => void handleReturnToApplication()}
-          >
-            <PictureInPicture2 aria-hidden="true" className="h-3.5 w-3.5" />
-          </button>
-          <button
-            aria-label="关闭快速编辑"
-            className="quick-editor-window__action quick-editor-window__action--close"
-            title="关闭"
-            type="button"
-            onClick={() => window.electronAPI.closeQuickEditorWindow()}
-          >
-            <X aria-hidden="true" className="h-4 w-4" />
-          </button>
+          <QuickEditorActionsMenu
+            isOutlineOpen={isOutlineOpen}
+            isOutlineDisabled={editorIsHidden}
+            onToggleOutline={() =>
+              setOutlineVisibility(!isOutlineOpenRef.current)
+            }
+            onNewWindow={() => window.electronAPI.createQuickEditorWindow()}
+            onReturnToApplication={() => void handleReturnToApplication()}
+            onCloseWindow={() => window.electronAPI.closeQuickEditorWindow()}
+          />
         </div>
       </header>
 
@@ -655,7 +796,12 @@ export function QuickEditorWindow() {
           onSelectAllMatches={selectAllMatches}
           onUndoReplace={undoLastReplacement}
         />
-        <div className="quick-editor-window__scroll">
+        <div
+          ref={scrollContainerRef}
+          className="quick-editor-window__scroll"
+          onPointerDown={() => setOutlineVisibility(false)}
+          onScroll={handleEditorScroll}
+        >
           <BlockNoteView
             editor={editor}
             theme={isDark ? "dark" : "light"}
@@ -666,6 +812,13 @@ export function QuickEditorWindow() {
             }}
           />
         </div>
+        {isOutlineOpen && !editorIsHidden ? (
+          <QuickEditorOutline
+            headings={outlineHeadings}
+            activeHeadingId={activeHeadingId}
+            onHeadingSelect={handleOutlineHeadingSelect}
+          />
+        ) : null}
       </main>
     </div>
   );
