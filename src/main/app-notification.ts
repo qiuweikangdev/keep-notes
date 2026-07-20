@@ -452,6 +452,8 @@ function createNotificationHtml(options: AppNotificationOptions): string {
     .platform-windows .content {
       grid-template-columns: 34px 1fr;
       gap: 12px;
+      min-height: 0;
+      overflow: hidden;
       padding: 18px 18px 0;
     }
     .platform-windows .app-icon {
@@ -478,7 +480,7 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       font-size: 20px;
     }
     .platform-windows .title {
-      margin-top: 14px;
+      margin-top: 2px;
       font-size: var(--title-font-size);
       line-height: var(--title-line-height);
       font-weight: 650;
@@ -496,6 +498,7 @@ function createNotificationHtml(options: AppNotificationOptions): string {
       color: rgba(255, 255, 255, 0.54);
     }
     .platform-windows .actions {
+      flex-shrink: 0;
       gap: 10px;
       padding: 8px 18px 14px;
     }

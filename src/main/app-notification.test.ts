@@ -205,6 +205,9 @@ describe("createAppNotification", () => {
         y: 704,
       });
       expect(html).toContain('class="platform-windows"');
+      expect(html).toContain("margin-top: 2px;");
+      expect(html).toContain("flex-shrink: 0;");
+      expect(html).toContain("padding: 8px 18px 14px;");
     }
 
     expect(html).toContain('class="app-icon"');

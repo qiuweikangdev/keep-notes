@@ -360,7 +360,7 @@ export interface NotificationConfig {
   email: EmailChannelConfig;
 }
 
-export const DEFAULT_DESKTOP_NOTIFICATION_APPEARANCE: Pick<
+export type DesktopNotificationAppearance = Pick<
   DesktopChannelConfig,
   | "appNameFontSize"
   | "appNameColor"
@@ -368,14 +368,35 @@ export const DEFAULT_DESKTOP_NOTIFICATION_APPEARANCE: Pick<
   | "titleColor"
   | "backgroundColor"
   | "sizePreset"
-> = {
-  appNameFontSize: 18,
-  appNameColor: "#111827",
-  titleFontSize: 21,
-  titleColor: "#111827",
-  backgroundColor: "#ece6f3",
-  sizePreset: "medium",
-};
+>;
+
+export const DEFAULT_DESKTOP_NOTIFICATION_APPEARANCE: DesktopNotificationAppearance =
+  {
+    appNameFontSize: 18,
+    appNameColor: "#f5f5f5",
+    titleFontSize: 21,
+    titleColor: "#f5f5f5",
+    backgroundColor: "#111820",
+    sizePreset: "medium",
+  };
+
+export const DEFAULT_MAC_DESKTOP_NOTIFICATION_APPEARANCE: DesktopNotificationAppearance =
+  {
+    appNameFontSize: 18,
+    appNameColor: "#111827",
+    titleFontSize: 21,
+    titleColor: "#111827",
+    backgroundColor: "#ece6f3",
+    sizePreset: "medium",
+  };
+
+export function getDefaultDesktopNotificationAppearance(
+  platform: string,
+): DesktopNotificationAppearance {
+  return platform === "darwin"
+    ? DEFAULT_MAC_DESKTOP_NOTIFICATION_APPEARANCE
+    : DEFAULT_DESKTOP_NOTIFICATION_APPEARANCE;
+}
 
 export const DEFAULT_NOTIFICATION_CONFIG: NotificationConfig = {
   desktop: {

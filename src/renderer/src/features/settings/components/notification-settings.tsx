@@ -5,8 +5,8 @@ import { Switch } from "@/components/ui/switch";
 import { ColorPicker } from "@/components/ui/color-picker";
 import type { NotificationSizePreset } from "@/types";
 import {
-  DEFAULT_DESKTOP_NOTIFICATION_APPEARANCE,
   DEFAULT_NOTIFICATION_CONFIG,
+  getDefaultDesktopNotificationAppearance,
 } from "@/types";
 import { ChevronDown } from "lucide-react";
 
@@ -92,10 +92,12 @@ export function NotificationSettings() {
 
   /** 切换通知样式模式，默认模式统一回到预设值，自定义模式开放字号、颜色和尺寸配置。 */
   const handleChangeAppearanceMode = async (useCustomAppearance: boolean) => {
-    // 开启自定义时也写入显式默认外观，避免旧配置中的空颜色继续显示成占位色。
+    // 切换样式时按当前平台写入默认外观，确保自定义模式从系统默认通知效果开始调整。
     await updateDesktopConfig({
       useCustomAppearance,
-      ...DEFAULT_DESKTOP_NOTIFICATION_APPEARANCE,
+      ...getDefaultDesktopNotificationAppearance(
+        window.electronAPI.getPlatform(),
+      ),
     });
   };
 

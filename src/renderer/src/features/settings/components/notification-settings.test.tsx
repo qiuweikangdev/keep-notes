@@ -16,6 +16,7 @@ describe("NotificationSettings", () => {
     setNotificationConfig: vi.fn(async () => undefined),
     testNotificationChannel: vi.fn(async () => ({ success: true })),
     onNotificationConfigChanged: vi.fn(() => vi.fn()),
+    getPlatform: vi.fn(() => "win32"),
   };
 
   beforeEach(() => {
@@ -138,10 +139,10 @@ describe("NotificationSettings", () => {
             ...DEFAULT_NOTIFICATION_CONFIG.desktop,
             useCustomAppearance: true,
             appNameFontSize: 18,
-            appNameColor: "#111827",
+            appNameColor: "#f5f5f5",
             titleFontSize: 21,
-            titleColor: "#111827",
-            backgroundColor: "#ece6f3",
+            titleColor: "#f5f5f5",
+            backgroundColor: "#111820",
             sizePreset: "medium",
           },
         },
@@ -307,6 +308,28 @@ describe("NotificationSettings", () => {
       expect(screen.queryByLabelText("标题颜色")).not.toBeInTheDocument();
       expect(screen.queryByLabelText("通知背景色")).not.toBeInTheDocument();
       expect(screen.queryByLabelText("弹窗大小")).not.toBeInTheDocument();
+    });
+  });
+
+  it("uses the macOS default appearance as the custom baseline", async () => {
+    electronAPI.getPlatform.mockReturnValueOnce("darwin");
+    render(<NotificationSettings />);
+
+    fireEvent.click(await screen.findByLabelText("样式使用自定义"));
+
+    await waitFor(() => {
+      expect(window.electronAPI.setNotificationConfig).toHaveBeenLastCalledWith(
+        {
+          ...DEFAULT_NOTIFICATION_CONFIG,
+          desktop: {
+            ...DEFAULT_NOTIFICATION_CONFIG.desktop,
+            useCustomAppearance: true,
+            appNameColor: "#111827",
+            titleColor: "#111827",
+            backgroundColor: "#ece6f3",
+          },
+        },
+      );
     });
   });
 

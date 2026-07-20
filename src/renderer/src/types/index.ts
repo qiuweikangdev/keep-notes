@@ -40,6 +40,7 @@ export {
   DirColorEnum,
   DEFAULT_DESKTOP_NOTIFICATION_APPEARANCE,
   DEFAULT_NOTIFICATION_CONFIG,
+  getDefaultDesktopNotificationAppearance,
   DEFAULT_EXPORT_CONFIG,
   EXPORT_FORMATS,
 } from "@shared/types";
