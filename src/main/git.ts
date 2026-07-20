@@ -18,7 +18,12 @@ import type {
 
 // 获取 Git 实例
 function getGitInstance(baseDir: string): SimpleGit {
-  return simpleGit({ baseDir, binary: "git" });
+  return simpleGit({
+    baseDir,
+    binary: "git",
+    // 仅为当前 Git 子进程关闭路径转义，避免读取状态时反复写入 .git/config。
+    config: ["core.quotepath=false"],
+  });
 }
 
 const normalizeGitPath = (p: string) => p.replace(/\\/g, "/");
@@ -167,10 +172,6 @@ export async function getStatus(
 ): Promise<ApiResponse<GitStatus>> {
   try {
     const git = getGitInstance(dirPath);
-    // 禁用 quotepath 以正确处理中文文件名
-    await git.addConfig("core.quotepath", "false");
-    // 设置 git 使用 UTF-8 编码
-    await git.addConfig("core.quotepath", "false");
     const status: StatusResult = await git.status();
 
     // 确保路径使用正斜杠
@@ -335,7 +336,6 @@ export async function getCommitHistory(
 ): Promise<ApiResponse<GitCommitLogItem[]>> {
   try {
     const git = getGitInstance(dirPath);
-    await git.addConfig("core.quotepath", "false");
     const safeSkip = Math.max(0, skip);
     const safeLimit = Math.max(1, limit);
     const output = await git.raw([
@@ -395,7 +395,6 @@ export async function getCommitDetail(
 ): Promise<ApiResponse<GitCommitDetail>> {
   try {
     const git = getGitInstance(dirPath);
-    await git.addConfig("core.quotepath", "false");
     const metadataOutput = await git.raw([
       "show",
       "--quiet",
@@ -515,7 +514,6 @@ export async function getCommitFileContent(
 ): Promise<ApiResponse<GitCommitFileContent>> {
   try {
     const git = getGitInstance(dirPath);
-    await git.addConfig("core.quotepath", "false");
     const parentsOutput = await git.raw([
       "rev-list",
       "--parents",
@@ -699,14 +697,13 @@ export async function upload(gitConfig: GitConfig): Promise<ApiResponse> {
       }
     }
 
-    await Promise.all([
-      git.pull(),
-      git.addConfig("user.name", gitConfig.username),
-      git.addConfig("user.email", gitConfig.email),
-      git.add("."),
-      git.commit(commitMessage),
-      git.push("origin", "HEAD"),
-    ]);
+    // Git 的拉取、暂存、提交和推送彼此依赖，并发执行会产生索引锁竞争或推送到旧提交。
+    await git.pull();
+    await git.addConfig("user.name", gitConfig.username);
+    await git.addConfig("user.email", gitConfig.email);
+    await git.add(".");
+    await git.commit(commitMessage);
+    await git.push("origin", "HEAD");
 
     return {
       code: CodeResult.Success,
