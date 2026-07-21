@@ -9,7 +9,7 @@ import {
 import { BlockNoteView } from "@blocknote/mantine";
 import { useCreateBlockNote, useEditorChange } from "@blocknote/react";
 import type { BlockNoteEditor as CoreBlockNoteEditor } from "@blocknote/core";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, X } from "lucide-react";
 import type {
   CloseSaveSnapshot,
   QuickEditorWindowContent,
@@ -314,6 +314,12 @@ export function QuickEditorWindow() {
       cancelled = true;
     };
   }, [readCollapsedState]);
+
+  useEffect(() => {
+    const subscribe = window.electronAPI.onQuickEditorCollapsedChanged;
+    if (!subscribe) return;
+    return subscribe(setIsCollapsed);
+  }, []);
 
   const syncDirtyState = useCallback((isDirty: boolean) => {
     dirtyRef.current = isDirty;
@@ -759,16 +765,28 @@ export function QuickEditorWindow() {
         </div>
         <div className="quick-editor-window__drag-region" aria-hidden="true" />
         <div className="quick-editor-window__actions quick-editor-window__actions--right">
-          <QuickEditorActionsMenu
-            isOutlineOpen={isOutlineOpen}
-            isOutlineDisabled={editorIsHidden}
-            onToggleOutline={() =>
-              setOutlineVisibility(!isOutlineOpenRef.current)
-            }
-            onNewWindow={() => window.electronAPI.createQuickEditorWindow()}
-            onReturnToApplication={() => void handleReturnToApplication()}
-            onCloseWindow={() => window.electronAPI.closeQuickEditorWindow()}
-          />
+          {editorIsHidden ? (
+            <button
+              aria-label="关闭浮动窗口"
+              className="quick-editor-window__action quick-editor-window__action--close"
+              title="关闭浮动窗口"
+              type="button"
+              onClick={() => window.electronAPI.closeQuickEditorWindow()}
+            >
+              <X aria-hidden="true" size={15} />
+            </button>
+          ) : (
+            <QuickEditorActionsMenu
+              isOutlineOpen={isOutlineOpen}
+              isOutlineDisabled={editorIsHidden}
+              onToggleOutline={() =>
+                setOutlineVisibility(!isOutlineOpenRef.current)
+              }
+              onNewWindow={() => window.electronAPI.createQuickEditorWindow()}
+              onReturnToApplication={() => void handleReturnToApplication()}
+              onCloseWindow={() => window.electronAPI.closeQuickEditorWindow()}
+            />
+          )}
         </div>
       </header>
 

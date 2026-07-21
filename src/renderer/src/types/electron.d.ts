@@ -176,6 +176,9 @@ export interface ElectronAPI {
     collapsed: boolean,
     reduceMotion: boolean,
   ) => Promise<boolean>;
+  onQuickEditorCollapsedChanged: (
+    callback: (collapsed: boolean) => void,
+  ) => () => void;
   consumeQuickEditorContent: () => Promise<QuickEditorWindowContent | null>;
   onQuickEditorContentImported: (
     callback: (content: QuickEditorWindowContent) => void,

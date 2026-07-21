@@ -188,6 +188,21 @@ function clearQuickEditorCollapseState(win: BrowserWindow): void {
   quickEditorCollapseStates.delete(win);
 }
 
+/** 同步主进程折叠状态，并通知浮窗渲染层更新标题栏与编辑区域。 */
+function publishQuickEditorCollapsedState(
+  win: BrowserWindow,
+  state: QuickEditorCollapseState,
+  collapsed: boolean,
+): void {
+  state.collapsed = collapsed;
+  if (!win.isDestroyed()) {
+    win.webContents.send(
+      IPC_CHANNELS.QUICK_EDITOR.COLLAPSED_CHANGED,
+      collapsed,
+    );
+  }
+}
+
 function animateQuickEditorHeight(
   win: BrowserWindow,
   state: QuickEditorCollapseState,
@@ -280,10 +295,8 @@ export function createQuickEditorWindow(
   });
 
   quickEditorWindows.add(win);
-  quickEditorCollapseStates.set(
-    win,
-    createQuickEditorCollapseState(bounds.height),
-  );
+  const collapseState = createQuickEditorCollapseState(bounds.height);
+  quickEditorCollapseStates.set(win, collapseState);
   if (initialContent?.source) {
     quickEditorWindowSources.set(win, initialContent.source);
   }
@@ -328,6 +341,22 @@ export function createQuickEditorWindow(
         closingQuickEditorWindows.delete(win);
       }
     });
+  });
+
+  win.on("will-resize", (_event, newBounds) => {
+    if (!collapseState.collapsed || collapseState.transition) return;
+    if (newBounds.height === win.getBounds().height) return;
+
+    // 折叠态下纵向拖动即视为展开，横向调整宽度仍保持折叠。
+    collapseState.expandedHeight = Math.max(
+      newBounds.height,
+      QUICK_EDITOR_WINDOW_MIN_HEIGHT,
+    );
+    win.setMinimumSize(
+      QUICK_EDITOR_WINDOW_MIN_WIDTH,
+      QUICK_EDITOR_WINDOW_MIN_HEIGHT,
+    );
+    publishQuickEditorCollapsedState(win, collapseState, false);
   });
 
   win.once("closed", () => {
@@ -395,7 +424,7 @@ export function setQuickEditorCollapsed(
       return false;
     }
 
-    state.collapsed = collapsed;
+    publishQuickEditorCollapsedState(win, state, collapsed);
     if (!collapsed) {
       win.setMinimumSize(
         QUICK_EDITOR_WINDOW_MIN_WIDTH,

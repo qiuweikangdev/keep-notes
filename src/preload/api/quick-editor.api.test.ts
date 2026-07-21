@@ -5,6 +5,7 @@ import { quickEditorApi } from "./quick-editor.api";
 const ipcRendererMocks = vi.hoisted(() => ({
   invoke: vi.fn(),
   on: vi.fn(),
+  removeListener: vi.fn(),
   send: vi.fn(),
 }));
 
@@ -32,6 +33,24 @@ describe("quick editor preload collapse API", () => {
       IPC_CHANNELS.QUICK_EDITOR.SET_COLLAPSED,
       true,
       false,
+    );
+  });
+
+  it("subscribes to native collapsed-state changes", () => {
+    const callback = vi.fn();
+    const unsubscribe = quickEditorApi.onQuickEditorCollapsedChanged(callback);
+    const listener = ipcRendererMocks.on.mock.calls.find(
+      ([channel]) => channel === IPC_CHANNELS.QUICK_EDITOR.COLLAPSED_CHANGED,
+    )?.[1];
+
+    expect(listener).toBeTypeOf("function");
+    listener?.({}, false);
+    expect(callback).toHaveBeenCalledWith(false);
+
+    unsubscribe();
+    expect(ipcRendererMocks.removeListener).toHaveBeenCalledWith(
+      IPC_CHANNELS.QUICK_EDITOR.COLLAPSED_CHANGED,
+      listener,
     );
   });
 });

@@ -559,6 +559,7 @@ describe("quick editor content detection", () => {
 
   it("collapses with a single chevron and restores editor focus", async () => {
     let resolveCollapse: ((collapsed: boolean) => void) | undefined;
+    const closeQuickEditorWindow = vi.fn();
     const setQuickEditorCollapsed = vi
       .fn()
       .mockImplementationOnce(
@@ -593,7 +594,7 @@ describe("quick editor content detection", () => {
         },
       ),
       onQuickEditorContentUpdated: vi.fn(() => () => undefined),
-      closeQuickEditorWindow: vi.fn(),
+      closeQuickEditorWindow,
       returnToMainWindowFromQuickEditor: vi.fn(),
       syncQuickEditorContent: vi.fn(),
       updateDirtyState: vi.fn(),
@@ -628,6 +629,11 @@ describe("quick editor content detection", () => {
     expect(
       screen.queryByRole("navigation", { name: "文档大纲" }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "更多操作" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "关闭浮动窗口" }));
+    expect(closeQuickEditorWindow).toHaveBeenCalledOnce();
 
     expandButton.focus();
     fireEvent.click(expandButton);
@@ -684,6 +690,58 @@ describe("quick editor content detection", () => {
       await screen.findByRole("button", { name: "展开编辑器" }),
     ).toBeEnabled();
     expect(screen.getByRole("textbox", { hidden: true })).not.toHaveFocus();
+  });
+
+  it("switches back to expanded controls after a native vertical resize", async () => {
+    let collapsedStateListener: ((collapsed: boolean) => void) | undefined;
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        addEventListener: vi.fn(),
+        addListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+        matches: false,
+        media: query,
+        onchange: null,
+        removeEventListener: vi.fn(),
+        removeListener: vi.fn(),
+      })),
+    );
+    vi.stubGlobal("electronAPI", {
+      createQuickEditorWindow: vi.fn(),
+      getQuickEditorCollapsed: vi.fn(async () => true),
+      setQuickEditorCollapsed: vi.fn(),
+      onQuickEditorCollapsedChanged: vi.fn(
+        (callback: (collapsed: boolean) => void) => {
+          collapsedStateListener = callback;
+          return () => undefined;
+        },
+      ),
+      onQuickEditorInitialContent: vi.fn(() => () => undefined),
+      onQuickEditorContentUpdated: vi.fn(() => () => undefined),
+      closeQuickEditorWindow: vi.fn(),
+      returnToMainWindowFromQuickEditor: vi.fn(),
+      syncQuickEditorContent: vi.fn(),
+      updateDirtyState: vi.fn(),
+    });
+
+    render(createElement(QuickEditorWindow));
+
+    expect(
+      await screen.findByRole("button", { name: "关闭浮动窗口" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "更多操作" }),
+    ).not.toBeInTheDocument();
+
+    act(() => collapsedStateListener?.(false));
+
+    expect(
+      await screen.findByRole("button", { name: "更多操作" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "关闭浮动窗口" }),
+    ).not.toBeInTheDocument();
   });
 
   it("resynchronizes collapsed state after a transition request fails", async () => {

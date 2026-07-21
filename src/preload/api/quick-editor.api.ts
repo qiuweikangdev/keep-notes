@@ -147,6 +147,22 @@ export const quickEditorApi = {
     );
   },
 
+  onQuickEditorCollapsedChanged: (
+    callback: (collapsed: boolean) => void,
+  ): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, value: unknown) => {
+      if (typeof value === "boolean") callback(value);
+    };
+    ipcRenderer.on(IPC_CHANNELS.QUICK_EDITOR.COLLAPSED_CHANGED, listener);
+
+    return () => {
+      ipcRenderer.removeListener(
+        IPC_CHANNELS.QUICK_EDITOR.COLLAPSED_CHANGED,
+        listener,
+      );
+    };
+  },
+
   consumeQuickEditorContent: (): Promise<QuickEditorWindowContent | null> => {
     return ipcRenderer.invoke(IPC_CHANNELS.QUICK_EDITOR.CONSUME_CONTENT);
   },

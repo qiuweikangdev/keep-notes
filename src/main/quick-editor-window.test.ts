@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { IPC_CHANNELS } from "../shared/constants";
 import {
   configureQuickEditorGlobalShortcuts,
   consumePendingQuickEditorContent,
@@ -230,6 +231,38 @@ describe("quick editor floating window", () => {
 
     expect(nativeWindow.setBounds).toHaveBeenCalledTimes(1);
     expect(nativeWindow.getBounds()).toMatchObject({ height: 38 });
+  });
+
+  it("exits collapsed state only when the user resizes vertically", async () => {
+    const win = createQuickEditorWindow();
+    const nativeWindow = electronMocks.windows[0];
+
+    await setQuickEditorCollapsed(win, true, true);
+    nativeWindow.setMinimumSize.mockClear();
+    nativeWindow.webContents.send.mockClear();
+
+    const willResize = nativeWindow.handlers.get("will-resize");
+    expect(willResize).toBeDefined();
+
+    willResize?.(
+      {},
+      { ...nativeWindow.getBounds(), width: 720 },
+      { edge: "right" },
+    );
+    expect(getQuickEditorCollapsed(win)).toBe(true);
+    expect(nativeWindow.webContents.send).not.toHaveBeenCalled();
+
+    willResize?.(
+      {},
+      { ...nativeWindow.getBounds(), height: 160 },
+      { edge: "bottom" },
+    );
+    expect(getQuickEditorCollapsed(win)).toBe(false);
+    expect(nativeWindow.setMinimumSize).toHaveBeenCalledWith(80, 80);
+    expect(nativeWindow.webContents.send).toHaveBeenCalledWith(
+      IPC_CHANNELS.QUICK_EDITOR.COLLAPSED_CHANGED,
+      false,
+    );
   });
 
   it("uses elapsed time when an animation frame is delayed", async () => {
