@@ -680,6 +680,12 @@
   display: flex;
 }
 
+html.rich-editor-selection-drag-locked * {
+  /* 仅在同行左拖越界后接管当前拖选，阻止 Chrome 继续生成闪烁的原生选区。 */
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+
 .editor-side-menu[data-quote-has-children="true"] {
   /* 保留原始 8px 菜单间距并补足父引用安全距离，同时让整段间距保持可悬浮。 */
   padding-right: 16px;

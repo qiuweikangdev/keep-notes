@@ -11,7 +11,7 @@ import {
   render,
   waitFor,
 } from "@testing-library/react";
-import { TextSelection } from "@tiptap/pm/state";
+import { AllSelection, TextSelection } from "@tiptap/pm/state";
 import { createElement, StrictMode } from "react";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -29,19 +29,26 @@ import { requestEditorViewportPreservation } from "../lib/editor-viewport";
 import { RichPreviewCache } from "../lib/rich-preview-cache";
 import {
   BlockNoteEditor,
+  createRichEditorSelectionDragGuardPlugin,
   EditorFormattingToolbar,
   focusEditorAtPreviewAnchor,
+  getRichEditorInlineContentFromTarget,
   handleRichEditorHeadingShortcut,
   handleRichEditorSelectAllShortcut,
+  isSelectionStartingAtRichEditorTextStart,
   focusEditorOutlineBlock,
   moveCursorAfterUploadedImage,
   resolveEditorTextPosition,
   resolveEditorTextPositions,
+  registerRichEditorSelectionDragGuardPlugin,
   richEditorDefaultUIProps,
   uploadEditorImageFileAsAttachment,
   selectEntireRichEditorContent,
   shouldLetCodeMirrorHandleKeyboardEvent,
   shouldMarkRichEditorPointerIntent,
+  shouldPreventRichEditorGutterSelectionDrag,
+  shouldRejectRichEditorGutterSelectionTransaction,
+  unregisterRichEditorSelectionDragGuardPlugin,
   type RichBlockNoteRuntime,
   type RichEditorSessionController,
 } from "./blocknote-editor";
@@ -100,6 +107,9 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  document.documentElement.classList.remove(
+    "rich-editor-selection-drag-locked",
+  );
   richPaneViewStateRegistry.clear();
   vi.useRealTimers();
   vi.unstubAllEnvs();
@@ -150,6 +160,10 @@ function setupMatchMedia() {
 }
 
 function setupDomMeasurements() {
+  Object.defineProperty(document, "elementsFromPoint", {
+    configurable: true,
+    value: () => [],
+  });
   Object.defineProperty(Range.prototype, "getBoundingClientRect", {
     configurable: true,
     value: createRect,
@@ -233,6 +247,152 @@ describe("BlockNoteEditor rich text selection", () => {
     session.view.unmount();
   });
 
+  it("keeps the same-line gutter from extending a text selection", () => {
+    const blockContent = document.createElement("div");
+    const inlineContent = document.createElement("p");
+    blockContent.className = "bn-block-content";
+    inlineContent.className = "bn-inline-content";
+    blockContent.append(inlineContent);
+    const bounds = { bottom: 16, left: 24, top: 0 };
+
+    expect(getRichEditorInlineContentFromTarget(blockContent)).toBe(
+      inlineContent,
+    );
+    expect(getRichEditorInlineContentFromTarget(inlineContent)).toBe(
+      inlineContent,
+    );
+    expect(shouldPreventRichEditorGutterSelectionDrag(1, 23, 8, bounds)).toBe(
+      true,
+    );
+    expect(shouldPreventRichEditorGutterSelectionDrag(1, 24, 8, bounds)).toBe(
+      false,
+    );
+    expect(shouldPreventRichEditorGutterSelectionDrag(1, 23, 24, bounds)).toBe(
+      false,
+    );
+    expect(shouldPreventRichEditorGutterSelectionDrag(0, 23, 8, bounds)).toBe(
+      false,
+    );
+    expect(shouldPreventRichEditorGutterSelectionDrag(1, 23, 8, null)).toBe(
+      false,
+    );
+  });
+
+  it("locks native selection after a same-line gutter drag and releases it", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/selection-drag-lock.md";
+    setupSessionTab(path);
+    const session = renderRealSession(path, false, "First\n\nSecond");
+
+    await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    const editor = session.runtime.current!.editor;
+    const inlineContent = Array.from(
+      document.querySelectorAll<HTMLElement>(".ProseMirror .bn-inline-content"),
+    ).find((element) => element.textContent === "Second");
+    expect(inlineContent).toBeDefined();
+    vi.spyOn(inlineContent!, "getBoundingClientRect").mockReturnValue({
+      ...createRect(),
+      bottom: 30,
+      height: 20,
+      left: 100,
+      right: 150,
+      top: 10,
+      width: 50,
+      x: 100,
+      y: 10,
+    });
+    const position = editor.prosemirrorView.state.selection.from;
+    const posAtCoords = vi
+      .spyOn(editor.prosemirrorView, "posAtCoords")
+      .mockReturnValue({ inside: position, pos: position });
+
+    const pointerDown = new Event("pointerdown", {
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperties(pointerDown, {
+      button: { value: 0 },
+      buttons: { value: 1 },
+      clientX: { value: 140 },
+      clientY: { value: 20 },
+    });
+    fireEvent(inlineContent!, pointerDown);
+    expect(posAtCoords).toHaveBeenCalledWith({ left: 140, top: 20 });
+    fireEvent.mouseMove(document, {
+      buttons: 1,
+      clientX: 80,
+      clientY: 20,
+    });
+
+    expect(
+      document.documentElement.classList.contains(
+        "rich-editor-selection-drag-locked",
+      ),
+    ).toBe(true);
+    expect(posAtCoords).toHaveBeenLastCalledWith({ left: 101, top: 20 });
+
+    fireEvent.mouseMove(document, {
+      buttons: 1,
+      clientX: 120,
+      clientY: 40,
+    });
+    expect(posAtCoords).toHaveBeenLastCalledWith({ left: 120, top: 40 });
+
+    fireEvent.mouseUp(document, { button: 0, buttons: 0 });
+    expect(
+      document.documentElement.classList.contains(
+        "rich-editor-selection-drag-locked",
+      ),
+    ).toBe(false);
+    session.view.unmount();
+  });
+
+  it("rejects an accidental document-prefix selection before it renders", () => {
+    const editor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        { type: "paragraph", content: "First line" },
+        { type: "paragraph", content: "Second line" },
+        { type: "paragraph", content: "Trailing line" },
+      ],
+    });
+    const view = editor.prosemirrorView;
+    const partialSelection = TextSelection.near(view.state.doc.resolve(2));
+    view.dispatch(view.state.tr.setSelection(partialSelection));
+
+    const plugin = createRichEditorSelectionDragGuardPlugin(() => ({
+      bounds: { bottom: 16, left: 24, top: 0 },
+      pointer: { buttons: 1, clientX: 23, clientY: 8 },
+    }));
+    registerRichEditorSelectionDragGuardPlugin(editor, plugin);
+    let firstTextPosition = -1;
+    view.state.doc.descendants((node, position) => {
+      if (firstTextPosition < 0 && node.isText && node.text === "First line") {
+        firstTextPosition = position;
+      }
+    });
+    expect(firstTextPosition).toBeGreaterThanOrEqual(0);
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(
+          view.state.doc,
+          firstTextPosition,
+          firstTextPosition + "First line".length,
+        ),
+      ),
+    );
+
+    expect(view.state.selection.eq(partialSelection)).toBe(true);
+
+    unregisterRichEditorSelectionDragGuardPlugin(editor, plugin);
+    expect(
+      editor.prosemirrorView.state.plugins.some(
+        (item) => item.key === plugin.key,
+      ),
+    ).toBe(false);
+  });
+
   it("selects the entire ProseMirror document", () => {
     const editor = CoreBlockNoteEditor.create({
       schema: editorSchema,
@@ -247,6 +407,37 @@ describe("BlockNoteEditor rich text selection", () => {
     const { doc, selection } = editor.prosemirrorView.state;
     expect(selection.from).toBe(0);
     expect(selection.to).toBe(doc.content.size);
+    expect(isSelectionStartingAtRichEditorTextStart(selection, doc)).toBe(true);
+    expect(
+      shouldRejectRichEditorGutterSelectionTransaction(
+        editor.prosemirrorView.state.tr.setSelection(
+          new AllSelection(editor.prosemirrorView.state.doc),
+        ),
+        { buttons: 1, clientX: 23, clientY: 8 },
+        { bottom: 16, left: 24, top: 0 },
+      ),
+    ).toBe(true);
+    expect(
+      shouldRejectRichEditorGutterSelectionTransaction(
+        editor.prosemirrorView.state.tr.setSelection(
+          new AllSelection(editor.prosemirrorView.state.doc),
+        ),
+        { buttons: 1, clientX: 24, clientY: 8 },
+        { bottom: 16, left: 24, top: 0 },
+      ),
+    ).toBe(false);
+
+    const partialSelection = TextSelection.near(doc.resolve(2));
+    expect(
+      isSelectionStartingAtRichEditorTextStart(partialSelection, doc),
+    ).toBe(false);
+    expect(
+      shouldRejectRichEditorGutterSelectionTransaction(
+        editor.prosemirrorView.state.tr.setSelection(partialSelection),
+        { buttons: 1, clientX: 23, clientY: 8 },
+        { bottom: 16, left: 24, top: 0 },
+      ),
+    ).toBe(false);
   });
 
   it("handles command/control+a as full rich editor selection", () => {

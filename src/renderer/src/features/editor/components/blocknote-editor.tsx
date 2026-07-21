@@ -30,7 +30,14 @@ import {
   type InlineContent,
 } from "@blocknote/core";
 import { SideMenuExtension } from "@blocknote/core/extensions";
-import { AllSelection, TextSelection } from "@tiptap/pm/state";
+import {
+  AllSelection,
+  Plugin,
+  PluginKey,
+  TextSelection,
+  type Selection,
+  type Transaction,
+} from "@tiptap/pm/state";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 
 import { useTheme } from "@/hooks/use-theme";
@@ -343,6 +350,137 @@ function EditorSideMenu(props: ComponentProps<typeof SideMenu>) {
     >
       <SideMenu {...props} />
     </div>
+  );
+}
+
+export interface RichEditorSelectionDragBounds {
+  bottom: number;
+  left: number;
+  top: number;
+}
+
+export interface RichEditorSelectionDragPointer {
+  buttons: number;
+  clientX: number;
+  clientY: number;
+}
+
+const RICH_EDITOR_SELECTION_DRAG_LOCK_CLASS =
+  "rich-editor-selection-drag-locked";
+
+export function shouldPreventRichEditorGutterSelectionDrag(
+  buttons: number,
+  clientX: number,
+  clientY: number,
+  bounds: RichEditorSelectionDragBounds | null,
+) {
+  return Boolean(
+    buttons === 1 &&
+    bounds &&
+    clientX < bounds.left &&
+    clientY >= bounds.top &&
+    clientY <= bounds.bottom,
+  );
+}
+
+export function getRichEditorInlineContentFromTarget(
+  target: EventTarget | null,
+) {
+  const targetElement = getElementFromEventTarget(target);
+  const blockContent = targetElement?.closest(".bn-block-content");
+  const inlineContent =
+    targetElement?.closest(".bn-inline-content") ??
+    blockContent?.querySelector(".bn-inline-content");
+
+  return inlineContent instanceof HTMLElement ? inlineContent : null;
+}
+
+export function isSelectionStartingAtRichEditorTextStart(
+  selection: Selection,
+  doc: ProseMirrorNode,
+) {
+  if (selection.empty) return false;
+
+  const selectedText = doc.textBetween(
+    selection.from,
+    selection.to,
+    "\n",
+    "\n",
+  );
+  if (!selectedText) return false;
+
+  return doc.textBetween(0, selection.from, "", "\n").length === 0;
+}
+
+export function shouldRejectRichEditorGutterSelectionTransaction(
+  transaction: Pick<
+    Transaction,
+    "doc" | "docChanged" | "selection" | "selectionSet"
+  >,
+  pointer: RichEditorSelectionDragPointer | null,
+  bounds: RichEditorSelectionDragBounds | null,
+) {
+  return Boolean(
+    transaction.selectionSet &&
+    !transaction.docChanged &&
+    isSelectionStartingAtRichEditorTextStart(
+      transaction.selection,
+      transaction.doc,
+    ) &&
+    pointer &&
+    shouldPreventRichEditorGutterSelectionDrag(
+      pointer.buttons,
+      pointer.clientX,
+      pointer.clientY,
+      bounds,
+    ),
+  );
+}
+
+export function createRichEditorSelectionDragGuardPlugin(
+  readDragState: () => {
+    bounds: RichEditorSelectionDragBounds | null;
+    pointer: RichEditorSelectionDragPointer | null;
+  },
+) {
+  const key = new PluginKey("keepNotesRichEditorSelectionDragGuard");
+  const plugin = new Plugin({
+    key,
+    filterTransaction: (transaction) => {
+      const { bounds, pointer } = readDragState();
+      return !shouldRejectRichEditorGutterSelectionTransaction(
+        transaction,
+        pointer,
+        bounds,
+      );
+    },
+  });
+
+  return plugin;
+}
+
+export function unregisterRichEditorSelectionDragGuardPlugin(
+  editor: CoreBlockNoteEditor,
+  plugin: Plugin,
+) {
+  const view = editor.prosemirrorView;
+  const plugins = view.state.plugins.filter(
+    (registeredPlugin) =>
+      registeredPlugin !== plugin && registeredPlugin.key !== plugin.key,
+  );
+  if (plugins.length === view.state.plugins.length) return;
+
+  // 按插件实例与完整 key 精确重配，避免热更新或 StrictMode 清理后重复注册。
+  view.updateState(view.state.reconfigure({ plugins }));
+}
+
+export function registerRichEditorSelectionDragGuardPlugin(
+  editor: CoreBlockNoteEditor,
+  plugin: Plugin,
+) {
+  const view = editor.prosemirrorView;
+  view.updateState(
+    view.state.reconfigure({ plugins: [...view.state.plugins, plugin] }),
   );
 }
 
@@ -1249,6 +1387,13 @@ function MountedBlockNoteEditor({
   const pendingOutlineScrollActivationRef =
     useRef<PendingOutlineScrollActivation | null>(null);
   const isActiveEditorRef = useRef(isActiveEditor);
+  const selectionDragBoundsRef = useRef<RichEditorSelectionDragBounds | null>(
+    null,
+  );
+  const selectionDragPointerRef = useRef<RichEditorSelectionDragPointer | null>(
+    null,
+  );
+  const selectionDragAnchorRef = useRef<number | null>(null);
   const applyTokenRef = useRef(0);
   const lifecycleGenerationRef = useRef(0);
   const lifecycleActiveRef = useRef(true);
@@ -2138,11 +2283,33 @@ function MountedBlockNoteEditor({
   const handlePointerDownCapture = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
       cancelPendingViewportRestore();
+      selectionDragPointerRef.current = {
+        buttons: event.buttons,
+        clientX: event.clientX,
+        clientY: event.clientY,
+      };
+      const inlineContent = getRichEditorInlineContentFromTarget(event.target);
+      if (event.button === 0 && inlineContent) {
+        const rect = inlineContent.getBoundingClientRect();
+        selectionDragBoundsRef.current = {
+          bottom: rect.bottom,
+          left: rect.left,
+          top: rect.top,
+        };
+        selectionDragAnchorRef.current =
+          editor.prosemirrorView.posAtCoords({
+            left: event.clientX,
+            top: event.clientY,
+          })?.pos ?? null;
+      } else {
+        selectionDragBoundsRef.current = null;
+        selectionDragAnchorRef.current = null;
+      }
       if (shouldMarkRichEditorPointerIntent(event.target)) {
         markUserIntent();
       }
     },
-    [cancelPendingViewportRestore, markUserIntent],
+    [cancelPendingViewportRestore, editor, markUserIntent],
   );
 
   const handleKeyDownCapture = useCallback(
@@ -2157,6 +2324,26 @@ function MountedBlockNoteEditor({
   );
 
   useEffect(() => {
+    const selectionGuardPlugin = createRichEditorSelectionDragGuardPlugin(
+      () => ({
+        bounds: isActiveEditorRef.current
+          ? selectionDragBoundsRef.current
+          : null,
+        pointer: selectionDragPointerRef.current,
+      }),
+    );
+    registerRichEditorSelectionDragGuardPlugin(editor, selectionGuardPlugin);
+    let isSelectionDragLocked = false;
+
+    const setSelectionDragLocked = (locked: boolean) => {
+      if (isSelectionDragLocked === locked) return;
+      isSelectionDragLocked = locked;
+      document.documentElement.classList.toggle(
+        RICH_EDITOR_SELECTION_DRAG_LOCK_CLASS,
+        locked,
+      );
+    };
+
     const handleFloatingControlPointerDown = (event: PointerEvent) => {
       const target = event.target;
       if (!(target instanceof Element)) return;
@@ -2177,6 +2364,61 @@ function MountedBlockNoteEditor({
         markUserIntent();
       }
     };
+    const handleSelectionDragMouseMove = (event: MouseEvent) => {
+      if (event.buttons !== 1) {
+        resetSelectionDrag();
+        return;
+      }
+      if (!isActiveEditorRef.current) {
+        setSelectionDragLocked(false);
+        return;
+      }
+      selectionDragPointerRef.current = {
+        buttons: event.buttons,
+        clientX: event.clientX,
+        clientY: event.clientY,
+      };
+      const bounds = selectionDragBoundsRef.current;
+      const isSameLineGutter = shouldPreventRichEditorGutterSelectionDrag(
+        event.buttons,
+        event.clientX,
+        event.clientY,
+        bounds,
+      );
+
+      if (!isSelectionDragLocked && isSameLineGutter) {
+        selectionDragAnchorRef.current ??=
+          editor.prosemirrorView.state.selection.anchor;
+        setSelectionDragLocked(true);
+      }
+      if (!isSelectionDragLocked || !bounds) return;
+
+      const view = editor.prosemirrorView;
+      const anchor = selectionDragAnchorRef.current;
+      const position = view.posAtCoords({
+        // 同行向左越界时钳制在正文起点；进入其他行后仍按真实坐标更新，保留正常跨行拖选。
+        left: isSameLineGutter ? bounds.left + 1 : event.clientX,
+        top: event.clientY,
+      });
+      if (anchor !== null && position) {
+        const nextSelection = TextSelection.between(
+          view.state.doc.resolve(anchor),
+          view.state.doc.resolve(position.pos),
+        );
+        if (!nextSelection.eq(view.state.selection)) {
+          view.dispatch(view.state.tr.setSelection(nextSelection));
+        }
+      }
+
+      // 进入异常区域后由 ProseMirror 接管本次拖选，避免 Chrome 原生选区与状态选区反复争抢而闪烁。
+      event.preventDefault();
+    };
+    const resetSelectionDrag = () => {
+      setSelectionDragLocked(false);
+      selectionDragBoundsRef.current = null;
+      selectionDragPointerRef.current = null;
+      selectionDragAnchorRef.current = null;
+    };
     const handleFloatingControlDragStart = (event: DragEvent) => {
       if (!isActiveEditorRef.current) return;
       if (shouldMarkRichEditorFloatingDragIntent(event.target)) {
@@ -2190,11 +2432,15 @@ function MountedBlockNoteEditor({
       handleFloatingControlPointerDown,
       true,
     );
+    document.addEventListener("mousemove", handleSelectionDragMouseMove, true);
+    document.addEventListener("mouseup", resetSelectionDrag, true);
+    window.addEventListener("blur", resetSelectionDrag);
     document.addEventListener(
       "dragstart",
       handleFloatingControlDragStart,
       true,
     );
+    document.addEventListener("dragend", resetSelectionDrag, true);
     return () => {
       document.removeEventListener(
         "pointerdown",
@@ -2202,12 +2448,25 @@ function MountedBlockNoteEditor({
         true,
       );
       document.removeEventListener(
+        "mousemove",
+        handleSelectionDragMouseMove,
+        true,
+      );
+      document.removeEventListener("mouseup", resetSelectionDrag, true);
+      window.removeEventListener("blur", resetSelectionDrag);
+      document.removeEventListener(
         "dragstart",
         handleFloatingControlDragStart,
         true,
       );
+      document.removeEventListener("dragend", resetSelectionDrag, true);
+      setSelectionDragLocked(false);
+      unregisterRichEditorSelectionDragGuardPlugin(
+        editor,
+        selectionGuardPlugin,
+      );
     };
-  }, [markUserIntent]);
+  }, [editor, markUserIntent]);
 
   return (
     <div

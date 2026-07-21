@@ -64,6 +64,13 @@ describe("blocknote overrides stylesheet", () => {
     expect(editorRule).not.toMatch(/max-width:/);
   });
 
+  it("disables native selection while a guarded rich-text drag is active", () => {
+    const dragLockRule = getRule("html.rich-editor-selection-drag-locked *");
+
+    expect(dragLockRule).toMatch(/-webkit-user-select:\s*none !important;/);
+    expect(dragLockRule).toMatch(/user-select:\s*none !important;/);
+  });
+
   it("keeps punctuation glyphs identical between live and preview renderers", () => {
     const editorRule = getRule(":is(.bn-editor, .bn-editor-preview)");
 
