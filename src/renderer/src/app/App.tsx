@@ -17,7 +17,6 @@ import { useShortcutsStore } from "@/store/shortcuts.store";
 import { useReminderStore } from "@/store/reminder.store";
 import { APP_BEHAVIOR_CONFIG } from "@/config/app-behavior";
 import { useTheme } from "@/hooks/use-theme";
-import { showAppToast } from "@/lib/app-toast";
 import { QuickEditorWindow } from "@/features/editor/components/quick-editor-window";
 import { editorFindController } from "@/features/editor/lib/editor-find-controller";
 import { requestEditorViewportPreservation } from "@/features/editor/lib/editor-viewport";
@@ -290,30 +289,14 @@ function MainApplication() {
     const setGlobalShortcut = window.electronAPI?.setReminderGlobalShortcut;
     if (!setGlobalShortcut) return;
 
-    let isActive = true;
-    void setGlobalShortcut(reminderShortcutKeys).then((result) => {
-      if (!isActive || result.success) return;
-      showAppToast("提醒事项快捷键被系统或其他应用占用，请重新配置");
-    });
-
-    return () => {
-      isActive = false;
-    };
+    void setGlobalShortcut(reminderShortcutKeys);
   }, [reminderShortcutKeys]);
 
   useEffect(() => {
     const setGlobalShortcut = window.electronAPI?.setQuickEditorGlobalShortcut;
     if (!setGlobalShortcut) return;
 
-    let isActive = true;
-    void setGlobalShortcut(quickEditorShortcutKeys).then((result) => {
-      if (!isActive || result.success) return;
-      showAppToast("快速编辑快捷键被系统或其他应用占用，请重新配置");
-    });
-
-    return () => {
-      isActive = false;
-    };
+    void setGlobalShortcut(quickEditorShortcutKeys);
   }, [quickEditorShortcutKeys]);
 
   useEffect(() => {

@@ -15,6 +15,7 @@ import {
   completeEditorViewportPreservation,
   readEditorViewportPreservation,
 } from "@/features/editor/lib/editor-viewport";
+import { APP_TOAST_EVENT } from "@/lib/app-toast";
 
 let menuActionHandler: ((action: string) => void) | null = null;
 type EditorStoreSnapshot = {
@@ -490,6 +491,30 @@ describe("App shortcuts", () => {
     expect(window.electronAPI.setReminderWindowTheme).toHaveBeenCalledWith(
       "light",
     );
+  });
+
+  it("does not show a toast when a startup global shortcut is unavailable", async () => {
+    const toastListener = vi.fn();
+    window.addEventListener(APP_TOAST_EVENT, toastListener);
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: {
+        ...window.electronAPI,
+        setReminderGlobalShortcut: vi.fn(async () => ({ success: false })),
+        setQuickEditorGlobalShortcut: vi.fn(async () => ({ success: false })),
+      },
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(window.electronAPI.setReminderGlobalShortcut).toHaveBeenCalled();
+      expect(
+        window.electronAPI.setQuickEditorGlobalShortcut,
+      ).toHaveBeenCalled();
+    });
+    expect(toastListener).not.toHaveBeenCalled();
+    window.removeEventListener(APP_TOAST_EVENT, toastListener);
   });
 
   it("consumes quick-editor content into the active unnamed tab", async () => {
