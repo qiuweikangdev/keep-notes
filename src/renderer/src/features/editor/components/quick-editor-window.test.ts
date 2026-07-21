@@ -171,6 +171,16 @@ describe("quick editor content detection", () => {
       screen.queryByRole("navigation", { name: "文档大纲" }),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("textbox")).toHaveFocus();
+
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    await user.click(screen.getByRole("menuitem", { name: "编辑模式切换" }));
+    expect(
+      await screen.findByRole("textbox", { name: "Markdown 源码" }),
+    ).toHaveValue("222");
+
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    await user.click(screen.getByRole("menuitem", { name: "编辑模式切换" }));
+    expect(await screen.findByText("222")).toBeInTheDocument();
   });
 
   it("scrolls to a selected outline heading", async () => {

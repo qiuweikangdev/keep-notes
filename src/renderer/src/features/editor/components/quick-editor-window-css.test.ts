@@ -12,6 +12,18 @@ const stylesheet = readFileSync(
 );
 
 describe("quick editor window stylesheet", () => {
+  it("keeps an opaque window backdrop behind the translucent editor surface", () => {
+    const windowRule = stylesheet.match(
+      /\.quick-editor-window\s*\{([\s\S]*?)\n\}/,
+    )?.[1];
+    const titlebarRule = stylesheet.match(
+      /\.quick-editor-window__titlebar\s*\{([\s\S]*?)\n\}/,
+    )?.[1];
+
+    expect(windowRule).toMatch(/background:\s*var\(--bg-primary\);/);
+    expect(titlebarRule).toMatch(/background:\s*color-mix/);
+  });
+
   it("keeps the BlockNote side controls away from the floating window edge", () => {
     const editorRule = stylesheet.match(
       /\.quick-editor-window__editor \.bn-editor\s*\{([\s\S]*?)\n\}/,

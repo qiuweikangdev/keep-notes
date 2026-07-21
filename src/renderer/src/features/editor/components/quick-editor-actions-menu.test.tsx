@@ -8,6 +8,7 @@ describe("quick editor actions menu", () => {
 
   it("uses one trigger and exposes uniformly styled actions", async () => {
     const handlers = {
+      onToggleEditorMode: vi.fn(),
       onToggleOutline: vi.fn(),
       onNewWindow: vi.fn(),
       onReturnToApplication: vi.fn(),
@@ -28,6 +29,7 @@ describe("quick editor actions menu", () => {
       .click(screen.getByRole("button", { name: "更多操作" }));
     const items = screen.getAllByRole("menuitem");
     expect(items.map((item) => item.textContent)).toEqual([
+      "编辑模式切换",
       "显示大纲",
       "新建浮动窗口",
       "返回主窗口",
@@ -36,6 +38,11 @@ describe("quick editor actions menu", () => {
     expect(screen.queryByText(/Ctrl|Cmd|Shift/)).not.toBeInTheDocument();
     expect(new Set(items.map((item) => item.className)).size).toBe(1);
     expect(
+      screen
+        .getByRole("menuitem", { name: "编辑模式切换" })
+        .querySelector("svg"),
+    ).toHaveClass("lucide-arrow-left-right");
+    expect(
       document.querySelectorAll(".quick-editor-actions-menu__separator"),
     ).toHaveLength(2);
   });
@@ -43,6 +50,7 @@ describe("quick editor actions menu", () => {
   it("forwards every action and switches the outline label", async () => {
     const user = userEvent.setup();
     const handlers = {
+      onToggleEditorMode: vi.fn(),
       onToggleOutline: vi.fn(),
       onNewWindow: vi.fn(),
       onReturnToApplication: vi.fn(),
@@ -58,6 +66,7 @@ describe("quick editor actions menu", () => {
 
     const trigger = screen.getByRole("button", { name: "更多操作" });
     for (const [name, handler] of [
+      ["编辑模式切换", handlers.onToggleEditorMode],
       ["显示大纲", handlers.onToggleOutline],
       ["新建浮动窗口", handlers.onNewWindow],
       ["返回主窗口", handlers.onReturnToApplication],
@@ -76,6 +85,9 @@ describe("quick editor actions menu", () => {
       />,
     );
     await user.click(trigger);
+    expect(
+      screen.getByRole("menuitem", { name: "编辑模式切换" }),
+    ).toBeVisible();
     expect(screen.getByRole("menuitem", { name: "隐藏大纲" })).toBeVisible();
   });
 
@@ -85,6 +97,7 @@ describe("quick editor actions menu", () => {
       <QuickEditorActionsMenu
         isOutlineOpen={false}
         isOutlineDisabled
+        onToggleEditorMode={vi.fn()}
         onToggleOutline={onToggleOutline}
         onNewWindow={vi.fn()}
         onReturnToApplication={vi.fn()}

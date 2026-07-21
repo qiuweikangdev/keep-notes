@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent,
 } from "react";
 import { BlockNoteView } from "@blocknote/mantine";
@@ -15,7 +16,7 @@ import type {
   QuickEditorWindowContent,
 } from "@shared/types";
 import { useTheme } from "@/hooks/use-theme";
-import { useEditorStore } from "@/store/editor.store";
+import { useEditorStore, type EditorMode } from "@/store/editor.store";
 import { editorSchema } from "../lib/blocknote-schema";
 import {
   moveCursorAfterUploadedImage,
@@ -43,6 +44,7 @@ import {
   serializeMarkdown,
 } from "../lib/markdown";
 import { FindWidget } from "./find-widget";
+import { MarkdownSourceEditor } from "./markdown-source-editor";
 import { QuickEditorActionsMenu } from "./quick-editor-actions-menu";
 import {
   extractQuickEditorOutlineHeadings,
@@ -56,6 +58,7 @@ import "@/styles/blocknote-overrides.css";
 import "./quick-editor-window.css";
 
 const QUICK_EDITOR_MORE_ACTIONS_MIN_HEIGHT = 100;
+const NOOP = () => undefined;
 
 interface QuickEditorBlock {
   children?: QuickEditorBlock[];
@@ -170,10 +173,12 @@ export function QuickEditorWindow() {
   const dirtyRef = useRef(false);
   const returnInProgressRef = useRef(false);
   const sourceRef = useRef<QuickEditorWindowContent["source"]>(null);
+  const sourceMarkdownRef = useRef("");
   const lastSyncedContentRef = useRef<string | null>(null);
   const serializedBaselineRef = useRef<string | null>(null);
   const syncRevisionRef = useRef(0);
   const editorRef = useRef<CoreBlockNoteEditor | null>(null);
+  const sourceEditorRef = useRef<HTMLTextAreaElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const activeHeadingFrameRef = useRef<number | null>(null);
   const isFindOpenRef = useRef(false);
@@ -183,6 +188,8 @@ export function QuickEditorWindow() {
   const activeHeadingIdRef = useRef<string | null>(null);
   const replacementUndoStackRef = useRef<string[]>([]);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [editorMode, setEditorMode] = useState<EditorMode>("rich");
+  const [sourceMarkdown, setSourceMarkdown] = useState("");
   const [hasMoreActionsHeight, setHasMoreActionsHeight] = useState(
     () => window.innerHeight > QUICK_EDITOR_MORE_ACTIONS_MIN_HEIGHT,
   );
@@ -327,6 +334,17 @@ export function QuickEditorWindow() {
   }, []);
 
   useEffect(() => {
+    const syncAppearanceFromSettings = (event: StorageEvent) => {
+      if (event.key !== "editor-storage") return;
+      // 外观设置在主窗口变更后，浮窗重新读取持久化状态以同步透明度。
+      void useEditorStore.persist.rehydrate();
+    };
+    window.addEventListener("storage", syncAppearanceFromSettings);
+    return () =>
+      window.removeEventListener("storage", syncAppearanceFromSettings);
+  }, []);
+
+  useEffect(() => {
     const updateMoreActionsVisibility = () => {
       setHasMoreActionsHeight(
         window.innerHeight > QUICK_EDITOR_MORE_ACTIONS_MIN_HEIGHT,
@@ -370,6 +388,32 @@ export function QuickEditorWindow() {
       window.electronAPI.syncQuickEditorContent({ content, source });
     });
   }, [editor]);
+
+  const getCurrentEditorContent = useCallback(async () => {
+    if (editorMode === "source") return sourceMarkdownRef.current;
+
+    const serialized = await serializeMarkdown(editor, editor.document);
+    return resolveQuickEditorMarkdown(
+      lastSyncedContentRef.current,
+      serializedBaselineRef.current,
+      serialized,
+    );
+  }, [editor, editorMode]);
+
+  const handleSourceChange = useCallback(
+    (content: string) => {
+      const previousContent = lastSyncedContentRef.current;
+      const source = sourceRef.current;
+      sourceMarkdownRef.current = content;
+      setSourceMarkdown(content);
+      lastSyncedContentRef.current = content;
+      syncDirtyState(content.trim().length > 0);
+      if (isFindOpenRef.current) setFindContent(content);
+      if (!source || previousContent === content) return;
+      window.electronAPI.syncQuickEditorContent({ content, source });
+    },
+    [syncDirtyState],
+  );
 
   useEditorChange(() => {
     syncDirtyState(
@@ -577,12 +621,7 @@ export function QuickEditorWindow() {
     bridgeWindow["__getNextDirtyEditor"] = async () => {
       if (!dirtyRef.current) return null;
 
-      const serialized = await serializeMarkdown(editor, editor.document);
-      const content = resolveQuickEditorMarkdown(
-        lastSyncedContentRef.current,
-        serializedBaselineRef.current,
-        serialized,
-      );
+      const content = await getCurrentEditorContent();
       if (!content.trim()) {
         syncDirtyState(false);
         return null;
@@ -603,12 +642,7 @@ export function QuickEditorWindow() {
       savedContent,
     ) => {
       // 写盘期间若又发生编辑，继续保留脏状态并进入下一轮关闭保存检查。
-      const serialized = await serializeMarkdown(editor, editor.document);
-      const currentContent = resolveQuickEditorMarkdown(
-        lastSyncedContentRef.current,
-        serializedBaselineRef.current,
-        serialized,
-      );
+      const currentContent = await getCurrentEditorContent();
       syncDirtyState(currentContent !== savedContent);
     };
 
@@ -617,13 +651,16 @@ export function QuickEditorWindow() {
       delete bridgeWindow["__onCloseSaveSuccess"];
       window.electronAPI.updateDirtyState(false);
     };
-  }, [editor, syncDirtyState]);
+  }, [getCurrentEditorContent, syncDirtyState]);
 
   useEffect(() => {
     if (!isCollapseStateReady || isCollapsed) return;
-    const frame = window.requestAnimationFrame(() => editor.focus());
+    const frame = window.requestAnimationFrame(() => {
+      if (editorMode === "source") sourceEditorRef.current?.focus();
+      else editor.focus();
+    });
     return () => window.cancelAnimationFrame(frame);
-  }, [editor, isCollapsed, isCollapseStateReady]);
+  }, [editor, editorMode, isCollapsed, isCollapseStateReady]);
 
   useEffect(() => {
     let cancelled = false;
@@ -645,6 +682,8 @@ export function QuickEditorWindow() {
         lastSyncedContentRef.current = initialContent.content;
         serializedBaselineRef.current = baseline;
         replacementUndoStackRef.current.length = 0;
+        sourceMarkdownRef.current = initialContent.content;
+        setSourceMarkdown(initialContent.content);
         setFindContent(initialContent.content);
         editor.replaceBlocks(editor.document, blocks);
         syncDirtyState(false);
@@ -679,6 +718,8 @@ export function QuickEditorWindow() {
         lastSyncedContentRef.current = content.content;
         serializedBaselineRef.current = baseline;
         replacementUndoStackRef.current.length = 0;
+        sourceMarkdownRef.current = content.content;
+        setSourceMarkdown(content.content);
         setFindContent(content.content);
         editor.replaceBlocks(editor.document, blocks);
         syncDirtyState(false);
@@ -703,12 +744,7 @@ export function QuickEditorWindow() {
     returnInProgressRef.current = true;
 
     try {
-      const serialized = await serializeMarkdown(editor, editor.document);
-      const content = resolveQuickEditorMarkdown(
-        lastSyncedContentRef.current,
-        serializedBaselineRef.current,
-        serialized,
-      );
+      const content = await getCurrentEditorContent();
       window.electronAPI.returnToMainWindowFromQuickEditor({
         content,
         source: sourceRef.current,
@@ -716,7 +752,41 @@ export function QuickEditorWindow() {
     } catch {
       returnInProgressRef.current = false;
     }
-  }, [editor]);
+  }, [getCurrentEditorContent]);
+
+  const handleToggleEditorMode = useCallback(async () => {
+    if (editorMode === "rich") {
+      const content = await getCurrentEditorContent();
+      sourceMarkdownRef.current = content;
+      setSourceMarkdown(content);
+      closeFindWidget();
+      setOutlineVisibility(false);
+      setEditorMode("source");
+      return;
+    }
+
+    const revision = ++syncRevisionRef.current;
+    const sourceContent = sourceMarkdownRef.current;
+    try {
+      const blocks = await editor.tryParseMarkdownToBlocks(sourceContent);
+      const baseline = await serializeMarkdown(editor, blocks);
+      if (revision !== syncRevisionRef.current) return;
+
+      lastSyncedContentRef.current = sourceContent;
+      serializedBaselineRef.current = baseline;
+      setFindContent(sourceContent);
+      editor.replaceBlocks(editor.document, blocks);
+      setEditorMode("rich");
+    } catch {
+      // 源码暂时无法解析时保留源码模式和内容，避免切换过程丢失用户输入。
+    }
+  }, [
+    closeFindWidget,
+    editor,
+    editorMode,
+    getCurrentEditorContent,
+    setOutlineVisibility,
+  ]);
 
   const handleToggleCollapsed = useCallback(async () => {
     if (!isCollapseStateReady || isCollapseTransitioning) return;
@@ -795,7 +865,8 @@ export function QuickEditorWindow() {
           ) : (
             <QuickEditorActionsMenu
               isOutlineOpen={isOutlineOpen}
-              isOutlineDisabled={editorIsHidden}
+              isOutlineDisabled={editorIsHidden || editorMode === "source"}
+              onToggleEditorMode={() => void handleToggleEditorMode()}
               onToggleOutline={() =>
                 setOutlineVisibility(!isOutlineOpenRef.current)
               }
@@ -811,42 +882,60 @@ export function QuickEditorWindow() {
         aria-hidden={editorIsHidden || undefined}
         aria-label="快速编辑器"
         className="quick-editor-window__editor"
+        style={{ opacity: appearance.opacity / 100 } as CSSProperties}
       >
-        <FindWidget
-          isOpen={isFindOpen}
-          isReplaceOpen={isReplaceOpen}
-          query={findQuery}
-          replacement={replacement}
-          activeIndex={activeFindIndex}
-          matchCount={rawMatches.length}
-          options={findOptions}
-          onQueryChange={setFindQuery}
-          onReplacementChange={setReplacement}
-          onStep={stepMatch}
-          onClose={closeFindWidget}
-          onToggleReplace={() => setIsReplaceOpen((current) => !current)}
-          onOptionsChange={setFindOptions}
-          onReplaceCurrent={replaceCurrentMatch}
-          onReplaceAll={replaceAllMatches}
-          onSelectAllMatches={selectAllMatches}
-          onUndoReplace={undoLastReplacement}
-        />
-        <div
-          ref={scrollContainerRef}
-          className="quick-editor-window__scroll"
-          onPointerDown={() => setOutlineVisibility(false)}
-          onScroll={handleEditorScroll}
-        >
-          <BlockNoteView
-            editor={editor}
-            theme={isDark ? "dark" : "light"}
-            spellCheck={false}
-            style={{
-              fontSize: `${appearance.fontSize}px`,
-              lineHeight: appearance.lineHeight,
-            }}
+        {editorMode === "rich" ? (
+          <FindWidget
+            isOpen={isFindOpen}
+            isReplaceOpen={isReplaceOpen}
+            query={findQuery}
+            replacement={replacement}
+            activeIndex={activeFindIndex}
+            matchCount={rawMatches.length}
+            options={findOptions}
+            onQueryChange={setFindQuery}
+            onReplacementChange={setReplacement}
+            onStep={stepMatch}
+            onClose={closeFindWidget}
+            onToggleReplace={() => setIsReplaceOpen((current) => !current)}
+            onOptionsChange={setFindOptions}
+            onReplaceCurrent={replaceCurrentMatch}
+            onReplaceAll={replaceAllMatches}
+            onSelectAllMatches={selectAllMatches}
+            onUndoReplace={undoLastReplacement}
           />
-        </div>
+        ) : null}
+        {editorMode === "rich" ? (
+          <div
+            ref={scrollContainerRef}
+            className="quick-editor-window__scroll"
+            onPointerDown={() => setOutlineVisibility(false)}
+            onScroll={handleEditorScroll}
+          >
+            <BlockNoteView
+              editor={editor}
+              theme={isDark ? "dark" : "light"}
+              spellCheck={false}
+              style={{
+                fontSize: `${appearance.fontSize}px`,
+                lineHeight: appearance.lineHeight,
+              }}
+            />
+          </div>
+        ) : (
+          <div className="quick-editor-window__scroll">
+            <MarkdownSourceEditor
+              ref={sourceEditorRef}
+              fontFamily={appearance.codeFont}
+              fontSize={appearance.fontSize}
+              lineHeight={appearance.lineHeight}
+              style={{ backgroundColor: "transparent" }}
+              value={sourceMarkdown}
+              onChange={handleSourceChange}
+              onScrollTopChange={NOOP}
+            />
+          </div>
+        )}
         {isOutlineOpen && !editorIsHidden ? (
           <QuickEditorOutline
             headings={outlineHeadings}

@@ -12,6 +12,7 @@ interface MarkdownSourceEditorProps {
   fontFamily?: string;
   fontSize?: number;
   lineHeight?: number;
+  style?: CSSProperties;
   value: string;
   onChange: (value: string) => void;
   onScrollTopChange: (scrollTop: number) => void;
@@ -102,6 +103,7 @@ export const MarkdownSourceEditor = forwardRef<
     fontFamily,
     fontSize,
     lineHeight,
+    style,
     value,
     onChange,
     onScrollTopChange,
@@ -182,7 +184,7 @@ export const MarkdownSourceEditor = forwardRef<
     <textarea
       aria-label="Markdown 源码"
       className="h-full w-full resize-none bg-[var(--bg-primary)] px-10 py-8 font-mono text-[14px] leading-7 text-[var(--text-primary)] outline-none"
-      style={editorStyle}
+      style={{ ...editorStyle, ...style }}
       value={value}
       spellCheck={false}
       onChange={(event) => onChange(event.target.value)}

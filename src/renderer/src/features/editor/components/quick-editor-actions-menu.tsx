@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import {
+  ArrowLeftRight,
   ListTree,
   MoreHorizontal,
   PictureInPicture2,
@@ -14,6 +15,7 @@ const itemClassName =
 interface QuickEditorActionsMenuProps {
   isOutlineOpen: boolean;
   isOutlineDisabled: boolean;
+  onToggleEditorMode: () => void;
   onToggleOutline: () => void;
   onNewWindow: () => void;
   onReturnToApplication: () => void;
@@ -56,6 +58,12 @@ export function QuickEditorActionsMenu(props: QuickEditorActionsMenuProps) {
           sideOffset={6}
           className="quick-editor-actions-menu"
         >
+          <ActionItem
+            icon={<ArrowLeftRight aria-hidden="true" size={14} />}
+            onSelect={props.onToggleEditorMode}
+          >
+            编辑模式切换
+          </ActionItem>
           <ActionItem
             disabled={props.isOutlineDisabled}
             icon={<ListTree aria-hidden="true" size={14} />}
