@@ -150,6 +150,13 @@ describe("quick editor content detection", () => {
     ).not.toBeInTheDocument();
 
     const user = userEvent.setup();
+    const richEditor = screen.getByRole("textbox");
+    richEditor.focus();
+    fireEvent.keyDown(richEditor, { ctrlKey: true, key: "3" });
+    expect(
+      await screen.findByRole("heading", { level: 3, name: "222" }),
+    ).toBeVisible();
+
     await user.click(screen.getByRole("button", { name: "更多操作" }));
     await user.click(screen.getByRole("menuitem", { name: "显示大纲" }));
     expect(
@@ -176,7 +183,7 @@ describe("quick editor content detection", () => {
     await user.click(screen.getByRole("menuitem", { name: "编辑模式切换" }));
     expect(
       await screen.findByRole("textbox", { name: "Markdown 源码" }),
-    ).toHaveValue("222");
+    ).toHaveValue("### 222");
 
     await user.click(screen.getByRole("button", { name: "更多操作" }));
     await user.click(screen.getByRole("menuitem", { name: "编辑模式切换" }));
@@ -763,7 +770,7 @@ describe("quick editor content detection", () => {
     ).not.toBeInTheDocument();
 
     act(() => {
-      innerHeight = 101;
+      innerHeight = 201;
       window.dispatchEvent(new Event("resize"));
       collapsedStateListener?.(false);
     });

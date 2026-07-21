@@ -365,7 +365,7 @@ export interface RichEditorSelectionDragPointer {
   clientY: number;
 }
 
-const RICH_EDITOR_SELECTION_DRAG_LOCK_CLASS =
+export const RICH_EDITOR_SELECTION_DRAG_LOCK_CLASS =
   "rich-editor-selection-drag-locked";
 
 export function shouldPreventRichEditorGutterSelectionDrag(
@@ -484,7 +484,7 @@ export function registerRichEditorSelectionDragGuardPlugin(
   );
 }
 
-function EditorSideMenuController() {
+export function EditorSideMenuController() {
   return <SideMenuController sideMenu={EditorSideMenu} />;
 }
 

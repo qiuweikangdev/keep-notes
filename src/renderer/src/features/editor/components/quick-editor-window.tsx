@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -10,6 +11,7 @@ import {
 import { BlockNoteView } from "@blocknote/mantine";
 import { useCreateBlockNote, useEditorChange } from "@blocknote/react";
 import type { BlockNoteEditor as CoreBlockNoteEditor } from "@blocknote/core";
+import { TextSelection } from "@tiptap/pm/state";
 import { ChevronDown, ChevronUp, X } from "lucide-react";
 import type {
   CloseSaveSnapshot,
@@ -24,6 +26,7 @@ import {
   type UploadedImageCursorEditor,
 } from "../lib/editor-image";
 import { EDITOR_EMPTY_PLACEHOLDER } from "../lib/editor-placeholder";
+import { configureRichTextUndoHistory } from "../lib/editor-undo-history";
 import {
   clearEditorFindHighlights,
   collectEditorFindRanges,
@@ -45,6 +48,21 @@ import {
 } from "../lib/markdown";
 import { FindWidget } from "./find-widget";
 import { MarkdownSourceEditor } from "./markdown-source-editor";
+import {
+  createRichEditorSelectionDragGuardPlugin,
+  EditorFormattingToolbar,
+  EditorSideMenuController,
+  getRichEditorInlineContentFromTarget,
+  handleRichEditorHeadingShortcut,
+  handleRichEditorSelectAllShortcut,
+  RICH_EDITOR_SELECTION_DRAG_LOCK_CLASS,
+  registerRichEditorSelectionDragGuardPlugin,
+  richEditorDefaultUIProps,
+  shouldPreventRichEditorGutterSelectionDrag,
+  unregisterRichEditorSelectionDragGuardPlugin,
+  type RichEditorSelectionDragBounds,
+  type RichEditorSelectionDragPointer,
+} from "./blocknote-editor";
 import { QuickEditorActionsMenu } from "./quick-editor-actions-menu";
 import {
   extractQuickEditorOutlineHeadings,
@@ -180,6 +198,13 @@ export function QuickEditorWindow() {
   const editorRef = useRef<CoreBlockNoteEditor | null>(null);
   const sourceEditorRef = useRef<HTMLTextAreaElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const selectionDragBoundsRef = useRef<RichEditorSelectionDragBounds | null>(
+    null,
+  );
+  const selectionDragPointerRef = useRef<RichEditorSelectionDragPointer | null>(
+    null,
+  );
+  const selectionDragAnchorRef = useRef<number | null>(null);
   const activeHeadingFrameRef = useRef<number | null>(null);
   const isFindOpenRef = useRef(false);
   const isOutlineOpenRef = useRef(false);
@@ -220,6 +245,11 @@ export function QuickEditorWindow() {
     uploadFile: handleImageUploadRef.current,
   });
   editorRef.current = editor;
+
+  useLayoutEffect(() => {
+    // 与面板富文本共用撤销深度，避免独立窗口在长时间编辑后过早丢失撤销记录。
+    configureRichTextUndoHistory(editor);
+  }, [editor]);
 
   const updateActiveHeading = useCallback((nextHeadingId: string | null) => {
     if (activeHeadingIdRef.current === nextHeadingId) return;
@@ -509,9 +539,43 @@ export function QuickEditorWindow() {
         event.preventDefault();
         event.stopPropagation();
         openFindWidget();
+        return;
       }
+      if (editorMode !== "rich") return;
+      if (handleRichEditorHeadingShortcut(event, editor)) return;
+      handleRichEditorSelectAllShortcut(event, editor);
     },
-    [editor, isOutlineOpen, openFindWidget, setOutlineVisibility],
+    [editor, editorMode, isOutlineOpen, openFindWidget, setOutlineVisibility],
+  );
+
+  const handleRichEditorPointerDownCapture = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      setOutlineVisibility(false);
+      selectionDragPointerRef.current = {
+        buttons: event.buttons,
+        clientX: event.clientX,
+        clientY: event.clientY,
+      };
+      const inlineContent = getRichEditorInlineContentFromTarget(event.target);
+      if (event.button === 0 && inlineContent) {
+        const rect = inlineContent.getBoundingClientRect();
+        selectionDragBoundsRef.current = {
+          bottom: rect.bottom,
+          left: rect.left,
+          top: rect.top,
+        };
+        selectionDragAnchorRef.current =
+          editor.prosemirrorView.posAtCoords({
+            left: event.clientX,
+            top: event.clientY,
+          })?.pos ?? null;
+        return;
+      }
+
+      selectionDragBoundsRef.current = null;
+      selectionDragAnchorRef.current = null;
+    },
+    [editor, setOutlineVisibility],
   );
 
   const handleEditorScroll = useCallback(() => {
@@ -522,6 +586,100 @@ export function QuickEditorWindow() {
     () => () => cancelActiveHeadingUpdate(),
     [cancelActiveHeadingUpdate],
   );
+
+  useEffect(() => {
+    if (editorMode !== "rich") return;
+
+    const selectionGuardPlugin = createRichEditorSelectionDragGuardPlugin(
+      () => ({
+        bounds: selectionDragBoundsRef.current,
+        pointer: selectionDragPointerRef.current,
+      }),
+    );
+    registerRichEditorSelectionDragGuardPlugin(editor, selectionGuardPlugin);
+    let isSelectionDragLocked = false;
+
+    const setSelectionDragLocked = (locked: boolean) => {
+      if (isSelectionDragLocked === locked) return;
+      isSelectionDragLocked = locked;
+      document.documentElement.classList.toggle(
+        RICH_EDITOR_SELECTION_DRAG_LOCK_CLASS,
+        locked,
+      );
+    };
+    const resetSelectionDrag = () => {
+      setSelectionDragLocked(false);
+      selectionDragBoundsRef.current = null;
+      selectionDragPointerRef.current = null;
+      selectionDragAnchorRef.current = null;
+    };
+    const handleSelectionDragMouseMove = (event: MouseEvent) => {
+      if (event.buttons !== 1) {
+        resetSelectionDrag();
+        return;
+      }
+
+      selectionDragPointerRef.current = {
+        buttons: event.buttons,
+        clientX: event.clientX,
+        clientY: event.clientY,
+      };
+      const bounds = selectionDragBoundsRef.current;
+      const isSameLineGutter = shouldPreventRichEditorGutterSelectionDrag(
+        event.buttons,
+        event.clientX,
+        event.clientY,
+        bounds,
+      );
+
+      if (!isSelectionDragLocked && isSameLineGutter) {
+        selectionDragAnchorRef.current ??=
+          editor.prosemirrorView.state.selection.anchor;
+        setSelectionDragLocked(true);
+      }
+      if (!isSelectionDragLocked || !bounds) return;
+
+      const view = editor.prosemirrorView;
+      const anchor = selectionDragAnchorRef.current;
+      const position = view.posAtCoords({
+        // 同行向左越界时钳制在正文起点；进入其他行后仍按真实坐标更新，保留正常跨行拖选。
+        left: isSameLineGutter ? bounds.left + 1 : event.clientX,
+        top: event.clientY,
+      });
+      if (anchor !== null && position) {
+        const nextSelection = TextSelection.between(
+          view.state.doc.resolve(anchor),
+          view.state.doc.resolve(position.pos),
+        );
+        if (!nextSelection.eq(view.state.selection)) {
+          view.dispatch(view.state.tr.setSelection(nextSelection));
+        }
+      }
+
+      // 进入异常区域后由 ProseMirror 接管当前拖选，避免 Chrome 原生选区与状态选区反复争抢而闪烁。
+      event.preventDefault();
+    };
+
+    document.addEventListener("mousemove", handleSelectionDragMouseMove, true);
+    document.addEventListener("mouseup", resetSelectionDrag, true);
+    window.addEventListener("blur", resetSelectionDrag);
+    document.addEventListener("dragend", resetSelectionDrag, true);
+    return () => {
+      document.removeEventListener(
+        "mousemove",
+        handleSelectionDragMouseMove,
+        true,
+      );
+      document.removeEventListener("mouseup", resetSelectionDrag, true);
+      window.removeEventListener("blur", resetSelectionDrag);
+      document.removeEventListener("dragend", resetSelectionDrag, true);
+      resetSelectionDrag();
+      unregisterRichEditorSelectionDragGuardPlugin(
+        editor,
+        selectionGuardPlugin,
+      );
+    };
+  }, [editor, editorMode]);
 
   const handleOutlineHeadingSelect = useCallback(
     (blockId: string) => {
@@ -909,18 +1067,23 @@ export function QuickEditorWindow() {
           <div
             ref={scrollContainerRef}
             className="quick-editor-window__scroll"
-            onPointerDown={() => setOutlineVisibility(false)}
+            onPointerDownCapture={handleRichEditorPointerDownCapture}
             onScroll={handleEditorScroll}
           >
             <BlockNoteView
+              {...richEditorDefaultUIProps}
               editor={editor}
+              formattingToolbar={false}
               theme={isDark ? "dark" : "light"}
               spellCheck={false}
               style={{
                 fontSize: `${appearance.fontSize}px`,
                 lineHeight: appearance.lineHeight,
               }}
-            />
+            >
+              <EditorFormattingToolbar />
+              <EditorSideMenuController />
+            </BlockNoteView>
           </div>
         ) : (
           <div className="quick-editor-window__scroll">
