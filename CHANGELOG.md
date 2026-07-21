@@ -1,3 +1,36 @@
+# [2.17.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.16.0...v2.17.0) (2026-07-21)
+
+
+### Bug Fixes
+
+* address floating editor outline review ([208b1fa](https://github.com/qiuweikangdev/keep-notes/commit/208b1fa7c74827e29845f1d65a8559003bce33a7))
+* align custom notification defaults ([9fb8c07](https://github.com/qiuweikangdev/keep-notes/commit/9fb8c071a2a093449c4b25b240c2f910bd68c19b))
+* expand collapsed editor on vertical resize ([b4f24bc](https://github.com/qiuweikangdev/keep-notes/commit/b4f24bc2c6a7df067b01db055f469013d8e38a77))
+* isolate find widget from window opacity ([8d47456](https://github.com/qiuweikangdev/keep-notes/commit/8d47456f46c513cdb56ef1f5ca4a1a43258f044e))
+* prevent git operation lock contention ([99bd010](https://github.com/qiuweikangdev/keep-notes/commit/99bd010e9b9d07438dfb3a51076040f631850f34))
+* prevent rich editor selection drag flicker ([98fd068](https://github.com/qiuweikangdev/keep-notes/commit/98fd0684a8f6c47f7e63de6e59765edaae1e0196))
+* refine diff scrolling and partial staging display ([54a62e8](https://github.com/qiuweikangdev/keep-notes/commit/54a62e8cb69e28a4c1d8ac6279f34dbd1434e35b))
+* refresh outline position when reopened ([2c717e6](https://github.com/qiuweikangdev/keep-notes/commit/2c717e6f320e005c98728503dd46056c39b7273a))
+* remove focus ring from more menu trigger ([1bb029c](https://github.com/qiuweikangdev/keep-notes/commit/1bb029c341ed1ee4672d9fe5c22b69e2ed64133b))
+* reuse prewarmed reminder editor window ([5b7ad55](https://github.com/qiuweikangdev/keep-notes/commit/5b7ad558ae4d84092bbbdc674babffcd1d7f24eb))
+* separate quick editor resize thresholds ([f9d0580](https://github.com/qiuweikangdev/keep-notes/commit/f9d05805b560ed2a8081c2d050e38dbbe8a00243))
+* separate staged and unstaged diffs ([59ffc3b](https://github.com/qiuweikangdev/keep-notes/commit/59ffc3b1f254b1d4b688ab895035f8260ca5a76a))
+* silence startup shortcut conflicts ([ebb8553](https://github.com/qiuweikangdev/keep-notes/commit/ebb8553dbc5747311987224208a1758bb8751d8c))
+* sync reminder window theme ([77ea345](https://github.com/qiuweikangdev/keep-notes/commit/77ea3455de32c0a489679fe66a8a15862b655804))
+
+
+### Features
+
+* add floating editor outline drawer ([0dfc293](https://github.com/qiuweikangdev/keep-notes/commit/0dfc2932a1ffb2aa0833e936be9a40903e5545f9))
+* add floating editor outline menu ([2b26c27](https://github.com/qiuweikangdev/keep-notes/commit/2b26c2707a95dbf6a125d91cd04c157f5c0ba41d))
+* enhance quick editor controls ([0c787b4](https://github.com/qiuweikangdev/keep-notes/commit/0c787b4e4fd8865e2fd1434ff7d0d5da52472a25))
+
+
+## Commit Summary
+
+- Compared with: v2.16.0
+- Total commits: 26
+
 # [2.16.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.15.0...v2.16.0) (2026-07-19)
 
 
