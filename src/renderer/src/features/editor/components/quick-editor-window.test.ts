@@ -702,7 +702,7 @@ describe("quick editor content detection", () => {
     expect(screen.getByRole("textbox", { hidden: true })).not.toHaveFocus();
   });
 
-  it("shows expanded content and more actions only above 100px", async () => {
+  it("shows expanded content and more actions only above 200px", async () => {
     let collapsedStateListener: ((collapsed: boolean) => void) | undefined;
     let innerHeight = 38;
     vi.spyOn(window, "innerHeight", "get").mockImplementation(
@@ -749,7 +749,7 @@ describe("quick editor content detection", () => {
     ).not.toBeInTheDocument();
 
     act(() => {
-      innerHeight = 100;
+      innerHeight = 200;
       window.dispatchEvent(new Event("resize"));
     });
 

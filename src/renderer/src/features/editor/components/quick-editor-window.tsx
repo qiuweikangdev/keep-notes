@@ -57,7 +57,7 @@ import "@blocknote/mantine/style.css";
 import "@/styles/blocknote-overrides.css";
 import "./quick-editor-window.css";
 
-const QUICK_EDITOR_MORE_ACTIONS_MIN_HEIGHT = 100;
+const QUICK_EDITOR_MORE_ACTIONS_MIN_HEIGHT = 200;
 const NOOP = () => undefined;
 
 interface QuickEditorBlock {
