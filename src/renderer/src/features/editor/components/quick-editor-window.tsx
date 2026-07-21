@@ -55,6 +55,8 @@ import "@blocknote/mantine/style.css";
 import "@/styles/blocknote-overrides.css";
 import "./quick-editor-window.css";
 
+const QUICK_EDITOR_MORE_ACTIONS_MIN_HEIGHT = 100;
+
 interface QuickEditorBlock {
   children?: QuickEditorBlock[];
   content?: unknown;
@@ -181,6 +183,9 @@ export function QuickEditorWindow() {
   const activeHeadingIdRef = useRef<string | null>(null);
   const replacementUndoStackRef = useRef<string[]>([]);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [hasMoreActionsHeight, setHasMoreActionsHeight] = useState(
+    () => window.innerHeight > QUICK_EDITOR_MORE_ACTIONS_MIN_HEIGHT,
+  );
   const [isCollapseStateReady, setIsCollapseStateReady] = useState(false);
   const [collapseTarget, setCollapseTarget] = useState<boolean | null>(null);
   const [isCollapseTransitioning, setIsCollapseTransitioning] = useState(false);
@@ -319,6 +324,17 @@ export function QuickEditorWindow() {
     const subscribe = window.electronAPI.onQuickEditorCollapsedChanged;
     if (!subscribe) return;
     return subscribe(setIsCollapsed);
+  }, []);
+
+  useEffect(() => {
+    const updateMoreActionsVisibility = () => {
+      setHasMoreActionsHeight(
+        window.innerHeight > QUICK_EDITOR_MORE_ACTIONS_MIN_HEIGHT,
+      );
+    };
+    window.addEventListener("resize", updateMoreActionsVisibility);
+    return () =>
+      window.removeEventListener("resize", updateMoreActionsVisibility);
   }, []);
 
   const syncDirtyState = useCallback((isDirty: boolean) => {
@@ -734,6 +750,7 @@ export function QuickEditorWindow() {
   ]);
 
   const editorIsHidden = isCollapsed || collapseTarget === true;
+  const showMoreActions = !editorIsHidden && hasMoreActionsHeight;
 
   useEffect(() => {
     if (editorIsHidden) setOutlineVisibility(false);
@@ -765,7 +782,7 @@ export function QuickEditorWindow() {
         </div>
         <div className="quick-editor-window__drag-region" aria-hidden="true" />
         <div className="quick-editor-window__actions quick-editor-window__actions--right">
-          {editorIsHidden ? (
+          {!showMoreActions ? (
             <button
               aria-label="关闭浮动窗口"
               className="quick-editor-window__action quick-editor-window__action--close"

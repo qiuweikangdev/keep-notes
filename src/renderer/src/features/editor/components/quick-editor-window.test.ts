@@ -692,8 +692,12 @@ describe("quick editor content detection", () => {
     expect(screen.getByRole("textbox", { hidden: true })).not.toHaveFocus();
   });
 
-  it("switches back to expanded controls after a native vertical resize", async () => {
+  it("shows expanded content and more actions only above 100px", async () => {
     let collapsedStateListener: ((collapsed: boolean) => void) | undefined;
+    let innerHeight = 38;
+    vi.spyOn(window, "innerHeight", "get").mockImplementation(
+      () => innerHeight,
+    );
     vi.stubGlobal(
       "matchMedia",
       vi.fn((query: string) => ({
@@ -734,11 +738,27 @@ describe("quick editor content detection", () => {
       screen.queryByRole("button", { name: "更多操作" }),
     ).not.toBeInTheDocument();
 
-    act(() => collapsedStateListener?.(false));
+    act(() => {
+      innerHeight = 100;
+      window.dispatchEvent(new Event("resize"));
+    });
 
+    expect(screen.getByRole("main", { hidden: true })).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "关闭浮动窗口" })).toBeVisible();
     expect(
-      await screen.findByRole("button", { name: "更多操作" }),
-    ).toBeVisible();
+      screen.queryByRole("button", { name: "更多操作" }),
+    ).not.toBeInTheDocument();
+
+    act(() => {
+      innerHeight = 101;
+      window.dispatchEvent(new Event("resize"));
+      collapsedStateListener?.(false);
+    });
+    expect(screen.getByRole("main", { name: "快速编辑器" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "更多操作" })).toBeVisible();
     expect(
       screen.queryByRole("button", { name: "关闭浮动窗口" }),
     ).not.toBeInTheDocument();

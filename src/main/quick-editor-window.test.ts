@@ -233,7 +233,7 @@ describe("quick editor floating window", () => {
     expect(nativeWindow.getBounds()).toMatchObject({ height: 38 });
   });
 
-  it("exits collapsed state only when the user resizes vertically", async () => {
+  it("exits collapsed state only after vertical resize exceeds 100px", async () => {
     const win = createQuickEditorWindow();
     const nativeWindow = electronMocks.windows[0];
 
@@ -254,7 +254,15 @@ describe("quick editor floating window", () => {
 
     willResize?.(
       {},
-      { ...nativeWindow.getBounds(), height: 160 },
+      { ...nativeWindow.getBounds(), height: 100 },
+      { edge: "bottom" },
+    );
+    expect(getQuickEditorCollapsed(win)).toBe(true);
+    expect(nativeWindow.webContents.send).not.toHaveBeenCalled();
+
+    willResize?.(
+      {},
+      { ...nativeWindow.getBounds(), height: 101 },
       { edge: "bottom" },
     );
     expect(getQuickEditorCollapsed(win)).toBe(false);

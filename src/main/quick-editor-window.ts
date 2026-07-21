@@ -16,6 +16,7 @@ const QUICK_EDITOR_WINDOW_HEIGHT = 420;
 const QUICK_EDITOR_WINDOW_MIN_WIDTH = 80;
 const QUICK_EDITOR_WINDOW_MIN_HEIGHT = 80;
 const QUICK_EDITOR_COLLAPSED_HEIGHT = 38;
+const QUICK_EDITOR_EXPAND_RESIZE_THRESHOLD = 100;
 const QUICK_EDITOR_COLLAPSE_DURATION = 160;
 const QUICK_EDITOR_COLLAPSE_FRAME_INTERVAL = 16;
 const MAX_GLOBAL_SHORTCUTS = 4;
@@ -346,8 +347,9 @@ export function createQuickEditorWindow(
   win.on("will-resize", (_event, newBounds) => {
     if (!collapseState.collapsed || collapseState.transition) return;
     if (newBounds.height === win.getBounds().height) return;
+    if (newBounds.height <= QUICK_EDITOR_EXPAND_RESIZE_THRESHOLD) return;
 
-    // 折叠态下纵向拖动即视为展开，横向调整宽度仍保持折叠。
+    // 高度超过阈值后解除折叠，标题栏操作由渲染层按实际高度独立切换。
     collapseState.expandedHeight = Math.max(
       newBounds.height,
       QUICK_EDITOR_WINDOW_MIN_HEIGHT,
