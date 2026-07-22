@@ -12,6 +12,7 @@ files:
 asarUnpack:
   - resources/**
 win:
+  icon: build/icon.ico
   executableName: keep-notes
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
