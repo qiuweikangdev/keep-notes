@@ -55,10 +55,13 @@ export function registerFileIpc(): void {
     },
   );
 
-  ipcMain.handle(IPC_CHANNELS.FILE.SAVE_AS, async (event, content: string) => {
-    const win = getBrowserWindow(event);
-    return saveAsDialog(win, content);
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.FILE.SAVE_AS,
+    async (event, content: string, defaultFileName?: string) => {
+      const win = getBrowserWindow(event);
+      return saveAsDialog(win, content, defaultFileName);
+    },
+  );
 
   ipcMain.handle(IPC_CHANNELS.FILE.OPEN_DIALOG, async (event) => {
     const win = getBrowserWindow(event);

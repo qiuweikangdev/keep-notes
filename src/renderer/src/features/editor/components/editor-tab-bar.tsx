@@ -86,6 +86,9 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
   const removeTab = useEditorStore((state) => state.removeTab);
   const addTab = useEditorStore((state) => state.addTab);
   const addPanelGroup = useEditorStore((state) => state.addPanelGroup);
+  const setTabTemporaryTitle = useEditorStore(
+    (state) => state.setTabTemporaryTitle,
+  );
   const renameFilePath = useEditorStore((state) => state.renameFilePath);
   const setTreeData = useTreeStore((state) => state.setTreeData);
   const setSelectedKey = useTreeStore((state) => state.setSelectedKey);
@@ -188,10 +191,14 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
 
   const handleStartRename = () => {
     const tab = group.tabs.find((item) => item.id === contextMenu?.tabId);
-    if (!tab?.filePath) return;
+    if (!tab) return;
 
     isRenameCancelledRef.current = false;
-    setRenameValue(getFileNameWithoutExtension(tab.filePath));
+    setRenameValue(
+      tab.filePath
+        ? getFileNameWithoutExtension(tab.filePath)
+        : (tab.temporaryTitle ?? ""),
+    );
     setRenamingTabId(tab.id);
     setContextMenu(null);
   };
@@ -211,11 +218,20 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
       ?.tabs.find((item) => item.id === renamingTabId);
     const filePath = tab?.filePath;
     const title = renameValue.trim();
-    if (
-      !filePath ||
-      !title ||
-      title === getFileNameWithoutExtension(filePath)
-    ) {
+    if (!tab || !title) {
+      setRenamingTabId(null);
+      return;
+    }
+
+    if (!filePath) {
+      if (title !== tab.temporaryTitle) {
+        setTabTemporaryTitle(groupId, renamingTabId, title);
+      }
+      setRenamingTabId(null);
+      return;
+    }
+
+    if (title === getFileNameWithoutExtension(filePath)) {
       setRenamingTabId(null);
       return;
     }
@@ -249,6 +265,7 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
     renameItem,
     renameValue,
     renamingTabId,
+    setTabTemporaryTitle,
     setSelectedKey,
     setTreeData,
   ]);
@@ -285,7 +302,8 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
       <div className="flex flex-1 overflow-x-auto scrollbar-none h-full">
         {group.tabs.map((tab) => {
           const displayPath = tab.pendingFilePath ?? tab.filePath;
-          const fileName = displayPath?.split(/[\\/]/).pop() || "未命名";
+          const fileName =
+            displayPath?.split(/[\\/]/).pop() || tab.temporaryTitle || "未命名";
           const isActive = group.activeTabId === tab.id;
 
           return (
@@ -399,16 +417,6 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
               </MenuButton>
               <MenuButton
                 icon={<Pencil className="h-3.5 w-3.5" />}
-                disabled={
-                  !group.tabs.find((tab) => tab.id === contextMenu.tabId)
-                    ?.filePath
-                }
-                title={
-                  group.tabs.find((tab) => tab.id === contextMenu.tabId)
-                    ?.filePath
-                    ? undefined
-                    : "请先保存未命名标签页"
-                }
                 onClick={handleStartRename}
               >
                 重命名

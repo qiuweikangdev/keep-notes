@@ -88,6 +88,20 @@ describe("editor store", () => {
     expect(tab?.saveStatus).toBe("clean");
   });
 
+  it("keeps a temporary title for an unnamed tab until it is saved", () => {
+    const store = useEditorStore.getState();
+
+    store.setTabTemporaryTitle("group-1", "tab-1", "临时草稿");
+    expect(
+      useEditorStore.getState().panelGroups[0].tabs[0].temporaryTitle,
+    ).toBe("临时草稿");
+
+    store.setTabFilePath("group-1", "tab-1", "C:/notes/draft.md");
+    expect(
+      useEditorStore.getState().panelGroups[0].tabs[0].temporaryTitle,
+    ).toBeNull();
+  });
+
   it("updates every open tab and recent path after a file is renamed", () => {
     const initialGroup = useEditorStore.getState().panelGroups[0];
     const firstGroup = {

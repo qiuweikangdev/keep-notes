@@ -48,6 +48,7 @@ export interface EditorTab {
   id: string;
   filePath: string | null;
   pendingFilePath: string | null;
+  temporaryTitle?: string | null;
   content: string;
   wordCount: number;
   isDirty: boolean;
@@ -120,6 +121,11 @@ export interface EditorState {
   // 标签页内容操作
   setTabContent: (groupId: string, tabId: string, content: string) => void;
   setTabFilePath: (groupId: string, tabId: string, path: string | null) => void;
+  setTabTemporaryTitle: (
+    groupId: string,
+    tabId: string,
+    title: string | null,
+  ) => void;
   renameFilePath: (previousPath: string, nextPath: string) => void;
   setTabDirty: (groupId: string, tabId: string, dirty: boolean) => void;
   setTabWordCount: (groupId: string, tabId: string, count: number) => void;
@@ -231,6 +237,7 @@ const createDefaultTab = (filePath?: string | null): EditorTab => ({
   id: generateId(),
   filePath: filePath ?? null,
   pendingFilePath: null,
+  temporaryTitle: null,
   content: "",
   wordCount: 0,
   isDirty: false,
@@ -613,12 +620,31 @@ export const useEditorStore = create<EditorState>()(
                             ...t,
                             filePath: path,
                             pendingFilePath: null,
+                            temporaryTitle: path ? null : t.temporaryTitle,
                             isDirty: false,
                           }
                         : t,
                     ),
                   }
                 : g,
+            ),
+          }));
+        },
+
+        // 未命名标签只更新临时显示名称，不触发任何磁盘文件操作。
+        setTabTemporaryTitle: (groupId, tabId, title) => {
+          set((state) => ({
+            panelGroups: state.panelGroups.map((group) =>
+              group.id === groupId
+                ? {
+                    ...group,
+                    tabs: group.tabs.map((tab) =>
+                      tab.id === tabId
+                        ? { ...tab, temporaryTitle: title }
+                        : tab,
+                    ),
+                  }
+                : group,
             ),
           }));
         },
@@ -957,6 +983,7 @@ export const useEditorStore = create<EditorState>()(
                             content: "",
                             filePath: null,
                             pendingFilePath: null,
+                            temporaryTitle: null,
                             wordCount: 0,
                             isDirty: false,
                             mode: "rich",

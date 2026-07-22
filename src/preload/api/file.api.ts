@@ -33,8 +33,13 @@ export const fileApi = {
 
   saveAs: (
     content: string,
+    defaultFileName?: string,
   ): Promise<{ code: number; data?: { filePath: string } }> => {
-    return ipcRenderer.invoke(IPC_CHANNELS.FILE.SAVE_AS, content);
+    return ipcRenderer.invoke(
+      IPC_CHANNELS.FILE.SAVE_AS,
+      content,
+      defaultFileName,
+    );
   },
 
   openDialog: (): Promise<

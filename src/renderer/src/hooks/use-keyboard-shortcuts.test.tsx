@@ -13,13 +13,18 @@ function KeyboardShortcutsHarness() {
   return null;
 }
 
-function setActiveEditorTab(filePath: string | null, content: string) {
+function setActiveEditorTab(
+  filePath: string | null,
+  content: string,
+  temporaryTitle?: string | null,
+) {
   const state = useEditorStore.getState();
   const group = state.panelGroups[0];
   const tab = group.tabs[0];
   const nextTab: EditorTab = {
     ...tab,
     filePath,
+    temporaryTitle,
     content,
     isDirty: true,
     saveStatus: "dirty",
@@ -89,5 +94,16 @@ describe("useKeyboardShortcuts save action", () => {
       expect(saveAs).toHaveBeenCalledWith("# Untitled");
     });
     expect(writeFile).not.toHaveBeenCalled();
+  });
+
+  it("uses an untitled tab's temporary title as the save dialog file name", async () => {
+    setActiveEditorTab(null, "# Draft", "会议记录");
+    render(<KeyboardShortcutsHarness />);
+
+    fireEvent.keyDown(window, { key: "s", metaKey: true });
+
+    await waitFor(() => {
+      expect(saveAs).toHaveBeenCalledWith("# Draft", "会议记录");
+    });
   });
 });
