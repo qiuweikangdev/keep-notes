@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { CheckCircle2, FolderOpen, X } from "lucide-react";
 
 const AUTO_CLOSE_DELAY = 8_000;
@@ -53,7 +54,8 @@ export function ExportSuccessToast() {
     await window.electronAPI.openInExplorer(successDetail.directoryPath);
   };
 
-  return (
+  // 通过 Portal 脱离应用透明度容器，确保导出结果始终清晰可见。
+  return createPortal(
     <div
       role="status"
       aria-live="polite"
@@ -109,6 +111,7 @@ export function ExportSuccessToast() {
           <X className="h-4 w-4" />
         </button>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

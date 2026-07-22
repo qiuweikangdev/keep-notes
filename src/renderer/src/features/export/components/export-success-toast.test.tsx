@@ -23,7 +23,10 @@ describe("ExportSuccessToast", () => {
   });
 
   it("shows a success toast and opens the exported directory from the icon action", async () => {
-    render(<ExportSuccessToast />);
+    const translucentRoot = document.createElement("div");
+    translucentRoot.style.opacity = "0.6";
+    document.body.append(translucentRoot);
+    render(<ExportSuccessToast />, { container: translucentRoot });
 
     window.dispatchEvent(
       new CustomEvent("keep-notes:export-success", {
@@ -36,6 +39,7 @@ describe("ExportSuccessToast", () => {
 
     expect(await screen.findByRole("status")).toHaveTextContent("导出成功");
     expect(screen.getByText("daily.pdf")).toBeInTheDocument();
+    expect(translucentRoot).not.toContainElement(screen.getByRole("status"));
 
     fireEvent.click(screen.getByRole("button", { name: "打开导出目录" }));
 
