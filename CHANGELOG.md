@@ -1,3 +1,27 @@
+# [2.19.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.18.0...v2.19.0) (2026-07-22)
+
+
+### Bug Fixes
+
+* align quick editor toast styling ([1343356](https://github.com/qiuweikangdev/keep-notes/commit/134335669cd535f385afae0bc8c25e88a2314351))
+* stabilize git panel loading ([d78f41b](https://github.com/qiuweikangdev/keep-notes/commit/d78f41bb62d07257a36fd7c049e3d44ad7f4bb1d))
+* stabilize rename inputs and sync tabs ([9103b3c](https://github.com/qiuweikangdev/keep-notes/commit/9103b3cb8d1ea8829eec8d2c90e73844709098a0))
+* unify quick editor outline behavior ([1c73921](https://github.com/qiuweikangdev/keep-notes/commit/1c73921aa69ad29c1883ef9fc341497cf03a20e4))
+
+
+### Features
+
+* enhance quick editor git actions ([e143138](https://github.com/qiuweikangdev/keep-notes/commit/e143138423d657ab74d4c121818663c1dc847a40))
+* enlarge desktop app icon ([0ac4f15](https://github.com/qiuweikangdev/keep-notes/commit/0ac4f15a85d1c91c106ea01415ea35e45233e832))
+* improve editor tab rename experience ([c7b9ba3](https://github.com/qiuweikangdev/keep-notes/commit/c7b9ba39bba42330b67fdb074a4b419db5526cb0))
+* use temporary titles for saved drafts ([8296a13](https://github.com/qiuweikangdev/keep-notes/commit/8296a13a12a439975608e2d298ca69bbf587b646))
+
+
+## Commit Summary
+
+- Compared with: v2.18.0
+- Total commits: 9
+
 # [2.18.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.17.0...v2.18.0) (2026-07-22)
 
 
