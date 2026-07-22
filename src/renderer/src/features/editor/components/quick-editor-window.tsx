@@ -19,6 +19,7 @@ import type {
 } from "@shared/types";
 import { useTheme } from "@/hooks/use-theme";
 import { useEditorStore, type EditorMode } from "@/store/editor.store";
+import { getRevealInFileManagerLabel } from "@/features/file-tree/utils";
 import { editorSchema } from "../lib/blocknote-schema";
 import {
   moveCursorAfterUploadedImage,
@@ -213,6 +214,7 @@ export function QuickEditorWindow() {
   const activeHeadingIdRef = useRef<string | null>(null);
   const replacementUndoStackRef = useRef<string[]>([]);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [linkedFilePath, setLinkedFilePath] = useState<string | null>(null);
   const [editorMode, setEditorMode] = useState<EditorMode>("rich");
   const [sourceMarkdown, setSourceMarkdown] = useState("");
   const [hasMoreActionsHeight, setHasMoreActionsHeight] = useState(
@@ -837,6 +839,7 @@ export function QuickEditorWindow() {
         if (cancelled || revision !== syncRevisionRef.current) return;
 
         sourceRef.current = initialContent.source;
+        setLinkedFilePath(initialContent.source?.filePath ?? null);
         lastSyncedContentRef.current = initialContent.content;
         serializedBaselineRef.current = baseline;
         replacementUndoStackRef.current.length = 0;
@@ -873,6 +876,7 @@ export function QuickEditorWindow() {
         if (cancelled || revision !== syncRevisionRef.current) return;
 
         sourceRef.current = content.source;
+        setLinkedFilePath(content.source?.filePath ?? null);
         lastSyncedContentRef.current = content.content;
         serializedBaselineRef.current = baseline;
         replacementUndoStackRef.current.length = 0;
@@ -911,6 +915,11 @@ export function QuickEditorWindow() {
       returnInProgressRef.current = false;
     }
   }, [getCurrentEditorContent]);
+
+  const handleRevealInFileManager = useCallback(() => {
+    if (!linkedFilePath) return;
+    void window.electronAPI.openInExplorer(linkedFilePath);
+  }, [linkedFilePath]);
 
   const handleToggleEditorMode = useCallback(async () => {
     if (editorMode === "rich") {
@@ -979,6 +988,9 @@ export function QuickEditorWindow() {
 
   const editorIsHidden = isCollapsed || collapseTarget === true;
   const showMoreActions = !editorIsHidden && hasMoreActionsHeight;
+  const revealInFileManagerLabel = getRevealInFileManagerLabel(
+    window.electronAPI?.getPlatform?.(),
+  );
 
   useEffect(() => {
     if (editorIsHidden) setOutlineVisibility(false);
@@ -1030,6 +1042,12 @@ export function QuickEditorWindow() {
               }
               onNewWindow={() => window.electronAPI.createQuickEditorWindow()}
               onReturnToApplication={() => void handleReturnToApplication()}
+              onRevealInFileManager={
+                linkedFilePath ? handleRevealInFileManager : undefined
+              }
+              revealInFileManagerLabel={
+                linkedFilePath ? revealInFileManagerLabel : undefined
+              }
               onCloseWindow={() => window.electronAPI.closeQuickEditorWindow()}
             />
           )}

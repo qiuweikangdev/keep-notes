@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import {
   ArrowLeftRight,
+  FolderSearch,
   ListTree,
   MoreHorizontal,
   PictureInPicture2,
@@ -15,11 +16,13 @@ const itemClassName =
 interface QuickEditorActionsMenuProps {
   isOutlineOpen: boolean;
   isOutlineDisabled: boolean;
+  onRevealInFileManager?: () => void;
   onToggleEditorMode: () => void;
   onToggleOutline: () => void;
   onNewWindow: () => void;
   onReturnToApplication: () => void;
   onCloseWindow: () => void;
+  revealInFileManagerLabel?: string;
 }
 
 function ActionItem(props: {
@@ -84,6 +87,14 @@ export function QuickEditorActionsMenu(props: QuickEditorActionsMenuProps) {
           >
             返回主窗口
           </ActionItem>
+          {props.onRevealInFileManager && props.revealInFileManagerLabel ? (
+            <ActionItem
+              icon={<FolderSearch aria-hidden="true" size={14} />}
+              onSelect={props.onRevealInFileManager}
+            >
+              {props.revealInFileManagerLabel}
+            </ActionItem>
+          ) : null}
           <DropdownMenu.Separator className="quick-editor-actions-menu__separator" />
           <ActionItem
             icon={<X aria-hidden="true" size={14} />}

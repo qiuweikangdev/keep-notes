@@ -449,6 +449,7 @@ describe("quick editor content detection", () => {
       tabId: "tab-1",
       filePath: "/notes/readme.md",
     };
+    const openInExplorer = vi.fn();
     const syncQuickEditorContent = vi.fn();
     vi.stubGlobal("electronAPI", {
       createQuickEditorWindow: vi.fn(),
@@ -468,6 +469,7 @@ describe("quick editor content detection", () => {
       onQuickEditorContentUpdated: vi.fn(() => () => undefined),
       closeQuickEditorWindow: vi.fn(),
       returnToMainWindowFromQuickEditor: vi.fn(),
+      openInExplorer,
       syncQuickEditorContent,
       updateDirtyState: vi.fn(),
     });
@@ -476,6 +478,12 @@ describe("quick editor content detection", () => {
 
     const editor = await screen.findByRole("main", { name: "快速编辑器" });
     const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    await user.click(
+      screen.getByRole("menuitem", { name: "在资源管理器中显示" }),
+    );
+    expect(openInExplorer).toHaveBeenCalledWith(source.filePath);
+
     await user.click(screen.getByRole("button", { name: "更多操作" }));
     await user.click(screen.getByRole("menuitem", { name: "显示大纲" }));
     editor.focus();
