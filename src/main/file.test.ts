@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { dialog } from "electron";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -8,6 +9,7 @@ import {
   readDirectory,
   readDirectoryShallow,
   saveImageAttachment,
+  saveAsDialog,
 } from "./file";
 
 vi.mock("electron", () => ({
@@ -217,5 +219,18 @@ describe("saveImageAttachment", () => {
     await expect(
       fs.promises.stat(path.join(root, "attachments")),
     ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+});
+
+describe("saveAsDialog", () => {
+  it("uses the temporary title as the default Markdown file name", async () => {
+    vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true });
+
+    await saveAsDialog({} as Electron.BrowserWindow, "# Draft", "会议记录");
+
+    expect(dialog.showSaveDialog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ defaultPath: "会议记录.md" }),
+    );
   });
 });

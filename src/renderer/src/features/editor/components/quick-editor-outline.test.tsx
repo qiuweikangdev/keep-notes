@@ -1,6 +1,4 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -61,6 +59,7 @@ describe("quick editor outline", () => {
       <QuickEditorOutline
         headings={[]}
         activeHeadingId={null}
+        resetKey={null}
         onHeadingSelect={vi.fn()}
       />,
     );
@@ -71,6 +70,7 @@ describe("quick editor outline", () => {
       <QuickEditorOutline
         headings={[{ id: "heading-1", level: 1, text: "Overview" }]}
         activeHeadingId="heading-1"
+        resetKey="note.md"
         onHeadingSelect={onHeadingSelect}
       />,
     );
@@ -82,26 +82,21 @@ describe("quick editor outline", () => {
     );
   });
 
-  it("keeps long active headings contained and keyboard focus visible", () => {
-    const css = readFileSync(
-      join(
-        process.cwd(),
-        "src/renderer/src/features/editor/components/quick-editor-window.css",
-      ),
-      "utf8",
+  it("reuses the file tree outline scroll container and item interactions", () => {
+    const { container } = render(
+      <QuickEditorOutline
+        headings={[{ id: "heading-1", level: 1, text: "Overview" }]}
+        activeHeadingId="heading-1"
+        resetKey="note.md"
+        onHeadingSelect={vi.fn()}
+      />,
     );
 
-    expect(css).toMatch(
-      /\.quick-editor-outline__list\s*\{[^}]*overflow-x:\s*hidden;/s,
-    );
-    expect(css).toMatch(
-      /\.quick-editor-outline__item\s*\{[^}]*min-width:\s*0;/s,
-    );
-    expect(css).toMatch(
-      /\.quick-editor-outline__item\s+span\s*\{[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s,
-    );
-    expect(css).toMatch(
-      /\.quick-editor-outline__item:focus-visible\s*\{[^}]*(?:outline|box-shadow):/s,
-    );
+    expect(
+      container.querySelector(".file-tree-scroll-container"),
+    ).toBeInTheDocument();
+    expect(
+      container.querySelector(".file-tree-scrollbar-thumb"),
+    ).toBeInTheDocument();
   });
 });

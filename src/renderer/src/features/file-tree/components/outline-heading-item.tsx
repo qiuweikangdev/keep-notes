@@ -22,6 +22,7 @@ const OutlineHeadingItemBase = forwardRef<
     <button
       ref={ref}
       type="button"
+      aria-current={isActive ? "location" : undefined}
       className="flex w-full items-center py-1.5 text-left text-[13px] transition-all duration-200"
       style={{
         paddingLeft: `${12 + indent}px`,

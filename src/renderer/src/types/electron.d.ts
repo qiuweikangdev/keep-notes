@@ -62,7 +62,10 @@ export interface ElectronAPI {
   saveImageAttachment: (
     input: SaveImageAttachmentInput,
   ) => Promise<ApiResponse<SaveImageAttachmentResult>>;
-  saveAs: (content: string) => Promise<ApiResponse<{ filePath: string }>>;
+  saveAs: (
+    content: string,
+    defaultFileName?: string,
+  ) => Promise<ApiResponse<{ filePath: string }>>;
   openDialog: () => Promise<
     ApiResponse<{
       treeData: TreeNode[];
@@ -161,6 +164,9 @@ export interface ElectronAPI {
   showQuickEditorWindow: () => void;
   createQuickEditorWindow: (content?: QuickEditorWindowContent) => void;
   syncQuickEditorContent: (content: QuickEditorWindowContent) => void;
+  flushQuickEditorContent: (
+    source: QuickEditorWindowContent["source"],
+  ) => Promise<void>;
   onQuickEditorInitialContent: (
     callback: (content: QuickEditorWindowContent) => void,
   ) => () => void;

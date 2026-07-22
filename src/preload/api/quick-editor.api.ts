@@ -96,6 +96,12 @@ export const quickEditorApi = {
     ipcRenderer.send(IPC_CHANNELS.QUICK_EDITOR.SYNC_CONTENT, content);
   },
 
+  flushQuickEditorContent: (
+    source: QuickEditorWindowContent["source"],
+  ): Promise<void> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.QUICK_EDITOR.FLUSH_CONTENT, source);
+  },
+
   onQuickEditorInitialContent: (
     callback: (content: QuickEditorWindowContent) => void,
   ): (() => void) => {

@@ -555,9 +555,11 @@ function QuickEditorWindowApplication() {
 
   return (
     <Tooltip.Provider delayDuration={300}>
-      <div className="h-screen w-screen overflow-hidden bg-transparent">
-        <QuickEditorWindow />
-      </div>
+      <DragResizeProvider>
+        <div className="h-screen w-screen overflow-hidden bg-transparent">
+          <QuickEditorWindow />
+        </div>
+      </DragResizeProvider>
     </Tooltip.Provider>
   );
 }

@@ -380,11 +380,17 @@ export async function genFullDirTreeByPath(selectedPath: string) {
 export async function saveAsDialog(
   win: Electron.BrowserWindow,
   content: string,
+  defaultFileName?: string,
 ) {
   try {
+    // 临时标题仅作为系统保存对话框的建议名称，禁止将路径带入默认保存位置。
+    const safeFileName = basename(defaultFileName?.trim() || "未命名");
+    const defaultPath = safeFileName.toLowerCase().endsWith(".md")
+      ? safeFileName
+      : `${safeFileName}.md`;
     const result = await dialog.showSaveDialog(win, {
       title: "保存文件",
-      defaultPath: "未命名.md",
+      defaultPath,
       filters: [
         { name: "Markdown", extensions: ["md"] },
         { name: "所有文件", extensions: ["*"] },

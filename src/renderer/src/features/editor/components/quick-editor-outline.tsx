@@ -1,3 +1,5 @@
+import { OutlinePanel } from "@/features/file-tree/components/outline-panel";
+
 export interface QuickEditorOutlineHeading {
   id: string;
   level: number;
@@ -52,33 +54,23 @@ export function extractQuickEditorOutlineHeadings(
 interface QuickEditorOutlineProps {
   headings: QuickEditorOutlineHeading[];
   activeHeadingId: string | null;
+  resetKey: string | null;
   onHeadingSelect: (id: string) => void;
 }
 
 export function QuickEditorOutline(props: QuickEditorOutlineProps) {
   return (
     <nav aria-label="文档大纲" className="quick-editor-outline">
-      <div className="quick-editor-outline__header">大纲</div>
-      <div className="quick-editor-outline__list">
-        {props.headings.length === 0 ? (
-          <div className="quick-editor-outline__empty">暂无标题</div>
-        ) : (
-          props.headings.map((heading) => (
-            <button
-              key={heading.id}
-              type="button"
-              aria-current={
-                heading.id === props.activeHeadingId ? "location" : undefined
-              }
-              className="quick-editor-outline__item"
-              data-active={heading.id === props.activeHeadingId || undefined}
-              style={{ paddingLeft: `${12 + (heading.level - 1) * 16}px` }}
-              onClick={() => props.onHeadingSelect(heading.id)}
-            >
-              <span>{heading.text || "未命名标题"}</span>
-            </button>
-          ))
-        )}
+      <div className="quick-editor-outline__header">
+        <span>大纲</span>
+      </div>
+      <div className="quick-editor-outline__content">
+        <OutlinePanel
+          headings={props.headings}
+          activeHeadingId={props.activeHeadingId}
+          resetKey={props.resetKey}
+          onHeadingClick={props.onHeadingSelect}
+        />
       </div>
     </nav>
   );

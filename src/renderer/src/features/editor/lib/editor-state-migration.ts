@@ -8,6 +8,7 @@ import type {
 
 type AddedEditorTabFields = {
   pendingFilePath: string | null;
+  temporaryTitle?: string | null;
   mode: EditorMode;
   loadStatus: EditorLoadStatus;
   saveStatus: EditorSaveStatus;
@@ -85,6 +86,7 @@ export function normalizePersistedPanelGroups(
     tabs: group.tabs.map((tab) => ({
       ...tab,
       pendingFilePath: tab.pendingFilePath ?? null,
+      temporaryTitle: tab.temporaryTitle ?? null,
       mode: tab.mode ?? "rich",
       // 旧标签页已经携带内容，恢复后应直接可编辑，不能停在 loading。
       loadStatus: tab.filePath ? (tab.loadStatus ?? "ready") : "ready",

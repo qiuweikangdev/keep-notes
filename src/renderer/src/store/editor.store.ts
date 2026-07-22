@@ -48,6 +48,7 @@ export interface EditorTab {
   id: string;
   filePath: string | null;
   pendingFilePath: string | null;
+  temporaryTitle?: string | null;
   content: string;
   wordCount: number;
   isDirty: boolean;
@@ -120,6 +121,12 @@ export interface EditorState {
   // 标签页内容操作
   setTabContent: (groupId: string, tabId: string, content: string) => void;
   setTabFilePath: (groupId: string, tabId: string, path: string | null) => void;
+  setTabTemporaryTitle: (
+    groupId: string,
+    tabId: string,
+    title: string | null,
+  ) => void;
+  renameFilePath: (previousPath: string, nextPath: string) => void;
   setTabDirty: (groupId: string, tabId: string, dirty: boolean) => void;
   setTabWordCount: (groupId: string, tabId: string, count: number) => void;
   incrementTabReloadKey: (groupId: string, tabId: string) => void;
@@ -230,6 +237,7 @@ const createDefaultTab = (filePath?: string | null): EditorTab => ({
   id: generateId(),
   filePath: filePath ?? null,
   pendingFilePath: null,
+  temporaryTitle: null,
   content: "",
   wordCount: 0,
   isDirty: false,
@@ -612,6 +620,7 @@ export const useEditorStore = create<EditorState>()(
                             ...t,
                             filePath: path,
                             pendingFilePath: null,
+                            temporaryTitle: path ? null : t.temporaryTitle,
                             isDirty: false,
                           }
                         : t,
@@ -619,6 +628,44 @@ export const useEditorStore = create<EditorState>()(
                   }
                 : g,
             ),
+          }));
+        },
+
+        // 未命名标签只更新临时显示名称，不触发任何磁盘文件操作。
+        setTabTemporaryTitle: (groupId, tabId, title) => {
+          set((state) => ({
+            panelGroups: state.panelGroups.map((group) =>
+              group.id === groupId
+                ? {
+                    ...group,
+                    tabs: group.tabs.map((tab) =>
+                      tab.id === tabId
+                        ? { ...tab, temporaryTitle: title }
+                        : tab,
+                    ),
+                  }
+                : group,
+            ),
+          }));
+        },
+
+        // 文件改名后同步所有已打开标签，避免后续保存仍写入旧路径。
+        renameFilePath: (previousPath, nextPath) => {
+          set((state) => ({
+            filePath: matchesEditorFilePath(state.filePath, previousPath)
+              ? nextPath
+              : state.filePath,
+            recentOpenedFilePaths: state.recentOpenedFilePaths.map((path) =>
+              matchesEditorFilePath(path, previousPath) ? nextPath : path,
+            ),
+            panelGroups: state.panelGroups.map((group) => ({
+              ...group,
+              tabs: group.tabs.map((tab) =>
+                matchesEditorFilePath(tab.filePath, previousPath)
+                  ? { ...tab, filePath: nextPath }
+                  : tab,
+              ),
+            })),
           }));
         },
 
@@ -936,6 +983,7 @@ export const useEditorStore = create<EditorState>()(
                             content: "",
                             filePath: null,
                             pendingFilePath: null,
+                            temporaryTitle: null,
                             wordCount: 0,
                             isDirty: false,
                             mode: "rich",

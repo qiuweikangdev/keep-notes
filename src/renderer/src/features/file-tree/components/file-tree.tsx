@@ -57,6 +57,7 @@ import { KEEP_NOTES_FILE_DRAG_TYPE, setDraggedFilePath } from "@/lib/file-drag";
 import {
   buildCreatedNodeKey,
   buildFileTreeRows,
+  buildRenamedFileKey,
   canMoveNodeToFolder,
   findAncestorKeys,
   findNodeByKey,
@@ -1316,6 +1317,7 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
 }: VirtualTreeNodeProps) {
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
+  const [renameInputWidth, setRenameInputWidth] = useState<number | null>(null);
   const [isDropTarget, setIsDropTarget] = useState(false);
   const [moveConfirm, setMoveConfirm] = useState<{
     open: boolean;
@@ -1324,6 +1326,7 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
     title: string;
   }>({ open: false, sourcePath: "", targetPath: "", title: "" });
   const renameInputRef = useRef<HTMLInputElement>(null);
+  const renameLabelRef = useRef<HTMLSpanElement>(null);
   const isRenameComposingRef = useRef(false);
   const dragDepthRef = useRef(0);
   const setTreeData = useTreeStore((state) => state.setTreeData);
@@ -1359,6 +1362,9 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
 
   // 开始重命名
   const handleStartRename = useCallback(() => {
+    setRenameInputWidth(
+      renameLabelRef.current?.getBoundingClientRect().width ?? null,
+    );
     setRenameValue(flatNode.title.replace(/\.md$/, ""));
     setIsRenaming(true);
   }, [flatNode.title]);
@@ -1376,11 +1382,26 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
     const result = await renameItem(flatNode.key, title, treeData);
     if (result.code === CodeResult.Success && result.data) {
       setTreeData(result.data.treeData);
+      if (!flatNode.isFolder) {
+        useEditorStore
+          .getState()
+          .renameFilePath(
+            flatNode.key,
+            buildRenamedFileKey(flatNode.key, title),
+          );
+      }
     } else if (result.message) {
       showAppToast(result.message);
     }
     setIsRenaming(false);
-  }, [renameValue, flatNode.title, flatNode.key, renameItem, setTreeData]);
+  }, [
+    renameValue,
+    flatNode.title,
+    flatNode.key,
+    flatNode.isFolder,
+    renameItem,
+    setTreeData,
+  ]);
 
   // 重命名键盘事件
   const handleRenameKeyDown = useCallback(
@@ -1682,10 +1703,16 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
                     backgroundColor: "var(--bg-tertiary)",
                     border: "1px solid var(--border-color)",
                     color: "var(--text-primary)",
+                    width:
+                      renameInputWidth === null
+                        ? undefined
+                        : `${renameInputWidth}px`,
+                    flex: renameInputWidth === null ? undefined : "0 0 auto",
                   }}
                 />
               ) : (
                 <span
+                  ref={renameLabelRef}
                   className="flex-1 truncate text-[13px] leading-7"
                   style={{
                     color: isSelected

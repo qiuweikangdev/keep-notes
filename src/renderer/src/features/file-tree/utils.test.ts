@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCreatedNodeKey,
+  buildRenamedFileKey,
   buildFileTreeRows,
   canMoveNodeToFolder,
   findAncestorKeys,
@@ -20,6 +21,14 @@ describe("buildCreatedNodeKey", () => {
   it("keeps folder names without a file extension", () => {
     expect(buildCreatedNodeKey("/notes/work", "archive", "folder")).toBe(
       "/notes/work/archive",
+    );
+  });
+});
+
+describe("buildRenamedFileKey", () => {
+  it("preserves the parent path and Markdown extension", () => {
+    expect(buildRenamedFileKey("D:\\notes\\draft.md", "meeting")).toBe(
+      "D:\\notes\\meeting.md",
     );
   });
 });

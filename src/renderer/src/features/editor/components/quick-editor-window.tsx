@@ -12,14 +12,26 @@ import { BlockNoteView } from "@blocknote/mantine";
 import { useCreateBlockNote, useEditorChange } from "@blocknote/react";
 import type { BlockNoteEditor as CoreBlockNoteEditor } from "@blocknote/core";
 import { TextSelection } from "@tiptap/pm/state";
-import { ChevronDown, ChevronUp, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Info, X } from "lucide-react";
 import type {
   CloseSaveSnapshot,
   QuickEditorWindowContent,
 } from "@shared/types";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { DialogResizeHandles } from "@/components/ui/dialog-resize-handles";
+import { DiffViewer } from "@/features/diff";
+import {
+  DIFF_NO_CHANGES_MESSAGE,
+  DIFF_NO_DIFF_MESSAGE,
+} from "@/features/diff/lib/diff-toast";
+import { areDiffContentsEqual } from "@/features/diff/lib/diff-content";
 import { useTheme } from "@/hooks/use-theme";
+import { useResizableDialog } from "@/hooks/use-resizable-dialog";
 import { useEditorStore, type EditorMode } from "@/store/editor.store";
+import { CodeResult } from "@/types";
 import { getRevealInFileManagerLabel } from "@/features/file-tree/utils";
+import { hasNoHeadVersion, toGitRelativePath } from "../lib/editor-git-actions";
 import { editorSchema } from "../lib/blocknote-schema";
 import {
   moveCursorAfterUploadedImage,
@@ -28,6 +40,7 @@ import {
 } from "../lib/editor-image";
 import { EDITOR_EMPTY_PLACEHOLDER } from "../lib/editor-placeholder";
 import { configureRichTextUndoHistory } from "../lib/editor-undo-history";
+import { scheduleStableEditorBlockScroll } from "../lib/editor-viewport";
 import {
   clearEditorFindHighlights,
   collectEditorFindRanges,
@@ -44,6 +57,7 @@ import {
 } from "../lib/find-in-file";
 import {
   markdownEquals,
+  parseMarkdown,
   preserveMarkdownSource,
   serializeMarkdown,
 } from "../lib/markdown";
@@ -53,6 +67,7 @@ import {
   createRichEditorSelectionDragGuardPlugin,
   EditorFormattingToolbar,
   EditorSideMenuController,
+  focusEditorOutlineBlock,
   getRichEditorInlineContentFromTarget,
   handleRichEditorHeadingShortcut,
   handleRichEditorSelectAllShortcut,
@@ -77,7 +92,14 @@ import "@/styles/blocknote-overrides.css";
 import "./quick-editor-window.css";
 
 const QUICK_EDITOR_MORE_ACTIONS_MIN_HEIGHT = 200;
+const QUICK_EDITOR_TOAST_DURATION = 3000;
 const NOOP = () => undefined;
+
+interface QuickEditorDiffState {
+  fileName: string;
+  newContent: string;
+  oldContent: string;
+}
 
 interface QuickEditorBlock {
   children?: QuickEditorBlock[];
@@ -207,14 +229,23 @@ export function QuickEditorWindow() {
   );
   const selectionDragAnchorRef = useRef<number | null>(null);
   const activeHeadingFrameRef = useRef<number | null>(null);
+  const outlineScrollTokenRef = useRef(0);
   const isFindOpenRef = useRef(false);
   const isOutlineOpenRef = useRef(false);
   const outlineDirtyRef = useRef(true);
   const outlineHeadingsRef = useRef<QuickEditorOutlineHeading[]>([]);
   const activeHeadingIdRef = useRef<string | null>(null);
   const replacementUndoStackRef = useRef<string[]>([]);
+  const toastTimerRef = useRef<number | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [linkedFilePath, setLinkedFilePath] = useState<string | null>(null);
+  const [linkedRepositoryRoot, setLinkedRepositoryRoot] = useState<
+    string | null
+  >(null);
+  const [isGitRepo, setIsGitRepo] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [diffState, setDiffState] = useState<QuickEditorDiffState | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [editorMode, setEditorMode] = useState<EditorMode>("rich");
   const [sourceMarkdown, setSourceMarkdown] = useState("");
   const [hasMoreActionsHeight, setHasMoreActionsHeight] = useState(
@@ -392,6 +423,25 @@ export function QuickEditorWindow() {
     window.electronAPI.updateDirtyState(isDirty);
   }, []);
 
+  const showToast = useCallback((message: string) => {
+    if (toastTimerRef.current !== null) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+    setToastMessage(message);
+    toastTimerRef.current = window.setTimeout(() => {
+      setToastMessage(null);
+      toastTimerRef.current = null;
+    }, QUICK_EDITOR_TOAST_DURATION);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current !== null) {
+        window.clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, []);
+
   const syncContentToSource = useCallback(() => {
     const source = sourceRef.current;
     const sourceContent = lastSyncedContentRef.current;
@@ -431,6 +481,28 @@ export function QuickEditorWindow() {
       serialized,
     );
   }, [editor, editorMode]);
+
+  const applyRestoredContent = useCallback(
+    async (content: string, source: QuickEditorWindowContent["source"]) => {
+      const revision = ++syncRevisionRef.current;
+      const blocks = await parseMarkdown(editor, content);
+      const baseline = await serializeMarkdown(editor, blocks);
+      if (revision !== syncRevisionRef.current) return;
+
+      sourceRef.current = source;
+      setLinkedFilePath(source?.filePath ?? null);
+      setLinkedRepositoryRoot(source?.repositoryRoot ?? null);
+      lastSyncedContentRef.current = content;
+      serializedBaselineRef.current = baseline;
+      replacementUndoStackRef.current.length = 0;
+      sourceMarkdownRef.current = content;
+      setSourceMarkdown(content);
+      setFindContent(content);
+      editor.replaceBlocks(editor.document, blocks);
+      syncDirtyState(false);
+    },
+    [editor, syncDirtyState],
+  );
 
   const handleSourceChange = useCallback(
     (content: string) => {
@@ -552,6 +624,7 @@ export function QuickEditorWindow() {
 
   const handleRichEditorPointerDownCapture = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
+      outlineScrollTokenRef.current += 1;
       setOutlineVisibility(false);
       selectionDragPointerRef.current = {
         buttons: event.buttons,
@@ -685,14 +758,23 @@ export function QuickEditorWindow() {
 
   const handleOutlineHeadingSelect = useCallback(
     (blockId: string) => {
-      const element = findQuickEditorBlockElement(editor.domElement, blockId);
-      if (!element || !editor.getBlock(blockId)) return;
-      editor.setTextCursorPosition(blockId, "start");
-      element.scrollIntoView({
-        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
-          ? "auto"
-          : "smooth",
-        block: "start",
+      const scrollContainer = scrollContainerRef.current;
+      if (!scrollContainer) return;
+
+      // 与面板编辑器共用稳定定位，避免原生平滑滚动与编辑器选区滚动同时触发，
+      // 导致 CodeMirror 在跨帧测量期间出现闪烁或虚拟行错绘。
+      const scrollToken = outlineScrollTokenRef.current + 1;
+      outlineScrollTokenRef.current = scrollToken;
+      if (!focusEditorOutlineBlock(editor, blockId)) return;
+
+      const getTarget = () =>
+        findQuickEditorBlockElement(editor.domElement, blockId);
+      if (!getTarget()) return;
+
+      scheduleStableEditorBlockScroll({
+        container: scrollContainer,
+        getTarget,
+        shouldContinue: () => outlineScrollTokenRef.current === scrollToken,
       });
       updateActiveHeading(blockId);
     },
@@ -715,7 +797,7 @@ export function QuickEditorWindow() {
       const revision = ++syncRevisionRef.current;
 
       try {
-        const blocks = await editor.tryParseMarkdownToBlocks(content);
+        const blocks = await parseMarkdown(editor, content);
         const baseline = await serializeMarkdown(editor, blocks);
         if (revision !== syncRevisionRef.current) return;
 
@@ -832,14 +914,13 @@ export function QuickEditorWindow() {
       if (cancelled) return;
       const revision = ++syncRevisionRef.current;
       try {
-        const blocks = await editor.tryParseMarkdownToBlocks(
-          initialContent.content,
-        );
+        const blocks = await parseMarkdown(editor, initialContent.content);
         const baseline = await serializeMarkdown(editor, blocks);
         if (cancelled || revision !== syncRevisionRef.current) return;
 
         sourceRef.current = initialContent.source;
         setLinkedFilePath(initialContent.source?.filePath ?? null);
+        setLinkedRepositoryRoot(initialContent.source?.repositoryRoot ?? null);
         lastSyncedContentRef.current = initialContent.content;
         serializedBaselineRef.current = baseline;
         replacementUndoStackRef.current.length = 0;
@@ -866,17 +947,38 @@ export function QuickEditorWindow() {
   }, [editor, syncDirtyState]);
 
   useEffect(() => {
+    let active = true;
+    if (!linkedFilePath || !linkedRepositoryRoot) {
+      setIsGitRepo(false);
+      return;
+    }
+
+    void window.gitAPI.detect(linkedRepositoryRoot).then((result) => {
+      if (active) {
+        setIsGitRepo(
+          result.code === CodeResult.Success && result.data?.isGitRepo === true,
+        );
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [linkedFilePath, linkedRepositoryRoot]);
+
+  useEffect(() => {
     let cancelled = false;
     const applyLiveContent = async (content: QuickEditorWindowContent) => {
       if (cancelled) return;
       const revision = ++syncRevisionRef.current;
       try {
-        const blocks = await editor.tryParseMarkdownToBlocks(content.content);
+        const blocks = await parseMarkdown(editor, content.content);
         const baseline = await serializeMarkdown(editor, blocks);
         if (cancelled || revision !== syncRevisionRef.current) return;
 
         sourceRef.current = content.source;
         setLinkedFilePath(content.source?.filePath ?? null);
+        setLinkedRepositoryRoot(content.source?.repositoryRoot ?? null);
         lastSyncedContentRef.current = content.content;
         serializedBaselineRef.current = baseline;
         replacementUndoStackRef.current.length = 0;
@@ -921,6 +1023,101 @@ export function QuickEditorWindow() {
     void window.electronAPI.openInExplorer(linkedFilePath);
   }, [linkedFilePath]);
 
+  const getGitHeadContent = useCallback(
+    async (
+      source: NonNullable<QuickEditorWindowContent["source"]>,
+    ): Promise<string | null> => {
+      const relativePath = toGitRelativePath(
+        source.repositoryRoot!,
+        source.filePath!,
+      );
+      const headResult = await window.gitAPI.getFileHeadContent(
+        source.repositoryRoot!,
+        relativePath,
+      );
+      if (headResult.code === CodeResult.Success) {
+        return headResult.data ?? "";
+      }
+
+      const statusResult = await window.gitAPI.getStatus(
+        source.repositoryRoot!,
+      );
+      return statusResult.code === CodeResult.Success &&
+        statusResult.data &&
+        hasNoHeadVersion(statusResult.data, relativePath)
+        ? ""
+        : null;
+    },
+    [],
+  );
+
+  const handleCompare = useCallback(async () => {
+    const source = sourceRef.current;
+    if (!source?.filePath || !source.repositoryRoot) return;
+
+    const content = await getCurrentEditorContent();
+    const headContent = await getGitHeadContent(source);
+    if (headContent === null) {
+      showToast("无法读取 Git 差异");
+      return;
+    }
+    if (areDiffContentsEqual(headContent, content)) {
+      showToast(DIFF_NO_DIFF_MESSAGE);
+      return;
+    }
+
+    setDiffState({
+      fileName: source.filePath.split(/[\\/]/).pop() ?? "当前文件",
+      newContent: content,
+      oldContent: headContent,
+    });
+  }, [getCurrentEditorContent, getGitHeadContent, showToast]);
+
+  const handleDiscard = useCallback(async () => {
+    const source = sourceRef.current;
+    if (!source?.filePath || !source.repositoryRoot) return;
+
+    const content = await getCurrentEditorContent();
+    const headContent = await getGitHeadContent(source);
+    if (headContent === null) {
+      showToast("无法读取 Git 更改");
+      return;
+    }
+    if (areDiffContentsEqual(headContent, content)) {
+      showToast(DIFF_NO_CHANGES_MESSAGE);
+      return;
+    }
+
+    await window.electronAPI.flushQuickEditorContent(source);
+    const result = await window.gitAPI.discardChanges(
+      source.repositoryRoot,
+      toGitRelativePath(source.repositoryRoot, source.filePath),
+    );
+    if (result.code !== CodeResult.Success) {
+      showToast("放弃更改失败");
+      return;
+    }
+
+    try {
+      const restoredContent = await window.electronAPI.readFile(
+        source.filePath,
+      );
+      await applyRestoredContent(restoredContent, source);
+      window.electronAPI.syncQuickEditorContent({
+        content: restoredContent,
+        source,
+      });
+    } catch {
+      // 未追踪文件回滚后会被删除，浮窗转为未关联的空白草稿，不能重新同步写回。
+      await applyRestoredContent("", null);
+    }
+  }, [
+    applyRestoredContent,
+    getCurrentEditorContent,
+    getGitHeadContent,
+    showToast,
+  ]);
+
   const handleToggleEditorMode = useCallback(async () => {
     if (editorMode === "rich") {
       const content = await getCurrentEditorContent();
@@ -935,7 +1132,7 @@ export function QuickEditorWindow() {
     const revision = ++syncRevisionRef.current;
     const sourceContent = sourceMarkdownRef.current;
     try {
-      const blocks = await editor.tryParseMarkdownToBlocks(sourceContent);
+      const blocks = await parseMarkdown(editor, sourceContent);
       const baseline = await serializeMarkdown(editor, blocks);
       if (revision !== syncRevisionRef.current) return;
 
@@ -1048,6 +1245,8 @@ export function QuickEditorWindow() {
               revealInFileManagerLabel={
                 linkedFilePath ? revealInFileManagerLabel : undefined
               }
+              onCompare={isGitRepo ? () => void handleCompare() : undefined}
+              onDiscard={isGitRepo ? () => setConfirmDiscard(true) : undefined}
               onCloseWindow={() => window.electronAPI.closeQuickEditorWindow()}
             />
           )}
@@ -1121,10 +1320,107 @@ export function QuickEditorWindow() {
           <QuickEditorOutline
             headings={outlineHeadings}
             activeHeadingId={activeHeadingId}
+            resetKey={linkedFilePath}
             onHeadingSelect={handleOutlineHeadingSelect}
           />
         ) : null}
       </main>
+      <ConfirmDialog
+        open={confirmDiscard}
+        onOpenChange={setConfirmDiscard}
+        title="确认放弃更改"
+        description={`确定要放弃 "${linkedFilePath?.split(/[\\/]/).pop() ?? "当前文件"}" 的更改吗？`}
+        variant="warning"
+        confirmText="确定"
+        onConfirm={() => void handleDiscard()}
+      />
+      {diffState ? (
+        <QuickEditorDiffDialog
+          diff={diffState}
+          onOpenChange={(open) => {
+            if (!open) setDiffState(null);
+          }}
+        />
+      ) : null}
+      {toastMessage ? (
+        <div
+          aria-live="polite"
+          className="app-toast pointer-events-none fixed left-1/2 top-14 z-[100] flex w-[calc(100vw-24px)] max-w-[320px] items-center gap-2 rounded-lg px-2.5 py-2 text-sm"
+          role="status"
+        >
+          <span className="app-toast__icon flex h-5 w-5 shrink-0 items-center justify-center">
+            <Info aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
+          </span>
+          <span className="min-w-0 flex-1 break-words leading-5">
+            {toastMessage}
+          </span>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+function QuickEditorDiffDialog({
+  diff,
+  onOpenChange,
+}: {
+  diff: QuickEditorDiffState;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { contentRef, dragHandleProps, resizeHandleProps } = useResizableDialog(
+    {
+      isOpen: true,
+      minWidth: 360,
+      minHeight: 240,
+      viewportMargin: 8,
+    },
+  );
+
+  return (
+    <Dialog.Root modal={false} open onOpenChange={onOpenChange}>
+      <DialogContent
+        ref={contentRef}
+        showCloseButton={false}
+        overlayStyle={{ backgroundColor: "transparent" }}
+        className="h-[min(74vh,520px)] w-[min(92vw,820px)] max-w-none flex-col gap-0 overflow-hidden p-0"
+        style={{
+          display: "flex",
+          backgroundColor: "var(--bg-primary)",
+          border: "1px solid var(--border-color)",
+          borderRadius: "8px",
+          boxShadow: "0 10px 28px rgba(0, 0, 0, 0.24)",
+          color: "var(--text-primary)",
+        }}
+      >
+        <div
+          {...dragHandleProps}
+          className="flex h-11 shrink-0 cursor-move select-none items-center justify-between border-b border-[var(--border-color)] px-3"
+        >
+          <Dialog.Title className="min-w-0 truncate text-sm font-medium">
+            {diff.fileName}差异
+          </Dialog.Title>
+          <Dialog.Close
+            aria-label="关闭差异"
+            onPointerDown={(event) => event.stopPropagation()}
+            className="rounded-md p-1 text-[var(--text-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)]"
+          >
+            <X aria-hidden="true" size={16} />
+          </Dialog.Close>
+        </div>
+        <div className="min-h-0 flex-1">
+          {diff ? (
+            <DiffViewer
+              oldContent={diff.oldContent}
+              newContent={diff.newContent}
+              fileName={diff.fileName}
+              oldTitle={`${diff.fileName} (HEAD)`}
+              newTitle={`${diff.fileName} (编辑器)`}
+              reserveDialogResizeHandleSpace
+            />
+          ) : null}
+        </div>
+        <DialogResizeHandles resizeHandleProps={resizeHandleProps} />
+      </DialogContent>
+    </Dialog.Root>
   );
 }

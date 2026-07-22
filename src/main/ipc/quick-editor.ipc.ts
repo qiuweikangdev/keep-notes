@@ -5,6 +5,7 @@ import {
   configureQuickEditorGlobalShortcuts,
   consumePendingQuickEditorContent,
   createQuickEditorWindow,
+  flushQuickEditorContent,
   getQuickEditorCollapsed,
   returnToMainWindowFromQuickEditor,
   setQuickEditorCollapsed,
@@ -41,6 +42,11 @@ export function registerQuickEditorIpc(): void {
     (event, content: unknown) => {
       syncQuickEditorContent(content, getBrowserWindow(event));
     },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.QUICK_EDITOR.FLUSH_CONTENT,
+    (_, source: unknown) => flushQuickEditorContent(source),
   );
 
   ipcMain.on(IPC_CHANNELS.QUICK_EDITOR.CLOSE_WINDOW, (event) => {

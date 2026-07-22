@@ -76,6 +76,7 @@ function getActiveEditorTarget() {
       groupId: activeGroup.id,
       tabId: activeTab.id,
       filePath: activeTab.filePath,
+      temporaryTitle: activeTab.temporaryTitle ?? null,
       content: activeTab.content,
     };
   }
@@ -84,6 +85,7 @@ function getActiveEditorTarget() {
     groupId: null,
     tabId: null,
     filePath: state.filePath,
+    temporaryTitle: null,
     content: state.content,
   };
 }
@@ -125,7 +127,12 @@ export function useKeyboardShortcuts() {
     }
 
     const latestTarget = getActiveEditorTarget();
-    const result = await window.electronAPI.saveAs(latestTarget.content);
+    const result = latestTarget.temporaryTitle
+      ? await window.electronAPI.saveAs(
+          latestTarget.content,
+          latestTarget.temporaryTitle,
+        )
+      : await window.electronAPI.saveAs(latestTarget.content);
     if (result.code === 0 && result.data) {
       markSaveAsSuccess(result.data.filePath);
     }

@@ -1,11 +1,23 @@
 import { useEditorStore } from "@/store/editor.store";
 import {
   FileText,
+  Pencil,
   X,
   SplitSquareVertical,
   SplitSquareHorizontal,
 } from "lucide-react";
-import { useState, useEffect, useCallback } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  type KeyboardEvent,
+} from "react";
+import { createPortal } from "react-dom";
+import { useElectron } from "@/hooks/use-electron";
+import { showAppToast } from "@/lib/app-toast";
+import { useTreeStore } from "@/store/tree.store";
+import { CodeResult } from "@/types";
 import {
   editorSaveCoordinator,
   flushEditorChange,
@@ -16,6 +28,18 @@ import { EditorToolbar } from "./editor-toolbar";
 
 interface EditorTabBarProps {
   groupId: string;
+}
+
+function getFileNameWithoutExtension(filePath: string): string {
+  return (filePath.split(/[\\/]/).pop() ?? "").replace(/\.md$/, "");
+}
+
+function buildRenamedFilePath(filePath: string, title: string): string {
+  const separatorIndex = Math.max(
+    filePath.lastIndexOf("/"),
+    filePath.lastIndexOf("\\"),
+  );
+  return `${filePath.slice(0, separatorIndex + 1)}${title}.md`;
 }
 
 type AddPanelGroup = (
@@ -62,6 +86,13 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
   const removeTab = useEditorStore((state) => state.removeTab);
   const addTab = useEditorStore((state) => state.addTab);
   const addPanelGroup = useEditorStore((state) => state.addPanelGroup);
+  const setTabTemporaryTitle = useEditorStore(
+    (state) => state.setTabTemporaryTitle,
+  );
+  const renameFilePath = useEditorStore((state) => state.renameFilePath);
+  const setTreeData = useTreeStore((state) => state.setTreeData);
+  const setSelectedKey = useTreeStore((state) => state.setSelectedKey);
+  const { renameItem } = useElectron();
 
   const group = useEditorStore
     .getState()
@@ -70,7 +101,15 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
     x: number;
     y: number;
     tabId: string;
+    tabWidth: number | null;
   } | null>(null);
+  const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
+  const [renamingTabWidth, setRenamingTabWidth] = useState<number | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const renameInputRef = useRef<HTMLInputElement>(null);
+  const isRenameComposingRef = useRef(false);
+  const isRenameCancelledRef = useRef(false);
+  const isRenameSubmittingRef = useRef(false);
 
   // 关闭右键菜单
   useEffect(() => {
@@ -83,6 +122,13 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
       document.removeEventListener("contextmenu", handleClose);
     };
   }, [contextMenu]);
+
+  useEffect(() => {
+    if (renamingTabId && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [renamingTabId]);
 
   if (!group) return null;
 
@@ -135,7 +181,13 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
   const handleContextMenu = (e: React.MouseEvent, tabId: string) => {
     e.preventDefault();
     e.stopPropagation();
-    setContextMenu({ x: e.clientX, y: e.clientY, tabId });
+    const tabWidth = e.currentTarget.getBoundingClientRect().width;
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      tabId,
+      tabWidth: tabWidth > 0 ? tabWidth : null,
+    });
   };
 
   const handleCloseTabFromMenu = () => {
@@ -145,18 +197,107 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
     }
   };
 
-  const handleCloseOtherTabs = () => {
-    if (contextMenu) {
-      const tabsToClose = group.tabs.filter((t) => t.id !== contextMenu.tabId);
-      tabsToClose.forEach((tab) => void closeTab(tab.id));
-      setContextMenu(null);
-    }
-  };
+  const handleStartRename = () => {
+    const tab = group.tabs.find((item) => item.id === contextMenu?.tabId);
+    if (!tab) return;
 
-  const handleCloseAllTabs = () => {
-    group.tabs.forEach((tab) => void closeTab(tab.id));
+    isRenameCancelledRef.current = false;
+    setRenamingTabWidth(contextMenu?.tabWidth ?? null);
+    setRenameValue(
+      tab.filePath
+        ? getFileNameWithoutExtension(tab.filePath)
+        : (tab.temporaryTitle ?? ""),
+    );
+    setRenamingTabId(tab.id);
     setContextMenu(null);
   };
+
+  const handleRenameConfirm = useCallback(async () => {
+    if (
+      !renamingTabId ||
+      isRenameCancelledRef.current ||
+      isRenameSubmittingRef.current
+    ) {
+      return;
+    }
+
+    const tab = useEditorStore
+      .getState()
+      .panelGroups.find((item) => item.id === groupId)
+      ?.tabs.find((item) => item.id === renamingTabId);
+    const filePath = tab?.filePath;
+    const title = renameValue.trim();
+    if (!tab || !title) {
+      setRenamingTabId(null);
+      return;
+    }
+
+    if (!filePath) {
+      if (title !== tab.temporaryTitle) {
+        setTabTemporaryTitle(groupId, renamingTabId, title);
+      }
+      setRenamingTabId(null);
+      return;
+    }
+
+    if (title === getFileNameWithoutExtension(filePath)) {
+      setRenamingTabId(null);
+      return;
+    }
+
+    isRenameSubmittingRef.current = true;
+    // 重命名前先写入待保存内容，避免自动保存任务重新创建旧文件。
+    try {
+      await flushEditorChange(groupId, renamingTabId);
+      await editorSaveCoordinator.flush(filePath);
+
+      const result = await renameItem(
+        filePath,
+        title,
+        useTreeStore.getState().treeData,
+      );
+      if (result.code === CodeResult.Success && result.data) {
+        const nextPath = buildRenamedFilePath(filePath, title);
+        setTreeData(result.data.treeData);
+        renameFilePath(filePath, nextPath);
+        setSelectedKey(nextPath);
+      } else if (result.message) {
+        showAppToast(result.message);
+      }
+    } finally {
+      isRenameSubmittingRef.current = false;
+      setRenamingTabId(null);
+    }
+  }, [
+    groupId,
+    renameFilePath,
+    renameItem,
+    renameValue,
+    renamingTabId,
+    setTabTemporaryTitle,
+    setSelectedKey,
+    setTreeData,
+  ]);
+
+  const handleRenameKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLInputElement>) => {
+      const isComposing =
+        isRenameComposingRef.current ||
+        event.nativeEvent.isComposing ||
+        event.keyCode === 229;
+      if (isComposing) return;
+
+      if (event.key === "Enter") {
+        event.preventDefault();
+        void handleRenameConfirm();
+      }
+      if (event.key === "Escape") {
+        isRenameCancelledRef.current = true;
+        setRenamingTabId(null);
+      }
+    },
+    [handleRenameConfirm],
+  );
 
   return (
     <div
@@ -170,7 +311,8 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
       <div className="flex flex-1 overflow-x-auto scrollbar-none h-full">
         {group.tabs.map((tab) => {
           const displayPath = tab.pendingFilePath ?? tab.filePath;
-          const fileName = displayPath?.split(/[\\/]/).pop() || "未命名";
+          const fileName =
+            displayPath?.split(/[\\/]/).pop() || tab.temporaryTitle || "未命名";
           const isActive = group.activeTabId === tab.id;
 
           return (
@@ -182,6 +324,10 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
                 borderColor: "var(--border-color)",
                 minWidth: "120px",
                 maxWidth: "200px",
+                width:
+                  renamingTabId === tab.id && renamingTabWidth !== null
+                    ? `${renamingTabWidth}px`
+                    : undefined,
               }}
               onClick={() => handleTabClick(tab.id)}
               onContextMenu={(e) => handleContextMenu(e, tab.id)}
@@ -200,16 +346,35 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
                 className="h-3.5 w-3.5 flex-shrink-0"
                 style={{ color: "var(--text-muted)" }}
               />
-              <span
-                className="text-[11px] truncate flex-1"
-                style={{
-                  color: isActive
-                    ? "var(--text-primary)"
-                    : "var(--text-secondary)",
-                }}
-              >
-                {fileName}
-              </span>
+              {renamingTabId === tab.id ? (
+                <input
+                  ref={renameInputRef}
+                  value={renameValue}
+                  aria-label="重命名文件"
+                  className="h-6 min-w-0 flex-1 rounded-sm border border-[var(--accent-color)] bg-[var(--bg-primary)] px-1.5 text-[11px] text-[var(--text-primary)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--accent-color)_18%,transparent)] outline-none"
+                  onChange={(event) => setRenameValue(event.target.value)}
+                  onClick={(event) => event.stopPropagation()}
+                  onKeyDown={handleRenameKeyDown}
+                  onCompositionStart={() => {
+                    isRenameComposingRef.current = true;
+                  }}
+                  onCompositionEnd={() => {
+                    isRenameComposingRef.current = false;
+                  }}
+                  onBlur={() => void handleRenameConfirm()}
+                />
+              ) : (
+                <span
+                  className="text-[11px] truncate flex-1"
+                  style={{
+                    color: isActive
+                      ? "var(--text-primary)"
+                      : "var(--text-secondary)",
+                  }}
+                >
+                  {fileName}
+                </span>
+              )}
               <button
                 onClick={(e) => handleCloseTab(e, tab.id)}
                 className="flex-shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -244,65 +409,62 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
       </div>
 
       {/* 右键菜单 */}
-      {contextMenu && (
-        <div
-          className="fixed z-50 py-1 min-w-[180px]"
-          style={{
-            left: contextMenu.x,
-            top: contextMenu.y,
-            backgroundColor: "var(--bg-secondary)",
-            border: "1px solid var(--border-color)",
-            borderRadius: "6px",
-            boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
-          }}
-        >
-          <MenuButton
-            icon={<X className="h-3.5 w-3.5" />}
-            onClick={handleCloseTabFromMenu}
-          >
-            关闭
-          </MenuButton>
-          <MenuButton
-            icon={<X className="h-3.5 w-3.5" />}
-            onClick={handleCloseOtherTabs}
-          >
-            关闭其他
-          </MenuButton>
-          <MenuButton
-            icon={<X className="h-3.5 w-3.5" />}
-            onClick={handleCloseAllTabs}
-          >
-            关闭所有
-          </MenuButton>
-          <MenuDivider />
-          <MenuButton
-            icon={<SplitSquareHorizontal className="h-3.5 w-3.5" />}
-            onClick={() => {
-              setContextMenu(null);
-              if (import.meta.env.DEV) {
-                splitEditorPanel("horizontal", groupId, addPanelGroup);
-                return;
-              }
-              addPanelGroup("horizontal", groupId);
-            }}
-          >
-            向右拆分
-          </MenuButton>
-          <MenuButton
-            icon={<SplitSquareVertical className="h-3.5 w-3.5" />}
-            onClick={() => {
-              setContextMenu(null);
-              if (import.meta.env.DEV) {
-                splitEditorPanel("vertical", groupId, addPanelGroup);
-                return;
-              }
-              addPanelGroup("vertical", groupId);
-            }}
-          >
-            向下拆分
-          </MenuButton>
-        </div>
-      )}
+      {contextMenu
+        ? createPortal(
+            <div
+              className="fixed z-[100] min-w-[180px] py-1"
+              style={{
+                left: contextMenu.x,
+                top: contextMenu.y,
+                backgroundColor: "var(--bg-secondary)",
+                border: "1px solid var(--border-color)",
+                borderRadius: "6px",
+                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+              }}
+            >
+              <MenuButton
+                icon={<X className="h-3.5 w-3.5" />}
+                onClick={handleCloseTabFromMenu}
+              >
+                关闭
+              </MenuButton>
+              <MenuButton
+                icon={<Pencil className="h-3.5 w-3.5" />}
+                onClick={handleStartRename}
+              >
+                重命名
+              </MenuButton>
+              <MenuDivider />
+              <MenuButton
+                icon={<SplitSquareHorizontal className="h-3.5 w-3.5" />}
+                onClick={() => {
+                  setContextMenu(null);
+                  if (import.meta.env.DEV) {
+                    splitEditorPanel("horizontal", groupId, addPanelGroup);
+                    return;
+                  }
+                  addPanelGroup("horizontal", groupId);
+                }}
+              >
+                向右拆分
+              </MenuButton>
+              <MenuButton
+                icon={<SplitSquareVertical className="h-3.5 w-3.5" />}
+                onClick={() => {
+                  setContextMenu(null);
+                  if (import.meta.env.DEV) {
+                    splitEditorPanel("vertical", groupId, addPanelGroup);
+                    return;
+                  }
+                  addPanelGroup("vertical", groupId);
+                }}
+              >
+                向下拆分
+              </MenuButton>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
