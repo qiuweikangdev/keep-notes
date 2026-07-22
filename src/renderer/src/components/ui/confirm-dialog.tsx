@@ -4,6 +4,7 @@ import {
   CircleAlert,
   Trash2,
   TriangleAlert,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { useRef, type MouseEvent } from "react";
@@ -63,9 +64,10 @@ export function ConfirmDialog({
           onClick={stopPortalClick}
         />
         <Dialog.Content
-          className="fixed left-1/2 top-1/2 z-50 w-[calc(100vw-32px)] max-w-[360px] -translate-x-1/2 -translate-y-1/2 rounded-lg p-5 outline-none"
+          className="fixed left-1/2 top-1/2 z-50 w-[calc(100vw-32px)] max-w-[360px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl p-0 outline-none"
           style={{
-            backgroundColor: "var(--bg-primary)",
+            backgroundColor:
+              "color-mix(in srgb, var(--bg-secondary) 42%, var(--bg-primary))",
             border: "1px solid var(--border-color)",
             boxShadow: "0 2px 8px rgba(0, 0, 0, 0.16)",
             color: "var(--text-primary)",
@@ -77,22 +79,36 @@ export function ConfirmDialog({
           }}
           onClick={stopPortalClick}
         >
-          <Dialog.Title className="flex items-center gap-1.5 text-sm font-medium leading-5">
-            <TitleIcon
-              aria-hidden="true"
-              className="h-4 w-4 shrink-0"
-              style={{ color: titleIconColor }}
-            />
-            {title}
-          </Dialog.Title>
+          <div className="flex h-14 items-center justify-between border-b border-[var(--border-color)] px-5">
+            <Dialog.Title className="flex items-center gap-2.5 text-base font-semibold leading-6">
+              <TitleIcon
+                aria-hidden="true"
+                className="h-5 w-5 shrink-0"
+                style={{ color: titleIconColor }}
+              />
+              {title}
+            </Dialog.Title>
+            <Dialog.Close
+              aria-label="关闭"
+              className="-mr-2 flex h-9 w-9 items-center justify-center rounded-md text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-color)]"
+            >
+              <X aria-hidden="true" className="h-5 w-5" />
+            </Dialog.Close>
+          </div>
           <Dialog.Description
-            className={description ? "mt-2 text-[13px] leading-5" : "sr-only"}
+            className={description ? "px-5 py-6 text-sm leading-6" : "sr-only"}
             style={{ color: "var(--text-secondary)" }}
           >
             {description ?? "请确认是否继续此操作。"}
           </Dialog.Description>
 
-          <div className="mt-5 flex items-center justify-end gap-1.5">
+          <div
+            className="flex items-center justify-end gap-2 border-t border-[var(--border-color)] px-5 py-4"
+            style={{
+              backgroundColor:
+                "color-mix(in srgb, var(--bg-secondary) 68%, var(--bg-primary))",
+            }}
+          >
             <Dialog.Close asChild>
               <Button
                 ref={cancelButtonRef}
