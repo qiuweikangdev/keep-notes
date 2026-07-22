@@ -1,3 +1,24 @@
+# [2.18.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.17.0...v2.18.0) (2026-07-22)
+
+
+### Bug Fixes
+
+* keep export toast opaque ([c4dbf6d](https://github.com/qiuweikangdev/keep-notes/commit/c4dbf6d4746f9a9ca10f51a63c1775fa6be19a12))
+* keep file tree drag border within row ([8ed9ca7](https://github.com/qiuweikangdev/keep-notes/commit/8ed9ca7e2103f83dda49874791a172ee62535474))
+
+
+### Features
+
+* align quick editor interactions ([f4d85cb](https://github.com/qiuweikangdev/keep-notes/commit/f4d85cba8caa0d92fcf5166b9cb2ba52cf56184f))
+* redesign application icon ([f3ae17f](https://github.com/qiuweikangdev/keep-notes/commit/f3ae17f594c5cb5aca47ba288c6bb350c7334e2a))
+* reveal linked quick editor file ([05b560a](https://github.com/qiuweikangdev/keep-notes/commit/05b560a05d2809a8e2867a2378b9e5f00249dc3c))
+
+
+## Commit Summary
+
+- Compared with: v2.17.0
+- Total commits: 6
+
 # [2.17.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.16.0...v2.17.0) (2026-07-21)
 
 
