@@ -15,6 +15,7 @@ describe("editor store", () => {
       outlineHeadingsByPath: {},
       activeHeadingIdByPane: {},
       fileDragTargetGroupId: null,
+      recentOpenedFilePaths: ["note.md", "other.md"],
       panelGroups: [
         {
           id: "group-1",
@@ -85,6 +86,51 @@ describe("editor store", () => {
     expect(tab?.content).toBe("");
     expect(tab?.isDirty).toBe(false);
     expect(tab?.saveStatus).toBe("clean");
+  });
+
+  it("updates every open tab and recent path after a file is renamed", () => {
+    const initialGroup = useEditorStore.getState().panelGroups[0];
+    const firstGroup = {
+      ...initialGroup,
+      tabs: initialGroup.tabs.map((tab) => ({
+        ...tab,
+        filePath: "C:/notes/note.md",
+      })),
+    };
+    useEditorStore.setState({
+      filePath: "C:\\notes\\note.md",
+      recentOpenedFilePaths: ["C:\\notes\\note.md", "other.md"],
+      panelGroups: [
+        firstGroup,
+        {
+          ...firstGroup,
+          id: "group-2",
+          activeTabId: "tab-2",
+          tabs: [
+            {
+              ...firstGroup.tabs[0],
+              id: "tab-2",
+            },
+          ],
+        },
+      ],
+    });
+
+    useEditorStore
+      .getState()
+      .renameFilePath("C:\\notes\\note.md", "C:\\notes\\renamed.md");
+
+    const state = useEditorStore.getState();
+    expect(state.filePath).toBe("C:\\notes\\renamed.md");
+    expect(state.recentOpenedFilePaths).toEqual([
+      "C:\\notes\\renamed.md",
+      "other.md",
+    ]);
+    expect(
+      state.panelGroups.flatMap((group) =>
+        group.tabs.map((tab) => tab.filePath),
+      ),
+    ).toEqual(["C:\\notes\\renamed.md", "C:\\notes\\renamed.md"]);
   });
 
   it("creates unnamed tabs in an immediately editable rich mode", () => {

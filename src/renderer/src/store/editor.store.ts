@@ -120,6 +120,7 @@ export interface EditorState {
   // 标签页内容操作
   setTabContent: (groupId: string, tabId: string, content: string) => void;
   setTabFilePath: (groupId: string, tabId: string, path: string | null) => void;
+  renameFilePath: (previousPath: string, nextPath: string) => void;
   setTabDirty: (groupId: string, tabId: string, dirty: boolean) => void;
   setTabWordCount: (groupId: string, tabId: string, count: number) => void;
   incrementTabReloadKey: (groupId: string, tabId: string) => void;
@@ -619,6 +620,26 @@ export const useEditorStore = create<EditorState>()(
                   }
                 : g,
             ),
+          }));
+        },
+
+        // 文件改名后同步所有已打开标签，避免后续保存仍写入旧路径。
+        renameFilePath: (previousPath, nextPath) => {
+          set((state) => ({
+            filePath: matchesEditorFilePath(state.filePath, previousPath)
+              ? nextPath
+              : state.filePath,
+            recentOpenedFilePaths: state.recentOpenedFilePaths.map((path) =>
+              matchesEditorFilePath(path, previousPath) ? nextPath : path,
+            ),
+            panelGroups: state.panelGroups.map((group) => ({
+              ...group,
+              tabs: group.tabs.map((tab) =>
+                matchesEditorFilePath(tab.filePath, previousPath)
+                  ? { ...tab, filePath: nextPath }
+                  : tab,
+              ),
+            })),
           }));
         },
 
