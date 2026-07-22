@@ -3,7 +3,6 @@ import {
   useEffect,
   useCallback,
   useMemo,
-  useRef,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
@@ -224,12 +223,10 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
   const openDiff = useDiffStore((state) => state.openDiff);
   const closeDiff = useDiffStore((state) => state.closeDiff);
   const updateContent = useDiffStore((state) => state.updateContent);
-  const wasOpenRef = useRef(isOpen);
 
   const currentDir = treeRoot?.key || "";
   const getCurrentDir = useCallback(() => currentDir, [currentDir]);
-  const isOpening = isOpen && !wasOpenRef.current;
-  const isMainDialogOpen = isOpen && !isOpening && isGitRepo === true;
+  const isMainDialogOpen = isOpen && isGitRepo !== false;
   const { contentRef, dragHandleProps, resizeHandleProps } = useResizableDialog(
     {
       isOpen: isMainDialogOpen,
@@ -309,7 +306,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
   }, [getCurrentDir, detectGitRepo, getBranches, getGitStatus]);
 
   useEffect(() => {
-    wasOpenRef.current = isOpen;
     if (isOpen) {
       resetPanelState();
       loadGitInfo();
@@ -769,7 +765,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       ),
     [allFilePaths, isFileStaged, partiallyStagedFilePathSet],
   );
-  const isInitialGitInfoLoading = isGitInfoLoading && gitStatus === null;
+  const isInitialGitInfoLoading =
+    (isGitInfoLoading || isGitRepo === null) && gitStatus === null;
   const isRefreshingGitStatus = isGitInfoLoading && gitStatus !== null;
   const modifiedCount =
     allFiles.filter((file) => file.badge?.kind === "modified").length || 0;
@@ -1649,61 +1646,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
 
   if (!isOpen) return null;
 
-  if (isOpening || isGitRepo === null) {
-    return createPortal(
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center"
-        style={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
-        onClick={onClose}
-      >
-        <div
-          data-git-dialog="loading"
-          className="max-h-[calc(100vh-32px)] w-[calc(100vw-32px)] max-w-[400px] overflow-auto rounded-xl shadow-2xl"
-          style={{ backgroundColor: "var(--bg-secondary)" }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div
-            className="flex items-center justify-between p-4"
-            style={{ borderBottom: "1px solid var(--border-color)" }}
-          >
-            <div className="flex items-center gap-2">
-              <GitBranchIcon
-                className="h-5 w-5"
-                style={{ color: "var(--text-muted)" }}
-              />
-              <span
-                className="font-medium"
-                style={{ color: "var(--text-primary)" }}
-              >
-                Git 操作
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              data-theme-control="true"
-              className="rounded-lg p-1"
-              style={{ color: "var(--text-muted)" }}
-              aria-label="关闭 Git 操作"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          <div
-            className="flex flex-col items-center gap-3 p-8 text-center"
-            role="status"
-            aria-label="加载中"
-            style={{ color: "var(--text-muted)" }}
-          >
-            <Loader2 className="h-6 w-6 animate-spin" />
-          </div>
-        </div>
-      </div>,
-      document.body,
-    );
-  }
-
-  if (!isGitRepo) {
+  if (isGitRepo === false) {
     return createPortal(
       <div
         className="fixed inset-0 z-50 flex items-center justify-center"

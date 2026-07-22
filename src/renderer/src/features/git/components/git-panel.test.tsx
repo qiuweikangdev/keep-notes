@@ -229,7 +229,7 @@ describe("GitPanel", () => {
     );
   });
 
-  it("keeps the Git loading surface compact but viewport safe", () => {
+  it("keeps the main Git surface stable while file status is loading", () => {
     electronMocks.detectGitRepo.mockReturnValueOnce(
       new Promise(() => undefined),
     );
@@ -237,12 +237,12 @@ describe("GitPanel", () => {
     render(<GitPanel isOpen onClose={vi.fn()} />);
 
     expect(
-      screen.getByRole("status").closest('[data-git-dialog="loading"]'),
+      screen.getByRole("status").closest('[data-git-dialog="main"]'),
     ).toHaveClass(
-      "w-[calc(100vw-32px)]",
-      "max-w-[400px]",
-      "max-h-[calc(100vh-32px)]",
+      "h-[min(82vh,calc(100vh-32px))]",
+      "w-[min(680px,calc(100vw-32px))]",
     );
+    expect(document.querySelector('[data-git-dialog="loading"]')).toBeNull();
   });
 
   it("keeps the non-repository surface compact but viewport safe", async () => {
