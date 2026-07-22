@@ -40,6 +40,7 @@ import {
 } from "../lib/editor-image";
 import { EDITOR_EMPTY_PLACEHOLDER } from "../lib/editor-placeholder";
 import { configureRichTextUndoHistory } from "../lib/editor-undo-history";
+import { scheduleStableEditorBlockScroll } from "../lib/editor-viewport";
 import {
   clearEditorFindHighlights,
   collectEditorFindRanges,
@@ -56,6 +57,7 @@ import {
 } from "../lib/find-in-file";
 import {
   markdownEquals,
+  parseMarkdown,
   preserveMarkdownSource,
   serializeMarkdown,
 } from "../lib/markdown";
@@ -65,6 +67,7 @@ import {
   createRichEditorSelectionDragGuardPlugin,
   EditorFormattingToolbar,
   EditorSideMenuController,
+  focusEditorOutlineBlock,
   getRichEditorInlineContentFromTarget,
   handleRichEditorHeadingShortcut,
   handleRichEditorSelectAllShortcut,
@@ -226,6 +229,7 @@ export function QuickEditorWindow() {
   );
   const selectionDragAnchorRef = useRef<number | null>(null);
   const activeHeadingFrameRef = useRef<number | null>(null);
+  const outlineScrollTokenRef = useRef(0);
   const isFindOpenRef = useRef(false);
   const isOutlineOpenRef = useRef(false);
   const outlineDirtyRef = useRef(true);
@@ -481,7 +485,7 @@ export function QuickEditorWindow() {
   const applyRestoredContent = useCallback(
     async (content: string, source: QuickEditorWindowContent["source"]) => {
       const revision = ++syncRevisionRef.current;
-      const blocks = await editor.tryParseMarkdownToBlocks(content);
+      const blocks = await parseMarkdown(editor, content);
       const baseline = await serializeMarkdown(editor, blocks);
       if (revision !== syncRevisionRef.current) return;
 
@@ -620,6 +624,7 @@ export function QuickEditorWindow() {
 
   const handleRichEditorPointerDownCapture = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
+      outlineScrollTokenRef.current += 1;
       setOutlineVisibility(false);
       selectionDragPointerRef.current = {
         buttons: event.buttons,
@@ -753,14 +758,23 @@ export function QuickEditorWindow() {
 
   const handleOutlineHeadingSelect = useCallback(
     (blockId: string) => {
-      const element = findQuickEditorBlockElement(editor.domElement, blockId);
-      if (!element || !editor.getBlock(blockId)) return;
-      editor.setTextCursorPosition(blockId, "start");
-      element.scrollIntoView({
-        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
-          ? "auto"
-          : "smooth",
-        block: "start",
+      const scrollContainer = scrollContainerRef.current;
+      if (!scrollContainer) return;
+
+      // 与面板编辑器共用稳定定位，避免原生平滑滚动与编辑器选区滚动同时触发，
+      // 导致 CodeMirror 在跨帧测量期间出现闪烁或虚拟行错绘。
+      const scrollToken = outlineScrollTokenRef.current + 1;
+      outlineScrollTokenRef.current = scrollToken;
+      if (!focusEditorOutlineBlock(editor, blockId)) return;
+
+      const getTarget = () =>
+        findQuickEditorBlockElement(editor.domElement, blockId);
+      if (!getTarget()) return;
+
+      scheduleStableEditorBlockScroll({
+        container: scrollContainer,
+        getTarget,
+        shouldContinue: () => outlineScrollTokenRef.current === scrollToken,
       });
       updateActiveHeading(blockId);
     },
@@ -783,7 +797,7 @@ export function QuickEditorWindow() {
       const revision = ++syncRevisionRef.current;
 
       try {
-        const blocks = await editor.tryParseMarkdownToBlocks(content);
+        const blocks = await parseMarkdown(editor, content);
         const baseline = await serializeMarkdown(editor, blocks);
         if (revision !== syncRevisionRef.current) return;
 
@@ -900,9 +914,7 @@ export function QuickEditorWindow() {
       if (cancelled) return;
       const revision = ++syncRevisionRef.current;
       try {
-        const blocks = await editor.tryParseMarkdownToBlocks(
-          initialContent.content,
-        );
+        const blocks = await parseMarkdown(editor, initialContent.content);
         const baseline = await serializeMarkdown(editor, blocks);
         if (cancelled || revision !== syncRevisionRef.current) return;
 
@@ -960,7 +972,7 @@ export function QuickEditorWindow() {
       if (cancelled) return;
       const revision = ++syncRevisionRef.current;
       try {
-        const blocks = await editor.tryParseMarkdownToBlocks(content.content);
+        const blocks = await parseMarkdown(editor, content.content);
         const baseline = await serializeMarkdown(editor, blocks);
         if (cancelled || revision !== syncRevisionRef.current) return;
 
@@ -1120,7 +1132,7 @@ export function QuickEditorWindow() {
     const revision = ++syncRevisionRef.current;
     const sourceContent = sourceMarkdownRef.current;
     try {
-      const blocks = await editor.tryParseMarkdownToBlocks(sourceContent);
+      const blocks = await parseMarkdown(editor, sourceContent);
       const baseline = await serializeMarkdown(editor, blocks);
       if (revision !== syncRevisionRef.current) return;
 
@@ -1308,6 +1320,7 @@ export function QuickEditorWindow() {
           <QuickEditorOutline
             headings={outlineHeadings}
             activeHeadingId={activeHeadingId}
+            resetKey={linkedFilePath}
             onHeadingSelect={handleOutlineHeadingSelect}
           />
         ) : null}

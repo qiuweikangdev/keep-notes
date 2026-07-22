@@ -190,11 +190,77 @@ describe("quick editor content detection", () => {
     expect(await screen.findByText("222")).toBeInTheDocument();
   });
 
-  it("scrolls to a selected outline heading", async () => {
+  it("renders fenced code blocks with the same parser as the panel editor", async () => {
+    Object.defineProperty(Range.prototype, "getClientRects", {
+      configurable: true,
+      value: () => [],
+    });
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        addEventListener: vi.fn(),
+        addListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+        matches: false,
+        media: query,
+        onchange: null,
+        removeEventListener: vi.fn(),
+        removeListener: vi.fn(),
+      })),
+    );
+    vi.stubGlobal("electronAPI", {
+      createQuickEditorWindow: vi.fn(),
+      getQuickEditorCollapsed: vi.fn(async () => false),
+      setQuickEditorCollapsed: vi.fn(async (collapsed: boolean) => collapsed),
+      onQuickEditorInitialContent: vi.fn(
+        (callback: (content: { content: string; source: null }) => void) => {
+          callback({
+            content:
+              "- 类似 React 写法\n\n  ```js\n  export default function () {\n    return <div>test</div>\n  }\n  ```",
+            source: null,
+          });
+          return () => undefined;
+        },
+      ),
+      onQuickEditorContentUpdated: vi.fn(() => () => undefined),
+      closeQuickEditorWindow: vi.fn(),
+      returnToMainWindowFromQuickEditor: vi.fn(),
+      syncQuickEditorContent: vi.fn(),
+      updateDirtyState: vi.fn(),
+    });
+
+    const { container } = render(createElement(QuickEditorWindow));
+
+    await waitFor(() => {
+      expect(
+        container.querySelector(".editor-code-block-shell"),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("uses stable container scrolling for a selected outline heading", async () => {
     const scrollIntoView = vi.fn();
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
       configurable: true,
       value: scrollIntoView,
+    });
+    Object.defineProperty(Range.prototype, "getClientRects", {
+      configurable: true,
+      value: () => [],
+    });
+    Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        bottom: 0,
+        height: 0,
+        left: 0,
+        right: 0,
+        top: 0,
+        width: 0,
+        x: 0,
+        y: 0,
+        toJSON: () => undefined,
+      }),
     });
     vi.stubGlobal(
       "matchMedia",
@@ -232,12 +298,13 @@ describe("quick editor content detection", () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "更多操作" }));
     await user.click(screen.getByRole("menuitem", { name: "显示大纲" }));
+    const requestFrame = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation(() => 1);
     await user.click(screen.getByRole("button", { name: "Details" }));
 
-    expect(scrollIntoView).toHaveBeenCalledWith({
-      behavior: "auto",
-      block: "start",
-    });
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    expect(requestFrame).toHaveBeenCalled();
     expect(screen.getByRole("navigation", { name: "文档大纲" })).toBeVisible();
   });
 
@@ -347,7 +414,7 @@ describe("quick editor content detection", () => {
     await user.click(screen.getByRole("button", { name: "更多操作" }));
     await user.click(screen.getByRole("menuitem", { name: "显示大纲" }));
 
-    expect(requestFrame).toHaveBeenCalledOnce();
+    expect(requestFrame).toHaveBeenCalled();
     act(() => frames[0]?.(0));
     expect(
       queryAll.mock.calls.filter(
@@ -368,7 +435,7 @@ describe("quick editor content detection", () => {
 
     await user.click(screen.getByRole("button", { name: "更多操作" }));
     await user.click(screen.getByRole("menuitem", { name: "隐藏大纲" }));
-    expect(cancelFrame).toHaveBeenCalledOnce();
+    expect(cancelFrame).toHaveBeenCalled();
   });
 
   it("does not rewrite unordered-list markers when linked content opens", async () => {

@@ -66,17 +66,17 @@ export function QuickEditorActionsMenu(props: QuickEditorActionsMenuProps) {
           className="quick-editor-actions-menu"
         >
           <ActionItem
-            icon={<ArrowLeftRight aria-hidden="true" size={14} />}
-            onSelect={props.onToggleEditorMode}
-          >
-            编辑模式切换
-          </ActionItem>
-          <ActionItem
             disabled={props.isOutlineDisabled}
             icon={<ListTree aria-hidden="true" size={14} />}
             onSelect={props.onToggleOutline}
           >
             {props.isOutlineOpen ? "隐藏大纲" : "显示大纲"}
+          </ActionItem>
+          <ActionItem
+            icon={<ArrowLeftRight aria-hidden="true" size={14} />}
+            onSelect={props.onToggleEditorMode}
+          >
+            编辑模式切换
           </ActionItem>
           <DropdownMenu.Separator className="quick-editor-actions-menu__separator" />
           <ActionItem

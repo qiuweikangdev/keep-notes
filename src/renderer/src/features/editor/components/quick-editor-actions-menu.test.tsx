@@ -29,8 +29,8 @@ describe("quick editor actions menu", () => {
       .click(screen.getByRole("button", { name: "更多操作" }));
     const items = screen.getAllByRole("menuitem");
     expect(items.map((item) => item.textContent)).toEqual([
-      "编辑模式切换",
       "显示大纲",
+      "编辑模式切换",
       "新建浮动窗口",
       "返回主窗口",
       "关闭浮动窗口",
