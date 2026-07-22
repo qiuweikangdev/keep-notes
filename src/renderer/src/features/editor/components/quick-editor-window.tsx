@@ -12,7 +12,7 @@ import { BlockNoteView } from "@blocknote/mantine";
 import { useCreateBlockNote, useEditorChange } from "@blocknote/react";
 import type { BlockNoteEditor as CoreBlockNoteEditor } from "@blocknote/core";
 import { TextSelection } from "@tiptap/pm/state";
-import { ChevronDown, ChevronUp, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Info, X } from "lucide-react";
 import type {
   CloseSaveSnapshot,
   QuickEditorWindowContent,
@@ -1330,8 +1330,17 @@ export function QuickEditorWindow() {
         />
       ) : null}
       {toastMessage ? (
-        <div className="quick-editor-window__toast" role="status">
-          {toastMessage}
+        <div
+          aria-live="polite"
+          className="app-toast pointer-events-none fixed left-1/2 top-14 z-[100] flex w-[calc(100vw-24px)] max-w-[320px] items-center gap-2 rounded-lg px-2.5 py-2 text-sm"
+          role="status"
+        >
+          <span className="app-toast__icon flex h-5 w-5 shrink-0 items-center justify-center">
+            <Info aria-hidden="true" className="h-4 w-4" strokeWidth={2} />
+          </span>
+          <span className="min-w-0 flex-1 break-words leading-5">
+            {toastMessage}
+          </span>
         </div>
       ) : null}
     </div>
