@@ -79,6 +79,8 @@ const EMPTY_OUTLINE_HEADINGS = [];
 const TOOL_BUTTON_CLASS =
   "flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md transition-colors";
 const ROW_HEIGHT = 28; // 7 * 4 = 28px (h-7)
+const DROP_TARGET_INSET_SHADOW =
+  "inset 0 0 0 1px color-mix(in srgb, var(--accent-color) 40%, transparent)";
 interface CreatingInfo {
   type: "file" | "folder";
   parentKey: string;
@@ -873,20 +875,18 @@ export function FileTree() {
                   <ContextMenu.Trigger asChild>
                     <div className="px-2">
                       <div
-                        className={cn(
-                          "tree-node-root relative flex h-7 cursor-pointer select-none items-center rounded-md",
-                          isRootDropTarget &&
-                            "outline outline-1 outline-[var(--accent-color)]/40",
-                        )}
+                        className="tree-node-root relative flex h-7 cursor-pointer select-none items-center rounded-md"
                         style={{
                           paddingLeft: "8px",
                           paddingRight: "8px",
                           backgroundColor: isRootSelected
                             ? "var(--active-bg)"
                             : "transparent",
-                          boxShadow: isRootSelected
-                            ? "inset 0 0 0 1px var(--border-color)"
-                            : "none",
+                          boxShadow: isRootDropTarget
+                            ? DROP_TARGET_INSET_SHADOW
+                            : isRootSelected
+                              ? "inset 0 0 0 1px var(--border-color)"
+                              : "none",
                         }}
                         onClick={() => {
                           setSelectedKey(treeRoot!.key);
@@ -1595,21 +1595,19 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
         <ContextMenu.Trigger asChild>
           <div className="px-2">
             <div
-              className={cn(
-                "tree-node-row relative flex h-7 cursor-pointer select-none items-center rounded-md",
-                isDropTarget &&
-                  dropTargetFolderPath &&
-                  "outline outline-1 outline-[var(--accent-color)]/40",
-              )}
+              className="tree-node-row relative flex h-7 cursor-pointer select-none items-center rounded-md"
               style={{
                 paddingLeft: `${flatNode.level * 14 + 8}px`,
                 paddingRight: "8px",
                 backgroundColor: isSelected
                   ? "var(--active-bg)"
                   : "transparent",
-                boxShadow: isSelected
-                  ? "inset 0 0 0 1px var(--border-color)"
-                  : "none",
+                boxShadow:
+                  isDropTarget && dropTargetFolderPath
+                    ? DROP_TARGET_INSET_SHADOW
+                    : isSelected
+                      ? "inset 0 0 0 1px var(--border-color)"
+                      : "none",
               }}
               onClick={() => onClick(flatNode)}
               draggable={!isRenaming}

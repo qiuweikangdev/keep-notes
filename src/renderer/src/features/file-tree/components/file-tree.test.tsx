@@ -14,6 +14,7 @@ import { useTreeStore } from "@/store/tree.store";
 import { CodeResult } from "@/types";
 import { DIFF_TOAST_EVENT } from "@/features/diff/lib/diff-toast";
 import { APP_TOAST_EVENT } from "@/lib/app-toast";
+import { KEEP_NOTES_FILE_DRAG_TYPE } from "@/lib/file-drag";
 import { REVEAL_FILE_TREE_NODE_EVENT } from "../utils";
 import { registerEditorOutlineNavigator } from "@/features/editor/lib/editor-outline-navigation";
 import { richDocumentSessionManager } from "@/features/editor/lib/editor-runtime";
@@ -141,6 +142,36 @@ describe("FileTree context menu", () => {
     render(<FileTree />);
 
     expect(screen.getByLabelText("正在加载 docs")).toBeInTheDocument();
+  });
+
+  it("keeps the drag target border inside its row beside a selected file", () => {
+    useTreeStore.setState({
+      treeData: [
+        { title: "work", key: "/notes/work", children: [] },
+        { title: "auth.md", key: "/notes/auth.md" },
+      ],
+      selectedKey: "/notes/auth.md",
+    });
+
+    render(<FileTree />);
+
+    const targetRow = screen.getByText("work").closest(".tree-node-row");
+    const selectedRow = screen.getByText("auth.md").closest(".tree-node-row");
+
+    expect(targetRow).not.toBeNull();
+    expect(selectedRow).not.toBeNull();
+    fireEvent.dragOver(targetRow!, {
+      dataTransfer: { types: [KEEP_NOTES_FILE_DRAG_TYPE] },
+    });
+
+    expect(targetRow).not.toHaveClass("outline");
+    expect(targetRow).toHaveStyle({
+      boxShadow:
+        "inset 0 0 0 1px color-mix(in srgb, var(--accent-color) 40%, transparent)",
+    });
+    expect(selectedRow).toHaveStyle({
+      boxShadow: "inset 0 0 0 1px var(--border-color)",
+    });
   });
 
   it("marks the virtualized file tree scroll container for hover scrollbar styling", () => {

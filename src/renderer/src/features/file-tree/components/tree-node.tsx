@@ -57,6 +57,8 @@ const MENU_CONTENT_CLASS =
 const MENU_ITEM_CLASS =
   "flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-[13px] outline-none data-[highlighted]:bg-[var(--hover-bg)]";
 const MENU_SEPARATOR_CLASS = "my-1 h-px bg-[var(--border-color)]";
+const DROP_TARGET_INSET_SHADOW =
+  "inset 0 0 0 1px color-mix(in srgb, var(--accent-color) 40%, transparent)";
 
 const normalizePath = (path: string) =>
   path.replace(/\\/g, "/").replace(/\/+$/, "");
@@ -556,12 +558,7 @@ export const TreeNode = memo(function TreeNode({
         <ContextMenu.Trigger asChild>
           <div ref={rowRef} className="px-2">
             <div
-              className={cn(
-                "relative flex h-7 cursor-pointer select-none items-center rounded-md",
-                isDropTarget &&
-                  isFolder &&
-                  "outline outline-1 outline-[var(--accent-color)]/40",
-              )}
+              className="relative flex h-7 cursor-pointer select-none items-center rounded-md"
               style={{
                 paddingLeft: `${level * 14 + 8}px`,
                 paddingRight: "8px",
@@ -570,9 +567,12 @@ export const TreeNode = memo(function TreeNode({
                   : isHovered
                     ? "var(--hover-bg)"
                     : "transparent",
-                boxShadow: isSelected
-                  ? "inset 0 0 0 1px var(--border-color)"
-                  : "none",
+                boxShadow:
+                  isDropTarget && isFolder
+                    ? DROP_TARGET_INSET_SHADOW
+                    : isSelected
+                      ? "inset 0 0 0 1px var(--border-color)"
+                      : "none",
               }}
               onClick={handleClick}
               onMouseEnter={() => setIsHovered(true)}
