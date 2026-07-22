@@ -101,8 +101,10 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
     x: number;
     y: number;
     tabId: string;
+    tabWidth: number | null;
   } | null>(null);
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
+  const [renamingTabWidth, setRenamingTabWidth] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const renameInputRef = useRef<HTMLInputElement>(null);
   const isRenameComposingRef = useRef(false);
@@ -179,7 +181,13 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
   const handleContextMenu = (e: React.MouseEvent, tabId: string) => {
     e.preventDefault();
     e.stopPropagation();
-    setContextMenu({ x: e.clientX, y: e.clientY, tabId });
+    const tabWidth = e.currentTarget.getBoundingClientRect().width;
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      tabId,
+      tabWidth: tabWidth > 0 ? tabWidth : null,
+    });
   };
 
   const handleCloseTabFromMenu = () => {
@@ -194,6 +202,7 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
     if (!tab) return;
 
     isRenameCancelledRef.current = false;
+    setRenamingTabWidth(contextMenu?.tabWidth ?? null);
     setRenameValue(
       tab.filePath
         ? getFileNameWithoutExtension(tab.filePath)
@@ -315,6 +324,10 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
                 borderColor: "var(--border-color)",
                 minWidth: "120px",
                 maxWidth: "200px",
+                width:
+                  renamingTabId === tab.id && renamingTabWidth !== null
+                    ? `${renamingTabWidth}px`
+                    : undefined,
               }}
               onClick={() => handleTabClick(tab.id)}
               onContextMenu={(e) => handleContextMenu(e, tab.id)}

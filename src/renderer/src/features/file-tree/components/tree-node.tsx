@@ -33,7 +33,7 @@ import { useDiffStore } from "@/store/diff.store";
 import { useEditorStore } from "@/store/editor.store";
 import { showNoDiffContentToast } from "@/features/diff/lib/diff-toast";
 import { areDiffContentsEqual } from "@/features/diff/lib/diff-content";
-import { getRevealInFileManagerLabel } from "../utils";
+import { buildRenamedFileKey, getRevealInFileManagerLabel } from "../utils";
 
 interface CreatingInfo {
   type: "file" | "folder";
@@ -103,6 +103,7 @@ export const TreeNode = memo(function TreeNode({
   const [isHovered, setIsHovered] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
+  const [renameInputWidth, setRenameInputWidth] = useState<number | null>(null);
   const [createValue, setCreateValue] = useState("");
   const [isDropTarget, setIsDropTarget] = useState(false);
   const [, setDragCounter] = useState(0);
@@ -119,6 +120,7 @@ export const TreeNode = memo(function TreeNode({
   }>({ type: "delete", open: false });
 
   const renameInputRef = useRef<HTMLInputElement>(null);
+  const renameLabelRef = useRef<HTMLSpanElement>(null);
   const isRenameComposingRef = useRef(false);
   const createInputRef = useRef<HTMLInputElement>(null);
   const rowRef = useRef<HTMLDivElement>(null);
@@ -256,6 +258,9 @@ export const TreeNode = memo(function TreeNode({
   );
 
   const handleStartRename = useCallback(() => {
+    setRenameInputWidth(
+      renameLabelRef.current?.getBoundingClientRect().width ?? null,
+    );
     setRenameValue(node.title.replace(/\.md$/, ""));
     setIsRenaming(true);
   }, [node.title]);
@@ -272,11 +277,16 @@ export const TreeNode = memo(function TreeNode({
     const result = await renameItem(node.key, title, treeData);
     if (result.code === CodeResult.Success && result.data) {
       setTreeData(result.data.treeData);
+      if (!isFolder) {
+        useEditorStore
+          .getState()
+          .renameFilePath(node.key, buildRenamedFileKey(node.key, title));
+      }
     } else if (result.message) {
       showAppToast(result.message);
     }
     setIsRenaming(false);
-  }, [renameValue, node.title, node.key, renameItem, setTreeData]);
+  }, [renameValue, node.title, node.key, renameItem, setTreeData, isFolder]);
 
   const handleRenameKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
@@ -633,10 +643,16 @@ export const TreeNode = memo(function TreeNode({
                     backgroundColor: "var(--bg-tertiary)",
                     border: "1px solid var(--border-color)",
                     color: "var(--text-primary)",
+                    width:
+                      renameInputWidth === null
+                        ? undefined
+                        : `${renameInputWidth}px`,
+                    flex: renameInputWidth === null ? undefined : "0 0 auto",
                   }}
                 />
               ) : (
                 <span
+                  ref={renameLabelRef}
                   className="flex-1 truncate text-[13px] leading-7"
                   style={{
                     color: isSelected

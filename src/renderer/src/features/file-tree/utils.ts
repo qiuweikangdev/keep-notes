@@ -36,6 +36,14 @@ export function buildCreatedNodeKey(
   return `${parentKey}${sep}${nodeTitle}`;
 }
 
+export function buildRenamedFileKey(fileKey: string, title: string) {
+  const separatorIndex = Math.max(
+    fileKey.lastIndexOf("/"),
+    fileKey.lastIndexOf("\\"),
+  );
+  return `${fileKey.slice(0, separatorIndex + 1)}${title}.md`;
+}
+
 export function canMoveNodeToFolder(
   sourcePath: string,
   targetFolderPath: string,
