@@ -12,6 +12,7 @@ const quickEditorMocks = vi.hoisted(() => ({
   configureQuickEditorGlobalShortcuts: vi.fn(),
   consumePendingQuickEditorContent: vi.fn(),
   createQuickEditorWindow: vi.fn(),
+  flushQuickEditorContent: vi.fn(),
   getQuickEditorCollapsed: vi.fn(),
   returnToMainWindowFromQuickEditor: vi.fn(),
   setQuickEditorCollapsed: vi.fn(),

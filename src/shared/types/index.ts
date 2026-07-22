@@ -164,6 +164,8 @@ export interface QuickEditorWindowContent {
     groupId: string;
     tabId: string;
     filePath: string | null;
+    /** 浮窗创建时的工作区根路径，用于执行关联文件的 Git 操作。 */
+    repositoryRoot?: string | null;
   } | null;
 }
 

@@ -200,9 +200,10 @@ export function EditorToolbar({
         groupId,
         tabId: currentTab.id,
         filePath: currentTab.filePath,
+        repositoryRoot,
       },
     });
-  }, [getActiveTab, groupId]);
+  }, [getActiveTab, groupId, repositoryRoot]);
 
   const handleDiscard = useCallback(async () => {
     const currentTab = getActiveTab();

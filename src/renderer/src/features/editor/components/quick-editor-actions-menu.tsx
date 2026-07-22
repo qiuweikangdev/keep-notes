@@ -2,10 +2,12 @@ import type { ReactNode } from "react";
 import {
   ArrowLeftRight,
   FolderSearch,
+  GitCompare,
   ListTree,
   MoreHorizontal,
   PictureInPicture2,
   Plus,
+  Undo2,
   X,
 } from "lucide-react";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
@@ -16,6 +18,8 @@ const itemClassName =
 interface QuickEditorActionsMenuProps {
   isOutlineOpen: boolean;
   isOutlineDisabled: boolean;
+  onCompare?: () => void;
+  onDiscard?: () => void;
   onRevealInFileManager?: () => void;
   onToggleEditorMode: () => void;
   onToggleOutline: () => void;
@@ -94,6 +98,23 @@ export function QuickEditorActionsMenu(props: QuickEditorActionsMenuProps) {
             >
               {props.revealInFileManagerLabel}
             </ActionItem>
+          ) : null}
+          {props.onCompare && props.onDiscard ? (
+            <>
+              <DropdownMenu.Separator className="quick-editor-actions-menu__separator" />
+              <ActionItem
+                icon={<GitCompare aria-hidden="true" size={14} />}
+                onSelect={props.onCompare}
+              >
+                比较差异
+              </ActionItem>
+              <ActionItem
+                icon={<Undo2 aria-hidden="true" size={14} />}
+                onSelect={props.onDiscard}
+              >
+                放弃更改
+              </ActionItem>
+            </>
           ) : null}
           <DropdownMenu.Separator className="quick-editor-actions-menu__separator" />
           <ActionItem

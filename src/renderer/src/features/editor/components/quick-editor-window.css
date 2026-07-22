@@ -105,6 +105,22 @@
   background: var(--bg-primary);
 }
 
+.quick-editor-window__toast {
+  position: fixed;
+  z-index: 80;
+  top: 48px;
+  left: 50%;
+  max-width: calc(100vw - 32px);
+  transform: translateX(-50%);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  color: var(--text-primary);
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
 .quick-editor-window__scroll {
   height: 100%;
   overflow: auto;

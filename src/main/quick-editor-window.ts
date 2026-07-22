@@ -39,10 +39,14 @@ const quickEditorWindowSources = new Map<
   BrowserWindow,
   NonNullable<QuickEditorWindowContent["source"]>
 >();
-const quickEditorFileWrites = new Map<
-  string,
-  { content: string; isWriting: boolean }
->();
+interface QuickEditorFileWrite {
+  complete: Promise<void>;
+  content: string;
+  isWriting: boolean;
+  resolve: () => void;
+}
+
+const quickEditorFileWrites = new Map<string, QuickEditorFileWrite>();
 const quickEditorCollapseStates = new Map<
   BrowserWindow,
   QuickEditorCollapseState
@@ -56,7 +60,16 @@ function persistQuickEditorFile(filePath: string, content: string): void {
     return;
   }
 
-  const state = { content, isWriting: false };
+  let resolve!: () => void;
+  const complete = new Promise<void>((completeWrite) => {
+    resolve = completeWrite;
+  });
+  const state: QuickEditorFileWrite = {
+    complete,
+    content,
+    isWriting: false,
+    resolve,
+  };
   quickEditorFileWrites.set(filePath, state);
 
   const drain = async () => {
@@ -70,17 +83,47 @@ function persistQuickEditorFile(filePath: string, content: string): void {
       } catch (error) {
         console.error("Failed to persist quick editor content:", error);
         quickEditorFileWrites.delete(filePath);
+        state.resolve();
         return;
       }
 
       if (state.content === snapshot) {
         quickEditorFileWrites.delete(filePath);
+        state.resolve();
         return;
       }
     }
   };
 
   void drain();
+}
+
+function normalizeQuickEditorSource(
+  value: unknown,
+): NonNullable<QuickEditorWindowContent["source"]> | null {
+  if (!value || typeof value !== "object") return null;
+
+  const { groupId, tabId, filePath, repositoryRoot } = value as Record<
+    string,
+    unknown
+  >;
+  if (
+    typeof groupId !== "string" ||
+    typeof tabId !== "string" ||
+    (typeof filePath !== "string" && filePath !== null) ||
+    (typeof repositoryRoot !== "string" &&
+      repositoryRoot !== null &&
+      repositoryRoot !== undefined)
+  ) {
+    return null;
+  }
+
+  return {
+    groupId,
+    tabId,
+    filePath,
+    ...(repositoryRoot === undefined ? {} : { repositoryRoot }),
+  };
 }
 
 function normalizeQuickEditorWindowContent(
@@ -91,18 +134,10 @@ function normalizeQuickEditorWindowContent(
   const { content, source } = value as Record<string, unknown>;
   if (typeof content !== "string") return null;
   if (source === null) return { content, source: null };
-  if (!source || typeof source !== "object") return null;
+  const normalizedSource = normalizeQuickEditorSource(source);
+  if (!normalizedSource) return null;
 
-  const { groupId, tabId, filePath } = source as Record<string, unknown>;
-  if (
-    typeof groupId !== "string" ||
-    typeof tabId !== "string" ||
-    (typeof filePath !== "string" && filePath !== null)
-  ) {
-    return null;
-  }
-
-  return { content, source: { groupId, tabId, filePath } };
+  return { content, source: normalizedSource };
 }
 
 function hasSameQuickEditorSource(
@@ -114,6 +149,15 @@ function hasSameQuickEditorSource(
     left.tabId === right.tabId &&
     left.filePath === right.filePath
   );
+}
+
+function getKnownQuickEditorSource(
+  source: NonNullable<QuickEditorWindowContent["source"]>,
+): NonNullable<QuickEditorWindowContent["source"]> | undefined {
+  for (const knownSource of quickEditorWindowSources.values()) {
+    if (hasSameQuickEditorSource(knownSource, source)) return knownSource;
+  }
+  return undefined;
 }
 
 function toElectronAccelerator(key: string): string {
@@ -481,7 +525,8 @@ export function syncQuickEditorContent(
   const senderIsQuickEditor = sender !== null && quickEditorWindows.has(sender);
   const source = senderIsQuickEditor
     ? quickEditorWindowSources.get(sender!)
-    : incomingContent.source;
+    : (getKnownQuickEditorSource(incomingContent.source) ??
+      incomingContent.source);
   if (!source) return;
 
   const content: QuickEditorWindowContent = {
@@ -518,6 +563,15 @@ export function syncQuickEditorContent(
   }
 }
 
+/** 等待关联浮窗的最新快照落盘，避免 Git 回滚与旧写入任务交错。 */
+export async function flushQuickEditorContent(source: unknown): Promise<void> {
+  const normalizedSource = normalizeQuickEditorSource(source);
+  if (!normalizedSource?.filePath) return;
+  await quickEditorFileWrites.get(normalizedSource.filePath)?.complete;
+}
+
+/** 将浮窗文件操作请求转交给主窗口，主窗口负责复用完整的编辑器与 Git 状态。 */
+/** 回滚完成后销毁同一来源的浮窗，避免旧快照重新写回已回滚文件。 */
 export function consumePendingQuickEditorContent(): QuickEditorWindowContent | null {
   return pendingQuickEditorContents.shift() ?? null;
 }

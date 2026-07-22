@@ -112,4 +112,31 @@ describe("quick editor actions menu", () => {
     await user.click(outlineItem);
     expect(onToggleOutline).not.toHaveBeenCalled();
   });
+
+  it("shows and forwards Git actions for a linked repository file", async () => {
+    const user = userEvent.setup();
+    const onCompare = vi.fn();
+    const onDiscard = vi.fn();
+    render(
+      <QuickEditorActionsMenu
+        isOutlineOpen={false}
+        isOutlineDisabled={false}
+        onToggleEditorMode={vi.fn()}
+        onToggleOutline={vi.fn()}
+        onNewWindow={vi.fn()}
+        onReturnToApplication={vi.fn()}
+        onCloseWindow={vi.fn()}
+        onCompare={onCompare}
+        onDiscard={onDiscard}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    await user.click(screen.getByRole("menuitem", { name: "比较差异" }));
+    expect(onCompare).toHaveBeenCalledOnce();
+
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    await user.click(screen.getByRole("menuitem", { name: "放弃更改" }));
+    expect(onDiscard).toHaveBeenCalledOnce();
+  });
 });
