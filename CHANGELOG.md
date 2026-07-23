@@ -1,3 +1,18 @@
+## [2.19.1](https://github.com/qiuweikangdev/keep-notes/compare/v2.19.0...v2.19.1) (2026-07-23)
+
+
+### Bug Fixes
+
+* preserve multiline code block paste ([8b3f0ba](https://github.com/qiuweikangdev/keep-notes/commit/8b3f0bac9e9655adacef171653eac727c6b75431))
+* preserve pasted code and markdown structure ([88c4171](https://github.com/qiuweikangdev/keep-notes/commit/88c41717b61e640a590eef364b96f31a3addd6f3))
+* preserve rich text markup line breaks ([5361f49](https://github.com/qiuweikangdev/keep-notes/commit/5361f499cbc7f555d8ea334055abb9cd122fa270))
+
+
+## Commit Summary
+
+- Compared with: v2.19.0
+- Total commits: 3
+
 # [2.19.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.18.0...v2.19.0) (2026-07-22)
 
 
