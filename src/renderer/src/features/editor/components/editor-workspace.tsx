@@ -50,6 +50,7 @@ export function EditorWorkspace({
   const sourceEditorRef = useRef<HTMLTextAreaElement>(null);
   const replacementUndoStackRef = useRef<string[]>([]);
   const [isFindOpen, setIsFindOpen] = useState(false);
+  const [findFocusRequestKey, setFindFocusRequestKey] = useState(0);
   const [isReplaceOpen, setIsReplaceOpen] = useState(false);
   const [findQuery, setFindQuery] = useState("");
   const [replacement, setReplacement] = useState("");
@@ -223,6 +224,8 @@ export function EditorWorkspace({
 
   const openFindWidget = useCallback(() => {
     setIsFindOpen(true);
+    // 搜索框已打开时再次触发快捷键，也要把焦点从正文收回到当前文件的查找输入框。
+    setFindFocusRequestKey((current) => current + 1);
   }, []);
 
   useEffect(() => {
@@ -355,6 +358,7 @@ export function EditorWorkspace({
     >
       <FindWidget
         isOpen={isFindOpen}
+        focusRequestKey={findFocusRequestKey}
         isReplaceOpen={isReplaceOpen}
         query={findQuery}
         replacement={replacement}

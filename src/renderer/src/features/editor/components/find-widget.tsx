@@ -23,6 +23,7 @@ import type { FindTextOptions } from "../lib/find-in-file";
 
 interface FindWidgetProps {
   isOpen: boolean;
+  focusRequestKey: number;
   isReplaceOpen: boolean;
   query: string;
   replacement: string;
@@ -139,6 +140,7 @@ function ToggleReplaceButton({
 
 export function FindWidget({
   isOpen,
+  focusRequestKey,
   isReplaceOpen,
   query,
   replacement,
@@ -167,7 +169,7 @@ export function FindWidget({
       inputRef.current?.focus();
       inputRef.current?.select();
     });
-  }, [isOpen]);
+  }, [focusRequestKey, isOpen]);
 
   useLayoutEffect(() => {
     if (!isOpen || !portalAnchor) return;

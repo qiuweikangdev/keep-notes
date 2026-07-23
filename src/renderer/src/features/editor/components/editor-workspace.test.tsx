@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useEditorStore } from "@/store/editor.store";
@@ -124,6 +124,29 @@ describe("EditorWorkspace split rich editor mount", () => {
     });
     expect(widget).toBeInTheDocument();
     expect(container).not.toContainElement(widget);
+  });
+
+  it("refocuses the find input when search is requested again", async () => {
+    render(<EditorWorkspace groupId="group-1" tabId="tab-1" />);
+
+    act(() => {
+      editorFindController.open("group-1", "tab-1");
+    });
+
+    const searchInput = screen.getByPlaceholderText("查找");
+    await waitFor(() => expect(searchInput).toHaveFocus());
+
+    const otherButton = document.createElement("button");
+    document.body.append(otherButton);
+    otherButton.focus();
+    expect(otherButton).toHaveFocus();
+
+    act(() => {
+      editorFindController.open("group-1", "tab-1");
+    });
+
+    await waitFor(() => expect(searchInput).toHaveFocus());
+    otherButton.remove();
   });
 
   it("keeps the current rich pane mounted while the next file is loading", () => {

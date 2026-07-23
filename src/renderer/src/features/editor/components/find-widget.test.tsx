@@ -47,6 +47,7 @@ describe("FindWidget", () => {
     render(
       <FindWidget
         isOpen
+        focusRequestKey={1}
         isReplaceOpen={false}
         query="note"
         replacement=""
@@ -112,6 +113,7 @@ describe("FindWidget", () => {
     const { rerender } = render(
       <FindWidget
         isOpen
+        focusRequestKey={1}
         isReplaceOpen={false}
         query="note"
         replacement=""
@@ -157,6 +159,7 @@ describe("FindWidget", () => {
     rerender(
       <FindWidget
         isOpen
+        focusRequestKey={1}
         isReplaceOpen
         query="note"
         replacement=""

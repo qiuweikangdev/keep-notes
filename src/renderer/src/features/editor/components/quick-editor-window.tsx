@@ -257,6 +257,7 @@ export function QuickEditorWindow() {
   const [collapseTarget, setCollapseTarget] = useState<boolean | null>(null);
   const [isCollapseTransitioning, setIsCollapseTransitioning] = useState(false);
   const [isFindOpen, setIsFindOpen] = useState(false);
+  const [findFocusRequestKey, setFindFocusRequestKey] = useState(0);
   const [isReplaceOpen, setIsReplaceOpen] = useState(false);
   const [isOutlineOpen, setIsOutlineOpen] = useState(false);
   const [outlineHeadings, setOutlineHeadings] = useState<
@@ -604,6 +605,7 @@ export function QuickEditorWindow() {
   const openFindWidget = useCallback(() => {
     isFindOpenRef.current = true;
     setIsFindOpen(true);
+    setFindFocusRequestKey((current) => current + 1);
     // 独立浮窗平时无需持续序列化；打开搜索时再刷新当前 Markdown 快照。
     syncContentToSource();
   }, [syncContentToSource]);
@@ -1276,6 +1278,7 @@ export function QuickEditorWindow() {
         {editorMode === "rich" ? (
           <FindWidget
             isOpen={isFindOpen}
+            focusRequestKey={findFocusRequestKey}
             isReplaceOpen={isReplaceOpen}
             query={findQuery}
             replacement={replacement}
