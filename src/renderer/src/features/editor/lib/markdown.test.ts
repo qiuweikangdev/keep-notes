@@ -100,6 +100,41 @@ describe("Markdown source preservation", () => {
     ).resolves.toBe(fencedCode);
   });
 
+  it("escapes markup only in prose before parsing", async () => {
+    let received = "";
+    const source = [
+      "# Intro",
+      "",
+      '<section class="card">',
+      "  <h2>Title</h2>",
+      "</section>",
+      "",
+      "`<InlineTag />`",
+      "",
+      "<https://example.com>",
+      "",
+      "```tsx",
+      "<CodeTag />",
+      "```",
+    ].join("\n");
+
+    await parseMarkdown<TestBlock>(
+      {
+        tryParseMarkdownToBlocks: (markdown) => {
+          received = markdown;
+          return [];
+        },
+      },
+      source,
+    );
+
+    expect(received).not.toContain('<section class="card">');
+    expect(received).not.toContain("<h2>Title</h2>");
+    expect(received).toContain("`<InlineTag />`");
+    expect(received).toContain("<https://example.com>");
+    expect(received).toContain("```tsx\n<CodeTag />\n```");
+  });
+
   it("nests quoted markdown list items under their quote after parsing", async () => {
     let received = "";
     const blocks = await parseMarkdown<TestBlock>(

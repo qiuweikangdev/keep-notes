@@ -1316,6 +1316,37 @@ describe("BlockNoteEditor code paste", () => {
     }
   });
 
+  it("keeps synced HTML source literal after the rich editor reloads", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/html-source-sync.md";
+    const source = `<section class="card">
+  <h2>Title</h2>
+  <p>Content</p>
+</section>`;
+    setupSessionTab(path, { content: source });
+    const session = renderRealSession(path, false, source);
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const editor = session.runtime.current!.editor;
+
+      expect(
+        editor.prosemirrorState.doc.textBetween(
+          0,
+          editor.prosemirrorState.doc.content.size,
+          "\n",
+          "\n",
+        ),
+      ).toBe(source);
+      expect(editor.document.some((block) => block.type === "heading")).toBe(
+        false,
+      );
+    } finally {
+      session.view.unmount();
+    }
+  });
+
   it("pastes a Vue template as literal text without VS Code metadata", async () => {
     setupMatchMedia();
     setupDomMeasurements();

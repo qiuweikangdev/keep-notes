@@ -1422,6 +1422,163 @@ function repairMarkdownSourceAfterPreserve(
   return repairEmptyQuoteChildListSource(normalized, serialized);
 }
 
+function isMarkupTagOpener(source: string, offset: number): boolean {
+  const candidate = source.slice(offset + 1);
+  if (/^[A-Za-z][A-Za-z\d+.-]*:\/\//u.test(candidate)) return false;
+  if (/^(?:!--|!DOCTYPE\b|\?xml\b)/iu.test(candidate)) return true;
+
+  return /^\/?[A-Za-z][A-Za-z\d_.:-]*(?=[\s/>]|$)/u.test(candidate);
+}
+
+function lineContainsMarkupForParser(
+  source: string,
+  inlineCodeFenceLength: { current: number },
+): boolean {
+  for (let offset = 0; offset < source.length; ) {
+    if (source[offset] === "`") {
+      let runLength = 1;
+      while (source[offset + runLength] === "`") runLength += 1;
+      if (inlineCodeFenceLength.current === 0) {
+        inlineCodeFenceLength.current = runLength;
+      } else if (inlineCodeFenceLength.current === runLength) {
+        inlineCodeFenceLength.current = 0;
+      }
+      offset += runLength;
+      continue;
+    }
+
+    if (
+      inlineCodeFenceLength.current === 0 &&
+      source[offset] === "<" &&
+      isMarkupTagOpener(source, offset)
+    ) {
+      return true;
+    }
+    offset += 1;
+  }
+
+  return false;
+}
+
+interface ProtectedMarkup {
+  continuationMarker: string;
+  markdown: string;
+  replacements: ReadonlyMap<string, string>;
+}
+
+function protectMarkupForParser(markdown: string): ProtectedMarkup {
+  const lines = splitMarkdownLines(markdown);
+  const inlineCodeFenceLength = { current: 0 };
+  const protectedLines: boolean[] = [];
+  let openingFence: string | null = null;
+  let markupBlockActive = false;
+
+  // 只保护正文中的源码段；围栏代码、缩进代码、行内代码和自动链接继续交给原 Markdown 规则。
+  for (const line of lines) {
+    if (!line.text.trim()) {
+      markupBlockActive = false;
+      inlineCodeFenceLength.current = 0;
+      protectedLines.push(false);
+      continue;
+    }
+
+    const fenceMatch = openingFence
+      ? getClosingFenceMatch(line.text, openingFence)
+      : line.text.match(FENCED_CODE_LINE_PATTERN);
+    if (fenceMatch) {
+      openingFence = openingFence ? null : fenceMatch[1];
+      markupBlockActive = false;
+      inlineCodeFenceLength.current = 0;
+      protectedLines.push(false);
+      continue;
+    }
+    if (openingFence) {
+      protectedLines.push(false);
+      continue;
+    }
+
+    if (
+      !markupBlockActive &&
+      !/^(?: {4}|\t)/u.test(line.text) &&
+      lineContainsMarkupForParser(line.text, inlineCodeFenceLength)
+    ) {
+      markupBlockActive = true;
+    }
+    protectedLines.push(markupBlockActive);
+  }
+
+  if (!protectedLines.includes(true)) {
+    return { continuationMarker: "", markdown, replacements: new Map() };
+  }
+
+  // 临时私有字符让 BlockNote 无法把 JSX/HTML 解释成标签；解析后按字符映射无损还原。
+  const sourceCharacters = new Set(Array.from(markdown));
+  const encodedCharacters = new Map<string, string>();
+  const replacements = new Map<string, string>();
+  let nextPrivateCodePoint = 0xf0000;
+  const takePrivateCharacter = () => {
+    let character = String.fromCodePoint(nextPrivateCodePoint);
+    while (sourceCharacters.has(character) || replacements.has(character)) {
+      nextPrivateCodePoint += 1;
+      character = String.fromCodePoint(nextPrivateCodePoint);
+    }
+    nextPrivateCodePoint += 1;
+    return character;
+  };
+  const continuationMarker = takePrivateCharacter();
+  const encodeCharacter = (character: string) => {
+    const existing = encodedCharacters.get(character);
+    if (existing) return existing;
+
+    const encoded = takePrivateCharacter();
+    encodedCharacters.set(character, encoded);
+    replacements.set(encoded, character);
+    return encoded;
+  };
+  const protectedMarkdown = lines
+    .map((line, index) => {
+      if (!protectedLines[index]) return `${line.text}${line.ending}`;
+
+      const prefix = protectedLines[index - 1] ? continuationMarker : "";
+      const encoded = Array.from(line.text, encodeCharacter).join("");
+      const hardBreak = line.ending && protectedLines[index + 1] ? "  " : "";
+      return `${prefix}${encoded}${hardBreak}${line.ending}`;
+    })
+    .join("");
+
+  return { continuationMarker, markdown: protectedMarkdown, replacements };
+}
+
+function restoreProtectedMarkup<T>(
+  value: T,
+  continuationMarker: string,
+  replacements: ReadonlyMap<string, string>,
+): T {
+  if (typeof value === "string") {
+    // BlockNote 会在硬换行后补一个空格，借助续行标记只移除这一个解析器附加字符。
+    const normalized = value
+      .replaceAll(` ${continuationMarker}`, continuationMarker)
+      .replaceAll(continuationMarker, "");
+    return Array.from(
+      normalized,
+      (character) => replacements.get(character) ?? character,
+    ).join("") as T;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) =>
+      restoreProtectedMarkup(item, continuationMarker, replacements),
+    ) as T;
+  }
+  if (!isRecord(value)) return value;
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [
+      key,
+      restoreProtectedMarkup(item, continuationMarker, replacements),
+    ]),
+  ) as T;
+}
+
 /**
  * 规范化无序列表标记，解决 BlockNote 序列化器硬编码 marker = "* " 的问题。
  * 当源文件只使用 - 或 + 作为列表标记时，将结果中被 BlockNote 改写的 * 还原为源文件的标记。
@@ -2024,13 +2181,22 @@ export async function parseMarkdown<TBlock>(
 ): Promise<TBlock[]> {
   // 仅规范化传给 BlockNote 的解析副本；原始源码仍用于编辑、比较和保存。
   const repairedMarkdown = repairMarkdownSourceBeforeParse(markdown);
-  const parseInput = repairedMarkdown
+  const protectedMarkup = protectMarkupForParser(repairedMarkdown);
+  const parseInput = protectedMarkup.markdown
     .replace(/^\uFEFF/, "")
     .replace(/\r\n?/g, "\n");
   const normalized = normalizeQuoteListsForParser(parseInput);
   const blocks = await parser.tryParseMarkdownToBlocks(normalized.markdown);
+  const restoredBlocks =
+    protectedMarkup.replacements.size === 0
+      ? blocks
+      : restoreProtectedMarkup(
+          blocks,
+          protectedMarkup.continuationMarker,
+          protectedMarkup.replacements,
+        );
   return resolveImageBlockUrls(
-    restoreQuoteListChildren(blocks, normalized.descriptors),
+    restoreQuoteListChildren(restoredBlocks, normalized.descriptors),
     options,
   );
 }
