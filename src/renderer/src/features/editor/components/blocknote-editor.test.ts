@@ -4,6 +4,7 @@ import {
   SideMenuExtension,
 } from "@blocknote/core/extensions";
 import { BlockNoteView } from "@blocknote/mantine";
+import { EditorView as CodeMirrorView } from "@codemirror/view";
 import {
   act,
   cleanup,
@@ -38,6 +39,7 @@ import {
   isSelectionStartingAtRichEditorTextStart,
   focusEditorOutlineBlock,
   moveCursorAfterUploadedImage,
+  pasteMarkupAsPlainText,
   resolveEditorTextPosition,
   resolveEditorTextPositions,
   registerRichEditorSelectionDragGuardPlugin,
@@ -1039,6 +1041,120 @@ describe("BlockNoteEditor user intent tracking", () => {
 });
 
 describe("BlockNoteEditor code paste", () => {
+  it("lets CodeMirror handle multiline markup paste without flattening it", () => {
+    const insertInlineContent = vi.fn();
+    const editor = { insertInlineContent } as never;
+    const codeMirrorContent = document.createElement("div");
+    codeMirrorContent.className = "cm-content";
+    let handled = true;
+    codeMirrorContent.addEventListener("paste", (event) => {
+      handled = pasteMarkupAsPlainText(editor, event);
+    });
+    const source = `<button
+  type="button"
+  class="comment-panel__action-more"
+  :aria-label="$t('more')"
+  @click.stop="toggleActionMenu()"
+/>`;
+    const event = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", {
+      value: {
+        getData: (type: string) => (type === "text/plain" ? source : ""),
+        types: ["text/plain"],
+      },
+    });
+
+    codeMirrorContent.dispatchEvent(event);
+
+    expect(handled).toBe(false);
+    expect(event.defaultPrevented).toBe(false);
+    expect(insertInlineContent).not.toHaveBeenCalled();
+  });
+
+  it("preserves every line when pasting markup into a real code block", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/multiline-code-block-paste.md";
+    const content = "```vue\n\n```";
+    const source = `<button
+  type="button"
+  class="comment-panel__action-more"
+  :aria-label="$t('more')"
+  @click.stop="toggleActionMenu()"
+/>`;
+    setupSessionTab(path, { content });
+    const session = renderRealSession(path, false, content);
+
+    try {
+      vi.stubGlobal("ClipboardEvent", Event);
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const codeMirrorElement = await waitFor(() => {
+        const element =
+          session.view.container.querySelector<HTMLElement>(".cm-editor");
+        expect(element).not.toBeNull();
+        return element!;
+      });
+      const codeMirror = CodeMirrorView.findFromDOM(codeMirrorElement);
+      codeMirror.focus();
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "clipboardData", {
+        value: {
+          getData: (type: string) => (type === "text/plain" ? source : ""),
+          types: ["text/plain"],
+        },
+      });
+
+      codeMirror.contentDOM.dispatchEvent(event);
+
+      await waitFor(() => expect(codeMirror.state.doc.toString()).toBe(source));
+    } finally {
+      session.view.unmount();
+    }
+  });
+
+  it("routes markup paste from the rich surface into the selected empty code block", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/selected-empty-code-block-paste.md";
+    const content = "```vue\n\n```";
+    const source = `<button
+  type="button"
+  class="comment-panel__action-more"
+  :aria-label="$t('more')"
+  @click.stop="toggleActionMenu()"
+/>`;
+    setupSessionTab(path, { content });
+    const session = renderRealSession(path, false, content);
+
+    try {
+      vi.stubGlobal("ClipboardEvent", Event);
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const editor = session.runtime.current!.editor;
+      const codeMirrorElement = await waitFor(() => {
+        const element =
+          session.view.container.querySelector<HTMLElement>(".cm-editor");
+        expect(element).not.toBeNull();
+        return element!;
+      });
+      const codeMirror = CodeMirrorView.findFromDOM(codeMirrorElement);
+      expect(editor.getTextCursorPosition().block.type).toBe("codeBlock");
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "clipboardData", {
+        value: {
+          getData: (type: string) => (type === "text/plain" ? source : ""),
+          types: ["text/plain"],
+        },
+      });
+
+      editor.prosemirrorView.dom.dispatchEvent(event);
+
+      await waitFor(() => expect(codeMirror.state.doc.toString()).toBe(source));
+      expect(editor.document).toHaveLength(1);
+    } finally {
+      session.view.unmount();
+    }
+  });
+
   it("keeps ordinary rich text paste formatting", async () => {
     setupMatchMedia();
     setupDomMeasurements();

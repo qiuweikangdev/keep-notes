@@ -114,12 +114,67 @@ import "@/styles/blocknote-overrides.css";
 
 export { moveCursorAfterUploadedImage } from "../lib/editor-image";
 
+function findCodeMirrorView(root: ParentNode | null) {
+  const editorElement = root?.querySelector<HTMLElement>(
+    ".editor-code-block__codemirror .cm-editor",
+  );
+  if (!editorElement) return null;
+
+  return CodeMirrorView.findFromDOM(editorElement);
+}
+
+function findSelectedCodeMirrorView(editor: CoreBlockNoteEditor) {
+  try {
+    const currentBlock = editor.getTextCursorPosition().block;
+    if (currentBlock.type !== "codeBlock") return null;
+
+    const blockRoot = editor.prosemirrorView.dom.querySelector<HTMLElement>(
+      createBlockIdSelector(currentBlock.id),
+    );
+
+    return findCodeMirrorView(blockRoot);
+  } catch {
+    return null;
+  }
+}
+
 export function pasteMarkupAsPlainText(
   editor: CoreBlockNoteEditor,
   event: ClipboardEvent,
 ): boolean {
+  const target = event.target instanceof Element ? event.target : null;
+  if (
+    target?.closest(".editor-code-block__codemirror, .cm-editor, .cm-content")
+  ) {
+    // 代码块必须由 CodeMirror 原生处理粘贴，才能完整保留多行文本与缩进。
+    return false;
+  }
+
   const source = event.clipboardData?.getData("text/plain");
   if (!source || !/<\/?[A-Za-z][^>]*>/.test(source)) return false;
+
+  const codeMirrorView =
+    findCodeMirrorView(target?.closest(".editor-code-block-shell") ?? null) ??
+    findSelectedCodeMirrorView(editor);
+  if (codeMirrorView) {
+    // 新建代码块后焦点仍可能停在富文本根节点，必须把粘贴内容直接写入当前代码块，避免换行被 ProseMirror 压平。
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const selection = codeMirrorView.state.selection.main;
+    codeMirrorView.focus();
+    codeMirrorView.dispatch({
+      changes: {
+        from: selection.from,
+        to: selection.to,
+        insert: source,
+      },
+      selection: {
+        anchor: selection.from + source.length,
+      },
+      scrollIntoView: true,
+    });
+    return true;
+  }
 
   // 源码标签按普通文案写入同一段落，避免每个源码行被序列化成独立 Markdown 段落。
   event.preventDefault();
