@@ -1,3 +1,16 @@
+## [2.19.2](https://github.com/qiuweikangdev/keep-notes/compare/v2.19.1...v2.19.2) (2026-07-23)
+
+
+### Bug Fixes
+
+* preserve multiline rich text source ([05c8d48](https://github.com/qiuweikangdev/keep-notes/commit/05c8d48eedd846c090f6122ecfba30dce843fc5f))
+
+
+## Commit Summary
+
+- Compared with: v2.19.1
+- Total commits: 1
+
 ## [2.19.1](https://github.com/qiuweikangdev/keep-notes/compare/v2.19.0...v2.19.1) (2026-07-23)
 
 
