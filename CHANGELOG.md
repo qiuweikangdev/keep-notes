@@ -1,3 +1,17 @@
+## [2.19.4](https://github.com/qiuweikangdev/keep-notes/compare/v2.19.3...v2.19.4) (2026-07-23)
+
+
+### Bug Fixes
+
+* normalize monochrome code block weight ([e0152a6](https://github.com/qiuweikangdev/keep-notes/commit/e0152a6957485e8d1bd10e2c5dda88cfc0ffb544))
+* refocus current file search input ([c802d8b](https://github.com/qiuweikangdev/keep-notes/commit/c802d8b447768dff7e494162e5d666469924f384))
+
+
+## Commit Summary
+
+- Compared with: v2.19.3
+- Total commits: 2
+
 ## [2.19.3](https://github.com/qiuweikangdev/keep-notes/compare/v2.19.2...v2.19.3) (2026-07-23)
 
 
