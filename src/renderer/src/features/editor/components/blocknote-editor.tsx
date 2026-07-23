@@ -197,7 +197,9 @@ function copyMarkupSelectionAsPlainText(
     "\n",
     "\n",
   );
-  if (!source.includes("\n") || !/<\/?[A-Za-z][^>]*>/.test(source)) {
+  const containsMarkup = /<\/?[A-Za-z][^>]*>/.test(source);
+  const containsBracedSource = source.includes("{") && source.includes("}");
+  if (!source.includes("\n") || (!containsMarkup && !containsBracedSource)) {
     return false;
   }
 

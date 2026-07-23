@@ -1465,6 +1465,70 @@ describe("BlockNoteEditor markup copy", () => {
       session.view.unmount();
     }
   });
+
+  it("preserves braced source line breaks when copying from rich text", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/rich-css-copy.md";
+    const source = [
+      ":deep(.recommend-tag) {",
+      "  border: 0;",
+      "  border-radius: 0;",
+      "  background: rgba(251, 56, 103, 0.1);",
+      "  color: #fb3867;",
+      "  font-family: 'PingFang SC', sans-serif;",
+      "  font-size: 0.24rem;",
+      "  line-height: 1;",
+      "  padding: 0.05rem 0.16rem;",
+      "}",
+    ].join("\n");
+    setupSessionTab(path);
+    const session = renderRealSession(path, false, "");
+
+    try {
+      vi.stubGlobal("ClipboardEvent", Event);
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const editor = session.runtime.current!.editor;
+      const pasteEvent = new Event("paste", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(pasteEvent, "clipboardData", {
+        value: {
+          getData: (type: string) => (type === "text/plain" ? source : ""),
+          types: ["text/plain"],
+        },
+      });
+      editor.prosemirrorView.dom.dispatchEvent(pasteEvent);
+      editor.prosemirrorView.dispatch(
+        editor.prosemirrorView.state.tr.setSelection(
+          TextSelection.create(
+            editor.prosemirrorView.state.doc,
+            3,
+            editor.prosemirrorView.state.doc.content.size - 3,
+          ),
+        ),
+      );
+      const setData = vi.fn();
+      const copyEvent = new Event("copy", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(copyEvent, "clipboardData", {
+        value: { clearData: vi.fn(), setData },
+      });
+
+      editor.prosemirrorView.dom.dispatchEvent(copyEvent);
+
+      expect(copyEvent.defaultPrevented).toBe(true);
+      expect(setData).toHaveBeenCalledWith(
+        "text/plain",
+        source.replaceAll("\n  ", "\n"),
+      );
+    } finally {
+      session.view.unmount();
+    }
+  });
 });
 
 describe("BlockNoteEditor persistent session runtime", () => {

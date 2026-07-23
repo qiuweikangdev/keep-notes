@@ -30,6 +30,18 @@ describe("Markdown source preservation", () => {
     ).resolves.toBe(exported.replaceAll("\\\n", "\n"));
   });
 
+  it("serializes multiline CSS source without hard-break escapes", async () => {
+    const exported = `:deep(.home-adsense-banner--pc) {\\
+  padding: 24px 0px;\\
+}`;
+
+    await expect(
+      serializeMarkdown<TestBlock>({ blocksToMarkdownLossy: () => exported }, [
+        { type: "paragraph" },
+      ]),
+    ).resolves.toBe(exported.replaceAll("\\\n", "\n"));
+  });
+
   it("removes the spacer line emitted after markup hard breaks", async () => {
     const exported = `<GoogleAdsenseBanner
 

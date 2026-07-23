@@ -426,8 +426,11 @@ function normalizeMarkupHardBreaks(markdown: string): string {
     const containsMarkup = paragraphLines.some((line) =>
       /<\/?[A-Za-z][A-Za-z0-9-]*/u.test(line.text),
     );
+    const paragraphText = paragraphLines.map((line) => line.text).join("\n");
+    const containsBracedSource =
+      paragraphText.includes("{") && paragraphText.includes("}");
 
-    if (containsMarkup) {
+    if (containsMarkup || containsBracedSource) {
       // BlockNote 会把同一段落内的换行导出为 `\` 硬换行；源码文案应保留原始单换行。
       for (let index = paragraphStart; index < endIndex; index += 1) {
         const line = lines[index];
