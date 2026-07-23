@@ -75,7 +75,7 @@ export interface GitBranch {
 // Git 提交选项
 export interface GitCommitOptions {
   message: string;
-  files?: string[]; // 指定要提交的文件，空则提交所有暂存文件
+  files?: string[]; // undefined 包含所有工作区更改，空数组仅提交当前暂存区
   push?: boolean; // 提交后是否推送
 }
 

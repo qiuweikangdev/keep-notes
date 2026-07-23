@@ -264,6 +264,19 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     closeDiff();
   }, [closeDiff]);
 
+  const refreshGitStatus = useCallback(
+    async (dir: string): Promise<void> => {
+      const statusResult = await getGitStatus(dir);
+      if (statusResult?.code !== CodeResult.Success || !statusResult.data) {
+        return;
+      }
+
+      setGitStatus(statusResult.data);
+      setStagedFiles(new Set(statusResult.data.staged));
+    },
+    [getGitStatus],
+  );
+
   const loadGitInfo = useCallback(async () => {
     const dir = getCurrentDir();
     if (!dir) {
@@ -287,11 +300,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             }
           }
 
-          const statusResult = await getGitStatus(dir);
-          if (statusResult?.code === CodeResult.Success && statusResult.data) {
-            setGitStatus(statusResult.data);
-            setStagedFiles(new Set(statusResult.data.staged));
-          }
+          await refreshGitStatus(dir);
         }
       } else {
         setIsGitRepo(false);
@@ -303,7 +312,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       setLoading(false);
       setIsGitInfoLoading(false);
     }
-  }, [getCurrentDir, detectGitRepo, getBranches, getGitStatus]);
+  }, [getCurrentDir, detectGitRepo, getBranches, refreshGitStatus]);
 
   useEffect(() => {
     if (isOpen) {
@@ -443,39 +452,29 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
 
   // 切换文件暂存状态
   const toggleFileStaging = useCallback(
-    async (filePath: string) => {
+    async (filePath: string, section: GitChangeSection) => {
       const dir = getCurrentDir();
       if (!dir) return;
 
-      const isCurrentlyStaged = Array.from(stagedFiles).some(
-        (stagedFilePath) =>
-          normalizePanelGitPath(stagedFilePath) ===
-          normalizePanelGitPath(filePath),
-      );
-
       try {
-        if (isCurrentlyStaged) {
+        if (section === "staged") {
           // 取消暂存
           const result = await unstageFiles(dir, [filePath]);
           if (result.code === CodeResult.Success) {
-            setStagedFiles((prev) => {
-              const next = new Set(prev);
-              next.delete(filePath);
-              return next;
-            });
+            await refreshGitStatus(dir);
           }
         } else {
           // 添加到暂存区
           const result = await addFilesToStaging(dir, [filePath]);
           if (result.code === CodeResult.Success) {
-            setStagedFiles((prev) => new Set(prev).add(filePath));
+            await refreshGitStatus(dir);
           }
         }
       } catch (error) {
         showMessage("error", "操作失败");
       }
     },
-    [getCurrentDir, stagedFiles, addFilesToStaging, unstageFiles],
+    [getCurrentDir, addFilesToStaging, unstageFiles, refreshGitStatus],
   );
 
   const handleSwitchBranch = useCallback(
@@ -803,7 +802,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         const options: GitCommitOptions = {
           message,
           push: pushAfterCommit,
-          files: includeUntracked ? undefined : stagedFilePaths,
+          files: includeUntracked ? undefined : [],
         };
         const result = await commitChanges(dir, options);
         if (result.code === CodeResult.Success) {
@@ -832,7 +831,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       getCurrentDir,
       commitMessage,
       includeUntracked,
-      stagedFilePaths,
       commitChanges,
       loadGitInfo,
       loadTree,
@@ -850,56 +848,32 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     [allFilePaths],
   );
 
-  // 检查目录下所有文件是否都已暂存
-  const isDirFullyStaged = useCallback(
-    (dirPath: string): boolean => {
-      const files = getFilesInDir(dirPath);
-      return files.length > 0 && files.every((f) => isFileStaged(f));
-    },
-    [getFilesInDir, isFileStaged],
-  );
-
-  // 检查目录下是否有部分文件已暂存
-  const isDirPartiallyStaged = useCallback(
-    (dirPath: string): boolean => {
-      const files = getFilesInDir(dirPath);
-      const stagedCount = files.filter((f) => isFileStaged(f)).length;
-      return stagedCount > 0 && stagedCount < files.length;
-    },
-    [getFilesInDir, isFileStaged],
-  );
-
   // 切换目录下所有文件的暂存状态
   const toggleDirStaging = useCallback(
-    async (dirPath: string) => {
+    async (dirPath: string, section: GitChangeSection) => {
       const dir = getCurrentDir();
       if (!dir) return;
 
-      const files = getFilesInDir(dirPath);
+      const normalizedDir = normalizePanelGitPath(dirPath);
+      const sectionFiles =
+        section === "staged" ? stagedFilePaths : unstagedFilePaths;
+      const files = sectionFiles.filter((filePath) =>
+        normalizePanelGitPath(filePath).startsWith(normalizedDir + "/"),
+      );
       if (files.length === 0) return;
 
-      const allStaged = isDirFullyStaged(dirPath);
-
       try {
-        if (allStaged) {
+        if (section === "staged") {
           // 取消暂存所有文件
           const result = await unstageFiles(dir, files);
           if (result.code === CodeResult.Success) {
-            setStagedFiles((prev) => {
-              const next = new Set(prev);
-              files.forEach((f) => next.delete(f));
-              return next;
-            });
+            await refreshGitStatus(dir);
           }
         } else {
           // 暂存所有文件
           const result = await addFilesToStaging(dir, files);
           if (result.code === CodeResult.Success) {
-            setStagedFiles((prev) => {
-              const next = new Set(prev);
-              files.forEach((f) => next.add(f));
-              return next;
-            });
+            await refreshGitStatus(dir);
           }
         }
       } catch (error) {
@@ -908,10 +882,11 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     },
     [
       getCurrentDir,
-      getFilesInDir,
-      isDirFullyStaged,
+      stagedFilePaths,
+      unstagedFilePaths,
       addFilesToStaging,
       unstageFiles,
+      refreshGitStatus,
     ],
   );
 
@@ -923,11 +898,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       try {
         const result = await addFilesToStaging(dir, files);
         if (result.code === CodeResult.Success) {
-          setStagedFiles((prev) => {
-            const next = new Set(prev);
-            files.forEach((filePath) => next.add(filePath));
-            return next;
-          });
+          await refreshGitStatus(dir);
         } else {
           showMessage("error", result.message || "暂存失败");
         }
@@ -935,7 +906,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         showMessage("error", "暂存失败");
       }
     },
-    [addFilesToStaging, getCurrentDir],
+    [addFilesToStaging, getCurrentDir, refreshGitStatus],
   );
 
   const unstageSelectedFiles = useCallback(
@@ -946,11 +917,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       try {
         const result = await unstageFiles(dir, files);
         if (result.code === CodeResult.Success) {
-          setStagedFiles((prev) => {
-            const next = new Set(prev);
-            files.forEach((filePath) => next.delete(filePath));
-            return next;
-          });
+          await refreshGitStatus(dir);
         } else {
           showMessage("error", result.message || "取消暂存失败");
         }
@@ -958,17 +925,22 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         showMessage("error", "取消暂存失败");
       }
     },
-    [getCurrentDir, unstageFiles],
+    [getCurrentDir, unstageFiles, refreshGitStatus],
   );
 
   // 放弃目录下所有文件的更改
   const handleDiscardDirChanges = useCallback(
     (dirPath: string) => {
-      const files = getFilesInDir(dirPath);
+      const unstagedPathSet = new Set(
+        unstagedFilePaths.map(normalizePanelGitPath),
+      );
+      const files = getFilesInDir(dirPath).filter((filePath) =>
+        unstagedPathSet.has(normalizePanelGitPath(filePath)),
+      );
       if (files.length === 0) return;
       setConfirmDialog({ open: true, filePath: dirPath + "/*" });
     },
-    [getFilesInDir],
+    [getFilesInDir, unstagedFilePaths],
   );
 
   const handleDiscardAllChanges = useCallback(() => {
@@ -990,24 +962,15 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     try {
       // 处理目录级别或全部未暂存文件的放弃更改
       if (filePath === DISCARD_ALL_CHANGES || filePath.endsWith("/*")) {
+        const unstagedPathSet = new Set(
+          unstagedFilePaths.map(normalizePanelGitPath),
+        );
         const files =
           filePath === DISCARD_ALL_CHANGES
             ? unstagedFilePaths
-            : getFilesInDir(filePath.slice(0, -2));
-
-        // 目录级放弃需要先取消暂存目录内文件；全局放弃只处理未暂存文件，不触碰已暂存内容。
-        const stagedInScope =
-          filePath === DISCARD_ALL_CHANGES
-            ? []
-            : files.filter((f) => isFileStaged(f));
-        if (stagedInScope.length > 0) {
-          await unstageFiles(dir, stagedInScope);
-          setStagedFiles((prev) => {
-            const next = new Set(prev);
-            stagedInScope.forEach((f) => next.delete(f));
-            return next;
-          });
-        }
+            : getFilesInDir(filePath.slice(0, -2)).filter((candidate) =>
+                unstagedPathSet.has(normalizePanelGitPath(candidate)),
+              );
 
         let successCount = 0;
         for (const file of files) {
@@ -1049,16 +1012,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           await openFileInEditor(normalizedFile);
         }
       } else {
-        // 单文件：先取消暂存（如果已暂存），再放弃更改
-        if (isFileStaged(filePath)) {
-          await unstageFiles(dir, [filePath]);
-          setStagedFiles((prev) => {
-            const next = new Set(prev);
-            next.delete(filePath);
-            return next;
-          });
-        }
-
+        // 单文件只恢复工作区版本，主进程会保留该文件已有的暂存内容。
         const result = await discardChanges(dir, filePath);
         if (result.code === CodeResult.Success) {
           showMessage("success", "已放弃更改");
@@ -1094,9 +1048,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     loadTree,
     getFilesInDir,
     unstagedFilePaths,
-    stagedFiles,
-    isFileStaged,
-    unstageFiles,
     openFileInEditor,
   ]);
 
@@ -1153,21 +1104,23 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           </button>
         </GitPanelTooltip>
       ) : null}
-      <GitPanelTooltip label="放弃更改" side="bottom">
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            handleDiscardChanges(filePath);
-          }}
-          data-theme-control="true"
-          className="rounded p-1 transition-colors hover:bg-[var(--hover-bg)]"
-          style={{ color: "var(--text-muted)" }}
-          aria-label="放弃更改"
-        >
-          <RotateCcw className="h-3.5 w-3.5" />
-        </button>
-      </GitPanelTooltip>
+      {variant === "unstaged" ? (
+        <GitPanelTooltip label="放弃更改" side="bottom">
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              handleDiscardChanges(filePath);
+            }}
+            data-theme-control="true"
+            className="rounded p-1 transition-colors hover:bg-[var(--hover-bg)]"
+            style={{ color: "var(--text-muted)" }}
+            aria-label="放弃更改"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+          </button>
+        </GitPanelTooltip>
+      ) : null}
     </div>
   );
 
@@ -1180,6 +1133,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
   ) => {
     const badge = fileBadgeMap.get(filePath);
     const normalizedPath = normalizePanelGitPath(filePath);
+    const isStagedSection = variant === "staged";
     const rawStatus = gitStatus?.files.find(
       (file) => normalizePanelGitPath(file.path) === normalizedPath,
     );
@@ -1209,12 +1163,12 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         {showTreeGuide ? <span className="w-3.5 shrink-0" /> : null}
         <input
           type="checkbox"
-          checked={isFileStaged(filePath)}
+          checked={isStagedSection}
           onClick={(event) => event.stopPropagation()}
-          onChange={() => toggleFileStaging(filePath)}
+          onChange={() => toggleFileStaging(filePath, variant)}
           className="mr-2 h-3.5 w-3.5 shrink-0 cursor-pointer rounded"
           style={{ accentColor: "var(--accent-color)" }}
-          title={isFileStaged(filePath) ? "取消暂存" : "暂存更改"}
+          title={isStagedSection ? "取消暂存" : "暂存更改"}
         />
         <File
           className="mr-2 h-4 w-4 shrink-0"
@@ -1248,8 +1202,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     }
 
     const isExpanded = expandedDirs.has(node.path);
-    const allStaged = isDirFullyStaged(node.path);
-    const partialStaged = isDirPartiallyStaged(node.path);
+    const isStagedSection = variant === "staged";
 
     return (
       <div key={node.path}>
@@ -1277,14 +1230,11 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           </button>
           <input
             type="checkbox"
-            checked={allStaged}
-            ref={(el) => {
-              if (el) el.indeterminate = partialStaged;
-            }}
-            onChange={() => toggleDirStaging(node.path)}
+            checked={isStagedSection}
+            onChange={() => toggleDirStaging(node.path, variant)}
             className="mr-2 h-3.5 w-3.5 shrink-0 cursor-pointer rounded"
             style={{ accentColor: "var(--accent-color)" }}
-            title={allStaged ? "取消暂存目录" : "暂存目录更改"}
+            title={isStagedSection ? "取消暂存目录" : "暂存目录更改"}
           />
           {isExpanded ? (
             <FolderOpen
@@ -1304,19 +1254,21 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           >
             {node.name}
           </span>
-          <GitPanelTooltip label="放弃目录更改" side="bottom">
-            <button
-              type="button"
-              onClick={() => handleDiscardDirChanges(node.path)}
-              data-theme-control="true"
-              className="ml-2 rounded p-1 opacity-0 transition-colors transition-opacity hover:bg-[var(--hover-bg)] group-hover:opacity-100 group-focus-within:opacity-100"
-              style={{ color: "var(--text-muted)" }}
-              title="放弃目录更改"
-              aria-label="放弃目录更改"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-            </button>
-          </GitPanelTooltip>
+          {variant === "unstaged" ? (
+            <GitPanelTooltip label="放弃目录更改" side="bottom">
+              <button
+                type="button"
+                onClick={() => handleDiscardDirChanges(node.path)}
+                data-theme-control="true"
+                className="ml-2 rounded p-1 opacity-0 transition-colors transition-opacity hover:bg-[var(--hover-bg)] group-hover:opacity-100 group-focus-within:opacity-100"
+                style={{ color: "var(--text-muted)" }}
+                title="放弃目录更改"
+                aria-label="放弃目录更改"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+              </button>
+            </GitPanelTooltip>
+          ) : null}
           <span className="w-4 shrink-0" />
         </div>
         {isExpanded
@@ -2219,11 +2171,11 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         title="确认放弃更改"
         description={
           confirmDialog.filePath === DISCARD_ALL_CHANGES
-            ? "确定要放弃所有更改吗？"
+            ? "确定要放弃所有未暂存的更改吗？"
             : `确定要放弃 ${
                 confirmDialog.filePath.endsWith("/*")
-                  ? `目录 "${confirmDialog.filePath.slice(0, -2)}" 下的所有更改`
-                  : `"${confirmDialog.filePath}" 的更改`
+                  ? `目录 "${confirmDialog.filePath.slice(0, -2)}" 下的未暂存更改`
+                  : `"${confirmDialog.filePath}" 的工作区更改`
               } 吗？`
         }
         variant="warning"

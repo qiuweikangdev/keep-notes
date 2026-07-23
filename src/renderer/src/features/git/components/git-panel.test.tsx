@@ -682,7 +682,9 @@ describe("GitPanel", () => {
 
     fireEvent.click(screen.getByLabelText("放弃所有更改"));
     expect(await screen.findByText("确认放弃更改")).toBeInTheDocument();
-    expect(screen.getByText("确定要放弃所有更改吗？")).toBeInTheDocument();
+    expect(
+      screen.getByText("确定要放弃所有未暂存的更改吗？"),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "确定" }));
 
@@ -733,6 +735,171 @@ describe("GitPanel", () => {
     expect(
       screen.getByRole("button", { name: "收起更改" }),
     ).toBeInTheDocument();
+    const stagedSection = screen
+      .getByRole("button", { name: "收起已暂存的更改" })
+      .closest("section");
+    const unstagedSection = screen
+      .getByRole("button", { name: "收起更改" })
+      .closest("section");
+    expect(
+      within(stagedSection as HTMLElement).getByRole("checkbox"),
+    ).toBeChecked();
+    expect(
+      within(unstagedSection as HTMLElement).getByRole("checkbox"),
+    ).not.toBeChecked();
+  });
+
+  it("discards only working tree changes from a partially staged file", async () => {
+    electronMocks.getGitStatus.mockResolvedValue({
+      code: CodeResult.Success,
+      data: {
+        current: "main",
+        tracking: "origin/main",
+        files: [
+          {
+            path: "partially-staged.md",
+            index: "M",
+            working_dir: "M",
+          },
+        ],
+        ahead: 0,
+        behind: 0,
+        created: [],
+        not_added: [],
+        modified: ["partially-staged.md"],
+        deleted: [],
+        renamed: [],
+        staged: ["partially-staged.md"],
+        conflicted: [],
+      },
+    });
+
+    render(<GitPanel isOpen onClose={vi.fn()} />);
+
+    expect(await screen.findAllByText("partially-staged.md")).toHaveLength(2);
+    expect(screen.getAllByLabelText("放弃更改")).toHaveLength(1);
+
+    fireEvent.click(screen.getByLabelText("放弃更改"));
+    fireEvent.click(await screen.findByRole("button", { name: "确定" }));
+
+    await waitFor(() => {
+      expect(electronMocks.discardChanges).toHaveBeenCalledWith(
+        "/notes",
+        "partially-staged.md",
+      );
+    });
+    expect(electronMocks.unstageFiles).not.toHaveBeenCalled();
+  });
+
+  it("commits only the current index when unstaged changes are excluded", async () => {
+    electronMocks.getGitStatus.mockResolvedValue({
+      code: CodeResult.Success,
+      data: {
+        current: "main",
+        tracking: "origin/main",
+        files: [
+          {
+            path: "partially-staged.md",
+            index: "M",
+            working_dir: "M",
+          },
+        ],
+        ahead: 0,
+        behind: 0,
+        created: [],
+        not_added: [],
+        modified: ["partially-staged.md"],
+        deleted: [],
+        renamed: [],
+        staged: ["partially-staged.md"],
+        conflicted: [],
+      },
+    });
+    electronMocks.commitChanges.mockResolvedValue({
+      code: CodeResult.Success,
+    });
+
+    render(<GitPanel isOpen onClose={vi.fn()} />);
+
+    await screen.findAllByText("partially-staged.md");
+    fireEvent.click(screen.getByLabelText("包含未暂存的更改"));
+    fireEvent.click(screen.getByRole("button", { name: "提交" }));
+
+    await waitFor(() => {
+      expect(electronMocks.commitChanges).toHaveBeenCalledWith(
+        "/notes",
+        expect.objectContaining({
+          files: [],
+          push: false,
+        }),
+      );
+    });
+  });
+
+  it("refreshes both change sections after staging remaining file changes", async () => {
+    electronMocks.getGitStatus
+      .mockResolvedValueOnce({
+        code: CodeResult.Success,
+        data: {
+          current: "main",
+          tracking: "origin/main",
+          files: [
+            {
+              path: "partially-staged.md",
+              index: "M",
+              working_dir: "M",
+            },
+          ],
+          ahead: 0,
+          behind: 0,
+          created: [],
+          not_added: [],
+          modified: ["partially-staged.md"],
+          deleted: [],
+          renamed: [],
+          staged: ["partially-staged.md"],
+          conflicted: [],
+        },
+      })
+      .mockResolvedValueOnce({
+        code: CodeResult.Success,
+        data: {
+          current: "main",
+          tracking: "origin/main",
+          files: [
+            {
+              path: "partially-staged.md",
+              index: "M",
+              working_dir: " ",
+            },
+          ],
+          ahead: 0,
+          behind: 0,
+          created: [],
+          not_added: [],
+          modified: [],
+          deleted: [],
+          renamed: [],
+          staged: ["partially-staged.md"],
+          conflicted: [],
+        },
+      });
+
+    render(<GitPanel isOpen onClose={vi.fn()} />);
+
+    expect(await screen.findAllByText("partially-staged.md")).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "全部暂存" }));
+
+    await waitFor(() => {
+      expect(electronMocks.addFilesToStaging).toHaveBeenCalledWith("/notes", [
+        "partially-staged.md",
+      ]);
+      expect(screen.getAllByText("partially-staged.md")).toHaveLength(1);
+    });
+    expect(
+      screen.queryByRole("button", { name: "收起更改" }),
+    ).not.toBeInTheDocument();
   });
 
   it("switches between file status and git history with compact icon controls", async () => {

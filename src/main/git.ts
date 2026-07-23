@@ -1,5 +1,6 @@
 import { simpleGit, SimpleGit, StatusResult, BranchSummary } from "simple-git";
 import dayjs from "dayjs";
+import { promises as fs } from "node:fs";
 import path from "node:path";
 import { CodeResult } from "../shared/types";
 import type {
@@ -264,11 +265,11 @@ export async function commit(
     const commitMessage =
       options.message || dayjs().format("YYYY-MM-DD HH:mm:ss");
 
-    // 如果指定了文件，只添加这些文件；否则添加所有文件
-    if (options.files && options.files.length > 0) {
-      await git.add(options.files);
-    } else {
+    // 未指定文件时包含全部工作区更改；空数组表示仅提交当前暂存区，避免部分暂存文件被重新完整暂存。
+    if (options.files === undefined) {
       await git.add(".");
+    } else if (options.files.length > 0) {
+      await git.add(options.files);
     }
 
     // 提交
@@ -604,30 +605,24 @@ export async function discardChanges(
   try {
     const git = getGitInstance(dirPath);
     const status = await git.status();
+    const gitPath = normalizeGitPath(filePath);
 
-    // 判断文件属于哪种状态
-    const isUntracked =
-      status.not_added.includes(filePath) || status.created.includes(filePath);
-    const isStaged = status.staged.includes(filePath);
+    const isUntracked = status.not_added.some(
+      (path) => normalizeGitPath(path) === gitPath,
+    );
 
     if (isUntracked) {
       // 未跟踪的文件直接删除
-      const path = require("path") as typeof import("path");
-      const fullPath = path.join(dirPath, filePath);
-      const fs = require("fs") as typeof import("fs");
-      await fs.promises.unlink(fullPath);
-    } else if (isStaged) {
-      // 已暂存：先取消暂存，再放弃更改
-      await git.reset(["HEAD", filePath]);
-      await git.checkout(["--", filePath]);
+      const fullPath = path.join(dirPath, gitPath);
+      await fs.unlink(fullPath);
     } else {
-      // 已修改但未暂存
-      await git.checkout(["--", filePath]);
+      // 仅用暂存区版本恢复工作区，保留同一文件已经暂存的内容。
+      await git.checkout(["--", gitPath]);
     }
 
     return {
       code: CodeResult.Success,
-      message: "已放弃更改",
+      message: "已放弃工作区更改",
     };
   } catch (e: any) {
     return {
