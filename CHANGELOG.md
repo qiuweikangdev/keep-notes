@@ -1,3 +1,18 @@
+## [2.19.3](https://github.com/qiuweikangdev/keep-notes/compare/v2.19.2...v2.19.3) (2026-07-23)
+
+
+### Bug Fixes
+
+* preserve multiline code block content ([65d8ddd](https://github.com/qiuweikangdev/keep-notes/commit/65d8dddb23200694ca6739c5e501257abf2a2f1f))
+* preserve pasted markup across editor sync ([dc33655](https://github.com/qiuweikangdev/keep-notes/commit/dc33655a47c1dab3c125cf8b63840685771a256c))
+* preserve staged changes in git operations ([b229220](https://github.com/qiuweikangdev/keep-notes/commit/b229220e85495e9d74fbf3a528bdf1a4e72e26a1))
+
+
+## Commit Summary
+
+- Compared with: v2.19.2
+- Total commits: 3
+
 ## [2.19.2](https://github.com/qiuweikangdev/keep-notes/compare/v2.19.1...v2.19.2) (2026-07-23)
 
 
