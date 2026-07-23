@@ -1410,6 +1410,63 @@ describe("BlockNoteEditor code paste", () => {
   });
 });
 
+describe("BlockNoteEditor markup copy", () => {
+  it("preserves markup line breaks when copying from rich text", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/rich-markup-copy.md";
+    const source = `<button
+  type="button"
+  class="comment-panel__action-more"
+  :aria-label="$t('more')"
+  @click.stop="toggleActionMenu()"
+/>`;
+    setupSessionTab(path);
+    const session = renderRealSession(path, false, "");
+
+    try {
+      vi.stubGlobal("ClipboardEvent", Event);
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const editor = session.runtime.current!.editor;
+      const pasteEvent = new Event("paste", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(pasteEvent, "clipboardData", {
+        value: {
+          getData: (type: string) => (type === "text/plain" ? source : ""),
+          types: ["text/plain"],
+        },
+      });
+      editor.prosemirrorView.dom.dispatchEvent(pasteEvent);
+      editor.prosemirrorView.dispatch(
+        editor.prosemirrorView.state.tr.setSelection(
+          TextSelection.create(
+            editor.prosemirrorView.state.doc,
+            3,
+            editor.prosemirrorView.state.doc.content.size - 3,
+          ),
+        ),
+      );
+      const setData = vi.fn();
+      const copyEvent = new Event("copy", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(copyEvent, "clipboardData", {
+        value: { clearData: vi.fn(), setData },
+      });
+
+      editor.prosemirrorView.dom.dispatchEvent(copyEvent);
+
+      expect(copyEvent.defaultPrevented).toBe(true);
+      expect(setData).toHaveBeenCalledWith("text/plain", source);
+    } finally {
+      session.view.unmount();
+    }
+  });
+});
+
 describe("BlockNoteEditor persistent session runtime", () => {
   it("keeps inserted list parents and children separated in markdown", async () => {
     setupMatchMedia();

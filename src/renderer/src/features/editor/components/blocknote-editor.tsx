@@ -184,6 +184,31 @@ export function pasteMarkupAsPlainText(
   return true;
 }
 
+function copyMarkupSelectionAsPlainText(
+  editor: CoreBlockNoteEditor,
+  event: ClipboardEvent,
+): boolean {
+  const selection = editor.prosemirrorView.state.selection;
+  if (selection.empty || !event.clipboardData) return false;
+
+  const source = editor.prosemirrorView.state.doc.textBetween(
+    selection.from,
+    selection.to,
+    "\n",
+    "\n",
+  );
+  if (!source.includes("\n") || !/<\/?[A-Za-z][^>]*>/.test(source)) {
+    return false;
+  }
+
+  // BlockNote 会把硬换行序列化成反斜杠换行；复制标签源码时改写纯文本，确保代码块拿到原始行结构。
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  event.clipboardData.clearData();
+  event.clipboardData.setData("text/plain", source);
+  return true;
+}
+
 interface RichEditorSelectionTarget {
   prosemirrorView?: {
     state: {
@@ -2255,6 +2280,17 @@ function MountedBlockNoteEditor({
     [editor, markUserIntent],
   );
 
+  const handleCopyCapture = useCallback(
+    (event: React.ClipboardEvent<HTMLDivElement>) => {
+      if (!copyMarkupSelectionAsPlainText(editor, event.nativeEvent)) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.nativeEvent.stopImmediatePropagation();
+    },
+    [editor],
+  );
+
   const handleDropCapture = useCallback(
     (event: React.DragEvent) => {
       if (!blockExternalFileDrop(event)) {
@@ -2565,6 +2601,7 @@ function MountedBlockNoteEditor({
       onPointerDownCapture={handlePointerDownCapture}
       onTouchStartCapture={cancelPendingViewportRestore}
       onWheelCapture={cancelPendingViewportRestore}
+      onCopyCapture={handleCopyCapture}
       onPasteCapture={handlePasteCapture}
       onCutCapture={markUserIntent}
       onCompositionStartCapture={markUserIntent}
