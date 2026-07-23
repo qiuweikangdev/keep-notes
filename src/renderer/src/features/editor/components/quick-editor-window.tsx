@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ClipboardEvent as ReactClipboardEvent,
   type CSSProperties,
   type KeyboardEvent,
 } from "react";
@@ -71,6 +72,7 @@ import {
   getRichEditorInlineContentFromTarget,
   handleRichEditorHeadingShortcut,
   handleRichEditorSelectAllShortcut,
+  pasteMarkupAsPlainText,
   RICH_EDITOR_SELECTION_DRAG_LOCK_CLASS,
   registerRichEditorSelectionDragGuardPlugin,
   richEditorDefaultUIProps,
@@ -278,6 +280,18 @@ export function QuickEditorWindow() {
     uploadFile: handleImageUploadRef.current,
   });
   editorRef.current = editor;
+
+  const handleRichEditorPasteCapture = useCallback(
+    (event: ReactClipboardEvent<HTMLDivElement>) => {
+      if (!pasteMarkupAsPlainText(editor, event.nativeEvent)) return;
+
+      // 浮动窗口同样在容器捕获阶段保留源码标签，避免进入 BlockNote 的 HTML 解析器。
+      event.preventDefault();
+      event.stopPropagation();
+      event.nativeEvent.stopImmediatePropagation();
+    },
+    [editor],
+  );
 
   useLayoutEffect(() => {
     // 与面板富文本共用撤销深度，避免独立窗口在长时间编辑后过早丢失撤销记录。
@@ -1284,6 +1298,7 @@ export function QuickEditorWindow() {
           <div
             ref={scrollContainerRef}
             className="quick-editor-window__scroll"
+            onPasteCapture={handleRichEditorPasteCapture}
             onPointerDownCapture={handleRichEditorPointerDownCapture}
             onScroll={handleEditorScroll}
           >

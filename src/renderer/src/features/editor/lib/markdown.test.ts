@@ -17,6 +17,77 @@ describe("Markdown source preservation", () => {
     type: string;
   };
 
+  it("serializes multiline markup with source line breaks", async () => {
+    const exported = `<GoogleAdsenseBanner\\
+  :ad-slot="adSlot"\\
+  ad-format="horizontal"\\
+/>`;
+
+    await expect(
+      serializeMarkdown<TestBlock>({ blocksToMarkdownLossy: () => exported }, [
+        { type: "paragraph" },
+      ]),
+    ).resolves.toBe(exported.replaceAll("\\\n", "\n"));
+  });
+
+  it("removes the spacer line emitted after markup hard breaks", async () => {
+    const exported = `<GoogleAdsenseBanner
+
+  :ad-slot="adSlot"
+
+  ad-format="horizontal"
+
+/>`;
+
+    await expect(
+      serializeMarkdown<TestBlock>({ blocksToMarkdownLossy: () => exported }, [
+        { type: "paragraph" },
+      ]),
+    ).resolves.toBe(`<GoogleAdsenseBanner
+  :ad-slot="adSlot"
+  ad-format="horizontal"
+/>`);
+  });
+
+  it("preserves user-authored blank lines inside markup", async () => {
+    const exported = `<section>
+
+
+  <p>First</p>
+
+  <p>Second</p>
+
+</section>`;
+
+    await expect(
+      serializeMarkdown<TestBlock>({ blocksToMarkdownLossy: () => exported }, [
+        { type: "paragraph" },
+      ]),
+    ).resolves.toBe(`<section>
+
+  <p>First</p>
+  <p>Second</p>
+</section>`);
+  });
+
+  it("keeps non-markup hard breaks and fenced code unchanged", async () => {
+    const ordinaryText = "First\\\nSecond";
+    const fencedCode = "```html\n<Component\\\n/>\n```";
+
+    await expect(
+      serializeMarkdown<TestBlock>(
+        { blocksToMarkdownLossy: () => ordinaryText },
+        [{ type: "paragraph" }],
+      ),
+    ).resolves.toBe(ordinaryText);
+    await expect(
+      serializeMarkdown<TestBlock>(
+        { blocksToMarkdownLossy: () => fencedCode },
+        [{ type: "codeBlock" }],
+      ),
+    ).resolves.toBe(fencedCode);
+  });
+
   it("nests quoted markdown list items under their quote after parsing", async () => {
     let received = "";
     const blocks = await parseMarkdown<TestBlock>(
@@ -350,6 +421,100 @@ describe("repairMarkdownSourceBeforeParse", () => {
 });
 
 describe("preserveMarkdownSource", () => {
+  it("repairs partially joined nested list items from the rich-text baseline", () => {
+    const source = [
+      "## API",
+      "* `invoke()`",
+      "  * sync",
+      "  * `ainvoke()`  * async",
+      "* `stream()`  * stream child",
+    ].join("\n");
+    const baseline = [
+      "## API",
+      "",
+      "* `invoke()`",
+      "",
+      "  * sync",
+      "",
+      "* `ainvoke()`",
+      "",
+      "  * async",
+      "",
+      "* `stream()`",
+      "",
+      "  * stream child",
+    ].join("\n");
+
+    expect(preserveMarkdownSource(source, baseline, baseline)).toBe(
+      [
+        "## API",
+        "* `invoke()`",
+        "  * sync",
+        "* `ainvoke()`",
+        "  * async",
+        "* `stream()`",
+        "  * stream child",
+      ].join("\n"),
+    );
+  });
+
+  it("keeps new nested list items on separate lines with editor indentation", () => {
+    const source = [
+      "* `invoke()`",
+      "  * sync",
+      "* `stream()`",
+      "  * stream child",
+    ].join("\n");
+    const baseline = [
+      "* `invoke()`",
+      "",
+      "  * sync",
+      "",
+      "* `stream()`",
+      "",
+      "  * stream child",
+    ].join("\n");
+    const edited = [
+      "* `invoke()`",
+      "",
+      "  * sync",
+      "",
+      "* `ainvoke()`",
+      "",
+      "  * async",
+      "",
+      "* `stream()`",
+      "",
+      "  * stream child",
+    ].join("\n");
+
+    expect(preserveMarkdownSource(source, baseline, edited)).toBe(
+      [
+        "* `invoke()`",
+        "  * sync",
+        "* `ainvoke()`",
+        "  * async",
+        "* `stream()`",
+        "  * stream child",
+      ].join("\n"),
+    );
+  });
+
+  it.each(["", "\n", "\r\n"])(
+    "uses multiline markup serialization directly for a blank source",
+    (source) => {
+      const serialized = `<GoogleAdsenseBanner
+  :ad-slot="googleAdsenseConfig.comment.mb.slot"
+  ad-format="horizontal"
+/>
+`;
+
+      expect(preserveMarkdownSource(source, "\n", serialized)).toBe(
+        serialized.trimEnd(),
+      );
+    },
+  );
+
   it("transfers a small rich-text edit without adopting serializer spacing", () => {
     const source = [
       "# AI SDK Core",

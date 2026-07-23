@@ -87,8 +87,10 @@ function createSourceBoundaryMap(
   baseline: string,
   source: string,
 ): SourceBoundaryMap {
-  const left = new Array<number>(baseline.length + 1);
-  const right = new Array<number>(baseline.length + 1);
+  const left: number[] = [];
+  const right: number[] = [];
+  left.length = baseline.length + 1;
+  right.length = baseline.length + 1;
   let baselineOffset = 0;
   let sourceOffset = 0;
 
@@ -302,6 +304,170 @@ function splitMarkdownLines(markdown: string): MarkdownLine[] {
   return lines;
 }
 
+function findMarkupRegionEnd(
+  lines: MarkdownLine[],
+  startIndex: number,
+): number | null {
+  const openingMatch = lines[startIndex].text.match(
+    /^\s*<([A-Za-z][A-Za-z0-9:.-]*)\b/u,
+  );
+  if (!openingMatch) return null;
+
+  const tagName = openingMatch[1].toLowerCase();
+  let openingClosed = false;
+  let quote: "'" | '"' | null = null;
+  let braceDepth = 0;
+
+  for (let index = startIndex; index < lines.length; index += 1) {
+    const text = lines[index].text;
+    if (openingClosed) {
+      if (text.toLowerCase().includes(`</${tagName}`)) return index;
+      continue;
+    }
+
+    for (let offset = 0; offset < text.length; offset += 1) {
+      const character = text[offset];
+      if (quote) {
+        if (character === quote && text[offset - 1] !== "\\") quote = null;
+        continue;
+      }
+      if (character === "'" || character === '"') {
+        quote = character;
+        continue;
+      }
+      if (character === "{" || character === "[") {
+        braceDepth += 1;
+        continue;
+      }
+      if ((character === "}" || character === "]") && braceDepth > 0) {
+        braceDepth -= 1;
+        continue;
+      }
+      if (character !== ">" || braceDepth > 0) continue;
+
+      const beforeClose = text.slice(0, offset).trimEnd();
+      if (beforeClose.endsWith("/")) return index;
+      openingClosed = true;
+      if (
+        text
+          .slice(offset + 1)
+          .toLowerCase()
+          .includes(`</${tagName}`)
+      ) {
+        return index;
+      }
+      break;
+    }
+  }
+
+  return null;
+}
+
+function normalizeMarkupSpacerLines(markdown: string): string {
+  const lines = splitMarkdownLines(markdown);
+  let openingFence: string | null = null;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (openingFence) {
+      if (getClosingFenceMatch(line.text, openingFence)) openingFence = null;
+      continue;
+    }
+
+    const openingFenceMatch = line.text.match(FENCED_CODE_LINE_PATTERN);
+    if (openingFenceMatch) {
+      openingFence = openingFenceMatch[1];
+      continue;
+    }
+
+    let regionEnd = findMarkupRegionEnd(lines, index);
+    if (regionEnd === null || regionEnd === index) continue;
+
+    // 浏览器运行时会在源码硬换行后额外导出一个空白行；每组间隔只去掉一个，
+    // 因而用户原本保留的连续空行仍能按原数量回写。
+    for (let cursor = index; cursor <= regionEnd; cursor += 1) {
+      if (lines[cursor].ending && lines[cursor].text.endsWith("\\")) {
+        lines[cursor].text = lines[cursor].text.slice(0, -1);
+      }
+      if (
+        cursor > index &&
+        cursor < regionEnd &&
+        lines[cursor].text.trim() === "" &&
+        lines[cursor - 1].text.trim() !== ""
+      ) {
+        let nextContentIndex = cursor + 1;
+        while (
+          nextContentIndex <= regionEnd &&
+          lines[nextContentIndex].text.trim() === ""
+        ) {
+          nextContentIndex += 1;
+        }
+        if (nextContentIndex > regionEnd) continue;
+
+        lines.splice(cursor, 1);
+        regionEnd -= 1;
+        cursor = nextContentIndex - 2;
+      }
+    }
+    index = regionEnd;
+  }
+
+  return lines.map((line) => `${line.text}${line.ending}`).join("");
+}
+
+function normalizeMarkupHardBreaks(markdown: string): string {
+  const lines = splitMarkdownLines(markdown);
+  let openingFence: string | null = null;
+  let paragraphStart: number | null = null;
+
+  const flushParagraph = (endIndex: number) => {
+    if (paragraphStart === null) return;
+    const paragraphLines = lines.slice(paragraphStart, endIndex);
+    const containsMarkup = paragraphLines.some((line) =>
+      /<\/?[A-Za-z][A-Za-z0-9-]*/u.test(line.text),
+    );
+
+    if (containsMarkup) {
+      // BlockNote 会把同一段落内的换行导出为 `\` 硬换行；源码文案应保留原始单换行。
+      for (let index = paragraphStart; index < endIndex; index += 1) {
+        const line = lines[index];
+        if (line.ending && line.text.endsWith("\\")) {
+          line.text = line.text.slice(0, -1);
+        }
+      }
+    }
+    paragraphStart = null;
+  };
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (openingFence) {
+      if (getClosingFenceMatch(line.text, openingFence)) {
+        openingFence = null;
+      }
+      continue;
+    }
+
+    const openingMatch = line.text.match(FENCED_CODE_LINE_PATTERN);
+    if (openingMatch) {
+      flushParagraph(index);
+      openingFence = openingMatch[1];
+      continue;
+    }
+
+    if (line.text.trim() === "") {
+      flushParagraph(index);
+      continue;
+    }
+    paragraphStart ??= index;
+  }
+
+  flushParagraph(lines.length);
+  return normalizeMarkupSpacerLines(
+    lines.map((line) => `${line.text}${line.ending}`).join(""),
+  );
+}
+
 function getClosingFenceMatch(line: string, openingFence: string) {
   const match = line.match(FENCED_CODE_LINE_PATTERN);
   if (!match) return null;
@@ -495,9 +661,16 @@ function createListRunLinesFromSourceFormat(
       sourceRun.items[Math.min(index, sourceRun.items.length - 1)];
     const editedItem = editedRun.items[index];
     const sourceLine = sourceLines[sourceItem.lineIndex];
+    const isLastEditedItem = index === editedRun.items.length - 1;
+    const sourceRunEnding =
+      sourceLines[sourceRun.items.at(-1)?.lineIndex ?? sourceItem.lineIndex]
+        .ending;
     lines.push({
-      ending: sourceLine.ending,
-      text: `${sourceItem.indent}${sourceItem.marker}${normalizeListMarkerSpacing(sourceItem.spacing)}${editedItem.content}`,
+      ending: isLastEditedItem
+        ? sourceRunEnding
+        : sourceLine.ending || sourceRunEnding || "\n",
+      // 列表层级属于编辑结果的结构，不能沿用旧源码对应位置的缩进。
+      text: `${editedItem.indent}${sourceItem.marker}${normalizeListMarkerSpacing(sourceItem.spacing)}${editedItem.content}`,
     });
 
     const nextSourceItem = sourceRun.items[index + 1];
@@ -519,7 +692,10 @@ function repairJoinedUnorderedListSource(
   source: string,
   baseline: string,
 ): string | null {
-  const sourceLines = splitMarkdownLines(source);
+  const separatedSource = repairJoinedUnorderedListMarkers(source, true);
+  if (separatedSource === null) return null;
+
+  const sourceLines = splitMarkdownLines(separatedSource);
   const baselineLines = splitMarkdownLines(baseline);
   const sourceRuns = collectUnorderedListRuns(sourceLines);
   const baselineRuns = collectUnorderedListRuns(baselineLines);
@@ -539,11 +715,9 @@ function repairJoinedUnorderedListSource(
     const baselineRun = baselineRuns[index];
     const sourceContents = getListRunContents(sourceRun);
     const baselineContents = getListRunContents(baselineRun);
-    if (!hasJoinedListRunContent(sourceRun, sourceContents, baselineContents)) {
-      continue;
-    }
+    if (!hasSameContentOrder(sourceContents, baselineContents)) return null;
 
-    // 历史错误可能把多个列表项保存到同一行；富文本顺序未变时也要把源码拆回多行。
+    // 部分列表项被拼接时，以富文本基线恢复层级，同时保留源码原有 marker 风格。
     replacements.push({
       endLineIndex: sourceRun.endLineIndex,
       lines: createListRunLinesFromSourceFormat(
@@ -572,8 +746,89 @@ function repairJoinedUnorderedListSource(
   );
 }
 
+function preserveChangedUnorderedListStructure(
+  source: string,
+  baseline: string,
+  edited: string,
+): string | null {
+  const sourceLines = splitMarkdownLines(source);
+  const baselineLines = splitMarkdownLines(baseline);
+  const editedLines = splitMarkdownLines(edited);
+  const sourceRuns = collectUnorderedListRuns(sourceLines);
+  const baselineRuns = collectUnorderedListRuns(baselineLines);
+  const editedRuns = collectUnorderedListRuns(editedLines);
+  const structureChanged =
+    baselineRuns.length !== editedRuns.length ||
+    baselineRuns.some((baselineRun, runIndex) => {
+      const editedRun = editedRuns[runIndex];
+      return (
+        !editedRun ||
+        baselineRun.items.length !== editedRun.items.length ||
+        baselineRun.items.some(
+          (item, itemIndex) =>
+            item.indent !== editedRun.items[itemIndex]?.indent,
+        )
+      );
+    });
+
+  if (!structureChanged) return null;
+  if (
+    sourceRuns.length === 0 ||
+    sourceRuns.length !== baselineRuns.length ||
+    baselineRuns.length !== editedRuns.length
+  ) {
+    return preserveSourceEnding(source, edited);
+  }
+
+  const replacements: Array<{
+    lines: MarkdownLine[];
+    startLineIndex: number;
+    endLineIndex: number;
+  }> = [];
+
+  for (let index = 0; index < baselineRuns.length; index += 1) {
+    const sourceRun = sourceRuns[index];
+    const baselineRun = baselineRuns[index];
+    const editedRun = editedRuns[index];
+    if (
+      !hasSameContentOrder(
+        getListRunContents(sourceRun),
+        getListRunContents(baselineRun),
+      )
+    ) {
+      return preserveSourceEnding(source, edited);
+    }
+
+    replacements.push({
+      endLineIndex: sourceRun.endLineIndex,
+      lines: createListRunLinesFromSourceFormat(
+        sourceLines,
+        sourceRun,
+        editedRun,
+      ),
+      startLineIndex: sourceRun.startLineIndex,
+    });
+  }
+
+  const nextLines = [...sourceLines];
+  for (const replacement of replacements.toReversed()) {
+    nextLines.splice(
+      replacement.startLineIndex,
+      replacement.endLineIndex - replacement.startLineIndex,
+      ...replacement.lines,
+    );
+  }
+
+  // 新增、删除或缩进列表项属于块结构变更，直接按编辑器树重建，避免字符 diff 拼接换行。
+  return preserveSourceEnding(
+    source,
+    nextLines.map((line) => `${line.text}${line.ending}`).join(""),
+  );
+}
+
 function splitJoinedUnorderedListLine(
   line: MarkdownLine,
+  allowWhitespaceSeparatedMarkers = false,
 ): MarkdownLine[] | null {
   const match = line.text.match(UNORDERED_LIST_LINE_PATTERN);
   if (!match) return null;
@@ -586,9 +841,14 @@ function splitJoinedUnorderedListLine(
   for (const markerMatch of content.matchAll(markerPattern)) {
     const markerIndex = markerMatch.index;
     if (markerIndex === undefined || markerIndex === 0) continue;
-    if (!/\S/u.test(content[markerIndex - 1])) continue;
+    if (
+      !allowWhitespaceSeparatedMarkers &&
+      !/\S/u.test(content[markerIndex - 1])
+    ) {
+      continue;
+    }
 
-    segments.push(content.slice(segmentStart, markerIndex));
+    segments.push(content.slice(segmentStart, markerIndex).trimEnd());
     segmentStart = markerIndex + markerMatch[0].length;
   }
 
@@ -603,7 +863,10 @@ function splitJoinedUnorderedListLine(
   }));
 }
 
-function repairJoinedUnorderedListMarkers(markdown: string): string | null {
+function repairJoinedUnorderedListMarkers(
+  markdown: string,
+  allowWhitespaceSeparatedMarkers = false,
+): string | null {
   const lines = splitMarkdownLines(markdown);
   let openingFence: string | null = null;
   let changed = false;
@@ -621,7 +884,7 @@ function repairJoinedUnorderedListMarkers(markdown: string): string | null {
 
     const repairedLines = openingFence
       ? null
-      : splitJoinedUnorderedListLine(line);
+      : splitJoinedUnorderedListLine(line, allowWhitespaceSeparatedMarkers);
     if (!repairedLines) {
       nextLines.push(line);
       continue;
@@ -1238,6 +1501,11 @@ export function preserveMarkdownSource(
   const finalizeMarkdown = (markdown: string) =>
     repairMarkdownSourceAfterPreserve(preservationSource, markdown, edited);
 
+  // 空白文件没有可供差异映射的源码边界，直接采用编辑器结果可避免换行被映射成空格或空段落。
+  if (!preservationSource.trim()) {
+    return repairMarkdownSourceAfterPreserve("", edited, edited);
+  }
+
   if (baseline === edited) return finalizeMarkdown(preservationSource);
 
   // 大文档跳过列表重排和跨块移动的多次 splitMarkdownLines 扫描，
@@ -1246,6 +1514,15 @@ export function preserveMarkdownSource(
     preservationSource.length > LARGE_DOC_LIST_PRESERVE_LIMIT;
 
   if (!isLargeDocument) {
+    const changedListStructure = preserveChangedUnorderedListStructure(
+      preservationSource,
+      baseline,
+      edited,
+    );
+    if (changedListStructure !== null) {
+      return finalizeMarkdown(changedListStructure);
+    }
+
     const reorderedListSource = preserveReorderedUnorderedLists(
       preservationSource,
       baseline,
@@ -1765,5 +2042,6 @@ export async function serializeMarkdown<TBlock>(
 ): Promise<string> {
   // 大文档序列化可能阻塞数百毫秒；让出主线程确保用户交互不被延迟。
   await yieldToMain();
-  return serializeQuoteListBlocks(serializer, blocks);
+  const markdown = await serializeQuoteListBlocks(serializer, blocks);
+  return normalizeMarkupHardBreaks(markdown);
 }

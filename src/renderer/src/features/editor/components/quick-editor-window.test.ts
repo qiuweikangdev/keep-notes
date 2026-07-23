@@ -28,6 +28,7 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  Reflect.deleteProperty(Range.prototype, "getBoundingClientRect");
   Reflect.deleteProperty(Range.prototype, "getClientRects");
   Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
   Reflect.deleteProperty(document, "elementsFromPoint");
@@ -188,6 +189,34 @@ describe("quick editor content detection", () => {
     await user.click(screen.getByRole("button", { name: "更多操作" }));
     await user.click(screen.getByRole("menuitem", { name: "编辑模式切换" }));
     expect(await screen.findByText("222")).toBeInTheDocument();
+
+    const markup = `<section class="card">\n  <strong>浮窗源码</strong>\n</section>`;
+    const floatingRichEditor = screen.getByRole("textbox");
+    vi.stubGlobal("ClipboardEvent", Event);
+    Object.defineProperty(Range.prototype, "getClientRects", {
+      configurable: true,
+      value: () => [],
+    });
+    Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+      configurable: true,
+      value: () => new DOMRect(),
+    });
+    floatingRichEditor.focus();
+    fireEvent.paste(floatingRichEditor, {
+      clipboardData: {
+        getData: (type: string) =>
+          type === "text/plain" || type === "text/html" ? markup : "",
+        types: ["text/html", "text/plain"],
+      },
+    });
+
+    await waitFor(() => {
+      const editorText = floatingRichEditor.textContent ?? "";
+      expect(editorText.split(`<section class="card">`)).toHaveLength(2);
+      expect(editorText.split(`<strong>浮窗源码</strong>`)).toHaveLength(2);
+      expect(editorText.split(`</section>`)).toHaveLength(2);
+    });
+    expect(document.querySelector(".editor-code-block-shell")).toBeNull();
   });
 
   it("renders fenced code blocks with the same parser as the panel editor", async () => {

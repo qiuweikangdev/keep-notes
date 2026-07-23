@@ -1038,7 +1038,346 @@ describe("BlockNoteEditor user intent tracking", () => {
   });
 });
 
+describe("BlockNoteEditor code paste", () => {
+  it("keeps ordinary rich text paste formatting", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/rich-text-paste.md";
+    setupSessionTab(path);
+    const session = renderRealSession(path, false, "");
+
+    try {
+      vi.stubGlobal("ClipboardEvent", Event);
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      await waitFor(() =>
+        expect(markdownMocks.serializeMarkdown).toHaveBeenCalled(),
+      );
+      await act(async () => {
+        await markdownMocks.serializeMarkdown.mock.results[0]?.value;
+      });
+      markdownMocks.serializeMarkdown.mockClear();
+      session.callbacks.onMarkdownChange.mockClear();
+      const editor = session.runtime.current!.editor;
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      const clipboardData = {
+        getData: (type: string) =>
+          type === "text/html"
+            ? "<strong>Title</strong>"
+            : type === "text/plain"
+              ? "Title"
+              : "",
+        types: ["text/html", "text/plain"],
+      };
+      Object.defineProperty(event, "clipboardData", { value: clipboardData });
+
+      act(() => {
+        editor.prosemirrorView.dom.dispatchEvent(event);
+      });
+
+      expect(editor.document[0].content).toEqual([
+        { type: "text", text: "Title", styles: { bold: true } },
+      ]);
+    } finally {
+      session.view.unmount();
+    }
+  });
+
+  it("pastes TSX copied from VS Code as literal text", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/tsx-image-paste.md";
+    setupSessionTab(path);
+    const session = renderRealSession(path, false, "");
+    const source = `<img
+  src={iconDataUrl}
+  alt=""
+  aria-hidden="true"
+  draggable={false}
+  onError={() => setHasImageError(true)}
+  className={cn("shrink-0 object-contain", className)}
+/>`;
+
+    try {
+      vi.stubGlobal("ClipboardEvent", Event);
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const editor = session.runtime.current!.editor;
+      const insertInlineContent = vi.spyOn(editor, "insertInlineContent");
+      const pasteText = vi.spyOn(editor, "pasteText");
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      const clipboardData = {
+        getData: (type: string) =>
+          type === "text/plain"
+            ? source
+            : type === "vscode-editor-data"
+              ? JSON.stringify({ mode: "typescriptreact" })
+              : "",
+        types: ["vscode-editor-data", "text/plain"],
+      };
+      Object.defineProperty(event, "clipboardData", { value: clipboardData });
+
+      act(() => {
+        editor.prosemirrorView.dom.dispatchEvent(event);
+      });
+
+      await waitFor(() => {
+        expect(
+          editor.document.some((block) => block.type === "codeBlock"),
+        ).toBe(false);
+        let hardBreakCount = 0;
+        editor.prosemirrorState.doc.descendants((node) => {
+          if (node.type.name === "hardBreak") hardBreakCount += 1;
+        });
+        expect(hardBreakCount).toBe(source.split("\n").length - 1);
+        expect(
+          editor.prosemirrorState.doc.textBetween(
+            0,
+            editor.prosemirrorState.doc.content.size,
+            "\n",
+            "\n",
+          ),
+        ).toBe(source);
+      });
+      const serialized = await markdownMocks.actualSerializeMarkdown!(
+        editor,
+        editor.document,
+      );
+      expect(serialized).not.toContain("\\\n");
+      expect(serialized.trim()).toBe(source);
+      expect(insertInlineContent).toHaveBeenCalledOnce();
+      expect(insertInlineContent).toHaveBeenCalledWith(source);
+      expect(pasteText).not.toHaveBeenCalled();
+      await act(async () => {
+        await session.runtime.current!.serializePendingChange();
+      });
+      expect(session.callbacks.onMarkdownChange).toHaveBeenLastCalledWith(
+        source,
+      );
+    } finally {
+      session.view.unmount();
+    }
+  });
+
+  it("pastes generic HTML source as literal text", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/html-source-paste.md";
+    setupSessionTab(path);
+    const session = renderRealSession(path, false, "");
+    const source = `<section class="card">
+  <h2>Title</h2>
+  <p>Content</p>
+</section>`;
+
+    try {
+      vi.stubGlobal("ClipboardEvent", Event);
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const editor = session.runtime.current!.editor;
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      const clipboardData = {
+        getData: (type: string) =>
+          type === "text/html" || type === "text/plain" ? source : "",
+        types: ["text/html", "text/plain"],
+      };
+      Object.defineProperty(event, "clipboardData", { value: clipboardData });
+
+      act(() => {
+        editor.prosemirrorView.dom.dispatchEvent(event);
+      });
+
+      expect(editor.document.some((block) => block.type === "codeBlock")).toBe(
+        false,
+      );
+      expect(
+        editor.prosemirrorState.doc.textBetween(
+          0,
+          editor.prosemirrorState.doc.content.size,
+          "\n",
+          "\n",
+        ),
+      ).toBe(source);
+    } finally {
+      session.view.unmount();
+    }
+  });
+
+  it("pastes a Vue template as literal text without VS Code metadata", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/vue-html-paste.md";
+    setupSessionTab(path);
+    const session = renderRealSession(path, false, "");
+    const source = `<NuxtLink
+  v-for="tag in displayTags"
+  :key="**getTagKey**(tag)"
+  class="pc-movie-detail-card__tag"
+  :to="**getTagUrl**(tag)"
+  :title="tag.tag_name"
+>
+  {{ tag.tag_name }}
+</NuxtLink>`;
+
+    try {
+      vi.stubGlobal("ClipboardEvent", Event);
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const editor = session.runtime.current!.editor;
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      const clipboardData = {
+        getData: (type: string) =>
+          type === "text/html" || type === "text/plain" ? source : "",
+        types: ["text/html", "text/plain"],
+      };
+      Object.defineProperty(event, "clipboardData", { value: clipboardData });
+
+      act(() => {
+        editor.prosemirrorView.dom.dispatchEvent(event);
+      });
+
+      expect(editor.document.some((block) => block.type === "codeBlock")).toBe(
+        false,
+      );
+      expect(
+        editor.prosemirrorState.doc.textBetween(
+          0,
+          editor.prosemirrorState.doc.content.size,
+          "\n",
+          "\n",
+        ),
+      ).toBe(source);
+    } finally {
+      session.view.unmount();
+    }
+  });
+
+  it("pastes a self-closing component from VS Code as literal text", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/vue-component-paste.md";
+    setupSessionTab(path);
+    const session = renderRealSession(path, false, "");
+    const source = `<GoogleAdsenseBanner\n  :ad-slot="googleAdsenseConfig.comment.pcBanner.slot"\n  ad-format="horizontal"\n  :ad-full-width-responsive="true"\n  :wrapper-class="{ 'adsense-banner--pc': true }"\n/>`;
+
+    try {
+      vi.stubGlobal("ClipboardEvent", Event);
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const editor = session.runtime.current!.editor;
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      const clipboardData = {
+        getData: (type: string) =>
+          type === "text/plain"
+            ? source
+            : type === "vscode-editor-data"
+              ? JSON.stringify({ mode: "vue" })
+              : "",
+        types: ["vscode-editor-data", "text/plain"],
+      };
+      Object.defineProperty(event, "clipboardData", { value: clipboardData });
+
+      act(() => {
+        editor.prosemirrorView.dom.dispatchEvent(event);
+      });
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(editor.document.some((block) => block.type === "codeBlock")).toBe(
+        false,
+      );
+      expect(
+        editor.prosemirrorState.doc.textBetween(
+          0,
+          editor.prosemirrorState.doc.content.size,
+          "\n",
+          "\n",
+        ),
+      ).toBe(source);
+    } finally {
+      session.view.unmount();
+    }
+  });
+});
+
 describe("BlockNoteEditor persistent session runtime", () => {
+  it("keeps inserted list parents and children separated in markdown", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/list-structure.md";
+    const source = [
+      "## 执行相关API",
+      "* `invoke()`",
+      "  * 同步执行完整工作流",
+      "  * 从 `START` 一直执行到 `END`，最后一次性返回最终状态",
+      "* `stream()`",
+      "  * 同步流式执行",
+    ].join("\n");
+    const expected = [
+      "## 执行相关API",
+      "* `invoke()`",
+      "  * 同步执行完整工作流",
+      "  * 从 `START` 一直执行到 `END`，最后一次性返回最终状态",
+      "* ainvoke()",
+      "  * 异步执行完整工作流。",
+      "  * 适合异步数据库操作、异步模型调用、并发请求、调用接口",
+      "* `stream()`",
+      "  * 同步流式执行",
+    ].join("\n");
+    setupSessionTab(path, { content: source });
+    const session = renderRealSession(path, false, source);
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      await waitFor(() =>
+        expect(markdownMocks.serializeMarkdown).toHaveBeenCalled(),
+      );
+      await act(async () => {
+        await markdownMocks.serializeMarkdown.mock.results[0]?.value;
+      });
+      markdownMocks.serializeMarkdown.mockClear();
+      session.callbacks.onMarkdownChange.mockClear();
+
+      const editor = session.runtime.current!.editor;
+      const invokeBlock = editor.document[1];
+      const scrollContainer = session.view.container.querySelector<HTMLElement>(
+        ".editor-rich-scroll",
+      )!;
+      fireEvent.keyDown(scrollContainer, {
+        altKey: false,
+        ctrlKey: false,
+        key: "Enter",
+        metaKey: false,
+      });
+      act(() => {
+        editor.insertBlocks(
+          [
+            {
+              type: "bulletListItem",
+              content: "ainvoke()",
+              children: [
+                {
+                  type: "bulletListItem",
+                  content: "异步执行完整工作流。",
+                },
+                {
+                  type: "bulletListItem",
+                  content:
+                    "适合异步数据库操作、异步模型调用、并发请求、调用接口",
+                },
+              ],
+            },
+          ],
+          invokeBlock,
+          "after",
+        );
+      });
+      await act(async () => {
+        await session.runtime.current!.serializePendingChange();
+      });
+
+      expect(session.callbacks.onMarkdownChange).toHaveBeenLastCalledWith(
+        expected,
+      );
+    } finally {
+      session.view.unmount();
+    }
+  });
+
   it("keeps the live editor surface opaque at reduced window opacity", async () => {
     setupMatchMedia();
     setupDomMeasurements();

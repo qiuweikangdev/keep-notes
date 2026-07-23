@@ -114,6 +114,21 @@ import "@/styles/blocknote-overrides.css";
 
 export { moveCursorAfterUploadedImage } from "../lib/editor-image";
 
+export function pasteMarkupAsPlainText(
+  editor: CoreBlockNoteEditor,
+  event: ClipboardEvent,
+): boolean {
+  const source = event.clipboardData?.getData("text/plain");
+  if (!source || !/<\/?[A-Za-z][^>]*>/.test(source)) return false;
+
+  // 源码标签按普通文案写入同一段落，避免每个源码行被序列化成独立 Markdown 段落。
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  // 直接调用编辑命令而不重入 handlePaste，防止同一份剪贴板内容被插入两次。
+  editor.insertInlineContent(source);
+  return true;
+}
+
 interface RichEditorSelectionTarget {
   prosemirrorView?: {
     state: {
@@ -2172,6 +2187,19 @@ function MountedBlockNoteEditor({
     changeGateRef.current.markUserIntent();
   }, []);
 
+  const handlePasteCapture = useCallback(
+    (event: React.ClipboardEvent<HTMLDivElement>) => {
+      markUserIntent();
+      if (!pasteMarkupAsPlainText(editor, event.nativeEvent)) return;
+
+      // 容器捕获阶段优先于编辑器实例处理，热更新后也能覆盖旧实例的粘贴规则。
+      event.preventDefault();
+      event.stopPropagation();
+      event.nativeEvent.stopImmediatePropagation();
+    },
+    [editor, markUserIntent],
+  );
+
   const handleDropCapture = useCallback(
     (event: React.DragEvent) => {
       if (!blockExternalFileDrop(event)) {
@@ -2482,7 +2510,7 @@ function MountedBlockNoteEditor({
       onPointerDownCapture={handlePointerDownCapture}
       onTouchStartCapture={cancelPendingViewportRestore}
       onWheelCapture={cancelPendingViewportRestore}
-      onPasteCapture={markUserIntent}
+      onPasteCapture={handlePasteCapture}
       onCutCapture={markUserIntent}
       onCompositionStartCapture={markUserIntent}
       onDragStartCapture={markUserIntent}
