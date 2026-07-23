@@ -1986,6 +1986,98 @@ function getMarkdownBlockType(block: unknown): string | null {
   return block.type;
 }
 
+function collectCodeBlockContents(blocks: unknown[]): string[] {
+  const contents: string[] = [];
+
+  const visit = (block: unknown) => {
+    if (!isRecord(block)) return;
+    if (getMarkdownBlockType(block) === "codeBlock") {
+      contents.push(getInlineText(block.content));
+    }
+    if (Array.isArray(block.children)) {
+      block.children.forEach(visit);
+    }
+  };
+
+  blocks.forEach(visit);
+  return contents;
+}
+
+function normalizeSerializedCodeBlockContent<TBlock>(
+  markdown: string,
+  blocks: TBlock[],
+): string {
+  const codeBlockContents = collectCodeBlockContents(blocks);
+  if (codeBlockContents.length === 0) return markdown;
+
+  const lines = splitMarkdownLines(markdown);
+  let codeBlockIndex = 0;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const openingMatch = lines[index].text.match(FENCED_CODE_OPENING_PATTERN);
+    if (!openingMatch) continue;
+
+    const openingFence = openingMatch[2];
+    let closingIndex = index + 1;
+    while (
+      closingIndex < lines.length &&
+      !getClosingFenceMatch(lines[closingIndex].text, openingFence)
+    ) {
+      closingIndex += 1;
+    }
+    if (closingIndex >= lines.length) break;
+
+    const expectedContent = codeBlockContents[codeBlockIndex];
+    codeBlockIndex += 1;
+    if (expectedContent === undefined) break;
+
+    const expectedLines = expectedContent.replace(/\r\n?/g, "\n").split("\n");
+    const serializedLines = lines.slice(index + 1, closingIndex);
+    if (expectedLines.length === serializedLines.length) {
+      const replacements: Array<{ index: number; text: string }> = [];
+      let matchesContent = true;
+
+      for (let offset = 0; offset < expectedLines.length; offset += 1) {
+        const expectedLine = expectedLines[offset];
+        const serializedLine = serializedLines[offset].text;
+        const indentedExpectedLine = `${openingMatch[1]}${expectedLine}`;
+
+        if (
+          serializedLine === expectedLine ||
+          serializedLine === indentedExpectedLine
+        ) {
+          continue;
+        }
+        if (serializedLine === `${expectedLine}\\`) {
+          replacements.push({ index: index + 1 + offset, text: expectedLine });
+          continue;
+        }
+        if (serializedLine === `${indentedExpectedLine}\\`) {
+          replacements.push({
+            index: index + 1 + offset,
+            text: indentedExpectedLine,
+          });
+          continue;
+        }
+
+        matchesContent = false;
+        break;
+      }
+
+      if (matchesContent) {
+        // 仅清理序列化器相对真实代码内容额外追加的反斜杠，用户源码中的反斜杠保持不变。
+        for (const replacement of replacements) {
+          lines[replacement.index].text = replacement.text;
+        }
+      }
+    }
+
+    index = closingIndex;
+  }
+
+  return lines.map((line) => `${line.text}${line.ending}`).join("");
+}
+
 // BlockNote 会将引用内的列表行折叠为普通引用文本，解析前临时展开后再恢复子块关系。
 function normalizeQuoteListsForParser(markdown: string): {
   descriptors: QuoteListDescriptor[];
@@ -2212,5 +2304,8 @@ export async function serializeMarkdown<TBlock>(
   // 大文档序列化可能阻塞数百毫秒；让出主线程确保用户交互不被延迟。
   await yieldToMain();
   const markdown = await serializeQuoteListBlocks(serializer, blocks);
-  return normalizeMarkupHardBreaks(markdown);
+  return normalizeSerializedCodeBlockContent(
+    normalizeMarkupHardBreaks(markdown),
+    blocks,
+  );
 }

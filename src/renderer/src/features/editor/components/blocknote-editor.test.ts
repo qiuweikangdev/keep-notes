@@ -1107,6 +1107,11 @@ describe("BlockNoteEditor code paste", () => {
       codeMirror.contentDOM.dispatchEvent(event);
 
       await waitFor(() => expect(codeMirror.state.doc.toString()).toBe(source));
+      const serialized = await markdownMocks.actualSerializeMarkdown!(
+        session.runtime.current!.editor,
+        session.runtime.current!.editor.document,
+      );
+      expect(serialized).toBe(`\`\`\`vue\n${source}\n\`\`\`\n`);
     } finally {
       session.view.unmount();
     }
@@ -1145,11 +1150,58 @@ describe("BlockNoteEditor code paste", () => {
           types: ["text/plain"],
         },
       });
-
       editor.prosemirrorView.dom.dispatchEvent(event);
 
       await waitFor(() => expect(codeMirror.state.doc.toString()).toBe(source));
       expect(editor.document).toHaveLength(1);
+    } finally {
+      session.view.unmount();
+    }
+  });
+
+  it("routes generic multiline paste from the rich surface into the selected empty code block", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/selected-empty-code-block-multiline-paste.md";
+    const content = "```text\n\n```";
+    const source = ["first line", "  second line", "third line"].join("\n");
+    setupSessionTab(path, { content });
+    const session = renderRealSession(path, false, content);
+
+    try {
+      vi.stubGlobal("ClipboardEvent", Event);
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const editor = session.runtime.current!.editor;
+      const codeMirrorElement = await waitFor(() => {
+        const element =
+          session.view.container.querySelector<HTMLElement>(".cm-editor");
+        expect(element).not.toBeNull();
+        return element!;
+      });
+      const codeMirror = CodeMirrorView.findFromDOM(codeMirrorElement);
+      expect(editor.getTextCursorPosition().block.type).toBe("codeBlock");
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "clipboardData", {
+        value: {
+          getData: (type: string) => (type === "text/plain" ? source : ""),
+          types: ["text/plain"],
+        },
+      });
+      Object.defineProperty(event, "target", {
+        value: editor.prosemirrorView.dom,
+      });
+
+      const handled = pasteMarkupAsPlainText(editor, event);
+
+      expect(handled).toBe(true);
+      expect(event.defaultPrevented).toBe(true);
+      await waitFor(() => expect(codeMirror.state.doc.toString()).toBe(source));
+      expect(editor.document).toHaveLength(1);
+      const serialized = await markdownMocks.actualSerializeMarkdown!(
+        editor,
+        editor.document,
+      );
+      expect(serialized).toBe(`\`\`\`text\n${source}\n\`\`\`\n`);
     } finally {
       session.view.unmount();
     }

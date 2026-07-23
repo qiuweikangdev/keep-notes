@@ -100,6 +100,45 @@ describe("Markdown source preservation", () => {
     ).resolves.toBe(fencedCode);
   });
 
+  it("removes only serializer-added trailing backslashes from code blocks", async () => {
+    const content = [
+      '<BookOpenText aria-hidden="true" />',
+      '<h1 className="title">Title</h1>',
+      "<p>",
+      "  Content",
+      "</p>",
+    ].join("\n");
+    const exported = [
+      "```javascript",
+      '<BookOpenText aria-hidden="true" />\\',
+      '<h1 className="title">Title</h1>\\',
+      "<p>\\",
+      "  Content\\",
+      "</p>",
+      "```",
+      "",
+    ].join("\n");
+
+    await expect(
+      serializeMarkdown<TestBlock>({ blocksToMarkdownLossy: () => exported }, [
+        { type: "codeBlock", content },
+      ]),
+    ).resolves.toBe(["```javascript", content, "```", ""].join("\n"));
+  });
+
+  it("preserves trailing backslashes that belong to code block content", async () => {
+    const content = ["const first = one \\", "  + two \\", "  + three;"].join(
+      "\n",
+    );
+    const exported = ["```javascript", content, "```", ""].join("\n");
+
+    await expect(
+      serializeMarkdown<TestBlock>({ blocksToMarkdownLossy: () => exported }, [
+        { type: "codeBlock", content },
+      ]),
+    ).resolves.toBe(exported);
+  });
+
   it("escapes markup only in prose before parsing", async () => {
     let received = "";
     const source = [

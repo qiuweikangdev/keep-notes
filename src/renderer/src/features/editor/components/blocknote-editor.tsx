@@ -151,13 +151,13 @@ export function pasteMarkupAsPlainText(
   }
 
   const source = event.clipboardData?.getData("text/plain");
-  if (!source || !/<\/?[A-Za-z][^>]*>/.test(source)) return false;
+  if (!source) return false;
 
   const codeMirrorView =
     findCodeMirrorView(target?.closest(".editor-code-block-shell") ?? null) ??
     findSelectedCodeMirrorView(editor);
   if (codeMirrorView) {
-    // 新建代码块后焦点仍可能停在富文本根节点，必须把粘贴内容直接写入当前代码块，避免换行被 ProseMirror 压平。
+    // 新建代码块后焦点仍可能停在富文本根节点，普通多行文本也必须直接写入 CodeMirror，避免换行被 ProseMirror 压平。
     event.preventDefault();
     event.stopImmediatePropagation();
     const selection = codeMirrorView.state.selection.main;
@@ -175,6 +175,8 @@ export function pasteMarkupAsPlainText(
     });
     return true;
   }
+
+  if (!/<\/?[A-Za-z][^>]*>/.test(source)) return false;
 
   // 源码标签按普通文案写入同一段落，避免每个源码行被序列化成独立 Markdown 段落。
   event.preventDefault();
