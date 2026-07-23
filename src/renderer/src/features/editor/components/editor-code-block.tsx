@@ -19,6 +19,7 @@ import { html } from "@codemirror/lang-html";
 import { javascript } from "@codemirror/lang-javascript";
 import { json } from "@codemirror/lang-json";
 import { markdown } from "@codemirror/lang-markdown";
+import { python } from "@codemirror/lang-python";
 import {
   bracketMatching,
   codeFolding,
@@ -57,6 +58,7 @@ import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { Check, ChevronDown, Clipboard, Search } from "lucide-react";
 
 import {
+  getCodeBlockHighlightMode,
   getCodeBlockLanguageLabel,
   getCodeBlockLanguageShortLabel,
   getSupportedCodeBlockLanguageId,
@@ -198,10 +200,11 @@ function restoreSourceLineIndentation(sourceLine: string, lineHtml: string) {
 }
 
 function getCodeMirrorLanguageExtension(language: string): Extension {
+  if (getCodeBlockHighlightMode(language) === "plain") {
+    return Prec.high(editorPlainCodeMirrorTheme);
+  }
+
   switch (language) {
-    case "bash":
-    case "text":
-      return Prec.high(editorPlainCodeMirrorTheme);
     case "javascript":
       return javascript();
     case "typescript":
@@ -221,6 +224,8 @@ function getCodeMirrorLanguageExtension(language: string): Extension {
       return css();
     case "markdown":
       return markdown();
+    case "python":
+      return python();
     default:
       return [];
   }
@@ -660,6 +665,7 @@ export function EditorCodeBlock({
   const language = getSupportedCodeBlockLanguageId(
     block.props?.language ?? "text",
   );
+  const highlightMode = getCodeBlockHighlightMode(language);
   const languageLabel = getCodeBlockLanguageLabel(language);
   const languageShortLabel = getCodeBlockLanguageShortLabel(language);
   const languageOptions = useMemo(
@@ -971,6 +977,7 @@ export function EditorCodeBlock({
     <div
       ref={rootRef}
       data-language={language}
+      data-highlight-mode={highlightMode}
       className="editor-code-block-shell editor-code-block relative rounded-md border border-[var(--border-color)] bg-[var(--bg-secondary)]"
       onKeyDown={handleKeyDown}
     >

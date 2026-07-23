@@ -351,7 +351,7 @@ describe("editor BlockNote schema", () => {
     output.destroy?.();
   });
 
-  it.each(["bash", "text"])(
+  it.each(["bash", "text", "env", "dotenv", "yaml"])(
     "exposes the normalized %s language on the code block shell",
     async (language) => {
       setupMatchMedia();
@@ -368,10 +368,11 @@ describe("editor BlockNote schema", () => {
       const { container } = render(createElement(BlockNoteView, { editor }));
 
       await waitFor(() => {
-        expect(
-          container.querySelector<HTMLElement>(".editor-code-block-shell")
-            ?.dataset.language,
-        ).toBe(language);
+        const shell = container.querySelector<HTMLElement>(
+          ".editor-code-block-shell",
+        );
+        expect(shell?.dataset.language).toBe(language);
+        expect(shell?.dataset.highlightMode).toBe("plain");
       });
     },
   );
@@ -398,6 +399,7 @@ describe("editor BlockNote schema", () => {
 
     await waitFor(() => {
       expect(getShell()?.dataset.language).toBe("javascript");
+      expect(getShell()?.dataset.highlightMode).toBe("syntax");
       expect(getContentFontWeight()).toBe("600");
       expect(getScrollerFontFamily()).toContain('"SF Mono"');
     });
@@ -405,6 +407,15 @@ describe("editor BlockNote schema", () => {
     editor.updateBlock(editor.document[0], { props: { language: "bash" } });
     await waitFor(() => {
       expect(getShell()?.dataset.language).toBe("bash");
+      expect(getShell()?.dataset.highlightMode).toBe("plain");
+      expect(getContentFontWeight()).toBe("400");
+      expect(getScrollerFontFamily()).toContain('"PingFang SC"');
+    });
+
+    editor.updateBlock(editor.document[0], { props: { language: "env" } });
+    await waitFor(() => {
+      expect(getShell()?.dataset.language).toBe("env");
+      expect(getShell()?.dataset.highlightMode).toBe("plain");
       expect(getContentFontWeight()).toBe("400");
       expect(getScrollerFontFamily()).toContain('"PingFang SC"');
     });
@@ -412,6 +423,7 @@ describe("editor BlockNote schema", () => {
     editor.updateBlock(editor.document[0], { props: { language: "python" } });
     await waitFor(() => {
       expect(getShell()?.dataset.language).toBe("python");
+      expect(getShell()?.dataset.highlightMode).toBe("syntax");
       expect(getContentFontWeight()).toBe("600");
       expect(getScrollerFontFamily()).toContain('"SF Mono"');
     });

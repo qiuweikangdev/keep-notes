@@ -401,6 +401,7 @@ describe("EditorCodeBlock", () => {
 
     expect(shell).toBeInTheDocument();
     expect(shell).toHaveAttribute("data-language", "text");
+    expect(shell).toHaveAttribute("data-highlight-mode", "plain");
     expect(
       shell?.querySelector(".editor-code-block-language-trigger"),
     ).toBeInTheDocument();
@@ -425,7 +426,11 @@ describe("EditorCodeBlock", () => {
   it.each([
     ["text", "400"],
     ["bash", "400"],
+    ["env", "400"],
+    ["dotenv", "400"],
+    ["yaml", "400"],
     ["javascript", "600"],
+    ["python", "600"],
   ])("renders %s code content with font weight %s", (language, fontWeight) => {
     renderCodeBlock(language);
 
@@ -449,7 +454,7 @@ describe("EditorCodeBlock", () => {
     );
   });
 
-  it.each(["text", "bash"])(
+  it.each(["text", "bash", "env", "dotenv", "yaml"])(
     "uses one mixed-script font family for %s content",
     (language) => {
       renderCodeBlock(language);

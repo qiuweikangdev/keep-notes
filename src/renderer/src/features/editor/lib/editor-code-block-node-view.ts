@@ -53,6 +53,7 @@ import type { EditorView as ProseMirrorView } from "@tiptap/pm/view";
 
 import {
   CODE_BLOCK_LANGUAGE_OPTIONS,
+  getCodeBlockHighlightMode,
   getCodeBlockLanguageShortLabel,
   getSupportedCodeBlockLanguageId,
   searchCodeBlockLanguages,
@@ -85,10 +86,11 @@ const codeMirrorFallbackFoldRangeCache = new WeakMap<
 >();
 
 function getCodeMirrorLanguageExtension(language: string): Extension {
+  if (getCodeBlockHighlightMode(language) === "plain") {
+    return Prec.high(editorPlainCodeMirrorTheme);
+  }
+
   switch (language) {
-    case "bash":
-    case "text":
-      return Prec.high(editorPlainCodeMirrorTheme);
     case "javascript":
       return javascript();
     case "typescript":
@@ -607,6 +609,7 @@ class EditorCodeBlockNodeView {
     this.dom.className =
       "editor-code-block-shell editor-code-block relative rounded-md border border-[var(--border-color)] bg-[var(--bg-secondary)]";
     this.dom.dataset.language = this.language;
+    this.dom.dataset.highlightMode = getCodeBlockHighlightMode(this.language);
     this.dom.contentEditable = "false";
 
     const toolbar = this.createToolbar();
@@ -965,6 +968,8 @@ class EditorCodeBlockNodeView {
 
     this.language = normalizedLanguage;
     this.dom.dataset.language = normalizedLanguage;
+    this.dom.dataset.highlightMode =
+      getCodeBlockHighlightMode(normalizedLanguage);
     this.languageButton.querySelector("span")!.textContent =
       getCodeBlockLanguageShortLabel(normalizedLanguage);
     this.codeMirror.dispatch({

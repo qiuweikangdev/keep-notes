@@ -482,18 +482,20 @@
   min-width: max-content;
 }
 
-/* Bash 与 Text 使用常规字重，并明确继承代码块主色，避免旧主题残留导致颜色变淡。 */
+/* 单色代码块按模式和实际 token 双重识别，兼容未知语言与热更新前已挂载的 NodeView。 */
 :is(
-    .editor-code-block-shell[data-language="bash"],
-    .editor-code-block-shell[data-language="text"]
-  )
-  .editor-code-block__codemirror
-  .cm-content {
+  .editor-code-block-shell[data-highlight-mode="plain"]
+    .editor-code-block__codemirror
+    .cm-content,
+  .editor-code-block-shell
+    .editor-code-block__codemirror
+    .cm-content:not(:has(.cm-line > span:not(.cm-foldPlaceholder)))
+) {
   color: var(--editor-code-block-text);
   font-family:
     "PingFang SC", "Microsoft YaHei UI", "Noto Sans CJK SC", system-ui,
-    sans-serif;
-  font-weight: 400;
+    sans-serif !important;
+  font-weight: 400 !important;
 }
 
 .editor-code-block__codemirror .cm-editor.cm-focused:hover .cm-cursor {

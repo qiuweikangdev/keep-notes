@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   CODE_BLOCK_LANGUAGE_OPTIONS,
   findCodeBlockLanguage,
+  getCodeBlockHighlightMode,
   getCodeBlockLanguageLabel,
   getCodeBlockLanguageShortLabel,
   getSupportedCodeBlockLanguageId,
@@ -58,6 +59,16 @@ describe("editor code block languages", () => {
     expect(getCodeBlockLanguageShortLabel("sh")).toBe("bash");
     expect(getCodeBlockLanguageLabel("unknownlang")).toBe("unknownlang");
     expect(getCodeBlockLanguageShortLabel("unknownlang")).toBe("unknownlang");
+  });
+
+  it("uses regular typography for every language without syntax highlighting", () => {
+    expect(getCodeBlockHighlightMode("text")).toBe("plain");
+    expect(getCodeBlockHighlightMode("bash")).toBe("plain");
+    expect(getCodeBlockHighlightMode("env")).toBe("plain");
+    expect(getCodeBlockHighlightMode("dotenv")).toBe("plain");
+    expect(getCodeBlockHighlightMode("yaml")).toBe("plain");
+    expect(getCodeBlockHighlightMode("javascript")).toBe("syntax");
+    expect(getCodeBlockHighlightMode("python")).toBe("syntax");
   });
 
   it("finds languages by id, label, and aliases", () => {

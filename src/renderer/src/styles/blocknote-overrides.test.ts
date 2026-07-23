@@ -316,22 +316,24 @@ describe("blocknote overrides stylesheet", () => {
     );
   });
 
-  it("pins Bash and Text to the default code color at regular weight", () => {
+  it("pins every plain code block to the default color at regular weight", () => {
     const plainCodeRule = getRule(
       `:is(
-        .editor-code-block-shell[data-language="bash"],
-        .editor-code-block-shell[data-language="text"]
-      )
-        .editor-code-block__codemirror
-        .cm-content`,
+        .editor-code-block-shell[data-highlight-mode="plain"]
+          .editor-code-block__codemirror
+          .cm-content,
+        .editor-code-block-shell
+          .editor-code-block__codemirror
+          .cm-content:not(:has(.cm-line > span:not(.cm-foldPlaceholder)))
+      )`,
     );
 
     expect(plainCodeRule).toBeDefined();
     expect(plainCodeRule).toMatch(/color:\s*var\(--editor-code-block-text\);/);
     expect(plainCodeRule).toMatch(
-      /font-family:\s*"PingFang SC",\s*"Microsoft YaHei UI",\s*"Noto Sans CJK SC",\s*system-ui,\s*sans-serif;/,
+      /font-family:\s*"PingFang SC",\s*"Microsoft YaHei UI",\s*"Noto Sans CJK SC",\s*system-ui,\s*sans-serif !important;/,
     );
-    expect(plainCodeRule).toMatch(/font-weight:\s*400;/);
+    expect(plainCodeRule).toMatch(/font-weight:\s*400 !important;/);
     expect(stylesheet).not.toMatch(/--editor-code-plain-text/);
   });
 
