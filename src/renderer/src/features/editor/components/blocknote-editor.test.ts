@@ -1250,6 +1250,72 @@ describe("BlockNoteEditor code paste", () => {
     }
   });
 
+  it("converts an external HTML table instead of pasting its Markdown-like plain text", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/rich-table-paste.md";
+    setupSessionTab(path);
+    const session = renderRealSession(path, false, "");
+
+    try {
+      vi.stubGlobal("ClipboardEvent", Event);
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const editor = session.runtime.current!.editor;
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      const clipboardData = {
+        getData: (type: string) =>
+          type === "text/html"
+            ? [
+                "<table>",
+                "<thead><tr><th>Key</th><th>英语</th></tr></thead>",
+                "<tbody><tr><td>vip_unlock_short_dramas</td><td>Get VIP to Unlock All Popular Short Dramas!</td></tr></tbody>",
+                "</table>",
+              ].join("")
+            : type === "text/plain"
+              ? "Key\t英语\nvip_unlock_short_dramas\tGet VIP to Unlock All Popular Short Dramas!"
+              : "",
+        types: ["text/html", "text/plain"],
+      };
+      Object.defineProperty(event, "clipboardData", { value: clipboardData });
+
+      act(() => {
+        editor.prosemirrorView.dom.dispatchEvent(event);
+      });
+
+      expect(editor.document).toHaveLength(1);
+      expect(editor.document[0]).toMatchObject({
+        type: "table",
+        content: {
+          headerRows: 1,
+          rows: [
+            {
+              cells: [
+                { type: "tableCell", content: [{ text: "Key" }] },
+                { type: "tableCell", content: [{ text: "英语" }] },
+              ],
+            },
+            {
+              cells: [
+                {
+                  type: "tableCell",
+                  content: [{ text: "vip_unlock_short_dramas" }],
+                },
+                {
+                  type: "tableCell",
+                  content: [
+                    { text: "Get VIP to Unlock All Popular Short Dramas!" },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      });
+    } finally {
+      session.view.unmount();
+    }
+  });
+
   it("pastes TSX copied from VS Code as literal text", async () => {
     setupMatchMedia();
     setupDomMeasurements();

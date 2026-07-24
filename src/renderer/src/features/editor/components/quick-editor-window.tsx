@@ -72,6 +72,7 @@ import {
   getRichEditorInlineContentFromTarget,
   handleRichEditorHeadingShortcut,
   handleRichEditorSelectAllShortcut,
+  pasteExternalHTMLTables,
   pasteMarkupAsPlainText,
   RICH_EDITOR_SELECTION_DRAG_LOCK_CLASS,
   registerRichEditorSelectionDragGuardPlugin,
@@ -284,9 +285,14 @@ export function QuickEditorWindow() {
 
   const handleRichEditorPasteCapture = useCallback(
     (event: ReactClipboardEvent<HTMLDivElement>) => {
-      if (!pasteMarkupAsPlainText(editor, event.nativeEvent)) return;
+      if (
+        !pasteExternalHTMLTables(editor, event.nativeEvent) &&
+        !pasteMarkupAsPlainText(editor, event.nativeEvent)
+      ) {
+        return;
+      }
 
-      // 浮动窗口同样在容器捕获阶段保留源码标签，避免进入 BlockNote 的 HTML 解析器。
+      // 浮动窗口与主编辑器共用外部表格和源码标签的粘贴规则。
       event.preventDefault();
       event.stopPropagation();
       event.nativeEvent.stopImmediatePropagation();

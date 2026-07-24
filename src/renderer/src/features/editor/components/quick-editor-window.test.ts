@@ -217,6 +217,31 @@ describe("quick editor content detection", () => {
       expect(editorText.split(`</section>`)).toHaveLength(2);
     });
     expect(document.querySelector(".editor-code-block-shell")).toBeNull();
+
+    fireEvent.paste(floatingRichEditor, {
+      clipboardData: {
+        getData: (type: string) =>
+          type === "text/html"
+            ? [
+                "<table>",
+                "<thead><tr><th>Key</th><th>英语</th></tr></thead>",
+                "<tbody><tr><td>vip_unlock_short_dramas</td><td>Get VIP</td></tr></tbody>",
+                "</table>",
+              ].join("")
+            : type === "text/plain"
+              ? "Key\n英语\nvip_unlock_short_dramas\nGet VIP"
+              : "",
+        types: ["text/html", "text/plain"],
+      },
+    });
+
+    await waitFor(() => {
+      const table = document.querySelector('[data-content-type="table"] table');
+      expect(table).toBeInTheDocument();
+      expect(table?.querySelectorAll("tr")).toHaveLength(2);
+      expect(table?.textContent).toContain("vip_unlock_short_dramas");
+      expect(table?.textContent).toContain("Get VIP");
+    });
   });
 
   it("renders fenced code blocks with the same parser as the panel editor", async () => {

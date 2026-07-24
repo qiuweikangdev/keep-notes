@@ -28,6 +28,7 @@ import {
   BlockNoteEditor as CoreBlockNoteEditor,
   type Block,
   type InlineContent,
+  type PartialBlock,
 } from "@blocknote/core";
 import { SideMenuExtension } from "@blocknote/core/extensions";
 import {
@@ -136,6 +137,112 @@ function findSelectedCodeMirrorView(editor: CoreBlockNoteEditor) {
   } catch {
     return null;
   }
+}
+
+function getPastedTableCellContent(
+  editor: CoreBlockNoteEditor,
+  cell: HTMLTableCellElement,
+): string | InlineContent[] {
+  const inlineBlocks = editor
+    .tryParseHTMLToBlocks(cell.innerHTML)
+    .map((block) => block.content)
+    .filter((content): content is InlineContent[] => Array.isArray(content));
+
+  if (inlineBlocks.length === 0) return cell.textContent ?? "";
+
+  return inlineBlocks.flatMap((content, index) =>
+    index === 0
+      ? content
+      : [
+          {
+            type: "text" as const,
+            text: "\n",
+            styles: {},
+          },
+          ...content,
+        ],
+  );
+}
+
+function getPastedTableHeaderRowCount(
+  table: HTMLTableElement,
+  rows: HTMLTableRowElement[],
+): number {
+  if (table.tHead) return table.tHead.rows.length;
+
+  return rows.findIndex((row) =>
+    Array.from(row.cells).some((cell) => cell.tagName !== "TH"),
+  );
+}
+
+function getPastedTableHeaderColumnCount(
+  rows: HTMLTableRowElement[],
+  headerRows: number,
+): number {
+  const bodyRows = rows.slice(headerRows);
+  if (bodyRows.length === 0) return 0;
+
+  return Math.min(
+    ...bodyRows.map((row) => {
+      const cells = Array.from(row.cells);
+      const firstDataCell = cells.findIndex((cell) => cell.tagName !== "TH");
+      return firstDataCell === -1 ? cells.length : firstDataCell;
+    }),
+  );
+}
+
+function parsePastedHTMLTable(
+  editor: CoreBlockNoteEditor,
+  table: HTMLTableElement,
+): PartialBlock | null {
+  const rows = Array.from(table.rows).filter((row) => row.cells.length > 0);
+  if (rows.length === 0) return null;
+
+  const detectedHeaderRows = getPastedTableHeaderRowCount(table, rows);
+  const headerRows =
+    detectedHeaderRows === -1 ? rows.length : detectedHeaderRows;
+  const headerCols = getPastedTableHeaderColumnCount(rows, headerRows);
+
+  return {
+    type: "table",
+    content: {
+      type: "tableContent",
+      headerRows,
+      headerCols,
+      rows: rows.map((row) => ({
+        cells: Array.from(row.cells).map((cell) => ({
+          type: "tableCell" as const,
+          props: {
+            colspan: cell.colSpan,
+            rowspan: cell.rowSpan,
+          },
+          content: getPastedTableCellContent(editor, cell),
+        })),
+      })),
+    },
+  };
+}
+
+export function pasteExternalHTMLTables(
+  editor: CoreBlockNoteEditor,
+  event: ClipboardEvent,
+): boolean {
+  const clipboardData = event.clipboardData;
+  if (!clipboardData?.types.includes("text/html")) return false;
+
+  const container = document.createElement("div");
+  container.innerHTML = clipboardData.getData("text/html");
+  const tables = Array.from(container.querySelectorAll("table")).filter(
+    (table) => !table.parentElement?.closest("table"),
+  );
+  const tableBlocks = tables
+    .map((table) => parsePastedHTMLTable(editor, table))
+    .filter((block): block is PartialBlock => block !== null);
+  if (tableBlocks.length === 0) return false;
+
+  // 外部表格先转换为受控 BlockNote 表格块，再按当前选区执行原生粘贴。
+  editor.pasteHTML(editor.blocksToFullHTML(tableBlocks), true);
+  return true;
 }
 
 export function pasteMarkupAsPlainText(
@@ -1398,6 +1505,10 @@ function BlockNoteEditorInner(props: BlockNoteEditorInnerProps) {
         CoreBlockNoteEditor.create({
           initialContent: undefined,
           placeholders: { default: EDITOR_EMPTY_PLACEHOLDER },
+          pasteHandler: ({ event, editor, defaultPasteHandler }) =>
+            pasteExternalHTMLTables(editor, event)
+              ? true
+              : defaultPasteHandler(),
           resolveFileUrl: proxies.resolveFileUrl,
           schema: editorSchema,
           uploadFile: proxies.uploadFile,
@@ -2274,7 +2385,12 @@ function MountedBlockNoteEditor({
   const handlePasteCapture = useCallback(
     (event: React.ClipboardEvent<HTMLDivElement>) => {
       markUserIntent();
-      if (!pasteMarkupAsPlainText(editor, event.nativeEvent)) return;
+      if (
+        !pasteExternalHTMLTables(editor, event.nativeEvent) &&
+        !pasteMarkupAsPlainText(editor, event.nativeEvent)
+      ) {
+        return;
+      }
 
       // 容器捕获阶段优先于编辑器实例处理，热更新后也能覆盖旧实例的粘贴规则。
       event.preventDefault();
