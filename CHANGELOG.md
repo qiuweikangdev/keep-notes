@@ -1,3 +1,17 @@
+## [2.19.5](https://github.com/qiuweikangdev/keep-notes/compare/v2.19.4...v2.19.5) (2026-07-24)
+
+
+### Bug Fixes
+
+* preserve HTML tables when pasting into rich editors ([c17cd6b](https://github.com/qiuweikangdev/keep-notes/commit/c17cd6bae2803e969b8d13ff3f04fcb0747909f6))
+* preserve mixed rich content when pasting ([7206842](https://github.com/qiuweikangdev/keep-notes/commit/720684283007061a9fdc3d5911c89fd11fc060bc))
+
+
+## Commit Summary
+
+- Compared with: v2.19.4
+- Total commits: 2
+
 ## [2.19.4](https://github.com/qiuweikangdev/keep-notes/compare/v2.19.3...v2.19.4) (2026-07-23)
 
 
