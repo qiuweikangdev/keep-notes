@@ -1316,6 +1316,97 @@ describe("BlockNoteEditor code paste", () => {
     }
   });
 
+  it("preserves rich text blocks surrounding an external HTML table", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/mixed-rich-table-paste.md";
+    setupSessionTab(path);
+    const session = renderRealSession(path, false, "");
+
+    try {
+      vi.stubGlobal("ClipboardEvent", Event);
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const editor = session.runtime.current!.editor;
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      const clipboardData = {
+        getData: (type: string) =>
+          type === "text/html"
+            ? [
+                "<h2><strong>Content load failed</strong></h2>",
+                "<p>Loading logic: show the fallback and open the recharge page.</p>",
+                "<ul><li>Retry request</li><li>Open recharge page</li></ul>",
+                "<table>",
+                "<thead><tr><th>Key</th><th>English</th></tr></thead>",
+                "<tbody><tr><td>vip_unlock_short_dramas</td><td>Get VIP</td></tr></tbody>",
+                "</table>",
+              ].join("")
+            : type === "text/plain"
+              ? [
+                  "Content load failed",
+                  "Loading logic: show the fallback and open the recharge page.",
+                  "Retry request",
+                  "Open recharge page",
+                  "Key",
+                  "English",
+                  "vip_unlock_short_dramas",
+                  "Get VIP",
+                ].join("\n")
+              : "",
+        types: ["text/html", "text/plain"],
+      };
+      Object.defineProperty(event, "clipboardData", { value: clipboardData });
+
+      act(() => {
+        editor.prosemirrorView.dom.dispatchEvent(event);
+      });
+
+      expect(editor.document.map((block) => block.type)).toEqual([
+        "heading",
+        "paragraph",
+        "bulletListItem",
+        "bulletListItem",
+        "table",
+      ]);
+      expect(editor.document[0]).toMatchObject({
+        type: "heading",
+        content: [{ text: "Content load failed" }],
+      });
+      expect(editor.document[1]).toMatchObject({
+        type: "paragraph",
+        content: [
+          {
+            text: "Loading logic: show the fallback and open the recharge page.",
+          },
+        ],
+      });
+      expect(editor.document[2]).toMatchObject({
+        type: "bulletListItem",
+        content: [{ text: "Retry request" }],
+      });
+      expect(editor.document[4]).toMatchObject({
+        type: "table",
+        content: {
+          rows: [
+            {
+              cells: [
+                { content: [{ text: "Key" }] },
+                { content: [{ text: "English" }] },
+              ],
+            },
+            {
+              cells: [
+                { content: [{ text: "vip_unlock_short_dramas" }] },
+                { content: [{ text: "Get VIP" }] },
+              ],
+            },
+          ],
+        },
+      });
+    } finally {
+      session.view.unmount();
+    }
+  });
+
   it("pastes TSX copied from VS Code as literal text", async () => {
     setupMatchMedia();
     setupDomMeasurements();

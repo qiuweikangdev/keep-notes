@@ -223,6 +223,67 @@ function parsePastedHTMLTable(
   };
 }
 
+function countPastedTableBlocks(blocks: readonly Block[]): number {
+  return blocks.reduce(
+    (count, block) =>
+      count +
+      (block.type === "table" ? 1 : 0) +
+      countPastedTableBlocks(block.children),
+    0,
+  );
+}
+
+function getPastedInlineContentText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+
+  return content
+    .map((item) => {
+      if (!item || typeof item !== "object") return "";
+      const inline = item as { content?: unknown; text?: unknown };
+      if (typeof inline.text === "string") return inline.text;
+      return getPastedInlineContentText(inline.content);
+    })
+    .join("");
+}
+
+function parseMixedPastedHTML(
+  editor: CoreBlockNoteEditor,
+  container: HTMLDivElement,
+  tables: HTMLTableElement[],
+): PartialBlock[] | null {
+  const parsedBlocks = editor.tryParseHTMLToBlocks(container.innerHTML);
+  if (countPastedTableBlocks(parsedBlocks) >= tables.length) {
+    return parsedBlocks;
+  }
+
+  const tableBlocks = tables.map((table, index) => {
+    const block = parsePastedHTMLTable(editor, table);
+    if (!block) return null;
+
+    const marker = `\uE000keep-notes-table-${index}\uE001`;
+    const placeholder = document.createElement("p");
+    placeholder.textContent = marker;
+    table.replaceWith(placeholder);
+    return { block, marker };
+  });
+  if (tableBlocks.some((entry) => entry === null)) return null;
+
+  let replacementCount = 0;
+  const mixedBlocks = editor
+    .tryParseHTMLToBlocks(container.innerHTML)
+    .flatMap((block): PartialBlock[] => {
+      const text = getPastedInlineContentText(block.content).trim();
+      const entry = tableBlocks.find((candidate) => candidate?.marker === text);
+      if (!entry) return [block];
+
+      replacementCount += 1;
+      return [entry.block];
+    });
+
+  return replacementCount === tableBlocks.length ? mixedBlocks : null;
+}
+
 export function pasteExternalHTMLTables(
   editor: CoreBlockNoteEditor,
   event: ClipboardEvent,
@@ -235,13 +296,13 @@ export function pasteExternalHTMLTables(
   const tables = Array.from(container.querySelectorAll("table")).filter(
     (table) => !table.parentElement?.closest("table"),
   );
-  const tableBlocks = tables
-    .map((table) => parsePastedHTMLTable(editor, table))
-    .filter((block): block is PartialBlock => block !== null);
-  if (tableBlocks.length === 0) return false;
+  if (tables.length === 0) return false;
 
-  // 外部表格先转换为受控 BlockNote 表格块，再按当前选区执行原生粘贴。
-  editor.pasteHTML(editor.blocksToFullHTML(tableBlocks), true);
+  const mixedBlocks = parseMixedPastedHTML(editor, container, tables);
+  if (!mixedBlocks) return false;
+
+  // 整段富文本统一转换为 BlockNote 块，保留表格前后的标题、段落和列表顺序。
+  editor.pasteHTML(editor.blocksToFullHTML(mixedBlocks), true);
   return true;
 }
 

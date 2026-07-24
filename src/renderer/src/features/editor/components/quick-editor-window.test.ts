@@ -223,13 +223,16 @@ describe("quick editor content detection", () => {
         getData: (type: string) =>
           type === "text/html"
             ? [
+                "<h2>Floating table context</h2>",
+                "<p>Keep this paragraph.</p>",
+                "<ul><li>Keep this list item</li></ul>",
                 "<table>",
                 "<thead><tr><th>Key</th><th>英语</th></tr></thead>",
                 "<tbody><tr><td>vip_unlock_short_dramas</td><td>Get VIP</td></tr></tbody>",
                 "</table>",
               ].join("")
             : type === "text/plain"
-              ? "Key\n英语\nvip_unlock_short_dramas\nGet VIP"
+              ? "Floating table context\nKeep this paragraph.\nKeep this list item\nKey\n英语\nvip_unlock_short_dramas\nGet VIP"
               : "",
         types: ["text/html", "text/plain"],
       },
@@ -242,6 +245,9 @@ describe("quick editor content detection", () => {
       expect(table?.textContent).toContain("vip_unlock_short_dramas");
       expect(table?.textContent).toContain("Get VIP");
     });
+    expect(floatingRichEditor.textContent).toContain("Floating table context");
+    expect(screen.getByText("Keep this paragraph.")).toBeInTheDocument();
+    expect(screen.getByText("Keep this list item")).toBeInTheDocument();
   });
 
   it("renders fenced code blocks with the same parser as the panel editor", async () => {
