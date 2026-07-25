@@ -155,6 +155,7 @@ export interface CloseSaveSnapshot {
   tabId: string;
   content: string;
   filePath: string | null;
+  defaultFileName?: string;
 }
 
 /** 浮窗与来源标签之间传递的编辑器上下文。 */
@@ -164,9 +165,15 @@ export interface QuickEditorWindowContent {
     groupId: string;
     tabId: string;
     filePath: string | null;
+    temporaryTitle?: string | null;
     /** 浮窗创建时的工作区根路径，用于执行关联文件的 Git 操作。 */
     repositoryRoot?: string | null;
   } | null;
+}
+
+export interface QuickEditorSaveResult {
+  filePath: string;
+  source: NonNullable<QuickEditorWindowContent["source"]>;
 }
 
 export interface WindowOpenTarget {

@@ -181,6 +181,13 @@ export function resolveQuickEditorMarkdown(
   return preserveMarkdownSource(source, baseline, serialized);
 }
 
+function hasUnsavedQuickEditorContent(
+  content: string,
+  source: QuickEditorWindowContent["source"],
+): boolean {
+  return !source?.filePath && content.trim().length > 0;
+}
+
 function findQuickEditorBlockElement(root: Element | null, blockId: string) {
   return getQuickEditorBlockElementLookup(root).get(blockId) ?? null;
 }
@@ -242,6 +249,7 @@ export function QuickEditorWindow() {
   const toastTimerRef = useRef<number | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [linkedFilePath, setLinkedFilePath] = useState<string | null>(null);
+  const [hasUnlinkedContent, setHasUnlinkedContent] = useState(false);
   const [linkedRepositoryRoot, setLinkedRepositoryRoot] = useState<
     string | null
   >(null);
@@ -441,6 +449,12 @@ export function QuickEditorWindow() {
 
   const syncDirtyState = useCallback((isDirty: boolean) => {
     dirtyRef.current = isDirty;
+    const hasUnsavedUnlinkedContent = isDirty && !sourceRef.current?.filePath;
+    setHasUnlinkedContent((current) =>
+      current === hasUnsavedUnlinkedContent
+        ? current
+        : hasUnsavedUnlinkedContent,
+    );
     window.electronAPI.updateDirtyState(isDirty);
   }, []);
 
@@ -520,7 +534,7 @@ export function QuickEditorWindow() {
       setSourceMarkdown(content);
       setFindContent(content);
       editor.replaceBlocks(editor.document, blocks);
-      syncDirtyState(false);
+      syncDirtyState(hasUnsavedQuickEditorContent(content, source));
     },
     [editor, syncDirtyState],
   );
@@ -896,6 +910,7 @@ export function QuickEditorWindow() {
         tabId: QUICK_EDITOR_TAB_ID,
         content,
         filePath: null,
+        defaultFileName: sourceRef.current?.temporaryTitle?.trim() || undefined,
       };
     };
 
@@ -950,7 +965,13 @@ export function QuickEditorWindow() {
         setSourceMarkdown(initialContent.content);
         setFindContent(initialContent.content);
         editor.replaceBlocks(editor.document, blocks);
-        syncDirtyState(false);
+        // 未命名标签虽有关联来源，但没有可落盘路径，关闭时仍需进入保存确认。
+        syncDirtyState(
+          hasUnsavedQuickEditorContent(
+            initialContent.content,
+            initialContent.source,
+          ),
+        );
       } catch {
         // Markdown 解析失败时保留空白编辑器，避免浮窗初始化中断。
       }
@@ -1008,7 +1029,9 @@ export function QuickEditorWindow() {
         setSourceMarkdown(content.content);
         setFindContent(content.content);
         editor.replaceBlocks(editor.document, blocks);
-        syncDirtyState(false);
+        syncDirtyState(
+          hasUnsavedQuickEditorContent(content.content, content.source),
+        );
       } catch {
         // Markdown 解析失败时保留当前编辑器，避免实时同步中断。
       }
@@ -1039,6 +1062,22 @@ export function QuickEditorWindow() {
       returnInProgressRef.current = false;
     }
   }, [getCurrentEditorContent]);
+
+  const handleSave = useCallback(async () => {
+    if (sourceRef.current?.filePath) return;
+
+    const content = await getCurrentEditorContent();
+    if (!content.trim()) return;
+
+    const result = await window.electronAPI.saveQuickEditorContent(content);
+    if (result.code !== CodeResult.Success || !result.data) return;
+
+    // 保存路径由主进程的系统对话框产生；成功后立即切换为真实文件来源。
+    sourceRef.current = result.data.source;
+    setLinkedFilePath(result.data.filePath);
+    setLinkedRepositoryRoot(result.data.source.repositoryRoot ?? null);
+    syncDirtyState(false);
+  }, [getCurrentEditorContent, syncDirtyState]);
 
   const handleRevealInFileManager = useCallback(() => {
     if (!linkedFilePath) return;
@@ -1260,6 +1299,11 @@ export function QuickEditorWindow() {
                 setOutlineVisibility(!isOutlineOpenRef.current)
               }
               onNewWindow={() => window.electronAPI.createQuickEditorWindow()}
+              onSave={
+                hasUnlinkedContent && !linkedFilePath
+                  ? () => void handleSave()
+                  : undefined
+              }
               onReturnToApplication={() => void handleReturnToApplication()}
               onRevealInFileManager={
                 linkedFilePath ? handleRevealInFileManager : undefined

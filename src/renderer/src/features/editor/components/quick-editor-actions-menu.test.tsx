@@ -113,6 +113,33 @@ describe("quick editor actions menu", () => {
     expect(onToggleOutline).not.toHaveBeenCalled();
   });
 
+  it("shows and forwards save only for an unlinked draft", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    const commonProps = {
+      isOutlineOpen: false,
+      isOutlineDisabled: false,
+      onToggleEditorMode: vi.fn(),
+      onToggleOutline: vi.fn(),
+      onNewWindow: vi.fn(),
+      onReturnToApplication: vi.fn(),
+      onCloseWindow: vi.fn(),
+    };
+    const { rerender } = render(
+      <QuickEditorActionsMenu {...commonProps} onSave={onSave} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    await user.click(screen.getByRole("menuitem", { name: "保存" }));
+    expect(onSave).toHaveBeenCalledOnce();
+
+    rerender(<QuickEditorActionsMenu {...commonProps} />);
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    expect(
+      screen.queryByRole("menuitem", { name: "保存" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows and forwards Git actions for a linked repository file", async () => {
     const user = userEvent.setup();
     const onCompare = vi.fn();

@@ -200,6 +200,7 @@ export function EditorToolbar({
         groupId,
         tabId: currentTab.id,
         filePath: currentTab.filePath,
+        temporaryTitle: currentTab.temporaryTitle ?? null,
         repositoryRoot,
       },
     });

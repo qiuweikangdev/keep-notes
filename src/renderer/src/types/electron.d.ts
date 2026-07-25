@@ -23,6 +23,7 @@ import type {
   SaveImageAttachmentInput,
   SaveImageAttachmentResult,
   QuickEditorWindowContent,
+  QuickEditorSaveResult,
   ShortcutRegistrationResult,
   NotificationChannelType,
   NotificationConfig,
@@ -164,6 +165,9 @@ export interface ElectronAPI {
   showQuickEditorWindow: () => void;
   createQuickEditorWindow: (content?: QuickEditorWindowContent) => void;
   syncQuickEditorContent: (content: QuickEditorWindowContent) => void;
+  saveQuickEditorContent: (
+    content: string,
+  ) => Promise<ApiResponse<QuickEditorSaveResult>>;
   flushQuickEditorContent: (
     source: QuickEditorWindowContent["source"],
   ) => Promise<void>;

@@ -137,6 +137,7 @@ describe("EditorToolbar diff action", () => {
               id: "tab-1",
               filePath: "/notes/readme.md",
               pendingFilePath: null,
+              temporaryTitle: "renamed-draft",
               content: "# same",
               wordCount: 2,
               isDirty: false,
@@ -250,6 +251,8 @@ describe("EditorToolbar diff action", () => {
           groupId: "group-1",
           tabId: "tab-1",
           filePath: "/notes/readme.md",
+          temporaryTitle: "renamed-draft",
+          repositoryRoot: "/notes",
         },
       });
     });
