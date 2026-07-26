@@ -16,6 +16,14 @@ import { openPathInNewWindow } from "./window";
 const MAX_TIMER_DELAY = 2_147_483_647;
 const SNOOZE_DELAY = 5 * 60 * 1000;
 const NOTIFICATION_RETRY_DELAY = 30 * 1000;
+const REMINDER_MINUTE_MS = 60 * 1000;
+
+function isSameReminderMinute(first: number, second: number): boolean {
+  return (
+    Math.floor(first / REMINDER_MINUTE_MS) ===
+    Math.floor(second / REMINDER_MINUTE_MS)
+  );
+}
 
 export interface TimerHandle {
   dispose: () => void;
@@ -300,15 +308,22 @@ export class ReminderService {
 
   async processDueReminders(): Promise<void> {
     const now = this.now();
+    const nowTime = now.getTime();
     let changed = false;
 
     // 到期检测在主进程执行，避免任意渲染窗口重载导致提醒丢失。
     for (const reminder of this.reminders) {
       if (reminder.completed) continue;
       const dueAt = new Date(reminder.scheduledAt);
-      if (Number.isNaN(dueAt.getTime()) || dueAt > now) continue;
+      const dueTime = dueAt.getTime();
+      if (Number.isNaN(dueTime) || dueTime > nowTime) continue;
+      if (!isSameReminderMinute(dueTime, nowTime)) {
+        // 编辑器按分钟设置提醒，历史分钟不补发，避免新建或修改历史时间后立即弹窗。
+        this.notificationRetryAt.delete(reminder.id);
+        continue;
+      }
       const retryAt = this.notificationRetryAt.get(reminder.id);
-      if (retryAt !== undefined && retryAt > now.getTime()) continue;
+      if (retryAt !== undefined && retryAt > nowTime) continue;
       if (
         reminder.repeat === "never" &&
         reminder.lastNotifiedAt === reminder.scheduledAt
@@ -321,7 +336,7 @@ export class ReminderService {
         // 自定义桌面弹窗未送达时延迟重试，避免零延迟定时器持续空转。
         this.notificationRetryAt.set(
           reminder.id,
-          now.getTime() + NOTIFICATION_RETRY_DELAY,
+          nowTime + NOTIFICATION_RETRY_DELAY,
         );
         continue;
       }
@@ -427,11 +442,18 @@ export class ReminderService {
       .map((reminder) => {
         const scheduledAt = new Date(reminder.scheduledAt).getTime();
         const retryAt = this.notificationRetryAt.get(reminder.id);
-        return retryAt !== undefined && scheduledAt <= now
-          ? retryAt
-          : scheduledAt;
+        if (retryAt !== undefined && scheduledAt <= now) {
+          return isSameReminderMinute(scheduledAt, retryAt)
+            ? retryAt
+            : Number.NaN;
+        }
+        return scheduledAt;
       })
-      .filter((time) => !Number.isNaN(time))
+      .filter(
+        (time) =>
+          !Number.isNaN(time) &&
+          (time >= now || isSameReminderMinute(time, now)),
+      )
       .toSorted((a, b) => a - b)[0];
 
     if (nextReminder === undefined) return;

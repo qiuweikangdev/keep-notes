@@ -369,7 +369,7 @@ function createNotificationHtml(options: AppNotificationOptions): string {
     .platform-mac .content {
       grid-template-columns: 36px 1fr;
       gap: 12px;
-      padding: 8px 18px 0 18px;
+      padding: 4px 18px 0 18px;
     }
     .platform-mac .app-icon {
       width: 36px;
@@ -416,7 +416,7 @@ function createNotificationHtml(options: AppNotificationOptions): string {
     .platform-mac .actions {
       gap: 8px;
       justify-content: flex-end;
-      padding: 4px 16px 10px 66px;
+      padding: 4px 16px 12px 66px;
     }
     .platform-mac .button {
       min-width: 78px;

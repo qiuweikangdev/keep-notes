@@ -224,7 +224,7 @@ describe("ReminderService", () => {
   it("notifies due one-time reminders once for the same scheduled time", async () => {
     const showNotification = vi.fn(() => ({ show: vi.fn() }));
     const { service } = createTestService({
-      now: new Date("2026-06-21T09:01:00.000Z"),
+      now: new Date("2026-06-21T09:00:10.000Z"),
       showNotification,
     });
     await service.load();
@@ -243,7 +243,7 @@ describe("ReminderService", () => {
   it("persists notification history when reminders are triggered", async () => {
     const showNotification = vi.fn(() => ({ show: vi.fn() }));
     const { service, saved } = createTestService({
-      now: new Date("2026-06-21T09:01:00.000Z"),
+      now: new Date("2026-06-21T09:00:10.000Z"),
       showNotification,
     });
     await service.load();
@@ -254,7 +254,7 @@ describe("ReminderService", () => {
     expect(saved.at(-1)?.[0].notificationHistory).toEqual([
       {
         scheduledAt: "2026-06-21T09:00:00.000Z",
-        notifiedAt: "2026-06-21T09:01:00.000Z",
+        notifiedAt: "2026-06-21T09:00:10.000Z",
       },
     ]);
   });
@@ -262,7 +262,7 @@ describe("ReminderService", () => {
   it("passes persistent desktop notification preference to the notification window", async () => {
     const showNotification = vi.fn(() => ({ show: vi.fn() }));
     const { service } = createTestService({
-      now: new Date("2026-06-21T09:01:00.000Z"),
+      now: new Date("2026-06-21T09:00:10.000Z"),
       notificationConfig: {
         ...DEFAULT_NOTIFICATION_CONFIG,
         desktop: {
@@ -311,7 +311,7 @@ describe("ReminderService", () => {
       },
     );
     const { service, saved } = createTestService({
-      now: new Date("2026-06-21T09:01:00.000Z"),
+      now: new Date("2026-06-21T09:00:10.000Z"),
       showNotification,
     });
     await service.load();
@@ -321,16 +321,16 @@ describe("ReminderService", () => {
     await snoozeReminder?.();
 
     expect(service.getSnapshot()[0]).toMatchObject({
-      scheduledAt: "2026-06-21T09:06:00.000Z",
+      scheduledAt: "2026-06-21T09:05:10.000Z",
       lastNotifiedAt: "2026-06-21T09:00:00.000Z",
-      updatedAt: "2026-06-21T09:01:00.000Z",
+      updatedAt: "2026-06-21T09:00:10.000Z",
     });
     expect(saved.at(-1)?.[0]).toMatchObject({
-      scheduledAt: "2026-06-21T09:06:00.000Z",
+      scheduledAt: "2026-06-21T09:05:10.000Z",
     });
   });
 
-  it("schedules newly created overdue reminders to notify immediately", async () => {
+  it("schedules reminders in the current minute to notify immediately", async () => {
     let scheduledCallback: (() => void) | undefined;
     const notification = { show: vi.fn() };
     const showNotification = vi.fn(() => notification);
@@ -339,7 +339,7 @@ describe("ReminderService", () => {
       return { dispose: vi.fn() };
     });
     const { service } = createTestService({
-      now: new Date("2026-06-21T09:01:00.000Z"),
+      now: new Date("2026-06-21T09:00:10.000Z"),
       showNotification,
       scheduleTimer,
     });
@@ -353,10 +353,50 @@ describe("ReminderService", () => {
     expect(notification.show).toHaveBeenCalledTimes(1);
   });
 
+  it("does not schedule or notify newly created reminders in a historical minute", async () => {
+    const showNotification = vi.fn(() => ({ show: vi.fn() }));
+    const scheduleTimer = vi.fn(() => ({ dispose: vi.fn() }));
+    const { service } = createTestService({
+      now: new Date("2026-06-21T09:01:00.000Z"),
+      showNotification,
+      scheduleTimer,
+    });
+    await service.load();
+
+    await service.create(baseInput);
+    await service.processDueReminders();
+
+    expect(scheduleTimer).not.toHaveBeenCalled();
+    expect(showNotification).not.toHaveBeenCalled();
+  });
+
+  it("does not schedule or notify reminders modified to a historical minute", async () => {
+    let now = new Date("2026-06-21T08:00:00.000Z");
+    const showNotification = vi.fn(() => ({ show: vi.fn() }));
+    const scheduleTimer = vi.fn(() => ({ dispose: vi.fn() }));
+    const { service } = createTestService({
+      now: () => now,
+      showNotification,
+      scheduleTimer,
+    });
+    await service.load();
+    const reminder = await service.create(baseInput);
+
+    scheduleTimer.mockClear();
+    now = new Date("2026-06-21T10:00:00.000Z");
+    await service.update(reminder.id, {
+      scheduledAt: "2026-06-21T08:30:00.000Z",
+    });
+    await service.processDueReminders();
+
+    expect(scheduleTimer).not.toHaveBeenCalled();
+    expect(showNotification).not.toHaveBeenCalled();
+  });
+
   it("broadcasts triggered reminders to renderer windows", async () => {
     const broadcastTriggered = vi.fn();
     const { service } = createTestService({
-      now: new Date("2026-06-21T09:01:00.000Z"),
+      now: new Date("2026-06-21T09:00:10.000Z"),
       showNotification: vi.fn(() => ({ show: vi.fn() })),
       broadcastTriggered,
     });
@@ -376,7 +416,7 @@ describe("ReminderService", () => {
       .mockImplementation(() => undefined);
     const broadcastTriggered = vi.fn();
     const { service } = createTestService({
-      now: new Date("2026-06-21T09:01:00.000Z"),
+      now: new Date("2026-06-21T09:00:10.000Z"),
       showNotification: vi.fn(() => ({
         show: vi.fn().mockRejectedValue(new Error("Notifications unavailable")),
       })),
@@ -398,7 +438,7 @@ describe("ReminderService", () => {
     const consoleError = vi
       .spyOn(console, "error")
       .mockImplementation(() => undefined);
-    let now = new Date("2026-06-21T09:01:00.000Z");
+    let now = new Date("2026-06-21T09:00:10.000Z");
     const scheduleTimer = vi.fn(() => ({ dispose: vi.fn() }));
     const notification = {
       show: vi
@@ -424,7 +464,7 @@ describe("ReminderService", () => {
       30_000,
     );
 
-    now = new Date("2026-06-21T09:01:30.000Z");
+    now = new Date("2026-06-21T09:00:40.000Z");
     await service.processDueReminders();
 
     expect(notification.show).toHaveBeenCalledTimes(2);
@@ -438,10 +478,33 @@ describe("ReminderService", () => {
     consoleError.mockRestore();
   });
 
+  it("does not retry failed notifications outside the scheduled minute", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const scheduleTimer = vi.fn(() => ({ dispose: vi.fn() }));
+    const { service } = createTestService({
+      now: new Date("2026-06-21T09:00:40.000Z"),
+      showNotification: vi.fn(() => ({
+        show: vi.fn().mockRejectedValue(new Error("Notifications unavailable")),
+      })),
+      scheduleTimer,
+    });
+    await service.load();
+    await service.create(baseInput);
+
+    scheduleTimer.mockClear();
+    await service.processDueReminders();
+
+    expect(scheduleTimer).not.toHaveBeenCalled();
+    expect(service.getSnapshot()[0].lastNotifiedAt).toBeUndefined();
+    consoleError.mockRestore();
+  });
+
   it("advances repeating reminders after notification", async () => {
     const showNotification = vi.fn(() => ({ show: vi.fn() }));
     const { service } = createTestService({
-      now: new Date("2026-06-21T09:01:00.000Z"),
+      now: new Date("2026-06-21T09:00:10.000Z"),
       showNotification,
     });
     await service.load();
