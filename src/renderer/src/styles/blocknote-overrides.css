@@ -710,6 +710,42 @@ html.rich-editor-selection-drag-locked * {
     "SF Mono", "Fira Code", Consolas, "Courier New", monospace !important;
 }
 
+.bn-editor.ProseMirror-focused
+  code:not(.editor-code-block__content):has(
+    .editor-inline-code__editing-content
+  ) {
+  background-color: transparent !important;
+  color: var(--text-primary) !important;
+  padding-inline: 0 !important;
+  border-radius: 0 !important;
+}
+
+.bn-editor.ProseMirror-focused
+  code:not(.editor-code-block__content):has(
+    .editor-inline-code__editing-content
+  )::before,
+.bn-editor.ProseMirror-focused
+  code:not(.editor-code-block__content):has(
+    .editor-inline-code__editing-content
+  )::after {
+  color: var(--text-muted);
+  opacity: 0.75;
+}
+
+.bn-editor.ProseMirror-focused
+  code:not(.editor-code-block__content):has(
+    .editor-inline-code__editing-content
+  )::before {
+  content: "`";
+}
+
+.bn-editor.ProseMirror-focused
+  code:not(.editor-code-block__content):has(
+    .editor-inline-code__editing-content
+  )::after {
+  content: "`";
+}
+
 .bn-block-content[data-content-type="checkListItem"] > div:has(> input) {
   align-items: center;
   min-height: 24px;

@@ -748,7 +748,7 @@ describe("editor BlockNote schema", () => {
     ]);
   });
 
-  it("turns inline code back into editable markdown before deleting characters", async () => {
+  it("removes the closing inline-code boundary before its content", async () => {
     setupMatchMedia();
     const user = userEvent.setup();
     const editor = BlockNoteEditor.create({
@@ -793,7 +793,155 @@ describe("editor BlockNote schema", () => {
     ]);
   });
 
-  it("does not restore the closing marker when deleting input-rule inline code", () => {
+  it("deletes text inside inline code without splitting its style", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "这是引用代码块",
+              styles: {
+                code: true,
+              },
+            },
+          ],
+        },
+      ],
+    });
+    render(createElement(BlockNoteView, { editor }));
+
+    let inlineCodePosition: number | undefined;
+    editor.prosemirrorState.doc.descendants((node, position) => {
+      if (!node.isText || node.text !== "这是引用代码块") return true;
+      inlineCodePosition = position;
+      return false;
+    });
+    expect(inlineCodePosition).not.toBeUndefined();
+
+    const view = editor.prosemirrorView;
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(
+          view.state.doc,
+          (inlineCodePosition as number) + "这是引用".length,
+        ),
+      ),
+    );
+    pressKey(editor, "Backspace");
+
+    expect(editor.document[0].content).toEqual([
+      {
+        type: "text",
+        text: "这是引代码块",
+        styles: {
+          code: true,
+        },
+      },
+    ]);
+  });
+
+  it("keeps inserted text inside inline code at the cursor and end boundary", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "test",
+              styles: {
+                code: true,
+              },
+            },
+          ],
+        },
+      ],
+    });
+    render(createElement(BlockNoteView, { editor }));
+
+    let inlineCodePosition: number | undefined;
+    editor.prosemirrorState.doc.descendants((node, position) => {
+      if (!node.isText || node.text !== "test") return true;
+      inlineCodePosition = position;
+      return false;
+    });
+    expect(inlineCodePosition).not.toBeUndefined();
+
+    const view = editor.prosemirrorView;
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(
+          view.state.doc,
+          (inlineCodePosition as number) + 2,
+        ),
+      ),
+    );
+    simulateTextInput(editor, "x");
+    editor.setTextCursorPosition(editor.document[0].id, "end");
+    simulateTextInput(editor, "y");
+
+    expect(editor.document[0].content).toEqual([
+      {
+        type: "text",
+        text: "texsty",
+        styles: {
+          code: true,
+        },
+      },
+    ]);
+  });
+
+  it("shows paired markdown boundaries only while inline code is being edited", async () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "test",
+              styles: {
+                code: true,
+              },
+            },
+          ],
+        },
+        {
+          type: "paragraph",
+          content: "outside",
+        },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[0].id, "end");
+    editor.focus();
+
+    await waitFor(() => {
+      const editingContent = container.querySelector(
+        ".editor-inline-code__editing-content",
+      );
+      expect(editingContent?.closest("code")?.textContent).toBe("test");
+    });
+
+    editor.setTextCursorPosition(editor.document[1].id, "start");
+
+    await waitFor(() => {
+      expect(
+        container.querySelector(".editor-inline-code__editing-content"),
+      ).toBe(null);
+    });
+  });
+
+  it("removes the closing boundary from input-rule inline code", () => {
     setupMatchMedia();
     const editor = BlockNoteEditor.create({
       schema: editorSchema,

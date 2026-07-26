@@ -21,8 +21,14 @@ import { SideMenuExtension } from "@blocknote/core/extensions";
 import { InputRule } from "@tiptap/core";
 import Code from "@tiptap/extension-code";
 import { closeHistory } from "@tiptap/pm/history";
-import { AllSelection, Plugin, TextSelection } from "@tiptap/pm/state";
+import {
+  AllSelection,
+  Plugin,
+  TextSelection,
+  type EditorState,
+} from "@tiptap/pm/state";
 import type { Node, Slice } from "@tiptap/pm/model";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
 
 import {
   createEditorCodeBlockExternalHTML,
@@ -86,6 +92,7 @@ const editorInlineCodeStyleSpec = createStyleSpecFromTipTapMark(
 
 const INLINE_CODE_NORMALIZER_META = "editor-inline-code-normalizer";
 const inlineCodeMarkerPattern = /`([^`\n]+)`/g;
+const INLINE_CODE_EDITING_CONTENT_CLASS = "editor-inline-code__editing-content";
 
 const inlineCodeNormalizerExtension = createExtension({
   key: "editor-inline-code-normalizer",
@@ -159,6 +166,52 @@ const inlineCodeNormalizerExtension = createExtension({
   ],
 });
 
+function getInlineCodeEditingDecorations(state: EditorState) {
+  const { selection } = state;
+  if (selection.$from.parent !== selection.$to.parent) {
+    return DecorationSet.empty;
+  }
+  if (selection.$from.parent.type.spec.code) {
+    return DecorationSet.empty;
+  }
+
+  const codeMark = state.schema.marks.code;
+  if (!codeMark) return DecorationSet.empty;
+
+  const parentStart = selection.$from.start();
+  let codeRange: { from: number; to: number } | null = null;
+
+  selection.$from.parent.forEach((node, offset) => {
+    if (codeRange || !node.isText) return;
+    if (!node.marks.some((mark) => mark.type === codeMark)) return;
+
+    const from = parentStart + offset;
+    const to = from + node.nodeSize;
+    if (selection.from < from || selection.to > to) return;
+
+    codeRange = { from, to };
+  });
+
+  if (!codeRange) return DecorationSet.empty;
+
+  return DecorationSet.create(state.doc, [
+    Decoration.inline(codeRange.from, codeRange.to, {
+      class: INLINE_CODE_EDITING_CONTENT_CLASS,
+    }),
+  ]);
+}
+
+const inlineCodeEditingExtension = createExtension({
+  key: "editor-inline-code-editing",
+  prosemirrorPlugins: [
+    new Plugin({
+      props: {
+        decorations: getInlineCodeEditingDecorations,
+      },
+    }),
+  ],
+});
+
 const inlineCodeBackspaceExtension = createExtension({
   key: "editor-inline-code-backspace",
   runsBefore: ["default"],
@@ -187,10 +240,25 @@ const inlineCodeBackspaceExtension = createExtension({
           return true;
         }
 
+        const nodeAfter = selection.$from.nodeAfter;
+        const isAtInlineCodeEnd =
+          !nodeAfter?.isText ||
+          !nodeAfter.marks.some((mark) => mark.type === codeMark);
+
+        if (!isAtInlineCodeEnd) {
+          // 光标仍在代码内容内部时只删除字符，避免拆分或丢失 code mark。
+          tr.delete(
+            selection.from - previousCharacter.length,
+            selection.from,
+          ).scrollIntoView();
+
+          return true;
+        }
+
         const nodeFrom = selection.from - nodeBefore.nodeSize;
         const markdownText = `\`${nodeBefore.text}`;
 
-        // 第一次退格先回到可编辑 Markdown 形态，之后再按普通文本逐字删除。
+        // 光标位于整段末端时先删除闭合反引号，行为与 Typora 一致。
         tr.replaceWith(
           nodeFrom,
           selection.from,
@@ -736,6 +804,7 @@ const editorParagraphSpec = {
     ...(defaultBlockSpecs.paragraph.extensions ?? []),
     fullDocumentClearExtension(),
     inlineCodeBackspaceExtension(),
+    inlineCodeEditingExtension(),
     inlineCodeNormalizerExtension(),
   ],
 };
