@@ -748,7 +748,7 @@ describe("editor BlockNote schema", () => {
     ]);
   });
 
-  it("removes the closing inline-code boundary before its content", async () => {
+  it("keeps inline code active when deleting from its content end", async () => {
     setupMatchMedia();
     const user = userEvent.setup();
     const editor = BlockNoteEditor.create({
@@ -777,6 +777,73 @@ describe("editor BlockNote schema", () => {
     expect(editor.document[0].content).toEqual([
       {
         type: "text",
+        text: "tes",
+        styles: {
+          code: true,
+        },
+      },
+    ]);
+
+    await user.keyboard("{Backspace}");
+
+    expect(editor.document[0].content).toEqual([
+      {
+        type: "text",
+        text: "te",
+        styles: {
+          code: true,
+        },
+      },
+    ]);
+  });
+
+  it("removes only the closing boundary when its virtual cursor is selected", async () => {
+    setupMatchMedia();
+    const user = userEvent.setup();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "test",
+              styles: {
+                code: true,
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[0].id, "end");
+    editor.focus();
+
+    const closingBoundary = await waitFor(() => {
+      const element = container.querySelector<HTMLElement>(
+        ".editor-inline-code__closing-boundary",
+      );
+      expect(element).not.toBe(null);
+      return element as HTMLElement;
+    });
+    fireEvent.mouseDown(closingBoundary);
+
+    await waitFor(() => {
+      expect(
+        container.querySelector(
+          ".editor-inline-code__closing-boundary--selected",
+        ),
+      ).not.toBe(null);
+    });
+
+    await user.keyboard("{Backspace}");
+
+    expect(editor.document[0].content).toEqual([
+      {
+        type: "text",
         text: "`test",
         styles: {},
       },
@@ -788,6 +855,57 @@ describe("editor BlockNote schema", () => {
       {
         type: "text",
         text: "`tes",
+        styles: {},
+      },
+    ]);
+  });
+
+  it("moves between the content end and closing boundary with arrow keys", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "test",
+              styles: {
+                code: true,
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[0].id, "end");
+    editor.focus();
+    pressKey(editor, "ArrowRight");
+
+    expect(
+      container.querySelector(
+        ".editor-inline-code__closing-boundary--selected",
+      ),
+    ).not.toBe(null);
+
+    pressKey(editor, "ArrowLeft");
+
+    expect(
+      container.querySelector(
+        ".editor-inline-code__closing-boundary--selected",
+      ),
+    ).toBe(null);
+
+    pressKey(editor, "ArrowRight");
+    pressKey(editor, "Backspace");
+
+    expect(editor.document[0].content).toEqual([
+      {
+        type: "text",
+        text: "`test",
         styles: {},
       },
     ]);
@@ -930,6 +1048,10 @@ describe("editor BlockNote schema", () => {
         ".editor-inline-code__editing-content",
       );
       expect(editingContent?.closest("code")?.textContent).toBe("test");
+      expect(
+        container.querySelector(".editor-inline-code__closing-boundary")
+          ?.textContent,
+      ).toBe("`");
     });
 
     editor.setTextCursorPosition(editor.document[1].id, "start");
@@ -938,10 +1060,13 @@ describe("editor BlockNote schema", () => {
       expect(
         container.querySelector(".editor-inline-code__editing-content"),
       ).toBe(null);
+      expect(
+        container.querySelector(".editor-inline-code__closing-boundary"),
+      ).toBe(null);
     });
   });
 
-  it("removes the closing boundary from input-rule inline code", () => {
+  it("keeps input-rule inline code active at its content end", () => {
     setupMatchMedia();
     const editor = BlockNoteEditor.create({
       schema: editorSchema,
@@ -956,8 +1081,10 @@ describe("editor BlockNote schema", () => {
     expect(editor.document[0].content).toEqual([
       {
         type: "text",
-        text: "`test",
-        styles: {},
+        text: "tes",
+        styles: {
+          code: true,
+        },
       },
     ]);
 
@@ -966,8 +1093,10 @@ describe("editor BlockNote schema", () => {
     expect(editor.document[0].content).toEqual([
       {
         type: "text",
-        text: "`tes",
-        styles: {},
+        text: "te",
+        styles: {
+          code: true,
+        },
       },
     ]);
   });

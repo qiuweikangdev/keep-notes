@@ -724,10 +724,7 @@ html.rich-editor-selection-drag-locked * {
   code:not(.editor-code-block__content):has(
     .editor-inline-code__editing-content
   )::before,
-.bn-editor.ProseMirror-focused
-  code:not(.editor-code-block__content):has(
-    .editor-inline-code__editing-content
-  )::after {
+.bn-editor.ProseMirror-focused .editor-inline-code__closing-boundary {
   color: var(--text-muted);
   opacity: 0.75;
 }
@@ -739,11 +736,24 @@ html.rich-editor-selection-drag-locked * {
   content: "`";
 }
 
+.bn-editor.ProseMirror-focused .editor-inline-code__closing-boundary {
+  display: inline-block;
+  font-family: "SF Mono", "Fira Code", Consolas, "Courier New", monospace;
+  cursor: text;
+}
+
 .bn-editor.ProseMirror-focused
   code:not(.editor-code-block__content):has(
-    .editor-inline-code__editing-content
-  )::after {
-  content: "`";
+    .editor-inline-code__editing-content--before-boundary
+  ) {
+  caret-color: transparent;
+}
+
+.bn-editor.ProseMirror-focused
+  .editor-inline-code__closing-boundary--selected::after {
+  content: "";
+  border-right: 1px solid currentColor;
+  margin-left: 1px;
 }
 
 .bn-block-content[data-content-type="checkListItem"] > div:has(> input) {

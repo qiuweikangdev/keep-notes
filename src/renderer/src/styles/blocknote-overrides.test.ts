@@ -362,7 +362,16 @@ describe("blocknote overrides stylesheet", () => {
     expect(editingRule).toMatch(/color:\s*var\(--text-primary\) !important;/);
     expect(editingRule).toMatch(/padding-inline:\s*0 !important;/);
     expect(getRule(`${editingSelector}::before`)).toMatch(/content:\s*"`";/);
-    expect(getRule(`${editingSelector}::after`)).toMatch(/content:\s*"`";/);
+    expect(
+      getRule(
+        ".bn-editor.ProseMirror-focused .editor-inline-code__closing-boundary",
+      ),
+    ).toMatch(/cursor:\s*text;/);
+    expect(
+      getRule(
+        ".bn-editor.ProseMirror-focused .editor-inline-code__closing-boundary--selected::after",
+      ),
+    ).toMatch(/border-right:\s*1px solid currentColor;/);
   });
 
   it("polishes the custom language search popover", () => {

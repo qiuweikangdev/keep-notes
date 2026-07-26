@@ -24,6 +24,7 @@ import { closeHistory } from "@tiptap/pm/history";
 import {
   AllSelection,
   Plugin,
+  PluginKey,
   TextSelection,
   type EditorState,
 } from "@tiptap/pm/state";
@@ -93,6 +94,23 @@ const editorInlineCodeStyleSpec = createStyleSpecFromTipTapMark(
 const INLINE_CODE_NORMALIZER_META = "editor-inline-code-normalizer";
 const inlineCodeMarkerPattern = /`([^`\n]+)`/g;
 const INLINE_CODE_EDITING_CONTENT_CLASS = "editor-inline-code__editing-content";
+const INLINE_CODE_CLOSING_BOUNDARY_CLASS =
+  "editor-inline-code__closing-boundary";
+const INLINE_CODE_CLOSING_BOUNDARY_SELECTED_CLASS =
+  "editor-inline-code__closing-boundary--selected";
+const INLINE_CODE_CONTENT_BEFORE_BOUNDARY_CLASS =
+  "editor-inline-code__editing-content--before-boundary";
+
+type InlineCodeEditingState = {
+  closingBoundaryPosition: number | null;
+};
+
+const EMPTY_INLINE_CODE_EDITING_STATE: InlineCodeEditingState = {
+  closingBoundaryPosition: null,
+};
+const inlineCodeEditingPluginKey = new PluginKey<InlineCodeEditingState>(
+  "editor-inline-code-editing",
+);
 
 const inlineCodeNormalizerExtension = createExtension({
   key: "editor-inline-code-normalizer",
@@ -194,10 +212,56 @@ function getInlineCodeEditingDecorations(state: EditorState) {
 
   if (!codeRange) return DecorationSet.empty;
 
+  const editingState =
+    inlineCodeEditingPluginKey.getState(state) ??
+    EMPTY_INLINE_CODE_EDITING_STATE;
+  const isClosingBoundarySelected =
+    editingState.closingBoundaryPosition === codeRange.to;
+  const contentClass = isClosingBoundarySelected
+    ? `${INLINE_CODE_EDITING_CONTENT_CLASS} ${INLINE_CODE_CONTENT_BEFORE_BOUNDARY_CLASS}`
+    : INLINE_CODE_EDITING_CONTENT_CLASS;
+
   return DecorationSet.create(state.doc, [
     Decoration.inline(codeRange.from, codeRange.to, {
-      class: INLINE_CODE_EDITING_CONTENT_CLASS,
+      class: contentClass,
     }),
+    Decoration.widget(
+      codeRange.to,
+      (view, getPos) => {
+        const boundary = document.createElement("span");
+        boundary.className = isClosingBoundarySelected
+          ? `${INLINE_CODE_CLOSING_BOUNDARY_CLASS} ${INLINE_CODE_CLOSING_BOUNDARY_SELECTED_CLASS}`
+          : INLINE_CODE_CLOSING_BOUNDARY_CLASS;
+        boundary.textContent = "`";
+        boundary.contentEditable = "false";
+        boundary.setAttribute("aria-hidden", "true");
+
+        boundary.addEventListener("mousedown", (event) => {
+          event.preventDefault();
+          const position = getPos();
+          if (position === undefined) return;
+
+          // 右侧反引号拥有独立的虚拟光标位置，用于区分内容末端与符号末端。
+          view.dispatch(
+            view.state.tr
+              .setSelection(TextSelection.create(view.state.doc, position))
+              .setMeta(inlineCodeEditingPluginKey, {
+                closingBoundaryPosition: position,
+              } satisfies InlineCodeEditingState),
+          );
+          view.focus();
+        });
+
+        return boundary;
+      },
+      {
+        key: `inline-code-closing-boundary-${codeRange.to}-${isClosingBoundarySelected}`,
+        marks: [],
+        relaxedSide: true,
+        side: 1,
+        stopEvent: (event) => event.type === "mousedown",
+      },
+    ),
   ]);
 }
 
@@ -205,6 +269,22 @@ const inlineCodeEditingExtension = createExtension({
   key: "editor-inline-code-editing",
   prosemirrorPlugins: [
     new Plugin({
+      key: inlineCodeEditingPluginKey,
+      state: {
+        init: () => EMPTY_INLINE_CODE_EDITING_STATE,
+        apply: (transaction, editingState) => {
+          const nextState = transaction.getMeta(inlineCodeEditingPluginKey) as
+            | InlineCodeEditingState
+            | undefined;
+          if (nextState) return nextState;
+
+          if (transaction.docChanged || transaction.selectionSet) {
+            return EMPTY_INLINE_CODE_EDITING_STATE;
+          }
+
+          return editingState;
+        },
+      },
       props: {
         decorations: getInlineCodeEditingDecorations,
       },
@@ -216,7 +296,56 @@ const inlineCodeBackspaceExtension = createExtension({
   key: "editor-inline-code-backspace",
   runsBefore: ["default"],
   keyboardShortcuts: {
+    ArrowLeft: ({ editor }) => {
+      const { selection } = editor.prosemirrorState;
+      const editingState = inlineCodeEditingPluginKey.getState(
+        editor.prosemirrorState,
+      );
+      if (editingState?.closingBoundaryPosition !== selection.from) {
+        return false;
+      }
+
+      editor.prosemirrorView.dispatch(
+        editor.prosemirrorState.tr.setMeta(
+          inlineCodeEditingPluginKey,
+          EMPTY_INLINE_CODE_EDITING_STATE,
+        ),
+      );
+      return true;
+    },
+    ArrowRight: ({ editor }) => {
+      const { selection } = editor.prosemirrorState;
+      if (!selection.empty) return false;
+
+      const editingState = inlineCodeEditingPluginKey.getState(
+        editor.prosemirrorState,
+      );
+      if (editingState?.closingBoundaryPosition === selection.from) {
+        return false;
+      }
+
+      const codeMark = editor.prosemirrorState.schema.marks.code;
+      const nodeBefore = selection.$from.nodeBefore;
+      const nodeAfter = selection.$from.nodeAfter;
+      const isAtInlineCodeEnd =
+        nodeBefore?.isText &&
+        nodeBefore.marks.some((mark) => mark.type === codeMark) &&
+        (!nodeAfter?.isText ||
+          !nodeAfter.marks.some((mark) => mark.type === codeMark));
+      if (!isAtInlineCodeEnd) return false;
+
+      editor.prosemirrorView.dispatch(
+        editor.prosemirrorState.tr.setMeta(inlineCodeEditingPluginKey, {
+          closingBoundaryPosition: selection.from,
+        } satisfies InlineCodeEditingState),
+      );
+      return true;
+    },
     Backspace: ({ editor }) => {
+      const editingState = inlineCodeEditingPluginKey.getState(
+        editor.prosemirrorState,
+      );
+
       return editor.transact((tr) => {
         const { selection } = tr;
         const codeMark = tr.doc.type.schema.marks.code;
@@ -240,13 +369,11 @@ const inlineCodeBackspaceExtension = createExtension({
           return true;
         }
 
-        const nodeAfter = selection.$from.nodeAfter;
-        const isAtInlineCodeEnd =
-          !nodeAfter?.isText ||
-          !nodeAfter.marks.some((mark) => mark.type === codeMark);
+        const isClosingBoundarySelected =
+          editingState?.closingBoundaryPosition === selection.from;
 
-        if (!isAtInlineCodeEnd) {
-          // 光标仍在代码内容内部时只删除字符，避免拆分或丢失 code mark。
+        if (!isClosingBoundarySelected) {
+          // 包括内容末端在内，光标仍位于代码内容中时只删除字符。
           tr.delete(
             selection.from - previousCharacter.length,
             selection.from,
