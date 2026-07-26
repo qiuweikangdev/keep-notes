@@ -15,6 +15,7 @@ import { openPathInNewWindow } from "./window";
 
 const MAX_TIMER_DELAY = 2_147_483_647;
 const SNOOZE_DELAY = 5 * 60 * 1000;
+const NOTIFICATION_RETRY_DELAY = 30 * 1000;
 
 export interface TimerHandle {
   dispose: () => void;
@@ -185,6 +186,7 @@ export class ReminderService {
   private readonly openFileInNewWindow: (filePath: string) => Promise<boolean>;
   private broadcast: (reminders: Reminder[]) => void;
   private broadcastTriggered: (reminder: Reminder) => void;
+  private readonly notificationRetryAt = new Map<string, number>();
 
   constructor(deps: ReminderServiceDeps = {}) {
     this.readReminders = deps.readReminders ?? readReminderFile;
@@ -211,6 +213,7 @@ export class ReminderService {
 
   async load(): Promise<Reminder[]> {
     this.reminders = await this.readReminders();
+    this.notificationRetryAt.clear();
     this.scheduleAll();
     return this.getSnapshot();
   }
@@ -273,6 +276,7 @@ export class ReminderService {
       throw new Error(`Reminder not found: ${id}`);
     }
 
+    this.notificationRetryAt.delete(id);
     await this.persistAndNotify();
     return { ...updated };
   }
@@ -282,6 +286,7 @@ export class ReminderService {
     this.reminders = this.reminders.filter((reminder) => reminder.id !== id);
     const removed = this.reminders.length !== before;
     if (removed) {
+      this.notificationRetryAt.delete(id);
       await this.persistAndNotify();
     }
     return removed;
@@ -302,6 +307,8 @@ export class ReminderService {
       if (reminder.completed) continue;
       const dueAt = new Date(reminder.scheduledAt);
       if (Number.isNaN(dueAt.getTime()) || dueAt > now) continue;
+      const retryAt = this.notificationRetryAt.get(reminder.id);
+      if (retryAt !== undefined && retryAt > now.getTime()) continue;
       if (
         reminder.repeat === "never" &&
         reminder.lastNotifiedAt === reminder.scheduledAt
@@ -309,7 +316,17 @@ export class ReminderService {
         continue;
       }
 
-      await this.notify(reminder);
+      const delivered = await this.notify(reminder);
+      if (!delivered) {
+        // 自定义桌面弹窗未送达时延迟重试，避免零延迟定时器持续空转。
+        this.notificationRetryAt.set(
+          reminder.id,
+          now.getTime() + NOTIFICATION_RETRY_DELAY,
+        );
+        continue;
+      }
+
+      this.notificationRetryAt.delete(reminder.id);
       const scheduledAt = reminder.scheduledAt;
       reminder.lastNotifiedAt = reminder.scheduledAt;
       reminder.notificationHistory = [
@@ -338,13 +355,13 @@ export class ReminderService {
     }
   }
 
-  private async notify(reminder: Reminder): Promise<void> {
+  private async notify(reminder: Reminder): Promise<boolean> {
     const config = this.getNotificationConfig();
+    let desktopDelivered = !config.desktop.enabled;
 
-    // 系统通知可能被操作系统权限拦截，先广播给渲染进程显示应用内提醒兜底。
+    // 保留触发事件供其他渲染层订阅使用，实际用户通知由自定义桌面窗口负责。
     this.broadcastTriggered({ ...reminder });
 
-    // 桌面通知受配置控制
     if (config.desktop.enabled) {
       try {
         const notification = this.showNotification(
@@ -361,6 +378,7 @@ export class ReminderService {
           config.desktop,
         );
         await notification.show();
+        desktopDelivered = true;
       } catch (error) {
         console.error("Failed to show desktop reminder notification:", error);
       }
@@ -368,6 +386,7 @@ export class ReminderService {
 
     // 发送远程通知（邮件等）
     await notificationChannelManager.sendAll(reminder);
+    return desktopDelivered;
   }
 
   private async snoozeReminder(id: string): Promise<void> {
@@ -387,6 +406,7 @@ export class ReminderService {
     });
 
     if (changed) {
+      this.notificationRetryAt.delete(id);
       await this.persistAndNotify();
     }
   }
@@ -404,9 +424,15 @@ export class ReminderService {
     const now = this.now().getTime();
     const nextReminder = this.reminders
       .filter((reminder) => !reminder.completed)
-      .map((reminder) => new Date(reminder.scheduledAt).getTime())
+      .map((reminder) => {
+        const scheduledAt = new Date(reminder.scheduledAt).getTime();
+        const retryAt = this.notificationRetryAt.get(reminder.id);
+        return retryAt !== undefined && scheduledAt <= now
+          ? retryAt
+          : scheduledAt;
+      })
       .filter((time) => !Number.isNaN(time))
-      .sort((a, b) => a - b)[0];
+      .toSorted((a, b) => a - b)[0];
 
     if (nextReminder === undefined) return;
 

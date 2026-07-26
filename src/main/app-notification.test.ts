@@ -1,4 +1,3 @@
-import { Buffer } from "node:buffer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createAppNotification } from "./app-notification";
 
@@ -16,7 +15,16 @@ const electronMocks = vi.hoisted(() => {
     });
     readonly isDestroyed = vi.fn(() => this.destroyed);
     readonly setAlwaysOnTop = vi.fn();
+    readonly setBounds = vi.fn();
+    readonly setVisibleOnAllWorkspaces = vi.fn();
     readonly showInactive = vi.fn();
+    readonly moveTop = vi.fn();
+    readonly getBounds = vi.fn(() => ({
+      x: 100,
+      y: 100,
+      width: 900,
+      height: 670,
+    }));
     readonly loadURL = vi.fn(async (_url: string) => {
       this.handlers.get("ready-to-show")?.();
     });
@@ -47,14 +55,18 @@ const electronMocks = vi.hoisted(() => {
 
 vi.mock("electron", () => ({
   BrowserWindow: class extends electronMocks.MockBrowserWindow {
+    static readonly getFocusedWindow = vi.fn(() => null);
+
     constructor(options: unknown) {
       super(options);
       electronMocks.windows.push(this);
     }
   },
   screen: {
-    getCursorScreenPoint: vi.fn(() => ({ x: 100, y: 100 })),
-    getDisplayNearestPoint: vi.fn(() => ({
+    getDisplayMatching: vi.fn(() => ({
+      workArea: { x: 0, y: 0, width: 1440, height: 900 },
+    })),
+    getPrimaryDisplay: vi.fn(() => ({
       workArea: { x: 0, y: 0, width: 1440, height: 900 },
     })),
   },
@@ -65,10 +77,9 @@ describe("createAppNotification", () => {
     const win = electronMocks.getLastWindow();
     const [dataUrl] = win.loadURL.mock.calls[0] as [string];
 
-    return Buffer.from(
-      dataUrl.replace("data:text/html;base64,", ""),
-      "base64",
-    ).toString("utf-8");
+    return decodeURIComponent(
+      dataUrl.replace("data:text/html;charset=UTF-8,", ""),
+    );
   }
 
   beforeEach(() => {
@@ -178,6 +189,7 @@ describe("createAppNotification", () => {
 
     await notification.show();
     const win = electronMocks.getLastWindow();
+    const [dataUrl] = win.loadURL.mock.calls[0] as [string];
     const windowOptions = win.options as {
       width: number;
       height: number;
@@ -186,6 +198,7 @@ describe("createAppNotification", () => {
     };
     const html = getLastNotificationHtml();
 
+    expect(dataUrl).toMatch(/^data:text\/html;charset=UTF-8,/);
     if (process.platform === "darwin") {
       expect(windowOptions).toMatchObject({
         width: 356,
@@ -220,6 +233,24 @@ describe("createAppNotification", () => {
     expect(html).toContain('viewBox="0 0 24 24"');
     expect(html).toContain('stroke-linecap="round"');
     expect(html).not.toContain("•••");
+    expect(win.setAlwaysOnTop).toHaveBeenCalledWith(
+      true,
+      process.platform === "darwin" ? "status" : "floating",
+    );
+    expect(win.setBounds).toHaveBeenCalledWith(
+      expect.objectContaining({
+        x: expect.any(Number),
+        y: expect.any(Number),
+      }),
+      false,
+    );
+    expect(win.showInactive).toHaveBeenCalledOnce();
+    expect(win.moveTop).toHaveBeenCalledOnce();
+    if (process.platform === "darwin") {
+      expect(win.setVisibleOnAllWorkspaces).toHaveBeenCalledWith(true, {
+        visibleOnFullScreen: true,
+      });
+    }
   });
 
   it("renders a custom app name and omits an empty body", async () => {

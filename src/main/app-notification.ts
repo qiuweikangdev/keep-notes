@@ -1,4 +1,3 @@
-import { Buffer } from "node:buffer";
 import fs from "node:fs";
 import { join } from "node:path";
 import process from "node:process";
@@ -561,13 +560,19 @@ function createNotificationHtml(options: AppNotificationOptions): string {
 }
 
 function createDataUrl(html: string): string {
-  return `data:text/html;base64,${Buffer.from(html, "utf-8").toString("base64")}`;
+  // Chromium 新版本可能拒绝包含复杂 CSP 和内嵌资源的 Base64 顶层 data URL，
+  // 使用显式 UTF-8 百分号编码可避免 ERR_INVALID_URL。
+  return `data:text/html;charset=UTF-8,${encodeURIComponent(html)}`;
 }
 
 function getNotificationBounds(
   options: AppNotificationOptions,
 ): Electron.Rectangle {
-  const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  const display =
+    focusedWindow && !focusedWindow.isDestroyed()
+      ? screen.getDisplayMatching(focusedWindow.getBounds())
+      : screen.getPrimaryDisplay();
   const { workArea } = display;
   const sizePreset =
     options.useCustomAppearance === false ? undefined : options.sizePreset;
@@ -613,6 +618,9 @@ export function createAppNotification(
           hasShadow: false,
           ...(IS_MAC
             ? {
+                type: "panel",
+                focusable: false,
+                visibleOnAllWorkspaces: true,
                 vibrancy: "popover",
                 visualEffectState: "active",
               }
@@ -701,8 +709,17 @@ export function createAppNotification(
         win.once("ready-to-show", () => {
           if (win.isDestroyed()) return;
 
-          win.setAlwaysOnTop(true, "floating");
+          // 加载期间显示器布局可能发生变化，展示前重新定位到当前 Keep Notes 窗口所在屏幕。
+          win.setBounds(getNotificationBounds(options), false);
+          if (IS_MAC) {
+            // panel + status 层级用于长期通知，避免菜单级窗口在应用切焦时被系统自动收起。
+            win.setVisibleOnAllWorkspaces(true, {
+              visibleOnFullScreen: true,
+            });
+          }
+          win.setAlwaysOnTop(true, IS_MAC ? "status" : "floating");
           win.showInactive();
+          win.moveTop();
 
           // 非持续提醒保持类似系统通知的短暂停留，持续提醒只由用户确认关闭。
           if (!options.requireInteraction) {

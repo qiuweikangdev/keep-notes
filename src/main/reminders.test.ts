@@ -35,7 +35,7 @@ const baseInput: ReminderInput = {
 function createTestService(
   options: {
     initial?: Reminder[];
-    now?: Date;
+    now?: Date | (() => Date);
     showNotification?: ReturnType<typeof vi.fn>;
     scheduleTimer?: ReturnType<typeof vi.fn>;
     broadcastTriggered?: ReturnType<typeof vi.fn>;
@@ -52,7 +52,10 @@ function createTestService(
     writeReminders: async (reminders) => {
       saved.push(reminders);
     },
-    now: () => options.now ?? new Date("2026-06-21T08:00:00.000Z"),
+    now: () =>
+      typeof options.now === "function"
+        ? options.now()
+        : (options.now ?? new Date("2026-06-21T08:00:00.000Z")),
     createId: () => createReminderId("test"),
     scheduleTimer:
       options.scheduleTimer ?? vi.fn(() => ({ dispose: timerDispose })),
@@ -367,16 +370,16 @@ describe("ReminderService", () => {
     );
   });
 
-  it("continues processing when desktop notification fails", async () => {
+  it("does not mark failed desktop notifications as delivered", async () => {
     const consoleError = vi
       .spyOn(console, "error")
       .mockImplementation(() => undefined);
     const broadcastTriggered = vi.fn();
     const { service } = createTestService({
       now: new Date("2026-06-21T09:01:00.000Z"),
-      showNotification: vi.fn(() => {
-        throw new Error("Notifications unavailable");
-      }),
+      showNotification: vi.fn(() => ({
+        show: vi.fn().mockRejectedValue(new Error("Notifications unavailable")),
+      })),
       broadcastTriggered,
     });
     await service.load();
@@ -387,6 +390,44 @@ describe("ReminderService", () => {
     expect(broadcastTriggered).toHaveBeenCalledWith(
       expect.objectContaining({ id: reminder.id }),
     );
+    expect(service.getSnapshot()[0].lastNotifiedAt).toBeUndefined();
+    consoleError.mockRestore();
+  });
+
+  it("retries failed notifications without marking them as delivered", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    let now = new Date("2026-06-21T09:01:00.000Z");
+    const scheduleTimer = vi.fn(() => ({ dispose: vi.fn() }));
+    const notification = {
+      show: vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Notifications unavailable"))
+        .mockResolvedValueOnce(undefined),
+    };
+    const { service } = createTestService({
+      now: () => now,
+      showNotification: vi.fn(() => notification),
+      scheduleTimer,
+      broadcastTriggered: vi.fn(),
+    });
+    await service.load();
+    await service.create(baseInput);
+
+    await service.processDueReminders();
+
+    expect(service.getSnapshot()[0].lastNotifiedAt).toBeUndefined();
+    expect(service.getSnapshot()[0].notificationHistory).toBeUndefined();
+    expect(scheduleTimer).toHaveBeenLastCalledWith(
+      expect.any(Function),
+      30_000,
+    );
+
+    now = new Date("2026-06-21T09:01:30.000Z");
+    await service.processDueReminders();
+
+    expect(notification.show).toHaveBeenCalledTimes(2);
     expect(service.getSnapshot()[0]).toMatchObject({
       lastNotifiedAt: "2026-06-21T09:00:00.000Z",
     });
