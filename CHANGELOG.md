@@ -1,3 +1,19 @@
+## [2.19.6](https://github.com/qiuweikangdev/keep-notes/compare/v2.19.5...v2.19.6) (2026-07-26)
+
+
+### Bug Fixes
+
+* align inline code backspace behavior ([f39e3f4](https://github.com/qiuweikangdev/keep-notes/commit/f39e3f4ad51e921e9a4005b9c94d006a8a493e6b))
+* prompt and save unlinked floating editor content ([3fd0412](https://github.com/qiuweikangdev/keep-notes/commit/3fd0412815cf770f29003df5a32bee74752be13f))
+* restore desktop reminder notifications ([2f9346a](https://github.com/qiuweikangdev/keep-notes/commit/2f9346aee7df585bfd72a0c4cb2480a2a7cab53c))
+* separate inline code boundary cursor ([664dee3](https://github.com/qiuweikangdev/keep-notes/commit/664dee3cb8857492b2ff6571dd30b3244ecf6488))
+
+
+## Commit Summary
+
+- Compared with: v2.19.5
+- Total commits: 4
+
 ## [2.19.5](https://github.com/qiuweikangdev/keep-notes/compare/v2.19.4...v2.19.5) (2026-07-24)
 
 
