@@ -7,6 +7,7 @@ import {
   MoreHorizontal,
   PictureInPicture2,
   Plus,
+  Save,
   Undo2,
   X,
 } from "lucide-react";
@@ -21,6 +22,7 @@ interface QuickEditorActionsMenuProps {
   onCompare?: () => void;
   onDiscard?: () => void;
   onRevealInFileManager?: () => void;
+  onSave?: () => void;
   onToggleEditorMode: () => void;
   onToggleOutline: () => void;
   onNewWindow: () => void;
@@ -78,6 +80,14 @@ export function QuickEditorActionsMenu(props: QuickEditorActionsMenuProps) {
           >
             编辑模式切换
           </ActionItem>
+          {props.onSave ? (
+            <ActionItem
+              icon={<Save aria-hidden="true" size={14} />}
+              onSelect={props.onSave}
+            >
+              保存
+            </ActionItem>
+          ) : null}
           <DropdownMenu.Separator className="quick-editor-actions-menu__separator" />
           <ActionItem
             icon={<Plus aria-hidden="true" size={14} />}

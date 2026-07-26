@@ -1,6 +1,8 @@
 import { ipcRenderer } from "electron";
 import { IPC_CHANNELS } from "../../shared/constants";
 import type {
+  ApiResponse,
+  QuickEditorSaveResult,
   QuickEditorWindowContent,
   ShortcutRegistrationResult,
 } from "../../shared/types";
@@ -94,6 +96,12 @@ export const quickEditorApi = {
 
   syncQuickEditorContent: (content: QuickEditorWindowContent): void => {
     ipcRenderer.send(IPC_CHANNELS.QUICK_EDITOR.SYNC_CONTENT, content);
+  },
+
+  saveQuickEditorContent: (
+    content: string,
+  ): Promise<ApiResponse<QuickEditorSaveResult>> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.QUICK_EDITOR.SAVE_CONTENT, content);
   },
 
   flushQuickEditorContent: (

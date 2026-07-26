@@ -5,10 +5,13 @@ import { is } from "@electron-toolkit/utils";
 import icon from "../../resources/icon.png?asset";
 import { IPC_CHANNELS } from "../shared/constants";
 import type {
+  ApiResponse,
+  QuickEditorSaveResult,
   QuickEditorWindowContent,
   ShortcutRegistrationResult,
 } from "../shared/types";
-import { writeFileContent } from "./file";
+import { CodeResult } from "../shared/types";
+import { saveAsDialog, writeFileContent } from "./file";
 import { checkAndCloseWindow, focusMainWindow, getMainWindow } from "./window";
 
 const QUICK_EDITOR_WINDOW_WIDTH = 640;
@@ -103,14 +106,16 @@ function normalizeQuickEditorSource(
 ): NonNullable<QuickEditorWindowContent["source"]> | null {
   if (!value || typeof value !== "object") return null;
 
-  const { groupId, tabId, filePath, repositoryRoot } = value as Record<
-    string,
-    unknown
-  >;
+  const { groupId, tabId, filePath, temporaryTitle, repositoryRoot } =
+    value as Record<string, unknown>;
   if (
     typeof groupId !== "string" ||
     typeof tabId !== "string" ||
     (typeof filePath !== "string" && filePath !== null) ||
+    (typeof temporaryTitle !== "string" &&
+      temporaryTitle !== null &&
+      temporaryTitle !== undefined) ||
+    (typeof temporaryTitle === "string" && temporaryTitle.length > 255) ||
     (typeof repositoryRoot !== "string" &&
       repositoryRoot !== null &&
       repositoryRoot !== undefined)
@@ -122,6 +127,7 @@ function normalizeQuickEditorSource(
     groupId,
     tabId,
     filePath,
+    ...(temporaryTitle === undefined ? {} : { temporaryTitle }),
     ...(repositoryRoot === undefined ? {} : { repositoryRoot }),
   };
 }
@@ -373,15 +379,17 @@ export function createQuickEditorWindow(
   win.on("close", (event) => {
     if (win.isDestroyed()) return;
 
-    // 已关联来源标签的浮窗内容会实时回写，关闭时无需再走独立草稿的保存确认。
-    if (quickEditorWindowSources.has(win)) return;
+    // 已关联真实文件的浮窗内容会实时回写；未命名标签仍需在关闭时确认保存。
+    if (quickEditorWindowSources.get(win)?.filePath) return;
 
     event.preventDefault();
     if (closingQuickEditorWindows.has(win)) return;
 
     // 关闭入口统一经过脏状态检查，避免标题栏按钮和系统快捷键产生不同行为。
     closingQuickEditorWindows.add(win);
-    void checkAndCloseWindow(win).finally(() => {
+    void checkAndCloseWindow(win, (filePath, content) => {
+      associateQuickEditorFile(win, filePath, content);
+    }).finally(() => {
       if (!win.isDestroyed()) {
         closingQuickEditorWindows.delete(win);
       }
@@ -493,6 +501,98 @@ export function closeQuickEditorWindow(
 ): void {
   if (!win || !quickEditorWindows.has(win) || win.isDestroyed()) return;
   win.close();
+}
+
+/**
+ * 保存成功后由主进程更新浮窗来源，确保后续编辑继续写入新文件，
+ * 并把未命名标签同步升级为真实文件标签。
+ */
+function associateQuickEditorFile(
+  win: BrowserWindow,
+  filePath: string,
+  content: string,
+): NonNullable<QuickEditorWindowContent["source"]> {
+  const previousSource = quickEditorWindowSources.get(win);
+  const savedSource: NonNullable<QuickEditorWindowContent["source"]> = {
+    groupId: previousSource?.groupId ?? "quick-editor",
+    tabId: previousSource?.tabId ?? `window-${win.webContents.id}`,
+    filePath,
+    temporaryTitle: null,
+    repositoryRoot: null,
+  };
+  const savedContent: QuickEditorWindowContent = {
+    content,
+    source: savedSource,
+  };
+
+  for (const candidate of quickEditorWindows) {
+    const candidateSource = quickEditorWindowSources.get(candidate);
+    const isSameDraft =
+      candidate === win ||
+      (previousSource &&
+        candidateSource &&
+        hasSameQuickEditorSource(candidateSource, previousSource));
+    if (!isSameDraft) continue;
+
+    quickEditorWindowSources.set(candidate, savedSource);
+    if (candidate !== win && !candidate.isDestroyed()) {
+      candidate.webContents.send(
+        IPC_CHANNELS.QUICK_EDITOR.CONTENT_UPDATED,
+        savedContent,
+      );
+    }
+  }
+
+  if (!previousSource) return savedSource;
+  const mainWindow = getMainWindow();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(
+      IPC_CHANNELS.QUICK_EDITOR.CONTENT_UPDATED,
+      savedContent,
+    );
+  }
+  return savedSource;
+}
+
+export async function saveQuickEditorContent(
+  value: unknown,
+  win: BrowserWindow | null = quickEditorWindow,
+): Promise<ApiResponse<QuickEditorSaveResult>> {
+  if (
+    typeof value !== "string" ||
+    !value.trim() ||
+    !win ||
+    !quickEditorWindows.has(win) ||
+    win.isDestroyed()
+  ) {
+    return { code: CodeResult.Fail, message: "Invalid quick editor content" };
+  }
+
+  const source = quickEditorWindowSources.get(win);
+  if (source?.filePath) {
+    return {
+      code: CodeResult.Fail,
+      message: "Quick editor is already linked to a file",
+    };
+  }
+
+  const result = await saveAsDialog(
+    win,
+    value,
+    source?.temporaryTitle ?? undefined,
+  );
+  if (result.code === CodeResult.Success && result.data) {
+    const savedSource = associateQuickEditorFile(
+      win,
+      result.data.filePath,
+      value,
+    );
+    return {
+      code: CodeResult.Success,
+      data: { filePath: result.data.filePath, source: savedSource },
+    };
+  }
+  return { code: result.code, message: result.message };
 }
 
 export function returnToMainWindowFromQuickEditor(

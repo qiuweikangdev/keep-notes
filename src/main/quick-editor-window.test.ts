@@ -7,6 +7,7 @@ import {
   disposeQuickEditorWindow,
   getQuickEditorCollapsed,
   returnToMainWindowFromQuickEditor,
+  saveQuickEditorContent,
   setQuickEditorCollapsed,
   showQuickEditorWindow,
   syncQuickEditorContent,
@@ -25,6 +26,7 @@ const windowMocks = vi.hoisted(() => ({
 }));
 
 const fileMocks = vi.hoisted(() => ({
+  saveAsDialog: vi.fn(),
   writeFileContent: vi.fn(async () => undefined),
 }));
 
@@ -461,7 +463,10 @@ describe("quick editor floating window", () => {
     win.close();
 
     await vi.waitFor(() => {
-      expect(windowMocks.checkAndCloseWindow).toHaveBeenCalledWith(win);
+      expect(windowMocks.checkAndCloseWindow).toHaveBeenCalledWith(
+        win,
+        expect.any(Function),
+      );
     });
   });
 
@@ -477,6 +482,73 @@ describe("quick editor floating window", () => {
 
     win.close();
 
+    expect(windowMocks.checkAndCloseWindow).not.toHaveBeenCalled();
+  });
+
+  it("checks unsaved content before closing an editor linked to an untitled tab", async () => {
+    const win = createQuickEditorWindow({
+      content: "# Unsaved note",
+      source: {
+        groupId: "group-1",
+        tabId: "tab-1",
+        filePath: null,
+      },
+    });
+
+    win.close();
+
+    await vi.waitFor(() => {
+      expect(windowMocks.checkAndCloseWindow).toHaveBeenCalledWith(
+        win,
+        expect.any(Function),
+      );
+    });
+  });
+
+  it("saves an untitled floating editor with its temporary title and links the new file", async () => {
+    const win = createQuickEditorWindow({
+      content: "# Unsaved note",
+      source: {
+        groupId: "group-1",
+        tabId: "tab-1",
+        filePath: null,
+        temporaryTitle: "会议记录",
+      },
+    });
+    fileMocks.saveAsDialog.mockResolvedValue({
+      code: 1,
+      data: { filePath: "C:\\notes\\会议记录.md" },
+    });
+
+    await expect(
+      saveQuickEditorContent("# Saved note", win),
+    ).resolves.toMatchObject({
+      code: 1,
+      data: {
+        filePath: "C:\\notes\\会议记录.md",
+        source: {
+          groupId: "group-1",
+          tabId: "tab-1",
+          filePath: "C:\\notes\\会议记录.md",
+        },
+      },
+    });
+    expect(fileMocks.saveAsDialog).toHaveBeenCalledWith(
+      win,
+      "# Saved note",
+      "会议记录",
+    );
+    expect(windowMocks.mainWindow.webContents.send).toHaveBeenCalledWith(
+      IPC_CHANNELS.QUICK_EDITOR.CONTENT_UPDATED,
+      expect.objectContaining({
+        content: "# Saved note",
+        source: expect.objectContaining({
+          filePath: "C:\\notes\\会议记录.md",
+        }),
+      }),
+    );
+
+    win.close();
     expect(windowMocks.checkAndCloseWindow).not.toHaveBeenCalled();
   });
 

@@ -112,9 +112,29 @@ describe("quick editor content detection", () => {
       })),
     );
     const createQuickEditorWindow = vi.fn();
+    const updateDirtyState = vi.fn();
+    const source = {
+      groupId: "group-1",
+      tabId: "untitled-tab",
+      filePath: null,
+      temporaryTitle: "会议记录",
+    };
+    const saveQuickEditorContent = vi.fn(async () => ({
+      code: 1,
+      data: {
+        filePath: "C:\\notes\\会议记录.md",
+        source: {
+          ...source,
+          filePath: "C:\\notes\\会议记录.md",
+          temporaryTitle: null,
+        },
+      },
+    }));
     const onQuickEditorInitialContent = vi.fn(
-      (callback: (content: { content: string; source: null }) => void) => {
-        callback({ content: "222", source: null });
+      (
+        callback: (content: { content: string; source: typeof source }) => void,
+      ) => {
+        callback({ content: "222", source });
         return () => undefined;
       },
     );
@@ -126,8 +146,9 @@ describe("quick editor content detection", () => {
       onQuickEditorContentUpdated: vi.fn(() => () => undefined),
       closeQuickEditorWindow: vi.fn(),
       returnToMainWindowFromQuickEditor: vi.fn(),
+      saveQuickEditorContent,
       syncQuickEditorContent: vi.fn(),
-      updateDirtyState: vi.fn(),
+      updateDirtyState,
     });
 
     render(createElement(QuickEditorWindow));
@@ -136,6 +157,9 @@ describe("quick editor content detection", () => {
       screen.getByRole("main", { name: "快速编辑器" }),
     ).toBeInTheDocument();
     expect(await screen.findByText("222")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(updateDirtyState).toHaveBeenLastCalledWith(true);
+    });
 
     expect(
       screen.getByRole("button", { name: "更多操作" }),
@@ -159,6 +183,16 @@ describe("quick editor content detection", () => {
     ).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "更多操作" }));
+    await user.click(screen.getByRole("menuitem", { name: "保存" }));
+    await waitFor(() => {
+      expect(saveQuickEditorContent).toHaveBeenCalledOnce();
+      expect(saveQuickEditorContent.mock.calls[0]?.[0]).toContain("222");
+    });
+
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    expect(
+      screen.queryByRole("menuitem", { name: "保存" }),
+    ).not.toBeInTheDocument();
     await user.click(screen.getByRole("menuitem", { name: "显示大纲" }));
     expect(
       screen.getByRole("navigation", { name: "文档大纲" }),

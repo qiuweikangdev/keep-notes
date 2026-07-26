@@ -29,12 +29,15 @@ type EditorStoreSnapshot = {
   }>;
 };
 const appMocks = vi.hoisted(() => ({
+  editorFilePath: "/workspace/notes/today.md" as string | null,
   subscribe: vi.fn(() => () => undefined),
   useTheme: vi.fn(() => ({ toggleTheme: vi.fn() })),
   openQuickEditorDraft: vi.fn(),
   incrementTabReloadKey: vi.fn(),
   setActiveTab: vi.fn(),
   setTabContent: vi.fn(),
+  setTabDirty: vi.fn(),
+  setTabFilePath: vi.fn(),
   syncFileContent: vi.fn(),
 }));
 
@@ -272,6 +275,8 @@ vi.mock("@/store/editor.store", () => ({
         incrementTabReloadKey: appMocks.incrementTabReloadKey,
         setActiveTab: appMocks.setActiveTab,
         setTabContent: appMocks.setTabContent,
+        setTabDirty: appMocks.setTabDirty,
+        setTabFilePath: appMocks.setTabFilePath,
         syncFileContent: appMocks.syncFileContent,
         activeGroupId: "group-1",
         panelGroups: [
@@ -281,7 +286,7 @@ vi.mock("@/store/editor.store", () => ({
             tabs: [
               {
                 id: "tab-1",
-                filePath: "/workspace/notes/today.md",
+                filePath: appMocks.editorFilePath,
                 content: "# Previous draft",
                 mode: "rich",
               },
@@ -352,12 +357,15 @@ describe("App shortcuts", () => {
       );
     }
     menuActionHandler = null;
+    appMocks.editorFilePath = "/workspace/notes/today.md";
     appMocks.subscribe.mockClear();
     appMocks.useTheme.mockClear();
     appMocks.openQuickEditorDraft.mockClear();
     appMocks.incrementTabReloadKey.mockClear();
     appMocks.setActiveTab.mockClear();
     appMocks.setTabContent.mockClear();
+    appMocks.setTabDirty.mockClear();
+    appMocks.setTabFilePath.mockClear();
     appMocks.syncFileContent.mockClear();
     useReminderStore.setState({
       reminders: [],
@@ -626,6 +634,52 @@ describe("App shortcuts", () => {
     expect(
       readEditorViewportPreservation("/workspace/notes/today.md"),
     ).not.toBeNull();
+  });
+
+  it("associates an untitled source tab after the floating editor saves", async () => {
+    appMocks.editorFilePath = null;
+    const onQuickEditorContentUpdated = vi.fn(
+      (
+        callback: (content: {
+          content: string;
+          source: {
+            groupId: string;
+            tabId: string;
+            filePath: string | null;
+          } | null;
+        }) => void,
+      ) => {
+        callback({
+          content: "# Saved floating draft",
+          source: {
+            groupId: "group-1",
+            tabId: "tab-1",
+            filePath: "/workspace/notes/saved.md",
+          },
+        });
+        return () => undefined;
+      },
+    );
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: { ...window.electronAPI, onQuickEditorContentUpdated },
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(appMocks.setTabFilePath).toHaveBeenCalledWith(
+        "group-1",
+        "tab-1",
+        "/workspace/notes/saved.md",
+      );
+      expect(appMocks.setTabDirty).toHaveBeenCalledWith(
+        "group-1",
+        "tab-1",
+        false,
+      );
+    });
+    expect(appMocks.openQuickEditorDraft).not.toHaveBeenCalled();
   });
 
   it("pushes source-tab edits to the associated floating editor", () => {

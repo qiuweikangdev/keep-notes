@@ -285,6 +285,7 @@ describe("window close draft protection", () => {
           tabId: "tab-draft",
           content: "draft",
           filePath: null,
+          defaultFileName: "会议记录",
         }),
       )
       .mockResolvedValueOnce(undefined)
@@ -305,6 +306,10 @@ describe("window close draft protection", () => {
       "C:\\notes\\draft.md",
       "draft",
       "utf-8",
+    );
+    expect(electronMocks.showSaveDialog).toHaveBeenCalledWith(
+      win,
+      expect.objectContaining({ defaultPath: "会议记录.md" }),
     );
     expect(executeJavaScript.mock.calls[1][0]).toContain(
       "__onCloseSaveSuccess",

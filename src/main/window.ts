@@ -1,4 +1,4 @@
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import fs from "node:fs";
 import process from "node:process";
 import { BrowserWindow, app, shell, dialog } from "electron";
@@ -15,6 +15,10 @@ import { destroyReminderWindow } from "./reminder-window";
 const isMac = process.platform === "darwin";
 const closeInProgressWindows = new WeakSet<BrowserWindow>();
 const mainWindows = new Set<BrowserWindow>();
+type WindowSaveSuccessHandler = (
+  filePath: string,
+  content: string,
+) => void | Promise<void>;
 
 // macOS: 使用原生标题栏隐藏模式，显示红绿灯按钮
 // Windows/Linux: 使用无边框透明窗口，自定义标题栏
@@ -173,11 +177,17 @@ function isCloseSaveSnapshot(value: unknown): value is CloseSaveSnapshot {
     typeof snapshot.groupId === "string" &&
     typeof snapshot.tabId === "string" &&
     typeof snapshot.content === "string" &&
-    (typeof snapshot.filePath === "string" || snapshot.filePath === null)
+    (typeof snapshot.filePath === "string" || snapshot.filePath === null) &&
+    (snapshot.defaultFileName === undefined ||
+      (typeof snapshot.defaultFileName === "string" &&
+        snapshot.defaultFileName.length <= 255))
   );
 }
 
-export async function checkAndCloseWindow(win: BrowserWindow): Promise<void> {
+export async function checkAndCloseWindow(
+  win: BrowserWindow,
+  onSaved?: WindowSaveSuccessHandler,
+): Promise<void> {
   if (win.isDestroyed()) return;
 
   try {
@@ -199,7 +209,7 @@ export async function checkAndCloseWindow(win: BrowserWindow): Promise<void> {
       switch (result.response) {
         case 0: {
           // 保存
-          await saveAndClose(win);
+          await saveAndClose(win, onSaved);
           break;
         }
         case 1: {
@@ -220,7 +230,10 @@ export async function checkAndCloseWindow(win: BrowserWindow): Promise<void> {
   }
 }
 
-export async function saveAndClose(win: BrowserWindow): Promise<void> {
+export async function saveAndClose(
+  win: BrowserWindow,
+  onSaved?: WindowSaveSuccessHandler,
+): Promise<void> {
   if (win.isDestroyed()) return;
 
   try {
@@ -248,9 +261,16 @@ export async function saveAndClose(win: BrowserWindow): Promise<void> {
 
       let savedPath = snapshot.filePath;
       if (!savedPath) {
+        // 临时标题只作为建议文件名，始终剥离目录，避免渲染进程控制保存位置。
+        const safeFileName = basename(
+          snapshot.defaultFileName?.trim() || "未命名",
+        );
+        const defaultPath = safeFileName.toLowerCase().endsWith(".md")
+          ? safeFileName
+          : `${safeFileName}.md`;
         const saveResult = await dialog.showSaveDialog(win, {
           title: "保存文件",
-          defaultPath: "未命名.md",
+          defaultPath,
           filters: [
             { name: "Markdown", extensions: ["md"] },
             { name: "所有文件", extensions: ["*"] },
@@ -263,6 +283,8 @@ export async function saveAndClose(win: BrowserWindow): Promise<void> {
       }
 
       await fs.promises.writeFile(savedPath, snapshot.content, "utf-8");
+      if (win.isDestroyed()) return;
+      await onSaved?.(savedPath, snapshot.content);
       if (win.isDestroyed()) return;
 
       // 仅在回调存在时确认本次快照保存，并把写盘内容传回以检测并发编辑。

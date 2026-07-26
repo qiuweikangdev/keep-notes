@@ -36,6 +36,38 @@ describe("quick editor preload collapse API", () => {
     );
   });
 
+  it("saves floating-editor content through the focused window", async () => {
+    ipcRendererMocks.invoke.mockResolvedValueOnce({
+      code: 1,
+      data: {
+        filePath: "C:\\notes\\draft.md",
+        source: {
+          groupId: "quick-editor",
+          tabId: "window-1",
+          filePath: "C:\\notes\\draft.md",
+        },
+      },
+    });
+
+    await expect(
+      quickEditorApi.saveQuickEditorContent("# Draft"),
+    ).resolves.toEqual({
+      code: 1,
+      data: {
+        filePath: "C:\\notes\\draft.md",
+        source: {
+          groupId: "quick-editor",
+          tabId: "window-1",
+          filePath: "C:\\notes\\draft.md",
+        },
+      },
+    });
+    expect(ipcRendererMocks.invoke).toHaveBeenCalledWith(
+      IPC_CHANNELS.QUICK_EDITOR.SAVE_CONTENT,
+      "# Draft",
+    );
+  });
+
   it("subscribes to native collapsed-state changes", () => {
     const callback = vi.fn();
     const unsubscribe = quickEditorApi.onQuickEditorCollapsedChanged(callback);

@@ -71,7 +71,10 @@ function restoreQuickEditorSource(content: QuickEditorWindowContent): void {
   const exactMatch = state.panelGroups
     .find((group) => group.id === source.groupId)
     ?.tabs.find(
-      (tab) => tab.id === source.tabId && tab.filePath === source.filePath,
+      (tab) =>
+        tab.id === source.tabId &&
+        (tab.filePath === source.filePath ||
+          (tab.filePath === null && source.filePath !== null)),
     );
   const pathMatch = source.filePath
     ? state.panelGroups
@@ -89,23 +92,29 @@ function restoreQuickEditorSource(content: QuickEditorWindowContent): void {
     return;
   }
 
+  const isNewFileAssociation =
+    target.tab.filePath === null && source.filePath !== null;
+  const targetFilePath = source.filePath ?? target.tab.filePath;
+  if (isNewFileAssociation) {
+    state.setTabFilePath(target.groupId, target.tab.id, source.filePath);
+  }
+
   // 优先恢复原始标签；标签已移动或重建时，再通过文件路径定位同一文档。
   if (target.tab.content !== content.content) {
-    if (target.tab.mode === "rich" && target.tab.filePath) {
+    if (target.tab.mode === "rich" && targetFilePath) {
       // 浮窗实时同步只替换正文，不应把关联富文本面板视为一次用户触发的刷新。
-      requestEditorViewportPreservation(target.tab.filePath);
+      requestEditorViewportPreservation(targetFilePath);
     }
     state.setTabContent(target.groupId, target.tab.id, content.content);
-    if (target.tab.filePath) {
-      state.syncFileContent(
-        target.tab.filePath,
-        content.content,
-        target.tab.id,
-      );
+    if (targetFilePath) {
+      state.syncFileContent(targetFilePath, content.content, target.tab.id);
     }
     if (target.tab.mode === "rich") {
       state.incrementTabReloadKey(target.groupId, target.tab.id);
     }
+  }
+  if (isNewFileAssociation) {
+    state.setTabDirty(target.groupId, target.tab.id, false);
   }
   state.setActiveTab(target.groupId, target.tab.id);
 }

@@ -8,6 +8,7 @@ import {
   flushQuickEditorContent,
   getQuickEditorCollapsed,
   returnToMainWindowFromQuickEditor,
+  saveQuickEditorContent,
   setQuickEditorCollapsed,
   showQuickEditorWindow,
   syncQuickEditorContent,
@@ -41,6 +42,13 @@ export function registerQuickEditorIpc(): void {
     IPC_CHANNELS.QUICK_EDITOR.SYNC_CONTENT,
     (event, content: unknown) => {
       syncQuickEditorContent(content, getBrowserWindow(event));
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.QUICK_EDITOR.SAVE_CONTENT,
+    (event, content: unknown) => {
+      return saveQuickEditorContent(content, getBrowserWindow(event));
     },
   );
 
