@@ -1,3 +1,16 @@
+## [2.19.7](https://github.com/qiuweikangdev/keep-notes/compare/v2.19.6...v2.19.7) (2026-07-26)
+
+
+### Bug Fixes
+
+* refine reminder notification behavior ([1bec798](https://github.com/qiuweikangdev/keep-notes/commit/1bec798f1e4674ef941c8d6f831085ab3cdc36a3))
+
+
+## Commit Summary
+
+- Compared with: v2.19.6
+- Total commits: 1
+
 ## [2.19.6](https://github.com/qiuweikangdev/keep-notes/compare/v2.19.5...v2.19.6) (2026-07-26)
 
 
