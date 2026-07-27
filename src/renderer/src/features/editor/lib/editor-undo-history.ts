@@ -9,6 +9,17 @@ interface HistoryPluginConfig {
   };
 }
 
+export function runWithoutRichTextUndoHistory<T>(
+  editor: CoreBlockNoteEditor,
+  update: () => T,
+): T {
+  return editor.transact((transaction) => {
+    // 文件初次加载只建立撤销基线，不能成为用户可撤回的一次编辑。
+    transaction.setMeta("addToHistory", false);
+    return update();
+  });
+}
+
 export function configureRichTextUndoHistory(
   editor: CoreBlockNoteEditor,
 ): boolean {

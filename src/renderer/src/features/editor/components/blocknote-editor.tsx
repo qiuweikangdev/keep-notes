@@ -107,7 +107,10 @@ import {
 } from "../lib/editor-image";
 import { editorSchema } from "../lib/blocknote-schema";
 import { getSupportedCodeBlockLanguageId } from "../lib/editor-code-block-languages";
-import { configureRichTextUndoHistory } from "../lib/editor-undo-history";
+import {
+  configureRichTextUndoHistory,
+  runWithoutRichTextUndoHistory,
+} from "../lib/editor-undo-history";
 import { selectCodeBlockContent } from "./editor-code-block";
 
 import "@blocknote/core/fonts/inter.css";
@@ -2377,7 +2380,13 @@ function MountedBlockNoteEditor({
           controllerRef.current.onMarkdownChange(source);
         }
         window.getSelection()?.removeAllRanges();
-        editor.replaceBlocks(editor.document, blocks);
+        if (currentPath === null) {
+          runWithoutRichTextUndoHistory(editor, () =>
+            editor.replaceBlocks(editor.document, blocks),
+          );
+        } else {
+          editor.replaceBlocks(editor.document, blocks);
+        }
         appliedPathRef.current = path;
         appliedSourceRef.current = source;
         const restoredScrollTop = chooseRestoredEditorScrollTop({

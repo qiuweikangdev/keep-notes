@@ -70,7 +70,7 @@ describe("MarkdownSourceEditor", () => {
     });
   });
 
-  it("resets scroll position immediately when the reset key changes", async () => {
+  it("recreates the textarea when the reset key changes", () => {
     const { rerender } = render(
       <MarkdownSourceEditor
         value={"# A\n\nBody"}
@@ -93,6 +93,9 @@ describe("MarkdownSourceEditor", () => {
       />,
     );
 
-    expect(editor.scrollTop).toBe(0);
+    const nextEditor = screen.getByRole("textbox", { name: /Markdown/ });
+    expect(nextEditor).not.toBe(editor);
+    expect(nextEditor).toHaveValue("# B\n\nBody");
+    expect(nextEditor.scrollTop).toBe(0);
   });
 });

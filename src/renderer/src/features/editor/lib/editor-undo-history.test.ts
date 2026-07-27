@@ -3,7 +3,10 @@ import { closeHistory, undoDepth } from "@tiptap/pm/history";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { editorSchema } from "./blocknote-schema";
-import { configureRichTextUndoHistory } from "./editor-undo-history";
+import {
+  configureRichTextUndoHistory,
+  runWithoutRichTextUndoHistory,
+} from "./editor-undo-history";
 
 const mountedEditors: Array<{
   editor: CoreBlockNoteEditor;
@@ -66,5 +69,25 @@ describe("rich text undo history", () => {
     expect(undoDepth(editor.prosemirrorState)).toBe(1);
     expect(editor.undo()).toBe(true);
     expect(editor.prosemirrorState.doc.textContent).toBe("");
+  });
+
+  it("starts undo history after the initial document is loaded", () => {
+    const editor = createMountedEditor();
+
+    expect(configureRichTextUndoHistory(editor)).toBe(true);
+    runWithoutRichTextUndoHistory(editor, () =>
+      editor.replaceBlocks(editor.document, [
+        { type: "paragraph", content: "existing content" },
+      ]),
+    );
+
+    expect(undoDepth(editor.prosemirrorState)).toBe(0);
+    expect(editor.undo()).toBe(false);
+    expect(editor.prosemirrorState.doc.textContent).toBe("existing content");
+
+    insertSeparateHistoryEvent(editor);
+
+    expect(editor.undo()).toBe(true);
+    expect(editor.prosemirrorState.doc.textContent).toBe("existing content");
   });
 });
