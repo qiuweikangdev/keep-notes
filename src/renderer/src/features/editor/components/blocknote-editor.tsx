@@ -106,6 +106,7 @@ import {
   readImageFileAsDataUrl,
 } from "../lib/editor-image";
 import { editorSchema } from "../lib/blocknote-schema";
+import { getSupportedCodeBlockLanguageId } from "../lib/editor-code-block-languages";
 import { configureRichTextUndoHistory } from "../lib/editor-undo-history";
 import { selectCodeBlockContent } from "./editor-code-block";
 
@@ -223,16 +224,6 @@ function parsePastedHTMLTable(
   };
 }
 
-function countPastedTableBlocks(blocks: readonly Block[]): number {
-  return blocks.reduce(
-    (count, block) =>
-      count +
-      (block.type === "table" ? 1 : 0) +
-      countPastedTableBlocks(block.children),
-    0,
-  );
-}
-
 function getPastedInlineContentText(content: unknown): string {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
@@ -247,17 +238,134 @@ function getPastedInlineContentText(content: unknown): string {
     .join("");
 }
 
+function getPastedCodeBlockLanguage(
+  pre: HTMLPreElement,
+  code: HTMLElement | null,
+): string {
+  const explicitLanguage =
+    code?.dataset.language ??
+    pre.dataset.language ??
+    [code, pre]
+      .flatMap((element) => Array.from(element?.classList ?? []))
+      .find(
+        (className) =>
+          className.startsWith("language-") || className.startsWith("lang-"),
+      )
+      ?.replace(/^(?:language|lang)-/, "");
+
+  return getSupportedCodeBlockLanguageId(explicitLanguage ?? "text");
+}
+
+function parsePastedHTMLCodeBlock(pre: HTMLPreElement): PartialBlock {
+  const code = pre.querySelector<HTMLElement>("code");
+
+  return {
+    type: "codeBlock",
+    props: {
+      language: getPastedCodeBlockLanguage(pre, code),
+    },
+    content: code?.textContent ?? pre.textContent ?? "",
+  };
+}
+
+interface PastedBlockPlaceholder {
+  block: PartialBlock;
+  marker: string;
+}
+
+function replacePastedBlockPlaceholders(
+  blocks: readonly PartialBlock[],
+  placeholders: readonly PastedBlockPlaceholder[],
+): { blocks: PartialBlock[]; replacementCount: number } {
+  let replacementCount = 0;
+  const replacedBlocks = blocks.flatMap((block): PartialBlock[] => {
+    const text = getPastedInlineContentText(block.content).trim();
+    const placeholder = placeholders.find((entry) => entry.marker === text);
+    if (placeholder) {
+      replacementCount += 1;
+      return [placeholder.block];
+    }
+
+    const replacedChildren = replacePastedBlockPlaceholders(
+      block.children ?? [],
+      placeholders,
+    );
+    replacementCount += replacedChildren.replacementCount;
+
+    return [
+      replacedChildren.replacementCount === 0
+        ? block
+        : { ...block, children: replacedChildren.blocks },
+    ];
+  });
+
+  return { blocks: replacedBlocks, replacementCount };
+}
+
+function replaceCodeBlocksForSafePaste(
+  blocks: readonly PartialBlock[],
+  placeholders: PastedBlockPlaceholder[],
+): PartialBlock[] {
+  return blocks.map((block) => {
+    if (block.type === "codeBlock") {
+      const marker = `\uE000keep-notes-insert-code-${placeholders.length}\uE001`;
+      placeholders.push({ block, marker });
+      return { type: "paragraph", content: marker };
+    }
+
+    const children = replaceCodeBlocksForSafePaste(
+      block.children ?? [],
+      placeholders,
+    );
+    return children.length > 0 ? { ...block, children } : block;
+  });
+}
+
+function restorePastedCodeBlocks(
+  editor: CoreBlockNoteEditor,
+  placeholders: readonly PastedBlockPlaceholder[],
+) {
+  const replacements: Array<{
+    block: Block;
+    replacement: PartialBlock;
+  }> = [];
+  const walk = (blocks: readonly Block[]) => {
+    for (const block of blocks) {
+      const text = getPastedInlineContentText(block.content).trim();
+      const placeholder = placeholders.find((entry) => entry.marker === text);
+      if (placeholder) {
+        replacements.push({ block, replacement: placeholder.block });
+      }
+      walk(block.children);
+    }
+  };
+  walk(editor.document);
+
+  // BlockNote 的外部 HTML 解析器无法安全重入自定义代码块解析；先粘贴占位段落，再原位恢复代码块。
+  for (const { block, replacement } of replacements) {
+    editor.updateBlock(block, replacement);
+  }
+}
+
+function pasteParsedRichBlocks(
+  editor: CoreBlockNoteEditor,
+  blocks: readonly PartialBlock[],
+) {
+  const codePlaceholders: PastedBlockPlaceholder[] = [];
+  const safeBlocks = replaceCodeBlocksForSafePaste(blocks, codePlaceholders);
+  editor.pasteHTML(editor.blocksToFullHTML(safeBlocks), true);
+  restorePastedCodeBlocks(editor, codePlaceholders);
+}
+
 function parseMixedPastedHTML(
   editor: CoreBlockNoteEditor,
   container: HTMLDivElement,
   tables: HTMLTableElement[],
 ): PartialBlock[] | null {
-  const parsedBlocks = editor.tryParseHTMLToBlocks(container.innerHTML);
-  if (countPastedTableBlocks(parsedBlocks) >= tables.length) {
-    return parsedBlocks;
-  }
-
-  const tableBlocks = tables.map((table, index) => {
+  const codeBlocks = Array.from(container.querySelectorAll("pre")).filter(
+    (pre) => !pre.parentElement?.closest("table"),
+  );
+  const tablePlaceholders = tables.map((table, index) => {
     const block = parsePastedHTMLTable(editor, table);
     if (!block) return null;
 
@@ -267,21 +375,26 @@ function parseMixedPastedHTML(
     table.replaceWith(placeholder);
     return { block, marker };
   });
-  if (tableBlocks.some((entry) => entry === null)) return null;
+  if (tablePlaceholders.some((entry) => entry === null)) return null;
 
-  let replacementCount = 0;
-  const mixedBlocks = editor
-    .tryParseHTMLToBlocks(container.innerHTML)
-    .flatMap((block): PartialBlock[] => {
-      const text = getPastedInlineContentText(block.content).trim();
-      const entry = tableBlocks.find((candidate) => candidate?.marker === text);
-      if (!entry) return [block];
+  const codePlaceholders = codeBlocks.map((pre, index) => {
+    const marker = `\uE000keep-notes-code-${index}\uE001`;
+    const placeholder = document.createElement("p");
+    placeholder.textContent = marker;
+    const block = parsePastedHTMLCodeBlock(pre);
+    pre.replaceWith(placeholder);
+    return { block, marker };
+  });
+  const placeholders = [
+    ...(tablePlaceholders as PastedBlockPlaceholder[]),
+    ...codePlaceholders,
+  ];
+  const parsedBlocks = editor.tryParseHTMLToBlocks(container.innerHTML);
+  const replaced = replacePastedBlockPlaceholders(parsedBlocks, placeholders);
 
-      replacementCount += 1;
-      return [entry.block];
-    });
-
-  return replacementCount === tableBlocks.length ? mixedBlocks : null;
+  return replaced.replacementCount === placeholders.length
+    ? replaced.blocks
+    : null;
 }
 
 export function pasteExternalHTMLTables(
@@ -302,7 +415,7 @@ export function pasteExternalHTMLTables(
   if (!mixedBlocks) return false;
 
   // 整段富文本统一转换为 BlockNote 块，保留表格前后的标题、段落和列表顺序。
-  editor.pasteHTML(editor.blocksToFullHTML(mixedBlocks), true);
+  pasteParsedRichBlocks(editor, mixedBlocks);
   return true;
 }
 

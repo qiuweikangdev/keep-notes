@@ -1407,6 +1407,91 @@ describe("BlockNoteEditor code paste", () => {
     }
   });
 
+  it("preserves lists, code blocks, and tables from one rich text paste", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/complete-rich-paste.md";
+    setupSessionTab(path);
+    const session = renderRealSession(path, false, "");
+
+    try {
+      vi.stubGlobal("ClipboardEvent", Event);
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const editor = session.runtime.current!.editor;
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      const clipboardData = {
+        getData: (type: string) =>
+          type === "text/html"
+            ? [
+                "<h2>Release checklist</h2>",
+                "<ul><li>Run tests</li><li>Build application</li></ul>",
+                '<pre><code class="language-typescript">const ready = true;\nconsole.log(ready);</code></pre>',
+                "<table>",
+                "<thead><tr><th>Step</th><th>Status</th></tr></thead>",
+                "<tbody><tr><td>Tests</td><td>Passed</td></tr></tbody>",
+                "</table>",
+              ].join("")
+            : type === "text/plain"
+              ? [
+                  "Release checklist",
+                  "Run tests",
+                  "Build application",
+                  "const ready = true;",
+                  "console.log(ready);",
+                  "Step",
+                  "Status",
+                  "Tests",
+                  "Passed",
+                ].join("\n")
+              : "",
+        types: ["text/html", "text/plain"],
+      };
+      Object.defineProperty(event, "clipboardData", { value: clipboardData });
+
+      act(() => {
+        editor.prosemirrorView.dom.dispatchEvent(event);
+      });
+
+      expect(editor.document.map((block) => block.type)).toEqual([
+        "heading",
+        "bulletListItem",
+        "bulletListItem",
+        "codeBlock",
+        "table",
+      ]);
+      expect(editor.document[3]).toMatchObject({
+        type: "codeBlock",
+        props: { language: "typescript" },
+        content: [
+          {
+            text: "const ready = true;\nconsole.log(ready);",
+          },
+        ],
+      });
+      expect(editor.document[4]).toMatchObject({
+        type: "table",
+        content: {
+          rows: [
+            {
+              cells: [
+                { content: [{ text: "Step" }] },
+                { content: [{ text: "Status" }] },
+              ],
+            },
+            {
+              cells: [
+                { content: [{ text: "Tests" }] },
+                { content: [{ text: "Passed" }] },
+              ],
+            },
+          ],
+        },
+      });
+    } finally {
+      session.view.unmount();
+    }
+  });
+
   it("pastes TSX copied from VS Code as literal text", async () => {
     setupMatchMedia();
     setupDomMeasurements();
