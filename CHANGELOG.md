@@ -1,3 +1,19 @@
+## [2.19.8](https://github.com/qiuweikangdev/keep-notes/compare/v2.19.7...v2.19.8) (2026-07-27)
+
+
+### Bug Fixes
+
+* isolate editor undo history by file ([f7b7e59](https://github.com/qiuweikangdev/keep-notes/commit/f7b7e59b46879d18d97abb602a608f0fc5f6d59f))
+* keep reminder notifications visible ([63156b2](https://github.com/qiuweikangdev/keep-notes/commit/63156b220e14ab8a5447bf98f5a51ae712b8acca))
+* preserve mixed rich content with code blocks ([4f3bdb6](https://github.com/qiuweikangdev/keep-notes/commit/4f3bdb6d66d3af5f2b91d81520f3559e70fcb6c6))
+* prevent ime enter from confirming file names ([78ab15d](https://github.com/qiuweikangdev/keep-notes/commit/78ab15da1fb14b7a43b693a6207e82dadaf52a00))
+
+
+## Commit Summary
+
+- Compared with: v2.19.7
+- Total commits: 4
+
 ## [2.19.7](https://github.com/qiuweikangdev/keep-notes/compare/v2.19.6...v2.19.7) (2026-07-26)
 
 
