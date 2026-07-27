@@ -12,7 +12,6 @@ import iconPath from "../../resources/icon.png?asset";
 const IS_MAC = process.platform === "darwin";
 const MAC_NOTIFICATION_MARGIN = 24;
 const WINDOWS_NOTIFICATION_MARGIN = 8;
-const AUTO_CLOSE_DELAY = 12_000;
 const NOTIFICATION_ACTION_PROTOCOL = "keep-notes-notification:";
 const DEFAULT_APP_NAME_FONT_SIZE = 18;
 const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/;
@@ -634,15 +633,10 @@ export function createAppNotification(
 
         activeNotificationWindows.add(win);
 
-        let autoCloseTimer: NodeJS.Timeout | null = null;
         let settleTimer: NodeJS.Timeout | null = null;
         let settled = false;
 
         const clearTimers = () => {
-          if (autoCloseTimer) {
-            clearTimeout(autoCloseTimer);
-            autoCloseTimer = null;
-          }
           if (settleTimer) {
             clearTimeout(settleTimer);
             settleTimer = null;
@@ -721,12 +715,7 @@ export function createAppNotification(
           win.showInactive();
           win.moveTop();
 
-          // 非持续提醒保持类似系统通知的短暂停留，持续提醒只由用户确认关闭。
-          if (!options.requireInteraction) {
-            autoCloseTimer = setTimeout(closeWindow, AUTO_CLOSE_DELAY);
-            autoCloseTimer.unref?.();
-          }
-
+          // 所有提醒都保持显示，只由关闭、稍后提醒或查看详情操作主动关闭。
           settle(resolve);
         });
 

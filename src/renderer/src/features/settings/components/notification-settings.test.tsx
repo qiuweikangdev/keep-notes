@@ -55,16 +55,11 @@ describe("NotificationSettings", () => {
     });
   });
 
-  it("places the app name setting below persistent display", async () => {
+  it("does not expose the obsolete persistent display setting", async () => {
     render(<NotificationSettings />);
 
-    const persistentLabel = await screen.findByText("持续显示");
-    const titleLabel = screen.getByText("应用名");
-
-    expect(
-      persistentLabel.compareDocumentPosition(titleLabel) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    expect(await screen.findByText("桌面通知")).toBeInTheDocument();
+    expect(screen.queryByText("持续显示")).not.toBeInTheDocument();
   });
 
   it("updates desktop notification icon visibility", async () => {

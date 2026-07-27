@@ -118,22 +118,6 @@ export function NotificationSettings() {
 
       <div style={{ borderBottom: "1px solid var(--border-color)" }}>
         <SettingRow
-          label="持续显示"
-          description="提醒通知保持显示，直到点击确认"
-        >
-          <Switch
-            ariaLabel="持续显示"
-            checked={config.desktop.requireInteraction}
-            disabled={!config.desktop.enabled}
-            onCheckedChange={(checked) => {
-              void updateDesktopConfig({ requireInteraction: checked });
-            }}
-          />
-        </SettingRow>
-      </div>
-
-      <div style={{ borderBottom: "1px solid var(--border-color)" }}>
-        <SettingRow
           label="显示应用图标"
           description="控制通知左侧应用图标是否显示"
         >

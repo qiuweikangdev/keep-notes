@@ -131,6 +131,25 @@ describe("createAppNotification", () => {
     expect(html).toContain("keep-notes-notification://close");
   });
 
+  it("closes the notification from the top close button", async () => {
+    const notification = createAppNotification({
+      title: "Read notes",
+      body: "today.md",
+    });
+
+    await notification.show();
+    const win = electronMocks.getLastWindow();
+    const event = { preventDefault: vi.fn() };
+
+    win.webContentsHandlers.get("will-navigate")?.(
+      event,
+      "keep-notes-notification://close",
+    );
+
+    expect(win.close).toHaveBeenCalledTimes(1);
+    expect(event.preventDefault).toHaveBeenCalledTimes(1);
+  });
+
   it("calls snooze action and closes the notification", async () => {
     const onSnooze = vi.fn();
     const notification = createAppNotification(
@@ -158,7 +177,8 @@ describe("createAppNotification", () => {
     expect(event.preventDefault).toHaveBeenCalledTimes(1);
   });
 
-  it("closes non-persistent notifications after opening", async () => {
+  it("keeps notifications visible until the user acts", async () => {
+    vi.useFakeTimers();
     const notification = createAppNotification(
       {
         title: "Read notes",
@@ -169,15 +189,23 @@ describe("createAppNotification", () => {
       vi.fn(),
     );
 
-    await notification.show();
-    const win = electronMocks.getLastWindow();
+    try {
+      await notification.show();
+      const win = electronMocks.getLastWindow();
 
-    win.webContentsHandlers.get("will-navigate")?.(
-      { preventDefault: vi.fn() },
-      "keep-notes-notification://open",
-    );
+      await vi.advanceTimersByTimeAsync(60_000);
 
-    expect(win.close).toHaveBeenCalledTimes(1);
+      expect(win.close).not.toHaveBeenCalled();
+
+      win.webContentsHandlers.get("will-navigate")?.(
+        { preventDefault: vi.fn() },
+        "keep-notes-notification://open",
+      );
+
+      expect(win.close).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("creates a platform-matched notification window shell", async () => {
