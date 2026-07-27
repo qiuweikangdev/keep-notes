@@ -123,6 +123,7 @@ export const TreeNode = memo(function TreeNode({
   const renameLabelRef = useRef<HTMLSpanElement>(null);
   const isRenameComposingRef = useRef(false);
   const createInputRef = useRef<HTMLInputElement>(null);
+  const isCreateComposingRef = useRef(false);
   const rowRef = useRef<HTMLDivElement>(null);
 
   const isFolder = Array.isArray(node.children);
@@ -243,6 +244,14 @@ export const TreeNode = memo(function TreeNode({
 
   const handleCreateKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
+      const isComposing =
+        isCreateComposingRef.current ||
+        e.nativeEvent.isComposing ||
+        e.keyCode === 229;
+
+      // 输入法组合态下的 Enter 仅用于确认候选字，不能提前创建节点。
+      if (isComposing) return;
+
       if (e.key === "Enter") {
         e.preventDefault();
         confirmedRef.current = true;
@@ -541,6 +550,12 @@ export const TreeNode = memo(function TreeNode({
         value={createValue}
         onChange={(e) => setCreateValue(e.target.value)}
         onKeyDown={handleCreateKeyDown}
+        onCompositionStart={() => {
+          isCreateComposingRef.current = true;
+        }}
+        onCompositionEnd={() => {
+          isCreateComposingRef.current = false;
+        }}
         onBlur={() => {
           if (confirmedRef.current) {
             confirmedRef.current = false;

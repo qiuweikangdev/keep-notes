@@ -154,6 +154,7 @@ export function FileTree() {
   const [isRootDropTarget, setIsRootDropTarget] = useState(false);
   const createInputRef = useRef<HTMLInputElement>(null);
   const confirmedRef = useRef(false);
+  const isRootCreateComposingRef = useRef(false);
   const rootDragDepthRef = useRef(0);
   const previousSidebarViewRef = useRef(sidebarView);
   const lastSelectedRevealKeyRef = useRef<string | null>(null);
@@ -408,6 +409,14 @@ export function FileTree() {
 
   const handleRootCreateKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
+      const isComposing =
+        isRootCreateComposingRef.current ||
+        e.nativeEvent.isComposing ||
+        e.keyCode === 229;
+
+      // 输入法组合态下的 Enter 仅用于确认候选字，不能提前创建节点。
+      if (isComposing) return;
+
       if (e.key === "Enter") {
         e.preventDefault();
         confirmedRef.current = true;
@@ -848,6 +857,12 @@ export function FileTree() {
                       value={createValue}
                       onChange={(e) => setCreateValue(e.target.value)}
                       onKeyDown={handleRootCreateKeyDown}
+                      onCompositionStart={() => {
+                        isRootCreateComposingRef.current = true;
+                      }}
+                      onCompositionEnd={() => {
+                        isRootCreateComposingRef.current = false;
+                      }}
                       onBlur={() => {
                         if (confirmedRef.current) {
                           confirmedRef.current = false;
@@ -1876,6 +1891,7 @@ function CreateInput({
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const confirmedRef = useRef(false);
+  const isComposingRef = useRef(false);
   const setTreeData = useTreeStore((state) => state.setTreeData);
   const { createFile, createFolder } = useElectron();
 
@@ -1918,6 +1934,14 @@ function CreateInput({
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
+      const isComposing =
+        isComposingRef.current ||
+        e.nativeEvent.isComposing ||
+        e.keyCode === 229;
+
+      // 输入法组合态下的 Enter 仅用于确认候选字，不能提前创建节点。
+      if (isComposing) return;
+
       if (e.key === "Enter") {
         e.preventDefault();
         confirmedRef.current = true;
@@ -1967,6 +1991,12 @@ function CreateInput({
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={handleKeyDown}
+        onCompositionStart={() => {
+          isComposingRef.current = true;
+        }}
+        onCompositionEnd={() => {
+          isComposingRef.current = false;
+        }}
         onBlur={() => {
           if (confirmedRef.current) {
             confirmedRef.current = false;

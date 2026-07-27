@@ -448,6 +448,77 @@ describe("FileTree context menu", () => {
     });
   });
 
+  it("waits for IME composition to finish before creating a root file", async () => {
+    electronMocks.createFile.mockResolvedValue({
+      code: CodeResult.Success,
+      data: { treeData: [] },
+    });
+
+    const { container } = render(<FileTree />);
+
+    const rootNode = container.querySelector(".tree-node-root");
+    expect(rootNode).not.toBeNull();
+    fireEvent.contextMenu(rootNode!);
+    fireEvent.click(await screen.findByRole("menuitem", { name: /新建文件$/ }));
+    const input = await screen.findByPlaceholderText("输入文件名称");
+
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "日报" } });
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+
+    expect(electronMocks.createFile).not.toHaveBeenCalled();
+
+    fireEvent.compositionEnd(input);
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(electronMocks.createFile).toHaveBeenCalledWith(
+        "/notes",
+        "日报",
+        expect.any(Array),
+      );
+    });
+  });
+
+  it("waits for IME composition to finish before creating a nested file", async () => {
+    useTreeStore.setState({
+      treeData: [
+        {
+          title: "docs",
+          key: "/notes/docs",
+          children: [],
+        },
+      ],
+    });
+    electronMocks.createFile.mockResolvedValue({
+      code: CodeResult.Success,
+      data: { treeData: [] },
+    });
+
+    render(<FileTree />);
+
+    fireEvent.contextMenu(await screen.findByText("docs"));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /新建文件$/ }));
+    const input = await screen.findByPlaceholderText("输入文件名称");
+
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "日报" } });
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+
+    expect(electronMocks.createFile).not.toHaveBeenCalled();
+
+    fireEvent.compositionEnd(input);
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(electronMocks.createFile).toHaveBeenCalledWith(
+        "/notes/docs",
+        "日报",
+        expect.any(Array),
+      );
+    });
+  });
+
   it("shows a toast when creating a file with an existing name", async () => {
     const toastSpy = vi.fn();
     window.addEventListener(APP_TOAST_EVENT, toastSpy);
