@@ -1,3 +1,20 @@
+## [2.19.9](https://github.com/qiuweikangdev/keep-notes/compare/v2.19.8...v2.19.9) (2026-07-28)
+
+
+### Bug Fixes
+
+* handle BlockNote table text paste ([548d7cb](https://github.com/qiuweikangdev/keep-notes/commit/548d7cb6e3f9b2d6aba352a8ac810573d5d8943c))
+* preserve inline code closing boundary input ([94efc93](https://github.com/qiuweikangdev/keep-notes/commit/94efc935a323c99a2052cd38cfda1decf189b5f0))
+* preserve internal table clipboard paste ([925d37c](https://github.com/qiuweikangdev/keep-notes/commit/925d37c2b257fcf6cdfd138fe17a8ee489bfc6fc))
+* preserve quote blocks when pasting inline content ([bbd32c0](https://github.com/qiuweikangdev/keep-notes/commit/bbd32c049ead5cbe3f05a5f8e4925b4b530d83e0))
+* restore markdown bare URL links ([754da0a](https://github.com/qiuweikangdev/keep-notes/commit/754da0ac633f7c5d4b92a8743a84fae22d6a9d63))
+
+
+## Commit Summary
+
+- Compared with: v2.19.8
+- Total commits: 5
+
 ## [2.19.8](https://github.com/qiuweikangdev/keep-notes/compare/v2.19.7...v2.19.8) (2026-07-27)
 
 
