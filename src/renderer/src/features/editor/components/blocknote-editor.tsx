@@ -405,7 +405,14 @@ export function pasteExternalHTMLTables(
   event: ClipboardEvent,
 ): boolean {
   const clipboardData = event.clipboardData;
-  if (!clipboardData?.types.includes("text/html")) return false;
+  if (
+    !clipboardData ||
+    clipboardData.types.includes("blocknote/html") ||
+    !clipboardData.types.includes("text/html")
+  ) {
+    // 编辑器内部表格选区保留原生 MIME，由 BlockNote 还原单元格和光标语义。
+    return false;
+  }
 
   const container = document.createElement("div");
   container.innerHTML = clipboardData.getData("text/html");

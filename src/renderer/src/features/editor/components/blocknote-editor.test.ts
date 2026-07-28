@@ -39,6 +39,7 @@ import {
   isSelectionStartingAtRichEditorTextStart,
   focusEditorOutlineBlock,
   moveCursorAfterUploadedImage,
+  pasteExternalHTMLTables,
   pasteMarkupAsPlainText,
   resolveEditorTextPosition,
   resolveEditorTextPositions,
@@ -1248,6 +1249,30 @@ describe("BlockNoteEditor code paste", () => {
     } finally {
       session.view.unmount();
     }
+  });
+
+  it("lets BlockNote handle its internal table clipboard data", () => {
+    const getData = vi.fn((type: string) =>
+      type === "text/html"
+        ? "<table><tbody><tr><td>Internal cell</td></tr></tbody></table>"
+        : "",
+    );
+    const event = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", {
+      value: {
+        getData,
+        types: ["blocknote/html", "text/html", "text/plain"],
+      },
+    });
+    const editor = {
+      pasteHTML: vi.fn(),
+    } as unknown as CoreBlockNoteEditor;
+
+    expect(pasteExternalHTMLTables(editor, event as ClipboardEvent)).toBe(
+      false,
+    );
+    expect(getData).not.toHaveBeenCalled();
+    expect(editor.pasteHTML).not.toHaveBeenCalled();
   });
 
   it("converts an external HTML table instead of pasting its Markdown-like plain text", async () => {
