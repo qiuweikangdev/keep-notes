@@ -96,10 +96,6 @@ const inlineCodeMarkerPattern = /`([^`\n]+)`/g;
 const INLINE_CODE_EDITING_CONTENT_CLASS = "editor-inline-code__editing-content";
 const INLINE_CODE_CLOSING_BOUNDARY_CLASS =
   "editor-inline-code__closing-boundary";
-const INLINE_CODE_CLOSING_BOUNDARY_SELECTED_CLASS =
-  "editor-inline-code__closing-boundary--selected";
-const INLINE_CODE_CONTENT_BEFORE_BOUNDARY_CLASS =
-  "editor-inline-code__editing-content--before-boundary";
 
 type InlineCodeEditingState = {
   closingBoundaryPosition: number | null;
@@ -217,21 +213,20 @@ function getInlineCodeEditingDecorations(state: EditorState) {
     EMPTY_INLINE_CODE_EDITING_STATE;
   const isClosingBoundarySelected =
     editingState.closingBoundaryPosition === codeRange.to;
-  const contentClass = isClosingBoundarySelected
-    ? `${INLINE_CODE_EDITING_CONTENT_CLASS} ${INLINE_CODE_CONTENT_BEFORE_BOUNDARY_CLASS}`
-    : INLINE_CODE_EDITING_CONTENT_CLASS;
+  if (isClosingBoundarySelected) {
+    // 光标已越过闭合反引号，此时恢复普通行内代码外观，仅保留逻辑侧别供后续输入使用。
+    return DecorationSet.empty;
+  }
 
   return DecorationSet.create(state.doc, [
     Decoration.inline(codeRange.from, codeRange.to, {
-      class: contentClass,
+      class: INLINE_CODE_EDITING_CONTENT_CLASS,
     }),
     Decoration.widget(
       codeRange.to,
       (view, getPos) => {
         const boundary = document.createElement("span");
-        boundary.className = isClosingBoundarySelected
-          ? `${INLINE_CODE_CLOSING_BOUNDARY_CLASS} ${INLINE_CODE_CLOSING_BOUNDARY_SELECTED_CLASS}`
-          : INLINE_CODE_CLOSING_BOUNDARY_CLASS;
+        boundary.className = INLINE_CODE_CLOSING_BOUNDARY_CLASS;
         boundary.textContent = "`";
         boundary.contentEditable = "false";
         boundary.setAttribute("aria-hidden", "true");
@@ -255,11 +250,10 @@ function getInlineCodeEditingDecorations(state: EditorState) {
         return boundary;
       },
       {
-        key: `inline-code-closing-boundary-${codeRange.to}-${isClosingBoundarySelected}`,
+        key: `inline-code-closing-boundary-${codeRange.to}`,
         marks: [],
         relaxedSide: true,
-        // 选中闭合边界时将 widget 放到文档位置左侧，使原生光标自然映射到反引号之后。
-        side: isClosingBoundarySelected ? -1 : 1,
+        side: 1,
         stopEvent: (event) => event.type === "mousedown",
       },
     ),

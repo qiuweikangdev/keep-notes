@@ -818,7 +818,7 @@ describe("editor BlockNote schema", () => {
     ]);
   });
 
-  it("removes only the closing boundary when its virtual cursor is selected", async () => {
+  it("restores the inline code appearance after selecting its closing boundary", async () => {
     setupMatchMedia();
     const user = userEvent.setup();
     const editor = BlockNoteEditor.create({
@@ -854,10 +854,11 @@ describe("editor BlockNote schema", () => {
 
     await waitFor(() => {
       expect(
-        container.querySelector(
-          ".editor-inline-code__closing-boundary--selected",
-        ),
-      ).not.toBe(null);
+        container.querySelector(".editor-inline-code__editing-content"),
+      ).toBe(null);
+      expect(
+        container.querySelector(".editor-inline-code__closing-boundary"),
+      ).toBe(null);
     });
 
     await user.keyboard("{Backspace}");
@@ -906,26 +907,21 @@ describe("editor BlockNote schema", () => {
     editor.focus();
     pressKey(editor, "ArrowRight");
 
-    const selectedBoundary = container.querySelector<HTMLElement>(
-      ".editor-inline-code__closing-boundary--selected",
-    );
-    expect(selectedBoundary).not.toBe(null);
-    expect(window.getSelection()?.anchorNode).toBe(
-      selectedBoundary?.parentNode,
-    );
-    expect(window.getSelection()?.anchorOffset).toBe(
-      Array.from(selectedBoundary?.parentNode?.childNodes ?? []).indexOf(
-        selectedBoundary as HTMLElement,
-      ) + 1,
-    );
+    expect(
+      container.querySelector(".editor-inline-code__editing-content"),
+    ).toBe(null);
+    expect(
+      container.querySelector(".editor-inline-code__closing-boundary"),
+    ).toBe(null);
 
     pressKey(editor, "ArrowLeft");
 
     expect(
-      container.querySelector(
-        ".editor-inline-code__closing-boundary--selected",
-      ),
-    ).toBe(null);
+      container.querySelector(".editor-inline-code__editing-content"),
+    ).not.toBe(null);
+    expect(
+      container.querySelector(".editor-inline-code__closing-boundary"),
+    ).not.toBe(null);
 
     pressKey(editor, "ArrowRight");
     pressKey(editor, "Backspace");
@@ -1049,18 +1045,12 @@ describe("editor BlockNote schema", () => {
     });
     fireEvent.mouseDown(closingBoundary);
 
-    const selectedBoundary = container.querySelector<HTMLElement>(
-      ".editor-inline-code__closing-boundary--selected",
-    );
-    expect(selectedBoundary).not.toBe(null);
-    expect(window.getSelection()?.anchorNode).toBe(
-      selectedBoundary?.parentNode,
-    );
-    expect(window.getSelection()?.anchorOffset).toBe(
-      Array.from(selectedBoundary?.parentNode?.childNodes ?? []).indexOf(
-        selectedBoundary as HTMLElement,
-      ) + 1,
-    );
+    expect(
+      container.querySelector(".editor-inline-code__editing-content"),
+    ).toBe(null);
+    expect(
+      container.querySelector(".editor-inline-code__closing-boundary"),
+    ).toBe(null);
 
     const view = editor.prosemirrorView;
     const inputEvent = new InputEvent("beforeinput", {
