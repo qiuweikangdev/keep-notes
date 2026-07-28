@@ -159,6 +159,20 @@ describe("SettingsModal about tab", () => {
     expect(aboutButton).toHaveAttribute("data-selected", "true");
   });
 
+  it("uses the shared setting-row typography for appearance labels", () => {
+    render(<SettingsModal />);
+
+    const themeLabel = screen.getByText("主题");
+    const defaultOpenTargetLabel = screen.getByText("默认打开目标");
+
+    expect(themeLabel).toHaveClass("text-sm");
+    expect(themeLabel).not.toHaveClass("font-medium");
+    expect(themeLabel).toHaveStyle({ color: "var(--text-primary)" });
+    expect(defaultOpenTargetLabel).toHaveStyle({
+      color: "var(--text-primary)",
+    });
+  });
+
   it("uses the shared drag handle and all resize handles", () => {
     render(<SettingsModal />);
 
@@ -202,6 +216,14 @@ describe("SettingsModal about tab", () => {
     expect(screen.getByText("当前版本")).toBeInTheDocument();
     expect(screen.getByText("qiuweikangdev/keep-notes")).toBeInTheDocument();
     expect(screen.getByText("qiuweikangdev")).toBeInTheDocument();
+    expect(screen.getByTestId("about-app-card")).toHaveAttribute(
+      "style",
+      expect.stringContaining("background-color: var(--bg-primary)"),
+    );
+    expect(screen.getByTestId("about-project-card")).toHaveAttribute(
+      "style",
+      expect.stringContaining("background-color: var(--bg-primary)"),
+    );
     expect(
       screen.queryByText("https://github.com/qiuweikangdev/keep-notes"),
     ).not.toBeInTheDocument();

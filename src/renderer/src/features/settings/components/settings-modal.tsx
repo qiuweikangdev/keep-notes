@@ -245,28 +245,12 @@ export function SettingsModal() {
         return (
           <div className="space-y-0">
             {/* 主题选择 */}
-            <div style={{ borderBottom: "1px solid var(--border-color)" }}>
-              <div className="flex items-center justify-between py-2.5">
-                <div>
-                  <span
-                    className="text-sm font-medium"
-                    style={{ color: "var(--text-primary)" }}
-                  >
-                    主题
-                  </span>
-                  <p
-                    className="text-xs mt-0.5"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    使用浅色、深色，或匹配系统设置
-                  </p>
-                </div>
-                <ThemeModeSelector
-                  value={theme}
-                  onChange={(val) => setTheme(val)}
-                />
-              </div>
-            </div>
+            <SettingRow
+              label="主题"
+              description="使用浅色、深色，或匹配系统设置"
+            >
+              <ThemeModeSelector value={theme} onChange={setTheme} />
+            </SettingRow>
 
             {/* 默认打开目标 */}
             <div>
@@ -561,18 +545,19 @@ export function SettingsModal() {
         );
       case "about":
         return (
-          <div className="space-y-5 py-2">
+          <div className="space-y-3 py-2">
             <section
+              data-testid="about-app-card"
               className="rounded-lg px-4 py-4"
               style={{
-                backgroundColor: "var(--bg-secondary)",
+                backgroundColor: "var(--bg-primary)",
                 border: "1px solid var(--border-color)",
               }}
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <h3
-                    className="text-base font-medium leading-none"
+                    className="text-lg font-semibold leading-6"
                     style={{ color: "var(--text-primary)" }}
                   >
                     Keep Notes
@@ -580,7 +565,7 @@ export function SettingsModal() {
                   <div className="mt-2 flex items-center gap-2">
                     <span
                       className="text-xs"
-                      style={{ color: "var(--text-muted)" }}
+                      style={{ color: "var(--text-secondary)" }}
                     >
                       当前版本
                     </span>
@@ -588,7 +573,8 @@ export function SettingsModal() {
                       <span
                         className="rounded-md px-2 py-0.5 text-xs"
                         style={{
-                          backgroundColor: "var(--bg-tertiary)",
+                          backgroundColor: "var(--bg-secondary)",
+                          border: "1px solid var(--border-color)",
                           color: "var(--text-secondary)",
                         }}
                       >
@@ -596,12 +582,6 @@ export function SettingsModal() {
                       </span>
                     )}
                   </div>
-                  <p
-                    className="mt-3 text-sm"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    {getUpdateStatusText(updateState)}
-                  </p>
                 </div>
 
                 <div className="flex flex-shrink-0 items-center gap-2">
@@ -647,6 +627,15 @@ export function SettingsModal() {
                     </button>
                   )}
                 </div>
+              </div>
+
+              <div
+                className="mt-4 border-t pt-3 text-sm"
+                style={{ borderColor: "var(--border-color)" }}
+              >
+                <span style={{ color: "var(--text-secondary)" }}>
+                  {getUpdateStatusText(updateState)}
+                </span>
               </div>
 
               {updateState.status === "downloading" && (
@@ -704,8 +693,12 @@ export function SettingsModal() {
             </section>
 
             <section
+              data-testid="about-project-card"
               className="overflow-hidden rounded-lg"
-              style={{ border: "1px solid var(--border-color)" }}
+              style={{
+                backgroundColor: "var(--bg-primary)",
+                border: "1px solid var(--border-color)",
+              }}
             >
               <button
                 type="button"
