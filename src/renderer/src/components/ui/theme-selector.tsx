@@ -37,7 +37,7 @@ export function ThemeSelector({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 h-9 px-3 pr-8 text-sm rounded-lg transition-all cursor-pointer"
+        className="flex h-9 cursor-pointer items-center gap-2 rounded-lg px-3 pr-8 text-sm transition-colors"
         style={{
           backgroundColor: "var(--bg-tertiary)",
           border: "1px solid var(--border-color)",
@@ -90,22 +90,23 @@ export function ThemeSelector({
               <button
                 key={name}
                 type="button"
+                data-selection-surface="true"
+                data-selected={isSelected ? "true" : undefined}
                 onClick={() => {
                   onChange(name);
                   setIsOpen(false);
                 }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-all"
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-sm transition-colors"
                 style={{
                   backgroundColor: isSelected
-                    ? "var(--active-bg)"
+                    ? "var(--selection-row-selected)"
                     : "transparent",
-                  color: isSelected
-                    ? "var(--accent-color)"
-                    : "var(--text-primary)",
+                  color: "var(--text-primary)",
                 }}
                 onMouseEnter={(e) => {
                   if (!isSelected)
-                    e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                    e.currentTarget.style.backgroundColor =
+                      "var(--selection-row-hover)";
                 }}
                 onMouseLeave={(e) => {
                   if (!isSelected)

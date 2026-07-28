@@ -499,7 +499,15 @@ describe("GitPanel", () => {
 
     await screen.findByText("changed.md");
     fireEvent.click(await screen.findByRole("button", { name: /develop/ }));
-    fireEvent.click(screen.getAllByRole("button", { name: /develop/ })[1]);
+    const currentBranchButton = screen.getAllByRole("button", {
+      name: /develop/,
+    })[1];
+    expect(currentBranchButton).toHaveAttribute(
+      "data-selection-surface",
+      "true",
+    );
+    expect(currentBranchButton).toHaveAttribute("data-selected", "true");
+    fireEvent.click(currentBranchButton);
 
     expect(electronMocks.switchBranch).not.toHaveBeenCalled();
     expect(screen.queryByText("已切换到分支: develop")).not.toBeInTheDocument();
@@ -937,11 +945,17 @@ describe("GitPanel", () => {
       "h-[min(82vh,calc(100vh-32px))]",
     );
     expect(screen.queryByRole("tab", { name: "历史" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "查看 Git 历史" }));
+    const changesButton = screen.getByRole("button", { name: "查看文件状态" });
+    const historyButton = screen.getByRole("button", { name: "查看 Git 历史" });
+    expect(changesButton).toHaveAttribute("data-selected", "true");
+    expect(historyButton).not.toHaveAttribute("data-selected");
+    fireEvent.click(historyButton);
 
     expect(
       await screen.findByText("feat: add git history"),
     ).toBeInTheDocument();
+    expect(historyButton).toHaveAttribute("data-selected", "true");
+    expect(changesButton).not.toHaveAttribute("data-selected");
     expect(screen.queryByText("1111111")).not.toBeInTheDocument();
     expect(electronMocks.getCommitHistory).toHaveBeenCalledWith("/notes", 0, 5);
     expect(electronMocks.getCommitDetail).not.toHaveBeenCalled();

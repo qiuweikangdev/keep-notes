@@ -314,6 +314,32 @@ describe("ReminderEditorDialog", () => {
     });
   });
 
+  it("uses the stronger secondary-surface selection for time options", async () => {
+    const originalScrollIntoView = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = vi.fn();
+    const user = userEvent.setup();
+    try {
+      render(<ReminderEditorDialog />);
+
+      const settingsGroup = screen.getByTestId("reminder-settings-group");
+      const controls = settingsGroup.querySelectorAll<HTMLButtonElement>(
+        'button[data-reminder-setting-control="true"]',
+      );
+
+      await user.click(controls[1]);
+
+      const selectedOptions = document.querySelectorAll(
+        'button[data-selection-surface="true"][data-selected="true"]',
+      );
+      expect(selectedOptions).toHaveLength(2);
+      selectedOptions.forEach((option) => {
+        expect(option).toHaveAttribute("data-selection-context", "secondary");
+      });
+    } finally {
+      Element.prototype.scrollIntoView = originalScrollIntoView;
+    }
+  });
+
   it("creates a standalone reminder without requiring a file", async () => {
     const user = userEvent.setup();
     useReminderStore.setState({

@@ -1032,6 +1032,8 @@ export function EditorCodeBlock({
                         type="button"
                         role="option"
                         aria-selected={isSelected}
+                        data-selection-surface="true"
+                        data-selected={isSelected ? "true" : undefined}
                         className="editor-code-block__language-option flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--button-hover-bg)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--accent-color)]"
                         onClick={() => handleLanguageSelect(option.id)}
                       >

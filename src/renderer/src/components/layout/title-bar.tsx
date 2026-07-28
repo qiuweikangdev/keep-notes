@@ -425,7 +425,8 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
               border: "1px solid transparent",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+              e.currentTarget.style.backgroundColor =
+                "var(--selection-row-hover)";
               e.currentTarget.style.borderColor = "var(--border-color)";
             }}
             onMouseLeave={(e) => {
@@ -515,7 +516,7 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
                       .map((app) => (
                         <DropdownMenu.Item
                           key={app.id}
-                          className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--hover-bg)]"
+                          className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"
                           style={{ color: "var(--text-primary)" }}
                           onClick={() => handleSelectExternalOpenApp(app.id)}
                         >

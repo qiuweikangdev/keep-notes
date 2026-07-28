@@ -16,6 +16,64 @@
   --button-hover-bg: #eef2f7;
   --button-active-bg: #e8f0fe;
   --danger-color: #dc2626;
+  --selection-row-hover: var(--hover-bg);
+  --selection-row-selected: var(--active-bg);
+  --file-tree-row-hover: var(--hover-bg);
+  --file-tree-row-selected: var(--active-bg);
+  --file-tree-label: var(--text-secondary);
+  --file-tree-disclosure-icon: var(--text-muted);
+  --file-tree-folder-icon: var(--text-secondary);
+  --file-tree-file-icon: var(--text-muted);
+  --command-palette-hover-bg: var(--selection-row-hover);
+  --command-palette-active-bg: var(--selection-row-selected);
+}
+
+/* 浅色侧栏底色较深，文件树使用更深的中性灰以匹配白色弹窗中的感知对比。 */
+.light {
+  --selection-row-hover: #f7f7f7;
+  --selection-row-selected: #eff0f0;
+  --button-hover-bg: var(--selection-row-hover);
+  --button-active-bg: var(--selection-row-selected);
+  --file-tree-row-hover: #ececec;
+  --file-tree-row-selected: #e4e4e4;
+  --file-tree-label: #424242;
+  --file-tree-disclosure-icon: #737373;
+  --file-tree-folder-icon: #505050;
+  --file-tree-file-icon: #6a6a6a;
+}
+
+/* 搜索与提醒列表使用同一套 Codex 风格命令面板容器。 */
+.command-palette-surface {
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background-color: var(--bg-primary);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.14);
+  color: var(--text-primary);
+}
+
+.command-palette-header {
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-primary);
+}
+
+/* 列表、菜单与导航统一使用语义化选中状态；灰底面板使用更深一档的对比色。 */
+button[data-selection-surface="true"]:not([data-selected="true"]):hover {
+  background-color: var(--selection-row-hover) !important;
+}
+
+button[data-selection-surface="true"][data-selected="true"] {
+  background-color: var(--selection-row-selected) !important;
+  color: var(--text-primary) !important;
+}
+
+button[data-selection-surface="true"][data-selection-context="secondary"]:not(
+  [data-selected="true"]
+):hover {
+  background-color: var(--file-tree-row-hover) !important;
+}
+
+button[data-selection-surface="true"][data-selection-context="secondary"][data-selected="true"] {
+  background-color: var(--file-tree-row-selected) !important;
 }
 
 .editor-rich-scroll {
@@ -102,18 +160,18 @@ button {
 
 button:not(:disabled):not([aria-disabled="true"]):not([role="switch"]):not(
   [data-selected="true"]
-):not([data-variant="destructive"]):not(.quick-open-folder button):not(
-  .sidebar-bottom-bar
-):not(.update-button):hover {
+):not([data-selection-surface="true"]):not([data-variant="destructive"]):not(
+  .quick-open-folder button
+):not(.sidebar-bottom-bar):not(.update-button):hover {
   background-color: var(--button-hover-bg) !important;
   color: var(--text-primary) !important;
 }
 
 button:not(:disabled):not([aria-disabled="true"]):not([role="switch"]):not(
   [data-selected="true"]
-):not([data-variant="destructive"]):not(.quick-open-folder button):not(
-  .sidebar-bottom-bar
-):not(.update-button):active {
+):not([data-selection-surface="true"]):not([data-variant="destructive"]):not(
+  .quick-open-folder button
+):not(.sidebar-bottom-bar):not(.update-button):active {
   background-color: var(--button-active-bg) !important;
 }
 
@@ -423,12 +481,12 @@ button[data-ui-button="true"][data-variant="link"]:not(:disabled):not(
 }
 
 button[data-theme-control="true"]:not(:disabled):hover {
-  background-color: var(--hover-bg) !important;
+  background-color: var(--selection-row-hover) !important;
   color: var(--text-primary) !important;
 }
 
 button[data-reminder-setting-control="true"]:not(:disabled):hover {
-  background-color: var(--bg-secondary) !important;
+  background-color: var(--selection-row-hover) !important;
   color: var(--text-primary) !important;
 }
 
@@ -440,13 +498,13 @@ button[data-theme-control="true"] {
 }
 
 button[data-theme-control="true"]:not(:disabled):active {
-  background-color: var(--active-bg) !important;
+  background-color: var(--selection-row-selected) !important;
 }
 
 button[data-theme-control="true"][data-selected="true"],
 button[data-theme-control="true"][data-selected="true"]:hover {
-  background-color: var(--accent-color) !important;
-  color: #ffffff !important;
+  background-color: var(--selection-row-selected) !important;
+  color: var(--text-primary) !important;
 }
 
 /* 底部操作栏按钮悬停效果 */
@@ -940,13 +998,13 @@ button:focus-visible {
 }
 
 .milkdown .toolbar button:hover {
-  background-color: var(--hover-bg) !important;
+  background-color: var(--selection-row-hover) !important;
   color: var(--text-primary) !important;
 }
 
 .milkdown .toolbar button.active {
-  background-color: var(--active-bg) !important;
-  color: var(--accent-color) !important;
+  background-color: var(--selection-row-selected) !important;
+  color: var(--text-primary) !important;
 }
 
 /* 鏂滄潬鍛戒护鑿滃崟 */
@@ -972,11 +1030,11 @@ button:focus-visible {
 }
 
 .milkdown .slash-menu-item:hover {
-  background-color: var(--hover-bg) !important;
+  background-color: var(--selection-row-hover) !important;
 }
 
 .milkdown .slash-menu-item.active {
-  background-color: var(--active-bg) !important;
+  background-color: var(--selection-row-selected) !important;
 }
 
 /* 閾炬帴鎻愮ず */
@@ -1081,12 +1139,12 @@ button:focus-visible {
 
 /* 鍙抽敭鑿滃崟楂樹寒 */
 [data-radix-context-menu-content] [data-highlighted] {
-  background-color: var(--hover-bg) !important;
+  background-color: var(--selection-row-hover) !important;
 }
 
 /* 涓嬫媺鑿滃崟楂樹寒 */
 [data-radix-dropdown-menu-content] [data-highlighted] {
-  background-color: var(--hover-bg) !important;
+  background-color: var(--selection-row-hover) !important;
 }
 
 /* Git diff 面板主题适配 */
@@ -1229,10 +1287,10 @@ select {
   background-image: none;
 }
 
-/* 文件树节点 hover 样式 - 使用 CSS 替代 JavaScript hover 状态 */
-.tree-node-row:hover,
-.tree-node-root:hover {
-  background-color: var(--hover-bg) !important;
+/* 文件树悬浮不覆盖当前选中项，保持 Codex 风格的稳定中性灰选中态。 */
+.tree-node-row[data-selected="false"]:hover,
+.tree-node-root[data-selected="false"]:hover {
+  background-color: var(--file-tree-row-hover) !important;
 }
 
 /* 展开箭头旋转 */

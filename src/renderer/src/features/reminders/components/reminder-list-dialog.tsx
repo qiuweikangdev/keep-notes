@@ -24,7 +24,7 @@ import {
 const MENU_CONTENT_CLASS =
   "z-[9999] min-w-[150px] rounded-md border p-1 shadow-lg bg-[var(--bg-primary)] border-[var(--border-color)] text-[var(--text-primary)]";
 const MENU_ITEM_CLASS =
-  "flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-[13px] outline-none data-[highlighted]:bg-[var(--hover-bg)]";
+  "flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-[13px] outline-none data-[highlighted]:bg-[var(--selection-row-hover)]";
 const MENU_SEPARATOR_CLASS = "my-1 h-px bg-[var(--border-color)]";
 const FLOATING_WINDOW_VERTICAL_MARGIN = 16;
 const FLOATING_HEADER_HEIGHT = 80;
@@ -181,7 +181,7 @@ export function ReminderListDialog({
             isFloatingWindow
               ? "top-2 w-[calc(100%-16px)]"
               : "top-[12vh] w-[calc(100%-32px)]"
-          } z-50 max-w-[520px] translate-y-0 gap-0 overflow-hidden rounded-xl p-0 shadow-[0_4px_8px_rgba(0,0,0,0.16)] sm:rounded-xl ${
+          } command-palette-surface z-50 max-w-[520px] translate-y-0 gap-0 overflow-hidden p-0 sm:rounded-xl ${
             isFloatingWindow ? "max-h-[calc(100vh-16px)]" : ""
           } ${isEditorOpen ? "pointer-events-none" : ""}`}
           data-editor-open={isEditorOpen ? "true" : undefined}
@@ -214,12 +214,8 @@ export function ReminderListDialog({
             onValueChange={(value) => setTab(value as ReminderListTab)}
           >
             <div
-              className="shrink-0 border-b border-[var(--border-color)]"
+              className="command-palette-header shrink-0"
               data-reminder-list-header="true"
-              style={{
-                backgroundColor:
-                  "color-mix(in srgb, var(--bg-secondary) 24%, var(--bg-primary))",
-              }}
             >
               <div className="flex h-11 items-center gap-2.5 px-3.5">
                 <Search
@@ -238,7 +234,7 @@ export function ReminderListDialog({
                 />
                 <button
                   aria-label="新建提醒事项"
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] outline-none hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-color)]"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] outline-none hover:bg-[var(--command-palette-hover-bg)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-color)]"
                   title="新建提醒事项"
                   type="button"
                   onClick={handleCreate}
@@ -248,7 +244,7 @@ export function ReminderListDialog({
                 {isFloatingWindow ? (
                   <button
                     aria-label="返回应用"
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-color)]"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--command-palette-hover-bg)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-color)]"
                     title="返回应用"
                     type="button"
                     onClick={() => window.electronAPI.returnToMainWindow()}
@@ -268,7 +264,9 @@ export function ReminderListDialog({
                   <Tabs.Trigger
                     key={item.value}
                     value={item.value}
-                    className="h-7 w-auto rounded-md px-2.5 text-xs font-medium text-[var(--text-secondary)] outline-none hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-color)] data-[state=active]:bg-[var(--active-bg)] data-[state=active]:text-[var(--text-primary)]"
+                    data-selection-surface="true"
+                    data-selected={tab === item.value ? "true" : undefined}
+                    className="h-7 w-auto rounded-md px-2.5 text-xs font-medium text-[var(--text-secondary)] outline-none hover:bg-[var(--command-palette-hover-bg)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-color)] data-[state=active]:bg-[var(--command-palette-active-bg)] data-[state=active]:text-[var(--text-primary)]"
                   >
                     {item.label}
                   </Tabs.Trigger>
@@ -359,7 +357,8 @@ function ReminderListItem({
       <ContextMenu.Trigger asChild>
         <button
           type="button"
-          className={`flex w-full items-center gap-2 rounded-md px-2 text-left text-sm outline-none hover:bg-[var(--hover-bg)] focus-visible:ring-1 focus-visible:ring-[var(--accent-color)] ${
+          data-selection-surface="true"
+          className={`flex w-full items-center gap-2 rounded-lg px-2.5 text-left text-sm outline-none hover:bg-[var(--command-palette-hover-bg)] focus-visible:ring-1 focus-visible:ring-[var(--accent-color)] ${
             reminder.fileName ? "h-11" : "h-8"
           }`}
         >

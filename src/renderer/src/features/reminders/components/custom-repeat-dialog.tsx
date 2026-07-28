@@ -247,7 +247,7 @@ function UnitPickerControl({
                 <button
                   key={option.value}
                   type="button"
-                  data-theme-control="true"
+                  data-selection-surface="true"
                   data-selected={isSelected ? "true" : undefined}
                   className="flex h-8 w-full items-center justify-between rounded-md px-2.5 text-left text-[13px] font-medium"
                   onClick={() => onChange(option.value)}

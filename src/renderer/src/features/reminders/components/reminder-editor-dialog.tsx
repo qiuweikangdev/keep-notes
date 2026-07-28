@@ -600,7 +600,7 @@ function DatePickerControl({
                 <button
                   key={cellValue}
                   type="button"
-                  data-theme-control="true"
+                  data-selection-surface="true"
                   data-selected={isSelected ? "true" : undefined}
                   className="flex h-8 items-center justify-center rounded-md border text-[13px] font-medium"
                   style={{
@@ -726,7 +726,8 @@ function TimePickerColumn({ options, value, onSelect }: TimePickerColumnProps) {
             key={option}
             type="button"
             ref={isSelected ? selectedOptionRef : undefined}
-            data-theme-control="true"
+            data-selection-surface="true"
+            data-selection-context="secondary"
             data-selected={isSelected ? "true" : undefined}
             className="flex h-8 w-full items-center justify-center rounded-md text-[13px] font-medium"
             onClick={() => onSelect(option)}
@@ -805,7 +806,7 @@ function RepeatPickerControl({
                   ) : null}
                   <button
                     type="button"
-                    data-theme-control="true"
+                    data-selection-surface="true"
                     data-selected={isSelected ? "true" : undefined}
                     className="flex h-10 w-full items-center justify-between rounded-lg px-3 text-left text-[14px] font-normal"
                     onClick={() => onChange(option.value)}

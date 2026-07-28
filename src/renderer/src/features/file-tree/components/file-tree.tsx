@@ -11,6 +11,7 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   File,
+  FileText,
   Folder,
   FolderInput,
   FolderOpen,
@@ -74,7 +75,7 @@ import {
 const MENU_CONTENT_CLASS =
   "z-[9999] min-w-[180px] rounded-md border p-1 shadow-lg bg-[var(--bg-primary)] border-[var(--border-color)] text-[var(--text-primary)]";
 const MENU_ITEM_CLASS =
-  "flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-[13px] outline-none data-[highlighted]:bg-[var(--hover-bg)]";
+  "flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-[13px] outline-none data-[highlighted]:bg-[var(--selection-row-hover)]";
 const MENU_SEPARATOR_CLASS = "my-1 h-px bg-[var(--border-color)]";
 const EMPTY_OUTLINE_HEADINGS = [];
 const TOOL_BUTTON_CLASS =
@@ -891,18 +892,17 @@ export function FileTree() {
                   <ContextMenu.Trigger asChild>
                     <div className="px-2">
                       <div
-                        className="tree-node-root relative flex h-7 cursor-pointer select-none items-center rounded-md"
+                        className="tree-node-root relative flex h-7 cursor-pointer select-none items-center rounded-[10px]"
+                        data-selected={isRootSelected}
                         style={{
                           paddingLeft: "8px",
                           paddingRight: "8px",
                           backgroundColor: isRootSelected
-                            ? "var(--active-bg)"
+                            ? "var(--file-tree-row-selected)"
                             : "transparent",
                           boxShadow: isRootDropTarget
                             ? DROP_TARGET_INSET_SHADOW
-                            : isRootSelected
-                              ? "inset 0 0 0 1px var(--border-color)"
-                              : "none",
+                            : "none",
                         }}
                         onClick={() => {
                           setSelectedKey(treeRoot!.key);
@@ -927,7 +927,9 @@ export function FileTree() {
                                 "h-3 w-3 transition-transform duration-100",
                                 isRootExpanded && "rotate-90",
                               )}
-                              style={{ color: "var(--text-muted)" }}
+                              style={{
+                                color: "var(--file-tree-disclosure-icon)",
+                              }}
                             />
                           </button>
                         </div>
@@ -936,12 +938,12 @@ export function FileTree() {
                           {isRootExpanded ? (
                             <FolderOpen
                               className="h-[14px] w-[14px]"
-                              style={{ color: "var(--text-secondary)" }}
+                              style={{ color: "var(--file-tree-folder-icon)" }}
                             />
                           ) : (
                             <Folder
                               className="h-[14px] w-[14px]"
-                              style={{ color: "var(--text-secondary)" }}
+                              style={{ color: "var(--file-tree-folder-icon)" }}
                             />
                           )}
                         </div>
@@ -949,9 +951,7 @@ export function FileTree() {
                         <span
                           className="flex-1 truncate text-[13px] leading-7 font-medium"
                           style={{
-                            color: isRootSelected
-                              ? "var(--text-primary)"
-                              : "var(--text-secondary)",
+                            color: "var(--file-tree-label)",
                           }}
                         >
                           {treeRoot!.title}
@@ -1631,19 +1631,18 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
         <ContextMenu.Trigger asChild>
           <div className="px-2">
             <div
-              className="tree-node-row relative flex h-7 cursor-pointer select-none items-center rounded-md"
+              className="tree-node-row relative flex h-7 cursor-pointer select-none items-center rounded-[10px]"
+              data-selected={isSelected}
               style={{
                 paddingLeft: `${flatNode.level * 14 + 8}px`,
                 paddingRight: "8px",
                 backgroundColor: isSelected
-                  ? "var(--active-bg)"
+                  ? "var(--file-tree-row-selected)"
                   : "transparent",
                 boxShadow:
                   isDropTarget && dropTargetFolderPath
                     ? DROP_TARGET_INSET_SHADOW
-                    : isSelected
-                      ? "inset 0 0 0 1px var(--border-color)"
-                      : "none",
+                    : "none",
               }}
               onClick={() => onClick(flatNode)}
               draggable={!isRenaming}
@@ -1676,7 +1675,9 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
                           "h-3 w-3 transition-transform duration-100",
                           isExpanded && "rotate-90",
                         )}
-                        style={{ color: "var(--text-muted)" }}
+                        style={{
+                          color: "var(--file-tree-disclosure-icon)",
+                        }}
                       />
                     )}
                   </button>
@@ -1687,12 +1688,12 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
                 {flatNode.isFolder ? (
                   <Folder
                     className="h-[14px] w-[14px]"
-                    style={{ color: "var(--text-secondary)" }}
+                    style={{ color: "var(--file-tree-folder-icon)" }}
                   />
                 ) : (
-                  <File
+                  <FileText
                     className="h-[14px] w-[14px]"
-                    style={{ color: "var(--text-muted)" }}
+                    style={{ color: "var(--file-tree-file-icon)" }}
                   />
                 )}
               </div>
@@ -1730,9 +1731,7 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
                   ref={renameLabelRef}
                   className="flex-1 truncate text-[13px] leading-7"
                   style={{
-                    color: isSelected
-                      ? "var(--text-primary)"
-                      : "var(--text-secondary)",
+                    color: "var(--file-tree-label)",
                   }}
                 >
                   {flatNode.title}

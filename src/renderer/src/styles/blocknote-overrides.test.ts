@@ -50,6 +50,21 @@ describe("blocknote overrides stylesheet", () => {
     );
   });
 
+  it("uses the shared neutral selection hierarchy for editor menus", () => {
+    expect(getRule('.bn-root[data-color-scheme="light"]')).toMatch(
+      /--bn-colors-selected-background:\s*var\(--selection-row-selected\);/,
+    );
+    expect(
+      getRule('.editor-code-block__language-option[aria-selected="true"]'),
+    ).toMatch(/background:\s*var\(--selection-row-selected\);/);
+    expect(getRule(".bn-suggestion-menu-item:hover")).toMatch(
+      /background-color:\s*var\(--selection-row-hover\) !important;/,
+    );
+    expect(getRule(".bn-suggestion-menu-item-selected")).toMatch(
+      /background-color:\s*var\(--selection-row-selected\) !important;/,
+    );
+  });
+
   it("keeps rich editor content anchored to the panel left edge", () => {
     const editorRule = getRule(":is(.bn-editor, .bn-editor-preview)");
 
@@ -367,11 +382,6 @@ describe("blocknote overrides stylesheet", () => {
         ".bn-editor.ProseMirror-focused .editor-inline-code__closing-boundary",
       ),
     ).toMatch(/cursor:\s*text;/);
-    expect(
-      getRule(
-        ".bn-editor.ProseMirror-focused .editor-inline-code__closing-boundary--selected::after",
-      ),
-    ).toMatch(/border-right:\s*1px solid currentColor;/);
   });
 
   it("polishes the custom language search popover", () => {
@@ -393,7 +403,10 @@ describe("blocknote overrides stylesheet", () => {
       /\.editor-code-block-language-popover input\[type="search"\]\s*\{[\s\S]*outline:\s*none !important;/,
     );
     expect(stylesheet).toMatch(
-      /\.editor-code-block__language-option\[aria-selected="true"\]\s*\{[\s\S]*background:\s*color-mix\(in srgb,\s*var\(--accent-color\) 22%,\s*transparent\);/,
+      /\.editor-code-block__language-option:hover\s*\{[\s\S]*background:\s*var\(--selection-row-hover\);/,
+    );
+    expect(stylesheet).toMatch(
+      /\.editor-code-block__language-option\[aria-selected="true"\]\s*\{[\s\S]*background:\s*var\(--selection-row-selected\);/,
     );
     expect(stylesheet).toMatch(
       /\.editor-code-block-language-empty\s*\{[\s\S]*text-align:\s*center;/,

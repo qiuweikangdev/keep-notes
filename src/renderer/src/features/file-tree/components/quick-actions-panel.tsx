@@ -268,11 +268,14 @@ function MenuContent({
         </span>
         <button
           type="button"
+          data-selection-surface="true"
+          data-selection-context="secondary"
           className="flex h-5 w-5 items-center justify-center rounded transition-colors"
           style={{ color: "var(--text-muted)" }}
           onClick={onClose}
           onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+            e.currentTarget.style.backgroundColor =
+              "var(--file-tree-row-hover)";
             e.currentTarget.style.color = "var(--text-primary)";
           }}
           onMouseLeave={(e) => {
@@ -334,7 +337,8 @@ function MenuContent({
                   style={{ color: "var(--text-secondary)" }}
                   onClick={() => onOpenRecentFolder(folder.path)}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                    e.currentTarget.style.backgroundColor =
+                      "var(--file-tree-row-hover)";
                     e.currentTarget.style.color = "var(--text-primary)";
                   }}
                   onMouseLeave={(e) => {
@@ -386,11 +390,13 @@ function MenuItem({
   return (
     <button
       type="button"
+      data-selection-surface="true"
+      data-selection-context="secondary"
       className="flex w-full items-center gap-3 px-3 py-1.5 text-[13px] transition-colors"
       style={{ color: "var(--text-secondary)" }}
       onClick={onClick}
       onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+        e.currentTarget.style.backgroundColor = "var(--file-tree-row-hover)";
         e.currentTarget.style.color = "var(--text-primary)";
       }}
       onMouseLeave={(e) => {

@@ -97,7 +97,7 @@ export function ThemeModeSelector({
             key={option.value}
             type="button"
             onClick={() => onChange(option.value)}
-            className="flex items-center gap-1 px-2.5 py-1 text-sm rounded-md transition-all cursor-pointer"
+            className="flex cursor-pointer items-center gap-1 rounded-md px-2.5 py-1 text-sm transition-colors"
             style={{
               backgroundColor: isActive ? "var(--bg-primary)" : "transparent",
               color: isActive ? "var(--text-primary)" : "var(--text-muted)",

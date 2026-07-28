@@ -364,9 +364,9 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
     <div className="pointer-events-none fixed inset-x-0 top-0 z-50 flex items-start justify-center pt-[12vh]">
       <div
         ref={modalRef}
-        className="pointer-events-auto relative w-[520px] max-w-[calc(100vw-32px)] overflow-hidden rounded-xl border border-[var(--border-color)] bg-[var(--bg-primary)] shadow-2xl"
+        className="command-palette-surface pointer-events-auto relative w-[520px] max-w-[calc(100vw-32px)] overflow-hidden"
       >
-        <div className="flex h-9 items-center gap-2 px-3">
+        <div className="command-palette-header flex h-11 items-center gap-2.5 px-3.5">
           <Search
             aria-hidden="true"
             className="h-4 w-4 shrink-0 text-[var(--text-muted)]"
@@ -393,7 +393,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
           {query ? (
             <button
               aria-label="清空搜索"
-              className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)]"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--command-palette-hover-bg)] hover:text-[var(--text-primary)]"
               type="button"
               onClick={() => setQuery("")}
             >
@@ -406,7 +406,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
           <div
             id="search-results"
             aria-label={hasQuery ? "搜索结果" : "最近打开项目"}
-            className="max-h-[376px] overflow-y-auto px-1.5 pb-2"
+            className="max-h-[376px] overflow-y-auto px-2 py-2"
             role="listbox"
           >
             {displayItems.map((item) => {
@@ -433,10 +433,12 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                     resultRefs.current[resultIndex] = element;
                   }}
                   aria-selected={selected}
-                  className={`flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm transition-colors ${
+                  data-selection-surface="true"
+                  data-selected={selected ? "true" : undefined}
+                  className={`flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left text-sm transition-colors ${
                     selected
-                      ? "bg-[var(--active-bg)] text-[var(--text-primary)]"
-                      : "text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)]"
+                      ? "bg-[var(--command-palette-active-bg)] text-[var(--text-primary)]"
+                      : "text-[var(--text-secondary)] hover:bg-[var(--command-palette-hover-bg)] hover:text-[var(--text-primary)]"
                   }`}
                   role="option"
                   type="button"

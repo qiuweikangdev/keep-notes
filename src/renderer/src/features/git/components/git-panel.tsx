@@ -1405,10 +1405,13 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             key={commit.hash}
             type="button"
             onClick={() => handleSelectCommit(commit)}
-            data-theme-control="true"
+            data-selection-surface="true"
+            data-selected={selected ? "true" : undefined}
             className="grid h-9 w-full grid-cols-[minmax(0,1fr)_96px_88px] items-center border-b px-4 text-left text-sm transition-colors"
             style={{
-              backgroundColor: selected ? "var(--active-bg)" : "transparent",
+              backgroundColor: selected
+                ? "var(--selection-row-selected)"
+                : "transparent",
               borderColor: "var(--border-color)",
               color: "var(--text-primary)",
             }}
@@ -1795,11 +1798,12 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                   type="button"
                   key={branch.name}
                   onClick={() => handleSwitchBranch(branch.name)}
-                  data-theme-control="true"
+                  data-selection-surface="true"
+                  data-selected={branch.current ? "true" : undefined}
                   className="flex w-full items-center justify-between px-3 py-2 text-sm"
                   style={{
                     backgroundColor: branch.current
-                      ? "var(--active-bg)"
+                      ? "var(--selection-row-selected)"
                       : "transparent",
                     color: branch.current
                       ? "var(--accent-color)"
@@ -1935,12 +1939,13 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                   <button
                     type="button"
                     onClick={() => handleSwitchTab("changes")}
-                    data-theme-control="true"
+                    data-selection-surface="true"
+                    data-selected={activeTab === "changes" ? "true" : undefined}
                     className="rounded p-1 transition-colors hover:bg-[var(--hover-bg)]"
                     style={{
                       backgroundColor:
                         activeTab === "changes"
-                          ? "var(--active-bg)"
+                          ? "var(--selection-row-selected)"
                           : "transparent",
                       color:
                         activeTab === "changes"
@@ -1960,12 +1965,13 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                   <button
                     type="button"
                     onClick={() => handleSwitchTab("history")}
-                    data-theme-control="true"
+                    data-selection-surface="true"
+                    data-selected={activeTab === "history" ? "true" : undefined}
                     className="rounded p-1 transition-colors hover:bg-[var(--hover-bg)]"
                     style={{
                       backgroundColor:
                         activeTab === "history"
-                          ? "var(--active-bg)"
+                          ? "var(--selection-row-selected)"
                           : "transparent",
                       color:
                         activeTab === "history"

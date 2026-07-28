@@ -143,8 +143,12 @@ describe("SettingsModal about tab", () => {
 
     expect(appearanceButton).toHaveAttribute("aria-current", "page");
     expect(appearanceButton).toHaveAttribute("data-selected", "true");
+    expect(appearanceButton).toHaveAttribute(
+      "data-selection-context",
+      "secondary",
+    );
     expect(appearanceButton).toHaveStyle({
-      backgroundColor: "var(--active-bg)",
+      backgroundColor: "var(--file-tree-row-selected)",
       color: "var(--accent-color)",
     });
     expect(screen.getByTestId("settings-content")).toHaveStyle({

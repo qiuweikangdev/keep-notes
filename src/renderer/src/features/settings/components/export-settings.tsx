@@ -21,7 +21,7 @@ const directoryOptions: Array<{
 const DROPDOWN_CONTENT_CLASS =
   "z-[60] min-w-[220px] rounded-md border p-1 shadow-lg bg-[var(--bg-primary)] border-[var(--border-color)] text-[var(--text-primary)]";
 const DROPDOWN_ITEM_CLASS =
-  "flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-[var(--hover-bg)]";
+  "flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-[var(--selection-row-hover)]";
 const EXPORT_SETTING_ROW_CLASS = "grid grid-cols-[180px_1fr] gap-4 py-3.5";
 
 function getFormatSummary(enabledFormats: ExportFormat[]): string {

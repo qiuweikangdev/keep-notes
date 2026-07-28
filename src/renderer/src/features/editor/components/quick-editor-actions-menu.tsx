@@ -14,7 +14,7 @@ import {
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
 
 const itemClassName =
-  "quick-editor-actions-menu__item flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[disabled]:opacity-45 data-[highlighted]:bg-[var(--hover-bg)]";
+  "quick-editor-actions-menu__item flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[disabled]:opacity-45 data-[highlighted]:bg-[var(--selection-row-hover)]";
 
 interface QuickEditorActionsMenuProps {
   isOutlineOpen: boolean;

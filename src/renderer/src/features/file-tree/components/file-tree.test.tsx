@@ -169,9 +169,7 @@ describe("FileTree context menu", () => {
       boxShadow:
         "inset 0 0 0 1px color-mix(in srgb, var(--accent-color) 40%, transparent)",
     });
-    expect(selectedRow).toHaveStyle({
-      boxShadow: "inset 0 0 0 1px var(--border-color)",
-    });
+    expect(selectedRow).toHaveStyle({ boxShadow: "none" });
   });
 
   it("marks the virtualized file tree scroll container for hover scrollbar styling", () => {

@@ -42,3 +42,44 @@ describe("global scrollbar styles", () => {
     );
   });
 });
+
+describe("shared selection interaction styles", () => {
+  it("balances perceived contrast across the sidebar and command palette", () => {
+    expect(stylesheet).toMatch(
+      /\.light\s*\{[\s\S]*--selection-row-hover:\s*#f7f7f7;[\s\S]*--selection-row-selected:\s*#eff0f0;[\s\S]*--file-tree-row-hover:\s*#ececec;[\s\S]*--file-tree-row-selected:\s*#e4e4e4;/,
+    );
+  });
+
+  it("aligns light-theme button states with shared selection colors", () => {
+    expect(stylesheet).toMatch(
+      /\.light\s*\{[\s\S]*--button-hover-bg:\s*var\(--selection-row-hover\);[\s\S]*--button-active-bg:\s*var\(--selection-row-selected\);/,
+    );
+    expect(stylesheet).toMatch(
+      /button\[data-reminder-setting-control="true"\]:not\(:disabled\):hover\s*\{[\s\S]*background-color:\s*var\(--selection-row-hover\)\s*!important;/,
+    );
+  });
+
+  it("keeps shared surfaces out of the generic button state colors", () => {
+    expect(
+      stylesheet.match(/:not\(\[data-selection-surface="true"\]\)/g),
+    ).toHaveLength(2);
+  });
+
+  it("uses the semantic row colors for shared surface hover and selection", () => {
+    expect(stylesheet).toMatch(
+      /button\[data-selection-surface="true"\]:not\(\[data-selected="true"\]\):hover\s*\{[\s\S]*background-color:\s*var\(--selection-row-hover\)\s*!important;/,
+    );
+    expect(stylesheet).toMatch(
+      /button\[data-selection-surface="true"\]\[data-selected="true"\]\s*\{[\s\S]*background-color:\s*var\(--selection-row-selected\)\s*!important;/,
+    );
+  });
+
+  it("uses stronger contextual colors on secondary surfaces", () => {
+    expect(stylesheet).toMatch(
+      /button\[data-selection-surface="true"\]\[data-selection-context="secondary"\]:not\(\s*\[data-selected="true"\]\s*\):hover\s*\{[\s\S]*background-color:\s*var\(--file-tree-row-hover\)\s*!important;/,
+    );
+    expect(stylesheet).toMatch(
+      /button\[data-selection-surface="true"\]\[data-selection-context="secondary"\]\[\s*data-selected="true"\s*\]\s*\{[\s\S]*background-color:\s*var\(--file-tree-row-selected\)\s*!important;/,
+    );
+  });
+});

@@ -55,7 +55,7 @@ interface TreeNodeProps {
 const MENU_CONTENT_CLASS =
   "z-[9999] min-w-[180px] rounded-md border p-1 shadow-lg bg-[var(--bg-primary)] border-[var(--border-color)] text-[var(--text-primary)]";
 const MENU_ITEM_CLASS =
-  "flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-[13px] outline-none data-[highlighted]:bg-[var(--hover-bg)]";
+  "flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-[13px] outline-none data-[highlighted]:bg-[var(--selection-row-hover)]";
 const MENU_SEPARATOR_CLASS = "my-1 h-px bg-[var(--border-color)]";
 const DROP_TARGET_INSET_SHADOW =
   "inset 0 0 0 1px color-mix(in srgb, var(--accent-color) 40%, transparent)";
@@ -588,16 +588,12 @@ export const TreeNode = memo(function TreeNode({
                 paddingLeft: `${level * 14 + 8}px`,
                 paddingRight: "8px",
                 backgroundColor: isSelected
-                  ? "var(--active-bg)"
+                  ? "var(--file-tree-row-selected)"
                   : isHovered
-                    ? "var(--hover-bg)"
+                    ? "var(--file-tree-row-hover)"
                     : "transparent",
                 boxShadow:
-                  isDropTarget && isFolder
-                    ? DROP_TARGET_INSET_SHADOW
-                    : isSelected
-                      ? "inset 0 0 0 1px var(--border-color)"
-                      : "none",
+                  isDropTarget && isFolder ? DROP_TARGET_INSET_SHADOW : "none",
               }}
               onClick={handleClick}
               onMouseEnter={() => setIsHovered(true)}

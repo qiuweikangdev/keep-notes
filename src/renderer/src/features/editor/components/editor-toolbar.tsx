@@ -355,7 +355,7 @@ function EditorActionMenuItem({
     <DropdownMenu.Item
       disabled={disabled}
       title={title}
-      className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[disabled]:opacity-45 data-[highlighted]:bg-[var(--hover-bg)]"
+      className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[disabled]:opacity-45 data-[highlighted]:bg-[var(--selection-row-hover)]"
       style={{ color: "var(--text-primary)" }}
       onSelect={onSelect}
     >

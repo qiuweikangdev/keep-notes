@@ -389,7 +389,7 @@ describe("SearchModal", () => {
 
     expect(options[0]).toHaveAttribute("aria-selected", "false");
     expect(options[1]).toHaveAttribute("aria-selected", "true");
-    expect(options[1]).toHaveClass("bg-[var(--active-bg)]");
+    expect(options[1]).toHaveClass("bg-[var(--command-palette-active-bg)]");
 
     await user.keyboard("{Enter}");
 

@@ -215,7 +215,7 @@ describe("ReminderListDialog", () => {
       "w-[calc(100%-32px)]",
       "translate-y-0",
     );
-    expect(dialog).toHaveClass("z-50", "shadow-[0_4px_8px_rgba(0,0,0,0.16)]");
+    expect(dialog).toHaveClass("command-palette-surface", "z-50");
     expect(search).toHaveClass("border-0", "bg-transparent");
     expect(screen.queryByRole("button", { name: "关闭" })).toBeNull();
     expect(screen.getByRole("button", { name: "新建提醒事项" })).toBeVisible();
@@ -349,11 +349,8 @@ describe("ReminderListDialog", () => {
     );
     expect(dialog.style.backgroundColor).toBe("var(--bg-primary)");
     expect(dialog.style.border).toBe("1px solid var(--border-color)");
-    expect(dialog).toHaveClass("shadow-[0_4px_8px_rgba(0,0,0,0.16)]");
-    expect(header).toHaveClass("border-b", "border-[var(--border-color)]");
-    expect(header?.style.backgroundColor).toBe(
-      "color-mix(in srgb, var(--bg-secondary) 24%, var(--bg-primary))",
-    );
+    expect(dialog).toHaveClass("command-palette-surface");
+    expect(header).toHaveClass("command-palette-header");
   });
 
   it("sizes a floating window from the full scrollable list height", () => {

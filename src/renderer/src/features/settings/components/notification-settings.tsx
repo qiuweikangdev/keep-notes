@@ -357,11 +357,18 @@ export function NotificationSettings() {
                         type="button"
                         role="option"
                         aria-selected={config.desktop.sizePreset === value}
+                        data-selection-surface="true"
+                        data-selection-context="secondary"
+                        data-selected={
+                          config.desktop.sizePreset === value
+                            ? "true"
+                            : undefined
+                        }
                         className="block h-8 w-full px-3 text-left text-sm"
                         style={{
                           backgroundColor:
                             config.desktop.sizePreset === value
-                              ? "var(--active-bg)"
+                              ? "var(--file-tree-row-selected)"
                               : "transparent",
                           color: "var(--text-primary)",
                         }}

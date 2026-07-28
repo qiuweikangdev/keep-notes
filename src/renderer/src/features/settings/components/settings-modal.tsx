@@ -312,7 +312,7 @@ export function SettingsModal() {
                       {availableExternalOpenApps.map((app) => (
                         <DropdownMenu.Item
                           key={app.id}
-                          className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--hover-bg)]"
+                          className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"
                           style={{ color: "var(--text-primary)" }}
                           onClick={() =>
                             setAppearance({
@@ -835,11 +835,13 @@ export function SettingsModal() {
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
                   aria-current={isActive ? "page" : undefined}
+                  data-selection-surface="true"
+                  data-selection-context="secondary"
                   data-selected={isActive ? "true" : undefined}
-                  className="mb-1 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left"
+                  className="mb-1 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-[var(--file-tree-row-hover)]"
                   style={{
                     backgroundColor: isActive
-                      ? "var(--active-bg)"
+                      ? "var(--file-tree-row-selected)"
                       : "transparent",
                     color: isActive
                       ? "var(--accent-color)"

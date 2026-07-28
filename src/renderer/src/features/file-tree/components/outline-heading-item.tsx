@@ -23,13 +23,13 @@ const OutlineHeadingItemBase = forwardRef<
       ref={ref}
       type="button"
       aria-current={isActive ? "location" : undefined}
-      className="flex w-full items-center py-1.5 text-left text-[13px] transition-all duration-200"
+      className="flex w-full items-center py-1.5 text-left text-[13px] transition-colors duration-200"
       style={{
         paddingLeft: `${12 + indent}px`,
         paddingRight: "12px",
         color: isActive ? "var(--accent-color)" : "var(--text-secondary)",
         backgroundColor: isActive
-          ? "color-mix(in srgb, var(--accent-color) 10%, transparent)"
+          ? "var(--file-tree-row-selected)"
           : "transparent",
         fontWeight: isActive ? 500 : 400,
         borderRight: isActive
@@ -39,7 +39,7 @@ const OutlineHeadingItemBase = forwardRef<
       onClick={handleClick}
       onMouseEnter={(e) => {
         if (!isActive) {
-          e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+          e.currentTarget.style.backgroundColor = "var(--file-tree-row-hover)";
           e.currentTarget.style.color = "var(--text-primary)";
         }
       }}
