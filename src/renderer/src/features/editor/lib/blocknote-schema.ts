@@ -29,7 +29,7 @@ import {
   type EditorState,
 } from "@tiptap/pm/state";
 import type { Node, Slice } from "@tiptap/pm/model";
-import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
 
 import {
   createEditorCodeBlockExternalHTML,
@@ -258,15 +258,45 @@ function getInlineCodeEditingDecorations(state: EditorState) {
         key: `inline-code-closing-boundary-${codeRange.to}-${isClosingBoundarySelected}`,
         marks: [],
         relaxedSide: true,
-        side: 1,
+        // 选中闭合边界时将 widget 放到文档位置左侧，使原生光标自然映射到反引号之后。
+        side: isClosingBoundarySelected ? -1 : 1,
         stopEvent: (event) => event.type === "mousedown",
       },
     ),
   ]);
 }
 
+function insertTextAfterInlineCodeBoundary(
+  view: EditorView,
+  from: number,
+  to: number,
+  text: string,
+) {
+  const editingState = inlineCodeEditingPluginKey.getState(view.state);
+  if (editingState?.closingBoundaryPosition !== from || from !== to) {
+    return false;
+  }
+
+  const codeMark = view.state.schema.marks.code;
+  if (!codeMark || !text) return false;
+
+  const insertionEnd = from + text.length;
+  // 闭合反引号右侧的首次输入必须移除 code mark，后续输入才能自然保持为普通文本。
+  const tr = view.state.tr.insertText(text, from, to);
+  tr.removeMark(from, insertionEnd, codeMark)
+    .removeStoredMark(codeMark)
+    .setSelection(TextSelection.create(tr.doc, insertionEnd))
+    .setMeta(inlineCodeEditingPluginKey, EMPTY_INLINE_CODE_EDITING_STATE)
+    .scrollIntoView();
+  view.dispatch(tr);
+
+  return true;
+}
+
 const inlineCodeEditingExtension = createExtension({
   key: "editor-inline-code-editing",
+  // 必须先于 BlockNote 默认输入链处理边界输入，避免 Chromium 先把文本写回 code DOM。
+  runsBefore: ["default"],
   prosemirrorPlugins: [
     new Plugin({
       key: inlineCodeEditingPluginKey,
@@ -301,6 +331,32 @@ const inlineCodeEditingExtension = createExtension({
       },
       props: {
         decorations: getInlineCodeEditingDecorations,
+        handleDOMEvents: {
+          beforeinput(view, event) {
+            const inputEvent = event as InputEvent;
+            if (
+              inputEvent.inputType !== "insertText" ||
+              inputEvent.isComposing ||
+              !inputEvent.data
+            ) {
+              return false;
+            }
+
+            const { from, to } = view.state.selection;
+            const handled = insertTextAfterInlineCodeBoundary(
+              view,
+              from,
+              to,
+              inputEvent.data,
+            );
+            if (handled) {
+              // 必须在 Chromium 改写 <code> DOM 前阻止原生输入，否则新增文本会重新继承 code mark。
+              inputEvent.preventDefault();
+            }
+
+            return handled;
+          },
+        },
         handleClick(view, position, event) {
           if (event.button !== 0) return false;
 
@@ -339,29 +395,22 @@ const inlineCodeEditingExtension = createExtension({
 
           return true;
         },
-        handleTextInput(view, from, to, text) {
-          const editingState = inlineCodeEditingPluginKey.getState(view.state);
-          if (editingState?.closingBoundaryPosition !== from || from !== to) {
+        handleKeyDown(view, event) {
+          if (
+            event.key.length !== 1 ||
+            event.ctrlKey ||
+            event.metaKey ||
+            event.altKey
+          ) {
             return false;
           }
 
-          const codeMark = view.state.schema.marks.code;
-          if (!codeMark || !text) return false;
-
-          const insertionEnd = from + text.length;
-          // 闭合反引号右侧的首次输入必须移除 code mark，后续输入才能自然保持为普通文本。
-          const tr = view.state.tr.insertText(text, from, to);
-          tr.removeMark(from, insertionEnd, codeMark)
-            .removeStoredMark(codeMark)
-            .setSelection(TextSelection.create(tr.doc, insertionEnd))
-            .setMeta(
-              inlineCodeEditingPluginKey,
-              EMPTY_INLINE_CODE_EDITING_STATE,
-            )
-            .scrollIntoView();
-          view.dispatch(tr);
-
-          return true;
+          const { from, to } = view.state.selection;
+          // 部分 Chromium/输入法路径不会触发可拦截的 beforeinput，需在可打印按键阶段提前退出 code mark。
+          return insertTextAfterInlineCodeBoundary(view, from, to, event.key);
+        },
+        handleTextInput(view, from, to, text) {
+          return insertTextAfterInlineCodeBoundary(view, from, to, text);
         },
       },
     }),

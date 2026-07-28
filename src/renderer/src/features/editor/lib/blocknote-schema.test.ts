@@ -906,11 +906,18 @@ describe("editor BlockNote schema", () => {
     editor.focus();
     pressKey(editor, "ArrowRight");
 
-    expect(
-      container.querySelector(
-        ".editor-inline-code__closing-boundary--selected",
-      ),
-    ).not.toBe(null);
+    const selectedBoundary = container.querySelector<HTMLElement>(
+      ".editor-inline-code__closing-boundary--selected",
+    );
+    expect(selectedBoundary).not.toBe(null);
+    expect(window.getSelection()?.anchorNode).toBe(
+      selectedBoundary?.parentNode,
+    );
+    expect(window.getSelection()?.anchorOffset).toBe(
+      Array.from(selectedBoundary?.parentNode?.childNodes ?? []).indexOf(
+        selectedBoundary as HTMLElement,
+      ) + 1,
+    );
 
     pressKey(editor, "ArrowLeft");
 
@@ -1009,6 +1016,142 @@ describe("editor BlockNote schema", () => {
     ]);
   });
 
+  it("intercepts native text input before Chromium mutates inline code", async () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "test",
+              styles: {
+                code: true,
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[0].id, "end");
+    editor.focus();
+
+    const closingBoundary = await waitFor(() => {
+      const element = container.querySelector<HTMLElement>(
+        ".editor-inline-code__closing-boundary",
+      );
+      expect(element).not.toBe(null);
+      return element as HTMLElement;
+    });
+    fireEvent.mouseDown(closingBoundary);
+
+    const selectedBoundary = container.querySelector<HTMLElement>(
+      ".editor-inline-code__closing-boundary--selected",
+    );
+    expect(selectedBoundary).not.toBe(null);
+    expect(window.getSelection()?.anchorNode).toBe(
+      selectedBoundary?.parentNode,
+    );
+    expect(window.getSelection()?.anchorOffset).toBe(
+      Array.from(selectedBoundary?.parentNode?.childNodes ?? []).indexOf(
+        selectedBoundary as HTMLElement,
+      ) + 1,
+    );
+
+    const view = editor.prosemirrorView;
+    const inputEvent = new InputEvent("beforeinput", {
+      bubbles: true,
+      cancelable: true,
+      data: "2",
+      inputType: "insertText",
+    });
+    const nativeInputAllowed = view.dom.dispatchEvent(inputEvent);
+    if (nativeInputAllowed) {
+      view.dispatch(view.state.tr.insertText("2"));
+    }
+
+    expect(inputEvent.defaultPrevented).toBe(true);
+    expect(editor.document[0].content).toEqual([
+      {
+        type: "text",
+        text: "test",
+        styles: {
+          code: true,
+        },
+      },
+      {
+        type: "text",
+        text: "2",
+        styles: {},
+      },
+    ]);
+  });
+
+  it("intercepts a printable key at an inline code closing boundary", async () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "test",
+              styles: {
+                code: true,
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[0].id, "end");
+    editor.focus();
+
+    const closingBoundary = await waitFor(() => {
+      const element = container.querySelector<HTMLElement>(
+        ".editor-inline-code__closing-boundary",
+      );
+      expect(element).not.toBe(null);
+      return element as HTMLElement;
+    });
+    fireEvent.mouseDown(closingBoundary);
+
+    const view = editor.prosemirrorView;
+    const keyEvent = new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      key: "1",
+    });
+    const nativeInputAllowed = view.dom.dispatchEvent(keyEvent);
+    if (nativeInputAllowed) {
+      view.dispatch(view.state.tr.insertText("1"));
+    }
+
+    expect(keyEvent.defaultPrevented).toBe(true);
+    expect(editor.document[0].content).toEqual([
+      {
+        type: "text",
+        text: "test",
+        styles: {
+          code: true,
+        },
+      },
+      {
+        type: "text",
+        text: "1",
+        styles: {},
+      },
+    ]);
+  });
+
   it("deletes text inside inline code without splitting its style", () => {
     setupMatchMedia();
     const editor = BlockNoteEditor.create({
@@ -1100,8 +1243,18 @@ describe("editor BlockNote schema", () => {
     );
     simulateTextInput(editor, "x");
     editor.setTextCursorPosition(editor.document[0].id, "end");
-    simulateTextInput(editor, "y");
+    const inputEvent = new InputEvent("beforeinput", {
+      bubbles: true,
+      cancelable: true,
+      data: "y",
+      inputType: "insertText",
+    });
+    const nativeInputAllowed = view.dom.dispatchEvent(inputEvent);
+    if (nativeInputAllowed) {
+      view.dispatch(view.state.tr.insertText("y"));
+    }
 
+    expect(inputEvent.defaultPrevented).toBe(false);
     expect(editor.document[0].content).toEqual([
       {
         type: "text",
