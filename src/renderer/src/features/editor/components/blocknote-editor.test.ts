@@ -1252,6 +1252,9 @@ describe("BlockNoteEditor code paste", () => {
   });
 
   it("lets BlockNote handle its internal table clipboard data", () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    vi.stubGlobal("ClipboardEvent", Event);
     const getData = vi.fn((type: string) =>
       type === "text/html"
         ? "<table><tbody><tr><td>Internal cell</td></tr></tbody></table>"
@@ -1264,15 +1267,112 @@ describe("BlockNoteEditor code paste", () => {
         types: ["blocknote/html", "text/html", "text/plain"],
       },
     });
-    const editor = {
-      pasteHTML: vi.fn(),
-    } as unknown as CoreBlockNoteEditor;
+    const editor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "Paste target" }],
+    });
+    render(createElement(BlockNoteView, { editor }));
 
     expect(pasteExternalHTMLTables(editor, event as ClipboardEvent)).toBe(
       false,
     );
-    expect(getData).not.toHaveBeenCalled();
-    expect(editor.pasteHTML).not.toHaveBeenCalled();
+    expect(editor.document).toHaveLength(1);
+    expect(editor.document[0].content).toEqual([
+      {
+        type: "text",
+        text: "Paste target",
+        styles: {},
+      },
+    ]);
+  });
+
+  it("pastes copied table cell text into an empty list item", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    vi.stubGlobal("ClipboardEvent", Event);
+    const path = "C:/notes/table-text-empty-list-paste.md";
+    const selectedText = "保护内部分发接口";
+    setupSessionTab(path);
+    const session = renderRealSession(
+      path,
+      false,
+      [
+        "* ",
+        "",
+        "| 变量 | 用途 | 本地是否需要 |",
+        "| --- | --- | --- |",
+        `| NOTIFICATION_DISPATCH_TOKEN | ${selectedText} | 本地完整链路 |`,
+      ].join("\n"),
+    );
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const editor = session.runtime.current!.editor;
+      const target = editor.document.find(
+        (block) =>
+          block.type === "bulletListItem" &&
+          Array.isArray(block.content) &&
+          block.content.length === 0,
+      );
+      expect(target).toBeDefined();
+
+      let selectedTextPosition: number | null = null;
+      editor.prosemirrorState.doc.descendants((node, position) => {
+        if (node.isText && node.text === selectedText) {
+          selectedTextPosition = position;
+          return false;
+        }
+        return selectedTextPosition === null;
+      });
+      expect(selectedTextPosition).not.toBeNull();
+      editor.prosemirrorView.dispatch(
+        editor.prosemirrorView.state.tr.setSelection(
+          TextSelection.create(
+            editor.prosemirrorView.state.doc,
+            selectedTextPosition!,
+            selectedTextPosition! + selectedText.length,
+          ),
+        ),
+      );
+
+      const clipboard = new Map<string, string>();
+      const copyEvent = new Event("copy", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(copyEvent, "clipboardData", {
+        value: {
+          clearData: () => clipboard.clear(),
+          setData: (type: string, value: string) => clipboard.set(type, value),
+        },
+      });
+      editor.prosemirrorView.dom.dispatchEvent(copyEvent);
+      expect(clipboard.get("text/plain")).toBe(`${selectedText}\n`);
+      expect(clipboard.has("blocknote/html")).toBe(true);
+
+      editor.setTextCursorPosition(target!.id, "start");
+      const pasteEvent = new Event("paste", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(pasteEvent, "clipboardData", {
+        value: {
+          getData: (type: string) => clipboard.get(type) ?? "",
+          types: Array.from(clipboard.keys()),
+        },
+      });
+      editor.prosemirrorView.dom.dispatchEvent(pasteEvent);
+
+      expect(editor.getBlock(target!.id)?.content).toEqual([
+        {
+          type: "text",
+          text: selectedText,
+          styles: {},
+        },
+      ]);
+    } finally {
+      session.view.unmount();
+    }
   });
 
   it("converts an external HTML table instead of pasting its Markdown-like plain text", async () => {

@@ -405,12 +405,38 @@ export function pasteExternalHTMLTables(
   event: ClipboardEvent,
 ): boolean {
   const clipboardData = event.clipboardData;
-  if (
-    !clipboardData ||
-    clipboardData.types.includes("blocknote/html") ||
-    !clipboardData.types.includes("text/html")
-  ) {
-    // 编辑器内部表格选区保留原生 MIME，由 BlockNote 还原单元格和光标语义。
+  if (!clipboardData) {
+    return false;
+  }
+
+  if (clipboardData.types.includes("blocknote/html")) {
+    const internalHTML = clipboardData.getData("blocknote/html");
+    const externalHTML = clipboardData.getData("text/html");
+    if (!internalHTML || !externalHTML) return false;
+
+    const internalContainer = document.createElement("div");
+    internalContainer.innerHTML = internalHTML;
+    const slice = internalContainer
+      .querySelector("[data-pm-slice]")
+      ?.getAttribute("data-pm-slice");
+    const externalContainer = document.createElement("div");
+    externalContainer.innerHTML = externalHTML;
+
+    // 单元格内的文本选区会携带 table 祖先切片，直接粘到列表项会生成无效结构。
+    if (
+      slice?.includes('"table"') &&
+      slice.includes('"tableCell"') &&
+      !externalContainer.querySelector("table")
+    ) {
+      editor.pasteHTML(externalHTML);
+      return true;
+    }
+
+    // 整表或单元格选区保留原生 MIME，由 BlockNote 还原表格结构和光标语义。
+    return false;
+  }
+
+  if (!clipboardData.types.includes("text/html")) {
     return false;
   }
 
