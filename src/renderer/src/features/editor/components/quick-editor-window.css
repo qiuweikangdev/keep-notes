@@ -83,12 +83,12 @@
   border-radius: 8px;
   background: var(--bg-primary);
   padding: 4px;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
 
 .quick-editor-actions-menu__item {
-  color: var(--text-secondary);
+  color: var(--text-primary);
 }
 
 .quick-editor-actions-menu__separator {

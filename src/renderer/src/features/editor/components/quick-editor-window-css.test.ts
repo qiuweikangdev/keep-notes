@@ -78,4 +78,16 @@ describe("quick editor window stylesheet", () => {
     expect(menuFocusRule).toMatch(/background:\s*var\(--hover-bg\)/);
     expect(menuFocusRule).toMatch(/color:\s*var\(--text-primary\)/);
   });
+
+  it("uses the same primary foreground color as the panel tab menu", () => {
+    const menuRule = stylesheet.match(
+      /\.quick-editor-actions-menu\s*\{([\s\S]*?)\n\}/,
+    )?.[1];
+    const itemRule = stylesheet.match(
+      /\.quick-editor-actions-menu__item\s*\{([\s\S]*?)\n\}/,
+    )?.[1];
+
+    expect(menuRule).toMatch(/color:\s*var\(--text-primary\);/);
+    expect(itemRule).toMatch(/color:\s*var\(--text-primary\);/);
+  });
 });
