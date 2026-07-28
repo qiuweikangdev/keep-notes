@@ -1859,6 +1859,126 @@ function getInlineText(content: unknown): string {
     .join("");
 }
 
+const BARE_HTTP_URL_PATTERN = /https?:\/\/[^\s<>]+/giu;
+const TRAILING_URL_PUNCTUATION_PATTERN = /[.,;:!?"'，。！？；：]+$/u;
+
+function countCharacter(value: string, character: string): number {
+  let count = 0;
+  for (const current of value) {
+    if (current === character) count += 1;
+  }
+  return count;
+}
+
+function trimBareUrlEnd(value: string): string {
+  let trimmed = value;
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+    const punctuationTrimmed = trimmed.replace(
+      TRAILING_URL_PUNCTUATION_PATTERN,
+      "",
+    );
+    if (punctuationTrimmed !== trimmed) {
+      trimmed = punctuationTrimmed;
+      changed = true;
+    }
+
+    for (const [opening, closing] of [
+      ["(", ")"],
+      ["[", "]"],
+      ["{", "}"],
+    ] as const) {
+      while (
+        trimmed.endsWith(closing) &&
+        countCharacter(trimmed, closing) > countCharacter(trimmed, opening)
+      ) {
+        trimmed = trimmed.slice(0, -1);
+        changed = true;
+      }
+    }
+  }
+
+  return trimmed;
+}
+
+function linkifyBareUrlTextNode(
+  node: Record<string, unknown>,
+): Record<string, unknown>[] {
+  const text = node.text;
+  if (node.type !== "text" || typeof text !== "string") return [node];
+  if (isRecord(node.styles) && node.styles.code === true) return [node];
+
+  const matches = [...text.matchAll(BARE_HTTP_URL_PATTERN)];
+  if (matches.length === 0) return [node];
+
+  const content: Record<string, unknown>[] = [];
+  let textOffset = 0;
+
+  for (const match of matches) {
+    const matchOffset = match.index;
+    const url = trimBareUrlEnd(match[0]);
+    if (matchOffset === undefined || !url) continue;
+
+    if (matchOffset > textOffset) {
+      content.push({
+        ...node,
+        text: text.slice(textOffset, matchOffset),
+      });
+    }
+
+    const linkedText = {
+      ...node,
+      text: url,
+    };
+    content.push({
+      type: "link",
+      href: url,
+      content: [linkedText],
+    });
+    textOffset = matchOffset + url.length;
+  }
+
+  if (content.length === 0) return [node];
+  if (textOffset < text.length) {
+    content.push({
+      ...node,
+      text: text.slice(textOffset),
+    });
+  }
+
+  return content;
+}
+
+function linkifyBareUrlsInBlock<TBlock>(block: TBlock): TBlock {
+  if (!isRecord(block) || block.type === "codeBlock") return block;
+
+  let nextBlock: Record<string, unknown> = block;
+  const isPlainMarkdownImage =
+    block.type === "paragraph" &&
+    getMarkdownImageFromPlainText(block.content) !== null;
+  if (Array.isArray(block.content) && !isPlainMarkdownImage) {
+    const content = block.content.flatMap((item) => {
+      if (!isRecord(item) || item.type === "link") return [item];
+      return linkifyBareUrlTextNode(item);
+    });
+    nextBlock = {
+      ...nextBlock,
+      content,
+    };
+  }
+
+  if (Array.isArray(block.children)) {
+    nextBlock = {
+      ...nextBlock,
+      children: block.children.map(linkifyBareUrlsInBlock),
+    };
+  }
+
+  return nextBlock as TBlock;
+}
+
 function getMarkdownImageFromPlainText(content: unknown) {
   const text = getInlineText(content).trim();
   const match = text.match(/^!\[([^\]]*)\]\(([^)\s]+)\)$/u);
@@ -2279,11 +2399,13 @@ export async function parseMarkdown<TBlock>(
     .replace(/\r\n?/g, "\n");
   const normalized = normalizeQuoteListsForParser(parseInput);
   const blocks = await parser.tryParseMarkdownToBlocks(normalized.markdown);
+  // BlockNote 0.51 的 Markdown 解析器不再识别裸 URL；在恢复受保护源码前补回链接节点。
+  const linkedBlocks = blocks.map(linkifyBareUrlsInBlock);
   const restoredBlocks =
     protectedMarkup.replacements.size === 0
-      ? blocks
+      ? linkedBlocks
       : restoreProtectedMarkup(
-          blocks,
+          linkedBlocks,
           protectedMarkup.continuationMarker,
           protectedMarkup.replacements,
         );

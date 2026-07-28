@@ -22,7 +22,7 @@ import {
 } from "./blocknote-schema";
 import { shouldStopEditorCodeBlockNodeViewEvent } from "./editor-code-block-node-view";
 import * as blocknoteSchemaModule from "./blocknote-schema";
-import { repairMarkdownSourceBeforeParse } from "./markdown";
+import { parseMarkdown, repairMarkdownSourceBeforeParse } from "./markdown";
 
 afterEach(() => {
   cleanup();
@@ -564,6 +564,27 @@ describe("editor BlockNote schema", () => {
     expect(blocks.map(getInlineText).join("")).not.toContain("*");
   });
 
+  it("parses a bare URL in a markdown bullet as a link", async () => {
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    const url =
+      "https://x1n6w1z0bhz.feishu.cn/wiki/IqG8wokD2i2WuckNjhZcfR9pnHh";
+    const blocks = await parseMarkdown(editor, `* ${url}`);
+
+    expect(blocks[0]).toMatchObject({
+      type: "bulletListItem",
+      content: [
+        {
+          type: "link",
+          href: url,
+          content: [{ type: "text", text: url }],
+        },
+      ],
+    });
+  });
+
   it("preserves the recovered first line in a malformed bash code block", async () => {
     const editor = BlockNoteEditor.create({ schema: editorSchema });
     const repaired = repairMarkdownSourceBeforeParse(
@@ -911,6 +932,83 @@ describe("editor BlockNote schema", () => {
     ]);
   });
 
+  it("inserts text outside inline code when clicking after its closing boundary", async () => {
+    setupMatchMedia();
+    const user = userEvent.setup();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "这是引用",
+              styles: {
+                code: true,
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[0].id, "end");
+    editor.focus();
+
+    const closingBoundary = await waitFor(() => {
+      const element = container.querySelector<HTMLElement>(
+        ".editor-inline-code__closing-boundary",
+      );
+      expect(element).not.toBe(null);
+      return element as HTMLElement;
+    });
+    vi.spyOn(closingBoundary, "getBoundingClientRect").mockReturnValue({
+      bottom: 24,
+      height: 20,
+      left: 100,
+      right: 110,
+      top: 4,
+      width: 10,
+      x: 100,
+      y: 4,
+      toJSON: () => ({}),
+    });
+    const view = editor.prosemirrorView;
+    const clickEvent = new MouseEvent("click", {
+      bubbles: true,
+      button: 0,
+      clientX: 120,
+      clientY: 12,
+    });
+    view.someProp("handleClick", (handler) =>
+      handler(view, view.state.selection.from, clickEvent),
+    );
+    // 浏览器会在 click 处理后再次同步同一位置的原生选区，边界侧别不能因此丢失。
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, view.state.selection.from),
+      ),
+    );
+    await user.keyboard("222");
+
+    expect(editor.document[0].content).toEqual([
+      {
+        type: "text",
+        text: "这是引用",
+        styles: {
+          code: true,
+        },
+      },
+      {
+        type: "text",
+        text: "222",
+        styles: {},
+      },
+    ]);
+  });
+
   it("deletes text inside inline code without splitting its style", () => {
     setupMatchMedia();
     const editor = BlockNoteEditor.create({
@@ -962,7 +1060,7 @@ describe("editor BlockNote schema", () => {
     ]);
   });
 
-  it("keeps inserted text inside inline code at the cursor and end boundary", () => {
+  it("keeps inserted text inside inline code at the cursor and before its closing boundary", () => {
     setupMatchMedia();
     const editor = BlockNoteEditor.create({
       schema: editorSchema,

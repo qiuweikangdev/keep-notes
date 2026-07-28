@@ -174,6 +174,51 @@ describe("Markdown source preservation", () => {
     expect(received).toContain("```tsx\n<CodeTag />\n```");
   });
 
+  it("restores bare URL links without absorbing punctuation or inline code", async () => {
+    const url =
+      "https://x1n6w1z0bhz.feishu.cn/wiki/IqG8wokD2i2WuckNjhZcfR9pnHh";
+    const existingLink = {
+      type: "link",
+      href: "https://example.com",
+      content: [{ type: "text", text: "existing", styles: {} }],
+    };
+    const blocks = await parseMarkdown<Record<string, unknown>>(
+      {
+        tryParseMarkdownToBlocks: () => [
+          {
+            type: "bulletListItem",
+            content: [
+              {
+                type: "text",
+                text: `文档：${url}。`,
+                styles: {},
+              },
+              {
+                type: "text",
+                text: url,
+                styles: { code: true },
+              },
+              existingLink,
+            ],
+          },
+        ],
+      },
+      `* ${url}`,
+    );
+
+    expect(blocks[0].content).toEqual([
+      { type: "text", text: "文档：", styles: {} },
+      {
+        type: "link",
+        href: url,
+        content: [{ type: "text", text: url, styles: {} }],
+      },
+      { type: "text", text: "。", styles: {} },
+      { type: "text", text: url, styles: { code: true } },
+      existingLink,
+    ]);
+  });
+
   it("nests quoted markdown list items under their quote after parsing", async () => {
     let received = "";
     const blocks = await parseMarkdown<TestBlock>(
@@ -392,6 +437,38 @@ describe("Markdown source preservation", () => {
         props: {
           name: "image-20260702141804557",
           url: `data:${sourceUrl}`,
+        },
+      },
+    ]);
+  });
+
+  it("keeps plain markdown image fallbacks eligible for image promotion", async () => {
+    const sourceUrl = "https://example.com/image.png";
+
+    await expect(
+      parseMarkdown(
+        {
+          tryParseMarkdownToBlocks: () => [
+            {
+              type: "paragraph",
+              content: [
+                {
+                  type: "text",
+                  text: `![image](${sourceUrl})`,
+                  styles: {},
+                },
+              ],
+            },
+          ],
+        },
+        `![image](${sourceUrl})`,
+      ),
+    ).resolves.toEqual([
+      {
+        type: "image",
+        props: {
+          name: "image",
+          url: sourceUrl,
         },
       },
     ]);

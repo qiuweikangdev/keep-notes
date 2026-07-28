@@ -278,7 +278,21 @@ const inlineCodeEditingExtension = createExtension({
             | undefined;
           if (nextState) return nextState;
 
-          if (transaction.docChanged || transaction.selectionSet) {
+          if (transaction.docChanged) {
+            return EMPTY_INLINE_CODE_EDITING_STATE;
+          }
+          if (transaction.selectionSet) {
+            const closingBoundaryPosition =
+              editingState.closingBoundaryPosition;
+            if (
+              closingBoundaryPosition !== null &&
+              transaction.selection.empty &&
+              transaction.selection.from === closingBoundaryPosition
+            ) {
+              // Chromium 会重复同步同一原生选区，位置未变化时必须保留反引号外侧状态。
+              return editingState;
+            }
+
             return EMPTY_INLINE_CODE_EDITING_STATE;
           }
 
@@ -287,6 +301,68 @@ const inlineCodeEditingExtension = createExtension({
       },
       props: {
         decorations: getInlineCodeEditingDecorations,
+        handleClick(view, position, event) {
+          if (event.button !== 0) return false;
+
+          const codeMark = view.state.schema.marks.code;
+          const $position = view.state.doc.resolve(position);
+          const nodeBefore = $position.nodeBefore;
+          const nodeAfter = $position.nodeAfter;
+          const isAtInlineCodeEnd =
+            nodeBefore?.isText &&
+            nodeBefore.marks.some((mark) => mark.type === codeMark) &&
+            (!nodeAfter?.isText ||
+              !nodeAfter.marks.some((mark) => mark.type === codeMark));
+          if (!isAtInlineCodeEnd) return false;
+
+          const closingBoundary = view.dom.querySelector<HTMLElement>(
+            `.${INLINE_CODE_CLOSING_BOUNDARY_CLASS}`,
+          );
+          if (!closingBoundary) return false;
+
+          const isOutsideBoundary =
+            event.clientX >= closingBoundary.getBoundingClientRect().left;
+          // 反引号前后共享同一个文档位置，按点击坐标显式记录视觉侧别。
+          view.dispatch(
+            view.state.tr
+              .setSelection(TextSelection.create(view.state.doc, position))
+              .setMeta(
+                inlineCodeEditingPluginKey,
+                isOutsideBoundary
+                  ? ({
+                      closingBoundaryPosition: position,
+                    } satisfies InlineCodeEditingState)
+                  : EMPTY_INLINE_CODE_EDITING_STATE,
+              ),
+          );
+          view.focus();
+
+          return true;
+        },
+        handleTextInput(view, from, to, text) {
+          const editingState = inlineCodeEditingPluginKey.getState(view.state);
+          if (editingState?.closingBoundaryPosition !== from || from !== to) {
+            return false;
+          }
+
+          const codeMark = view.state.schema.marks.code;
+          if (!codeMark || !text) return false;
+
+          const insertionEnd = from + text.length;
+          // 闭合反引号右侧的首次输入必须移除 code mark，后续输入才能自然保持为普通文本。
+          const tr = view.state.tr.insertText(text, from, to);
+          tr.removeMark(from, insertionEnd, codeMark)
+            .removeStoredMark(codeMark)
+            .setSelection(TextSelection.create(tr.doc, insertionEnd))
+            .setMeta(
+              inlineCodeEditingPluginKey,
+              EMPTY_INLINE_CODE_EDITING_STATE,
+            )
+            .scrollIntoView();
+          view.dispatch(tr);
+
+          return true;
+        },
       },
     }),
   ],
