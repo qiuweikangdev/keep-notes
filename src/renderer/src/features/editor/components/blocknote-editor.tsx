@@ -419,16 +419,37 @@ export function pasteExternalHTMLTables(
     const slice = internalContainer
       .querySelector("[data-pm-slice]")
       ?.getAttribute("data-pm-slice");
+    const internalContentType = internalContainer
+      .querySelector("[data-content-type]")
+      ?.getAttribute("data-content-type");
     const externalContainer = document.createElement("div");
     externalContainer.innerHTML = externalHTML;
+    const isQuoteTarget = editor.getTextCursorPosition().block.type === "quote";
 
     // 单元格内的文本选区会携带 table 祖先切片，直接粘到列表项会生成无效结构。
-    if (
+    const isTableTextSelection =
       slice?.includes('"table"') &&
       slice.includes('"tableCell"') &&
-      !externalContainer.querySelector("table")
-    ) {
-      editor.pasteHTML(externalHTML);
+      !externalContainer.querySelector("table");
+    // 列表项内的文字选区会被标记成列表块，粘贴到引用块时必须按行内内容处理。
+    const isListTextSelection =
+      ["bulletListItem", "numberedListItem", "checkListItem"].includes(
+        internalContentType ?? "",
+      ) && !externalContainer.querySelector("ul, ol, li");
+    const isInlineQuotePaste =
+      isQuoteTarget &&
+      !externalContainer.querySelector("table, ul, ol, li, pre, blockquote");
+
+    if (isTableTextSelection || isListTextSelection || isInlineQuotePaste) {
+      const parsedBlocks = editor.tryParseHTMLToBlocks(externalHTML);
+      const inlineContent =
+        parsedBlocks.length === 1 && Array.isArray(parsedBlocks[0].content)
+          ? parsedBlocks[0].content
+          : null;
+      if (!inlineContent) return false;
+
+      // 引用块内的粘贴只替换行内选区，不能让剪贴板携带的源块类型覆盖引用结构。
+      editor.insertInlineContent(inlineContent);
       return true;
     }
 

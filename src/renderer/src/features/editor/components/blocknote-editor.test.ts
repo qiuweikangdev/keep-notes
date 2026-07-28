@@ -1375,6 +1375,316 @@ describe("BlockNoteEditor code paste", () => {
     }
   });
 
+  it("keeps an empty quote when pasting text copied from a list item", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    vi.stubGlobal("ClipboardEvent", Event);
+    const path = "C:/notes/list-text-empty-quote-paste.md";
+    const selectedText = "测试列表利用";
+    setupSessionTab(path);
+    const session = renderRealSession(
+      path,
+      false,
+      ["> ", "", `* ${selectedText}`, "* 列表1", "* 列表2"].join("\n"),
+    );
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const editor = session.runtime.current!.editor;
+      const target = editor.document.find(
+        (block) =>
+          block.type === "quote" &&
+          Array.isArray(block.content) &&
+          block.content.length === 0,
+      );
+      expect(target).toBeDefined();
+
+      let selectedTextPosition: number | null = null;
+      editor.prosemirrorState.doc.descendants((node, position) => {
+        if (node.isText && node.text === selectedText) {
+          selectedTextPosition = position;
+          return false;
+        }
+        return selectedTextPosition === null;
+      });
+      expect(selectedTextPosition).not.toBeNull();
+      editor.prosemirrorView.dispatch(
+        editor.prosemirrorView.state.tr.setSelection(
+          TextSelection.create(
+            editor.prosemirrorView.state.doc,
+            selectedTextPosition!,
+            selectedTextPosition! + selectedText.length,
+          ),
+        ),
+      );
+
+      const clipboard = new Map<string, string>();
+      const copyEvent = new Event("copy", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(copyEvent, "clipboardData", {
+        value: {
+          clearData: () => clipboard.clear(),
+          setData: (type: string, value: string) => clipboard.set(type, value),
+        },
+      });
+      editor.prosemirrorView.dom.dispatchEvent(copyEvent);
+      expect(clipboard.get("text/plain")).toBe(`${selectedText}\n`);
+      expect(clipboard.has("blocknote/html")).toBe(true);
+
+      editor.setTextCursorPosition(target!.id, "start");
+      const pasteEvent = new Event("paste", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(pasteEvent, "clipboardData", {
+        value: {
+          getData: (type: string) => clipboard.get(type) ?? "",
+          types: Array.from(clipboard.keys()),
+        },
+      });
+      editor.prosemirrorView.dom.dispatchEvent(pasteEvent);
+
+      expect(editor.getBlock(target!.id)).toMatchObject({
+        type: "quote",
+        content: [
+          {
+            type: "text",
+            text: selectedText,
+            styles: {},
+          },
+        ],
+      });
+      expect(
+        editor.document.filter((block) => block.type === "bulletListItem"),
+      ).toHaveLength(3);
+    } finally {
+      session.view.unmount();
+    }
+  });
+
+  it("keeps a quote when replacing all of its text with copied list text", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    vi.stubGlobal("ClipboardEvent", Event);
+    const path = "C:/notes/list-text-full-quote-selection-paste.md";
+    const quoteText = "测试列表利用列表1";
+    const selectedText = "列表1";
+    setupSessionTab(path);
+    const session = renderRealSession(
+      path,
+      false,
+      [
+        `> ${quoteText}`,
+        "",
+        "* 测试列表利用",
+        `* ${selectedText}`,
+        "* 列表2",
+      ].join("\n"),
+    );
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const editor = session.runtime.current!.editor;
+      const target = editor.document.find((block) => block.type === "quote");
+      expect(target).toBeDefined();
+
+      let sourcePosition: number | null = null;
+      editor.prosemirrorState.doc.descendants((node, position) => {
+        if (node.isText && node.text === selectedText) {
+          sourcePosition = position;
+          return false;
+        }
+        return sourcePosition === null;
+      });
+      expect(sourcePosition).not.toBeNull();
+      editor.prosemirrorView.dispatch(
+        editor.prosemirrorView.state.tr.setSelection(
+          TextSelection.create(
+            editor.prosemirrorView.state.doc,
+            sourcePosition!,
+            sourcePosition! + selectedText.length,
+          ),
+        ),
+      );
+
+      const clipboard = new Map<string, string>();
+      const copyEvent = new Event("copy", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(copyEvent, "clipboardData", {
+        value: {
+          clearData: () => clipboard.clear(),
+          setData: (type: string, value: string) => clipboard.set(type, value),
+        },
+      });
+      editor.prosemirrorView.dom.dispatchEvent(copyEvent);
+      expect(clipboard.get("text/plain")).toBe(`${selectedText}\n`);
+
+      let targetPosition: number | null = null;
+      editor.prosemirrorState.doc.descendants((node, position) => {
+        if (node.isText && node.text === quoteText) {
+          targetPosition = position;
+          return false;
+        }
+        return targetPosition === null;
+      });
+      expect(targetPosition).not.toBeNull();
+      editor.prosemirrorView.dispatch(
+        editor.prosemirrorView.state.tr.setSelection(
+          TextSelection.create(
+            editor.prosemirrorView.state.doc,
+            targetPosition!,
+            targetPosition! + quoteText.length,
+          ),
+        ),
+      );
+
+      const pasteEvent = new Event("paste", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(pasteEvent, "clipboardData", {
+        value: {
+          getData: (type: string) => clipboard.get(type) ?? "",
+          types: Array.from(clipboard.keys()),
+        },
+      });
+      editor.prosemirrorView.dom.dispatchEvent(pasteEvent);
+
+      expect(editor.getBlock(target!.id)).toMatchObject({
+        type: "quote",
+        content: [
+          {
+            type: "text",
+            text: selectedText,
+            styles: {},
+          },
+        ],
+      });
+      expect(
+        editor.document.filter((block) => block.type === "bulletListItem"),
+      ).toHaveLength(3);
+    } finally {
+      session.view.unmount();
+    }
+  });
+
+  it("keeps a quote when replacing all of its text with copied paragraph text", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    vi.stubGlobal("ClipboardEvent", Event);
+    const path = "C:/notes/paragraph-text-full-quote-selection-paste.md";
+    const quoteText = "引用内容";
+    const selectedText = "普通文案";
+    setupSessionTab(path);
+    const session = renderRealSession(
+      path,
+      false,
+      [
+        "# 测试",
+        "",
+        `> ${quoteText}`,
+        "",
+        "* 测试列表利用",
+        "* 列表1",
+        "* 列表2",
+        "",
+        selectedText,
+      ].join("\n"),
+    );
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const editor = session.runtime.current!.editor;
+      const target = editor.document.find((block) => block.type === "quote");
+      expect(target).toBeDefined();
+
+      let sourcePosition: number | null = null;
+      editor.prosemirrorState.doc.descendants((node, position) => {
+        if (node.isText && node.text === selectedText) {
+          sourcePosition = position;
+          return false;
+        }
+        return sourcePosition === null;
+      });
+      expect(sourcePosition).not.toBeNull();
+      editor.prosemirrorView.dispatch(
+        editor.prosemirrorView.state.tr.setSelection(
+          TextSelection.create(
+            editor.prosemirrorView.state.doc,
+            sourcePosition!,
+            sourcePosition! + selectedText.length,
+          ),
+        ),
+      );
+
+      const clipboard = new Map<string, string>();
+      const copyEvent = new Event("copy", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(copyEvent, "clipboardData", {
+        value: {
+          clearData: () => clipboard.clear(),
+          setData: (type: string, value: string) => clipboard.set(type, value),
+        },
+      });
+      editor.prosemirrorView.dom.dispatchEvent(copyEvent);
+      expect(clipboard.get("text/plain")).toBe(`${selectedText}\n`);
+      expect(clipboard.has("blocknote/html")).toBe(true);
+
+      let targetPosition: number | null = null;
+      editor.prosemirrorState.doc.descendants((node, position) => {
+        if (node.isText && node.text === quoteText) {
+          targetPosition = position;
+          return false;
+        }
+        return targetPosition === null;
+      });
+      expect(targetPosition).not.toBeNull();
+      editor.prosemirrorView.dispatch(
+        editor.prosemirrorView.state.tr.setSelection(
+          TextSelection.create(
+            editor.prosemirrorView.state.doc,
+            targetPosition!,
+            targetPosition! + quoteText.length,
+          ),
+        ),
+      );
+
+      const pasteEvent = new Event("paste", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(pasteEvent, "clipboardData", {
+        value: {
+          getData: (type: string) => clipboard.get(type) ?? "",
+          types: Array.from(clipboard.keys()),
+        },
+      });
+      editor.prosemirrorView.dom.dispatchEvent(pasteEvent);
+
+      expect(editor.getBlock(target!.id)).toMatchObject({
+        type: "quote",
+        content: [
+          {
+            type: "text",
+            text: selectedText,
+            styles: {},
+          },
+        ],
+      });
+      expect(
+        editor.document.filter((block) => block.type === "bulletListItem"),
+      ).toHaveLength(3);
+    } finally {
+      session.view.unmount();
+    }
+  });
+
   it("converts an external HTML table instead of pasting its Markdown-like plain text", async () => {
     setupMatchMedia();
     setupDomMeasurements();
