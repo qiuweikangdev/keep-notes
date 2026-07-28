@@ -239,6 +239,8 @@ describe("createAppNotification", () => {
       expect(html).toContain("font-size: var(--app-name-font-size);");
       expect(html).toContain("line-height: var(--app-name-line-height);");
       expect(html).toContain("padding: 4px 16px 12px 66px;");
+      expect(html).toContain("rgba(255, 254, 255, 0.97)");
+      expect(html).toContain("rgba(246, 244, 252, 0.94)");
     } else {
       expect(windowOptions).toMatchObject({
         width: 384,

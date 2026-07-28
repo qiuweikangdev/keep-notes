@@ -355,14 +355,14 @@ function createNotificationHtml(options: AppNotificationOptions): string {
     }
     .platform-mac .notification {
       --notification-bg:
-        radial-gradient(circle at 15% 0%, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0) 38%),
-        linear-gradient(135deg, rgba(252, 239, 247, 0.88) 0%, rgba(241, 229, 250, 0.82) 48%, rgba(226, 217, 248, 0.78) 100%);
-      border: 1px solid rgba(255, 255, 255, 0.5);
+        radial-gradient(circle at 15% 0%, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0) 42%),
+        linear-gradient(135deg, rgba(255, 254, 255, 0.97) 0%, rgba(251, 249, 255, 0.96) 52%, rgba(246, 244, 252, 0.94) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.76);
       border-radius: 16px;
       background: var(--notification-bg);
       box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.52),
-        0 18px 40px rgba(54, 43, 72, 0.24);
+        inset 0 1px 0 rgba(255, 255, 255, 0.72),
+        0 4px 8px rgba(54, 43, 72, 0.14);
       color: rgba(8, 12, 20, 0.94);
     }
     .platform-mac .content {
