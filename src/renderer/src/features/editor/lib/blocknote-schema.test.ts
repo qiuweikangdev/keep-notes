@@ -746,6 +746,47 @@ describe("editor BlockNote schema", () => {
     });
   });
 
+  it("marks only ASCII content for inline code font-weight compensation", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "aa22",
+              styles: {
+                code: true,
+              },
+            },
+            {
+              type: "text",
+              text: "测试",
+              styles: {
+                code: true,
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    const latinContent = Array.from(
+      container.querySelectorAll(".editor-inline-code__latin-content"),
+    )
+      .map((element) => element.textContent)
+      .join("");
+    expect(latinContent).toBe("aa22");
+    expect(
+      container
+        .querySelector(".editor-inline-code__latin-content")
+        ?.textContent?.includes("测试"),
+    ).toBe(false);
+  });
+
   it("normalizes inline code markers inserted outside input rules", () => {
     setupMatchMedia();
     const editor = BlockNoteEditor.create({
@@ -848,6 +889,9 @@ describe("editor BlockNote schema", () => {
         ".editor-inline-code__closing-boundary",
       );
       expect(element).not.toBe(null);
+      expect(
+        container.querySelector(".editor-inline-code__editing-caret-after"),
+      ).not.toBe(null);
       return element as HTMLElement;
     });
     fireEvent.mouseDown(closingBoundary);
@@ -858,6 +902,14 @@ describe("editor BlockNote schema", () => {
       ).toBe(null);
       expect(
         container.querySelector(".editor-inline-code__closing-boundary"),
+      ).toBe(null);
+      expect(
+        container.querySelector(".editor-inline-code__outside-caret-gap"),
+      ).not.toBe(null);
+      expect(
+        container.querySelector(
+          ".editor-inline-code__editing-caret-before, .editor-inline-code__editing-caret-after",
+        ),
       ).toBe(null);
     });
 
@@ -913,6 +965,11 @@ describe("editor BlockNote schema", () => {
     expect(
       container.querySelector(".editor-inline-code__closing-boundary"),
     ).toBe(null);
+    const outsideCaretGap = container.querySelector(
+      ".editor-inline-code__outside-caret-gap",
+    );
+    expect(outsideCaretGap).not.toBe(null);
+    expect(outsideCaretGap?.closest("code")).toBe(null);
 
     pressKey(editor, "ArrowLeft");
 
@@ -922,7 +979,12 @@ describe("editor BlockNote schema", () => {
     expect(
       container.querySelector(".editor-inline-code__closing-boundary"),
     ).not.toBe(null);
-
+    expect(
+      container.querySelector(".editor-inline-code__outside-caret-gap"),
+    ).toBe(null);
+    expect(
+      container.querySelector(".editor-inline-code__editing-caret-after"),
+    ).not.toBe(null);
     pressKey(editor, "ArrowRight");
     pressKey(editor, "Backspace");
 
@@ -1293,6 +1355,21 @@ describe("editor BlockNote schema", () => {
         container.querySelector(".editor-inline-code__closing-boundary")
           ?.textContent,
       ).toBe("`");
+      expect(
+        container.querySelector(".editor-inline-code__editing-caret-after"),
+      ).not.toBe(null);
+    });
+
+    const view = editor.prosemirrorView;
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, view.state.selection.from - 1),
+      ),
+    );
+    await waitFor(() => {
+      expect(
+        container.querySelector(".editor-inline-code__editing-caret-before"),
+      ).not.toBe(null);
     });
 
     editor.setTextCursorPosition(editor.document[1].id, "start");

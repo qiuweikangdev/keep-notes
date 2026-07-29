@@ -94,8 +94,16 @@ const editorInlineCodeStyleSpec = createStyleSpecFromTipTapMark(
 const INLINE_CODE_NORMALIZER_META = "editor-inline-code-normalizer";
 const inlineCodeMarkerPattern = /`([^`\n]+)`/g;
 const INLINE_CODE_EDITING_CONTENT_CLASS = "editor-inline-code__editing-content";
+const INLINE_CODE_EDITING_CARET_BEFORE_CLASS =
+  "editor-inline-code__editing-caret-before";
+const INLINE_CODE_EDITING_CARET_AFTER_CLASS =
+  "editor-inline-code__editing-caret-after";
 const INLINE_CODE_CLOSING_BOUNDARY_CLASS =
   "editor-inline-code__closing-boundary";
+const INLINE_CODE_OUTSIDE_CARET_GAP_CLASS =
+  "editor-inline-code__outside-caret-gap";
+const INLINE_CODE_LATIN_CONTENT_CLASS = "editor-inline-code__latin-content";
+const inlineCodeLatinContentPattern = /[\u0020-\u007e]+/g;
 
 type InlineCodeEditingState = {
   closingBoundaryPosition: number | null;
@@ -106,6 +114,9 @@ const EMPTY_INLINE_CODE_EDITING_STATE: InlineCodeEditingState = {
 };
 const inlineCodeEditingPluginKey = new PluginKey<InlineCodeEditingState>(
   "editor-inline-code-editing",
+);
+const inlineCodeLatinContentPluginKey = new PluginKey<DecorationSet>(
+  "editor-inline-code-latin-content",
 );
 
 const inlineCodeNormalizerExtension = createExtension({
@@ -214,11 +225,27 @@ function getInlineCodeEditingDecorations(state: EditorState) {
   const isClosingBoundarySelected =
     editingState.closingBoundaryPosition === codeRange.to;
   if (isClosingBoundarySelected) {
-    // 光标已越过闭合反引号，此时恢复普通行内代码外观，仅保留逻辑侧别供后续输入使用。
-    return DecorationSet.empty;
+    return DecorationSet.create(state.doc, [
+      Decoration.widget(
+        codeRange.to,
+        () => {
+          const gap = document.createElement("span");
+          gap.className = INLINE_CODE_OUTSIDE_CARET_GAP_CLASS;
+          gap.contentEditable = "false";
+          gap.setAttribute("aria-hidden", "true");
+          return gap;
+        },
+        {
+          key: `inline-code-outside-caret-gap-${codeRange.to}`,
+          marks: [],
+          // 锚点位于同一文档位置的光标之前，为代码外侧光标提供独立 DOM 绘制区域。
+          side: -1,
+        },
+      ),
+    ]);
   }
 
-  return DecorationSet.create(state.doc, [
+  const decorations = [
     Decoration.inline(codeRange.from, codeRange.to, {
       class: INLINE_CODE_EDITING_CONTENT_CLASS,
     }),
@@ -257,7 +284,73 @@ function getInlineCodeEditingDecorations(state: EditorState) {
         stopEvent: (event) => event.type === "mousedown",
       },
     ),
-  ]);
+  ];
+
+  if (selection.empty) {
+    const isAtCodeEnd = selection.from === codeRange.to;
+    const adjacentText = isAtCodeEnd
+      ? state.doc.textBetween(codeRange.from, selection.from)
+      : state.doc.textBetween(selection.from, codeRange.to);
+    const adjacentCharacter = isAtCodeEnd
+      ? Array.from(adjacentText).at(-1)
+      : Array.from(adjacentText)[0];
+
+    if (adjacentCharacter) {
+      // 空 widget 在 Chromium 的 code mark 内会被折叠；锚定真实字符绘制光标可覆盖行首、行中和行尾。
+      decorations.push(
+        Decoration.inline(
+          isAtCodeEnd
+            ? selection.from - adjacentCharacter.length
+            : selection.from,
+          isAtCodeEnd
+            ? selection.from
+            : selection.from + adjacentCharacter.length,
+          {
+            class: isAtCodeEnd
+              ? INLINE_CODE_EDITING_CARET_AFTER_CLASS
+              : INLINE_CODE_EDITING_CARET_BEFORE_CLASS,
+          },
+        ),
+      );
+    }
+  }
+
+  return DecorationSet.create(state.doc, decorations);
+}
+
+function getInlineCodeLatinContentDecorations(state: EditorState) {
+  const codeMark = state.schema.marks.code;
+  if (!codeMark) return DecorationSet.empty;
+
+  const decorations: Decoration[] = [];
+  state.doc.descendants((node, position) => {
+    if (
+      !node.isText ||
+      !node.text ||
+      !node.marks.some((mark) => mark.type === codeMark)
+    ) {
+      return true;
+    }
+
+    for (const match of node.text.matchAll(inlineCodeLatinContentPattern)) {
+      if (match.index === undefined) continue;
+
+      // 仅补偿 ASCII 字符的等宽字体字重，避免同步加深中文回退字体。
+      decorations.push(
+        Decoration.inline(
+          position + match.index,
+          position + match.index + match[0].length,
+          { class: INLINE_CODE_LATIN_CONTENT_CLASS },
+        ),
+      );
+    }
+
+    return true;
+  });
+
+  return decorations.length === 0
+    ? DecorationSet.empty
+    : DecorationSet.create(state.doc, decorations);
 }
 
 function insertTextAfterInlineCodeBoundary(
@@ -292,6 +385,21 @@ const inlineCodeEditingExtension = createExtension({
   // 必须先于 BlockNote 默认输入链处理边界输入，避免 Chromium 先把文本写回 code DOM。
   runsBefore: ["default"],
   prosemirrorPlugins: [
+    new Plugin<DecorationSet>({
+      key: inlineCodeLatinContentPluginKey,
+      state: {
+        init: (_config, state) => getInlineCodeLatinContentDecorations(state),
+        apply: (transaction, decorations, _oldState, newState) =>
+          transaction.docChanged
+            ? getInlineCodeLatinContentDecorations(newState)
+            : decorations,
+      },
+      props: {
+        decorations: (state) =>
+          inlineCodeLatinContentPluginKey.getState(state) ??
+          DecorationSet.empty,
+      },
+    }),
     new Plugin({
       key: inlineCodeEditingPluginKey,
       state: {

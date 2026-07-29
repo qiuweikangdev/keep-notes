@@ -364,24 +364,92 @@ describe("blocknote overrides stylesheet", () => {
     expect(inlineCodeRule).toMatch(
       /color:\s*var\(--accent-color\) !important;/,
     );
+    expect(inlineCodeRule).toMatch(
+      /padding:\s*0\.15em 0\.8em 0\.15em 0\.55em !important;/,
+    );
     expect(inlineCodeRule).toMatch(/font-family:[\s\S]*monospace !important;/);
+    expect(inlineCodeRule).toMatch(/font-weight:\s*500 !important;/);
+    expect(
+      getRule(
+        ":is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content, :is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content code",
+      ),
+    ).toMatch(
+      /color:\s*color-mix\(\s*in srgb,\s*var\(--accent-color\) 70%,\s*var\(--text-primary\)\s*\) !important;/,
+    );
+    expect(
+      getRule(
+        ":is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content, :is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content code",
+      ),
+    ).toMatch(/font-weight:\s*700 !important;/);
   });
 
   it("shows paired markdown boundaries while inline code is being edited", () => {
     const editingSelector =
       ".bn-editor.ProseMirror-focused code:not(.editor-code-block__content):has( .editor-inline-code__editing-content )";
-    const editingRule = getRule(editingSelector);
+    const openingBoundaryRule = getRule(`${editingSelector}::before`);
+    const boundaryHighlightRule = getRule(
+      `${editingSelector}::before, .bn-editor.ProseMirror-focused .editor-inline-code__closing-boundary`,
+    );
 
-    expect(editingRule).toBeDefined();
-    expect(editingRule).toMatch(/background-color:\s*transparent !important;/);
+    const editingRule = getRule(editingSelector);
     expect(editingRule).toMatch(/color:\s*var\(--text-primary\) !important;/);
-    expect(editingRule).toMatch(/padding-inline:\s*0 !important;/);
-    expect(getRule(`${editingSelector}::before`)).toMatch(/content:\s*"`";/);
+    expect(editingRule).not.toMatch(/padding/);
+    expect(editingRule).not.toMatch(/border/);
     expect(
       getRule(
-        ".bn-editor.ProseMirror-focused .editor-inline-code__closing-boundary",
+        `${editingSelector} .editor-inline-code__editing-content, ${editingSelector} .editor-inline-code__latin-content`,
       ),
-    ).toMatch(/cursor:\s*text;/);
+    ).toMatch(/color:\s*var\(--text-primary\) !important;/);
+    expect(boundaryHighlightRule).toMatch(/color:\s*var\(--accent-color\);/);
+    expect(boundaryHighlightRule).toMatch(/font-weight:\s*700;/);
+    expect(boundaryHighlightRule).toMatch(/opacity:\s*1;/);
+    expect(openingBoundaryRule).toMatch(/position:\s*absolute;/);
+    expect(openingBoundaryRule).toMatch(/font-size:\s*0\.9em;/);
+    expect(openingBoundaryRule).toMatch(/content:\s*"`";/);
+    const closingBoundaryRule = getRule(
+      ".bn-editor.ProseMirror-focused .editor-inline-code__closing-boundary",
+    );
+    expect(closingBoundaryRule).toMatch(/width:\s*0\.55em;/);
+    expect(closingBoundaryRule).toMatch(/margin-inline-start:\s*-0\.55em;/);
+    expect(closingBoundaryRule).toMatch(/cursor:\s*text;/);
+    const outsideCaretGapRule = getRule(
+      ".bn-editor.ProseMirror-focused .editor-inline-code__outside-caret-gap",
+    );
+    expect(outsideCaretGapRule).toMatch(/display:\s*inline-block;/);
+    expect(outsideCaretGapRule).toMatch(/width:\s*3px;/);
+    expect(outsideCaretGapRule).toMatch(/pointer-events:\s*none;/);
+    const editingCaretBeforeRule = getRule(
+      ".bn-editor.ProseMirror-focused .editor-inline-code__editing-caret-before",
+    );
+    expect(editingCaretBeforeRule).toMatch(
+      /border-inline-start:\s*2px solid var\(--accent-color\);/,
+    );
+    expect(editingCaretBeforeRule).toMatch(/margin-inline-start:\s*-2px;/);
+    const editingCaretAfterRule = getRule(
+      ".bn-editor.ProseMirror-focused .editor-inline-code__editing-caret-after",
+    );
+    expect(editingCaretAfterRule).toMatch(
+      /border-inline-end:\s*2px solid var\(--accent-color\);/,
+    );
+    expect(editingCaretAfterRule).toMatch(/margin-inline-end:\s*-2px;/);
+    expect(editingCaretBeforeRule).not.toMatch(/animation:/);
+    expect(editingCaretAfterRule).not.toMatch(/animation:/);
+    expect(
+      getRule(
+        ".bn-editor.ProseMirror-focused:has(.editor-inline-code__outside-caret-gap)",
+      ),
+    ).toMatch(/caret-color:\s*transparent !important;/);
+    const outsideCaretRule = getRule(
+      ".bn-editor.ProseMirror-focused .editor-inline-code__outside-caret-gap::after",
+    );
+    expect(outsideCaretRule).toMatch(/inset-inline-end:\s*0;/);
+    expect(outsideCaretRule).toMatch(/width:\s*1px;/);
+    expect(outsideCaretRule).toMatch(
+      /animation:\s*editor-inline-code-caret-blink/,
+    );
+    expect(stylesheet).toMatch(
+      /@media \(prefers-reduced-motion:\s*reduce\)[\s\S]*\.editor-inline-code__outside-caret-gap::after\s*\{[\s\S]*animation:\s*none;/,
+    );
   });
 
   it("polishes the custom language search popover", () => {
