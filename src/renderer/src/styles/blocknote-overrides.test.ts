@@ -364,9 +364,7 @@ describe("blocknote overrides stylesheet", () => {
     expect(inlineCodeRule).toMatch(
       /color:\s*var\(--accent-color\) !important;/,
     );
-    expect(inlineCodeRule).toMatch(
-      /padding:\s*0\.15em 0\.8em 0\.15em 0\.55em !important;/,
-    );
+    expect(inlineCodeRule).toMatch(/padding:\s*0\.15em 4px !important;/);
     expect(inlineCodeRule).toMatch(/font-family:[\s\S]*monospace !important;/);
     expect(inlineCodeRule).toMatch(/font-weight:\s*500 !important;/);
     expect(
@@ -404,13 +402,19 @@ describe("blocknote overrides stylesheet", () => {
     expect(boundaryHighlightRule).toMatch(/font-weight:\s*700;/);
     expect(boundaryHighlightRule).toMatch(/opacity:\s*1;/);
     expect(openingBoundaryRule).toMatch(/position:\s*absolute;/);
-    expect(openingBoundaryRule).toMatch(/font-size:\s*0\.9em;/);
+    expect(openingBoundaryRule).toMatch(/inset-inline-start:\s*0;/);
+    expect(openingBoundaryRule).toMatch(/font-size:\s*0\.75em;/);
+    expect(openingBoundaryRule).toMatch(
+      /transform:\s*translateY\(-50%\) scaleX\(0\.6\);/,
+    );
     expect(openingBoundaryRule).toMatch(/content:\s*"`";/);
     const closingBoundaryRule = getRule(
       ".bn-editor.ProseMirror-focused .editor-inline-code__closing-boundary",
     );
-    expect(closingBoundaryRule).toMatch(/width:\s*0\.55em;/);
-    expect(closingBoundaryRule).toMatch(/margin-inline-start:\s*-0\.55em;/);
+    expect(closingBoundaryRule).toMatch(/width:\s*4px;/);
+    expect(closingBoundaryRule).toMatch(/margin-inline-start:\s*-4px;/);
+    expect(closingBoundaryRule).toMatch(/font-size:\s*0\.75em;/);
+    expect(closingBoundaryRule).toMatch(/transform:\s*scaleX\(0\.6\);/);
     expect(closingBoundaryRule).toMatch(/cursor:\s*text;/);
     const outsideCaretGapRule = getRule(
       ".bn-editor.ProseMirror-focused .editor-inline-code__outside-caret-gap",

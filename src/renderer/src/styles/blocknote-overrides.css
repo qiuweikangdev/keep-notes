@@ -704,7 +704,7 @@ html.rich-editor-selection-drag-locked * {
 :is(.bn-editor, .bn-editor-preview) code:not(.editor-code-block__content) {
   background-color: var(--bg-tertiary) !important;
   color: var(--accent-color) !important;
-  padding: 0.15em 0.8em 0.15em 0.55em !important;
+  padding: 0.15em 4px !important;
   border-radius: 4px !important;
   font-family:
     "SF Mono", "Fira Code", Consolas, "Courier New", monospace !important;
@@ -759,28 +759,28 @@ html.rich-editor-selection-drag-locked * {
   )::before {
   position: absolute;
   inset-block-start: 50%;
-  inset-inline-start: 0.08em;
-  font-size: 0.9em;
+  inset-inline-start: 0;
+  font-size: 0.75em;
   line-height: 1;
   content: "`";
   pointer-events: none;
-  transform: translateY(-50%) scaleX(0.9);
+  transform: translateY(-50%) scaleX(0.6);
   transform-origin: left center;
 }
 
 .bn-editor.ProseMirror-focused .editor-inline-code__closing-boundary {
   display: inline-block;
-  width: 0.55em;
+  width: 4px;
   height: 1em;
-  margin-inline-start: -0.55em;
+  margin-inline-start: -4px;
   overflow: visible;
-  font-size: 0.9em;
+  font-size: 0.75em;
   font-family: "SF Mono", "Fira Code", Consolas, "Courier New", monospace;
   line-height: 1;
   text-align: center;
   vertical-align: -0.06em;
   cursor: text;
-  transform: scaleX(0.9);
+  transform: scaleX(0.6);
   transform-origin: right center;
 }
 
