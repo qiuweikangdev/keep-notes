@@ -1217,7 +1217,11 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
   }, [creatingRowIndex, virtualizer]);
 
   return (
-    <div className="file-tree-scroll-shell group relative min-h-0 flex-1">
+    <div
+      className="file-tree-scroll-shell group relative min-h-0 flex-1"
+      role="tree"
+      aria-label="文件树"
+    >
       <div
         ref={parentRef}
         className="file-tree-scroll-container h-full overflow-auto"
@@ -1383,6 +1387,24 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
     setRenameValue(flatNode.title.replace(/\.md$/, ""));
     setIsRenaming(true);
   }, [flatNode.title]);
+
+  const handleRowKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLDivElement>) => {
+      if (
+        event.key !== "Enter" ||
+        event.target !== event.currentTarget ||
+        isRenaming
+      ) {
+        return;
+      }
+
+      // 回车由文件树行消费，避免继续触发上层快捷键或默认点击行为。
+      event.preventDefault();
+      event.stopPropagation();
+      handleStartRename();
+    },
+    [handleStartRename, isRenaming],
+  );
 
   // 确认重命名
   const handleRenameConfirm = useCallback(async () => {
@@ -1631,8 +1653,11 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
         <ContextMenu.Trigger asChild>
           <div className="px-2">
             <div
-              className="tree-node-row relative flex h-7 cursor-pointer select-none items-center rounded-[10px]"
+              className="tree-node-row relative flex h-7 cursor-pointer select-none items-center rounded-[10px] outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-color)]"
               data-selected={isSelected}
+              role="treeitem"
+              aria-selected={isSelected}
+              tabIndex={isSelected ? 0 : -1}
               style={{
                 paddingLeft: `${flatNode.level * 14 + 8}px`,
                 paddingRight: "8px",
@@ -1644,7 +1669,11 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
                     ? DROP_TARGET_INSET_SHADOW
                     : "none",
               }}
-              onClick={() => onClick(flatNode)}
+              onClick={(event) => {
+                event.currentTarget.focus();
+                onClick(flatNode);
+              }}
+              onKeyDown={handleRowKeyDown}
               draggable={!isRenaming}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}

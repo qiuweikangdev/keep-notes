@@ -416,6 +416,39 @@ describe("FileTree context menu", () => {
     window.removeEventListener(APP_TOAST_EVENT, toastSpy);
   });
 
+  it("starts renaming the selected file with Enter and confirms with Enter", async () => {
+    electronMocks.renameItem.mockResolvedValue({
+      code: CodeResult.Success,
+      data: {
+        treeData: [{ title: "journal.md", key: "/notes/journal.md" }],
+      },
+    });
+
+    render(<FileTree />);
+
+    const fileLabel = await screen.findByText("daily.md");
+    fireEvent.click(fileLabel);
+    const fileRow = fileLabel.closest<HTMLElement>(".tree-node-row");
+    expect(fileRow).not.toBeNull();
+
+    expect(fileRow).toHaveFocus();
+    fireEvent.keyDown(fileRow!, { key: "Enter" });
+
+    const input = await screen.findByDisplayValue("daily");
+    expect(input).toHaveFocus();
+
+    fireEvent.change(input, { target: { value: "journal" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(electronMocks.renameItem).toHaveBeenCalledWith(
+        "/notes/daily.md",
+        "journal",
+        expect.any(Array),
+      );
+    });
+  });
+
   it("waits for IME composition to finish before confirming a rename", async () => {
     electronMocks.renameItem.mockResolvedValue({
       code: CodeResult.Success,
