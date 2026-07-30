@@ -758,7 +758,7 @@ export function SettingsModal() {
         ref={contentRef}
         showCloseButton={false}
         overlayStyle={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
-        className="flex h-[min(640px,calc(100vh-32px))] max-h-none w-[min(780px,calc(100vw-32px))] max-w-none flex-col gap-0 overflow-visible rounded-xl p-0 shadow-2xl"
+        className="flex h-[min(540px,calc(100vh-64px))] max-h-none w-[min(780px,calc(100vw-32px))] max-w-none flex-col gap-0 overflow-visible rounded-xl p-0 shadow-2xl"
         style={{
           backgroundColor: "var(--bg-secondary)",
           border: "none",

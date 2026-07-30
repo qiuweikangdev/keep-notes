@@ -87,12 +87,12 @@ describe("SettingsModal about tab", () => {
     document.body.style.pointerEvents = "";
   });
 
-  it("keeps the dialog inside small application windows", () => {
+  it("keeps the dialog compact inside small application windows", () => {
     render(<SettingsModal />);
 
     expect(screen.getByRole("dialog")).toHaveClass(
       "flex",
-      "h-[min(640px,calc(100vh-32px))]",
+      "h-[min(540px,calc(100vh-64px))]",
       "max-h-none",
       "w-[min(780px,calc(100vw-32px))]",
       "max-w-none",
