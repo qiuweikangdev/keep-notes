@@ -29,7 +29,7 @@ import {
   type EditorState,
 } from "@tiptap/pm/state";
 import type { Node, Slice } from "@tiptap/pm/model";
-import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
 
 import {
   createEditorCodeBlockExternalHTML,
@@ -249,6 +249,103 @@ function findInlineCodeRange(
   return codeRange;
 }
 
+function getPureInlineCodeBlockRanges(state: EditorState) {
+  const codeMark = state.schema.marks.code;
+  if (!codeMark) return [];
+
+  const blocks: Array<{
+    range: { from: number; to: number } | null;
+  }> = [];
+  state.doc.descendants((node, position) => {
+    if (node.type.name !== "blockContainer") return true;
+
+    const blockContent = node.firstChild;
+    let isPureInlineCode = blockContent?.inlineContent === true;
+    let codeFrom: number | null = null;
+    let codeTo: number | null = null;
+    let codeEnded = false;
+    blockContent?.forEach((child, offset) => {
+      const isCodeText =
+        child.isText && child.marks.some((mark) => mark.type === codeMark);
+      if (isCodeText && !codeEnded) {
+        codeFrom ??= position + 2 + offset;
+        codeTo = position + 2 + offset + child.nodeSize;
+        return;
+      }
+      if (child.isText && child.text?.trim() === "") {
+        if (codeFrom !== null) codeEnded = true;
+        return;
+      }
+      isPureInlineCode = false;
+    });
+
+    blocks.push({
+      range:
+        isPureInlineCode && codeFrom !== null && codeTo !== null
+          ? { from: codeFrom, to: codeTo }
+          : null,
+    });
+    return true;
+  });
+
+  return blocks;
+}
+
+function isInlineCodeEditingActive(state: EditorState) {
+  const editingState =
+    inlineCodeEditingPluginKey.getState(state) ??
+    EMPTY_INLINE_CODE_EDITING_STATE;
+
+  return (
+    editingState.activeRange !== null ||
+    (editingState.suppressedSelectionPosition !== state.selection.from &&
+      findInlineCodeRange(state, state.selection.from) !== null)
+  );
+}
+
+function movePureInlineCodeCaret(view: EditorView, direction: -1 | 1) {
+  if (!view.state.selection.empty) return false;
+
+  const editingState =
+    inlineCodeEditingPluginKey.getState(view.state) ??
+    EMPTY_INLINE_CODE_EDITING_STATE;
+  if (editingState.suppressedSelectionPosition === view.state.selection.from) {
+    return false;
+  }
+  const activeRange =
+    editingState.activeRange ??
+    findInlineCodeRange(view.state, view.state.selection.from, true);
+  if (!activeRange) return false;
+
+  const blocks = getPureInlineCodeBlockRanges(view.state);
+  const currentIndex = blocks.findIndex(
+    ({ range }) =>
+      range?.from === activeRange.from && range.to === activeRange.to,
+  );
+  if (currentIndex < 0) return false;
+
+  const targetRange = blocks[currentIndex + direction]?.range;
+  if (!targetRange) return false;
+
+  // 纯行内代码块之间纵向移动时保留字符列，避免原生选区落到块间隙后丢失编辑光标。
+  const column = Math.min(
+    view.state.selection.from - activeRange.from,
+    targetRange.to - targetRange.from,
+  );
+  view.dispatch(
+    view.state.tr
+      .setSelection(
+        TextSelection.create(view.state.doc, targetRange.from + column),
+      )
+      .setMeta(inlineCodeEditingPluginKey, {
+        activeRange: targetRange,
+        suppressedSelectionPosition: null,
+      })
+      .scrollIntoView(),
+  );
+  return true;
+}
+
 function getInlineCodeEditingDecorations(state: EditorState) {
   const { selection } = state;
   if (!selection.empty) return DecorationSet.empty;
@@ -295,12 +392,13 @@ function getInlineCodeEditingDecorations(state: EditorState) {
 
 const inlineCodeEditingExtension = createExtension({
   key: "editor-inline-code-editing",
+  runsBefore: ["default"],
   prosemirrorPlugins: [
     new Plugin<InlineCodeEditingState>({
       key: inlineCodeEditingPluginKey,
       state: {
         init: () => EMPTY_INLINE_CODE_EDITING_STATE,
-        apply: (transaction, editingState) => {
+        apply: (transaction, editingState, oldState, newState) => {
           const nextState = transaction.getMeta(inlineCodeEditingPluginKey) as
             | InlineCodeEditingState
             | undefined;
@@ -321,8 +419,12 @@ const inlineCodeEditingExtension = createExtension({
                 }
               : EMPTY_INLINE_CODE_EDITING_STATE;
           }
-          if (!transaction.selectionSet) return mappedState;
+          const selectionChanged =
+            transaction.selectionSet ||
+            !oldState.selection.eq(newState.selection);
+          if (!selectionChanged) return mappedState;
 
+          const wasEditingInlineCode = isInlineCodeEditingActive(oldState);
           const preservedPosition =
             mappedState.activeRange?.from ??
             mappedState.suppressedSelectionPosition;
@@ -337,8 +439,59 @@ const inlineCodeEditingExtension = createExtension({
             return mappedState;
           }
 
+          if (wasEditingInlineCode && transaction.selection.empty) {
+            const nextRange = findInlineCodeRange(
+              newState,
+              transaction.selection.from,
+              true,
+            );
+            if (nextRange) {
+              // 上下键直接进入另一段行内代码时迁移编辑范围，后续左右移动到边界仍显示光标。
+              return {
+                activeRange: nextRange,
+                suppressedSelectionPosition: null,
+              };
+            }
+          }
+
           return EMPTY_INLINE_CODE_EDITING_STATE;
         },
+      },
+      view(editorView) {
+        const handleVerticalKeyDown = (event: KeyboardEvent) => {
+          const direction =
+            event.key === "ArrowUp" || event.key === "Up"
+              ? -1
+              : event.key === "ArrowDown" || event.key === "Down"
+                ? 1
+                : 0;
+          if (
+            direction === 0 ||
+            event.altKey ||
+            event.ctrlKey ||
+            event.metaKey ||
+            event.shiftKey
+          ) {
+            return;
+          }
+
+          if (!movePureInlineCodeCaret(editorView, direction)) return;
+
+          // 捕获阶段先于编辑器默认按键插件执行，防止选区被移动到两个块之间。
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        };
+
+        editorView.dom.addEventListener("keydown", handleVerticalKeyDown, true);
+        return {
+          destroy() {
+            editorView.dom.removeEventListener(
+              "keydown",
+              handleVerticalKeyDown,
+              true,
+            );
+          },
+        };
       },
       props: {
         decorations: getInlineCodeEditingDecorations,

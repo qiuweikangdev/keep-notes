@@ -936,6 +936,268 @@ describe("editor BlockNote schema", () => {
     expect(view.posAtDOM(movedCaret as Node, 0)).toBe(inlineCodePosition + 3);
   });
 
+  it("keeps the editing caret when arrow navigation enters another inline code", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "222",
+              styles: { code: true },
+            },
+            {
+              type: "text",
+              text: " ",
+              styles: {},
+            },
+          ],
+        },
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "333",
+              styles: { code: true },
+            },
+            {
+              type: "text",
+              text: " ",
+              styles: {},
+            },
+          ],
+        },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+    const view = editor.prosemirrorView;
+    const positions = new Map<string, number>();
+    view.state.doc.descendants((node, position) => {
+      if (node.isText && node.text) positions.set(node.text, position);
+      return true;
+    });
+    const firstPosition = positions.get("222");
+    const secondPosition = positions.get("333");
+    expect(firstPosition).toBeTypeOf("number");
+    expect(secondPosition).toBeTypeOf("number");
+
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, (firstPosition as number) + 1),
+      ),
+    );
+    const firstCode = container.querySelectorAll("code")[0];
+    const firstCodeClick = new MouseEvent("click", {
+      bubbles: true,
+      button: 0,
+    });
+    Object.defineProperty(firstCodeClick, "target", {
+      configurable: true,
+      value: firstCode,
+    });
+    view.someProp("handleClick", (handler) =>
+      handler(view, (firstPosition as number) + 1, firstCodeClick),
+    );
+
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, (secondPosition as number) + 1),
+      ),
+    );
+    expect(
+      view.posAtDOM(
+        container.querySelector(".editor-inline-code__editing-caret") as Node,
+        0,
+      ),
+    ).toBe((secondPosition as number) + 1);
+
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, (secondPosition as number) + 3),
+      ),
+    );
+    expect(
+      view.posAtDOM(
+        container.querySelector(".editor-inline-code__editing-caret") as Node,
+        0,
+      ),
+    ).toBe((secondPosition as number) + 3);
+
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, (firstPosition as number) + 1),
+      ),
+    );
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, firstPosition as number),
+      ),
+    );
+    expect(
+      view.posAtDOM(
+        container.querySelector(".editor-inline-code__editing-caret") as Node,
+        0,
+      ),
+    ).toBe(firstPosition);
+
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, (firstPosition as number) + 1),
+      ),
+    );
+    const downEvent = new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      key: "ArrowDown",
+    });
+    view.dom.dispatchEvent(downEvent);
+    expect(downEvent.defaultPrevented).toBe(true);
+    expect(view.state.selection.from).toBe((secondPosition as number) + 1);
+    expect(
+      view.posAtDOM(
+        container.querySelector(".editor-inline-code__editing-caret") as Node,
+        0,
+      ),
+    ).toBe((secondPosition as number) + 1);
+
+    const upEvent = new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      key: "ArrowUp",
+    });
+    view.dom.dispatchEvent(upEvent);
+    expect(upEvent.defaultPrevented).toBe(true);
+    expect(view.state.selection.from).toBe((firstPosition as number) + 1);
+    expect(
+      view.posAtDOM(
+        container.querySelector(".editor-inline-code__editing-caret") as Node,
+        0,
+      ),
+    ).toBe((firstPosition as number) + 1);
+  });
+
+  it("leaves vertical navigation native when the adjacent block is not pure inline code", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "111",
+              styles: { code: true },
+            },
+          ],
+        },
+        {
+          type: "paragraph",
+          content: "plain",
+        },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+    const view = editor.prosemirrorView;
+    let inlineCodePosition: number | undefined;
+    view.state.doc.descendants((node, position) => {
+      if (node.isText && node.text === "111") inlineCodePosition = position;
+      return true;
+    });
+    expect(inlineCodePosition).toBeTypeOf("number");
+
+    const position = (inlineCodePosition as number) + 1;
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, position),
+      ),
+    );
+    const code = container.querySelector("code");
+    const codeClick = new MouseEvent("click", {
+      bubbles: true,
+      button: 0,
+    });
+    Object.defineProperty(codeClick, "target", {
+      configurable: true,
+      value: code,
+    });
+    view.someProp("handleClick", (handler) =>
+      handler(view, position, codeClick),
+    );
+
+    const downEvent = new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      key: "ArrowDown",
+    });
+    view.dom.dispatchEvent(downEvent);
+
+    expect(downEvent.defaultPrevented).toBe(false);
+    expect(view.state.selection.from).toBe(position);
+    expect(
+      container.querySelector(".editor-inline-code__editing-caret"),
+    ).not.toBe(null);
+  });
+
+  it("moves vertically when the cursor implicitly activates inline code", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "111",
+              styles: { code: true },
+            },
+          ],
+        },
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "222",
+              styles: { code: true },
+            },
+          ],
+        },
+      ],
+    });
+    render(createElement(BlockNoteView, { editor }));
+    const view = editor.prosemirrorView;
+    const positions = new Map<string, number>();
+    view.state.doc.descendants((node, position) => {
+      if (node.isText && node.text) positions.set(node.text, position);
+      return true;
+    });
+    const firstPosition = positions.get("111");
+    const secondPosition = positions.get("222");
+    expect(firstPosition).toBeTypeOf("number");
+    expect(secondPosition).toBeTypeOf("number");
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, (secondPosition as number) + 1),
+      ),
+    );
+
+    const upEvent = new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      key: "ArrowUp",
+    });
+    view.dom.dispatchEvent(upEvent);
+
+    expect(upEvent.defaultPrevented).toBe(true);
+    expect(view.state.selection.from).toBe((firstPosition as number) + 1);
+  });
+
   it("does not expand inline code when an outside click maps to its range", () => {
     const { container, editor, inlineCodePosition, view } =
       renderInlineCodeTestEditor();

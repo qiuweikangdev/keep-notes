@@ -416,11 +416,14 @@ describe("blocknote overrides stylesheet", () => {
     expect(editingCaretRule).toMatch(/display:\s*inline-block;/);
     expect(editingCaretRule).toMatch(/width:\s*0;/);
     expect(editingCaretRule).toMatch(/pointer-events:\s*none;/);
-    expect(
-      getRule(
-        ".bn-editor.ProseMirror-focused .editor-inline-code__editing-caret::after",
-      ),
-    ).toMatch(/background-color:\s*var\(--accent-color\);/);
+    const editingCaretIndicatorRule = getRule(
+      ".bn-editor.ProseMirror-focused .editor-inline-code__editing-caret::after",
+    );
+    expect(editingCaretIndicatorRule).toMatch(
+      /background-color:\s*var\(--accent-color\);/,
+    );
+    expect(editingCaretIndicatorRule).not.toMatch(/animation:/);
+    expect(stylesheet).not.toMatch(/editor-inline-code-caret-blink/);
 
     expect(stylesheet).not.toMatch(
       /editor-inline-code__(marker|closing-boundary|outside-caret-gap|editing-caret-before|editing-caret-after)/,
