@@ -521,6 +521,15 @@ button[data-theme-control="true"][data-selected="true"]:hover {
   outline: none;
 }
 
+/* 弹窗底栏只做轻微层级区分，避免暗色主题出现与主体割裂的深色横条。 */
+.dialog-footer-surface {
+  background-color: color-mix(
+    in srgb,
+    var(--bg-secondary) 18%,
+    var(--bg-primary)
+  );
+}
+
 [data-git-dialog] .git-branch-row {
   transition: background-color 120ms ease;
 }

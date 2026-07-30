@@ -64,10 +64,10 @@ export function ConfirmDialog({
           onClick={stopPortalClick}
         />
         <Dialog.Content
+          data-dialog-surface="confirm"
           className="fixed left-1/2 top-1/2 z-50 w-[calc(100vw-32px)] max-w-[360px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl p-0 outline-none"
           style={{
-            backgroundColor:
-              "color-mix(in srgb, var(--bg-secondary) 42%, var(--bg-primary))",
+            backgroundColor: "var(--bg-primary)",
             border: "1px solid var(--border-color)",
             boxShadow: "0 2px 8px rgba(0, 0, 0, 0.16)",
             color: "var(--text-primary)",
@@ -103,11 +103,8 @@ export function ConfirmDialog({
           </Dialog.Description>
 
           <div
-            className="flex items-center justify-end gap-2 border-t border-[var(--border-color)] px-5 py-4"
-            style={{
-              backgroundColor:
-                "color-mix(in srgb, var(--bg-secondary) 68%, var(--bg-primary))",
-            }}
+            data-dialog-footer="true"
+            className="dialog-footer-surface flex items-center justify-end gap-2 border-t border-[var(--border-color)] px-5 py-4"
           >
             <Dialog.Close asChild>
               <Button

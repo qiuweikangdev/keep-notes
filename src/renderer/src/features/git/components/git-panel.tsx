@@ -252,11 +252,8 @@ function CreateBranchDialog({
           </div>
 
           <div
-            className="flex items-center justify-end gap-2 border-t border-[var(--border-color)] px-5 py-4"
-            style={{
-              backgroundColor:
-                "color-mix(in srgb, var(--bg-secondary) 68%, var(--bg-primary))",
-            }}
+            data-dialog-footer="true"
+            className="dialog-footer-surface flex items-center justify-end gap-2 border-t border-[var(--border-color)] px-5 py-4"
           >
             <Dialog.Close asChild>
               <Button type="button" variant="outline" disabled={loading}>
@@ -455,6 +452,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
 
     // 点击分支菜单以外的区域时关闭浮层，保持与编辑器原生菜单一致的交互。
     const handlePointerDown = (event: PointerEvent) => {
+      // 删除确认框通过 Portal 渲染；确认期间不能把弹窗交互误判为菜单外部点击。
+      if (branchToDelete) return;
       if (branchMenuRef.current?.contains(event.target as Node)) return;
       setShowBranchList(false);
       setRenamingBranchName("");
@@ -463,7 +462,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
 
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [showBranchList]);
+  }, [showBranchList, branchToDelete]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -2382,9 +2381,9 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         {/* 底部按钮 */}
         {activeTab === "changes" && (
           <div
-            className="flex shrink-0 items-center justify-between px-5 py-3"
+            data-dialog-footer="true"
+            className="dialog-footer-surface flex shrink-0 items-center justify-between px-5 py-3"
             style={{
-              backgroundColor: "var(--bg-secondary)",
               borderTop: "1px solid var(--border-color)",
             }}
           >

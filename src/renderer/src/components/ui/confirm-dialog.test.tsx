@@ -42,6 +42,16 @@ describe("ConfirmDialog", () => {
       "data-variant",
       "destructive",
     );
+    expect(
+      screen
+        .getByRole("button", { name: "删除" })
+        .closest('[data-dialog-footer="true"]'),
+    ).toHaveClass("dialog-footer-surface");
+    expect(
+      screen
+        .getByRole("heading", { name: "确认删除" })
+        .closest('[data-dialog-surface="confirm"]'),
+    ).toHaveStyle({ backgroundColor: "var(--bg-primary)" });
   });
 
   it("uses a warning icon for irreversible discard confirmations", () => {

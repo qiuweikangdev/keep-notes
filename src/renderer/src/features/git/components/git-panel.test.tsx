@@ -580,6 +580,26 @@ describe("GitPanel", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("uses the same subtle surface for the Git panel and create branch footers", async () => {
+    render(<GitPanel isOpen onClose={vi.fn()} />);
+
+    await screen.findByText("changed.md");
+    expect(
+      screen
+        .getByRole("button", { name: "提交" })
+        .closest('[data-dialog-footer="true"]'),
+    ).toHaveClass("dialog-footer-surface");
+
+    fireEvent.click(screen.getByTitle("管理分支"));
+    fireEvent.click(screen.getByLabelText("创建新分支"));
+
+    expect(
+      (await screen.findByRole("button", { name: "创建并检出" })).closest(
+        '[data-dialog-footer="true"]',
+      ),
+    ).toHaveClass("dialog-footer-surface");
+  });
+
   it("renames a branch inline without submitting during IME composition", async () => {
     electronMocks.getBranches
       .mockResolvedValueOnce({
@@ -678,6 +698,15 @@ describe("GitPanel", () => {
     expect(
       screen.getByText("确定删除本地分支 “feature/obsolete” 吗？"),
     ).toBeInTheDocument();
+
+    const cancelDeleteButton = screen.getByRole("button", { name: "取消" });
+    fireEvent.pointerDown(cancelDeleteButton);
+    expect(
+      screen.getByRole("button", {
+        name: "删除分支 feature/obsolete",
+      }),
+    ).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole("button", { name: "删除" }));
 
     await waitFor(() => {
