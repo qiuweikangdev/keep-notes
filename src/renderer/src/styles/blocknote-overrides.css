@@ -710,6 +710,7 @@ html.rich-editor-selection-drag-locked * {
     "SF Mono", "Fira Code", Consolas, "Courier New", monospace !important;
   font-weight: 500 !important;
   position: relative;
+  cursor: text;
 }
 
 :is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content,
@@ -726,96 +727,79 @@ html.rich-editor-selection-drag-locked * {
   code:not(.editor-code-block__content):has(
     .editor-inline-code__editing-content
   ) {
-  caret-color: var(--accent-color) !important;
+  margin-inline: 0.5em;
   color: var(--text-primary) !important;
-}
-
-.bn-editor.ProseMirror-focused
-  code:not(.editor-code-block__content):has(
-    .editor-inline-code__editing-content
-  )
-  .editor-inline-code__editing-content,
-.bn-editor.ProseMirror-focused
-  code:not(.editor-code-block__content):has(
-    .editor-inline-code__editing-content
-  )
-  .editor-inline-code__latin-content {
-  color: var(--text-primary) !important;
+  caret-color: transparent !important;
 }
 
 .bn-editor.ProseMirror-focused
   code:not(.editor-code-block__content):has(
     .editor-inline-code__editing-content
   )::before,
-.bn-editor.ProseMirror-focused .editor-inline-code__closing-boundary {
-  color: var(--accent-color);
-  font-weight: 700;
-  opacity: 1;
+.bn-editor.ProseMirror-focused
+  code:not(.editor-code-block__content):has(
+    .editor-inline-code__editing-content
+  )::after {
+  position: absolute;
+  top: 50%;
+  color: var(--text-primary);
+  font-family: "SF Mono", "Fira Code", Consolas, "Courier New", monospace;
+  font-size: 1em;
+  line-height: inherit;
+  content: "`";
+  pointer-events: none;
+  transform: translateY(-50%);
+  white-space: pre;
 }
 
 .bn-editor.ProseMirror-focused
   code:not(.editor-code-block__content):has(
     .editor-inline-code__editing-content
   )::before {
-  position: absolute;
-  inset-block-start: 50%;
-  inset-inline-start: 0;
-  font-size: 0.75em;
-  line-height: 1;
-  content: "`";
-  pointer-events: none;
-  transform: translateY(-50%) scaleX(0.6);
-  transform-origin: left center;
-}
-
-.bn-editor.ProseMirror-focused .editor-inline-code__closing-boundary {
-  display: inline-block;
-  width: 4px;
-  height: 1em;
-  margin-inline-start: -4px;
-  overflow: visible;
-  font-size: 0.75em;
-  font-family: "SF Mono", "Fira Code", Consolas, "Courier New", monospace;
-  line-height: 1;
-  text-align: center;
-  vertical-align: -0.06em;
-  cursor: text;
-  transform: scaleX(0.6);
-  transform-origin: right center;
-}
-
-.bn-editor.ProseMirror-focused:has(.editor-inline-code__outside-caret-gap) {
-  caret-color: transparent !important;
-}
-
-.bn-editor.ProseMirror-focused .editor-inline-code__editing-caret-before {
-  margin-inline-start: -2px;
-  border-inline-start: 2px solid var(--accent-color);
+  right: calc(100% + 1px);
 }
 
 .bn-editor.ProseMirror-focused
-  .editor-inline-code__editing-caret-after {
-  margin-inline-end: -2px;
-  border-inline-end: 2px solid var(--accent-color);
+  code:not(.editor-code-block__content):has(
+    .editor-inline-code__editing-content
+  )::after {
+  left: calc(100% + 1px);
 }
 
-.bn-editor.ProseMirror-focused .editor-inline-code__outside-caret-gap {
+.bn-editor.ProseMirror-focused
+  code:not(.editor-code-block__content)
+  .editor-inline-code__editing-content {
+  color: var(--text-primary) !important;
+  caret-color: transparent !important;
+}
+
+.bn-editor.ProseMirror-focused
+  code:not(.editor-code-block__content):has(
+    .editor-inline-code__editing-content
+  )
+  .editor-inline-code__latin-content {
+  color: var(--text-primary) !important;
+  caret-color: transparent !important;
+}
+
+.bn-editor.ProseMirror-focused .editor-inline-code__editing-caret {
   position: relative;
   display: inline-block;
-  width: 3px;
+  width: 0;
   height: 1em;
-  vertical-align: -0.12em;
+  vertical-align: -0.14em;
   pointer-events: none;
   user-select: none;
 }
 
-.bn-editor.ProseMirror-focused .editor-inline-code__outside-caret-gap::after {
+.bn-editor.ProseMirror-focused .editor-inline-code__editing-caret::after {
   position: absolute;
-  inset-block-start: -0.08em;
-  inset-inline-end: 0;
-  width: 1px;
-  height: 1.16em;
-  background: var(--accent-color);
+  top: -0.12em;
+  left: -1px;
+  width: 2px;
+  height: 1.24em;
+  border-radius: 1px;
+  background-color: var(--accent-color);
   content: "";
   animation: editor-inline-code-caret-blink 1.06s steps(1, end) infinite;
 }
@@ -833,7 +817,7 @@ html.rich-editor-selection-drag-locked * {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bn-editor.ProseMirror-focused .editor-inline-code__outside-caret-gap::after {
+  .bn-editor.ProseMirror-focused .editor-inline-code__editing-caret::after {
     animation: none;
   }
 }

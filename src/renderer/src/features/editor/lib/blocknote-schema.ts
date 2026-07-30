@@ -29,7 +29,7 @@ import {
   type EditorState,
 } from "@tiptap/pm/state";
 import type { Node, Slice } from "@tiptap/pm/model";
-import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
 
 import {
   createEditorCodeBlockExternalHTML,
@@ -94,23 +94,18 @@ const editorInlineCodeStyleSpec = createStyleSpecFromTipTapMark(
 const INLINE_CODE_NORMALIZER_META = "editor-inline-code-normalizer";
 const inlineCodeMarkerPattern = /`([^`\n]+)`/g;
 const INLINE_CODE_EDITING_CONTENT_CLASS = "editor-inline-code__editing-content";
-const INLINE_CODE_EDITING_CARET_BEFORE_CLASS =
-  "editor-inline-code__editing-caret-before";
-const INLINE_CODE_EDITING_CARET_AFTER_CLASS =
-  "editor-inline-code__editing-caret-after";
-const INLINE_CODE_CLOSING_BOUNDARY_CLASS =
-  "editor-inline-code__closing-boundary";
-const INLINE_CODE_OUTSIDE_CARET_GAP_CLASS =
-  "editor-inline-code__outside-caret-gap";
+const INLINE_CODE_EDITING_CARET_CLASS = "editor-inline-code__editing-caret";
 const INLINE_CODE_LATIN_CONTENT_CLASS = "editor-inline-code__latin-content";
 const inlineCodeLatinContentPattern = /[\u0020-\u007e]+/g;
 
 type InlineCodeEditingState = {
-  closingBoundaryPosition: number | null;
+  activeRange: { from: number; to: number } | null;
+  suppressedSelectionPosition: number | null;
 };
 
 const EMPTY_INLINE_CODE_EDITING_STATE: InlineCodeEditingState = {
-  closingBoundaryPosition: null,
+  activeRange: null,
+  suppressedSelectionPosition: null,
 };
 const inlineCodeEditingPluginKey = new PluginKey<InlineCodeEditingState>(
   "editor-inline-code-editing",
@@ -191,133 +186,6 @@ const inlineCodeNormalizerExtension = createExtension({
   ],
 });
 
-function getInlineCodeEditingDecorations(state: EditorState) {
-  const { selection } = state;
-  if (selection.$from.parent !== selection.$to.parent) {
-    return DecorationSet.empty;
-  }
-  if (selection.$from.parent.type.spec.code) {
-    return DecorationSet.empty;
-  }
-
-  const codeMark = state.schema.marks.code;
-  if (!codeMark) return DecorationSet.empty;
-
-  const parentStart = selection.$from.start();
-  let codeRange: { from: number; to: number } | null = null;
-
-  selection.$from.parent.forEach((node, offset) => {
-    if (codeRange || !node.isText) return;
-    if (!node.marks.some((mark) => mark.type === codeMark)) return;
-
-    const from = parentStart + offset;
-    const to = from + node.nodeSize;
-    if (selection.from < from || selection.to > to) return;
-
-    codeRange = { from, to };
-  });
-
-  if (!codeRange) return DecorationSet.empty;
-
-  const editingState =
-    inlineCodeEditingPluginKey.getState(state) ??
-    EMPTY_INLINE_CODE_EDITING_STATE;
-  const isClosingBoundarySelected =
-    editingState.closingBoundaryPosition === codeRange.to;
-  if (isClosingBoundarySelected) {
-    return DecorationSet.create(state.doc, [
-      Decoration.widget(
-        codeRange.to,
-        () => {
-          const gap = document.createElement("span");
-          gap.className = INLINE_CODE_OUTSIDE_CARET_GAP_CLASS;
-          gap.contentEditable = "false";
-          gap.setAttribute("aria-hidden", "true");
-          return gap;
-        },
-        {
-          key: `inline-code-outside-caret-gap-${codeRange.to}`,
-          marks: [],
-          // 锚点位于同一文档位置的光标之前，为代码外侧光标提供独立 DOM 绘制区域。
-          side: -1,
-        },
-      ),
-    ]);
-  }
-
-  const decorations = [
-    Decoration.inline(codeRange.from, codeRange.to, {
-      class: INLINE_CODE_EDITING_CONTENT_CLASS,
-    }),
-    Decoration.widget(
-      codeRange.to,
-      (view, getPos) => {
-        const boundary = document.createElement("span");
-        boundary.className = INLINE_CODE_CLOSING_BOUNDARY_CLASS;
-        boundary.textContent = "`";
-        boundary.contentEditable = "false";
-        boundary.setAttribute("aria-hidden", "true");
-
-        boundary.addEventListener("mousedown", (event) => {
-          event.preventDefault();
-          const position = getPos();
-          if (position === undefined) return;
-
-          // 右侧反引号拥有独立的虚拟光标位置，用于区分内容末端与符号末端。
-          view.dispatch(
-            view.state.tr
-              .setSelection(TextSelection.create(view.state.doc, position))
-              .setMeta(inlineCodeEditingPluginKey, {
-                closingBoundaryPosition: position,
-              } satisfies InlineCodeEditingState),
-          );
-          view.focus();
-        });
-
-        return boundary;
-      },
-      {
-        key: `inline-code-closing-boundary-${codeRange.to}`,
-        marks: [],
-        relaxedSide: true,
-        side: 1,
-        stopEvent: (event) => event.type === "mousedown",
-      },
-    ),
-  ];
-
-  if (selection.empty) {
-    const isAtCodeEnd = selection.from === codeRange.to;
-    const adjacentText = isAtCodeEnd
-      ? state.doc.textBetween(codeRange.from, selection.from)
-      : state.doc.textBetween(selection.from, codeRange.to);
-    const adjacentCharacter = isAtCodeEnd
-      ? Array.from(adjacentText).at(-1)
-      : Array.from(adjacentText)[0];
-
-    if (adjacentCharacter) {
-      // 空 widget 在 Chromium 的 code mark 内会被折叠；锚定真实字符绘制光标可覆盖行首、行中和行尾。
-      decorations.push(
-        Decoration.inline(
-          isAtCodeEnd
-            ? selection.from - adjacentCharacter.length
-            : selection.from,
-          isAtCodeEnd
-            ? selection.from
-            : selection.from + adjacentCharacter.length,
-          {
-            class: isAtCodeEnd
-              ? INLINE_CODE_EDITING_CARET_AFTER_CLASS
-              : INLINE_CODE_EDITING_CARET_BEFORE_CLASS,
-          },
-        ),
-      );
-    }
-  }
-
-  return DecorationSet.create(state.doc, decorations);
-}
-
 function getInlineCodeLatinContentDecorations(state: EditorState) {
   const codeMark = state.schema.marks.code;
   if (!codeMark) return DecorationSet.empty;
@@ -353,37 +221,193 @@ function getInlineCodeLatinContentDecorations(state: EditorState) {
     : DecorationSet.create(state.doc, decorations);
 }
 
-function insertTextAfterInlineCodeBoundary(
-  view: EditorView,
-  from: number,
-  to: number,
-  text: string,
+function findInlineCodeRange(
+  state: EditorState,
+  position: number,
+  includeBoundaries = false,
 ) {
-  const editingState = inlineCodeEditingPluginKey.getState(view.state);
-  if (editingState?.closingBoundaryPosition !== from || from !== to) {
-    return false;
+  const $position = state.doc.resolve(position);
+  if ($position.parent.type.spec.code) return null;
+
+  const codeMark = state.schema.marks.code;
+  if (!codeMark) return null;
+
+  const parentStart = $position.start();
+  let codeRange: { from: number; to: number } | null = null;
+  $position.parent.forEach((node, offset) => {
+    if (codeRange || !node.isText) return;
+    if (!node.marks.some((mark) => mark.type === codeMark)) return;
+
+    const from = parentStart + offset;
+    const to = from + node.nodeSize;
+    const containsPosition = includeBoundaries
+      ? position >= from && position <= to
+      : position > from && position < to;
+    if (containsPosition) codeRange = { from, to };
+  });
+
+  return codeRange;
+}
+
+function getInlineCodeEditingDecorations(state: EditorState) {
+  const { selection } = state;
+  if (!selection.empty) return DecorationSet.empty;
+
+  const editingState =
+    inlineCodeEditingPluginKey.getState(state) ??
+    EMPTY_INLINE_CODE_EDITING_STATE;
+  if (editingState.suppressedSelectionPosition === selection.from) {
+    return DecorationSet.empty;
   }
 
-  const codeMark = view.state.schema.marks.code;
-  if (!codeMark || !text) return false;
+  const activeRange = editingState.activeRange;
+  const range =
+    activeRange &&
+    selection.from >= activeRange.from &&
+    selection.from <= activeRange.to
+      ? findInlineCodeRange(state, selection.from, true)
+      : findInlineCodeRange(state, selection.from);
+  if (!range) return DecorationSet.empty;
 
-  const insertionEnd = from + text.length;
-  // 闭合反引号右侧的首次输入必须移除 code mark，后续输入才能自然保持为普通文本。
-  const tr = view.state.tr.insertText(text, from, to);
-  tr.removeMark(from, insertionEnd, codeMark)
-    .removeStoredMark(codeMark)
-    .setSelection(TextSelection.create(tr.doc, insertionEnd))
-    .setMeta(inlineCodeEditingPluginKey, EMPTY_INLINE_CODE_EDITING_STATE)
-    .scrollIntoView();
-  view.dispatch(tr);
+  const decorations = [
+    Decoration.inline(range.from, range.to, {
+      class: INLINE_CODE_EDITING_CONTENT_CLASS,
+    }),
+    Decoration.widget(
+      selection.from,
+      () => {
+        const caret = document.createElement("span");
+        caret.className = INLINE_CODE_EDITING_CARET_CLASS;
+        caret.contentEditable = "false";
+        caret.setAttribute("aria-hidden", "true");
+        return caret;
+      },
+      {
+        key: `inline-code-editing-caret-${selection.from}`,
+        // 行首从右侧继承 code mark，其他位置从左侧继承，确保光标始终留在胶囊内。
+        side: selection.from === range.from ? 1 : -1,
+      },
+    ),
+  ];
 
-  return true;
+  return DecorationSet.create(state.doc, decorations);
 }
 
 const inlineCodeEditingExtension = createExtension({
   key: "editor-inline-code-editing",
-  // 必须先于 BlockNote 默认输入链处理边界输入，避免 Chromium 先把文本写回 code DOM。
-  runsBefore: ["default"],
+  prosemirrorPlugins: [
+    new Plugin<InlineCodeEditingState>({
+      key: inlineCodeEditingPluginKey,
+      state: {
+        init: () => EMPTY_INLINE_CODE_EDITING_STATE,
+        apply: (transaction, editingState) => {
+          const nextState = transaction.getMeta(inlineCodeEditingPluginKey) as
+            | InlineCodeEditingState
+            | undefined;
+          if (nextState) return nextState;
+
+          let mappedState = editingState;
+          if (transaction.docChanged) {
+            mappedState = editingState.activeRange
+              ? {
+                  activeRange: {
+                    from: transaction.mapping.map(
+                      editingState.activeRange.from,
+                      -1,
+                    ),
+                    to: transaction.mapping.map(editingState.activeRange.to, 1),
+                  },
+                  suppressedSelectionPosition: null,
+                }
+              : EMPTY_INLINE_CODE_EDITING_STATE;
+          }
+          if (!transaction.selectionSet) return mappedState;
+
+          const preservedPosition =
+            mappedState.activeRange?.from ??
+            mappedState.suppressedSelectionPosition;
+          if (
+            preservedPosition !== null &&
+            transaction.selection.empty &&
+            (mappedState.activeRange
+              ? transaction.selection.from >= mappedState.activeRange.from &&
+                transaction.selection.from <= mappedState.activeRange.to
+              : transaction.selection.from === preservedPosition)
+          ) {
+            return mappedState;
+          }
+
+          return EMPTY_INLINE_CODE_EDITING_STATE;
+        },
+      },
+      props: {
+        decorations: getInlineCodeEditingDecorations,
+        handleClick(view, position, event) {
+          if (event.button !== 0) return false;
+
+          const eventTarget =
+            event.target instanceof Element
+              ? event.target
+              : ((event.target as { parentElement?: Element | null } | null)
+                  ?.parentElement ?? null);
+          let inlineCode = eventTarget?.closest(
+            "code:not(.editor-code-block__content)",
+          );
+          if (inlineCode) {
+            const contentBounds = inlineCode.getBoundingClientRect();
+            const hasMeasurableBounds =
+              contentBounds.width > 0 && contentBounds.height > 0;
+            const clickedInsideContent =
+              event.clientX >= contentBounds.left &&
+              event.clientX <= contentBounds.right &&
+              event.clientY >= contentBounds.top &&
+              event.clientY <= contentBounds.bottom;
+
+            // 反引号位于 code 盒子外，只有点击胶囊本体才进入编辑态并保留原生光标。
+            if (hasMeasurableBounds && !clickedInsideContent) {
+              inlineCode = null;
+            }
+          }
+          const activeRange = inlineCode
+            ? findInlineCodeRange(view.state, position, true)
+            : null;
+
+          // 只记录真实点击目标，不改写浏览器已经确定的原生选区。
+          view.dispatch(
+            view.state.tr.setMeta(
+              inlineCodeEditingPluginKey,
+              activeRange
+                ? {
+                    activeRange,
+                    suppressedSelectionPosition: null,
+                  }
+                : {
+                    activeRange: null,
+                    suppressedSelectionPosition: position,
+                  },
+            ),
+          );
+
+          return false;
+        },
+        handleDOMEvents: {
+          blur(view) {
+            view.dispatch(
+              view.state.tr.setMeta(
+                inlineCodeEditingPluginKey,
+                EMPTY_INLINE_CODE_EDITING_STATE,
+              ),
+            );
+            return false;
+          },
+        },
+      },
+    }),
+  ],
+});
+
+const inlineCodeLatinContentExtension = createExtension({
+  key: "editor-inline-code-latin-content",
   prosemirrorPlugins: [
     new Plugin<DecorationSet>({
       key: inlineCodeLatinContentPluginKey,
@@ -400,122 +424,6 @@ const inlineCodeEditingExtension = createExtension({
           DecorationSet.empty,
       },
     }),
-    new Plugin({
-      key: inlineCodeEditingPluginKey,
-      state: {
-        init: () => EMPTY_INLINE_CODE_EDITING_STATE,
-        apply: (transaction, editingState) => {
-          const nextState = transaction.getMeta(inlineCodeEditingPluginKey) as
-            | InlineCodeEditingState
-            | undefined;
-          if (nextState) return nextState;
-
-          if (transaction.docChanged) {
-            return EMPTY_INLINE_CODE_EDITING_STATE;
-          }
-          if (transaction.selectionSet) {
-            const closingBoundaryPosition =
-              editingState.closingBoundaryPosition;
-            if (
-              closingBoundaryPosition !== null &&
-              transaction.selection.empty &&
-              transaction.selection.from === closingBoundaryPosition
-            ) {
-              // Chromium 会重复同步同一原生选区，位置未变化时必须保留反引号外侧状态。
-              return editingState;
-            }
-
-            return EMPTY_INLINE_CODE_EDITING_STATE;
-          }
-
-          return editingState;
-        },
-      },
-      props: {
-        decorations: getInlineCodeEditingDecorations,
-        handleDOMEvents: {
-          beforeinput(view, event) {
-            const inputEvent = event as InputEvent;
-            if (
-              inputEvent.inputType !== "insertText" ||
-              inputEvent.isComposing ||
-              !inputEvent.data
-            ) {
-              return false;
-            }
-
-            const { from, to } = view.state.selection;
-            const handled = insertTextAfterInlineCodeBoundary(
-              view,
-              from,
-              to,
-              inputEvent.data,
-            );
-            if (handled) {
-              // 必须在 Chromium 改写 <code> DOM 前阻止原生输入，否则新增文本会重新继承 code mark。
-              inputEvent.preventDefault();
-            }
-
-            return handled;
-          },
-        },
-        handleClick(view, position, event) {
-          if (event.button !== 0) return false;
-
-          const codeMark = view.state.schema.marks.code;
-          const $position = view.state.doc.resolve(position);
-          const nodeBefore = $position.nodeBefore;
-          const nodeAfter = $position.nodeAfter;
-          const isAtInlineCodeEnd =
-            nodeBefore?.isText &&
-            nodeBefore.marks.some((mark) => mark.type === codeMark) &&
-            (!nodeAfter?.isText ||
-              !nodeAfter.marks.some((mark) => mark.type === codeMark));
-          if (!isAtInlineCodeEnd) return false;
-
-          const closingBoundary = view.dom.querySelector<HTMLElement>(
-            `.${INLINE_CODE_CLOSING_BOUNDARY_CLASS}`,
-          );
-          if (!closingBoundary) return false;
-
-          const isOutsideBoundary =
-            event.clientX >= closingBoundary.getBoundingClientRect().left;
-          // 反引号前后共享同一个文档位置，按点击坐标显式记录视觉侧别。
-          view.dispatch(
-            view.state.tr
-              .setSelection(TextSelection.create(view.state.doc, position))
-              .setMeta(
-                inlineCodeEditingPluginKey,
-                isOutsideBoundary
-                  ? ({
-                      closingBoundaryPosition: position,
-                    } satisfies InlineCodeEditingState)
-                  : EMPTY_INLINE_CODE_EDITING_STATE,
-              ),
-          );
-          view.focus();
-
-          return true;
-        },
-        handleKeyDown(view, event) {
-          if (
-            event.key.length !== 1 ||
-            event.ctrlKey ||
-            event.metaKey ||
-            event.altKey
-          ) {
-            return false;
-          }
-
-          const { from, to } = view.state.selection;
-          // 部分 Chromium/输入法路径不会触发可拦截的 beforeinput，需在可打印按键阶段提前退出 code mark。
-          return insertTextAfterInlineCodeBoundary(view, from, to, event.key);
-        },
-        handleTextInput(view, from, to, text) {
-          return insertTextAfterInlineCodeBoundary(view, from, to, text);
-        },
-      },
-    }),
   ],
 });
 
@@ -523,109 +431,30 @@ const inlineCodeBackspaceExtension = createExtension({
   key: "editor-inline-code-backspace",
   runsBefore: ["default"],
   keyboardShortcuts: {
-    ArrowLeft: ({ editor }) => {
-      const { selection } = editor.prosemirrorState;
-      const editingState = inlineCodeEditingPluginKey.getState(
-        editor.prosemirrorState,
-      );
-      if (editingState?.closingBoundaryPosition !== selection.from) {
-        return false;
-      }
-
-      editor.prosemirrorView.dispatch(
-        editor.prosemirrorState.tr.setMeta(
-          inlineCodeEditingPluginKey,
-          EMPTY_INLINE_CODE_EDITING_STATE,
-        ),
-      );
-      return true;
-    },
-    ArrowRight: ({ editor }) => {
-      const { selection } = editor.prosemirrorState;
-      if (!selection.empty) return false;
-
-      const editingState = inlineCodeEditingPluginKey.getState(
-        editor.prosemirrorState,
-      );
-      if (editingState?.closingBoundaryPosition === selection.from) {
-        return false;
-      }
-
-      const codeMark = editor.prosemirrorState.schema.marks.code;
-      const nodeBefore = selection.$from.nodeBefore;
-      const nodeAfter = selection.$from.nodeAfter;
-      const isAtInlineCodeEnd =
-        nodeBefore?.isText &&
-        nodeBefore.marks.some((mark) => mark.type === codeMark) &&
-        (!nodeAfter?.isText ||
-          !nodeAfter.marks.some((mark) => mark.type === codeMark));
-      if (!isAtInlineCodeEnd) return false;
-
-      editor.prosemirrorView.dispatch(
-        editor.prosemirrorState.tr.setMeta(inlineCodeEditingPluginKey, {
-          closingBoundaryPosition: selection.from,
-        } satisfies InlineCodeEditingState),
-      );
-      return true;
-    },
-    Backspace: ({ editor }) => {
-      const editingState = inlineCodeEditingPluginKey.getState(
-        editor.prosemirrorState,
-      );
-
-      return editor.transact((tr) => {
+    Backspace: ({ editor }) =>
+      editor.transact((tr) => {
         const { selection } = tr;
         const codeMark = tr.doc.type.schema.marks.code;
         const nodeBefore = selection.$from.nodeBefore;
-
-        if (!selection.empty) return false;
-        if (!nodeBefore?.isText || !nodeBefore.text) return false;
+        if (
+          !selection.empty ||
+          !nodeBefore?.isText ||
+          !nodeBefore.text ||
+          !nodeBefore.marks.some((mark) => mark.type === codeMark)
+        ) {
+          return false;
+        }
 
         const previousCharacter = Array.from(nodeBefore.text).at(-1);
         if (!previousCharacter) return false;
 
-        if (!nodeBefore.marks.some((mark) => mark.type === codeMark)) {
-          if (!/^`[^`\n]*$/.test(nodeBefore.text)) return false;
-
-          // 行内代码草稿态继续按普通文本逐字删除。
-          tr.delete(
-            selection.from - previousCharacter.length,
-            selection.from,
-          ).scrollIntoView();
-
-          return true;
-        }
-
-        const isClosingBoundarySelected =
-          editingState?.closingBoundaryPosition === selection.from;
-
-        if (!isClosingBoundarySelected) {
-          // 包括内容末端在内，光标仍位于代码内容中时只删除字符。
-          tr.delete(
-            selection.from - previousCharacter.length,
-            selection.from,
-          ).scrollIntoView();
-
-          return true;
-        }
-
-        const nodeFrom = selection.from - nodeBefore.nodeSize;
-        const markdownText = `\`${nodeBefore.text}`;
-
-        // 光标位于整段末端时先删除闭合反引号，行为与 Typora 一致。
-        tr.replaceWith(
-          nodeFrom,
+        // 使用原生文档位置删除代码内容，不把反引号序列化回编辑器。
+        tr.delete(
+          selection.from - previousCharacter.length,
           selection.from,
-          tr.doc.type.schema.text(markdownText),
-        )
-          .setSelection(
-            TextSelection.create(tr.doc, nodeFrom + markdownText.length),
-          )
-          .scrollIntoView();
-
+        ).scrollIntoView();
         return true;
-      });
-    },
+      }),
   },
 });
 
@@ -1159,6 +988,7 @@ const editorParagraphSpec = {
     fullDocumentClearExtension(),
     inlineCodeBackspaceExtension(),
     inlineCodeEditingExtension(),
+    inlineCodeLatinContentExtension(),
     inlineCodeNormalizerExtension(),
   ],
 };

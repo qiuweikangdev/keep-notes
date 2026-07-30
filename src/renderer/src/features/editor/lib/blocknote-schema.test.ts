@@ -86,6 +86,44 @@ function setupMatchMedia() {
   });
 }
 
+function renderInlineCodeTestEditor() {
+  setupMatchMedia();
+  const editor = BlockNoteEditor.create({
+    schema: editorSchema,
+    initialContent: [
+      {
+        type: "paragraph",
+        content: [
+          {
+            type: "text",
+            text: "test",
+            styles: {
+              code: true,
+            },
+          },
+        ],
+      },
+    ],
+  });
+  const { container } = render(createElement(BlockNoteView, { editor }));
+  let inlineCodePosition: number | undefined;
+  editor.prosemirrorState.doc.descendants((node, position) => {
+    if (!node.isText || node.text !== "test") return true;
+    inlineCodePosition = position;
+    return false;
+  });
+  if (inlineCodePosition === undefined) {
+    throw new Error("Expected inline code position");
+  }
+
+  return {
+    container,
+    editor,
+    inlineCodePosition,
+    view: editor.prosemirrorView,
+  };
+}
+
 function mockCursorCoordinatesAfterDetachedMeasure() {
   let measurementCount = 0;
 
@@ -859,335 +897,163 @@ describe("editor BlockNote schema", () => {
     ]);
   });
 
-  it("restores the inline code appearance after selecting its closing boundary", async () => {
-    setupMatchMedia();
-    const user = userEvent.setup();
-    const editor = BlockNoteEditor.create({
-      schema: editorSchema,
-      initialContent: [
-        {
-          type: "paragraph",
-          content: [
-            {
-              type: "text",
-              text: "test",
-              styles: {
-                code: true,
-              },
-            },
-          ],
-        },
-      ],
-    });
-    const { container } = render(createElement(BlockNoteView, { editor }));
-
-    editor.setTextCursorPosition(editor.document[0].id, "end");
-    editor.focus();
-
-    const closingBoundary = await waitFor(() => {
-      const element = container.querySelector<HTMLElement>(
-        ".editor-inline-code__closing-boundary",
-      );
-      expect(element).not.toBe(null);
-      expect(
-        container.querySelector(".editor-inline-code__editing-caret-after"),
-      ).not.toBe(null);
-      return element as HTMLElement;
-    });
-    fireEvent.mouseDown(closingBoundary);
-
-    await waitFor(() => {
-      expect(
-        container.querySelector(".editor-inline-code__editing-content"),
-      ).toBe(null);
-      expect(
-        container.querySelector(".editor-inline-code__closing-boundary"),
-      ).toBe(null);
-      expect(
-        container.querySelector(".editor-inline-code__outside-caret-gap"),
-      ).not.toBe(null);
-      expect(
-        container.querySelector(
-          ".editor-inline-code__editing-caret-before, .editor-inline-code__editing-caret-after",
-        ),
-      ).toBe(null);
-    });
-
-    await user.keyboard("{Backspace}");
-
-    expect(editor.document[0].content).toEqual([
-      {
-        type: "text",
-        text: "`test",
-        styles: {},
-      },
-    ]);
-
-    await user.keyboard("{Backspace}");
-
-    expect(editor.document[0].content).toEqual([
-      {
-        type: "text",
-        text: "`tes",
-        styles: {},
-      },
-    ]);
-  });
-
-  it("moves between the content end and closing boundary with arrow keys", () => {
-    setupMatchMedia();
-    const editor = BlockNoteEditor.create({
-      schema: editorSchema,
-      initialContent: [
-        {
-          type: "paragraph",
-          content: [
-            {
-              type: "text",
-              text: "test",
-              styles: {
-                code: true,
-              },
-            },
-          ],
-        },
-      ],
-    });
-    const { container } = render(createElement(BlockNoteView, { editor }));
-
-    editor.setTextCursorPosition(editor.document[0].id, "end");
-    editor.focus();
-    pressKey(editor, "ArrowRight");
-
-    expect(
-      container.querySelector(".editor-inline-code__editing-content"),
-    ).toBe(null);
-    expect(
-      container.querySelector(".editor-inline-code__closing-boundary"),
-    ).toBe(null);
-    const outsideCaretGap = container.querySelector(
-      ".editor-inline-code__outside-caret-gap",
-    );
-    expect(outsideCaretGap).not.toBe(null);
-    expect(outsideCaretGap?.closest("code")).toBe(null);
-
-    pressKey(editor, "ArrowLeft");
-
-    expect(
-      container.querySelector(".editor-inline-code__editing-content"),
-    ).not.toBe(null);
-    expect(
-      container.querySelector(".editor-inline-code__closing-boundary"),
-    ).not.toBe(null);
-    expect(
-      container.querySelector(".editor-inline-code__outside-caret-gap"),
-    ).toBe(null);
-    expect(
-      container.querySelector(".editor-inline-code__editing-caret-after"),
-    ).not.toBe(null);
-    pressKey(editor, "ArrowRight");
-    pressKey(editor, "Backspace");
-
-    expect(editor.document[0].content).toEqual([
-      {
-        type: "text",
-        text: "`test",
-        styles: {},
-      },
-    ]);
-  });
-
-  it("inserts text outside inline code when clicking after its closing boundary", async () => {
-    setupMatchMedia();
-    const user = userEvent.setup();
-    const editor = BlockNoteEditor.create({
-      schema: editorSchema,
-      initialContent: [
-        {
-          type: "paragraph",
-          content: [
-            {
-              type: "text",
-              text: "这是引用",
-              styles: {
-                code: true,
-              },
-            },
-          ],
-        },
-      ],
-    });
-    const { container } = render(createElement(BlockNoteView, { editor }));
-
-    editor.setTextCursorPosition(editor.document[0].id, "end");
-    editor.focus();
-
-    const closingBoundary = await waitFor(() => {
-      const element = container.querySelector<HTMLElement>(
-        ".editor-inline-code__closing-boundary",
-      );
-      expect(element).not.toBe(null);
-      return element as HTMLElement;
-    });
-    vi.spyOn(closingBoundary, "getBoundingClientRect").mockReturnValue({
-      bottom: 24,
-      height: 20,
-      left: 100,
-      right: 110,
-      top: 4,
-      width: 10,
-      x: 100,
-      y: 4,
-      toJSON: () => ({}),
-    });
-    const view = editor.prosemirrorView;
-    const clickEvent = new MouseEvent("click", {
-      bubbles: true,
-      button: 0,
-      clientX: 120,
-      clientY: 12,
-    });
-    view.someProp("handleClick", (handler) =>
-      handler(view, view.state.selection.from, clickEvent),
-    );
-    // 浏览器会在 click 处理后再次同步同一位置的原生选区，边界侧别不能因此丢失。
+  it("expands Vditor-style markers only while the native cursor is in code", () => {
+    const { container, editor, inlineCodePosition, view } =
+      renderInlineCodeTestEditor();
     view.dispatch(
       view.state.tr.setSelection(
-        TextSelection.create(view.state.doc, view.state.selection.from),
+        TextSelection.create(view.state.doc, inlineCodePosition + 2),
       ),
     );
-    await user.keyboard("222");
-
-    expect(editor.document[0].content).toEqual([
-      {
-        type: "text",
-        text: "这是引用",
-        styles: {
-          code: true,
-        },
-      },
-      {
-        type: "text",
-        text: "222",
-        styles: {},
-      },
-    ]);
-  });
-
-  it("intercepts native text input before Chromium mutates inline code", async () => {
-    setupMatchMedia();
-    const editor = BlockNoteEditor.create({
-      schema: editorSchema,
-      initialContent: [
-        {
-          type: "paragraph",
-          content: [
-            {
-              type: "text",
-              text: "test",
-              styles: {
-                code: true,
-              },
-            },
-          ],
-        },
-      ],
-    });
-    const { container } = render(createElement(BlockNoteView, { editor }));
-
-    editor.setTextCursorPosition(editor.document[0].id, "end");
     editor.focus();
 
-    const closingBoundary = await waitFor(() => {
-      const element = container.querySelector<HTMLElement>(
-        ".editor-inline-code__closing-boundary",
-      );
-      expect(element).not.toBe(null);
-      return element as HTMLElement;
+    const inlineCode = container.querySelector("code");
+    expect(inlineCode?.textContent).toBe("test");
+    expect(inlineCode?.querySelector(".editor-inline-code__marker")).toBe(null);
+    expect(
+      container.querySelector(".editor-inline-code__editing-content"),
+    ).not.toBe(null);
+    expect(
+      container.querySelector(
+        ".editor-inline-code__closing-boundary, .editor-inline-code__outside-caret-gap, .editor-inline-code__editing-caret-before, .editor-inline-code__editing-caret-after",
+      ),
+    ).toBe(null);
+    const editingCaret = container.querySelector(
+      ".editor-inline-code__editing-caret",
+    );
+    expect(editingCaret).not.toBe(null);
+    expect(view.posAtDOM(editingCaret as Node, 0)).toBe(inlineCodePosition + 2);
+
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, inlineCodePosition + 3),
+      ),
+    );
+    const movedCaret = container.querySelector(
+      ".editor-inline-code__editing-caret",
+    );
+    expect(movedCaret).not.toBe(null);
+    expect(view.posAtDOM(movedCaret as Node, 0)).toBe(inlineCodePosition + 3);
+  });
+
+  it("does not expand inline code when an outside click maps to its range", () => {
+    const { container, editor, inlineCodePosition, view } =
+      renderInlineCodeTestEditor();
+    const position = inlineCodePosition + 1;
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, position),
+      ),
+    );
+    editor.focus();
+    expect(
+      container.querySelector(".editor-inline-code__editing-content"),
+    ).not.toBe(null);
+
+    const outsideClick = new MouseEvent("click", {
+      bubbles: true,
+      button: 0,
     });
-    fireEvent.mouseDown(closingBoundary);
+    Object.defineProperty(outsideClick, "target", {
+      configurable: true,
+      value: view.dom,
+    });
+    view.someProp("handleClick", (handler) =>
+      handler(view, position, outsideClick),
+    );
 
     expect(
       container.querySelector(".editor-inline-code__editing-content"),
     ).toBe(null);
-    expect(
-      container.querySelector(".editor-inline-code__closing-boundary"),
-    ).toBe(null);
 
-    const view = editor.prosemirrorView;
-    const inputEvent = new InputEvent("beforeinput", {
+    const code = container.querySelector("code");
+    expect(code).not.toBe(null);
+    const codeClick = new MouseEvent("click", {
       bubbles: true,
-      cancelable: true,
-      data: "2",
-      inputType: "insertText",
+      button: 0,
     });
-    const nativeInputAllowed = view.dom.dispatchEvent(inputEvent);
-    if (nativeInputAllowed) {
-      view.dispatch(view.state.tr.insertText("2"));
-    }
+    Object.defineProperty(codeClick, "target", {
+      configurable: true,
+      value: code,
+    });
+    view.someProp("handleClick", (handler) =>
+      handler(view, position, codeClick),
+    );
 
-    expect(inputEvent.defaultPrevented).toBe(true);
-    expect(editor.document[0].content).toEqual([
-      {
-        type: "text",
-        text: "test",
-        styles: {
-          code: true,
-        },
-      },
-      {
-        type: "text",
-        text: "2",
-        styles: {},
-      },
-    ]);
+    expect(
+      container.querySelector(".editor-inline-code__editing-content"),
+    ).not.toBe(null);
+
+    vi.spyOn(code as HTMLElement, "getBoundingClientRect").mockReturnValue({
+      bottom: 30,
+      height: 20,
+      left: 10,
+      right: 80,
+      top: 10,
+      width: 70,
+      x: 10,
+      y: 10,
+      toJSON: () => ({}),
+    });
+    const markerClick = new MouseEvent("click", {
+      bubbles: true,
+      button: 0,
+      clientX: 84,
+      clientY: 20,
+    });
+    Object.defineProperty(markerClick, "target", {
+      configurable: true,
+      value: code,
+    });
+    view.someProp("handleClick", (handler) =>
+      handler(view, position, markerClick),
+    );
+
+    expect(
+      container.querySelector(".editor-inline-code__editing-content"),
+    ).toBe(null);
   });
 
-  it("intercepts a printable key at an inline code closing boundary", async () => {
-    setupMatchMedia();
-    const editor = BlockNoteEditor.create({
-      schema: editorSchema,
-      initialContent: [
-        {
-          type: "paragraph",
-          content: [
-            {
-              type: "text",
-              text: "test",
-              styles: {
-                code: true,
-              },
-            },
-          ],
-        },
-      ],
+  it("keeps Vditor-style markers expanded while typing at the code end", () => {
+    const { container, editor, inlineCodePosition, view } =
+      renderInlineCodeTestEditor();
+    const position = inlineCodePosition + 4;
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, position),
+      ),
+    );
+    const code = container.querySelector("code");
+    expect(code).not.toBe(null);
+    const codeClick = new MouseEvent("click", {
+      bubbles: true,
+      button: 0,
     });
-    const { container } = render(createElement(BlockNoteView, { editor }));
+    Object.defineProperty(codeClick, "target", {
+      configurable: true,
+      value: code,
+    });
+    view.someProp("handleClick", (handler) =>
+      handler(view, position, codeClick),
+    );
+    editor.focus();
+
+    simulateTextInput(editor, "x");
+
+    expect(container.querySelector("code")?.textContent).toBe("testx");
+    expect(
+      container.querySelector(".editor-inline-code__editing-content"),
+    ).not.toBe(null);
+  });
+
+  it("uses the native exitable code mark behavior at the paragraph end", () => {
+    const { editor } = renderInlineCodeTestEditor();
 
     editor.setTextCursorPosition(editor.document[0].id, "end");
     editor.focus();
+    pressKey(editor, "ArrowRight");
+    simulateTextInput(editor, "x");
 
-    const closingBoundary = await waitFor(() => {
-      const element = container.querySelector<HTMLElement>(
-        ".editor-inline-code__closing-boundary",
-      );
-      expect(element).not.toBe(null);
-      return element as HTMLElement;
-    });
-    fireEvent.mouseDown(closingBoundary);
-
-    const view = editor.prosemirrorView;
-    const keyEvent = new KeyboardEvent("keydown", {
-      bubbles: true,
-      cancelable: true,
-      key: "1",
-    });
-    const nativeInputAllowed = view.dom.dispatchEvent(keyEvent);
-    if (nativeInputAllowed) {
-      view.dispatch(view.state.tr.insertText("1"));
-    }
-
-    expect(keyEvent.defaultPrevented).toBe(true);
     expect(editor.document[0].content).toEqual([
       {
         type: "text",
@@ -1198,7 +1064,7 @@ describe("editor BlockNote schema", () => {
       },
       {
         type: "text",
-        text: "1",
+        text: " x",
         styles: {},
       },
     ]);
@@ -1255,7 +1121,7 @@ describe("editor BlockNote schema", () => {
     ]);
   });
 
-  it("keeps inserted text inside inline code at the cursor and before its closing boundary", () => {
+  it("keeps inserted text inside inline code at the native cursor", () => {
     setupMatchMedia();
     const editor = BlockNoteEditor.create({
       schema: editorSchema,
@@ -1318,70 +1184,26 @@ describe("editor BlockNote schema", () => {
     ]);
   });
 
-  it("shows paired markdown boundaries only while inline code is being edited", async () => {
-    setupMatchMedia();
-    const editor = BlockNoteEditor.create({
-      schema: editorSchema,
-      initialContent: [
-        {
-          type: "paragraph",
-          content: [
-            {
-              type: "text",
-              text: "test",
-              styles: {
-                code: true,
-              },
-            },
-          ],
-        },
-        {
-          type: "paragraph",
-          content: "outside",
-        },
-      ],
-    });
-    const { container } = render(createElement(BlockNoteView, { editor }));
-
-    editor.setTextCursorPosition(editor.document[0].id, "end");
-    editor.focus();
-
-    await waitFor(() => {
-      const editingContent = container.querySelector(
-        ".editor-inline-code__editing-content",
-      );
-      expect(editingContent?.closest("code")?.textContent).toBe("test");
-      expect(
-        container.querySelector(".editor-inline-code__closing-boundary")
-          ?.textContent,
-      ).toBe("`");
-      expect(
-        container.querySelector(".editor-inline-code__editing-caret-after"),
-      ).not.toBe(null);
-    });
-
-    const view = editor.prosemirrorView;
+  it("keeps selected inline code in the same native rich-text DOM", () => {
+    const { container, inlineCodePosition, view } =
+      renderInlineCodeTestEditor();
     view.dispatch(
       view.state.tr.setSelection(
-        TextSelection.create(view.state.doc, view.state.selection.from - 1),
+        TextSelection.create(
+          view.state.doc,
+          inlineCodePosition,
+          inlineCodePosition + 4,
+        ),
       ),
     );
-    await waitFor(() => {
-      expect(
-        container.querySelector(".editor-inline-code__editing-caret-before"),
-      ).not.toBe(null);
-    });
 
-    editor.setTextCursorPosition(editor.document[1].id, "start");
-
-    await waitFor(() => {
-      expect(
-        container.querySelector(".editor-inline-code__editing-content"),
-      ).toBe(null);
-      expect(
-        container.querySelector(".editor-inline-code__closing-boundary"),
-      ).toBe(null);
-    });
+    expect(container.querySelector("code")?.textContent).toBe("test");
+    expect(container.querySelector(".editor-inline-code")).toBe(null);
+    expect(
+      container.querySelector(
+        ".editor-inline-code__editing-content, .editor-inline-code__closing-boundary, .editor-inline-code__outside-caret-gap",
+      ),
+    ).toBe(null);
   });
 
   it("keeps input-rule inline code active at its content end", () => {
