@@ -122,6 +122,8 @@ export const IPC_CHANNELS = {
     PUSH: "git:push", // 推送到远程
     PULL: "git:pull", // 从远程拉取
     CREATE_BRANCH: "git:create-branch", // 创建新分支
+    RENAME_BRANCH: "git:rename-branch", // 重命名本地分支
+    DELETE_BRANCH: "git:delete-branch", // 删除本地分支
     GET_CURRENT_BRANCH: "git:get-current-branch", // 获取当前分支
     GET_FILE_DIFF: "git:get-file-diff", // 获取文件差异
     GET_FILE_HEAD_CONTENT: "git:get-file-head-content", // 获取 HEAD 中的文件内容

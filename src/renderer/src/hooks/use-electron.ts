@@ -511,6 +511,22 @@ export function useElectron() {
     [],
   );
 
+  // 重命名本地分支
+  const renameBranch = useCallback(
+    async (dirPath: string, branchName: string, nextBranchName: string) => {
+      return window.gitAPI.renameBranch(dirPath, branchName, nextBranchName);
+    },
+    [],
+  );
+
+  // 删除本地分支
+  const deleteBranch = useCallback(
+    async (dirPath: string, branchName: string) => {
+      return window.gitAPI.deleteBranch(dirPath, branchName);
+    },
+    [],
+  );
+
   // 获取 Git 状态
   const getGitStatus = useCallback(async (dirPath: string) => {
     return window.gitAPI.getStatus(dirPath);
@@ -639,6 +655,8 @@ export function useElectron() {
     getBranches,
     switchBranch,
     createBranch,
+    renameBranch,
+    deleteBranch,
     getGitStatus,
     addFilesToStaging,
     unstageFiles,

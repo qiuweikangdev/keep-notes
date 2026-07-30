@@ -8,6 +8,8 @@ import {
   getBranches,
   switchBranch,
   createBranch,
+  renameBranch,
+  deleteBranch,
   getStatus,
   addFiles,
   unstageFiles,
@@ -72,6 +74,22 @@ export function registerGitIpc(): void {
     IPC_CHANNELS.GIT.CREATE_BRANCH,
     async (_, dirPath: string, branchName: string) => {
       return createBranch(dirPath, branchName);
+    },
+  );
+
+  // 重命名本地分支
+  ipcMain.handle(
+    IPC_CHANNELS.GIT.RENAME_BRANCH,
+    async (_, dirPath: string, branchName: string, nextBranchName: string) => {
+      return renameBranch(dirPath, branchName, nextBranchName);
+    },
+  );
+
+  // 删除本地分支
+  ipcMain.handle(
+    IPC_CHANNELS.GIT.DELETE_BRANCH,
+    async (_, dirPath: string, branchName: string) => {
+      return deleteBranch(dirPath, branchName);
     },
   );
 

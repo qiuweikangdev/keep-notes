@@ -3,6 +3,8 @@ import {
   useEffect,
   useCallback,
   useMemo,
+  useRef,
+  type KeyboardEvent,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
@@ -23,6 +25,7 @@ import type {
 } from "@/types";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { DialogResizeHandles } from "@/components/ui/dialog-resize-handles";
 import { useResizableDialog } from "@/hooks/use-resizable-dialog";
 import {
@@ -58,6 +61,8 @@ import {
   FolderOpen,
   MinusSquare,
   PlusSquare,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 
 interface GitPanelProps {
@@ -106,6 +111,9 @@ const getCommitFileStatusMeta = (status: string) => {
 
 const getCommitFileDisplayPath = (file: GitCommitChangedFile) =>
   file.oldPath ? `${file.oldPath} -> ${file.path}` : file.path;
+
+const isImeCompositionEvent = (event: KeyboardEvent<HTMLInputElement>) =>
+  event.nativeEvent.isComposing || event.keyCode === 229;
 
 function GitPanelTooltip({
   label,
@@ -159,12 +167,126 @@ function GitPanelTooltip({
   );
 }
 
+interface CreateBranchDialogProps {
+  open: boolean;
+  branchName: string;
+  loading: boolean;
+  onBranchNameChange: (branchName: string) => void;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
+}
+
+function CreateBranchDialog({
+  open,
+  branchName,
+  loading,
+  onBranchNameChange,
+  onOpenChange,
+  onConfirm,
+}: CreateBranchDialogProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <div
+      className="contents"
+      onClick={(event) => {
+        // Portal 内的点击仍会沿 React 组件树冒泡，必须在子弹窗边界阻止关闭 Git 弹窗。
+        event.stopPropagation();
+      }}
+    >
+      <Dialog.Root modal={false} open={open} onOpenChange={onOpenChange}>
+        <DialogContent
+          data-git-dialog="create-branch"
+          showCloseButton={false}
+          className="w-[calc(100vw-32px)] max-w-[460px] gap-0 overflow-hidden rounded-xl p-0 shadow-[0_2px_8px_rgba(0,0,0,0.18)]"
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            inputRef.current?.focus();
+          }}
+        >
+          <div className="flex h-14 items-center justify-between border-b border-[var(--border-color)] px-5">
+            <Dialog.Title className="text-base font-semibold">
+              创建并检出分支
+            </Dialog.Title>
+            <Dialog.Close
+              aria-label="关闭创建分支弹窗"
+              disabled={loading}
+              className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--text-muted)] outline-none hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-color)] disabled:opacity-50"
+            >
+              <X aria-hidden="true" className="h-4 w-4" />
+            </Dialog.Close>
+          </div>
+
+          <div className="px-5 py-5">
+            <label
+              htmlFor="gitNewBranchName"
+              className="mb-2 block text-sm font-medium"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              分支名称
+            </label>
+            <input
+              ref={inputRef}
+              id="gitNewBranchName"
+              type="text"
+              value={branchName}
+              onChange={(event) => onBranchNameChange(event.target.value)}
+              onKeyDown={(event) => {
+                // 中文输入法确认候选也会触发 Enter，组合输入结束前不能创建分支。
+                if (isImeCompositionEvent(event)) return;
+                if (event.key !== "Enter") return;
+
+                event.preventDefault();
+                onConfirm();
+              }}
+              placeholder="输入分支名称"
+              className="git-dialog-field h-10 w-full rounded-md px-3 text-sm outline-none"
+              style={{
+                backgroundColor: "var(--bg-primary)",
+                border: "1px solid var(--border-color)",
+                color: "var(--text-primary)",
+              }}
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </div>
+
+          <div
+            className="flex items-center justify-end gap-2 border-t border-[var(--border-color)] px-5 py-4"
+            style={{
+              backgroundColor:
+                "color-mix(in srgb, var(--bg-secondary) 68%, var(--bg-primary))",
+            }}
+          >
+            <Dialog.Close asChild>
+              <Button type="button" variant="outline" disabled={loading}>
+                取消
+              </Button>
+            </Dialog.Close>
+            <Button
+              type="button"
+              onClick={onConfirm}
+              disabled={!branchName.trim() || loading}
+              className="gap-1.5"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              创建并检出
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog.Root>
+    </div>
+  );
+}
+
 export function GitPanel({ isOpen, onClose }: GitPanelProps) {
   const {
     detectGitRepo,
     getBranches,
     switchBranch,
     createBranch,
+    renameBranch,
+    deleteBranch,
     getGitStatus,
     addFilesToStaging,
     unstageFiles,
@@ -197,6 +319,10 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
   const [showBranchList, setShowBranchList] = useState(false);
   const [showCreateBranch, setShowCreateBranch] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
+  const [renamingBranchName, setRenamingBranchName] = useState("");
+  const [branchNameDraft, setBranchNameDraft] = useState("");
+  const [branchToDelete, setBranchToDelete] = useState("");
+  const branchMenuRef = useRef<HTMLDivElement>(null);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -248,6 +374,9 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     setShowBranchList(false);
     setShowCreateBranch(false);
     setNewBranchName("");
+    setRenamingBranchName("");
+    setBranchNameDraft("");
+    setBranchToDelete("");
     setMessage(null);
     setStagedFiles(new Set());
     setConfirmDialog({ open: false, filePath: "" });
@@ -320,6 +449,21 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       loadGitInfo();
     }
   }, [isOpen, resetPanelState, loadGitInfo]);
+
+  useEffect(() => {
+    if (!showBranchList) return;
+
+    // 点击分支菜单以外的区域时关闭浮层，保持与编辑器原生菜单一致的交互。
+    const handlePointerDown = (event: PointerEvent) => {
+      if (branchMenuRef.current?.contains(event.target as Node)) return;
+      setShowBranchList(false);
+      setRenamingBranchName("");
+      setBranchNameDraft("");
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [showBranchList]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -529,6 +673,85 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       setLoading(false);
     }
   }, [getCurrentDir, createBranch, loadGitInfo, newBranchName]);
+
+  const handleCreateBranchDialogOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open && loading) return;
+      setShowCreateBranch(open);
+      if (!open) setNewBranchName("");
+    },
+    [loading],
+  );
+
+  const handleRenameBranch = useCallback(async () => {
+    const nextBranchName = branchNameDraft.trim();
+    if (
+      !renamingBranchName ||
+      !nextBranchName ||
+      nextBranchName === renamingBranchName
+    ) {
+      return;
+    }
+    const dir = getCurrentDir();
+    if (!dir) return;
+
+    try {
+      setLoading(true);
+      const result = await renameBranch(
+        dir,
+        renamingBranchName,
+        nextBranchName,
+      );
+      if (result.code === CodeResult.Success) {
+        if (currentBranch === renamingBranchName) {
+          setCurrentBranch(nextBranchName);
+        }
+        setRenamingBranchName("");
+        setBranchNameDraft("");
+        await loadGitInfo();
+        showMessage(
+          "success",
+          `已将分支 ${renamingBranchName} 重命名为 ${nextBranchName}`,
+        );
+      } else {
+        showMessage("error", result.message || "重命名分支失败");
+      }
+    } catch (error) {
+      showMessage("error", "重命名分支失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [
+    branchNameDraft,
+    renamingBranchName,
+    getCurrentDir,
+    renameBranch,
+    currentBranch,
+    loadGitInfo,
+  ]);
+
+  const handleDeleteBranch = useCallback(async () => {
+    const branchName = branchToDelete;
+    if (!branchName || branchName === currentBranch) return;
+    const dir = getCurrentDir();
+    if (!dir) return;
+
+    try {
+      setLoading(true);
+      const result = await deleteBranch(dir, branchName);
+      if (result.code === CodeResult.Success) {
+        setBranchToDelete("");
+        await loadGitInfo();
+        showMessage("success", `已删除分支: ${branchName}`);
+      } else {
+        showMessage("error", result.message || "删除分支失败");
+      }
+    } catch (error) {
+      showMessage("error", "删除分支失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [branchToDelete, currentBranch, getCurrentDir, deleteBranch, loadGitInfo]);
 
   const handlePush = useCallback(async () => {
     const dir = getCurrentDir();
@@ -1154,7 +1377,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             handleDiffFile(filePath, variant, isDeleted);
           }
         }}
-        className="group flex h-8 cursor-pointer items-center border-b text-sm transition-colors hover:bg-[var(--hover-bg)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-color)] focus-visible:ring-inset"
+        className="group flex h-9 cursor-pointer items-center border-b pr-4 text-sm transition-colors hover:bg-[var(--hover-bg)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-color)] focus-visible:ring-inset"
         style={{
           borderColor: "var(--border-color)",
           paddingLeft: `${12 + depth * 18}px`,
@@ -1207,7 +1430,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     return (
       <div key={node.path}>
         <div
-          className="group flex h-8 items-center border-b text-sm transition-colors hover:bg-[var(--hover-bg)]"
+          className="group flex h-9 items-center border-b pr-4 text-sm transition-colors hover:bg-[var(--hover-bg)]"
           style={{
             borderColor: "var(--border-color)",
             paddingLeft: `${12 + depth * 18}px`,
@@ -1294,9 +1517,10 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     return (
       <section>
         <div
-          className="flex h-8 items-center justify-between border-b px-3 text-sm"
+          className="flex h-9 items-center justify-between border-b px-4 text-sm"
           style={{
-            backgroundColor: "var(--bg-secondary)",
+            backgroundColor:
+              "color-mix(in srgb, var(--bg-secondary) 72%, var(--bg-primary))",
             borderColor: "var(--border-color)",
             color: "var(--text-secondary)",
           }}
@@ -1317,7 +1541,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             />
             <span className="truncate font-medium">{title}</span>
             <span
-              className="rounded-full px-2 py-0.5 text-xs"
+              className="min-w-5 rounded-full px-1.5 py-0.5 text-center text-[11px] leading-4"
               style={{
                 backgroundColor: "var(--bg-tertiary)",
                 color: "var(--text-muted)",
@@ -1668,7 +1892,10 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         ref={contentRef}
         data-git-dialog="main"
         className="fixed left-1/2 top-1/2 flex h-[min(82vh,calc(100vh-32px))] max-h-none w-[min(680px,calc(100vw-32px))] max-w-none -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl shadow-2xl"
-        style={{ backgroundColor: "var(--bg-secondary)" }}
+        style={{
+          backgroundColor: "var(--bg-primary)",
+          boxShadow: "0 6px 8px rgba(0, 0, 0, 0.2)",
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {activeFooterOperation ? (
@@ -1687,16 +1914,16 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         <div
           data-dialog-drag-handle
           {...dragHandleProps}
-          className="flex select-none items-center justify-between p-4"
+          className="flex h-14 shrink-0 select-none items-center justify-between px-5"
           style={{ borderBottom: "1px solid var(--border-color)" }}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <GitBranchIcon
-              className="h-5 w-5"
+              className="h-[18px] w-[18px]"
               style={{ color: "var(--text-muted)" }}
             />
             <span
-              className="font-medium"
+              className="text-sm font-semibold"
               style={{ color: "var(--text-primary)" }}
             >
               Git 操作
@@ -1708,7 +1935,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             onClick={onClose}
             onPointerDown={(event) => event.stopPropagation()}
             data-theme-control="true"
-            className="p-1 rounded-lg"
+            className="flex h-8 w-8 items-center justify-center rounded-md"
             style={{ color: "var(--text-muted)" }}
             aria-label="关闭"
           >
@@ -1719,14 +1946,13 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         {/* 消息提示 */}
         {message && (
           <div
-            className="px-4 py-2 text-sm flex items-center gap-2"
+            className="mx-5 mt-3 flex items-center gap-2 rounded-md px-3 py-2 text-sm"
             style={{
               backgroundColor:
                 message.type === "success"
                   ? "rgba(34, 197, 94, 0.15)"
                   : "rgba(239, 68, 68, 0.15)",
               color: message.type === "success" ? "#22c55e" : "#ef4444",
-              borderBottom: "1px solid var(--border-color)",
             }}
           >
             {message.type === "success" ? (
@@ -1738,174 +1964,228 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           </div>
         )}
 
-        {/* 固定区域：当前分支、文件状态标题、提交信息 */}
+        {/* 固定区域：分支管理与提交信息 */}
         <div
-          className="px-4 py-3 space-y-3"
+          className="relative shrink-0 px-5 py-4"
           style={{ borderBottom: "1px solid var(--border-color)" }}
         >
-          {/* 当前分支 */}
-          <div className="flex items-center justify-between">
-            <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-              当前分支
-            </span>
-            <div className="flex items-center gap-2">
+          {/* 分支管理 */}
+          <div
+            ref={branchMenuRef}
+            className="absolute right-5 top-4 z-20 max-w-[55%]"
+          >
+            <div className="flex items-center">
               <button
                 type="button"
-                onClick={() => setShowBranchList(!showBranchList)}
-                data-theme-control="true"
-                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm"
-                style={{
-                  backgroundColor: "var(--bg-tertiary)",
-                  color: "var(--text-primary)",
+                onClick={() => {
+                  setShowBranchList(!showBranchList);
+                  setRenamingBranchName("");
+                  setBranchNameDraft("");
                 }}
+                data-theme-control="true"
+                className="flex h-8 max-w-full items-center gap-2 rounded-md px-2 text-sm"
+                style={{ color: "var(--text-primary)" }}
                 disabled={loading}
-                title="切换分支"
-                aria-label={`切换分支，当前分支 ${currentBranch || "未选择"}`}
+                title="管理分支"
+                aria-label={`管理分支，当前分支 ${currentBranch || "未选择"}`}
               >
-                <GitBranchIcon className="h-3.5 w-3.5" />
-                {currentBranch || "未选择"}
+                <GitBranchIcon
+                  className="h-4 w-4 shrink-0"
+                  style={{ color: "var(--text-muted)" }}
+                />
+                <span className="min-w-0 truncate text-left">
+                  {currentBranch || "未选择"}
+                </span>
                 {showBranchList ? (
-                  <ChevronUp className="h-3 w-3" />
+                  <ChevronUp
+                    className="h-3.5 w-3.5 shrink-0"
+                    style={{ color: "var(--text-muted)" }}
+                  />
                 ) : (
-                  <ChevronDown className="h-3 w-3" />
+                  <ChevronDown
+                    className="h-3.5 w-3.5 shrink-0"
+                    style={{ color: "var(--text-muted)" }}
+                  />
                 )}
               </button>
-
-              <button
-                type="button"
-                onClick={() => setShowCreateBranch(!showCreateBranch)}
-                data-theme-control="true"
-                className="rounded-lg p-1.5"
-                style={{ color: "var(--text-muted)" }}
-                aria-label="创建新分支"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
             </div>
-          </div>
 
-          {/* 分支列表下拉 */}
-          {showBranchList && (
-            <div
-              className="rounded-lg overflow-hidden"
-              style={{
-                backgroundColor: "var(--bg-primary)",
-                border: "1px solid var(--border-color)",
-              }}
-            >
-              {branches.map((branch) => (
-                <button
-                  type="button"
-                  key={branch.name}
-                  onClick={() => handleSwitchBranch(branch.name)}
-                  data-selection-surface="true"
-                  data-selected={branch.current ? "true" : undefined}
-                  className="flex w-full items-center justify-between px-3 py-2 text-sm"
-                  style={{
-                    backgroundColor: branch.current
-                      ? "var(--selection-row-selected)"
-                      : "transparent",
-                    color: branch.current
-                      ? "var(--accent-color)"
-                      : "var(--text-primary)",
-                  }}
-                >
-                  <div className="flex items-center gap-2">
-                    <GitBranchIcon
-                      className="h-3.5 w-3.5"
-                      style={{ color: "var(--text-muted)" }}
-                    />
-                    <span>{branch.name}</span>
-                  </div>
-                  {branch.current && <Check className="h-4 w-4" />}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => {
-                  setShowBranchList(false);
-                  setShowCreateBranch(true);
-                }}
-                data-theme-control="true"
-                className="flex w-full items-center gap-2 px-3 py-2 text-sm"
-                style={{ color: "var(--text-muted)" }}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                创建并检出新分支...
-              </button>
-            </div>
-          )}
-
-          {/* 创建新分支输入框 */}
-          {showCreateBranch && (
-            <div
-              className="flex items-center gap-2 p-3 rounded-lg"
-              style={{
-                backgroundColor: "var(--bg-tertiary)",
-                border: "1px solid var(--border-color)",
-              }}
-            >
-              <input
-                type="text"
-                value={newBranchName}
-                onChange={(e) => setNewBranchName(e.target.value)}
-                placeholder="新分支名称"
-                className="flex-1 px-3 py-1.5 text-sm rounded-lg outline-none"
+            {/* 分支列表下拉 */}
+            {showBranchList && (
+              <div
+                className="absolute right-0 top-10 z-20 max-h-72 w-[min(320px,calc(100vw-72px))] overflow-y-auto rounded-lg p-1 shadow-lg"
                 style={{
                   backgroundColor: "var(--bg-primary)",
-                  color: "var(--text-primary)",
                   border: "1px solid var(--border-color)",
                 }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    handleCreateBranch();
-                  } else if (e.key === "Escape") {
-                    setShowCreateBranch(false);
-                  }
-                }}
-                autoFocus
-              />
-              <Button
-                onClick={handleCreateBranch}
-                disabled={!newBranchName.trim() || loading}
-                size="sm"
               >
-                创建
-              </Button>
-              <Button
-                onClick={() => {
-                  setShowCreateBranch(false);
-                  setNewBranchName("");
-                }}
-                size="sm"
-                variant="secondary"
-              >
-                取消
-              </Button>
-            </div>
-          )}
+                {branches.map((branch) => {
+                  const isRenaming = renamingBranchName === branch.name;
+
+                  return (
+                    <div
+                      key={branch.name}
+                      data-current={branch.current ? "true" : undefined}
+                      className="git-branch-row group flex min-h-9 items-center rounded-md px-1"
+                    >
+                      {isRenaming ? (
+                        <div className="flex w-full items-center gap-1.5 px-1 py-1">
+                          <input
+                            type="text"
+                            value={branchNameDraft}
+                            onChange={(event) =>
+                              setBranchNameDraft(event.target.value)
+                            }
+                            onFocus={(event) => event.currentTarget.select()}
+                            onKeyDown={(event) => {
+                              if (isImeCompositionEvent(event)) return;
+
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                void handleRenameBranch();
+                              } else if (event.key === "Escape") {
+                                setRenamingBranchName("");
+                                setBranchNameDraft("");
+                              }
+                            }}
+                            className="git-dialog-field h-7 min-w-0 flex-1 rounded px-2 text-sm outline-none"
+                            style={{
+                              backgroundColor: "var(--bg-primary)",
+                              border: "1px solid var(--border-color)",
+                              color: "var(--text-primary)",
+                            }}
+                            aria-label={`重命名分支 ${branch.name}`}
+                            autoFocus
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void handleRenameBranch()}
+                            data-theme-control="true"
+                            className="flex h-7 w-7 items-center justify-center rounded"
+                            style={{ color: "var(--text-muted)" }}
+                            disabled={
+                              loading ||
+                              !branchNameDraft.trim() ||
+                              branchNameDraft.trim() === branch.name
+                            }
+                            title="保存分支名称"
+                            aria-label="保存分支名称"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRenamingBranchName("");
+                              setBranchNameDraft("");
+                            }}
+                            data-theme-control="true"
+                            className="flex h-7 w-7 items-center justify-center rounded"
+                            style={{ color: "var(--text-muted)" }}
+                            title="取消重命名"
+                            aria-label="取消重命名"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleSwitchBranch(branch.name)}
+                            data-branch-switch="true"
+                            data-selection-surface="true"
+                            data-selected={branch.current ? "true" : undefined}
+                            className="flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1.5 text-left text-sm"
+                            style={{ color: "var(--text-primary)" }}
+                          >
+                            <GitBranchIcon
+                              className="h-3.5 w-3.5 shrink-0"
+                              style={{ color: "var(--text-muted)" }}
+                            />
+                            <span className="min-w-0 flex-1 truncate">
+                              {branch.name}
+                            </span>
+                          </button>
+                          <div className="git-branch-row-actions flex w-14 shrink-0 items-center justify-end opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRenamingBranchName(branch.name);
+                                setBranchNameDraft(branch.name);
+                              }}
+                              data-theme-control="true"
+                              className="git-branch-row-action flex h-7 w-7 items-center justify-center rounded"
+                              style={{ color: "var(--text-muted)" }}
+                              disabled={loading}
+                              title={`重命名分支 ${branch.name}`}
+                              aria-label={`重命名分支 ${branch.name}`}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            {!branch.current ? (
+                              <button
+                                type="button"
+                                onClick={() => setBranchToDelete(branch.name)}
+                                data-theme-control="true"
+                                className="git-branch-row-action git-branch-row-delete flex h-7 w-7 items-center justify-center rounded"
+                                style={{ color: "var(--text-muted)" }}
+                                disabled={loading}
+                                title={`删除分支 ${branch.name}`}
+                                aria-label={`删除分支 ${branch.name}`}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            ) : null}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowBranchList(false);
+                    setShowCreateBranch(true);
+                  }}
+                  data-theme-control="true"
+                  className="mt-1 flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm"
+                  style={{ color: "var(--text-muted)" }}
+                  aria-label="创建新分支"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  新分支
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* 提交信息 */}
           <div>
+            <div className="mb-1.5 flex h-8 items-center">
+              <label
+                htmlFor="gitCommitMessage"
+                className="text-xs font-medium"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                提交信息
+              </label>
+            </div>
             <textarea
+              id="gitCommitMessage"
               value={commitMessage}
               onChange={(e) => setCommitMessage(e.target.value)}
               placeholder="提交信息（留空将自动生成）..."
               rows={1}
-              className="w-full h-9 overflow-hidden px-3 py-2 text-sm rounded-md resize-none outline-none"
+              className="git-dialog-field h-10 w-full resize-none overflow-hidden rounded-md px-3 py-2.5 text-sm outline-none"
               style={{
                 backgroundColor: "var(--bg-primary)",
                 border: "1px solid var(--border-color)",
                 color: "var(--text-primary)",
               }}
-              onFocus={(e) => {
-                e.currentTarget.style.borderColor = "var(--accent-color)";
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.borderColor = "var(--border-color)";
-              }}
             />
-            <div className="mt-1 flex items-center gap-2">
+            <div className="mt-2 flex items-center gap-2">
               <input
                 type="checkbox"
                 id="includeUntracked"
@@ -1923,70 +2203,75 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
               </label>
             </div>
           </div>
+        </div>
 
-          {/* 文件状态标题 */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-                {activeTab === "history" ? "Git 历史" : "文件状态"}
-              </span>
-              <div className="flex items-center gap-0.5">
-                <GitPanelTooltip
-                  label="查看文件状态"
-                  side="bottom"
-                  suppressOnClick
+        {/* 视图切换与文件状态摘要 */}
+        <div
+          className="flex h-11 shrink-0 items-center justify-between px-5"
+          style={{ borderBottom: "1px solid var(--border-color)" }}
+        >
+          <div className="flex items-center gap-2">
+            <span
+              className="text-sm font-medium"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              {activeTab === "history" ? "Git 历史" : "文件状态"}
+            </span>
+            <div
+              className="flex items-center gap-0.5 rounded-md p-0.5"
+              style={{ backgroundColor: "var(--bg-tertiary)" }}
+            >
+              <GitPanelTooltip
+                label="查看文件状态"
+                side="bottom"
+                suppressOnClick
+              >
+                <button
+                  type="button"
+                  onClick={() => handleSwitchTab("changes")}
+                  data-selection-surface="true"
+                  data-selected={activeTab === "changes" ? "true" : undefined}
+                  className="flex h-6 w-6 items-center justify-center rounded"
+                  style={{
+                    backgroundColor:
+                      activeTab === "changes"
+                        ? "var(--selection-row-selected)"
+                        : "transparent",
+                    color: "var(--text-muted)",
+                  }}
+                  aria-label="查看文件状态"
                 >
-                  <button
-                    type="button"
-                    onClick={() => handleSwitchTab("changes")}
-                    data-selection-surface="true"
-                    data-selected={activeTab === "changes" ? "true" : undefined}
-                    className="rounded p-1 transition-colors hover:bg-[var(--hover-bg)]"
-                    style={{
-                      backgroundColor:
-                        activeTab === "changes"
-                          ? "var(--selection-row-selected)"
-                          : "transparent",
-                      color:
-                        activeTab === "changes"
-                          ? "var(--accent-color)"
-                          : "var(--text-muted)",
-                    }}
-                    aria-label="查看文件状态"
-                  >
-                    <List className="h-3.5 w-3.5" />
-                  </button>
-                </GitPanelTooltip>
-                <GitPanelTooltip
-                  label="查看 Git 历史"
-                  side="bottom"
-                  suppressOnClick
+                  <List className="h-3.5 w-3.5" />
+                </button>
+              </GitPanelTooltip>
+              <GitPanelTooltip
+                label="查看 Git 历史"
+                side="bottom"
+                suppressOnClick
+              >
+                <button
+                  type="button"
+                  onClick={() => handleSwitchTab("history")}
+                  data-selection-surface="true"
+                  data-selected={activeTab === "history" ? "true" : undefined}
+                  className="flex h-6 w-6 items-center justify-center rounded"
+                  style={{
+                    backgroundColor:
+                      activeTab === "history"
+                        ? "var(--selection-row-selected)"
+                        : "transparent",
+                    color: "var(--text-muted)",
+                  }}
+                  aria-label="查看 Git 历史"
                 >
-                  <button
-                    type="button"
-                    onClick={() => handleSwitchTab("history")}
-                    data-selection-surface="true"
-                    data-selected={activeTab === "history" ? "true" : undefined}
-                    className="rounded p-1 transition-colors hover:bg-[var(--hover-bg)]"
-                    style={{
-                      backgroundColor:
-                        activeTab === "history"
-                          ? "var(--selection-row-selected)"
-                          : "transparent",
-                      color:
-                        activeTab === "history"
-                          ? "var(--accent-color)"
-                          : "var(--text-muted)",
-                    }}
-                    aria-label="查看 Git 历史"
-                  >
-                    <GitCommit className="h-3.5 w-3.5" />
-                  </button>
-                </GitPanelTooltip>
-              </div>
+                  <GitCommit className="h-3.5 w-3.5" />
+                </button>
+              </GitPanelTooltip>
             </div>
-            {activeTab === "changes" ? (
-              <div className="flex items-center gap-3 text-xs">
+          </div>
+          {activeTab === "changes" ? (
+            <div className="flex items-center gap-3 text-xs">
+              <div className="flex items-center gap-2">
                 {modifiedCount > 0 && (
                   <span style={{ color: "#3794ff" }}>M {modifiedCount}</span>
                 )}
@@ -1996,53 +2281,49 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                 {deletedCount > 0 && (
                   <span style={{ color: "#f85149" }}>D {deletedCount}</span>
                 )}
-                <GitPanelTooltip
-                  label={treeView ? "切换为列表视图" : "切换为树形视图"}
-                  side="bottom"
-                  align="end"
+              </div>
+              <GitPanelTooltip
+                label={treeView ? "切换为列表视图" : "切换为树形视图"}
+                side="bottom"
+                align="end"
+              >
+                <button
+                  type="button"
+                  onClick={() => setTreeView(!treeView)}
+                  data-theme-control="true"
+                  className="flex h-7 w-7 items-center justify-center rounded-md"
+                  style={{ color: "var(--text-muted)" }}
+                  title={treeView ? "切换为列表视图" : "切换为树形视图"}
+                  aria-label={treeView ? "切换为列表视图" : "切换为树形视图"}
                 >
+                  {treeView ? (
+                    <List className="h-3.5 w-3.5" />
+                  ) : (
+                    <FolderTree className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              </GitPanelTooltip>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 text-xs">
+              {historyHasMore && commitHistory.length > 0 ? (
+                <GitPanelTooltip label="加载更多历史" side="bottom" align="end">
                   <button
                     type="button"
-                    onClick={() => setTreeView(!treeView)}
+                    onClick={() => loadCommitHistory("append")}
+                    disabled={historyLoading}
                     data-theme-control="true"
-                    className="rounded p-1"
+                    className="flex h-7 w-7 items-center justify-center rounded-md disabled:opacity-50"
                     style={{ color: "var(--text-muted)" }}
-                    title={treeView ? "切换为列表视图" : "切换为树形视图"}
-                    aria-label={treeView ? "切换为列表视图" : "切换为树形视图"}
+                    title="加载更多历史"
+                    aria-label="加载更多历史"
                   >
-                    {treeView ? (
-                      <List className="h-3.5 w-3.5" />
-                    ) : (
-                      <FolderTree className="h-3.5 w-3.5" />
-                    )}
+                    <PlusSquare className="h-3.5 w-3.5" />
                   </button>
                 </GitPanelTooltip>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1 text-xs">
-                {historyHasMore && commitHistory.length > 0 ? (
-                  <GitPanelTooltip
-                    label="加载更多历史"
-                    side="bottom"
-                    align="end"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => loadCommitHistory("append")}
-                      disabled={historyLoading}
-                      data-theme-control="true"
-                      className="rounded p-1 transition-colors hover:bg-[var(--hover-bg)] disabled:opacity-50"
-                      style={{ color: "var(--text-muted)" }}
-                      title="加载更多历史"
-                      aria-label="加载更多历史"
-                    >
-                      <PlusSquare className="h-3.5 w-3.5" />
-                    </button>
-                  </GitPanelTooltip>
-                ) : null}
-              </div>
-            )}
-          </div>
+              ) : null}
+            </div>
+          )}
         </div>
 
         {/* 文件列表 - 可滚动区域 */}
@@ -2101,8 +2382,11 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         {/* 底部按钮 */}
         {activeTab === "changes" && (
           <div
-            className="flex items-center justify-between p-4"
-            style={{ borderTop: "1px solid var(--border-color)" }}
+            className="flex shrink-0 items-center justify-between px-5 py-3"
+            style={{
+              backgroundColor: "var(--bg-secondary)",
+              borderTop: "1px solid var(--border-color)",
+            }}
           >
             <div className="flex items-center gap-2">
               <Button
@@ -2145,7 +2429,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                 {activeFooterOperation === "commit" ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <GitCommit className="h-5 w-5" />
+                  <GitCommit className="h-4 w-4" />
                 )}
                 提交
               </Button>
@@ -2168,6 +2452,15 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         <DialogResizeHandles resizeHandleProps={resizeHandleProps} />
       </div>
 
+      <CreateBranchDialog
+        open={showCreateBranch}
+        branchName={newBranchName}
+        loading={loading}
+        onBranchNameChange={setNewBranchName}
+        onOpenChange={handleCreateBranchDialogOpenChange}
+        onConfirm={() => void handleCreateBranch()}
+      />
+
       {/* 确认放弃更改弹窗 */}
       <ConfirmDialog
         open={confirmDialog.open}
@@ -2187,6 +2480,18 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         variant="warning"
         confirmText="确定"
         onConfirm={confirmDiscardChanges}
+      />
+
+      <ConfirmDialog
+        open={Boolean(branchToDelete)}
+        onOpenChange={(open) => {
+          if (!open) setBranchToDelete("");
+        }}
+        title="删除分支"
+        description={`确定删除本地分支 “${branchToDelete}” 吗？`}
+        variant="danger"
+        confirmText="删除"
+        onConfirm={handleDeleteBranch}
       />
     </div>,
     document.body,

@@ -168,6 +168,78 @@ export async function createBranch(
   }
 }
 
+// 重命名本地分支
+export async function renameBranch(
+  dirPath: string,
+  branchName: string,
+  nextBranchName: string,
+): Promise<ApiResponse> {
+  try {
+    const currentName = branchName.trim();
+    const nextName = nextBranchName.trim();
+    if (!currentName || !nextName) {
+      return {
+        code: CodeResult.Fail,
+        message: "分支名称不能为空",
+      };
+    }
+    if (currentName === nextName) {
+      return {
+        code: CodeResult.Success,
+        message: `分支名称未变化: ${currentName}`,
+      };
+    }
+
+    const git = getGitInstance(dirPath);
+    await git.raw(["branch", "-m", currentName, nextName]);
+    return {
+      code: CodeResult.Success,
+      message: `已将分支 ${currentName} 重命名为 ${nextName}`,
+    };
+  } catch (e: unknown) {
+    return {
+      code: CodeResult.Fail,
+      message: getGitErrorMessage(e),
+    };
+  }
+}
+
+// 安全删除本地分支，未合并分支由 Git 拒绝删除。
+export async function deleteBranch(
+  dirPath: string,
+  branchName: string,
+): Promise<ApiResponse> {
+  try {
+    const name = branchName.trim();
+    if (!name) {
+      return {
+        code: CodeResult.Fail,
+        message: "分支名称不能为空",
+      };
+    }
+
+    const git = getGitInstance(dirPath);
+    const branchSummary = await git.branchLocal();
+    if (branchSummary.current === name) {
+      return {
+        code: CodeResult.Fail,
+        message: "不能删除当前分支，请先切换到其他分支",
+      };
+    }
+
+    await git.deleteLocalBranch(name);
+    return {
+      code: CodeResult.Success,
+      message: `已删除分支: ${name}`,
+    };
+  } catch (e: unknown) {
+    return {
+      code: CodeResult.Fail,
+      message: getGitErrorMessage(e),
+    };
+  }
+}
+
 // 获取 Git 状态
 export async function getStatus(
   dirPath: string,

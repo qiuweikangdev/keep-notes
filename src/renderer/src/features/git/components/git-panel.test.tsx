@@ -29,6 +29,8 @@ const electronMocks = vi.hoisted(() => ({
   getBranches: vi.fn(),
   switchBranch: vi.fn(),
   createBranch: vi.fn(),
+  renameBranch: vi.fn(),
+  deleteBranch: vi.fn(),
   getGitStatus: vi.fn(),
   addFilesToStaging: vi.fn(),
   unstageFiles: vi.fn(),
@@ -507,10 +509,184 @@ describe("GitPanel", () => {
       "true",
     );
     expect(currentBranchButton).toHaveAttribute("data-selected", "true");
+    expect(
+      currentBranchButton.querySelector(".lucide-check"),
+    ).not.toBeInTheDocument();
     fireEvent.click(currentBranchButton);
 
     expect(electronMocks.switchBranch).not.toHaveBeenCalled();
     expect(screen.queryByText("已切换到分支: develop")).not.toBeInTheDocument();
+  });
+
+  it("does not create a branch when Enter confirms an IME candidate", async () => {
+    electronMocks.createBranch.mockResolvedValue({
+      code: CodeResult.Success,
+    });
+    render(<GitPanel isOpen onClose={vi.fn()} />);
+
+    await screen.findByText("changed.md");
+    fireEvent.click(screen.getByTitle("管理分支"));
+    fireEvent.click(screen.getByLabelText("创建新分支"));
+
+    expect(
+      await screen.findByRole("heading", { name: "创建并检出分支" }),
+    ).toBeInTheDocument();
+    const branchInput = screen.getByLabelText("分支名称");
+    fireEvent.change(branchInput, { target: { value: "功能" } });
+    fireEvent.keyDown(branchInput, {
+      key: "Enter",
+      code: "Enter",
+      keyCode: 229,
+      isComposing: true,
+    });
+
+    expect(electronMocks.createBranch).not.toHaveBeenCalled();
+    expect(branchInput).toHaveValue("功能");
+
+    fireEvent.keyDown(branchInput, {
+      key: "Enter",
+      code: "Enter",
+      keyCode: 13,
+      isComposing: false,
+    });
+
+    await waitFor(() => {
+      expect(electronMocks.createBranch).toHaveBeenCalledWith("/notes", "功能");
+    });
+    expect(
+      screen.queryByRole("heading", { name: "创建并检出分支" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the Git panel open while interacting with the create branch dialog", async () => {
+    const onClose = vi.fn();
+    render(<GitPanel isOpen onClose={onClose} />);
+
+    await screen.findByText("changed.md");
+    fireEvent.click(screen.getByTitle("管理分支"));
+    fireEvent.click(screen.getByLabelText("创建新分支"));
+
+    const branchInput = await screen.findByLabelText("分支名称");
+    fireEvent.click(branchInput);
+    fireEvent.change(branchInput, { target: { value: "feature/new" } });
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "取消" }));
+
+    expect(
+      screen.queryByRole("heading", { name: "创建并检出分支" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("changed.md")).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("renames a branch inline without submitting during IME composition", async () => {
+    electronMocks.getBranches
+      .mockResolvedValueOnce({
+        code: CodeResult.Success,
+        data: [
+          { name: "develop", current: true },
+          { name: "feature/旧名称", current: false },
+        ],
+      })
+      .mockResolvedValueOnce({
+        code: CodeResult.Success,
+        data: [
+          { name: "develop", current: true },
+          { name: "feature/新名称", current: false },
+        ],
+      });
+    electronMocks.renameBranch.mockResolvedValue({
+      code: CodeResult.Success,
+    });
+    render(<GitPanel isOpen onClose={vi.fn()} />);
+
+    await screen.findByText("changed.md");
+    fireEvent.click(screen.getByTitle("管理分支"));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "重命名分支 feature/旧名称",
+      }),
+    );
+
+    const renameInput = screen.getByRole("textbox", {
+      name: "重命名分支 feature/旧名称",
+    });
+    fireEvent.change(renameInput, {
+      target: { value: "feature/新名称" },
+    });
+    fireEvent.keyDown(renameInput, {
+      key: "Enter",
+      code: "Enter",
+      keyCode: 229,
+      isComposing: true,
+    });
+    expect(electronMocks.renameBranch).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(renameInput, {
+      key: "Enter",
+      code: "Enter",
+      keyCode: 13,
+      isComposing: false,
+    });
+
+    await waitFor(() => {
+      expect(electronMocks.renameBranch).toHaveBeenCalledWith(
+        "/notes",
+        "feature/旧名称",
+        "feature/新名称",
+      );
+    });
+    expect(await screen.findByText("feature/新名称")).toBeInTheDocument();
+  });
+
+  it("safely deletes non-current branches and keeps the current branch protected", async () => {
+    electronMocks.getBranches
+      .mockResolvedValueOnce({
+        code: CodeResult.Success,
+        data: [
+          { name: "develop", current: true },
+          { name: "feature/obsolete", current: false },
+        ],
+      })
+      .mockResolvedValueOnce({
+        code: CodeResult.Success,
+        data: [{ name: "develop", current: true }],
+      });
+    electronMocks.deleteBranch.mockResolvedValue({
+      code: CodeResult.Success,
+    });
+    render(<GitPanel isOpen onClose={vi.fn()} />);
+
+    await screen.findByText("changed.md");
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "管理分支，当前分支 develop",
+      }),
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "删除分支 develop" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "删除分支 feature/obsolete",
+      }),
+    );
+
+    expect(await screen.findByText("删除分支")).toBeInTheDocument();
+    expect(
+      screen.getByText("确定删除本地分支 “feature/obsolete” 吗？"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "删除" }));
+
+    await waitFor(() => {
+      expect(electronMocks.deleteBranch).toHaveBeenCalledWith(
+        "/notes",
+        "feature/obsolete",
+      );
+    });
+    expect(screen.queryByText("feature/obsolete")).not.toBeInTheDocument();
   });
 
   it("collapses a file status section when clicking its disclosure header", async () => {
@@ -634,7 +810,14 @@ describe("GitPanel", () => {
 
     await screen.findByText("changed.md");
 
-    expect(screen.getByTitle("切换分支")).toBeInTheDocument();
+    const branchControl = screen.getByTitle("管理分支");
+    expect(branchControl.parentElement?.parentElement).toHaveClass(
+      "absolute",
+      "right-5",
+      "top-4",
+    );
+    expect(screen.queryByText("可选，留空将自动生成")).not.toBeInTheDocument();
+    fireEvent.click(branchControl);
     expect(screen.getByLabelText("创建新分支")).toBeInTheDocument();
     expect(screen.getByTitle("切换为树形视图")).toBeInTheDocument();
     expect(screen.getByLabelText("全部暂存")).toBeInTheDocument();
@@ -646,6 +829,9 @@ describe("GitPanel", () => {
         .getByRole("button", { name: "收起更改" })
         .closest(".overflow-x-hidden"),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText("changed.md").closest('[role="button"]'),
+    ).toHaveClass("pr-4");
     expect(screen.getAllByLabelText("查看差异").length).toBeGreaterThan(0);
     expect(screen.getAllByLabelText("打开文件").length).toBeGreaterThan(0);
     expect(screen.getAllByLabelText("放弃更改").length).toBeGreaterThan(0);

@@ -1,11 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CodeResult } from "../shared/types";
-import { commit, discardChanges, getFileHeadContent } from "./git";
+import {
+  commit,
+  deleteBranch,
+  discardChanges,
+  getFileHeadContent,
+  renameBranch,
+} from "./git";
 
 const gitMocks = vi.hoisted(() => ({
   add: vi.fn(),
+  branchLocal: vi.fn(),
   checkout: vi.fn(),
   commit: vi.fn(),
+  deleteLocalBranch: vi.fn(),
   raw: vi.fn(),
   simpleGit: vi.fn(),
   status: vi.fn(),
@@ -14,6 +22,56 @@ const gitMocks = vi.hoisted(() => ({
 vi.mock("simple-git", () => ({
   simpleGit: gitMocks.simpleGit,
 }));
+
+describe("git branch operations", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    gitMocks.simpleGit.mockReturnValue({
+      branchLocal: gitMocks.branchLocal,
+      deleteLocalBranch: gitMocks.deleteLocalBranch,
+      raw: gitMocks.raw,
+    });
+  });
+
+  it("renames a local branch", async () => {
+    const result = await renameBranch("/notes", "feature/old", "feature/new");
+
+    expect(gitMocks.raw).toHaveBeenCalledWith([
+      "branch",
+      "-m",
+      "feature/old",
+      "feature/new",
+    ]);
+    expect(result).toEqual({
+      code: CodeResult.Success,
+      message: "已将分支 feature/old 重命名为 feature/new",
+    });
+  });
+
+  it("refuses to delete the current branch", async () => {
+    gitMocks.branchLocal.mockResolvedValue({ current: "develop" });
+
+    const result = await deleteBranch("/notes", "develop");
+
+    expect(gitMocks.deleteLocalBranch).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      code: CodeResult.Fail,
+      message: "不能删除当前分支，请先切换到其他分支",
+    });
+  });
+
+  it("uses Git safe deletion for a non-current branch", async () => {
+    gitMocks.branchLocal.mockResolvedValue({ current: "develop" });
+
+    const result = await deleteBranch("/notes", "feature/merged");
+
+    expect(gitMocks.deleteLocalBranch).toHaveBeenCalledWith("feature/merged");
+    expect(result).toEqual({
+      code: CodeResult.Success,
+      message: "已删除分支: feature/merged",
+    });
+  });
+});
 
 describe("git file content", () => {
   beforeEach(() => {

@@ -59,6 +59,29 @@ export const gitApi = {
     );
   },
 
+  // 重命名本地分支
+  renameBranch: (
+    dirPath: string,
+    branchName: string,
+    nextBranchName: string,
+  ): Promise<ApiResponse> => {
+    return ipcRenderer.invoke(
+      IPC_CHANNELS.GIT.RENAME_BRANCH,
+      dirPath,
+      branchName,
+      nextBranchName,
+    );
+  },
+
+  // 删除本地分支
+  deleteBranch: (dirPath: string, branchName: string): Promise<ApiResponse> => {
+    return ipcRenderer.invoke(
+      IPC_CHANNELS.GIT.DELETE_BRANCH,
+      dirPath,
+      branchName,
+    );
+  },
+
   // 获取 Git 状态
   getStatus: (dirPath: string): Promise<ApiResponse<GitStatus>> => {
     return ipcRenderer.invoke(IPC_CHANNELS.GIT.GET_STATUS, dirPath);

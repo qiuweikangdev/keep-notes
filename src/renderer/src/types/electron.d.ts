@@ -222,6 +222,12 @@ export interface GitAPI {
   getBranches: (dirPath: string) => Promise<ApiResponse<GitBranch[]>>;
   switchBranch: (dirPath: string, branchName: string) => Promise<ApiResponse>;
   createBranch: (dirPath: string, branchName: string) => Promise<ApiResponse>;
+  renameBranch: (
+    dirPath: string,
+    branchName: string,
+    nextBranchName: string,
+  ) => Promise<ApiResponse>;
+  deleteBranch: (dirPath: string, branchName: string) => Promise<ApiResponse>;
   getStatus: (dirPath: string) => Promise<ApiResponse<GitStatus>>;
   addFiles: (dirPath: string, files: string[]) => Promise<ApiResponse>;
   unstageFiles: (dirPath: string, files: string[]) => Promise<ApiResponse>;
