@@ -12,7 +12,7 @@ const stylesheet = readFileSync(
 );
 
 describe("quick editor window stylesheet", () => {
-  it("keeps an opaque window backdrop behind the translucent editor surface", () => {
+  it("keeps a borderless opaque backdrop behind the translucent editor surface", () => {
     const windowRule = stylesheet.match(
       /\.quick-editor-window\s*\{([\s\S]*?)\n\}/,
     )?.[1];
@@ -21,6 +21,7 @@ describe("quick editor window stylesheet", () => {
     )?.[1];
 
     expect(windowRule).toMatch(/background:\s*var\(--bg-primary\);/);
+    expect(windowRule).not.toMatch(/\bborder\s*:/);
     expect(titlebarRule).toMatch(/background:\s*color-mix/);
   });
 

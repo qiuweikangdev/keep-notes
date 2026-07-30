@@ -180,6 +180,7 @@ describe("quick editor floating window", () => {
       transparent: true,
       alwaysOnTop: true,
       skipTaskbar: true,
+      hasShadow: process.platform !== "darwin",
     });
     expect(win.loadFile).toHaveBeenCalledWith(
       expect.stringMatching(/renderer[\\/]index\.html$/),

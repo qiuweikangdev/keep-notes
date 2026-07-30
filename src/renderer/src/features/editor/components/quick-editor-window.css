@@ -4,7 +4,6 @@
   height: 100vh;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--border-color) 78%, transparent);
   border-radius: 10px;
   background: var(--bg-primary);
   color: var(--text-primary);
