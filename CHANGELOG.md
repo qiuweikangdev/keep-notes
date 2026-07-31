@@ -1,3 +1,30 @@
+# [2.20.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.19.9...v2.20.0) (2026-07-31)
+
+
+### Bug Fixes
+
+* align inline code horizontal spacing ([1f20fc7](https://github.com/qiuweikangdev/keep-notes/commit/1f20fc7d830e5207cc4fe08b72a3ad0c3f992516))
+* improve inline code editing caret ([fbcbfd5](https://github.com/qiuweikangdev/keep-notes/commit/fbcbfd550464f1c6a57a46d77612bc97bb117a3d))
+* improve inline code editing feedback ([dc75e5d](https://github.com/qiuweikangdev/keep-notes/commit/dc75e5d18bcbdf86edef9d8edaf532e3c4b74337))
+* preserve inline code caret during vertical navigation ([00d289b](https://github.com/qiuweikangdev/keep-notes/commit/00d289ba7750a8f16b7a663823c000f702a88ff0))
+* reduce settings dialog height ([3c42692](https://github.com/qiuweikangdev/keep-notes/commit/3c4269287e278c145cb4bb19bf08b4057eebf12a))
+* refine Git confirmation dialog behavior ([d5b3ff2](https://github.com/qiuweikangdev/keep-notes/commit/d5b3ff27f4ab7e5853a79648ef619b3a76a41742))
+* remove macOS floating editor border ([708399a](https://github.com/qiuweikangdev/keep-notes/commit/708399ad5879bf7f0fed2a49ead8fae336520a39))
+* restore inline code appearance after boundary selection ([821075f](https://github.com/qiuweikangdev/keep-notes/commit/821075f284f13c4fd7685c9d70153d0b61e76a54))
+* unify floating editor menu colors ([de4399a](https://github.com/qiuweikangdev/keep-notes/commit/de4399a745bf9356bb141c0500980edeb48b4567))
+
+
+### Features
+
+* improve Git operation panel experience ([0796243](https://github.com/qiuweikangdev/keep-notes/commit/0796243dd34917b296d9677f0753c8d581cf69ea))
+* rename file tree items with enter ([7101c82](https://github.com/qiuweikangdev/keep-notes/commit/7101c826d2fd7e2bbb1130ba19dc143d18a2f85e))
+
+
+## Commit Summary
+
+- Compared with: v2.19.9
+- Total commits: 14
+
 ## [2.19.9](https://github.com/qiuweikangdev/keep-notes/compare/v2.19.8...v2.19.9) (2026-07-28)
 
 
