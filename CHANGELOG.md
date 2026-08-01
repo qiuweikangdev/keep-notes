@@ -1,3 +1,16 @@
+## [2.20.1](https://github.com/qiuweikangdev/keep-notes/compare/v2.20.0...v2.20.1) (2026-08-01)
+
+
+### Bug Fixes
+
+* prevent stray list markers in editor ([312653c](https://github.com/qiuweikangdev/keep-notes/commit/312653c3ae39c8020dd431f37572e06e927312ff))
+
+
+## Commit Summary
+
+- Compared with: v2.20.0
+- Total commits: 1
+
 # [2.20.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.19.9...v2.20.0) (2026-07-31)
 
 
