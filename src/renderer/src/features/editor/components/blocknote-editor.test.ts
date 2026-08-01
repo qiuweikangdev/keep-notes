@@ -2375,6 +2375,73 @@ describe("BlockNoteEditor persistent session runtime", () => {
     }
   });
 
+  it("drains a newer edit when an explicit flush overlaps serialization", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/overlapping-list-flush.md";
+    setupSessionTab(path);
+    const session = renderRealSession(path);
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      await waitFor(() =>
+        expect(markdownMocks.serializeMarkdown).toHaveBeenCalled(),
+      );
+      await act(async () => {
+        await markdownMocks.serializeMarkdown.mock.results[0]?.value;
+      });
+
+      const deferred = createDeferred<string>();
+      markdownMocks.serializeMarkdown.mockClear();
+      markdownMocks.serializeMarkdown
+        .mockImplementationOnce(() => deferred.promise)
+        .mockResolvedValueOnce("# Latest");
+      session.callbacks.onMarkdownChange.mockClear();
+      const cacheBlocks = vi.spyOn(editorCache, "setBlocks");
+      const runtime = session.runtime.current!;
+      const scrollContainer = session.view.container.querySelector<HTMLElement>(
+        ".editor-rich-scroll",
+      )!;
+
+      fireEvent.keyDown(scrollContainer, { key: "Enter" });
+      act(() => {
+        runtime.editor.updateBlock(runtime.editor.document[0], {
+          content: "Transient empty list state",
+        });
+      });
+      const staleSerialization = runtime.serializePendingChange();
+      await waitFor(() =>
+        expect(markdownMocks.serializeMarkdown).toHaveBeenCalledTimes(1),
+      );
+
+      fireEvent.keyDown(scrollContainer, { key: "Enter" });
+      act(() => {
+        runtime.editor.updateBlock(runtime.editor.document[0], {
+          content: "Latest",
+        });
+      });
+      const explicitFlush = runtime.serializePendingChange();
+
+      deferred.resolve("# Transient empty list state");
+      await act(async () => {
+        await Promise.all([staleSerialization, explicitFlush]);
+      });
+
+      expect(markdownMocks.serializeMarkdown).toHaveBeenCalledTimes(2);
+      expect(session.callbacks.onMarkdownChange).toHaveBeenLastCalledWith(
+        "# Latest",
+      );
+      expect(JSON.stringify(cacheBlocks.mock.calls.at(-2)?.[2])).toContain(
+        "Transient empty list state",
+      );
+      expect(JSON.stringify(cacheBlocks.mock.calls.at(-1)?.[2])).toContain(
+        "Latest",
+      );
+    } finally {
+      session.view.unmount();
+    }
+  });
+
   it("keeps the live editor surface opaque at reduced window opacity", async () => {
     setupMatchMedia();
     setupDomMeasurements();

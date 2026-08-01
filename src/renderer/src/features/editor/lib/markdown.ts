@@ -42,7 +42,8 @@ interface MarkdownEdit {
 
 const SOURCE_PRESERVATION_DIFF_CHAR_LIMIT = 16_000;
 const LARGE_DOC_LIST_PRESERVE_LIMIT = 8_000;
-const UNORDERED_LIST_LINE_PATTERN = /^([ \t]{0,3})([-+*])([ \t]+)(.*)$/u;
+const ROOT_UNORDERED_LIST_LINE_PATTERN = /^([ \t]{0,3})([-+*])([ \t]+)(.*)$/u;
+const UNORDERED_LIST_LINE_PATTERN = /^([ \t]*)([-+*])([ \t]+)(.*)$/u;
 const FENCED_CODE_LINE_PATTERN = /^ {0,3}(```+|~~~+)/u;
 const FENCED_CODE_OPENING_PATTERN = /^( {0,3})(```+|~~~+)(.*)$/u;
 
@@ -510,9 +511,11 @@ function collectUnorderedListRuns(lines: MarkdownLine[]): UnorderedListRun[] {
       continue;
     }
 
+    // 列表 run 只能从 CommonMark 允许的根缩进开始；进入 run 后允许任意层级缩进。
+    // 这样既支持第二层以上子列表，也不会把独立的四空格代码误判成列表。
     const match = openingFence
       ? null
-      : line.text.match(UNORDERED_LIST_LINE_PATTERN);
+      : line.text.match(ROOT_UNORDERED_LIST_LINE_PATTERN);
     if (!match) {
       index += 1;
       continue;
@@ -570,6 +573,12 @@ function collectUnorderedListItems(
   lines: MarkdownLine[],
 ): UnorderedListItemLine[] {
   return collectUnorderedListRuns(lines).flatMap((run) => run.items);
+}
+
+function getUnorderedListLineIndexes(lines: MarkdownLine[]): Set<number> {
+  return new Set(
+    collectUnorderedListItems(lines).map((item) => item.lineIndex),
+  );
 }
 
 function hasSameContentOrder(left: string[], right: string[]): boolean {
@@ -871,11 +880,13 @@ function repairJoinedUnorderedListMarkers(
   allowWhitespaceSeparatedMarkers = false,
 ): string | null {
   const lines = splitMarkdownLines(markdown);
+  const listLineIndexes = getUnorderedListLineIndexes(lines);
   let openingFence: string | null = null;
   let changed = false;
   const nextLines: MarkdownLine[] = [];
 
-  for (const line of lines) {
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
     const fenceMatch = openingFence
       ? getClosingFenceMatch(line.text, openingFence)
       : line.text.match(FENCED_CODE_LINE_PATTERN);
@@ -885,9 +896,10 @@ function repairJoinedUnorderedListMarkers(
       continue;
     }
 
-    const repairedLines = openingFence
-      ? null
-      : splitJoinedUnorderedListLine(line, allowWhitespaceSeparatedMarkers);
+    const repairedLines =
+      openingFence || !listLineIndexes.has(index)
+        ? null
+        : splitJoinedUnorderedListLine(line, allowWhitespaceSeparatedMarkers);
     if (!repairedLines) {
       nextLines.push(line);
       continue;
@@ -902,6 +914,46 @@ function repairJoinedUnorderedListMarkers(
   return preserveSourceEnding(
     markdown,
     nextLines.map((line) => `${line.text}${line.ending}`).join(""),
+  );
+}
+
+function repairTrailingOrphanUnorderedListMarker(
+  markdown: string,
+): string | null {
+  const lines = splitMarkdownLines(markdown);
+  let markerLineIndex = lines.length - 1;
+
+  while (
+    markerLineIndex >= 0 &&
+    lines[markerLineIndex].text.trim().length === 0
+  ) {
+    markerLineIndex -= 1;
+  }
+
+  if (
+    markerLineIndex < 0 ||
+    !/^[ \t]*\*[ \t]*$/u.test(lines[markerLineIndex].text)
+  ) {
+    return null;
+  }
+
+  let previousContentLineIndex = markerLineIndex - 1;
+  while (
+    previousContentLineIndex >= 0 &&
+    lines[previousContentLineIndex].text.trim().length === 0
+  ) {
+    previousContentLineIndex -= 1;
+  }
+
+  // 仅清理紧随真实列表内容的末尾裸 marker；普通正文后的独立 `*` 保持原样。
+  if (!getUnorderedListLineIndexes(lines).has(previousContentLineIndex)) {
+    return null;
+  }
+
+  lines.splice(markerLineIndex, 1);
+  return preserveSourceEnding(
+    markdown,
+    lines.map((line) => `${line.text}${line.ending}`).join(""),
   );
 }
 
@@ -982,8 +1034,11 @@ function repairJoinedFencedCodeFirstLines(markdown: string): string | null {
 export function repairMarkdownSourceBeforeParse(markdown: string): string {
   const fencedCodeRepaired =
     repairJoinedFencedCodeFirstLines(markdown) ?? markdown;
+  const listMarkerRepaired =
+    repairJoinedUnorderedListMarkers(fencedCodeRepaired) ?? fencedCodeRepaired;
   return (
-    repairJoinedUnorderedListMarkers(fencedCodeRepaired) ?? fencedCodeRepaired
+    repairTrailingOrphanUnorderedListMarker(listMarkerRepaired) ??
+    listMarkerRepaired
   );
 }
 
@@ -1123,17 +1178,21 @@ function preserveMovedUnorderedListItemsAcrossBlocks(
   }
 
   const formatBuckets = getListItemFormatBuckets(sourceItems);
+  const editedListLineIndexes = new Set(
+    editedItems.map((item) => item.lineIndex),
+  );
   let openingFence: string | null = null;
   let changed = false;
   let editedItemIndex = 0;
-  const nextLines = editedLines.map((line) => {
+  const nextLines = editedLines.map((line, lineIndex) => {
     const isInsideFence = openingFence !== null;
     const fenceMatch = openingFence
       ? getClosingFenceMatch(line.text, openingFence)
       : line.text.match(FENCED_CODE_LINE_PATTERN);
-    const editedMatch = isInsideFence
-      ? null
-      : line.text.match(UNORDERED_LIST_LINE_PATTERN);
+    const editedMatch =
+      isInsideFence || !editedListLineIndexes.has(lineIndex)
+        ? null
+        : line.text.match(UNORDERED_LIST_LINE_PATTERN);
     let nextText = line.text;
 
     if (editedMatch) {
@@ -1177,6 +1236,8 @@ function preserveLargeDocumentListMarkers(source: string, edited: string) {
     return preserveSourceEnding(source, edited);
   }
 
+  const sourceListLineIndexes = getUnorderedListLineIndexes(sourceLines);
+  const editedListLineIndexes = getUnorderedListLineIndexes(editedLines);
   let openingFence: string | null = null;
   const result = editedLines
     .map((editedLine, index) => {
@@ -1193,7 +1254,13 @@ function preserveLargeDocumentListMarkers(source: string, edited: string) {
       );
       let nextText = editedLine.text;
 
-      if (!isInsideFence && sourceListMatch && editedListMatch) {
+      if (
+        !isInsideFence &&
+        sourceListLineIndexes.has(index) &&
+        editedListLineIndexes.has(index) &&
+        sourceListMatch &&
+        editedListMatch
+      ) {
         // 大文档不做字符级 diff，但仍保留源码中已有的无序列表标记。
         nextText = `${editedListMatch[1]}${sourceListMatch[2]}${editedListMatch[3]}${editedListMatch[4]}`;
       }
@@ -1589,23 +1656,11 @@ function normalizeUnorderedListMarkers(source: string, result: string): string {
   let hasDash = false;
   let hasStar = false;
   let hasPlus = false;
-  let openingFence: string | null = null;
 
-  for (const line of sourceLines) {
-    const fenceMatch = openingFence
-      ? getClosingFenceMatch(line.text, openingFence)
-      : line.text.match(FENCED_CODE_LINE_PATTERN);
-    if (fenceMatch) {
-      openingFence = openingFence ? null : fenceMatch[1];
-      continue;
-    }
-    if (openingFence) continue;
-
-    const match = line.text.match(UNORDERED_LIST_LINE_PATTERN);
-    if (!match) continue;
-    if (match[2] === "-") hasDash = true;
-    else if (match[2] === "*") hasStar = true;
-    else if (match[2] === "+") hasPlus = true;
+  for (const item of collectUnorderedListItems(sourceLines)) {
+    if (item.marker === "-") hasDash = true;
+    else if (item.marker === "*") hasStar = true;
+    else if (item.marker === "+") hasPlus = true;
   }
 
   // 确定源文件的主导标记。
@@ -1622,17 +1677,9 @@ function normalizeUnorderedListMarkers(source: string, result: string): string {
   if (preferredMarker === null) return result;
 
   const resultLines = splitMarkdownLines(result);
-  openingFence = null;
-  const normalized = resultLines.map((line) => {
-    const fenceMatch = openingFence
-      ? getClosingFenceMatch(line.text, openingFence)
-      : line.text.match(FENCED_CODE_LINE_PATTERN);
-    if (fenceMatch) {
-      openingFence = openingFence ? null : fenceMatch[1];
-      return line;
-    }
-    if (openingFence) return line;
-
+  const resultListLineIndexes = getUnorderedListLineIndexes(resultLines);
+  const normalized = resultLines.map((line, lineIndex) => {
+    if (!resultListLineIndexes.has(lineIndex)) return line;
     const match = line.text.match(UNORDERED_LIST_LINE_PATTERN);
     if (match && match[2] !== preferredMarker) {
       return {
@@ -2330,6 +2377,42 @@ function getQuoteListChildren<TBlock>(block: TBlock): TBlock[] | null {
     : null;
 }
 
+const TRANSIENT_EMPTY_LIST_ITEM_TYPES = new Set([
+  "bulletListItem",
+  "numberedListItem",
+  "toggleListItem",
+]);
+
+function omitTransientEmptyListItems<TBlock>(blocks: TBlock[]): TBlock[] {
+  let changed = false;
+  const normalizedBlocks = blocks.map((block) => {
+    if (!isRecord(block) || !Array.isArray(block.children)) return block;
+
+    const children = omitTransientEmptyListItems(block.children as TBlock[]);
+    if (children === block.children) return block;
+
+    changed = true;
+    return { ...block, children } as TBlock;
+  });
+  let endIndex = normalizedBlocks.length;
+
+  while (endIndex > 0) {
+    const block = normalizedBlocks[endIndex - 1];
+    if (
+      !isRecord(block) ||
+      !TRANSIENT_EMPTY_LIST_ITEM_TYPES.has(getMarkdownBlockType(block) ?? "") ||
+      getInlineText(block.content).trim() ||
+      (Array.isArray(block.children) && block.children.length > 0)
+    ) {
+      break;
+    }
+    endIndex -= 1;
+    changed = true;
+  }
+
+  return changed ? normalizedBlocks.slice(0, endIndex) : blocks;
+}
+
 // BlockNote 序列化非列表父块时会提升其子块，需要手动补回标准引用列表前缀。
 async function serializeQuoteListBlocks<TBlock>(
   serializer: MarkdownSerializer<TBlock>,
@@ -2425,9 +2508,15 @@ export async function serializeMarkdown<TBlock>(
 ): Promise<string> {
   // 大文档序列化可能阻塞数百毫秒；让出主线程确保用户交互不被延迟。
   await yieldToMain();
-  const markdown = await serializeQuoteListBlocks(serializer, blocks);
+  // 列表末尾第一次 Enter 会短暂产生空列表项；BlockNote 会把它导出为裸 `*`/`1.`，
+  // 且这种无内容、无子块的编辑态占位不应进入 Markdown 或后续解析缓存。
+  const serializableBlocks = omitTransientEmptyListItems(blocks);
+  const markdown = await serializeQuoteListBlocks(
+    serializer,
+    serializableBlocks,
+  );
   return normalizeSerializedCodeBlockContent(
     normalizeMarkupHardBreaks(markdown),
-    blocks,
+    serializableBlocks,
   );
 }

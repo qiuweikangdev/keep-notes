@@ -733,7 +733,7 @@ function persistRichPaneScroll(
   store.setTabScrollTop(owner.groupId, owner.tabId, scrollTop);
 }
 
-const MARKDOWN_PARSER_VERSION = "blocknote-v6";
+const MARKDOWN_PARSER_VERSION = "blocknote-v7";
 
 export function getMarkdownParserCacheVersion(reloadKey: number) {
   return `${MARKDOWN_PARSER_VERSION}:${reloadKey}`;
@@ -2257,6 +2257,13 @@ function MountedBlockNoteEditor({
       serializationQueuedRef.current = true;
       await serializationInFlightRef.current;
       if (!isCurrentLifecycle()) return;
+      if (changeGateRef.current.capturePendingRevision() === null) return;
+
+      // 显式 flush 可能与旧版本序列化重叠；等待后必须继续排空新 revision，
+      // 否则切换模式/文件会取消 finally 安排的 idle 任务并留下旧列表快照。
+      serializationCancelRef.current?.();
+      serializationCancelRef.current = null;
+      await serializeChangeRef.current();
       return;
     }
 
@@ -2268,7 +2275,9 @@ function MountedBlockNoteEditor({
         await baselineSerializationRef.current;
         if (!isCurrentLifecycle()) return;
       }
-      const serialized = await serializeMarkdown(editor, editor.document);
+      // 同一次序列化和缓存必须使用同一棵不可变块快照；输入可能在异步导出期间继续更新。
+      const serializedBlocks = editor.document;
+      const serialized = await serializeMarkdown(editor, serializedBlocks);
       if (!isCurrentLifecycle()) return;
       const baseline = serializedBaselineRef.current;
       if (baseline === null) {
@@ -2280,7 +2289,7 @@ function MountedBlockNoteEditor({
           editorCache.setBlocks(
             path,
             contentRef.current,
-            editor.document,
+            serializedBlocks,
             parserCacheVersion,
             serialized,
           );
@@ -2316,7 +2325,7 @@ function MountedBlockNoteEditor({
         editorCache.setBlocks(
           path,
           markdown,
-          editor.document,
+          serializedBlocks,
           parserCacheVersion,
           serialized,
         );
@@ -2406,7 +2415,7 @@ function MountedBlockNoteEditor({
         const source = repairMarkdownSourceBeforeParse(rawSource);
         const sourceWasRepaired = !markdownEquals(source, rawSource);
         if (sourceWasRepaired) {
-          // 打开历史异常文件时先修复已拼接的列表源码，避免富文本和源码继续分叉。
+          // 打开历史异常文件时先修复列表源码，避免富文本和源码继续分叉。
           contentRef.current = source;
         }
         const currentPath = appliedPathRef.current;

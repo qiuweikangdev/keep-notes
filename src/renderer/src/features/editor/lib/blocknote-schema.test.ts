@@ -22,7 +22,11 @@ import {
 } from "./blocknote-schema";
 import { shouldStopEditorCodeBlockNodeViewEvent } from "./editor-code-block-node-view";
 import * as blocknoteSchemaModule from "./blocknote-schema";
-import { parseMarkdown, repairMarkdownSourceBeforeParse } from "./markdown";
+import {
+  parseMarkdown,
+  repairMarkdownSourceBeforeParse,
+  serializeMarkdown,
+} from "./markdown";
 
 afterEach(() => {
   cleanup();
@@ -690,6 +694,34 @@ describe("editor BlockNote schema", () => {
       { type: "bulletListItem", text: "List" },
     ]);
     expect(editor.document.map(getInlineText).join("")).not.toContain("*");
+  });
+
+  it("does not persist a transient empty bullet at the end of a list", async () => {
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        { type: "bulletListItem", content: "列表1" },
+        { type: "bulletListItem", content: "列表2" },
+        {
+          type: "bulletListItem",
+          content: "列表3",
+          children: [{ type: "bulletListItem", content: "列表3-3" }],
+        },
+        { type: "bulletListItem", content: "列表4" },
+        { type: "bulletListItem", content: "" },
+      ],
+    });
+
+    await expect(serializeMarkdown(editor, editor.document)).resolves.toBe(
+      ["* 列表1", "* 列表2", "* 列表3", "  * 列表3-3", "* 列表4", ""].join(
+        "\n",
+      ),
+    );
+    expect(editor.document).toHaveLength(5);
+    expect(editor.document.at(-1)).toMatchObject({
+      type: "bulletListItem",
+      content: [],
+    });
   });
 
   it("undoes one completed bullet list item at a time", () => {

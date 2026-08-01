@@ -497,6 +497,39 @@ describe("markdownEquals", () => {
 });
 
 describe("repairMarkdownSourceBeforeParse", () => {
+  it("removes a terminal orphan marker left by an empty nested list item", () => {
+    const source = [
+      "* 列表1",
+      "* 列表2",
+      "* 列表3",
+      "  * 列表3-1",
+      "    * 列表3-1-1",
+      "    *",
+      "",
+    ].join("\n");
+
+    expect(repairMarkdownSourceBeforeParse(source)).toBe(
+      [
+        "* 列表1",
+        "* 列表2",
+        "* 列表3",
+        "  * 列表3-1",
+        "    * 列表3-1-1",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("keeps a standalone literal star outside a list", () => {
+    expect(repairMarkdownSourceBeforeParse("正文\n\n*\n")).toBe("正文\n\n*\n");
+  });
+
+  it("does not treat standalone indented code as a nested list", () => {
+    const source = ["正文", "", "    * code * more", ""].join("\n");
+
+    expect(repairMarkdownSourceBeforeParse(source)).toBe(source);
+  });
+
   it("recovers Chinese first-line content joined to a bash fence", () => {
     const source = [
       "核心步骤",
@@ -584,6 +617,31 @@ describe("repairMarkdownSourceBeforeParse", () => {
 });
 
 describe("preserveMarkdownSource", () => {
+  it("preserves source markers across every nested list depth", () => {
+    const source = [
+      "- 父列表",
+      "  - 子列表",
+      "    - 孙列表",
+      "      - 第四层",
+      "",
+    ].join("\n");
+    const baseline = [
+      "* 父列表",
+      "",
+      "  * 子列表",
+      "",
+      "    * 孙列表",
+      "",
+      "      * 第四层",
+      "",
+    ].join("\n");
+    const edited = baseline.replace("第四层", "第四层更新");
+
+    expect(preserveMarkdownSource(source, baseline, edited)).toBe(
+      source.replace("第四层", "第四层更新"),
+    );
+  });
+
   it("repairs partially joined nested list items from the rich-text baseline", () => {
     const source = [
       "## API",
