@@ -12,6 +12,7 @@ import { useTreeStore } from "@/store/tree.store";
 import { useEditorStore } from "@/store/editor.store";
 import { useUserStore } from "@/store/user.store";
 import {
+  backgroundEditorSaveCoordinator,
   editorSaveCoordinator,
   fileOpenController,
   flushEditorChange,
@@ -339,20 +340,24 @@ export function useElectron() {
           if (shouldFlushInBackground) {
             const releaseBackground =
               richDocumentSessionManager.retainBackground(previousPath, tabId);
+            backgroundEditorSaveCoordinator.track({
+              path: previousPath,
+              flush: async () => {
+                await richDocumentSessionManager.serializePendingChange(
+                  previousPath,
+                );
+                return editorSaveCoordinator.flush(previousPath);
+              },
+              getContent: () =>
+                editorSaveCoordinator.getPendingContent(previousPath),
+              release: releaseBackground,
+            });
             flushPreviousInBackground = () => {
               window.setTimeout(() => {
-                void (async () => {
-                  try {
-                    await richDocumentSessionManager.serializePendingChange(
-                      previousPath,
-                    );
-                    await editorSaveCoordinator.flush(previousPath);
-                  } catch {
-                    // 后台冲刷失败沿用现有保存状态，不能形成未处理的 Promise 拒绝。
-                  } finally {
-                    releaseBackground();
-                  }
-                })();
+                // 自动保存失败时保留旧会话与待保存身份，关闭窗口或下次重试仍可继续冲刷。
+                void backgroundEditorSaveCoordinator
+                  .flush(previousPath)
+                  .catch(() => undefined);
               }, 0);
             };
           } else {

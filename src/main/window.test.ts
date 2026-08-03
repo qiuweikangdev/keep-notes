@@ -346,6 +346,36 @@ describe("window close draft protection", () => {
     }
   });
 
+  it("surfaces a close-save serialization failure and keeps the window open", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    const executeJavaScript = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("serialize failed"));
+    const win = {
+      isDestroyed: vi.fn(() => false),
+      destroy: vi.fn(),
+      webContents: { executeJavaScript },
+    } as unknown as Electron.BrowserWindow;
+
+    try {
+      await saveAndClose(win);
+
+      expect(win.destroy).not.toHaveBeenCalled();
+      expect(electronMocks.showMessageBox).toHaveBeenCalledWith(
+        win,
+        expect.objectContaining({
+          type: "error",
+          message: "文件保存失败",
+          detail: "serialize failed",
+        }),
+      );
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
   it("keeps the window open when the save success callback is missing", async () => {
     const consoleError = vi
       .spyOn(console, "error")

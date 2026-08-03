@@ -1,5 +1,10 @@
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  backgroundEditorSaveCoordinator,
+  editorSaveCoordinator,
+} from "@/features/editor/lib/editor-runtime";
+import { BACKGROUND_EDITOR_SAVE_GROUP_ID } from "@/features/editor/lib/editor-background-save-coordinator";
 import { useEditorStore } from "@/store/editor.store";
 import { EditorBridge } from "./editor-bridge";
 
@@ -47,6 +52,7 @@ describe("EditorBridge close protection", () => {
 
   afterEach(() => {
     cleanup();
+    backgroundEditorSaveCoordinator.cancelAll();
   });
 
   it("reports a background draft and selects it for close saving", () => {
@@ -121,5 +127,112 @@ describe("EditorBridge close protection", () => {
       filePath: "/notes/draft.md",
     });
     expect(updateDirtyState).toHaveBeenLastCalledWith(true);
+  });
+
+  it("keeps close protection active while a reused large document saves in background", async () => {
+    const release = vi.fn();
+    backgroundEditorSaveCoordinator.track({
+      path: "/notes/large.md",
+      flush: vi.fn().mockResolvedValue(false),
+      getContent: () => "# Latest serialized content",
+      release,
+    });
+    editorSaveCoordinator.schedule(
+      "/notes/large.md",
+      "# Latest serialized content",
+    );
+    useEditorStore.setState((state) => ({
+      panelGroups: state.panelGroups.map((group) => ({
+        ...group,
+        tabs: group.tabs.map((tab) => ({
+          ...tab,
+          isDirty: false,
+          saveStatus: "clean" as const,
+        })),
+      })),
+    }));
+
+    render(<EditorBridge />);
+
+    expect(updateDirtyState).toHaveBeenLastCalledWith(true);
+    await expect((window as any).__getNextDirtyEditor()).resolves.toEqual({
+      groupId: BACKGROUND_EDITOR_SAVE_GROUP_ID,
+      tabId: "/notes/large.md",
+      filePath: "/notes/large.md",
+      content: "# Latest serialized content",
+    });
+
+    act(() => {
+      (window as any).__onCloseSaveSuccess(
+        BACKGROUND_EDITOR_SAVE_GROUP_ID,
+        "/notes/large.md",
+        "/notes/large.md",
+        "# Latest serialized content",
+      );
+    });
+    expect(release).toHaveBeenCalledOnce();
+    expect(editorSaveCoordinator.hasPending("/notes/large.md")).toBe(false);
+    expect(updateDirtyState).toHaveBeenLastCalledWith(false);
+  });
+
+  it("keeps a newer background revision pending when an older close snapshot finishes", async () => {
+    const path = "/notes/shared-large.md";
+    const release = vi.fn();
+    backgroundEditorSaveCoordinator.track({
+      path,
+      flush: vi.fn().mockResolvedValue(false),
+      getContent: () => editorSaveCoordinator.getPendingContent(path),
+      release,
+    });
+    editorSaveCoordinator.schedule(path, "# First snapshot");
+    useEditorStore.setState((state) => ({
+      panelGroups: state.panelGroups.map((group) => ({
+        ...group,
+        tabs: group.tabs.map((tab) => ({
+          ...tab,
+          isDirty: false,
+          saveStatus: "clean" as const,
+        })),
+      })),
+    }));
+    render(<EditorBridge />);
+
+    await expect((window as any).__getNextDirtyEditor()).resolves.toMatchObject(
+      {
+        content: "# First snapshot",
+      },
+    );
+    editorSaveCoordinator.schedule(path, "# Newer snapshot");
+
+    act(() => {
+      (window as any).__onCloseSaveSuccess(
+        BACKGROUND_EDITOR_SAVE_GROUP_ID,
+        path,
+        path,
+        "# First snapshot",
+      );
+    });
+
+    expect(backgroundEditorSaveCoordinator.hasPending(path)).toBe(true);
+    expect(editorSaveCoordinator.getPendingContent(path)).toBe(
+      "# Newer snapshot",
+    );
+    expect(release).not.toHaveBeenCalled();
+    await expect((window as any).__getNextDirtyEditor()).resolves.toMatchObject(
+      {
+        content: "# Newer snapshot",
+      },
+    );
+    act(() => {
+      (window as any).__onCloseSaveSuccess(
+        BACKGROUND_EDITOR_SAVE_GROUP_ID,
+        path,
+        path,
+        "# Newer snapshot",
+      );
+    });
+    expect(backgroundEditorSaveCoordinator.hasPending(path)).toBe(false);
+    expect(editorSaveCoordinator.hasPending(path)).toBe(false);
+    expect(release).toHaveBeenCalledOnce();
   });
 });

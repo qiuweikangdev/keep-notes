@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CodeResult, type WorkspaceChangeBatch } from "@shared/types";
 import {
+  backgroundEditorSaveCoordinator,
   editorSaveCoordinator,
   registerEditorChangeFlusher,
   richDocumentSessionManager,
@@ -21,6 +22,7 @@ describe("useElectron workspace tree loading", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    backgroundEditorSaveCoordinator.cancelAll();
     workspaceChanged = undefined;
     useTreeStore.getState().resetTree();
     Object.defineProperty(window, "electronAPI", {
@@ -268,6 +270,9 @@ describe("useElectron file reuse", () => {
       expect(richDocumentSessionManager.getBoundTabIds(previousPath)).toContain(
         "tab-open-file",
       );
+      expect(backgroundEditorSaveCoordinator.hasPending(previousPath)).toBe(
+        true,
+      );
 
       await act(async () => vi.runOnlyPendingTimersAsync());
       expect(serializePendingChange).toHaveBeenCalledOnce();
@@ -285,6 +290,9 @@ describe("useElectron file reuse", () => {
       expect(
         richDocumentSessionManager.getBoundTabIds(previousPath),
       ).not.toContain("tab-open-file");
+      expect(backgroundEditorSaveCoordinator.hasPending(previousPath)).toBe(
+        false,
+      );
     } finally {
       deferredSerialization.resolve();
       await act(async () => {
@@ -292,6 +300,64 @@ describe("useElectron file reuse", () => {
         await openPromise;
       });
       unregisterFlusher();
+      unregisterRuntime();
+      editorSaveCoordinator.cancel(previousPath);
+      vi.useRealTimers();
+    }
+  });
+
+  it("retains and retries a large rich-text background save after serialization fails", async () => {
+    vi.useFakeTimers();
+    const previousPath = "C:/notes/large-retry-previous.md";
+    const targetPath = "C:/notes/large-retry-target.md";
+    const serializePendingChange = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(new Error("serialize failed"))
+      .mockImplementationOnce(async () => {
+        editorSaveCoordinator.schedule(previousPath, "# Retried latest");
+      });
+    const runtime: RichDocumentRuntime = {
+      path: previousPath,
+      surface: document.createElement("div"),
+      serializePendingChange,
+      cancelPendingWork: vi.fn(),
+      destroy: vi.fn(),
+      isDirty: () => true,
+      isSaving: () => false,
+      isReloading: () => false,
+    };
+    const unregisterRuntime = richDocumentSessionManager.registerRuntime(
+      previousPath,
+      runtime,
+    );
+    setupOpenFileTab(previousPath, "x".repeat(10_000), "rich");
+    readFile.mockResolvedValue("# Target");
+    const { result } = renderHook(() => useElectron());
+
+    try {
+      await act(async () => result.current.openFile(targetPath));
+      await act(async () => vi.runOnlyPendingTimersAsync());
+
+      expect(backgroundEditorSaveCoordinator.hasPending(previousPath)).toBe(
+        true,
+      );
+      expect(richDocumentSessionManager.getBoundTabIds(previousPath)).toContain(
+        "tab-open-file",
+      );
+
+      await expect(
+        backgroundEditorSaveCoordinator.getNextCloseSnapshot(),
+      ).resolves.toBeNull();
+      expect(serializePendingChange).toHaveBeenCalledTimes(2);
+      expect(writeFile).toHaveBeenCalledWith(previousPath, "# Retried latest");
+      expect(backgroundEditorSaveCoordinator.hasPending(previousPath)).toBe(
+        false,
+      );
+      expect(
+        richDocumentSessionManager.getBoundTabIds(previousPath),
+      ).not.toContain("tab-open-file");
+    } finally {
+      backgroundEditorSaveCoordinator.cancelAll();
       unregisterRuntime();
       editorSaveCoordinator.cancel(previousPath);
       vi.useRealTimers();

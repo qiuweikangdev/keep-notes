@@ -374,3 +374,24 @@ git log -4 --oneline
 ```
 
 Expected: every command exits with code 0, tests have no unhandled rejections, and the final scope contains only the approved specification, plan, scheduler, editor integration, hook, and tests.
+
+### Task 5: Preserve Close Safety for Deferred Saves
+
+**Files:**
+- Create: `src/renderer/src/features/editor/lib/editor-background-save-coordinator.ts`
+- Create: `src/renderer/src/features/editor/lib/editor-background-save-coordinator.test.ts`
+- Modify: `src/renderer/src/features/editor/lib/editor-save-coordinator.ts`
+- Modify: `src/renderer/src/features/editor/lib/editor-runtime.ts`
+- Modify: `src/renderer/src/hooks/use-electron.ts`
+- Modify: `src/renderer/src/hooks/use-electron.test.tsx`
+- Modify: `src/renderer/src/features/editor/components/editor-bridge.tsx`
+- Modify: `src/renderer/src/features/editor/components/editor-bridge.test.tsx`
+- Modify: `src/main/window.ts`
+- Modify: `src/main/window.test.ts`
+
+- [x] **Step 1: Add failing tests for pending close protection, serialization rejection, and disk-write failure snapshots**
+- [x] **Step 2: Track a path-level dirty identity before the reused tab transitions**
+- [x] **Step 3: Retain failed sessions and retry them from close-save**
+- [x] **Step 4: Use a synthetic close-save identity so the target tab cannot be mutated**
+- [x] **Step 5: Surface close-save failures and keep the window open**
+- [x] **Step 6: Re-run repository verification and external review**

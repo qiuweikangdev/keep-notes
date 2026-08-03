@@ -1,6 +1,7 @@
 import type { Block } from "@blocknote/core";
 
 import { EditorCache } from "./editor-cache";
+import { EditorBackgroundSaveCoordinator } from "./editor-background-save-coordinator";
 import {
   createFileOpenController,
   EditorLoadSession,
@@ -25,6 +26,8 @@ export const richDocumentSessionManager = new RichDocumentSessionManager({
   viewStates: richPaneViewStateRegistry,
   maxBackgroundSessions: 4,
 });
+export const backgroundEditorSaveCoordinator =
+  new EditorBackgroundSaveCoordinator();
 
 export function createEditorSaveCoordinator(options: {
   write: (path: string, content: string) => Promise<void>;

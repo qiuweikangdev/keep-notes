@@ -25,7 +25,7 @@ Use the existing large-document threshold to apply two targeted changes.
 
 First, large-document background serialization will use a real quiet-period debounce before requesting browser idle time. The current `requestIdleCallback` timeout remains an execution deadline rather than being treated as a debounce delay. Small documents keep the existing immediate idle scheduling behavior. Explicit save and close operations continue to bypass the quiet-period delay.
 
-Second, file-tree navigation will start and complete the target file transition before awaiting the previous large rich-text document's serialization. The previous rich-document session will be retained with `RichDocumentSessionManager.retainBackground` until serialization and the save coordinator finish. This retains the exact live BlockNote tree while the reused tab moves to the target file. The background flush starts only after the target snapshot has been committed, allowing React to paint the switch first.
+Second, file-tree navigation will start and complete the target file transition before awaiting the previous large rich-text document's serialization. The previous rich-document session will be retained with `RichDocumentSessionManager.retainBackground` until serialization and the save coordinator finish. A background-save coordinator will preserve a path-level dirty identity after the reused tab moves to the target file. This retains both the exact live BlockNote tree and close protection while the background flush runs. The background flush starts only after the target snapshot has been committed, allowing React to paint the switch first.
 
 Small documents and source-mode documents will keep the current synchronous flush-before-reuse path.
 
@@ -56,25 +56,31 @@ For the background path it will:
 2. Mark and load the target file using the existing transition controller.
 3. After the target content has been committed, start the old runtime flush without awaiting it from the navigation action.
 4. Flush the old path through `EditorSaveCoordinator`.
-5. Release the background retention only after the flush finishes.
+5. Keep the old path registered as dirty until its flush succeeds.
+6. Release the background retention only after a successful disk save or after close-save writes the serialized snapshot directly.
 
 The old session controller already writes its serialized Markdown to the editor cache and schedules the original I/O path, so no Markdown or file API behavior changes are required.
 
+### Background save and close coordination
+
+`EditorBackgroundSaveCoordinator` owns path-stable records for reused large documents. Equivalent Windows path separators share one normalized identity while the first stable I/O path remains unchanged. Repeated tracking coalesces retention tokens so a failed session cannot be evicted before retry. `EditorBridge` includes those records when reporting the window dirty state. During close-save, the coordinator first retries serialization and normal persistence. If normal persistence fails after serialization, it exposes the latest pending Markdown snapshot to the existing main-process close-save writer. A synthetic close-save identity prevents that callback from mutating the newly reused tab, and content matching prevents an older close snapshot from clearing a newer revision.
+
 ## Error Handling
 
-- Serialization errors continue to use the rich editor's existing parse/error handling.
-- Disk-write failures continue to use `EditorSaveCoordinator` state handling.
-- Background retention is released in a `finally` block to avoid permanent session retention.
-- A rejected background operation must be caught so it cannot create an unhandled promise rejection.
-- Existing successful navigation is not rolled back after a background save failure; the latest serialized snapshot remains in the editor cache and the existing save error path remains authoritative.
+- A rejected automatic background operation is caught so it cannot create an unhandled promise rejection, but its path-level dirty identity and retained runtime remain available for retry.
+- Disk-write failures preserve `EditorSaveCoordinator`'s pending Markdown snapshot.
+- Close-save retries the background operation and can write that pending snapshot directly through the existing main-process writer.
+- Background retention is released only after persistence succeeds; failed serialization or writing does not discard the live document.
+- Close-save errors keep the window open and display an error dialog.
+- Existing successful navigation is not rolled back after a background save failure.
 
 ## Performance Constraints
 
 - Automatic large-document serialization must not be requested before the quiet period expires.
 - Repeated edits must replace the pending delayed task rather than enqueue multiple whole-document serializations.
 - Large-document file navigation must commit the target transition without waiting for the old serialization promise.
-- The old document runtime must remain registered until its flush settles.
-- No new React state subscription or document-wide render pass may be added.
+- The old document runtime must remain registered until persistence succeeds or close-save safely writes its latest snapshot.
+- Tracking background dirty identities must not add a document-wide render pass.
 
 ## Test Strategy
 
@@ -85,6 +91,7 @@ Add focused regression tests before production changes:
 3. A file-opening coordination test proves that the target transition completes while the previous large-document flush is unresolved.
 4. The same test proves background retention is held until serialization and saving settle.
 5. Existing small-document, overlapping-serialization, session, save-coordinator, and file-transition tests remain green.
+6. Close protection remains active before background serialization starts, failed serialization stays retryable, and failed disk persistence exposes the latest serialized snapshot without mutating the reused tab.
 
 Repository verification remains `pnpm typecheck`, `pnpm lint`, and `pnpm build` after the targeted tests pass.
 
