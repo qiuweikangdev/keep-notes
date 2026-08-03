@@ -15,7 +15,9 @@ import {
   editorSaveCoordinator,
   fileOpenController,
   flushEditorChange,
+  richDocumentSessionManager,
 } from "@/features/editor/lib/editor-runtime";
+import { isLargeEditorDocument } from "@/features/editor/lib/editor-large-document";
 import { selectFileOpenTabId } from "@/features/editor/lib/editor-tab-opening";
 import { findNodeByKey } from "@/features/file-tree/utils";
 import { getDirectoriesToRefresh } from "@/features/file-tree/tree-data";
@@ -325,43 +327,75 @@ export function useElectron() {
 
         if (!targetGroup || !activeTab) return;
 
-        // 复用标签前先冲刷旧文件，避免尚未到期的自动保存丢失。
+        let flushPreviousInBackground: (() => void) | null = null;
+
+        // 大富文本保留旧路径运行时，先完成目标切换；其他模式维持原有同步冲刷顺序。
         if (activeTab.filePath) {
-          await flushEditorChange(targetGroup.id, tabId);
-          await editorSaveCoordinator.flush(activeTab.filePath);
+          const previousPath = activeTab.filePath;
+          const shouldFlushInBackground =
+            activeTab.mode === "rich" &&
+            isLargeEditorDocument(activeTab.content);
+
+          if (shouldFlushInBackground) {
+            const releaseBackground =
+              richDocumentSessionManager.retainBackground(previousPath, tabId);
+            flushPreviousInBackground = () => {
+              window.setTimeout(() => {
+                void (async () => {
+                  try {
+                    await richDocumentSessionManager.serializePendingChange(
+                      previousPath,
+                    );
+                    await editorSaveCoordinator.flush(previousPath);
+                  } catch {
+                    // 后台冲刷失败沿用现有保存状态，不能形成未处理的 Promise 拒绝。
+                  } finally {
+                    releaseBackground();
+                  }
+                })();
+              }, 0);
+            };
+          } else {
+            await flushEditorChange(targetGroup.id, tabId);
+            await editorSaveCoordinator.flush(previousPath);
+          }
         }
 
-        state = useEditorStore.getState();
-        state.setActiveTab(targetGroup.id, tabId);
-        state.beginTabLoad(targetGroup.id, tabId, filePath);
-        useTreeStore.getState().setSelectedKey(filePath);
+        try {
+          state = useEditorStore.getState();
+          state.setActiveTab(targetGroup.id, tabId);
+          state.beginTabLoad(targetGroup.id, tabId, filePath);
+          useTreeStore.getState().setSelectedKey(filePath);
 
-        await fileOpenController.open({
-          groupId: targetGroup.id,
-          tabId,
-          path: filePath,
-          onSuccess: (content) => {
-            useEditorStore
-              .getState()
-              .completeTabLoad(targetGroup!.id, tabId, filePath, content);
-          },
-          onError: (error) => {
-            const editorState = useEditorStore.getState();
-            editorState.failTabLoad(
-              targetGroup!.id,
-              tabId,
-              filePath,
-              error.message,
-            );
-            const retainedTab = useEditorStore
-              .getState()
-              .panelGroups.find((group) => group.id === targetGroup!.id)
-              ?.tabs.find((tab) => tab.id === tabId);
-            useTreeStore
-              .getState()
-              .setSelectedKey(retainedTab?.filePath ?? null);
-          },
-        });
+          await fileOpenController.open({
+            groupId: targetGroup.id,
+            tabId,
+            path: filePath,
+            onSuccess: (content) => {
+              useEditorStore
+                .getState()
+                .completeTabLoad(targetGroup!.id, tabId, filePath, content);
+            },
+            onError: (error) => {
+              const editorState = useEditorStore.getState();
+              editorState.failTabLoad(
+                targetGroup!.id,
+                tabId,
+                filePath,
+                error.message,
+              );
+              const retainedTab = useEditorStore
+                .getState()
+                .panelGroups.find((group) => group.id === targetGroup!.id)
+                ?.tabs.find((tab) => tab.id === tabId);
+              useTreeStore
+                .getState()
+                .setSelectedKey(retainedTab?.filePath ?? null);
+            },
+          });
+        } finally {
+          flushPreviousInBackground?.();
+        }
       } else {
         const content = await window.electronAPI.readFile(filePath);
         setContent(content);
