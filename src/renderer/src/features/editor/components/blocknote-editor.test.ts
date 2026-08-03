@@ -27,6 +27,10 @@ import {
   richPaneViewStateRegistry,
 } from "../lib/editor-runtime";
 import { requestEditorViewportPreservation } from "../lib/editor-viewport";
+import {
+  LARGE_DOCUMENT_SERIALIZATION_QUIET_PERIOD_MS,
+  LARGE_DOCUMENT_CHAR_LIMIT,
+} from "../lib/editor-large-document";
 import { RichPreviewCache } from "../lib/rich-preview-cache";
 import {
   BlockNoteEditor,
@@ -2292,6 +2296,116 @@ describe("BlockNoteEditor markup copy", () => {
 });
 
 describe("BlockNoteEditor persistent session runtime", () => {
+  it("waits for a quiet period before serializing a large document automatically", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/large-auto-save.md";
+    const source = `# ${"x".repeat(LARGE_DOCUMENT_CHAR_LIMIT - 2)}`;
+    setupSessionTab(path, { content: source, wordCount: source.length });
+    const session = renderRealSession(path, false, source);
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      await waitFor(() =>
+        expect(markdownMocks.serializeMarkdown).toHaveBeenCalled(),
+      );
+      await act(async () => {
+        await markdownMocks.serializeMarkdown.mock.results[0]?.value;
+      });
+      markdownMocks.serializeMarkdown.mockClear();
+
+      const requestIdleCallback = vi.fn(
+        (_callback: IdleRequestCallback, _options?: IdleRequestOptions) => 1,
+      );
+      vi.stubGlobal("requestIdleCallback", requestIdleCallback);
+      vi.stubGlobal("cancelIdleCallback", vi.fn());
+      vi.useFakeTimers();
+      const runtime = session.runtime.current!;
+      const scrollContainer = session.view.container.querySelector<HTMLElement>(
+        ".editor-rich-scroll",
+      )!;
+
+      fireEvent.keyDown(scrollContainer, { key: "x" });
+      act(() => {
+        runtime.editor.updateBlock(runtime.editor.document[0], {
+          content: `${"x".repeat(LARGE_DOCUMENT_CHAR_LIMIT - 2)}y`,
+        });
+      });
+      const immediateIdleRequests = requestIdleCallback.mock.calls.length;
+
+      act(() => {
+        vi.advanceTimersByTime(
+          LARGE_DOCUMENT_SERIALIZATION_QUIET_PERIOD_MS - 1,
+        );
+      });
+      expect(requestIdleCallback).toHaveBeenCalledTimes(immediateIdleRequests);
+      expect(markdownMocks.serializeMarkdown).not.toHaveBeenCalled();
+
+      act(() => vi.advanceTimersByTime(1));
+      expect(requestIdleCallback).toHaveBeenCalledTimes(
+        immediateIdleRequests + 1,
+      );
+    } finally {
+      vi.useRealTimers();
+      session.view.unmount();
+    }
+  });
+
+  it("serializes a pending large-document change immediately when explicitly flushed", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/large-explicit-save.md";
+    const source = `# ${"x".repeat(LARGE_DOCUMENT_CHAR_LIMIT - 2)}`;
+    setupSessionTab(path, { content: source, wordCount: source.length });
+    const session = renderRealSession(path, false, source);
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      await waitFor(() =>
+        expect(markdownMocks.serializeMarkdown).toHaveBeenCalled(),
+      );
+      await act(async () => {
+        await markdownMocks.serializeMarkdown.mock.results[0]?.value;
+      });
+      markdownMocks.serializeMarkdown.mockClear();
+      markdownMocks.serializeMarkdown.mockResolvedValue("# Saved");
+
+      const requestIdleCallback = vi.fn(
+        (_callback: IdleRequestCallback, _options?: IdleRequestOptions) => 1,
+      );
+      vi.stubGlobal("requestIdleCallback", requestIdleCallback);
+      vi.stubGlobal("cancelIdleCallback", vi.fn());
+      vi.useFakeTimers();
+      const runtime = session.runtime.current!;
+      const scrollContainer = session.view.container.querySelector<HTMLElement>(
+        ".editor-rich-scroll",
+      )!;
+
+      fireEvent.keyDown(scrollContainer, { key: "x" });
+      act(() => {
+        runtime.editor.updateBlock(runtime.editor.document[0], {
+          content: `${"x".repeat(LARGE_DOCUMENT_CHAR_LIMIT - 2)}y`,
+        });
+      });
+      const immediateIdleRequests = requestIdleCallback.mock.calls.length;
+
+      let flushPromise!: Promise<void>;
+      act(() => {
+        flushPromise = runtime.serializePendingChange();
+      });
+
+      expect(requestIdleCallback).toHaveBeenCalledTimes(immediateIdleRequests);
+      expect(markdownMocks.serializeMarkdown).toHaveBeenCalledOnce();
+      vi.useRealTimers();
+      await act(async () => {
+        await flushPromise;
+      });
+    } finally {
+      vi.useRealTimers();
+      session.view.unmount();
+    }
+  });
+
   it("keeps inserted list parents and children separated in markdown", async () => {
     setupMatchMedia();
     setupDomMeasurements();

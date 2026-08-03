@@ -54,6 +54,10 @@ import {
   isUntitledDocumentPath,
   matchesEditorDocumentPath,
 } from "../lib/editor-document-path";
+import {
+  getEditorSerializationQuietPeriod,
+  scheduleEditorIdleTask,
+} from "../lib/editor-large-document";
 import type { RichDocumentRuntime } from "../lib/rich-document-session-manager";
 import type { RichPreviewAnchor } from "../lib/rich-preview-anchor";
 import { RichPreviewCache } from "../lib/rich-preview-cache";
@@ -1479,24 +1483,6 @@ function waitForNextPaint(): Promise<void> {
   });
 }
 
-function scheduleEditorIdleTask(callback: () => void, timeout = 1200) {
-  const idleWindow = window as Window & {
-    requestIdleCallback?: (
-      callback: IdleRequestCallback,
-      options?: IdleRequestOptions,
-    ) => number;
-    cancelIdleCallback?: (handle: number) => void;
-  };
-
-  if (typeof idleWindow.requestIdleCallback === "function") {
-    const handle = idleWindow.requestIdleCallback(callback, { timeout });
-    return () => idleWindow.cancelIdleCallback?.(handle);
-  }
-
-  const timer = window.setTimeout(callback, timeout);
-  return () => window.clearTimeout(timer);
-}
-
 export function focusEditorOutlineBlock(
   editor: OutlineNavigationCursorEditor,
   blockId: string,
@@ -2354,10 +2340,14 @@ function MountedBlockNoteEditor({
         if (serializationCancelRef.current) {
           serializationCancelRef.current();
         }
-        serializationCancelRef.current = scheduleEditorIdleTask(() => {
-          serializationCancelRef.current = null;
-          void serializeChangeRef.current();
-        }, 1200);
+        serializationCancelRef.current = scheduleEditorIdleTask(
+          () => {
+            serializationCancelRef.current = null;
+            void serializeChangeRef.current();
+          },
+          1200,
+          getEditorSerializationQuietPeriod(contentRef.current),
+        );
       } else {
         serializationQueuedRef.current = false;
       }
@@ -2380,10 +2370,14 @@ function MountedBlockNoteEditor({
           : docLength > 6000
             ? 3000
             : 1800;
-    serializationCancelRef.current = scheduleEditorIdleTask(() => {
-      serializationCancelRef.current = null;
-      void serializeChange();
-    }, idleTimeout);
+    serializationCancelRef.current = scheduleEditorIdleTask(
+      () => {
+        serializationCancelRef.current = null;
+        void serializeChange();
+      },
+      idleTimeout,
+      getEditorSerializationQuietPeriod(contentRef.current),
+    );
 
     // 大纲提取同样会遍历整棵文档树，大文档下延后执行，避免抢占点击反馈。
     if (outlineUpdateCancelRef.current) {
