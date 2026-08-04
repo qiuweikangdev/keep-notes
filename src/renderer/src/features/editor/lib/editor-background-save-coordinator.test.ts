@@ -119,4 +119,20 @@ describe("EditorBackgroundSaveCoordinator", () => {
     expect(firstRelease).toHaveBeenCalledOnce();
     expect(latestRelease).toHaveBeenCalledOnce();
   });
+
+  it("cancels a pending rich-text save when source editing takes ownership", () => {
+    const coordinator = new EditorBackgroundSaveCoordinator();
+    const release = vi.fn();
+
+    coordinator.track({
+      path: "C:/notes/large.md",
+      flush: vi.fn().mockResolvedValue(true),
+      getContent: () => "# Rich draft",
+      release,
+    });
+
+    expect(coordinator.cancel("C:/notes/large.md")).toBe(true);
+    expect(coordinator.hasPending("C:/notes/large.md")).toBe(false);
+    expect(release).toHaveBeenCalledOnce();
+  });
 });

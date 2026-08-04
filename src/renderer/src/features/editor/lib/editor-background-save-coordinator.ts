@@ -49,6 +49,18 @@ export class EditorBackgroundSaveCoordinator {
       : this.records.size > 0;
   }
 
+  cancel(path: string): boolean {
+    const key = normalizeRichDocumentPath(path);
+    const record = this.records.get(key);
+    if (!record) return false;
+
+    this.records.delete(key);
+    // 源码编辑接管后立即释放旧富文本会话，使进行中的序列化失效，避免旧内容覆盖新源码。
+    for (const release of record.releases) release();
+    this.publish();
+    return true;
+  }
+
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);

@@ -22,7 +22,7 @@ afterEach(() => {
 });
 
 describe("large document idle scheduling", () => {
-  it("waits for the quiet period before requesting idle work", () => {
+  it("runs large-document work as soon as the quiet period ends", () => {
     vi.useFakeTimers();
     const requestIdleCallback = vi.fn((callback: IdleRequestCallback) => {
       callback({ didTimeout: false, timeRemaining: () => 10 });
@@ -41,9 +41,7 @@ describe("large document idle scheduling", () => {
     vi.advanceTimersByTime(LARGE_DOCUMENT_SERIALIZATION_QUIET_PERIOD_MS - 1);
     expect(requestIdleCallback).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
-    expect(requestIdleCallback).toHaveBeenCalledWith(expect.any(Function), {
-      timeout: 1200,
-    });
+    expect(requestIdleCallback).not.toHaveBeenCalled();
     expect(callback).toHaveBeenCalledOnce();
   });
 

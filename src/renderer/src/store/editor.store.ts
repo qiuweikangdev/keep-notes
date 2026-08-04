@@ -143,7 +143,12 @@ export interface EditorState {
     path: string,
     message: string,
   ) => void;
-  setTabMode: (groupId: string, tabId: string, mode: EditorMode) => void;
+  setTabMode: (
+    groupId: string,
+    tabId: string,
+    mode: EditorMode,
+    options?: { reloadRichDocument?: boolean },
+  ) => void;
   setTabParseError: (
     groupId: string,
     tabId: string,
@@ -789,7 +794,7 @@ export const useEditorStore = create<EditorState>()(
           }));
         },
 
-        setTabMode: (groupId, tabId, mode) => {
+        setTabMode: (groupId, tabId, mode, options) => {
           set((state) => ({
             panelGroups: state.panelGroups.map((group) =>
               group.id === groupId
@@ -802,7 +807,9 @@ export const useEditorStore = create<EditorState>()(
                             mode,
                             // 从源码模式回到富文本时重新解析当前源码，避免沿用旧序列化基线改写列表标记。
                             reloadKey:
-                              tab.mode === "source" && mode === "rich"
+                              tab.mode === "source" &&
+                              mode === "rich" &&
+                              options?.reloadRichDocument !== false
                                 ? tab.reloadKey + 1
                                 : tab.reloadKey,
                           }

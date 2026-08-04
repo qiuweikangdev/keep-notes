@@ -50,9 +50,9 @@ export function scheduleEditorIdleTask(
     delayHandle = environment.setTimeout(run, timeout);
   };
 
-  // 安静期只负责防抖；到期后再进入浏览器空闲队列，避免抢占连续输入。
+  // 大文档已经经过安静期防抖，到期后必须直接执行，避免空闲队列再次延迟保存。
   if (quietPeriodMs > 0) {
-    delayHandle = environment.setTimeout(requestIdleWork, quietPeriodMs);
+    delayHandle = environment.setTimeout(run, quietPeriodMs);
   } else {
     requestIdleWork();
   }

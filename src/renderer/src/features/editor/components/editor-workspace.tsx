@@ -10,6 +10,7 @@ import {
 import { useElectron } from "@/hooks/use-electron";
 import { useEditorStore } from "@/store/editor.store";
 import {
+  backgroundEditorSaveCoordinator,
   editorCache,
   editorSaveCoordinator,
   richDocumentSessionManager,
@@ -38,6 +39,12 @@ import { EditorStateView } from "./editor-state-view";
 import { FindWidget } from "./find-widget";
 import { MarkdownSourceEditor } from "./markdown-source-editor";
 import { RichDocumentPane } from "./rich-document-pane";
+
+function takeOverSourceDocument(path: string): void {
+  // 源码写入成为唯一真值前，先废弃旧富文本的后台任务和在途序列化版本。
+  backgroundEditorSaveCoordinator.cancel(path);
+  richDocumentSessionManager.discardPendingChange(path);
+}
 
 export function EditorWorkspace({
   groupId,
@@ -193,6 +200,9 @@ export function EditorWorkspace({
     (content: string) => {
       const currentTab = getCurrentTab();
       if (!currentTab) return;
+      if (currentTab.filePath) {
+        takeOverSourceDocument(currentTab.filePath);
+      }
       setTabContent(groupId, tabId, content);
       if (!currentTab.filePath) return;
       syncFileContent(currentTab.filePath, content, tabId);
@@ -207,6 +217,9 @@ export function EditorWorkspace({
     if (repairedContent === tabContent) return;
 
     // 源码模式也要修复历史拖拽导致的粘连列表，避免富文本解析正常但源码面板仍显示坏内容。
+    if (tabFilePath) {
+      takeOverSourceDocument(tabFilePath);
+    }
     setTabContent(groupId, tabId, repairedContent);
     if (!tabFilePath) return;
     syncFileContent(tabFilePath, repairedContent, tabId);
@@ -267,6 +280,7 @@ export function EditorWorkspace({
       }
       setTabContent(groupId, tabId, content);
       if (currentTab.filePath) {
+        takeOverSourceDocument(currentTab.filePath);
         syncFileContent(currentTab.filePath, content, tabId);
         editorSaveCoordinator.schedule(currentTab.filePath, content);
       }

@@ -276,6 +276,19 @@ describe("editor store", () => {
     expect(tab.reloadKey).toBe(1);
   });
 
+  it("reuses a matching rich document snapshot when returning from source mode", () => {
+    const store = useEditorStore.getState();
+
+    store.setTabMode("group-1", "tab-1", "source");
+    store.setTabMode("group-1", "tab-1", "rich", {
+      reloadRichDocument: false,
+    });
+
+    const tab = useEditorStore.getState().panelGroups[0].tabs[0];
+    expect(tab.mode).toBe("rich");
+    expect(tab.reloadKey).toBe(0);
+  });
+
   it("records which panel group is split when adding a target panel", () => {
     useEditorStore.setState({
       activeGroupId: "group-1",

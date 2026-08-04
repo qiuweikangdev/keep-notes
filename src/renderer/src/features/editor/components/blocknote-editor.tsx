@@ -2122,6 +2122,12 @@ function MountedBlockNoteEditor({
           serializationCancelRef.current = null;
           await serializeChangeRef.current();
         },
+        discardPendingChange: () => {
+          // 源码模式接管后使已在途的旧序列化失效；保留 runtime 供同文件的其他可见窗格继续重载。
+          lifecycleGenerationRef.current += 1;
+          cancelPendingEditorWork();
+          changeGateRef.current.resetAfterProgrammaticChange();
+        },
         cancelPendingWork: cancelPendingEditorWork,
         destroy: () => {
           if (destroyed) return;

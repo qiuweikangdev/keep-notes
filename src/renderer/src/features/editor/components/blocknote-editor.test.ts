@@ -2296,7 +2296,7 @@ describe("BlockNoteEditor markup copy", () => {
 });
 
 describe("BlockNoteEditor persistent session runtime", () => {
-  it("waits for a quiet period before serializing a large document automatically", async () => {
+  it("serializes a large document as soon as its quiet period ends", async () => {
     setupMatchMedia();
     setupDomMeasurements();
     const path = "C:/notes/large-auto-save.md";
@@ -2342,9 +2342,8 @@ describe("BlockNoteEditor persistent session runtime", () => {
       expect(markdownMocks.serializeMarkdown).not.toHaveBeenCalled();
 
       act(() => vi.advanceTimersByTime(1));
-      expect(requestIdleCallback).toHaveBeenCalledTimes(
-        immediateIdleRequests + 1,
-      );
+      expect(requestIdleCallback).toHaveBeenCalledTimes(immediateIdleRequests);
+      expect(markdownMocks.serializeMarkdown).toHaveBeenCalledOnce();
     } finally {
       vi.useRealTimers();
       session.view.unmount();
@@ -2551,6 +2550,54 @@ describe("BlockNoteEditor persistent session runtime", () => {
       expect(JSON.stringify(cacheBlocks.mock.calls.at(-1)?.[2])).toContain(
         "Latest",
       );
+    } finally {
+      session.view.unmount();
+    }
+  });
+
+  it("discards an in-flight rich serialization when source mode takes ownership", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/source-takeover.md";
+    setupSessionTab(path);
+    const session = renderRealSession(path);
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      await waitFor(() =>
+        expect(markdownMocks.serializeMarkdown).toHaveBeenCalled(),
+      );
+      await act(async () => {
+        await markdownMocks.serializeMarkdown.mock.results[0]?.value;
+      });
+
+      const deferred = createDeferred<string>();
+      markdownMocks.serializeMarkdown.mockClear();
+      markdownMocks.serializeMarkdown.mockImplementationOnce(
+        () => deferred.promise,
+      );
+      session.callbacks.onMarkdownChange.mockClear();
+      const runtime = session.runtime.current!;
+      const scrollContainer = session.view.container.querySelector<HTMLElement>(
+        ".editor-rich-scroll",
+      )!;
+
+      fireEvent.keyDown(scrollContainer, { key: "x" });
+      act(() => {
+        runtime.editor.updateBlock(runtime.editor.document[0], {
+          content: "Stale rich change",
+        });
+      });
+      const pendingSerialization = runtime.serializePendingChange();
+      await waitFor(() =>
+        expect(markdownMocks.serializeMarkdown).toHaveBeenCalledOnce(),
+      );
+
+      act(() => runtime.discardPendingChange?.());
+      deferred.resolve("# Stale rich change");
+      await act(async () => pendingSerialization);
+
+      expect(session.callbacks.onMarkdownChange).not.toHaveBeenCalled();
     } finally {
       session.view.unmount();
     }

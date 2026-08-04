@@ -13,6 +13,7 @@ export interface RichDocumentRuntime {
   surface: HTMLElement;
   captureVisualSnapshot?: () => void;
   serializePendingChange: () => Promise<void>;
+  discardPendingChange?: () => void;
   cancelPendingWork: () => void;
   destroy: () => void;
   isDirty: () => boolean;
@@ -339,6 +340,14 @@ export class RichDocumentSessionManager {
     });
     this.pendingSerializations.set(normalizedPath, serialization);
     return serialization;
+  }
+
+  discardPendingChange(path: string): boolean {
+    const runtime = this.getRuntime(path);
+    if (!runtime?.discardPendingChange) return false;
+
+    runtime.discardPendingChange();
+    return true;
   }
 
   subscribeRuntime(path: string, listener: () => void): () => void {

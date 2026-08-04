@@ -25,7 +25,13 @@ import {
 } from "@/features/diff/lib/diff-toast";
 import { areDiffContentsEqual } from "@/features/diff/lib/diff-content";
 import { hasNoHeadVersion, toGitRelativePath } from "../lib/editor-git-actions";
-import { flushEditorChange } from "../lib/editor-runtime";
+import {
+  backgroundEditorSaveCoordinator,
+  editorCache,
+  editorSaveCoordinator,
+  flushEditorChange,
+  richDocumentSessionManager,
+} from "../lib/editor-runtime";
 import { discardFileChanges } from "../lib/discard-file-changes";
 import { shouldFlushRichEditorBeforeAction } from "../lib/editor-large-document";
 import { selectEditorToolbarSignature } from "../lib/editor-view-selectors";
@@ -98,17 +104,49 @@ export function EditorToolbar({
     async (mode: EditorMode) => {
       const currentTab = getActiveTab();
       if (!currentTab || currentTab.mode === mode) return;
-      if (
-        currentTab.mode === "rich" &&
-        mode === "source" &&
-        shouldFlushRichEditorBeforeAction(currentTab.content)
-      ) {
-        await flushEditorChange(groupId, currentTab.id);
+
+      if (currentTab.mode === "rich" && mode === "source") {
+        const shouldSaveInBackground =
+          currentTab.filePath !== null &&
+          !shouldFlushRichEditorBeforeAction(currentTab.content);
+        if (!shouldSaveInBackground) {
+          await flushEditorChange(groupId, currentTab.id);
+        } else {
+          const filePath = currentTab.filePath;
+          const releaseBackground = richDocumentSessionManager.retainBackground(
+            filePath,
+            currentTab.id,
+          );
+          backgroundEditorSaveCoordinator.track({
+            path: filePath,
+            flush: async () => {
+              await richDocumentSessionManager.serializePendingChange(filePath);
+              return editorSaveCoordinator.flush(filePath);
+            },
+            getContent: () => editorSaveCoordinator.getPendingContent(filePath),
+            release: releaseBackground,
+          });
+
+          // 先切换界面让浏览器完成绘制，再序列化大文档；后台持有确保旧会话不会被提前销毁。
+          setTabMode(groupId, currentTab.id, mode);
+          window.setTimeout(() => {
+            void backgroundEditorSaveCoordinator
+              .flush(filePath)
+              .catch(() => undefined);
+          }, 0);
+          return;
+        }
       }
       if (mode === "rich") {
         setTabParseError(groupId, currentTab.id, null);
       }
-      setTabMode(groupId, currentTab.id, mode);
+      const canReuseRichDocument =
+        mode === "rich" &&
+        currentTab.filePath !== null &&
+        editorCache.hasParsedSource(currentTab.filePath, currentTab.content);
+      setTabMode(groupId, currentTab.id, mode, {
+        reloadRichDocument: !canReuseRichDocument,
+      });
     },
     [getActiveTab, groupId, setTabMode, setTabParseError],
   );

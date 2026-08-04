@@ -11,6 +11,13 @@ import { DIFF_TOAST_EVENT } from "@/features/diff/lib/diff-toast";
 import { useEditorStore } from "@/store/editor.store";
 import { useTreeStore } from "@/store/tree.store";
 import { CodeResult } from "@/types";
+import {
+  backgroundEditorSaveCoordinator,
+  editorCache,
+  editorSaveCoordinator,
+  richDocumentSessionManager,
+} from "../lib/editor-runtime";
+import type { RichDocumentRuntime } from "../lib/rich-document-session-manager";
 
 const electronMocks = vi.hoisted(() => ({
   detectGitRepo: vi.fn(),
@@ -26,6 +33,8 @@ const diffStoreMock = vi.hoisted(() => ({
   closeDiff: vi.fn(),
   updateContent: vi.fn(),
 }));
+
+let unregisterRuntime: (() => void) | null = null;
 
 vi.mock("@/hooks/use-electron", () => ({
   useElectron: () => electronMocks,
@@ -95,6 +104,7 @@ describe("EditorToolbar diff action", () => {
       value: {
         createQuickEditorWindow: vi.fn(),
         getPlatform: vi.fn(),
+        writeFile: vi.fn().mockResolvedValue(undefined),
       },
     });
     electronMocks.detectGitRepo.mockResolvedValue({
@@ -156,6 +166,11 @@ describe("EditorToolbar diff action", () => {
   });
 
   afterEach(() => {
+    unregisterRuntime?.();
+    unregisterRuntime = null;
+    backgroundEditorSaveCoordinator.cancelAll();
+    editorSaveCoordinator.cancel("/notes/readme.md");
+    editorCache.clear();
     cleanup();
   });
 
@@ -283,6 +298,91 @@ describe("EditorToolbar diff action", () => {
       expect(useEditorStore.getState().panelGroups[0].tabs[0].mode).toBe(
         "source",
       );
+    });
+  });
+
+  it("switches a large document immediately and saves its rich-text changes in the background", async () => {
+    const path = "/notes/readme.md";
+    const latestContent = `${"large content ".repeat(900)}updated`;
+    let finishSerialization!: () => void;
+    const serializationGate = new Promise<void>((resolve) => {
+      finishSerialization = resolve;
+    });
+    const serializePendingChange = vi.fn(async () => {
+      await serializationGate;
+      useEditorStore.getState().syncFileContent(path, latestContent);
+      editorSaveCoordinator.schedule(path, latestContent);
+    });
+    const runtime: RichDocumentRuntime = {
+      path,
+      surface: document.createElement("div"),
+      serializePendingChange,
+      cancelPendingWork: vi.fn(),
+      destroy: vi.fn(),
+      isDirty: () => true,
+      isSaving: () => false,
+      isReloading: () => false,
+    };
+    unregisterRuntime = richDocumentSessionManager.registerRuntime(
+      path,
+      runtime,
+    );
+    useEditorStore.setState((state) => ({
+      panelGroups: state.panelGroups.map((group) => ({
+        ...group,
+        tabs: group.tabs.map((tab) => ({
+          ...tab,
+          content: "x".repeat(10_000),
+          wordCount: 10_000,
+        })),
+      })),
+    }));
+    renderToolbar();
+
+    await screen.findByRole("button", { name: "标签页操作" });
+    openActionMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "编辑模式切换" }));
+
+    expect(useEditorStore.getState().panelGroups[0].tabs[0].mode).toBe(
+      "source",
+    );
+    await waitFor(() => expect(serializePendingChange).toHaveBeenCalledOnce());
+    expect(backgroundEditorSaveCoordinator.hasPending(path)).toBe(true);
+
+    finishSerialization();
+    await waitFor(() => {
+      expect(window.electronAPI.writeFile).toHaveBeenCalledWith(
+        path,
+        latestContent,
+      );
+    });
+  });
+
+  it("returns to cached rich content without forcing a large-document reload", async () => {
+    const path = "/notes/readme.md";
+    const content = "x".repeat(10_000);
+    editorCache.setBlocks(path, content, []);
+    useEditorStore.setState((state) => ({
+      panelGroups: state.panelGroups.map((group) => ({
+        ...group,
+        tabs: group.tabs.map((tab) => ({
+          ...tab,
+          content,
+          wordCount: content.length,
+          mode: "source" as const,
+        })),
+      })),
+    }));
+    renderToolbar();
+
+    await screen.findByRole("button", { name: "标签页操作" });
+    openActionMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "编辑模式切换" }));
+
+    await waitFor(() => {
+      const tab = useEditorStore.getState().panelGroups[0].tabs[0];
+      expect(tab.mode).toBe("rich");
+      expect(tab.reloadKey).toBe(0);
     });
   });
 

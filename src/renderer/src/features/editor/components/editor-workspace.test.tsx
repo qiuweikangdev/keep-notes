@@ -1,8 +1,19 @@
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useEditorStore } from "@/store/editor.store";
-import { subscribeToEditorFile } from "../lib/editor-runtime";
+import {
+  backgroundEditorSaveCoordinator,
+  richDocumentSessionManager,
+  subscribeToEditorFile,
+} from "../lib/editor-runtime";
 import { editorFindController } from "../lib/editor-find-controller";
 import { EditorWorkspace } from "./editor-workspace";
 
@@ -13,11 +24,17 @@ vi.mock("@/hooks/use-electron", () => ({
 }));
 
 vi.mock("../lib/editor-runtime", () => ({
+  backgroundEditorSaveCoordinator: {
+    cancel: vi.fn(),
+  },
   editorCache: {
     setContent: vi.fn(),
   },
   editorSaveCoordinator: {
     schedule: vi.fn(),
+  },
+  richDocumentSessionManager: {
+    discardPendingChange: vi.fn(),
   },
   subscribeToEditorFile: vi.fn(() => () => {}),
 }));
@@ -41,6 +58,7 @@ vi.mock("./blocknote-editor", () => ({
 }));
 
 beforeEach(() => {
+  vi.clearAllMocks();
   useEditorStore.setState({
     activeGroupId: "group-1",
     panelGroups: [
@@ -175,6 +193,100 @@ describe("EditorWorkspace split rich editor mount", () => {
       "group-1:tab-1:large.md",
     );
     expect(screen.queryByTestId("editor-loading-skeleton")).toBeNull();
+  });
+
+  it("cancels a pending rich-text save before source editing takes ownership", () => {
+    useEditorStore.setState((state) => ({
+      panelGroups: state.panelGroups.map((group) =>
+        group.id === "group-1"
+          ? {
+              ...group,
+              tabs: group.tabs.map((tab) =>
+                tab.id === "tab-1" ? { ...tab, mode: "source" as const } : tab,
+              ),
+            }
+          : group,
+      ),
+    }));
+    render(<EditorWorkspace groupId="group-1" tabId="tab-1" />);
+
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "# Source edit\n" },
+    });
+
+    expect(backgroundEditorSaveCoordinator.cancel).toHaveBeenCalledWith(
+      "large.md",
+    );
+    expect(
+      richDocumentSessionManager.discardPendingChange,
+    ).toHaveBeenCalledWith("large.md");
+  });
+
+  it("cancels pending rich work before source-mode replace all", async () => {
+    useEditorStore.setState((state) => ({
+      panelGroups: state.panelGroups.map((group) =>
+        group.id === "group-1"
+          ? {
+              ...group,
+              tabs: group.tabs.map((tab) =>
+                tab.id === "tab-1" ? { ...tab, mode: "source" as const } : tab,
+              ),
+            }
+          : group,
+      ),
+    }));
+    render(<EditorWorkspace groupId="group-1" tabId="tab-1" />);
+    act(() => editorFindController.open("group-1", "tab-1"));
+
+    fireEvent.change(screen.getByPlaceholderText("查找"), {
+      target: { value: "Large" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "展开替换" }));
+    fireEvent.change(screen.getByPlaceholderText("替换"), {
+      target: { value: "Updated" },
+    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "替换全部匹配" }),
+    );
+
+    expect(backgroundEditorSaveCoordinator.cancel).toHaveBeenCalledWith(
+      "large.md",
+    );
+    expect(
+      richDocumentSessionManager.discardPendingChange,
+    ).toHaveBeenCalledWith("large.md");
+  });
+
+  it("cancels pending rich work before repairing source content", async () => {
+    useEditorStore.setState((state) => ({
+      panelGroups: state.panelGroups.map((group) =>
+        group.id === "group-1"
+          ? {
+              ...group,
+              tabs: group.tabs.map((tab) =>
+                tab.id === "tab-1"
+                  ? {
+                      ...tab,
+                      content: "* item\n  * nested\n    *\n",
+                      mode: "source" as const,
+                    }
+                  : tab,
+              ),
+            }
+          : group,
+      ),
+    }));
+
+    render(<EditorWorkspace groupId="group-1" tabId="tab-1" />);
+
+    await waitFor(() => {
+      expect(backgroundEditorSaveCoordinator.cancel).toHaveBeenCalledWith(
+        "large.md",
+      );
+      expect(
+        richDocumentSessionManager.discardPendingChange,
+      ).toHaveBeenCalledWith("large.md");
+    });
   });
 });
 

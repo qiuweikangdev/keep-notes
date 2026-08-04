@@ -49,4 +49,15 @@ describe("EditorCache", () => {
     });
     expect(cache.getBlocks("a.md", "a", "parser-v2")).toBeNull();
   });
+
+  it("reports whether parsed blocks still match the current source", () => {
+    const cache = new EditorCache<string>({ maxEntries: 2 });
+    cache.setBlocks("a.md", "alpha", "parsed-alpha", "parser-v1");
+
+    expect(cache.hasParsedSource("a.md", "alpha")).toBe(true);
+    expect(cache.hasParsedSource("a.md", "changed")).toBe(false);
+
+    cache.setContent("a.md", "changed");
+    expect(cache.hasParsedSource("a.md", "changed")).toBe(false);
+  });
 });
