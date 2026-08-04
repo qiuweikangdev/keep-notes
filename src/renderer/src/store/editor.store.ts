@@ -9,6 +9,7 @@ import {
 import {
   beginFileTransition,
   completeFileTransition,
+  type CompleteFileTransitionOptions,
   failFileTransition,
 } from "@/features/editor/lib/editor-file-transition";
 import { normalizeRichDocumentPath } from "@/features/editor/lib/rich-document-surface-registry";
@@ -136,6 +137,7 @@ export interface EditorState {
     tabId: string,
     path: string,
     content: string,
+    options?: CompleteFileTransitionOptions,
   ) => void;
   failTabLoad: (
     groupId: string,
@@ -756,7 +758,7 @@ export const useEditorStore = create<EditorState>()(
           });
         },
 
-        completeTabLoad: (groupId, tabId, path, content) => {
+        completeTabLoad: (groupId, tabId, path, content, options) => {
           set((state) => ({
             panelGroups: state.panelGroups.map((group) =>
               group.id === groupId
@@ -765,7 +767,12 @@ export const useEditorStore = create<EditorState>()(
                     tabs: group.tabs.map((tab) => {
                       if (tab.id !== tabId) return tab;
                       // 目标路径与当前或待切换路径匹配时才原子替换文档。
-                      return completeFileTransition(tab, path, content);
+                      return completeFileTransition(
+                        tab,
+                        path,
+                        content,
+                        options,
+                      );
                     }),
                   }
                 : group,

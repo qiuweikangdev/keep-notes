@@ -154,6 +154,11 @@ describe("RichDocumentSessionHost", () => {
     });
 
     const { unmount } = render(<RichDocumentSessionHost path={path} />);
+    expect(editorRuntime.subscribeToEditorFile).toHaveBeenCalledWith(
+      path,
+      expect.any(Function),
+      { priority: 1 },
+    );
     act(() => {
       emitExternalChange?.("# Updated outside the editor");
     });
@@ -697,7 +702,9 @@ describe("RichDocumentSessionHost", () => {
     );
 
     render(<RichDocumentSessionHost path={sessionPath} />);
-    expect(subscribe).toHaveBeenCalledWith(path, expect.any(Function));
+    expect(subscribe).toHaveBeenCalledWith(path, expect.any(Function), {
+      priority: 1,
+    });
     act(() => {
       sessionMocks.controller?.onMarkdownChange("# Updated");
     });

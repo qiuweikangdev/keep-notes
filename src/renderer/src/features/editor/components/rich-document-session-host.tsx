@@ -248,28 +248,33 @@ export function RichDocumentSessionHost({
     if (isUntitledDocument) return;
 
     let viewportPreservationVersion: number | null = null;
-    const unsubscribe = subscribeToEditorFile(ioPath, (content) => {
-      const store = useEditorStore.getState();
-      const matchingTabs = store.panelGroups.flatMap((group) =>
-        group.tabs.filter(
-          (tab) =>
-            tab.filePath && matchesEditorDocumentPath(tab, normalizedPath),
-        ),
-      );
-      if (
-        matchingTabs.length > 0 &&
-        matchingTabs.every((tab) => tab.content === content)
-      ) {
-        return;
-      }
+    const unsubscribe = subscribeToEditorFile(
+      ioPath,
+      (content) => {
+        const store = useEditorStore.getState();
+        const matchingTabs = store.panelGroups.flatMap((group) =>
+          group.tabs.filter(
+            (tab) =>
+              tab.filePath && matchesEditorDocumentPath(tab, normalizedPath),
+          ),
+        );
+        if (
+          matchingTabs.length > 0 &&
+          matchingTabs.every((tab) => tab.content === content)
+        ) {
+          return;
+        }
 
-      editorCache.setContent(ioPath, content);
-      // 同一路径的外部更新只替换文档内容，重载前保留当前富文本视口。
-      viewportPreservationVersion =
-        requestEditorViewportPreservation(normalizedPath);
-      // 外部文件事件只更新快照并提升 reloadKey；唯一 session 随代表快照重载一次。
-      store.syncFileContent(normalizedPath, content);
-    });
+        editorCache.setContent(ioPath, content);
+        // 同一路径的外部更新只替换文档内容，重载前保留当前富文本视口。
+        viewportPreservationVersion =
+          requestEditorViewportPreservation(normalizedPath);
+        // 外部文件事件只更新快照并提升 reloadKey；唯一 session 随代表快照重载一次。
+        store.syncFileContent(normalizedPath, content);
+      },
+      // 与源码标签并存时先登记视口保护，避免源码同步先提升富文本 reloadKey。
+      { priority: 1 },
+    );
 
     return () => {
       unsubscribe();

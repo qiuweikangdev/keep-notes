@@ -20,6 +20,7 @@ import { selectEditorWorkspaceSignature } from "../lib/editor-view-selectors";
 import { shouldApplyExternalFileChange } from "../lib/editor-external-change";
 import { repairMarkdownSourceBeforeParse } from "../lib/markdown";
 import { getEditorDocumentPath } from "../lib/editor-document-path";
+import { normalizeRichDocumentPath } from "../lib/rich-document-surface-registry";
 import {
   findTextMatches,
   getSteppedMatchIndex,
@@ -109,14 +110,27 @@ export function EditorWorkspace({
       const currentTab = state.panelGroups
         .find((item) => item.id === groupId)
         ?.tabs.find((item) => item.id === tabId);
+      if (!currentTab) return;
       if (
-        currentTab &&
-        !shouldApplyExternalFileChange(currentTab.content, content)
+        currentTab.pendingFilePath &&
+        normalizeRichDocumentPath(currentTab.pendingFilePath) !==
+          normalizeRichDocumentPath(path)
       ) {
+        // 新文件尚在加载时忽略旧路径事件，避免旧监听清除 pendingFilePath。
         return;
       }
-      state.completeTabLoad(groupId, tabId, path, content);
-      state.syncFileContent(path, content, tabId);
+      const shouldSynchronizeOtherTabs = shouldApplyExternalFileChange(
+        currentTab.content,
+        content,
+      );
+      // 同路径外部刷新保留视口，但沿用原有加载完成语义清理保存与解析状态。
+      state.completeTabLoad(groupId, tabId, path, content, {
+        preserveScrollTop: true,
+      });
+      // 富文本优先监听可能已经同步过内容；此时不要再次提升其他标签的 reloadKey。
+      if (shouldSynchronizeOtherTabs) {
+        state.syncFileContent(path, content, tabId);
+      }
     });
   }, [groupId, tabFilePath, tabId, tabMode]);
 

@@ -11,6 +11,7 @@ import {
   type EditorSaveState,
 } from "./editor-save-coordinator";
 import { FileWatchRegistry } from "./file-watch-registry";
+import type { FileWatchSubscriptionOptions } from "./file-watch-registry";
 import { RichDocumentSessionManager } from "./rich-document-session-manager";
 import { RichDocumentSurfaceRegistry } from "./rich-document-surface-registry";
 import { richPaneViewStateRegistry } from "./rich-pane-view-state";
@@ -112,6 +113,7 @@ export function cancelEditorChange(groupId: string, tabId: string): void {
 export function subscribeToEditorFile(
   path: string,
   listener: (content: string) => void,
+  options?: FileWatchSubscriptionOptions,
 ): () => void {
-  return fileWatchRegistry.subscribe(path, listener);
+  return fileWatchRegistry.subscribe(path, listener, options);
 }

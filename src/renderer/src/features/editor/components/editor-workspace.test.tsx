@@ -90,6 +90,176 @@ describe("EditorWorkspace split rich editor mount", () => {
     expect(subscribeToEditorFile).not.toHaveBeenCalled();
   });
 
+  it("preserves the source editor scroll position after an external file update", () => {
+    let emitExternalChange: ((content: string) => void) | null = null;
+    vi.mocked(subscribeToEditorFile).mockImplementationOnce(
+      (_path, listener) => {
+        emitExternalChange = listener;
+        return vi.fn();
+      },
+    );
+    useEditorStore.setState((state) => ({
+      panelGroups: state.panelGroups.map((group) =>
+        group.id === "group-1"
+          ? {
+              ...group,
+              tabs: group.tabs.map((tab) =>
+                tab.id === "tab-1"
+                  ? {
+                      ...tab,
+                      mode: "source" as const,
+                      isDirty: true,
+                      saveStatus: "error" as const,
+                      errorMessage: "save failed",
+                      parseErrorMessage: "parse failed",
+                    }
+                  : tab,
+              ),
+            }
+          : group,
+      ),
+    }));
+    render(<EditorWorkspace groupId="group-1" tabId="tab-1" />);
+    const editor = screen.getByRole("textbox");
+    editor.scrollTop = 480;
+    fireEvent.scroll(editor);
+
+    act(() => {
+      emitExternalChange?.("# Updated outside\n\nNew content\n");
+    });
+
+    expect(editor).toHaveValue("# Updated outside\n\nNew content\n");
+    expect(editor.scrollTop).toBe(480);
+    const tab = useEditorStore
+      .getState()
+      .panelGroups[0].tabs.find((candidate) => candidate.id === "tab-1");
+    expect(tab).toMatchObject({
+      scrollTop: 480,
+      isDirty: false,
+      saveStatus: "clean",
+      errorMessage: null,
+      parseErrorMessage: null,
+      loadStatus: "ready",
+    });
+  });
+
+  it("cleans source state without reloading rich tabs after prioritized synchronization", () => {
+    let emitExternalChange: ((content: string) => void) | null = null;
+    vi.mocked(subscribeToEditorFile).mockImplementationOnce(
+      (_path, listener) => {
+        emitExternalChange = listener;
+        return vi.fn();
+      },
+    );
+    useEditorStore.setState((state) => ({
+      panelGroups: state.panelGroups.map((group) =>
+        group.id === "group-1"
+          ? {
+              ...group,
+              tabs: group.tabs.map((tab) =>
+                tab.id === "tab-1"
+                  ? {
+                      ...tab,
+                      mode: "source" as const,
+                      isDirty: true,
+                      saveStatus: "error" as const,
+                      errorMessage: "save failed",
+                      parseErrorMessage: "parse failed",
+                    }
+                  : tab,
+              ),
+            }
+          : group,
+      ),
+    }));
+    render(<EditorWorkspace groupId="group-1" tabId="tab-1" />);
+    const editor = screen.getByRole("textbox");
+    editor.scrollTop = 480;
+    fireEvent.scroll(editor);
+    const externalContent = "# Updated by prioritized rich listener\n";
+
+    act(() => {
+      useEditorStore.getState().syncFileContent("large.md", externalContent);
+    });
+    const richReloadKeyBeforeSourceListener = useEditorStore
+      .getState()
+      .panelGroups[1].tabs.find(
+        (candidate) => candidate.id === "tab-2",
+      )?.reloadKey;
+    act(() => {
+      emitExternalChange?.(externalContent);
+    });
+
+    const state = useEditorStore.getState();
+    const sourceTab = state.panelGroups[0].tabs.find(
+      (candidate) => candidate.id === "tab-1",
+    );
+    const richTab = state.panelGroups[1].tabs.find(
+      (candidate) => candidate.id === "tab-2",
+    );
+    expect(sourceTab).toMatchObject({
+      scrollTop: 480,
+      isDirty: false,
+      saveStatus: "clean",
+      errorMessage: null,
+      parseErrorMessage: null,
+      loadStatus: "ready",
+    });
+    expect(richTab?.reloadKey).toBe(richReloadKeyBeforeSourceListener);
+  });
+
+  it("ignores an old-path external update while a new source file is loading", () => {
+    let emitExternalChange: ((content: string) => void) | null = null;
+    vi.mocked(subscribeToEditorFile).mockImplementationOnce(
+      (_path, listener) => {
+        emitExternalChange = listener;
+        return vi.fn();
+      },
+    );
+    useEditorStore.setState((state) => ({
+      panelGroups: state.panelGroups.map((group) =>
+        group.id === "group-1"
+          ? {
+              ...group,
+              tabs: group.tabs.map((tab) =>
+                tab.id === "tab-1" ? { ...tab, mode: "source" as const } : tab,
+              ),
+            }
+          : group,
+      ),
+    }));
+    render(<EditorWorkspace groupId="group-1" tabId="tab-1" />);
+
+    act(() => {
+      useEditorStore.getState().beginTabLoad("group-1", "tab-1", "next.md");
+      emitExternalChange?.("# Old file changed during switch\n");
+    });
+
+    let tab = useEditorStore
+      .getState()
+      .panelGroups[0].tabs.find((candidate) => candidate.id === "tab-1");
+    expect(tab).toMatchObject({
+      filePath: "large.md",
+      pendingFilePath: "next.md",
+      loadStatus: "loading",
+    });
+
+    act(() => {
+      useEditorStore
+        .getState()
+        .completeTabLoad("group-1", "tab-1", "next.md", "# Next file\n");
+    });
+    tab = useEditorStore
+      .getState()
+      .panelGroups[0].tabs.find((candidate) => candidate.id === "tab-1");
+    expect(tab).toMatchObject({
+      filePath: "next.md",
+      pendingFilePath: null,
+      content: "# Next file\n",
+      loadStatus: "ready",
+    });
+  });
+
   it("mounts a large split rich editor without a raw Markdown transition", () => {
     render(<EditorWorkspace groupId="group-2" tabId="tab-2" />);
 

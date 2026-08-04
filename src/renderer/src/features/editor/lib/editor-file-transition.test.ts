@@ -56,6 +56,20 @@ describe("editor file transition", () => {
     });
   });
 
+  it("preserves scroll offset when an external refresh requests it", () => {
+    const current = { ...createTab(), scrollTop: 320 };
+    const completed = completeFileTransition(current, "a.md", "# A updated", {
+      preserveScrollTop: true,
+    });
+
+    expect(completed).toMatchObject({
+      filePath: "a.md",
+      content: "# A updated",
+      scrollTop: 320,
+      loadStatus: "ready",
+    });
+  });
+
   it("resets scroll offset when switching to a different file", () => {
     const loading = beginFileTransition(
       { ...createTab(), scrollTop: 320 },

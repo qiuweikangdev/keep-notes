@@ -1,6 +1,15 @@
 type FileContentListener = (content: string) => void;
 type GlobalFileListener = (path: string, content: string) => void;
 
+export interface FileWatchSubscriptionOptions {
+  priority?: number;
+}
+
+interface FileContentSubscription {
+  listener: FileContentListener;
+  priority: number;
+}
+
 interface FileWatchRegistryOptions {
   watch: (path: string) => void;
   unwatch: (path: string) => void;
@@ -9,18 +18,27 @@ interface FileWatchRegistryOptions {
 }
 
 export class FileWatchRegistry {
-  private readonly subscribers = new Map<string, Set<FileContentListener>>();
+  private readonly subscribers = new Map<
+    string,
+    Set<FileContentSubscription>
+  >();
   private unsubscribeGlobal: (() => void) | null = null;
 
   constructor(private readonly options: FileWatchRegistryOptions) {}
 
-  subscribe(path: string, listener: FileContentListener): () => void {
+  subscribe(
+    path: string,
+    listener: FileContentListener,
+    options?: FileWatchSubscriptionOptions,
+  ): () => void {
     const subscribers = this.subscribers.get(path) ?? new Set();
-    const registeredListener: FileContentListener = (content) =>
-      listener(content);
+    const subscription: FileContentSubscription = {
+      listener: (content) => listener(content),
+      priority: options?.priority ?? 0,
+    };
     const isFirstPathSubscriber = subscribers.size === 0;
 
-    subscribers.add(registeredListener);
+    subscribers.add(subscription);
     this.subscribers.set(path, subscribers);
     this.ensureGlobalSubscription();
     if (isFirstPathSubscriber) {
@@ -33,7 +51,7 @@ export class FileWatchRegistry {
       released = true;
 
       const currentSubscribers = this.subscribers.get(path);
-      currentSubscribers?.delete(registeredListener);
+      currentSubscribers?.delete(subscription);
       if (currentSubscribers && currentSubscribers.size > 0) return;
 
       // 同一路径最后一个编辑器卸载时，才释放主进程中的文件监听器。
@@ -51,8 +69,10 @@ export class FileWatchRegistry {
       const subscribers = this.subscribers.get(path);
       if (!subscribers || this.options.isOwnWrite(path, content)) return;
 
-      // 使用快照分发，避免某个回调在执行中取消订阅影响后续回调。
-      [...subscribers].forEach((listener) => listener(content));
+      // 富文本需先登记视口保护再同步同路径标签；同优先级仍保持注册顺序。
+      [...subscribers]
+        .toSorted((left, right) => right.priority - left.priority)
+        .forEach((subscription) => subscription.listener(content));
     });
   }
 
