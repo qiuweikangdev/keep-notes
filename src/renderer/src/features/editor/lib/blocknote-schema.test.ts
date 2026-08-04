@@ -724,6 +724,116 @@ describe("editor BlockNote schema", () => {
     });
   });
 
+  it("keeps real BlockNote markdown unchanged across serialization batches", async () => {
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        ...Array.from({ length: 23 }, (_, index) => ({
+          type: "paragraph" as const,
+          content: `Paragraph ${index + 1}`,
+        })),
+        ...Array.from({ length: 12 }, (_, index) => ({
+          type: "bulletListItem" as const,
+          content: `Bullet item ${index + 1}`,
+        })),
+        ...Array.from({ length: 12 }, (_, index) => ({
+          type: "checkListItem" as const,
+          props: { checked: index % 2 === 0 },
+          content: `Check item ${index + 1}`,
+        })),
+        ...Array.from({ length: 12 }, (_, index) => ({
+          type: "toggleListItem" as const,
+          content: `Toggle item ${index + 1}`,
+        })),
+        ...Array.from({ length: 48 }, (_, index) => ({
+          type: "numberedListItem" as const,
+          props: index === 0 ? { start: 7 } : {},
+          content: `Numbered item ${index + 1}`,
+        })),
+        ...Array.from({ length: 30 }, (_, index) => ({
+          type: "heading" as const,
+          props: { level: 2 as const },
+          content: `Heading ${index + 1}`,
+        })),
+        ...Array.from({ length: 12 }, () => ({
+          type: "divider" as const,
+        })),
+        ...Array.from({ length: 12 }, (_, index) => ({
+          type: "table" as const,
+          content: {
+            type: "tableContent" as const,
+            rows: [
+              { cells: [`Header ${index + 1}`, "Value"] },
+              { cells: ["Row", `${index + 1}`] },
+            ],
+          },
+        })),
+        ...Array.from({ length: 12 }, (_, index) => ({
+          type: "image" as const,
+          props: { url: `https://example.com/image-${index + 1}.png` },
+        })),
+        ...Array.from({ length: 12 }, (_, index) => ({
+          type: "file" as const,
+          props: {
+            name: `file-${index + 1}.txt`,
+            url: `https://example.com/file-${index + 1}.txt`,
+          },
+        })),
+        ...Array.from({ length: 12 }, (_, index) => ({
+          type: "audio" as const,
+          props: { url: `https://example.com/audio-${index + 1}.mp3` },
+        })),
+        ...Array.from({ length: 12 }, (_, index) => ({
+          type: "video" as const,
+          props: { url: `https://example.com/video-${index + 1}.mp4` },
+        })),
+      ],
+    });
+    const expected = editor.blocksToMarkdownLossy(editor.document);
+    const serialize = vi.spyOn(editor, "blocksToMarkdownLossy");
+
+    await expect(serializeMarkdown(editor, editor.document)).resolves.toBe(
+      expected,
+    );
+    expect(
+      Math.max(...serialize.mock.calls.map(([blocks]) => blocks?.length ?? 0)),
+    ).toBeLessThanOrEqual(24);
+  });
+
+  it("serializes a long quote-owned list in bounded batches", async () => {
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "quote",
+          content: "Quoted list",
+          children: Array.from({ length: 60 }, (_, index) => ({
+            type: "bulletListItem" as const,
+            content: `Quoted item ${index + 1}`,
+          })),
+        },
+      ],
+    });
+    const quote = editor.document[0];
+    const quoteMarkdown = editor.blocksToMarkdownLossy([
+      { ...quote, children: [] },
+    ]);
+    const listMarkdown = editor.blocksToMarkdownLossy(quote.children);
+    const expected = `${quoteMarkdown.trimEnd()}\n>\n${listMarkdown
+      .trimEnd()
+      .split("\n")
+      .map((line) => `> ${line.replace(/^([ \t]*)[-+*]([ \t]+)/u, "$1-$2")}`)
+      .join("\n")}\n`;
+    const serialize = vi.spyOn(editor, "blocksToMarkdownLossy");
+
+    await expect(serializeMarkdown(editor, editor.document)).resolves.toBe(
+      expected,
+    );
+    expect(
+      Math.max(...serialize.mock.calls.map(([blocks]) => blocks?.length ?? 0)),
+    ).toBeLessThanOrEqual(24);
+  });
+
   it("undoes one completed bullet list item at a time", () => {
     setupMatchMedia();
     const editor = BlockNoteEditor.create({

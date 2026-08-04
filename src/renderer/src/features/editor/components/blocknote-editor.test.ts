@@ -2949,6 +2949,8 @@ describe("BlockNoteEditor persistent session runtime", () => {
       configurable: true,
       value: elementFromPoint,
     });
+    const queryAll = vi.spyOn(runtime.editor.domElement, "querySelectorAll");
+    queryAll.mockClear();
 
     let viewState: ReturnType<RichBlockNoteRuntime["readViewState"]>;
     try {
@@ -2965,6 +2967,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
       }
     }
     expect(elementFromPoint).toHaveBeenCalledWith(210, 124);
+    expect(queryAll).not.toHaveBeenCalled();
     expect(viewState).toMatchObject({
       topBlockId: blockId,
       topBlockOffset: 20,

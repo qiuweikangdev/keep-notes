@@ -17,6 +17,25 @@ describe("Markdown source preservation", () => {
     type: string;
   };
 
+  it("serializes large block arrays in cooperative batches", async () => {
+    const blocks = Array.from({ length: 160 }, (_, index) => ({
+      content: index === 23 || index === 24 ? "" : `Paragraph ${index + 1}`,
+      type: "paragraph",
+    }));
+    const serialize = vi.fn(
+      (batch: TestBlock[]) =>
+        `${batch.map((block) => block.content).join("\n\n")}\n`,
+    );
+
+    await expect(
+      serializeMarkdown<TestBlock>(
+        { blocksToMarkdownLossy: serialize },
+        blocks,
+      ),
+    ).resolves.toBe(`${blocks.map((block) => block.content).join("\n\n")}\n`);
+    expect(serialize.mock.calls.length).toBeGreaterThan(1);
+  });
+
   it("serializes multiline markup with source line breaks", async () => {
     const exported = `<GoogleAdsenseBanner\\
   :ad-slot="adSlot"\\

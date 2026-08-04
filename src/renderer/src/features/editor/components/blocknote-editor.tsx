@@ -1134,8 +1134,6 @@ function readLiveEditorViewportAnchor(
   container: HTMLElement,
   root: HTMLElement | null,
 ) {
-  const blocks =
-    root?.querySelectorAll<HTMLElement>(LIVE_EDITOR_BLOCK_SELECTOR) ?? [];
   const ownerDocument = container.ownerDocument;
   if (root && typeof ownerDocument.elementFromPoint === "function") {
     const containerBounds = container.getBoundingClientRect();
@@ -1179,7 +1177,7 @@ function readLiveEditorViewportAnchor(
 
   return readEditorViewportAnchor(
     container,
-    blocks,
+    root?.querySelectorAll<HTMLElement>(LIVE_EDITOR_BLOCK_SELECTOR) ?? [],
     (block) => block.dataset.id ?? null,
   );
 }
