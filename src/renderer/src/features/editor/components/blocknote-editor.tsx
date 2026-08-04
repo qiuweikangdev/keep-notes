@@ -2241,8 +2241,7 @@ function MountedBlockNoteEditor({
       lifecycleActiveRef.current &&
       lifecycleGenerationRef.current === lifecycleGeneration;
     if (!isCurrentLifecycle() || suppressChangeRef.current) return;
-    // 页面不可见时跳过序列化，避免后台窗口占用 CPU 阻塞用户交互。
-    if (document.visibilityState === "hidden") return;
+    // 待保存 revision 在窗口失焦后仍需排空，否则最后一次输入不会进入自动保存写盘链路。
     if (serializationInFlightRef.current) {
       serializationQueuedRef.current = true;
       await serializationInFlightRef.current;

@@ -2350,6 +2350,58 @@ describe("BlockNoteEditor persistent session runtime", () => {
     }
   });
 
+  it("keeps a large-document save pending when the window hides before serialization", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/large-hidden-auto-save.md";
+    const source = `# ${"x".repeat(LARGE_DOCUMENT_CHAR_LIMIT - 2)}`;
+    setupSessionTab(path, { content: source, wordCount: source.length });
+    const session = renderRealSession(path, false, source);
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      await waitFor(() =>
+        expect(markdownMocks.serializeMarkdown).toHaveBeenCalled(),
+      );
+      await act(async () => {
+        await markdownMocks.serializeMarkdown.mock.results[0]?.value;
+      });
+      markdownMocks.serializeMarkdown.mockClear();
+      markdownMocks.serializeMarkdown.mockResolvedValue(
+        "# Latest while hidden",
+      );
+
+      vi.useFakeTimers();
+      const runtime = session.runtime.current!;
+      const scrollContainer = session.view.container.querySelector<HTMLElement>(
+        ".editor-rich-scroll",
+      )!;
+
+      fireEvent.keyDown(scrollContainer, { key: "x" });
+      act(() => {
+        runtime.editor.updateBlock(runtime.editor.document[0], {
+          content: `${"x".repeat(LARGE_DOCUMENT_CHAR_LIMIT - 2)}y`,
+        });
+      });
+      vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+
+      await act(async () => {
+        vi.advanceTimersByTime(LARGE_DOCUMENT_SERIALIZATION_QUIET_PERIOD_MS);
+        await Promise.resolve();
+        vi.advanceTimersByTime(0);
+        await Promise.resolve();
+      });
+
+      expect(editorSaveCoordinator.getPendingContent(path)).toBe(
+        "# Latest while hidden",
+      );
+    } finally {
+      editorSaveCoordinator.cancel(path);
+      vi.useRealTimers();
+      session.view.unmount();
+    }
+  });
+
   it("serializes a pending large-document change immediately when explicitly flushed", async () => {
     setupMatchMedia();
     setupDomMeasurements();
