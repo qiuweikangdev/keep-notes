@@ -18,6 +18,10 @@ import {
   matchesEditorDocumentPath,
 } from "../lib/editor-document-path";
 import {
+  completeEditorViewportPreservation,
+  requestEditorViewportPreservation,
+} from "../lib/editor-viewport";
+import {
   selectRichDocumentRepresentative,
   type RichDocumentRepresentative,
 } from "../lib/editor-view-selectors";
@@ -243,7 +247,8 @@ export function RichDocumentSessionHost({
   useEffect(() => {
     if (isUntitledDocument) return;
 
-    return subscribeToEditorFile(ioPath, (content) => {
+    let viewportPreservationVersion: number | null = null;
+    const unsubscribe = subscribeToEditorFile(ioPath, (content) => {
       const store = useEditorStore.getState();
       const matchingTabs = store.panelGroups.flatMap((group) =>
         group.tabs.filter(
@@ -259,9 +264,23 @@ export function RichDocumentSessionHost({
       }
 
       editorCache.setContent(ioPath, content);
+      // 同一路径的外部更新只替换文档内容，重载前保留当前富文本视口。
+      viewportPreservationVersion =
+        requestEditorViewportPreservation(normalizedPath);
       // 外部文件事件只更新快照并提升 reloadKey；唯一 session 随代表快照重载一次。
       store.syncFileContent(normalizedPath, content);
     });
+
+    return () => {
+      unsubscribe();
+      if (viewportPreservationVersion !== null) {
+        // 解析完成前关闭文件时撤销当前版本，避免下次普通打开误恢复旧视口。
+        completeEditorViewportPreservation(
+          normalizedPath,
+          viewportPreservationVersion,
+        );
+      }
+    };
   }, [ioPath, isUntitledDocument, normalizedPath]);
 
   useEffect(() => {
