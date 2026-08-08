@@ -55,6 +55,10 @@ export class EditorSaveCoordinator {
     return this.pending.has(path);
   }
 
+  getPendingContent(path: string): string | null {
+    return this.pending.get(path)?.content ?? null;
+  }
+
   async flush(path: string): Promise<boolean> {
     const pending = this.pending.get(path);
     if (!pending) {

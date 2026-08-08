@@ -1,5 +1,9 @@
 import type { EditorTab } from "@/store/editor.store";
 
+export interface CompleteFileTransitionOptions {
+  preserveScrollTop?: boolean;
+}
+
 export function beginFileTransition(tab: EditorTab, path: string): EditorTab {
   return {
     ...tab,
@@ -15,6 +19,7 @@ export function completeFileTransition(
   tab: EditorTab,
   path: string,
   content: string,
+  options?: CompleteFileTransitionOptions,
 ): EditorTab {
   if (tab.pendingFilePath !== path && tab.filePath !== path) {
     return tab;
@@ -31,7 +36,7 @@ export function completeFileTransition(
     isDirty: false,
     errorMessage: null,
     parseErrorMessage: null,
-    scrollTop: 0,
+    scrollTop: options?.preserveScrollTop ? tab.scrollTop : 0,
     reloadKey: tab.reloadKey + 1,
   };
 }

@@ -42,6 +42,7 @@ interface MarkdownEdit {
 
 const SOURCE_PRESERVATION_DIFF_CHAR_LIMIT = 16_000;
 const LARGE_DOC_LIST_PRESERVE_LIMIT = 8_000;
+const MARKDOWN_SERIALIZATION_BATCH_SIZE = 24;
 const ROOT_UNORDERED_LIST_LINE_PATTERN = /^([ \t]{0,3})([-+*])([ \t]+)(.*)$/u;
 const UNORDERED_LIST_LINE_PATTERN = /^([ \t]*)([-+*])([ \t]+)(.*)$/u;
 const FENCED_CODE_LINE_PATTERN = /^ {0,3}(```+|~~~+)/u;
@@ -2377,6 +2378,134 @@ function getQuoteListChildren<TBlock>(block: TBlock): TBlock[] | null {
     : null;
 }
 
+const CONTIGUOUS_LIST_ITEM_TYPES = new Set([
+  "bulletListItem",
+  "checkListItem",
+  "numberedListItem",
+  "toggleListItem",
+]);
+
+type MarkdownListKind = "ordered" | "unordered";
+
+function getMarkdownListKind(block: unknown): MarkdownListKind | null {
+  const type = getMarkdownBlockType(block);
+  if (type === "numberedListItem") return "ordered";
+  return type !== null &&
+    type !== "numberedListItem" &&
+    CONTIGUOUS_LIST_ITEM_TYPES.has(type)
+    ? "unordered"
+    : null;
+}
+
+function isSameListRun(first: unknown, second: unknown): boolean {
+  const firstKind = getMarkdownListKind(first);
+  return firstKind !== null && firstKind === getMarkdownListKind(second);
+}
+
+function getNumberedListStart(block: unknown): number {
+  if (!isRecord(block) || !isRecord(block.props)) return 1;
+  const start = block.props.start;
+  return typeof start === "number" && Number.isFinite(start) ? start : 1;
+}
+
+function withNumberedListStart<TBlock>(block: TBlock, start: number): TBlock {
+  if (!isRecord(block)) return block;
+  const props = isRecord(block.props) ? block.props : {};
+  return { ...block, props: { ...props, start } } as TBlock;
+}
+
+function hasNonEmptyBlockProp(block: Record<string, unknown>, key: string) {
+  if (!isRecord(block.props)) return false;
+  const value = block.props[key];
+  return typeof value === "string" && Boolean(value.trim());
+}
+
+function hasStableSerializationBoundary(block: unknown): boolean {
+  if (!isRecord(block)) return false;
+  const type = getMarkdownBlockType(block);
+  return (
+    (type === "paragraph" && Boolean(getInlineText(block.content).trim())) ||
+    type === "heading" ||
+    type === "quote" ||
+    type === "codeBlock" ||
+    type === "divider" ||
+    type === "table" ||
+    (["audio", "image", "video"].includes(type ?? "") &&
+      hasNonEmptyBlockProp(block, "url")) ||
+    (type === "file" &&
+      (hasNonEmptyBlockProp(block, "url") ||
+        hasNonEmptyBlockProp(block, "name"))) ||
+    (type !== null && CONTIGUOUS_LIST_ITEM_TYPES.has(type))
+  );
+}
+
+interface MarkdownSerializationBatch<TBlock> {
+  blocks: TBlock[];
+  separator: "" | "\n" | "\n\n";
+}
+
+async function serializeBlockBatches<TBlock>(
+  serializer: MarkdownSerializer<TBlock>,
+  blocks: TBlock[],
+): Promise<string> {
+  if (blocks.length <= MARKDOWN_SERIALIZATION_BATCH_SIZE) {
+    return serializer.blocksToMarkdownLossy(blocks);
+  }
+
+  const batches: MarkdownSerializationBatch<TBlock>[] = [];
+  let batch: TBlock[] = [];
+  let batchSeparator: MarkdownSerializationBatch<TBlock>["separator"] = "";
+  let previousDocumentBlock: TBlock | undefined;
+  let numberedListIndex = 0;
+  for (const block of blocks) {
+    const previous = batch.at(-1);
+    const listKind = getMarkdownListKind(block);
+    const continuesList = isSameListRun(previousDocumentBlock, block);
+    if (listKind === "ordered") {
+      numberedListIndex = continuesList
+        ? numberedListIndex + 1
+        : getNumberedListStart(block);
+    } else {
+      numberedListIndex = 0;
+    }
+    // 普通块只在稳定的 Markdown 边界切分；列表可在同一列表内续接，避免超长列表重新形成单个长任务。
+    const canSplitAtBoundary =
+      continuesList ||
+      (hasStableSerializationBoundary(previous) &&
+        hasStableSerializationBoundary(block));
+    if (
+      batch.length >= MARKDOWN_SERIALIZATION_BATCH_SIZE &&
+      canSplitAtBoundary
+    ) {
+      batches.push({ blocks: batch, separator: batchSeparator });
+      batch = [];
+      batchSeparator = continuesList ? "\n" : "\n\n";
+    }
+    batch.push(
+      batch.length === 0 && continuesList && listKind === "ordered"
+        ? withNumberedListStart(block, numberedListIndex)
+        : block,
+    );
+    previousDocumentBlock = block;
+  }
+  if (batch.length > 0) {
+    batches.push({ blocks: batch, separator: batchSeparator });
+  }
+
+  let serialized = "";
+  let isFirstBatch = true;
+  for (const currentBatch of batches) {
+    // BlockNote 的导出包含同步 HTML DOM 构建；批次间主动让出事件循环，避免模式切换后形成单个长任务。
+    if (!isFirstBatch) await yieldToMain();
+    const markdown = await serializer.blocksToMarkdownLossy(
+      currentBatch.blocks,
+    );
+    serialized += `${currentBatch.separator}${markdown.trimEnd()}`;
+    isFirstBatch = false;
+  }
+  return `${serialized}\n`;
+}
+
 const TRANSIENT_EMPTY_LIST_ITEM_TYPES = new Set([
   "bulletListItem",
   "numberedListItem",
@@ -2419,14 +2548,14 @@ async function serializeQuoteListBlocks<TBlock>(
   blocks: TBlock[],
 ): Promise<string> {
   if (!blocks.some((block) => getQuoteListChildren(block))) {
-    return serializer.blocksToMarkdownLossy(blocks);
+    return serializeBlockBatches(serializer, blocks);
   }
 
   const chunks: string[] = [];
   let pendingBlocks: TBlock[] = [];
   const flushPendingBlocks = async () => {
     if (pendingBlocks.length === 0) return;
-    const markdown = await serializer.blocksToMarkdownLossy(pendingBlocks);
+    const markdown = await serializeBlockBatches(serializer, pendingBlocks);
     chunks.push(markdown.trimEnd());
     pendingBlocks = [];
   };
@@ -2443,7 +2572,7 @@ async function serializeQuoteListBlocks<TBlock>(
     const quoteMarkdown = await serializer.blocksToMarkdownLossy([
       { ...quote, children: [] } as TBlock,
     ]);
-    const listMarkdown = await serializer.blocksToMarkdownLossy(children);
+    const listMarkdown = await serializeBlockBatches(serializer, children);
     const quotedList = listMarkdown
       .trimEnd()
       .split("\n")

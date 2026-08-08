@@ -43,6 +43,17 @@ afterEach(() => {
 });
 
 describe("RichDocumentSessionManager", () => {
+  it("discards a pending runtime change without destroying a shared session", () => {
+    const manager = createManager();
+    const runtime = createRuntime("note.md", []);
+    runtime.discardPendingChange = vi.fn();
+    manager.registerRuntime("note.md", runtime);
+
+    expect(manager.discardPendingChange("note.md")).toBe(true);
+    expect(runtime.discardPendingChange).toHaveBeenCalledOnce();
+    expect(runtime.destroy).not.toHaveBeenCalled();
+  });
+
   it("deduplicates repeated visible bindings by normalized path", () => {
     const manager = createManager();
     manager.retainVisible("C:\\notes\\large.md", {

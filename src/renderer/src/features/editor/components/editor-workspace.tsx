@@ -10,6 +10,7 @@ import {
 import { useElectron } from "@/hooks/use-electron";
 import { useEditorStore } from "@/store/editor.store";
 import {
+  backgroundEditorSaveCoordinator,
   editorCache,
   editorSaveCoordinator,
   richDocumentSessionManager,
@@ -19,6 +20,7 @@ import { selectEditorWorkspaceSignature } from "../lib/editor-view-selectors";
 import { shouldApplyExternalFileChange } from "../lib/editor-external-change";
 import { repairMarkdownSourceBeforeParse } from "../lib/markdown";
 import { getEditorDocumentPath } from "../lib/editor-document-path";
+import { normalizeRichDocumentPath } from "../lib/rich-document-surface-registry";
 import {
   findTextMatches,
   getSteppedMatchIndex,
@@ -38,6 +40,12 @@ import { EditorStateView } from "./editor-state-view";
 import { FindWidget } from "./find-widget";
 import { MarkdownSourceEditor } from "./markdown-source-editor";
 import { RichDocumentPane } from "./rich-document-pane";
+
+function takeOverSourceDocument(path: string): void {
+  // 源码写入成为唯一真值前，先废弃旧富文本的后台任务和在途序列化版本。
+  backgroundEditorSaveCoordinator.cancel(path);
+  richDocumentSessionManager.discardPendingChange(path);
+}
 
 export function EditorWorkspace({
   groupId,
@@ -102,14 +110,27 @@ export function EditorWorkspace({
       const currentTab = state.panelGroups
         .find((item) => item.id === groupId)
         ?.tabs.find((item) => item.id === tabId);
+      if (!currentTab) return;
       if (
-        currentTab &&
-        !shouldApplyExternalFileChange(currentTab.content, content)
+        currentTab.pendingFilePath &&
+        normalizeRichDocumentPath(currentTab.pendingFilePath) !==
+          normalizeRichDocumentPath(path)
       ) {
+        // 新文件尚在加载时忽略旧路径事件，避免旧监听清除 pendingFilePath。
         return;
       }
-      state.completeTabLoad(groupId, tabId, path, content);
-      state.syncFileContent(path, content, tabId);
+      const shouldSynchronizeOtherTabs = shouldApplyExternalFileChange(
+        currentTab.content,
+        content,
+      );
+      // 同路径外部刷新保留视口，但沿用原有加载完成语义清理保存与解析状态。
+      state.completeTabLoad(groupId, tabId, path, content, {
+        preserveScrollTop: true,
+      });
+      // 富文本优先监听可能已经同步过内容；此时不要再次提升其他标签的 reloadKey。
+      if (shouldSynchronizeOtherTabs) {
+        state.syncFileContent(path, content, tabId);
+      }
     });
   }, [groupId, tabFilePath, tabId, tabMode]);
 
@@ -193,6 +214,9 @@ export function EditorWorkspace({
     (content: string) => {
       const currentTab = getCurrentTab();
       if (!currentTab) return;
+      if (currentTab.filePath) {
+        takeOverSourceDocument(currentTab.filePath);
+      }
       setTabContent(groupId, tabId, content);
       if (!currentTab.filePath) return;
       syncFileContent(currentTab.filePath, content, tabId);
@@ -207,6 +231,9 @@ export function EditorWorkspace({
     if (repairedContent === tabContent) return;
 
     // 源码模式也要修复历史拖拽导致的粘连列表，避免富文本解析正常但源码面板仍显示坏内容。
+    if (tabFilePath) {
+      takeOverSourceDocument(tabFilePath);
+    }
     setTabContent(groupId, tabId, repairedContent);
     if (!tabFilePath) return;
     syncFileContent(tabFilePath, repairedContent, tabId);
@@ -267,6 +294,7 @@ export function EditorWorkspace({
       }
       setTabContent(groupId, tabId, content);
       if (currentTab.filePath) {
+        takeOverSourceDocument(currentTab.filePath);
         syncFileContent(currentTab.filePath, content, tabId);
         editorSaveCoordinator.schedule(currentTab.filePath, content);
       }

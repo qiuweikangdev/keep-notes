@@ -14,6 +14,7 @@ import {
 import * as editorRuntime from "../lib/editor-runtime";
 import { scrollEditorOutlineBlock } from "../lib/editor-outline-navigation";
 import { getEditorDocumentPath } from "../lib/editor-document-path";
+import { readEditorViewportPreservation } from "../lib/editor-viewport";
 import { RichDocumentSessionHost } from "./rich-document-session-host";
 
 const sessionMocks = vi.hoisted(() => ({
@@ -133,6 +134,43 @@ afterEach(() => {
 });
 
 describe("RichDocumentSessionHost", () => {
+  it("requests viewport preservation before applying an external file reload", () => {
+    const path = "C:/notes/external-scroll.md";
+    let emitExternalChange: ((content: string) => void) | null = null;
+    vi.spyOn(editorRuntime, "subscribeToEditorFile").mockImplementation(
+      (_path, listener) => {
+        emitExternalChange = listener;
+        return vi.fn();
+      },
+    );
+    useEditorStore.setState({
+      activeGroupId: "group-1",
+      panelGroups: [createGroups(path)[0]],
+    });
+    const release = richDocumentSessionManager.retainVisible(path, {
+      paneKey: "group-1:tab-1",
+      groupId: "group-1",
+      tabId: "tab-1",
+    });
+
+    const { unmount } = render(<RichDocumentSessionHost path={path} />);
+    expect(editorRuntime.subscribeToEditorFile).toHaveBeenCalledWith(
+      path,
+      expect.any(Function),
+      { priority: 1 },
+    );
+    act(() => {
+      emitExternalChange?.("# Updated outside the editor");
+    });
+
+    const preservationVersion = readEditorViewportPreservation(path);
+    expect(preservationVersion).not.toBeNull();
+
+    unmount();
+    expect(readEditorViewportPreservation(path)).toBeNull();
+    release();
+  });
+
   it("edits an unnamed rich document without file watching or disk saves", () => {
     const tab = createTab("tab-untitled", null);
     tab.content = "";
@@ -664,7 +702,9 @@ describe("RichDocumentSessionHost", () => {
     );
 
     render(<RichDocumentSessionHost path={sessionPath} />);
-    expect(subscribe).toHaveBeenCalledWith(path, expect.any(Function));
+    expect(subscribe).toHaveBeenCalledWith(path, expect.any(Function), {
+      priority: 1,
+    });
     act(() => {
       sessionMocks.controller?.onMarkdownChange("# Updated");
     });

@@ -27,6 +27,10 @@ import {
   richPaneViewStateRegistry,
 } from "../lib/editor-runtime";
 import { requestEditorViewportPreservation } from "../lib/editor-viewport";
+import {
+  LARGE_DOCUMENT_SERIALIZATION_QUIET_PERIOD_MS,
+  LARGE_DOCUMENT_CHAR_LIMIT,
+} from "../lib/editor-large-document";
 import { RichPreviewCache } from "../lib/rich-preview-cache";
 import {
   BlockNoteEditor,
@@ -2292,6 +2296,167 @@ describe("BlockNoteEditor markup copy", () => {
 });
 
 describe("BlockNoteEditor persistent session runtime", () => {
+  it("serializes a large document as soon as its quiet period ends", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/large-auto-save.md";
+    const source = `# ${"x".repeat(LARGE_DOCUMENT_CHAR_LIMIT - 2)}`;
+    setupSessionTab(path, { content: source, wordCount: source.length });
+    const session = renderRealSession(path, false, source);
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      await waitFor(() =>
+        expect(markdownMocks.serializeMarkdown).toHaveBeenCalled(),
+      );
+      await act(async () => {
+        await markdownMocks.serializeMarkdown.mock.results[0]?.value;
+      });
+      markdownMocks.serializeMarkdown.mockClear();
+
+      const requestIdleCallback = vi.fn(
+        (_callback: IdleRequestCallback, _options?: IdleRequestOptions) => 1,
+      );
+      vi.stubGlobal("requestIdleCallback", requestIdleCallback);
+      vi.stubGlobal("cancelIdleCallback", vi.fn());
+      vi.useFakeTimers();
+      const runtime = session.runtime.current!;
+      const scrollContainer = session.view.container.querySelector<HTMLElement>(
+        ".editor-rich-scroll",
+      )!;
+
+      fireEvent.keyDown(scrollContainer, { key: "x" });
+      act(() => {
+        runtime.editor.updateBlock(runtime.editor.document[0], {
+          content: `${"x".repeat(LARGE_DOCUMENT_CHAR_LIMIT - 2)}y`,
+        });
+      });
+      const immediateIdleRequests = requestIdleCallback.mock.calls.length;
+
+      act(() => {
+        vi.advanceTimersByTime(
+          LARGE_DOCUMENT_SERIALIZATION_QUIET_PERIOD_MS - 1,
+        );
+      });
+      expect(requestIdleCallback).toHaveBeenCalledTimes(immediateIdleRequests);
+      expect(markdownMocks.serializeMarkdown).not.toHaveBeenCalled();
+
+      act(() => vi.advanceTimersByTime(1));
+      expect(requestIdleCallback).toHaveBeenCalledTimes(immediateIdleRequests);
+      expect(markdownMocks.serializeMarkdown).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+      session.view.unmount();
+    }
+  });
+
+  it("keeps a large-document save pending when the window hides before serialization", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/large-hidden-auto-save.md";
+    const source = `# ${"x".repeat(LARGE_DOCUMENT_CHAR_LIMIT - 2)}`;
+    setupSessionTab(path, { content: source, wordCount: source.length });
+    const session = renderRealSession(path, false, source);
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      await waitFor(() =>
+        expect(markdownMocks.serializeMarkdown).toHaveBeenCalled(),
+      );
+      await act(async () => {
+        await markdownMocks.serializeMarkdown.mock.results[0]?.value;
+      });
+      markdownMocks.serializeMarkdown.mockClear();
+      markdownMocks.serializeMarkdown.mockResolvedValue(
+        "# Latest while hidden",
+      );
+
+      vi.useFakeTimers();
+      const runtime = session.runtime.current!;
+      const scrollContainer = session.view.container.querySelector<HTMLElement>(
+        ".editor-rich-scroll",
+      )!;
+
+      fireEvent.keyDown(scrollContainer, { key: "x" });
+      act(() => {
+        runtime.editor.updateBlock(runtime.editor.document[0], {
+          content: `${"x".repeat(LARGE_DOCUMENT_CHAR_LIMIT - 2)}y`,
+        });
+      });
+      vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+
+      await act(async () => {
+        vi.advanceTimersByTime(LARGE_DOCUMENT_SERIALIZATION_QUIET_PERIOD_MS);
+        await Promise.resolve();
+        vi.advanceTimersByTime(0);
+        await Promise.resolve();
+      });
+
+      expect(editorSaveCoordinator.getPendingContent(path)).toBe(
+        "# Latest while hidden",
+      );
+    } finally {
+      editorSaveCoordinator.cancel(path);
+      vi.useRealTimers();
+      session.view.unmount();
+    }
+  });
+
+  it("serializes a pending large-document change immediately when explicitly flushed", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/large-explicit-save.md";
+    const source = `# ${"x".repeat(LARGE_DOCUMENT_CHAR_LIMIT - 2)}`;
+    setupSessionTab(path, { content: source, wordCount: source.length });
+    const session = renderRealSession(path, false, source);
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      await waitFor(() =>
+        expect(markdownMocks.serializeMarkdown).toHaveBeenCalled(),
+      );
+      await act(async () => {
+        await markdownMocks.serializeMarkdown.mock.results[0]?.value;
+      });
+      markdownMocks.serializeMarkdown.mockClear();
+      markdownMocks.serializeMarkdown.mockResolvedValue("# Saved");
+
+      const requestIdleCallback = vi.fn(
+        (_callback: IdleRequestCallback, _options?: IdleRequestOptions) => 1,
+      );
+      vi.stubGlobal("requestIdleCallback", requestIdleCallback);
+      vi.stubGlobal("cancelIdleCallback", vi.fn());
+      vi.useFakeTimers();
+      const runtime = session.runtime.current!;
+      const scrollContainer = session.view.container.querySelector<HTMLElement>(
+        ".editor-rich-scroll",
+      )!;
+
+      fireEvent.keyDown(scrollContainer, { key: "x" });
+      act(() => {
+        runtime.editor.updateBlock(runtime.editor.document[0], {
+          content: `${"x".repeat(LARGE_DOCUMENT_CHAR_LIMIT - 2)}y`,
+        });
+      });
+      const immediateIdleRequests = requestIdleCallback.mock.calls.length;
+
+      let flushPromise!: Promise<void>;
+      act(() => {
+        flushPromise = runtime.serializePendingChange();
+      });
+
+      expect(requestIdleCallback).toHaveBeenCalledTimes(immediateIdleRequests);
+      expect(markdownMocks.serializeMarkdown).toHaveBeenCalledOnce();
+      vi.useRealTimers();
+      await act(async () => {
+        await flushPromise;
+      });
+    } finally {
+      vi.useRealTimers();
+      session.view.unmount();
+    }
+  });
+
   it("keeps inserted list parents and children separated in markdown", async () => {
     setupMatchMedia();
     setupDomMeasurements();
@@ -2437,6 +2602,54 @@ describe("BlockNoteEditor persistent session runtime", () => {
       expect(JSON.stringify(cacheBlocks.mock.calls.at(-1)?.[2])).toContain(
         "Latest",
       );
+    } finally {
+      session.view.unmount();
+    }
+  });
+
+  it("discards an in-flight rich serialization when source mode takes ownership", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/source-takeover.md";
+    setupSessionTab(path);
+    const session = renderRealSession(path);
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      await waitFor(() =>
+        expect(markdownMocks.serializeMarkdown).toHaveBeenCalled(),
+      );
+      await act(async () => {
+        await markdownMocks.serializeMarkdown.mock.results[0]?.value;
+      });
+
+      const deferred = createDeferred<string>();
+      markdownMocks.serializeMarkdown.mockClear();
+      markdownMocks.serializeMarkdown.mockImplementationOnce(
+        () => deferred.promise,
+      );
+      session.callbacks.onMarkdownChange.mockClear();
+      const runtime = session.runtime.current!;
+      const scrollContainer = session.view.container.querySelector<HTMLElement>(
+        ".editor-rich-scroll",
+      )!;
+
+      fireEvent.keyDown(scrollContainer, { key: "x" });
+      act(() => {
+        runtime.editor.updateBlock(runtime.editor.document[0], {
+          content: "Stale rich change",
+        });
+      });
+      const pendingSerialization = runtime.serializePendingChange();
+      await waitFor(() =>
+        expect(markdownMocks.serializeMarkdown).toHaveBeenCalledOnce(),
+      );
+
+      act(() => runtime.discardPendingChange?.());
+      deferred.resolve("# Stale rich change");
+      await act(async () => pendingSerialization);
+
+      expect(session.callbacks.onMarkdownChange).not.toHaveBeenCalled();
     } finally {
       session.view.unmount();
     }
@@ -2788,6 +3001,8 @@ describe("BlockNoteEditor persistent session runtime", () => {
       configurable: true,
       value: elementFromPoint,
     });
+    const queryAll = vi.spyOn(runtime.editor.domElement, "querySelectorAll");
+    queryAll.mockClear();
 
     let viewState: ReturnType<RichBlockNoteRuntime["readViewState"]>;
     try {
@@ -2804,6 +3019,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
       }
     }
     expect(elementFromPoint).toHaveBeenCalledWith(210, 124);
+    expect(queryAll).not.toHaveBeenCalled();
     expect(viewState).toMatchObject({
       topBlockId: blockId,
       topBlockOffset: 20,

@@ -299,5 +299,20 @@ export async function saveAndClose(
     }
   } catch (error) {
     console.error("Error during save:", error);
+    if (win.isDestroyed()) return;
+
+    const message = error instanceof Error ? error.message : String(error);
+    try {
+      await dialog.showMessageBox(win, {
+        type: "error",
+        buttons: ["确定"],
+        defaultId: 0,
+        title: "保存失败",
+        message: "文件保存失败",
+        detail: message,
+      });
+    } catch (dialogError) {
+      console.error("Error while showing save failure:", dialogError);
+    }
   }
 }

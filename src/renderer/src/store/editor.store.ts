@@ -9,6 +9,7 @@ import {
 import {
   beginFileTransition,
   completeFileTransition,
+  type CompleteFileTransitionOptions,
   failFileTransition,
 } from "@/features/editor/lib/editor-file-transition";
 import { normalizeRichDocumentPath } from "@/features/editor/lib/rich-document-surface-registry";
@@ -136,6 +137,7 @@ export interface EditorState {
     tabId: string,
     path: string,
     content: string,
+    options?: CompleteFileTransitionOptions,
   ) => void;
   failTabLoad: (
     groupId: string,
@@ -143,7 +145,12 @@ export interface EditorState {
     path: string,
     message: string,
   ) => void;
-  setTabMode: (groupId: string, tabId: string, mode: EditorMode) => void;
+  setTabMode: (
+    groupId: string,
+    tabId: string,
+    mode: EditorMode,
+    options?: { reloadRichDocument?: boolean },
+  ) => void;
   setTabParseError: (
     groupId: string,
     tabId: string,
@@ -751,7 +758,7 @@ export const useEditorStore = create<EditorState>()(
           });
         },
 
-        completeTabLoad: (groupId, tabId, path, content) => {
+        completeTabLoad: (groupId, tabId, path, content, options) => {
           set((state) => ({
             panelGroups: state.panelGroups.map((group) =>
               group.id === groupId
@@ -760,7 +767,12 @@ export const useEditorStore = create<EditorState>()(
                     tabs: group.tabs.map((tab) => {
                       if (tab.id !== tabId) return tab;
                       // 目标路径与当前或待切换路径匹配时才原子替换文档。
-                      return completeFileTransition(tab, path, content);
+                      return completeFileTransition(
+                        tab,
+                        path,
+                        content,
+                        options,
+                      );
                     }),
                   }
                 : group,
@@ -789,7 +801,7 @@ export const useEditorStore = create<EditorState>()(
           }));
         },
 
-        setTabMode: (groupId, tabId, mode) => {
+        setTabMode: (groupId, tabId, mode, options) => {
           set((state) => ({
             panelGroups: state.panelGroups.map((group) =>
               group.id === groupId
@@ -802,7 +814,9 @@ export const useEditorStore = create<EditorState>()(
                             mode,
                             // 从源码模式回到富文本时重新解析当前源码，避免沿用旧序列化基线改写列表标记。
                             reloadKey:
-                              tab.mode === "source" && mode === "rich"
+                              tab.mode === "source" &&
+                              mode === "rich" &&
+                              options?.reloadRichDocument !== false
                                 ? tab.reloadKey + 1
                                 : tab.reloadKey,
                           }

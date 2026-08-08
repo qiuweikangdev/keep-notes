@@ -1,5 +1,9 @@
 import { useEffect } from "react";
 import type { CloseSaveSnapshot } from "@shared/types";
+import {
+  backgroundEditorSaveCoordinator,
+  editorSaveCoordinator,
+} from "@/features/editor/lib/editor-runtime";
 import type { EditorState } from "@/store/editor.store";
 import { useEditorStore } from "@/store/editor.store";
 
@@ -100,7 +104,7 @@ export function EditorBridge() {
         // 关闭保存前激活目标标签，确保界面与即将保存的草稿身份保持一致。
         state.setActiveTab(snapshot.groupId, snapshot.tabId);
       }
-      return snapshot;
+      return snapshot ?? backgroundEditorSaveCoordinator.getNextCloseSnapshot();
     };
 
     (window as any).__onCloseSaveSuccess = (
@@ -109,6 +113,17 @@ export function EditorBridge() {
       filePath: string | null,
       savedContent: string,
     ) => {
+      if (backgroundEditorSaveCoordinator.isCloseSaveIdentity(groupId)) {
+        const confirmed = backgroundEditorSaveCoordinator.confirmCloseSave(
+          groupId,
+          tabId,
+          filePath,
+          savedContent,
+        );
+        if (confirmed && filePath) editorSaveCoordinator.cancel(filePath);
+        return;
+      }
+
       // 路径回填与脏状态更新必须原子完成；写盘后又被编辑的标签继续保持待保存。
       useEditorStore.setState((state) => ({
         panelGroups: state.panelGroups.map((group) =>
@@ -135,17 +150,21 @@ export function EditorBridge() {
     };
 
     // 监听 store 变化，同步脏状态到主进程
-    const unsub = useEditorStore.subscribe((currentState, previousState) => {
-      const currentDirty = hasUnsavedEditorChanges(currentState);
-      const previousDirty = hasUnsavedEditorChanges(previousState);
-      if (currentDirty !== previousDirty) {
-        window.electronAPI.updateDirtyState(currentDirty);
-      }
-    });
+    let reportedDirty: boolean | undefined;
+    const syncDirtyState = () => {
+      const currentDirty =
+        hasUnsavedEditorChanges(useEditorStore.getState()) ||
+        backgroundEditorSaveCoordinator.hasPending();
+      if (currentDirty === reportedDirty) return;
+      reportedDirty = currentDirty;
+      window.electronAPI.updateDirtyState(currentDirty);
+    };
+    const unsub = useEditorStore.subscribe(syncDirtyState);
+    const unsubBackground =
+      backgroundEditorSaveCoordinator.subscribe(syncDirtyState);
 
     // 初始同步一次
-    const initialState = useEditorStore.getState();
-    window.electronAPI.updateDirtyState(hasUnsavedEditorChanges(initialState));
+    syncDirtyState();
 
     return () => {
       delete (window as any).__getEditorContent;
@@ -155,6 +174,7 @@ export function EditorBridge() {
       delete (window as any).__getNextDirtyEditor;
       delete (window as any).__onCloseSaveSuccess;
       unsub();
+      unsubBackground();
     };
   }, []);
 

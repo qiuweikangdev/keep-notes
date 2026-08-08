@@ -1,6 +1,7 @@
 import type { Block } from "@blocknote/core";
 
 import { EditorCache } from "./editor-cache";
+import { EditorBackgroundSaveCoordinator } from "./editor-background-save-coordinator";
 import {
   createFileOpenController,
   EditorLoadSession,
@@ -10,6 +11,7 @@ import {
   type EditorSaveState,
 } from "./editor-save-coordinator";
 import { FileWatchRegistry } from "./file-watch-registry";
+import type { FileWatchSubscriptionOptions } from "./file-watch-registry";
 import { RichDocumentSessionManager } from "./rich-document-session-manager";
 import { RichDocumentSurfaceRegistry } from "./rich-document-surface-registry";
 import { richPaneViewStateRegistry } from "./rich-pane-view-state";
@@ -25,6 +27,8 @@ export const richDocumentSessionManager = new RichDocumentSessionManager({
   viewStates: richPaneViewStateRegistry,
   maxBackgroundSessions: 4,
 });
+export const backgroundEditorSaveCoordinator =
+  new EditorBackgroundSaveCoordinator();
 
 export function createEditorSaveCoordinator(options: {
   write: (path: string, content: string) => Promise<void>;
@@ -109,6 +113,7 @@ export function cancelEditorChange(groupId: string, tabId: string): void {
 export function subscribeToEditorFile(
   path: string,
   listener: (content: string) => void,
+  options?: FileWatchSubscriptionOptions,
 ): () => void {
-  return fileWatchRegistry.subscribe(path, listener);
+  return fileWatchRegistry.subscribe(path, listener, options);
 }

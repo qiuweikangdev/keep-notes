@@ -31,6 +31,11 @@ export class EditorCache<TBlocks> {
     });
   }
 
+  hasParsedSource(path: string, source: string): boolean {
+    const entry = this.touch(path);
+    return entry?.parsed?.source === source;
+  }
+
   getBlocks(
     path: string,
     source: string,

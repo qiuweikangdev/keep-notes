@@ -58,4 +58,24 @@ describe("FileWatchRegistry", () => {
     expect(first).not.toHaveBeenCalled();
     expect(second).not.toHaveBeenCalled();
   });
+
+  it("notifies higher-priority subscribers before default subscribers", () => {
+    let emit: ((path: string, content: string) => void) | undefined;
+    const registry = new FileWatchRegistry({
+      watch: vi.fn(),
+      unwatch: vi.fn(),
+      subscribeGlobal: (listener) => {
+        emit = listener;
+        return vi.fn();
+      },
+      isOwnWrite: () => false,
+    });
+    const calls: string[] = [];
+    registry.subscribe("a.md", () => calls.push("source"));
+    registry.subscribe("a.md", () => calls.push("rich"), { priority: 1 });
+
+    emit?.("a.md", "external");
+
+    expect(calls).toEqual(["rich", "source"]);
+  });
 });
