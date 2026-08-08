@@ -30,6 +30,7 @@ type EditorStoreSnapshot = {
 };
 const appMocks = vi.hoisted(() => ({
   editorFilePath: "/workspace/notes/today.md" as string | null,
+  editorTabExists: true,
   subscribe: vi.fn(() => () => undefined),
   useTheme: vi.fn(() => ({ toggleTheme: vi.fn() })),
   openQuickEditorDraft: vi.fn(),
@@ -282,15 +283,17 @@ vi.mock("@/store/editor.store", () => ({
         panelGroups: [
           {
             id: "group-1",
-            activeTabId: "tab-1",
-            tabs: [
-              {
-                id: "tab-1",
-                filePath: appMocks.editorFilePath,
-                content: "# Previous draft",
-                mode: "rich",
-              },
-            ],
+            activeTabId: appMocks.editorTabExists ? "tab-1" : "",
+            tabs: appMocks.editorTabExists
+              ? [
+                  {
+                    id: "tab-1",
+                    filePath: appMocks.editorFilePath,
+                    content: "# Previous draft",
+                    mode: "rich",
+                  },
+                ]
+              : [],
           },
         ],
         setFilePath: vi.fn(),
@@ -358,6 +361,7 @@ describe("App shortcuts", () => {
     }
     menuActionHandler = null;
     appMocks.editorFilePath = "/workspace/notes/today.md";
+    appMocks.editorTabExists = true;
     appMocks.subscribe.mockClear();
     appMocks.useTheme.mockClear();
     appMocks.openQuickEditorDraft.mockClear();
@@ -387,6 +391,7 @@ describe("App shortcuts", () => {
         consumeQuickEditorContent: vi.fn(async () => null),
         onQuickEditorContentImported: vi.fn(() => () => undefined),
         onQuickEditorContentUpdated: vi.fn(() => () => undefined),
+        detachQuickEditorSource: vi.fn(),
         syncQuickEditorContent: vi.fn(),
         onMenuAction: (callback: (action: string) => void) => {
           menuActionHandler = callback;
@@ -636,6 +641,76 @@ describe("App shortcuts", () => {
     ).not.toBeNull();
   });
 
+  it("does not recreate a source tab closed while its floating editor remains open", async () => {
+    appMocks.editorTabExists = false;
+    const onQuickEditorContentUpdated = vi.fn(
+      (
+        callback: (content: {
+          content: string;
+          source: {
+            groupId: string;
+            tabId: string;
+            filePath: string | null;
+          } | null;
+        }) => void,
+      ) => {
+        callback({
+          content: "# First floating update",
+          source: {
+            groupId: "group-1",
+            tabId: "tab-1",
+            filePath: "/workspace/notes/today.md",
+          },
+        });
+        callback({
+          content: "# Second floating update",
+          source: {
+            groupId: "group-1",
+            tabId: "tab-1",
+            filePath: "/workspace/notes/today.md",
+          },
+        });
+        return () => undefined;
+      },
+    );
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: { ...window.electronAPI, onQuickEditorContentUpdated },
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(onQuickEditorContentUpdated).toHaveBeenCalledOnce();
+    });
+    expect(appMocks.openQuickEditorDraft).not.toHaveBeenCalled();
+    expect(appMocks.setTabContent).not.toHaveBeenCalled();
+    expect(appMocks.setActiveTab).not.toHaveBeenCalled();
+  });
+
+  it("does not create draft tabs from unlinked live floating-editor updates", async () => {
+    const onQuickEditorContentUpdated = vi.fn(
+      (callback: (content: { content: string; source: null }) => void) => {
+        callback({ content: "# First unlinked update", source: null });
+        callback({ content: "# Second unlinked update", source: null });
+        return () => undefined;
+      },
+    );
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: { ...window.electronAPI, onQuickEditorContentUpdated },
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(onQuickEditorContentUpdated).toHaveBeenCalledOnce();
+    });
+    expect(appMocks.openQuickEditorDraft).not.toHaveBeenCalled();
+    expect(appMocks.setTabContent).not.toHaveBeenCalled();
+    expect(appMocks.setActiveTab).not.toHaveBeenCalled();
+  });
+
   it("associates an untitled source tab after the floating editor saves", async () => {
     appMocks.editorFilePath = null;
     const onQuickEditorContentUpdated = vi.fn(
@@ -735,6 +810,48 @@ describe("App shortcuts", () => {
         filePath: "/workspace/notes/today.md",
       },
     });
+  });
+
+  it("detaches a floating-editor source when its tab closes", () => {
+    render(<App />);
+
+    const storeListener = appMocks.subscribe.mock.calls[0]?.[0] as
+      | ((
+          state: EditorStoreSnapshot,
+          previousState: EditorStoreSnapshot,
+        ) => void)
+      | undefined;
+    expect(storeListener).toBeTypeOf("function");
+    if (!storeListener) return;
+
+    const previousState: EditorStoreSnapshot = {
+      panelGroups: [
+        {
+          id: "group-1",
+          tabs: [
+            {
+              id: "tab-1",
+              filePath: "/workspace/notes/today.md",
+              content: "# Before closing",
+            },
+          ],
+        },
+      ],
+    };
+    const state: EditorStoreSnapshot = {
+      panelGroups: [{ id: "group-1", tabs: [] }],
+    };
+
+    act(() => {
+      storeListener(state, previousState);
+    });
+
+    expect(window.electronAPI.detachQuickEditorSource).toHaveBeenCalledWith({
+      groupId: "group-1",
+      tabId: "tab-1",
+      filePath: "/workspace/notes/today.md",
+    });
+    expect(window.electronAPI.syncQuickEditorContent).not.toHaveBeenCalled();
   });
 
   it("keeps the code-block cursor at two visual pixels across interface zoom", async () => {

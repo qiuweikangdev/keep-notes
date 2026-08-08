@@ -30,6 +30,7 @@ export const IPC_CHANNELS = {
     CREATE_WINDOW: "quick-editor:create-window",
     INITIAL_CONTENT: "quick-editor:initial-content",
     SYNC_CONTENT: "quick-editor:sync-content",
+    DETACH_SOURCE: "quick-editor:detach-source",
     CONTENT_UPDATED: "quick-editor:content-updated",
     SAVE_CONTENT: "quick-editor:save-content",
     FLUSH_CONTENT: "quick-editor:flush-content",

@@ -4,6 +4,7 @@ import {
   configureQuickEditorGlobalShortcuts,
   consumePendingQuickEditorContent,
   createQuickEditorWindow,
+  detachQuickEditorSource,
   disposeQuickEditorWindow,
   getQuickEditorCollapsed,
   returnToMainWindowFromQuickEditor,
@@ -441,6 +442,30 @@ describe("quick editor floating window", () => {
       expect(fileMocks.writeFileContent).toHaveBeenCalledWith(
         "/notes/readme.md",
         "# Updated in floating editor",
+      );
+    });
+  });
+
+  it("keeps detached floating-editor updates out of the main window", async () => {
+    const source = {
+      groupId: "group-1",
+      tabId: "tab-1",
+      filePath: "/notes/readme.md",
+    };
+    const win = createQuickEditorWindow({ content: "# Initial", source });
+    windowMocks.mainWindow.webContents.send.mockClear();
+
+    detachQuickEditorSource(source);
+    syncQuickEditorContent(
+      { content: "# Updated after closing the tab", source },
+      win,
+    );
+
+    expect(windowMocks.mainWindow.webContents.send).not.toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(fileMocks.writeFileContent).toHaveBeenCalledWith(
+        "/notes/readme.md",
+        "# Updated after closing the tab",
       );
     });
   });

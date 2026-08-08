@@ -60,11 +60,16 @@ function getQuickEditorSourceKey(
   return `${source.groupId}:${source.tabId}:${source.filePath ?? ""}`;
 }
 
-function restoreQuickEditorSource(content: QuickEditorWindowContent): void {
+function restoreQuickEditorSource(
+  content: QuickEditorWindowContent,
+  openDraftWhenTargetMissing = true,
+): void {
   const state = useEditorStore.getState();
   const source = content.source;
   if (!source) {
-    state.openQuickEditorDraft(content.content);
+    if (openDraftWhenTargetMissing) {
+      state.openQuickEditorDraft(content.content);
+    }
     return;
   }
 
@@ -88,7 +93,10 @@ function restoreQuickEditorSource(content: QuickEditorWindowContent): void {
     : pathMatch;
 
   if (!target) {
-    state.openQuickEditorDraft(content.content);
+    // 实时同步不应重新打开用户已关闭的来源标签；仅显式返回主窗口时导入草稿。
+    if (openDraftWhenTargetMissing) {
+      state.openQuickEditorDraft(content.content);
+    }
     return;
   }
 
@@ -310,6 +318,21 @@ function MainApplication() {
 
   useEffect(() => {
     const unsubscribe = useEditorStore.subscribe((state, previousState) => {
+      const currentTabIds = new Set(
+        state.panelGroups.flatMap((group) => group.tabs.map((tab) => tab.id)),
+      );
+      for (const previousGroup of previousState.panelGroups) {
+        for (const previousTab of previousGroup.tabs) {
+          if (currentTabIds.has(previousTab.id)) continue;
+          // 标签关闭后由主进程保留浮窗和文件写入，但切断回主窗口的实时更新。
+          window.electronAPI.detachQuickEditorSource({
+            groupId: previousGroup.id,
+            tabId: previousTab.id,
+            filePath: previousTab.filePath,
+          });
+        }
+      }
+
       for (const group of state.panelGroups) {
         const previousGroup = previousState.panelGroups.find(
           (item) => item.id === group.id,
@@ -382,7 +405,7 @@ function MainApplication() {
           content.content,
         );
       }
-      restoreQuickEditorSource(content);
+      restoreQuickEditorSource(content, false);
     };
 
     return window.electronAPI.onQuickEditorContentUpdated(applyLiveContent);

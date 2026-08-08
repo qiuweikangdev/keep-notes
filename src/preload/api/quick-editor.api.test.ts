@@ -68,6 +68,21 @@ describe("quick editor preload collapse API", () => {
     );
   });
 
+  it("notifies the main process when a source tab is detached", () => {
+    const source = {
+      groupId: "group-1",
+      tabId: "tab-1",
+      filePath: "/notes/readme.md",
+    };
+
+    quickEditorApi.detachQuickEditorSource(source);
+
+    expect(ipcRendererMocks.send).toHaveBeenCalledWith(
+      IPC_CHANNELS.QUICK_EDITOR.DETACH_SOURCE,
+      source,
+    );
+  });
+
   it("subscribes to native collapsed-state changes", () => {
     const callback = vi.fn();
     const unsubscribe = quickEditorApi.onQuickEditorCollapsedChanged(callback);

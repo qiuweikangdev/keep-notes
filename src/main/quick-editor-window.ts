@@ -42,6 +42,7 @@ const quickEditorWindowSources = new Map<
   BrowserWindow,
   NonNullable<QuickEditorWindowContent["source"]>
 >();
+const detachedQuickEditorSources = new Set<string>();
 interface QuickEditorFileWrite {
   complete: Promise<void>;
   content: string;
@@ -155,6 +156,12 @@ function hasSameQuickEditorSource(
     left.tabId === right.tabId &&
     left.filePath === right.filePath
   );
+}
+
+function getQuickEditorSourceKey(
+  source: NonNullable<QuickEditorWindowContent["source"]>,
+): string {
+  return JSON.stringify([source.groupId, source.tabId, source.filePath]);
 }
 
 function getKnownQuickEditorSource(
@@ -350,6 +357,10 @@ export function createQuickEditorWindow(
   quickEditorCollapseStates.set(win, collapseState);
   if (initialContent?.source) {
     quickEditorWindowSources.set(win, initialContent.source);
+    // 用户再次从主标签显式创建浮窗时，恢复这条来源的双向实时同步。
+    detachedQuickEditorSources.delete(
+      getQuickEditorSourceKey(initialContent.source),
+    );
   }
   if (!quickEditorWindow || quickEditorWindow.isDestroyed()) {
     quickEditorWindow = win;
@@ -633,6 +644,7 @@ export function syncQuickEditorContent(
     content: incomingContent.content,
     source,
   };
+  const sourceKey = getQuickEditorSourceKey(source);
 
   if (senderIsQuickEditor) {
     if (source.filePath) {
@@ -641,12 +653,19 @@ export function syncQuickEditorContent(
     }
 
     const mainWindow = getMainWindow();
-    if (mainWindow && !mainWindow.isDestroyed()) {
+    if (
+      !detachedQuickEditorSources.has(sourceKey) &&
+      mainWindow &&
+      !mainWindow.isDestroyed()
+    ) {
       mainWindow.webContents.send(
         IPC_CHANNELS.QUICK_EDITOR.CONTENT_UPDATED,
         content,
       );
     }
+  } else {
+    // 主标签再次产生编辑时，说明该来源已经重新打开，可恢复浮窗到主窗口的同步。
+    detachedQuickEditorSources.delete(sourceKey);
   }
 
   for (const win of quickEditorWindows) {
@@ -661,6 +680,13 @@ export function syncQuickEditorContent(
     }
     win.webContents.send(IPC_CHANNELS.QUICK_EDITOR.CONTENT_UPDATED, content);
   }
+}
+
+/** 标签关闭后停止把关联浮窗的实时输入推回主窗口，避免自动重建标签。 */
+export function detachQuickEditorSource(value: unknown): void {
+  const source = normalizeQuickEditorSource(value);
+  if (!source || !getKnownQuickEditorSource(source)) return;
+  detachedQuickEditorSources.add(getQuickEditorSourceKey(source));
 }
 
 /** 等待关联浮窗的最新快照落盘，避免 Git 回滚与旧写入任务交错。 */
@@ -747,5 +773,6 @@ export function disposeQuickEditorWindow(): void {
   unregisterKeys(registeredShortcutKeys);
   registeredShortcutKeys = [];
   pendingQuickEditorContents.length = 0;
+  detachedQuickEditorSources.clear();
   destroyQuickEditorWindow();
 }

@@ -98,6 +98,12 @@ export const quickEditorApi = {
     ipcRenderer.send(IPC_CHANNELS.QUICK_EDITOR.SYNC_CONTENT, content);
   },
 
+  detachQuickEditorSource: (
+    source: QuickEditorWindowContent["source"],
+  ): void => {
+    ipcRenderer.send(IPC_CHANNELS.QUICK_EDITOR.DETACH_SOURCE, source);
+  },
+
   saveQuickEditorContent: (
     content: string,
   ): Promise<ApiResponse<QuickEditorSaveResult>> => {

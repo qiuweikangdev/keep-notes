@@ -12,6 +12,7 @@ const quickEditorMocks = vi.hoisted(() => ({
   configureQuickEditorGlobalShortcuts: vi.fn(),
   consumePendingQuickEditorContent: vi.fn(),
   createQuickEditorWindow: vi.fn(),
+  detachQuickEditorSource: vi.fn(),
   flushQuickEditorContent: vi.fn(),
   getQuickEditorCollapsed: vi.fn(),
   returnToMainWindowFromQuickEditor: vi.fn(),
@@ -38,6 +39,16 @@ function getHandler(channel: string): IpcHandler {
     throw new Error(`Missing IPC handler: ${channel}`);
   }
   return handler as IpcHandler;
+}
+
+function getListener(channel: string): IpcHandler {
+  const listener = ipcMainMocks.on.mock.calls.find(
+    ([name]) => name === channel,
+  )?.[1];
+  if (typeof listener !== "function") {
+    throw new Error(`Missing IPC listener: ${channel}`);
+  }
+  return listener as IpcHandler;
 }
 
 describe("quick editor collapse IPC", () => {
@@ -75,5 +86,19 @@ describe("quick editor collapse IPC", () => {
     expect(handler(event, "true", false)).toBe(false);
     expect(handler(event, true, "false")).toBe(false);
     expect(quickEditorMocks.setQuickEditorCollapsed).toHaveBeenCalledTimes(1);
+  });
+
+  it("detaches a source after its main-window tab closes", () => {
+    const source = {
+      groupId: "group-1",
+      tabId: "tab-1",
+      filePath: "/notes/readme.md",
+    };
+
+    getListener(IPC_CHANNELS.QUICK_EDITOR.DETACH_SOURCE)({}, source);
+
+    expect(quickEditorMocks.detachQuickEditorSource).toHaveBeenCalledWith(
+      source,
+    );
   });
 });

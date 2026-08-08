@@ -165,6 +165,7 @@ export interface ElectronAPI {
   showQuickEditorWindow: () => void;
   createQuickEditorWindow: (content?: QuickEditorWindowContent) => void;
   syncQuickEditorContent: (content: QuickEditorWindowContent) => void;
+  detachQuickEditorSource: (source: QuickEditorWindowContent["source"]) => void;
   saveQuickEditorContent: (
     content: string,
   ) => Promise<ApiResponse<QuickEditorSaveResult>>;
