@@ -366,25 +366,23 @@ describe("blocknote overrides stylesheet", () => {
     );
     expect(inlineCodeRule).toMatch(/padding:\s*0\.15em 4px !important;/);
     expect(inlineCodeRule).toMatch(/font-family:[\s\S]*monospace !important;/);
-    expect(inlineCodeRule).toMatch(/font-weight:\s*500 !important;/);
+    expect(inlineCodeRule).toMatch(/font-weight:\s*400 !important;/);
     expect(inlineCodeRule).toMatch(/cursor:\s*text;/);
     expect(
       getRule(
         ":is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content, :is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content code",
       ),
-    ).toMatch(
-      /color:\s*color-mix\(\s*in srgb,\s*var\(--accent-color\) 70%,\s*var\(--text-primary\)\s*\) !important;/,
-    );
+    ).toMatch(/color:\s*var\(--accent-color\) !important;/);
     expect(
       getRule(
         ":is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content, :is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content code",
       ),
-    ).toMatch(/font-weight:\s*700 !important;/);
+    ).toMatch(/font-weight:\s*500 !important;/);
   });
 
   it("uses Vditor-style visual markers with a zero-width selection caret", () => {
     const markerRule = getRule(
-      ".bn-editor.ProseMirror-focused code:not(.editor-code-block__content):has( .editor-inline-code__editing-content )::before, .bn-editor.ProseMirror-focused code:not(.editor-code-block__content):has( .editor-inline-code__editing-content )::after",
+      ".bn-editor.ProseMirror-focused code:not(.editor-code-block__content):has( .editor-inline-code__editing-start )::before, .bn-editor.ProseMirror-focused code:not(.editor-code-block__content):has( .editor-inline-code__editing-end )::after",
     );
     expect(markerRule).toMatch(/position:\s*absolute;/);
     expect(markerRule).toMatch(/content:\s*"`";/);
@@ -392,18 +390,49 @@ describe("blocknote overrides stylesheet", () => {
     expect(markerRule).toMatch(/pointer-events:\s*none;/);
     expect(markerRule).toMatch(/transform:\s*translateY\(-50%\);/);
 
+    const markerWidgetRule = getRule(
+      ".bn-editor.ProseMirror-focused .editor-inline-code__editing-marker",
+    );
+    expect(markerWidgetRule).toMatch(/display:\s*inline-block;/);
+    expect(markerWidgetRule).toMatch(
+      /color:\s*var\(--text-primary\) !important;/,
+    );
+    expect(markerWidgetRule).toMatch(/background:\s*transparent !important;/);
+    expect(markerWidgetRule).toMatch(/pointer-events:\s*none;/);
+
     const editingCodeRule = getRule(
       ".bn-editor.ProseMirror-focused code:not(.editor-code-block__content):has( .editor-inline-code__editing-content )",
     );
-    expect(editingCodeRule).toMatch(/margin-inline:\s*0\.5em;/);
+    expect(editingCodeRule).not.toMatch(/margin-inline:/);
+    expect(editingCodeRule).toMatch(/padding-inline:\s*0 !important;/);
+    expect(editingCodeRule).toMatch(/border-radius:\s*0 !important;/);
+    expect(editingCodeRule).toMatch(/font-weight:\s*400 !important;/);
     expect(editingCodeRule).toMatch(/caret-color:\s*transparent !important;/);
+
+    const firstFragmentRule = getRule(
+      ".bn-editor.ProseMirror-focused code:not(.editor-code-block__content):has( .editor-inline-code__editing-start )",
+    );
+    expect(firstFragmentRule).toMatch(/padding-left:\s*4px !important;/);
+    expect(firstFragmentRule).toMatch(
+      /border-top-left-radius:\s*4px !important;/,
+    );
+
+    const lastFragmentRule = getRule(
+      ".bn-editor.ProseMirror-focused code:not(.editor-code-block__content):has(.editor-inline-code__editing-end)",
+    );
+    expect(lastFragmentRule).toMatch(/padding-right:\s*4px !important;/);
+    expect(lastFragmentRule).toMatch(
+      /border-top-right-radius:\s*4px !important;/,
+    );
 
     const editingContentRule = getRule(
       ".bn-editor.ProseMirror-focused code:not(.editor-code-block__content) .editor-inline-code__editing-content",
     );
+    expect(editingContentRule).toMatch(/color:\s*inherit !important;/);
     expect(editingContentRule).toMatch(
-      /color:\s*var\(--text-primary\) !important;/,
+      /-webkit-text-fill-color:\s*currentColor !important;/,
     );
+    expect(editingContentRule).toMatch(/font-weight:\s*inherit !important;/);
     expect(editingContentRule).toMatch(
       /caret-color:\s*transparent !important;/,
     );

@@ -109,7 +109,11 @@ import {
   readImageFileAsArrayBuffer,
   readImageFileAsDataUrl,
 } from "../lib/editor-image";
-import { editorSchema } from "../lib/blocknote-schema";
+import {
+  clearInlineCodeEditingState,
+  editorSchema,
+  normalizeInlineCodeMarkers,
+} from "../lib/blocknote-schema";
 import { getSupportedCodeBlockLanguageId } from "../lib/editor-code-block-languages";
 import {
   configureRichTextUndoHistory,
@@ -737,7 +741,7 @@ function persistRichPaneScroll(
   store.setTabScrollTop(owner.groupId, owner.tabId, scrollTop);
 }
 
-const MARKDOWN_PARSER_VERSION = "blocknote-v7";
+const MARKDOWN_PARSER_VERSION = "blocknote-v10";
 
 export function getMarkdownParserCacheVersion(reloadKey: number) {
   return `${MARKDOWN_PARSER_VERSION}:${reloadKey}`;
@@ -1962,6 +1966,8 @@ function MountedBlockNoteEditor({
 
   const restoreViewState = useCallback(
     (state: RichPaneViewState) => {
+      // 旧会话可能缓存过未规范化的反引号文本；激活窗格时一次性升级为真正的 code mark。
+      normalizeInlineCodeMarkers(editor);
       // 切换窗格时终止旧窗格尚未完成的跨帧大纲定位，防止后续帧滚动新窗格。
       cancelPendingOutlineScrollActivation();
       const scrollToken = outlineScrollTokenRef.current + 1;
@@ -2021,6 +2027,7 @@ function MountedBlockNoteEditor({
           : TextSelection.near(resolvedPosition, 1);
         // 新 pane 没有自己的选择时安装顶部选择，但不请求浏览器滚动，避免继承上一 pane 光标。
         view.dispatch(view.state.tr.setSelection(selection));
+        clearInlineCodeEditingState(editor);
         return;
       }
 
@@ -2042,6 +2049,8 @@ function MountedBlockNoteEditor({
             TextSelection.create(view.state.doc, anchor, head),
           ),
         );
+        // 恢复的是后台视图状态，不等同于用户重新点击；保持行内代码富文本态直到真实交互。
+        clearInlineCodeEditingState(editor);
       } catch {
         // 选择在异步内容更新中失效时保留已恢复的滚动位置。
       }
@@ -2447,6 +2456,11 @@ function MountedBlockNoteEditor({
         } else {
           editor.replaceBlocks(editor.document, blocks);
         }
+        normalizeInlineCodeMarkers(editor);
+        // 整篇加载后清掉上一文件映射过来的编辑范围，并抑制新文件初始选区自动展开反引号。
+        clearInlineCodeEditingState(editor);
+        // 规范化可能把旧缓存中的反引号文本升级为 code mark；后续缓存和基线必须使用升级后的文档。
+        const normalizedBlocks = editor.document;
         appliedPathRef.current = path;
         appliedSourceRef.current = source;
         const restoredScrollTop = chooseRestoredEditorScrollTop({
@@ -2462,19 +2476,19 @@ function MountedBlockNoteEditor({
           editorCache.setBlocks(
             path,
             source,
-            blocks,
+            normalizedBlocks,
             parserCacheVersion,
             cached?.serializedBaseline,
           );
         }
-        ensureRichRuntime(editor.document);
+        ensureRichRuntime(normalizedBlocks);
         restoreEditorScrollTop(scrollContainerRef.current, restoredScrollTop);
         controllerRef.current.onParseStateChange(null);
 
         if (serializedBaselineRef.current === null) {
           const baselinePath = path;
           const baselineSource = source;
-          const baselineBlocks = blocks;
+          const baselineBlocks = normalizedBlocks;
           const baselineParserCacheVersion = parserCacheVersion;
           const baselinePromise = (async () => {
             // 先让新面板完成一次绘制，再序列化大文档基线，避免拆分时出现空白闪烁。

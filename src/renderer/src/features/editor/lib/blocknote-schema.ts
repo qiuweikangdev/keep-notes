@@ -17,7 +17,10 @@ import {
   createCodeBlockSpec,
   createQuoteBlockSpec,
 } from "@blocknote/core/blocks";
-import { SideMenuExtension } from "@blocknote/core/extensions";
+import {
+  FormattingToolbarExtension,
+  SideMenuExtension,
+} from "@blocknote/core/extensions";
 import { InputRule } from "@tiptap/core";
 import Code from "@tiptap/extension-code";
 import { closeHistory } from "@tiptap/pm/history";
@@ -28,7 +31,7 @@ import {
   TextSelection,
   type EditorState,
 } from "@tiptap/pm/state";
-import type { Node, Slice } from "@tiptap/pm/model";
+import type { Mark, Node, Slice } from "@tiptap/pm/model";
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
 
 import {
@@ -95,16 +98,23 @@ const INLINE_CODE_NORMALIZER_META = "editor-inline-code-normalizer";
 const inlineCodeMarkerPattern = /`([^`\n]+)`/g;
 const INLINE_CODE_EDITING_CONTENT_CLASS = "editor-inline-code__editing-content";
 const INLINE_CODE_EDITING_CARET_CLASS = "editor-inline-code__editing-caret";
+const INLINE_CODE_EDITING_MARKER_CLASS = "editor-inline-code__editing-marker";
+const INLINE_CODE_EDITING_START_CLASS = "editor-inline-code__editing-start";
+const INLINE_CODE_EDITING_END_CLASS = "editor-inline-code__editing-end";
+const INLINE_CODE_COMPOSING_CONTENT_CLASS =
+  "editor-inline-code__composing-content";
 const INLINE_CODE_LATIN_CONTENT_CLASS = "editor-inline-code__latin-content";
 const inlineCodeLatinContentPattern = /[\u0020-\u007e]+/g;
 
 type InlineCodeEditingState = {
   activeRange: { from: number; to: number } | null;
+  isComposing: boolean;
   suppressedSelectionPosition: number | null;
 };
 
 const EMPTY_INLINE_CODE_EDITING_STATE: InlineCodeEditingState = {
   activeRange: null,
+  isComposing: false,
   suppressedSelectionPosition: null,
 };
 const inlineCodeEditingPluginKey = new PluginKey<InlineCodeEditingState>(
@@ -114,6 +124,79 @@ const inlineCodeLatinContentPluginKey = new PluginKey<DecorationSet>(
   "editor-inline-code-latin-content",
 );
 
+type InlineCodeMarkerReplacement = {
+  from: number;
+  marks: Mark[];
+  text: string;
+  to: number;
+};
+
+function collectInlineCodeMarkerReplacements(
+  state: EditorState,
+  shouldScanNode: (position: number, nodeSize: number) => boolean,
+) {
+  const codeMark = state.schema.marks.code;
+  if (!codeMark) return [];
+
+  const replacements: InlineCodeMarkerReplacement[] = [];
+  state.doc.descendants((node, pos) => {
+    if (!node.isText || !node.text) return true;
+    if (!shouldScanNode(pos, node.nodeSize)) return true;
+    if (node.marks.some((mark) => mark.type === codeMark)) return true;
+    if (state.doc.resolve(pos).parent.type.spec.code) return true;
+
+    for (const match of node.text.matchAll(inlineCodeMarkerPattern)) {
+      const matchIndex = match.index;
+      const codeText = match[1];
+      if (matchIndex === undefined || !codeText) continue;
+
+      replacements.push({
+        from: pos + matchIndex,
+        marks: [...node.marks, codeMark.create()],
+        text: codeText,
+        to: pos + matchIndex + match[0].length,
+      });
+    }
+
+    return true;
+  });
+  return replacements;
+}
+
+function createInlineCodeMarkerNormalizationTransaction(
+  state: EditorState,
+  replacements: InlineCodeMarkerReplacement[],
+) {
+  if (replacements.length === 0) return null;
+
+  const tr = state.tr;
+  for (let index = replacements.length - 1; index >= 0; index -= 1) {
+    const replacement = replacements[index];
+    tr.replaceWith(
+      replacement.from,
+      replacement.to,
+      state.schema.text(replacement.text, replacement.marks),
+    );
+  }
+
+  return tr.docChanged ? tr.setMeta(INLINE_CODE_NORMALIZER_META, true) : null;
+}
+
+export function normalizeInlineCodeMarkers(editor: {
+  prosemirrorView: EditorView;
+}) {
+  const view = editor.prosemirrorView;
+  const replacements = collectInlineCodeMarkerReplacements(
+    view.state,
+    () => true,
+  );
+  const transaction = createInlineCodeMarkerNormalizationTransaction(
+    view.state,
+    replacements,
+  );
+  if (transaction) view.dispatch(transaction);
+}
+
 const inlineCodeNormalizerExtension = createExtension({
   key: "editor-inline-code-normalizer",
   prosemirrorPlugins: [
@@ -122,9 +205,6 @@ const inlineCodeNormalizerExtension = createExtension({
         if (!transactions.some((transaction) => transaction.docChanged)) {
           return null;
         }
-        // 大文档跳过全量扫描，避免每笔按键都遍历所有文本节点阻塞主线程。
-        // 用户仍可通过快捷键手动设置行内代码样式。
-        if (newState.doc.textContent.length > 6000) return null;
         if (
           transactions.some((transaction) =>
             transaction.getMeta(INLINE_CODE_NORMALIZER_META),
@@ -133,54 +213,64 @@ const inlineCodeNormalizerExtension = createExtension({
           return null;
         }
 
-        const codeMark = newState.schema.marks.code;
-        if (!codeMark) return null;
+        const scanWholeDocument = newState.doc.textContent.length <= 6000;
+        const changedRanges: Array<{ from: number; to: number }> = [];
+        if (!scanWholeDocument) {
+          transactions.forEach((transaction, transactionIndex) => {
+            transaction.mapping.maps.forEach((stepMap, stepMapIndex) => {
+              stepMap.forEach((_oldFrom, _oldTo, newFrom, newTo) => {
+                let from = newFrom;
+                let to = newTo;
 
-        const replacements: Array<{
-          from: number;
-          marks: ReturnType<typeof codeMark.create>[];
-          text: string;
-          to: number;
-        }> = [];
+                // 把每一步的修改位置映射到 appendTransaction 接收到的最终文档。
+                for (
+                  let mapIndex = stepMapIndex + 1;
+                  mapIndex < transaction.mapping.maps.length;
+                  mapIndex += 1
+                ) {
+                  const laterMap = transaction.mapping.maps[mapIndex];
+                  from = laterMap.map(from, -1);
+                  to = laterMap.map(to, 1);
+                }
+                for (
+                  let laterTransactionIndex = transactionIndex + 1;
+                  laterTransactionIndex < transactions.length;
+                  laterTransactionIndex += 1
+                ) {
+                  for (const laterMap of transactions[laterTransactionIndex]
+                    .mapping.maps) {
+                    from = laterMap.map(from, -1);
+                    to = laterMap.map(to, 1);
+                  }
+                }
 
-        newState.doc.descendants((node, pos) => {
-          if (!node.isText || !node.text) return true;
-          if (node.marks.some((mark) => mark.type === codeMark)) return true;
-          if (newState.doc.resolve(pos).parent.type.spec.code) return true;
-
-          for (const match of node.text.matchAll(inlineCodeMarkerPattern)) {
-            const matchIndex = match.index;
-            const codeText = match[1];
-            if (matchIndex === undefined || !codeText) continue;
-
-            replacements.push({
-              from: pos + matchIndex,
-              marks: [...node.marks, codeMark.create()],
-              text: codeText,
-              to: pos + matchIndex + match[0].length,
+                changedRanges.push({
+                  from: Math.max(0, Math.min(from, to) - 1),
+                  to: Math.min(
+                    newState.doc.content.size,
+                    Math.max(from, to) + 1,
+                  ),
+                });
+              });
             });
-          }
-
-          return true;
-        });
-
-        if (replacements.length === 0) return null;
-
-        const tr = newState.tr;
-        for (let index = replacements.length - 1; index >= 0; index -= 1) {
-          const replacement = replacements[index];
-
-          // 某些输入路径不会触发 input rule，这里在事务尾部兜底清理 Markdown 反引号。
-          tr.replaceWith(
-            replacement.from,
-            replacement.to,
-            newState.schema.text(replacement.text, replacement.marks),
-          );
+          });
         }
 
-        return tr.docChanged
-          ? tr.setMeta(INLINE_CODE_NORMALIZER_META, true)
-          : null;
+        const replacements = collectInlineCodeMarkerReplacements(
+          newState,
+          (position, nodeSize) =>
+            scanWholeDocument ||
+            changedRanges.some(
+              (range) =>
+                position <= range.to && position + nodeSize >= range.from,
+            ),
+        );
+
+        // 某些输入路径不会触发 input rule，这里在事务尾部兜底清理 Markdown 反引号。
+        return createInlineCodeMarkerNormalizationTransaction(
+          newState,
+          replacements,
+        );
       },
     }),
   ],
@@ -233,20 +323,61 @@ function findInlineCodeRange(
   if (!codeMark) return null;
 
   const parentStart = $position.start();
-  let codeRange: { from: number; to: number } | null = null;
+  const codeRanges: Array<{ from: number; to: number }> = [];
+  let currentRange: { from: number; to: number } | null = null;
   $position.parent.forEach((node, offset) => {
-    if (codeRange || !node.isText) return;
-    if (!node.marks.some((mark) => mark.type === codeMark)) return;
-
     const from = parentStart + offset;
     const to = from + node.nodeSize;
-    const containsPosition = includeBoundaries
-      ? position >= from && position <= to
-      : position > from && position < to;
-    if (containsPosition) codeRange = { from, to };
+    const isInlineCodeText =
+      node.isText && node.marks.some((mark) => mark.type === codeMark);
+    if (isInlineCodeText) {
+      // 大文档解析、输入法和叠加文字样式都可能拆分文本节点；连续 code mark 仍属于同一段行内代码。
+      if (currentRange?.to === from) currentRange.to = to;
+      else {
+        currentRange = { from, to };
+        codeRanges.push(currentRange);
+      }
+      return;
+    }
+
+    currentRange = null;
   });
 
-  return codeRange;
+  return (
+    codeRanges.find((range) =>
+      includeBoundaries
+        ? position >= range.from && position <= range.to
+        : position > range.from && position < range.to,
+    ) ?? null
+  );
+}
+
+function getInlineCodeFromPointerEvent(event: MouseEvent) {
+  const eventTarget =
+    event.target instanceof Element
+      ? event.target
+      : ((event.target as { parentElement?: Element | null } | null)
+          ?.parentElement ?? null);
+  let inlineCode = eventTarget?.closest(
+    "code:not(.editor-code-block__content)",
+  );
+  if (!inlineCode) return null;
+
+  const contentBounds = inlineCode.getBoundingClientRect();
+  const hasMeasurableBounds =
+    contentBounds.width > 0 && contentBounds.height > 0;
+  const pointerIsInsideContent =
+    event.clientX >= contentBounds.left &&
+    event.clientX <= contentBounds.right &&
+    event.clientY >= contentBounds.top &&
+    event.clientY <= contentBounds.bottom;
+
+  // 反引号位于 code 盒子外，只有胶囊本体参与聚焦与拖选。
+  if (hasMeasurableBounds && !pointerIsInsideContent) {
+    inlineCode = null;
+  }
+
+  return inlineCode;
 }
 
 function findInlineCodeRangeForSelection(state: EditorState) {
@@ -379,10 +510,38 @@ function getInlineCodeEditingDecorations(state: EditorState) {
 
   const decorations: Decoration[] = [
     Decoration.inline(range.from, range.to, {
-      class: INLINE_CODE_EDITING_CONTENT_CLASS,
+      class: editingState.isComposing
+        ? `${INLINE_CODE_EDITING_CONTENT_CLASS} ${INLINE_CODE_COMPOSING_CONTENT_CLASS}`
+        : INLINE_CODE_EDITING_CONTENT_CLASS,
+    }),
+    Decoration.inline(range.from, Math.min(range.from + 1, range.to), {
+      class: INLINE_CODE_EDITING_START_CLASS,
+    }),
+    Decoration.inline(Math.max(range.to - 1, range.from), range.to, {
+      class: INLINE_CODE_EDITING_END_CLASS,
     }),
   ];
-  if (selection.empty) {
+  if (!editingState.isComposing) {
+    const createMarker = (boundary: "start" | "end") => {
+      const marker = document.createElement("span");
+      marker.className = `${INLINE_CODE_EDITING_MARKER_CLASS} ${INLINE_CODE_EDITING_MARKER_CLASS}--${boundary}`;
+      marker.contentEditable = "false";
+      marker.setAttribute("aria-hidden", "true");
+      marker.textContent = "`";
+      return marker;
+    };
+    decorations.push(
+      Decoration.widget(range.from, () => createMarker("start"), {
+        key: `inline-code-editing-marker-start-${range.from}`,
+        side: -2,
+      }),
+      Decoration.widget(range.to, () => createMarker("end"), {
+        key: `inline-code-editing-marker-end-${range.to}`,
+        side: 2,
+      }),
+    );
+  }
+  if (selection.empty && !editingState.isComposing) {
     decorations.push(
       Decoration.widget(
         selection.from,
@@ -405,7 +564,19 @@ function getInlineCodeEditingDecorations(state: EditorState) {
   return DecorationSet.create(state.doc, decorations);
 }
 
-const inlineCodeEditingExtension = createExtension({
+export function clearInlineCodeEditingState(editor: {
+  prosemirrorView: EditorView;
+}) {
+  const view = editor.prosemirrorView;
+  view.dispatch(
+    view.state.tr.setMeta(inlineCodeEditingPluginKey, {
+      ...EMPTY_INLINE_CODE_EDITING_STATE,
+      suppressedSelectionPosition: view.state.selection.from,
+    }),
+  );
+}
+
+const inlineCodeEditingExtension = createExtension(({ editor }) => ({
   key: "editor-inline-code-editing",
   runsBefore: ["default"],
   prosemirrorPlugins: [
@@ -417,7 +588,12 @@ const inlineCodeEditingExtension = createExtension({
           const nextState = transaction.getMeta(inlineCodeEditingPluginKey) as
             | InlineCodeEditingState
             | undefined;
-          if (nextState) return nextState;
+          if (nextState) {
+            return {
+              ...editingState,
+              ...nextState,
+            };
+          }
 
           let mappedState = editingState;
           if (transaction.docChanged) {
@@ -430,9 +606,18 @@ const inlineCodeEditingExtension = createExtension({
                     ),
                     to: transaction.mapping.map(editingState.activeRange.to, 1),
                   },
+                  isComposing: editingState.isComposing,
                   suppressedSelectionPosition: null,
                 }
-              : EMPTY_INLINE_CODE_EDITING_STATE;
+              : editingState.suppressedSelectionPosition !== null
+                ? {
+                    activeRange: null,
+                    isComposing: editingState.isComposing,
+                    suppressedSelectionPosition: transaction.mapping.map(
+                      editingState.suppressedSelectionPosition,
+                    ),
+                  }
+                : EMPTY_INLINE_CODE_EDITING_STATE;
           }
           const selectionChanged =
             transaction.selectionSet ||
@@ -460,6 +645,7 @@ const inlineCodeEditingExtension = createExtension({
               // 选区进入或完整落在行内代码时迁移编辑范围，保留反引号与原生选中效果。
               return {
                 activeRange: nextRange,
+                isComposing: mappedState.isComposing,
                 suppressedSelectionPosition: null,
               };
             }
@@ -469,6 +655,188 @@ const inlineCodeEditingExtension = createExtension({
         },
       },
       view(editorView) {
+        let inlineCodeSelectionDrag: {
+          active: boolean;
+          anchor: number;
+          range: { from: number; to: number };
+          startX: number;
+          startY: number;
+        } | null = null;
+        let suppressNextInlineCodeClick = false;
+        let compositionEndTimer: number | null = null;
+
+        const resetInlineCodeSelectionDrag = () => {
+          inlineCodeSelectionDrag = null;
+        };
+        const updateInlineCodeCompositionState = (isComposing: boolean) => {
+          const editingState =
+            inlineCodeEditingPluginKey.getState(editorView.state) ??
+            EMPTY_INLINE_CODE_EDITING_STATE;
+          if (editingState.isComposing === isComposing) return;
+
+          editorView.dispatch(
+            editorView.state.tr.setMeta(inlineCodeEditingPluginKey, {
+              ...editingState,
+              isComposing,
+            }),
+          );
+        };
+        const handleInlineCodeCompositionStart = () => {
+          if (compositionEndTimer !== null) {
+            window.clearTimeout(compositionEndTimer);
+            compositionEndTimer = null;
+          }
+
+          // 输入法接管光标前移除 contenteditable=false 的自定义节点，避免 code mark 被拆开。
+          updateInlineCodeCompositionState(true);
+        };
+        const handleInlineCodeCompositionEnd = () => {
+          if (compositionEndTimer !== null) {
+            window.clearTimeout(compositionEndTimer);
+          }
+
+          // ProseMirror 会在 compositionend 后延迟刷新 DOM，稍后再恢复自定义光标。
+          compositionEndTimer = window.setTimeout(() => {
+            compositionEndTimer = null;
+            updateInlineCodeCompositionState(false);
+          }, 30);
+        };
+        const handleInlineCodeMouseDown = (event: MouseEvent) => {
+          suppressNextInlineCodeClick = false;
+          if (event.button !== 0) {
+            resetInlineCodeSelectionDrag();
+            return;
+          }
+
+          const inlineCode = getInlineCodeFromPointerEvent(event);
+          const pointerPosition = inlineCode
+            ? editorView.posAtCoords({
+                left: event.clientX,
+                top: event.clientY,
+              })?.pos
+            : undefined;
+          const range =
+            pointerPosition === undefined
+              ? null
+              : findInlineCodeRange(editorView.state, pointerPosition, true);
+          if (!range || pointerPosition === undefined) {
+            resetInlineCodeSelectionDrag();
+            return;
+          }
+
+          inlineCodeSelectionDrag = {
+            active: false,
+            anchor: Math.min(range.to, Math.max(range.from, pointerPosition)),
+            range,
+            startX: event.clientX,
+            startY: event.clientY,
+          };
+
+          // 行内代码的整次拖选统一由 ProseMirror 接管，避免浏览器偶发进入原生文本拖放。
+          // 普通点击不在这里改写选区，仍交给 handleClick 在 mouseup 后准确落光标。
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          editorView.focus();
+        };
+        const updateInlineCodeSelectionDrag = (event: MouseEvent) => {
+          const drag = inlineCodeSelectionDrag;
+          if (!drag) return false;
+          if (event.type !== "mouseup" && event.buttons !== 1) {
+            resetInlineCodeSelectionDrag();
+            return false;
+          }
+
+          if (
+            !drag.active &&
+            Math.abs(event.clientX - drag.startX) <= 4 &&
+            Math.abs(event.clientY - drag.startY) <= 4
+          ) {
+            return false;
+          }
+
+          const head = editorView.posAtCoords({
+            left: event.clientX,
+            top: event.clientY,
+          })?.pos;
+          if (head === undefined) return false;
+
+          drag.active = true;
+          const selection = TextSelection.create(
+            editorView.state.doc,
+            drag.anchor,
+            head,
+          );
+          const selectionIsWithinInlineCode =
+            selection.from >= drag.range.from && selection.to <= drag.range.to;
+          if (!selection.eq(editorView.state.selection)) {
+            editorView.dispatch(
+              editorView.state.tr.setSelection(selection).setMeta(
+                inlineCodeEditingPluginKey,
+                selectionIsWithinInlineCode
+                  ? {
+                      activeRange: drag.range,
+                      suppressedSelectionPosition: null,
+                    }
+                  : EMPTY_INLINE_CODE_EDITING_STATE,
+              ),
+            );
+          }
+
+          // 统一由 ProseMirror 更新选区，避免 Chromium 在已有选区上启动文本拖放。
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          return true;
+        };
+        const handleInlineCodeMouseMove = (event: MouseEvent) => {
+          updateInlineCodeSelectionDrag(event);
+        };
+        const handleInlineCodeMouseUp = (event: MouseEvent) => {
+          const drag = inlineCodeSelectionDrag;
+          updateInlineCodeSelectionDrag(event);
+          if (drag && !drag.active) {
+            const pointerPosition = editorView.posAtCoords({
+              left: event.clientX,
+              top: event.clientY,
+            })?.pos;
+            const cursorPosition = Math.min(
+              drag.range.to,
+              Math.max(drag.range.from, pointerPosition ?? drag.anchor),
+            );
+
+            // 普通点击由编辑器主动落光标；mousedown 已阻止原生选区，不能再依赖浏览器更新。
+            editorView.dispatch(
+              editorView.state.tr
+                .setSelection(
+                  TextSelection.create(editorView.state.doc, cursorPosition),
+                )
+                .setMeta(inlineCodeEditingPluginKey, {
+                  activeRange: drag.range,
+                  suppressedSelectionPosition: null,
+                }),
+            );
+            // BlockNote 会在 pointerup 阶段基于旧选区重新打开格式菜单；光标落点完成后立即收起。
+            editor
+              .getExtension(FormattingToolbarExtension)
+              ?.store.setState(false);
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }
+
+          // 点击和拖选都已经完成选区更新，屏蔽浏览器随后补发的 click。
+          suppressNextInlineCodeClick = drag !== null;
+          resetInlineCodeSelectionDrag();
+        };
+        const handleInlineCodeClick = (event: MouseEvent) => {
+          if (!suppressNextInlineCodeClick) return;
+
+          suppressNextInlineCodeClick = false;
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        };
+        const handleInlineCodeDragStart = (event: DragEvent) => {
+          if (!inlineCodeSelectionDrag) return;
+          event.preventDefault();
+        };
         const handleVerticalKeyDown = (event: KeyboardEvent) => {
           const direction =
             event.key === "ArrowUp" || event.key === "Up"
@@ -493,14 +861,77 @@ const inlineCodeEditingExtension = createExtension({
           event.stopImmediatePropagation();
         };
 
+        editorView.dom.addEventListener(
+          "mousedown",
+          handleInlineCodeMouseDown,
+          true,
+        );
+        editorView.dom.addEventListener(
+          "dragstart",
+          handleInlineCodeDragStart,
+          true,
+        );
+        editorView.dom.addEventListener("click", handleInlineCodeClick, true);
+        editorView.dom.addEventListener(
+          "compositionstart",
+          handleInlineCodeCompositionStart,
+          true,
+        );
+        editorView.dom.addEventListener(
+          "compositionend",
+          handleInlineCodeCompositionEnd,
+          true,
+        );
         editorView.dom.addEventListener("keydown", handleVerticalKeyDown, true);
+        document.addEventListener("mousemove", handleInlineCodeMouseMove, true);
+        document.addEventListener("mouseup", handleInlineCodeMouseUp, true);
+        window.addEventListener("blur", resetInlineCodeSelectionDrag);
         return {
           destroy() {
+            editorView.dom.removeEventListener(
+              "mousedown",
+              handleInlineCodeMouseDown,
+              true,
+            );
+            editorView.dom.removeEventListener(
+              "dragstart",
+              handleInlineCodeDragStart,
+              true,
+            );
+            editorView.dom.removeEventListener(
+              "click",
+              handleInlineCodeClick,
+              true,
+            );
+            editorView.dom.removeEventListener(
+              "compositionstart",
+              handleInlineCodeCompositionStart,
+              true,
+            );
+            editorView.dom.removeEventListener(
+              "compositionend",
+              handleInlineCodeCompositionEnd,
+              true,
+            );
             editorView.dom.removeEventListener(
               "keydown",
               handleVerticalKeyDown,
               true,
             );
+            document.removeEventListener(
+              "mousemove",
+              handleInlineCodeMouseMove,
+              true,
+            );
+            document.removeEventListener(
+              "mouseup",
+              handleInlineCodeMouseUp,
+              true,
+            );
+            window.removeEventListener("blur", resetInlineCodeSelectionDrag);
+            if (compositionEndTimer !== null) {
+              window.clearTimeout(compositionEndTimer);
+            }
           },
         };
       },
@@ -509,29 +940,7 @@ const inlineCodeEditingExtension = createExtension({
         handleClick(view, position, event) {
           if (event.button !== 0) return false;
 
-          const eventTarget =
-            event.target instanceof Element
-              ? event.target
-              : ((event.target as { parentElement?: Element | null } | null)
-                  ?.parentElement ?? null);
-          let inlineCode = eventTarget?.closest(
-            "code:not(.editor-code-block__content)",
-          );
-          if (inlineCode) {
-            const contentBounds = inlineCode.getBoundingClientRect();
-            const hasMeasurableBounds =
-              contentBounds.width > 0 && contentBounds.height > 0;
-            const clickedInsideContent =
-              event.clientX >= contentBounds.left &&
-              event.clientX <= contentBounds.right &&
-              event.clientY >= contentBounds.top &&
-              event.clientY <= contentBounds.bottom;
-
-            // 反引号位于 code 盒子外，只有点击胶囊本体才进入编辑态并保留原生光标。
-            if (hasMeasurableBounds && !clickedInsideContent) {
-              inlineCode = null;
-            }
-          }
+          const inlineCode = getInlineCodeFromPointerEvent(event);
           const activeRange = inlineCode
             ? findInlineCodeRange(view.state, position, true)
             : null;
@@ -568,7 +977,7 @@ const inlineCodeEditingExtension = createExtension({
       },
     }),
   ],
-});
+}));
 
 const inlineCodeLatinContentExtension = createExtension({
   key: "editor-inline-code-latin-content",
@@ -583,6 +992,7 @@ const inlineCodeLatinContentExtension = createExtension({
             : decorations,
       },
       props: {
+        // 输入法组合期间同样保留 ASCII 字重补偿，避免中英文数字视觉颜色突然分叉。
         decorations: (state) =>
           inlineCodeLatinContentPluginKey.getState(state) ??
           DecorationSet.empty,

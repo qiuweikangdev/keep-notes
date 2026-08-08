@@ -1,5 +1,8 @@
 import { BlockNoteEditor } from "@blocknote/core";
-import { SideMenuExtension } from "@blocknote/core/extensions";
+import {
+  FormattingToolbarExtension,
+  SideMenuExtension,
+} from "@blocknote/core/extensions";
 import { BlockNoteView } from "@blocknote/mantine";
 import {
   foldEffect,
@@ -16,9 +19,11 @@ import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  clearInlineCodeEditingState,
   editorBlockSpecs,
   editorCodeBlockSupportedLanguages,
   editorSchema,
+  normalizeInlineCodeMarkers,
 } from "./blocknote-schema";
 import { shouldStopEditorCodeBlockNodeViewEvent } from "./editor-code-block-node-view";
 import * as blocknoteSchemaModule from "./blocknote-schema";
@@ -990,6 +995,223 @@ describe("editor BlockNote schema", () => {
     ]);
   });
 
+  it("normalizes edited inline code markers in large documents", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        { type: "paragraph", content: "x".repeat(6100) },
+        { type: "paragraph", content: "" },
+      ],
+    });
+    render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[1].id, "start");
+    const view = editor.prosemirrorView;
+    view.dispatch(view.state.tr.insertText("`测试test2`"));
+
+    expect(editor.document[1].content).toEqual([
+      {
+        type: "text",
+        text: "测试test2",
+        styles: {
+          code: true,
+        },
+      },
+    ]);
+  });
+
+  it("normalizes character-by-character inline code input in large documents", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        { type: "paragraph", content: "x".repeat(6100) },
+        { type: "paragraph", content: "" },
+        { type: "bulletListItem", content: "List" },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[1].id, "start");
+    typeString(editor, "`2323`");
+
+    expect(editor.document[1].content).toEqual([
+      { type: "text", text: "2323", styles: { code: true } },
+    ]);
+    expect(container.querySelector("code")?.textContent).toBe("2323");
+  });
+
+  it("normalizes browser keyboard inline code input in large paragraphs and lists", async () => {
+    setupMatchMedia();
+    const user = userEvent.setup();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        { type: "paragraph", content: "x".repeat(62000) },
+        { type: "bulletListItem", content: "" },
+        { type: "paragraph", content: "" },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[1].id, "start");
+    editor.focus();
+    await user.keyboard("`232`");
+    editor.setTextCursorPosition(editor.document[2].id, "start");
+    await user.keyboard("`233`");
+
+    expect(editor.document[1].content).toEqual([
+      { type: "text", text: "232", styles: { code: true } },
+    ]);
+    expect(editor.document[2].content).toEqual([
+      { type: "text", text: "233", styles: { code: true } },
+    ]);
+    expect(
+      Array.from(
+        container.querySelectorAll("code"),
+        (code) => code.textContent,
+      ),
+    ).toEqual(["232", "233"]);
+  });
+
+  it("renders standalone inline code after loading a large markdown file", async () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+    const markdown = `${"x".repeat(6100)}\n\n${"`23`"}`;
+    const blocks = await parseMarkdown(editor, markdown);
+
+    editor.replaceBlocks(editor.document, blocks);
+
+    expect(editor.document.at(-1)?.content).toEqual([
+      {
+        type: "text",
+        text: "23",
+        styles: { code: true },
+      },
+    ]);
+    expect(container.querySelector("code")?.textContent).toBe("23");
+  });
+
+  it("renders inline code before a trailing empty list marker in a large file", async () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+    const markdown = `${"x".repeat(6100)}\n\n${"`2323`"}\n\n*`;
+    const blocks = await parseMarkdown(editor, markdown);
+
+    editor.replaceBlocks(editor.document, blocks);
+
+    expect(editor.document.at(-2)?.content).toEqual([
+      { type: "text", text: "2323", styles: { code: true } },
+    ]);
+    expect(container.querySelector("code")?.textContent).toBe("2323");
+  });
+
+  it("renders every trailing inline code after a large markdown body", async () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+    const markdown = [
+      "x".repeat(62000),
+      "",
+      "`2323`",
+      "",
+      "* `232`",
+      "",
+      "",
+      "",
+      "`233`",
+    ].join("\n");
+    const blocks = await parseMarkdown(editor, markdown);
+
+    editor.replaceBlocks(editor.document, blocks);
+
+    expect(editor.document.slice(-3).map((block) => block.content)).toEqual([
+      [{ type: "text", text: "2323", styles: { code: true } }],
+      [{ type: "text", text: "232", styles: { code: true } }],
+      [{ type: "text", text: "233", styles: { code: true } }],
+    ]);
+    expect(
+      Array.from(
+        container.querySelectorAll("code"),
+        (code) => code.textContent,
+      ),
+    ).toEqual(["2323", "232", "233"]);
+  });
+
+  it("normalizes stale inline code markers while replacing a large document", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "before" }],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    editor.replaceBlocks(editor.document, [
+      { type: "paragraph", content: "x".repeat(6100) },
+      { type: "paragraph", content: "`23`" },
+    ]);
+
+    expect(editor.document.at(-1)?.content).toEqual([
+      { type: "text", text: "23", styles: { code: true } },
+    ]);
+    expect(container.querySelector("code")?.textContent).toBe("23");
+  });
+
+  it("normalizes stale inline code markers already held by an editor session", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "`stale`" }],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+
+    expect(container.querySelector("code")).toBe(null);
+    normalizeInlineCodeMarkers(editor);
+
+    expect(editor.document[0].content).toEqual([
+      { type: "text", text: "stale", styles: { code: true } },
+    ]);
+    expect(container.querySelector("code")?.textContent).toBe("stale");
+  });
+
+  it("clears inline code editing state when replacing the whole document", () => {
+    const { container, editor, inlineCodePosition, view } =
+      renderInlineCodeTestEditor();
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, inlineCodePosition + 2),
+      ),
+    );
+    expect(
+      container.querySelector(".editor-inline-code__editing-content"),
+    ).not.toBe(null);
+
+    editor.replaceBlocks(editor.document, [
+      {
+        type: "paragraph",
+        content: [{ type: "text", text: "next", styles: { code: true } }],
+      },
+    ]);
+    clearInlineCodeEditingState(editor);
+
+    expect(container.querySelector("code")?.textContent).toBe("next");
+    expect(
+      container.querySelector(".editor-inline-code__editing-content"),
+    ).toBe(null);
+  });
+
   it("keeps inline code active when deleting from its content end", async () => {
     setupMatchMedia();
     const user = userEvent.setup();
@@ -1050,6 +1272,18 @@ describe("editor BlockNote schema", () => {
     editor.focus();
 
     const inlineCode = container.querySelector("code");
+    expect(
+      container.querySelectorAll(".editor-inline-code__editing-start"),
+    ).toHaveLength(1);
+    expect(
+      container.querySelectorAll(".editor-inline-code__editing-end"),
+    ).toHaveLength(1);
+    expect(
+      Array.from(
+        container.querySelectorAll(".editor-inline-code__editing-marker"),
+        (marker) => marker.textContent,
+      ),
+    ).toEqual(["`", "`"]);
     expect(inlineCode?.textContent).toBe("test");
     expect(inlineCode?.querySelector(".editor-inline-code__marker")).toBe(null);
     expect(
@@ -1076,6 +1310,67 @@ describe("editor BlockNote schema", () => {
     );
     expect(movedCaret).not.toBe(null);
     expect(view.posAtDOM(movedCaret as Node, 0)).toBe(inlineCodePosition + 3);
+  });
+
+  it("keeps complete editing markers around styled code fragments in a large document", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        { type: "paragraph", content: "x".repeat(62000) },
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: "123", styles: { code: true } },
+            {
+              type: "text",
+              text: "中文",
+              styles: { bold: true, code: true },
+            },
+            { type: "text", text: "abc", styles: { code: true } },
+          ],
+        },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+    const view = editor.prosemirrorView;
+    let codeStart: number | undefined;
+    view.state.doc.descendants((node, position) => {
+      if (!node.isText || node.text !== "123") return true;
+      codeStart = position;
+      return false;
+    });
+    if (codeStart === undefined) throw new Error("Expected inline code start");
+
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, codeStart + 4),
+      ),
+    );
+    editor.focus();
+
+    expect(
+      container.querySelectorAll(".editor-inline-code__editing-content").length,
+    ).toBeGreaterThanOrEqual(3);
+    expect(
+      container.querySelectorAll(".editor-inline-code__editing-start"),
+    ).toHaveLength(1);
+    expect(
+      container.querySelectorAll(".editor-inline-code__editing-end"),
+    ).toHaveLength(1);
+    expect(
+      Array.from(
+        container.querySelectorAll(".editor-inline-code__editing-marker"),
+        (marker) => marker.textContent,
+      ),
+    ).toEqual(["`", "`"]);
+    expect(
+      container.querySelector(".editor-inline-code__editing-start")
+        ?.textContent,
+    ).toBe("1");
+    expect(
+      container.querySelector(".editor-inline-code__editing-end")?.textContent,
+    ).toBe("c");
   });
 
   it("keeps the inline code editing state while its text is selected", () => {
@@ -1117,6 +1412,9 @@ describe("editor BlockNote schema", () => {
     expect(container.querySelector(".editor-inline-code__editing-caret")).toBe(
       null,
     );
+    expect(
+      container.querySelectorAll(".editor-inline-code__editing-marker"),
+    ).toHaveLength(2);
 
     view.dispatch(
       view.state.tr.setSelection(
@@ -1126,6 +1424,238 @@ describe("editor BlockNote schema", () => {
     expect(
       container.querySelector(".editor-inline-code__editing-caret"),
     ).not.toBe(null);
+    expect(
+      container.querySelectorAll(".editor-inline-code__editing-marker"),
+    ).toHaveLength(2);
+    expect(
+      container.querySelector(".editor-inline-code__latin-content"),
+    ).not.toBe(null);
+    expect(
+      container.querySelectorAll(".editor-inline-code__editing-start"),
+    ).toHaveLength(1);
+    expect(
+      container.querySelectorAll(".editor-inline-code__editing-end"),
+    ).toHaveLength(1);
+  });
+
+  it("places the editing caret at the clicked inline code position", () => {
+    const { container, editor, inlineCodePosition, view } =
+      renderInlineCodeTestEditor();
+    const inlineCode = container.querySelector("code");
+    const cursorPosition = inlineCodePosition + 3;
+    expect(inlineCode).not.toBe(null);
+
+    vi.spyOn(view, "posAtCoords").mockReturnValue({
+      inside: -1,
+      pos: cursorPosition,
+    });
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(
+          view.state.doc,
+          inlineCodePosition + 1,
+          inlineCodePosition + 4,
+        ),
+      ),
+    );
+    const formattingToolbar = editor.getExtension(FormattingToolbarExtension);
+    formattingToolbar?.store.setState(true);
+
+    inlineCode?.dispatchEvent(
+      new Event("pointerdown", { bubbles: true, cancelable: true }),
+    );
+    expect(formattingToolbar?.store.state).toBe(false);
+
+    const mouseDown = new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+      clientX: 40,
+      clientY: 20,
+    });
+    expect(inlineCode?.dispatchEvent(mouseDown)).toBe(false);
+
+    // BlockNote 在 pointerup 时仍会看到旧的非空选区，并暂时重新打开格式菜单。
+    document.dispatchEvent(
+      new Event("pointerup", { bubbles: true, cancelable: true }),
+    );
+    expect(formattingToolbar?.store.state).toBe(true);
+
+    const mouseUp = new MouseEvent("mouseup", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+      clientX: 40,
+      clientY: 20,
+    });
+    expect(document.dispatchEvent(mouseUp)).toBe(false);
+    expect(view.state.selection.from).toBe(cursorPosition);
+    expect(view.state.selection.empty).toBe(true);
+    expect(formattingToolbar?.store.state).toBe(false);
+
+    const editingCaret = container.querySelector(
+      ".editor-inline-code__editing-caret",
+    );
+    expect(editingCaret).not.toBe(null);
+    expect(view.posAtDOM(editingCaret as Node, 0)).toBe(cursorPosition);
+
+    const click = new MouseEvent("click", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+      clientX: 40,
+      clientY: 20,
+    });
+    expect(inlineCode?.dispatchEvent(click)).toBe(false);
+    expect(view.state.selection.from).toBe(cursorPosition);
+  });
+
+  it("uses the native caret while composing text inside inline code", async () => {
+    const { container, inlineCodePosition, view } =
+      renderInlineCodeTestEditor();
+    const cursorPosition = inlineCodePosition + 2;
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, cursorPosition),
+      ),
+    );
+
+    const inlineCode = container.querySelector("code");
+    expect(
+      container.querySelector(".editor-inline-code__editing-caret"),
+    ).not.toBe(null);
+    expect(
+      container.querySelectorAll(".editor-inline-code__editing-marker"),
+    ).toHaveLength(2);
+
+    inlineCode?.dispatchEvent(
+      new CompositionEvent("compositionstart", { bubbles: true }),
+    );
+    expect(
+      container.querySelector(".editor-inline-code__composing-content"),
+    ).not.toBe(null);
+    expect(container.querySelector(".editor-inline-code__editing-caret")).toBe(
+      null,
+    );
+    expect(container.querySelector(".editor-inline-code__editing-marker")).toBe(
+      null,
+    );
+    expect(
+      container.querySelector(".editor-inline-code__latin-content"),
+    ).not.toBe(null);
+
+    inlineCode?.dispatchEvent(
+      new CompositionEvent("compositionend", { bubbles: true }),
+    );
+    await new Promise((resolve) => window.setTimeout(resolve, 35));
+
+    expect(
+      container.querySelector(".editor-inline-code__composing-content"),
+    ).toBe(null);
+    expect(
+      container.querySelector(".editor-inline-code__editing-caret"),
+    ).not.toBe(null);
+    expect(
+      container.querySelectorAll(".editor-inline-code__editing-marker"),
+    ).toHaveLength(2);
+    expect(
+      container.querySelector(".editor-inline-code__latin-content"),
+    ).not.toBe(null);
+    expect(
+      container.querySelectorAll(".editor-inline-code__editing-start"),
+    ).toHaveLength(1);
+    expect(
+      container.querySelectorAll(".editor-inline-code__editing-end"),
+    ).toHaveLength(1);
+  });
+
+  it("restarts a mouse selection inside already selected inline code", () => {
+    const { container, inlineCodePosition, view } =
+      renderInlineCodeTestEditor();
+    const inlineCode = container.querySelector("code");
+    expect(inlineCode).not.toBe(null);
+
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(
+          view.state.doc,
+          inlineCodePosition + 1,
+          inlineCodePosition + 4,
+        ),
+      ),
+    );
+    vi.spyOn(view, "posAtCoords")
+      .mockReturnValueOnce({
+        inside: -1,
+        pos: inlineCodePosition + 3,
+      })
+      .mockReturnValue({
+        inside: -1,
+        pos: inlineCodePosition + 1,
+      });
+
+    const mouseDown = new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+      clientX: 40,
+      clientY: 20,
+    });
+    Object.defineProperty(mouseDown, "target", {
+      configurable: true,
+      value: inlineCode,
+    });
+    expect(inlineCode?.dispatchEvent(mouseDown)).toBe(false);
+
+    // 按下阶段不改写 DOM，避免浏览器尚未建立拖动手势时插入光标节点。
+    expect(view.state.selection.empty).toBe(false);
+
+    const dragStart = new Event("dragstart", {
+      bubbles: true,
+      cancelable: true,
+    });
+    expect(inlineCode?.dispatchEvent(dragStart)).toBe(false);
+
+    const mouseMove = new MouseEvent("mousemove", {
+      bubbles: true,
+      buttons: 1,
+      cancelable: true,
+      clientX: 20,
+      clientY: 20,
+    });
+    expect(document.dispatchEvent(mouseMove)).toBe(false);
+    expect(
+      container.querySelector(".editor-inline-code__editing-content"),
+    ).not.toBe(null);
+    expect(view.state.selection.empty).toBe(false);
+    expect(view.state.selection.anchor).toBe(inlineCodePosition + 3);
+    expect(view.state.selection.head).toBe(inlineCodePosition + 1);
+    expect(
+      container.querySelector(".editor-inline-code__editing-content"),
+    ).not.toBe(null);
+    expect(container.querySelector(".editor-inline-code__editing-caret")).toBe(
+      null,
+    );
+
+    const mouseUp = new MouseEvent("mouseup", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+      clientX: 20,
+      clientY: 20,
+    });
+    expect(document.dispatchEvent(mouseUp)).toBe(false);
+
+    // 拖选后浏览器仍可能补发 click，必须拦截，不能再次折叠刚建立的选区。
+    const click = new MouseEvent("click", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+      clientX: 20,
+      clientY: 20,
+    });
+    expect(inlineCode?.dispatchEvent(click)).toBe(false);
+    expect(view.state.selection.empty).toBe(false);
   });
 
   it("leaves inline code editing when the selection extends outside it", () => {

@@ -708,41 +708,108 @@ html.rich-editor-selection-drag-locked * {
   border-radius: 4px !important;
   font-family:
     "SF Mono", "Fira Code", Consolas, "Courier New", monospace !important;
-  font-weight: 500 !important;
+  font-weight: 400 !important;
   position: relative;
   cursor: text;
 }
 
 :is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content,
 :is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content code {
-  color: color-mix(
-    in srgb,
-    var(--accent-color) 70%,
-    var(--text-primary)
-  ) !important;
-  font-weight: 700 !important;
+  color: var(--accent-color) !important;
+  -webkit-text-fill-color: var(--accent-color) !important;
+  font-weight: 500 !important;
 }
 
 .bn-editor.ProseMirror-focused
   code:not(.editor-code-block__content):has(
     .editor-inline-code__editing-content
   ) {
-  margin-inline: 0.5em;
   color: var(--text-primary) !important;
+  -webkit-text-fill-color: var(--text-primary) !important;
+  padding-inline: 0 !important;
+  border-radius: 0 !important;
+  font-weight: 400 !important;
   caret-color: transparent !important;
 }
 
 .bn-editor.ProseMirror-focused
   code:not(.editor-code-block__content):has(
     .editor-inline-code__editing-content
+  )
+  :where(*) {
+  /* 输入法会创建临时 span；统一覆盖其文本填充色，避免中文与英文数字颜色分叉。 */
+  color: inherit !important;
+  -webkit-text-fill-color: currentColor !important;
+  font-weight: inherit !important;
+  opacity: 1;
+}
+
+.bn-editor.ProseMirror-focused
+  code:not(.editor-code-block__content):has(
+    .editor-inline-code__editing-start
+  ) {
+  margin-left: 0.5em;
+  padding-left: 4px !important;
+  border-top-left-radius: 4px !important;
+  border-bottom-left-radius: 4px !important;
+}
+
+.bn-editor.ProseMirror-focused
+  code:not(.editor-code-block__content):has(.editor-inline-code__editing-end) {
+  margin-right: 0.5em;
+  padding-right: 4px !important;
+  border-top-right-radius: 4px !important;
+  border-bottom-right-radius: 4px !important;
+}
+
+.bn-editor.ProseMirror-focused:has(.editor-inline-code__editing-marker)
+  code:not(.editor-code-block__content):has(
+    .editor-inline-code__editing-start
+  ) {
+  margin-left: 0;
+}
+
+.bn-editor.ProseMirror-focused:has(.editor-inline-code__editing-marker)
+  code:not(.editor-code-block__content):has(.editor-inline-code__editing-end) {
+  margin-right: 0;
+}
+
+.bn-editor.ProseMirror-focused .editor-inline-code__editing-marker {
+  display: inline-block;
+  color: var(--text-primary) !important;
+  -webkit-text-fill-color: var(--text-primary) !important;
+  background: transparent !important;
+  font-family: "SF Mono", "Fira Code", Consolas, "Courier New", monospace;
+  font-size: 1em;
+  font-weight: 400;
+  line-height: inherit;
+  pointer-events: none;
+  user-select: none;
+  white-space: pre;
+}
+
+.bn-editor.ProseMirror-focused .editor-inline-code__editing-marker--start {
+  margin-left: 0.5em;
+  margin-right: 1px;
+}
+
+.bn-editor.ProseMirror-focused .editor-inline-code__editing-marker--end {
+  margin-left: 1px;
+  margin-right: 0.5em;
+}
+
+.bn-editor.ProseMirror-focused
+  code:not(.editor-code-block__content):has(
+    .editor-inline-code__editing-start
   )::before,
 .bn-editor.ProseMirror-focused
   code:not(.editor-code-block__content):has(
-    .editor-inline-code__editing-content
+    .editor-inline-code__editing-end
   )::after {
   position: absolute;
   top: 50%;
   color: var(--text-primary);
+  -webkit-text-fill-color: var(--text-primary);
   font-family: "SF Mono", "Fira Code", Consolas, "Courier New", monospace;
   font-size: 1em;
   line-height: inherit;
@@ -752,16 +819,27 @@ html.rich-editor-selection-drag-locked * {
   white-space: pre;
 }
 
+.bn-editor.ProseMirror-focused:has(.editor-inline-code__editing-marker)
+  code:not(.editor-code-block__content):has(
+    .editor-inline-code__editing-start
+  )::before,
+.bn-editor.ProseMirror-focused:has(.editor-inline-code__editing-marker)
+  code:not(.editor-code-block__content):has(
+    .editor-inline-code__editing-end
+  )::after {
+  content: none;
+}
+
 .bn-editor.ProseMirror-focused
   code:not(.editor-code-block__content):has(
-    .editor-inline-code__editing-content
+    .editor-inline-code__editing-start
   )::before {
   right: calc(100% + 1px);
 }
 
 .bn-editor.ProseMirror-focused
   code:not(.editor-code-block__content):has(
-    .editor-inline-code__editing-content
+    .editor-inline-code__editing-end
   )::after {
   left: calc(100% + 1px);
 }
@@ -769,8 +847,17 @@ html.rich-editor-selection-drag-locked * {
 .bn-editor.ProseMirror-focused
   code:not(.editor-code-block__content)
   .editor-inline-code__editing-content {
-  color: var(--text-primary) !important;
+  color: inherit !important;
+  -webkit-text-fill-color: currentColor !important;
+  font-weight: inherit !important;
   caret-color: transparent !important;
+}
+
+.bn-editor.ProseMirror-focused
+  code:not(.editor-code-block__content)
+  .editor-inline-code__composing-content {
+  /* 中文输入法组合期间使用浏览器原生光标，避免不可编辑光标节点切断 code mark。 */
+  caret-color: var(--accent-color) !important;
 }
 
 .bn-editor.ProseMirror-focused
@@ -778,7 +865,9 @@ html.rich-editor-selection-drag-locked * {
     .editor-inline-code__editing-content
   )
   .editor-inline-code__latin-content {
-  color: var(--text-primary) !important;
+  color: inherit !important;
+  -webkit-text-fill-color: currentColor !important;
+  font-weight: inherit !important;
   caret-color: transparent !important;
 }
 
