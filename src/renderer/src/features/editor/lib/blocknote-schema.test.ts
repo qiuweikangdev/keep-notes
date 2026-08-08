@@ -968,6 +968,115 @@ describe("editor BlockNote schema", () => {
     expect(view.posAtDOM(movedCaret as Node, 0)).toBe(inlineCodePosition + 3);
   });
 
+  it("keeps the inline code editing state while its text is selected", () => {
+    const { container, inlineCodePosition, view } =
+      renderInlineCodeTestEditor();
+    const cursorPosition = inlineCodePosition + 1;
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, cursorPosition),
+      ),
+    );
+    const inlineCode = container.querySelector("code");
+    const codeClick = new MouseEvent("click", {
+      bubbles: true,
+      button: 0,
+    });
+    Object.defineProperty(codeClick, "target", {
+      configurable: true,
+      value: inlineCode,
+    });
+    view.someProp("handleClick", (handler) =>
+      handler(view, cursorPosition, codeClick),
+    );
+
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(
+          view.state.doc,
+          inlineCodePosition + 1,
+          inlineCodePosition + 3,
+        ),
+      ),
+    );
+
+    expect(view.state.selection.empty).toBe(false);
+    expect(
+      container.querySelector(".editor-inline-code__editing-content"),
+    ).not.toBe(null);
+    expect(container.querySelector(".editor-inline-code__editing-caret")).toBe(
+      null,
+    );
+
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, inlineCodePosition + 3),
+      ),
+    );
+    expect(
+      container.querySelector(".editor-inline-code__editing-caret"),
+    ).not.toBe(null);
+  });
+
+  it("leaves inline code editing when the selection extends outside it", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "test",
+              styles: { code: true },
+            },
+            {
+              type: "text",
+              text: " tail",
+              styles: {},
+            },
+          ],
+        },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+    const view = editor.prosemirrorView;
+    let inlineCodePosition: number | undefined;
+    view.state.doc.descendants((node, position) => {
+      if (node.isText && node.text === "test") inlineCodePosition = position;
+      return true;
+    });
+    expect(inlineCodePosition).toBeTypeOf("number");
+
+    const codePosition = inlineCodePosition as number;
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, codePosition + 1),
+      ),
+    );
+    expect(
+      container.querySelector(".editor-inline-code__editing-content"),
+    ).not.toBe(null);
+
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(
+          view.state.doc,
+          codePosition + 1,
+          codePosition + 5,
+        ),
+      ),
+    );
+
+    expect(
+      container.querySelector(".editor-inline-code__editing-content"),
+    ).toBe(null);
+    expect(container.querySelector(".editor-inline-code__editing-caret")).toBe(
+      null,
+    );
+  });
+
   it("keeps the editing caret when arrow navigation enters another inline code", () => {
     setupMatchMedia();
     const editor = BlockNoteEditor.create({

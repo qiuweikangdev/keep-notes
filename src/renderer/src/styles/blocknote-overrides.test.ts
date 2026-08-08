@@ -425,6 +425,14 @@ describe("blocknote overrides stylesheet", () => {
     expect(editingCaretIndicatorRule).not.toMatch(/animation:/);
     expect(stylesheet).not.toMatch(/editor-inline-code-caret-blink/);
 
+    const nativeSelectionRule = getRule(
+      ":is(.bn-editor, .bn-editor-preview) ::selection",
+    );
+    expect(nativeSelectionRule).toMatch(
+      /background-color:\s*var\(--accent-color\) !important;/,
+    );
+    expect(nativeSelectionRule).toMatch(/color:\s*#ffffff !important;/);
+
     expect(stylesheet).not.toMatch(
       /editor-inline-code__(marker|closing-boundary|outside-caret-gap|editing-caret-before|editing-caret-after)/,
     );

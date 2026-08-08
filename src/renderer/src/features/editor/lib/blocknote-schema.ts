@@ -249,6 +249,16 @@ function findInlineCodeRange(
   return codeRange;
 }
 
+function findInlineCodeRangeForSelection(state: EditorState) {
+  const { selection } = state;
+  const range = findInlineCodeRange(state, selection.from, true);
+  if (!range || selection.from < range.from || selection.to > range.to) {
+    return null;
+  }
+
+  return range;
+}
+
 function getPureInlineCodeBlockRanges(state: EditorState) {
   const codeMark = state.schema.marks.code;
   if (!codeMark) return [];
@@ -348,8 +358,6 @@ function movePureInlineCodeCaret(view: EditorView, direction: -1 | 1) {
 
 function getInlineCodeEditingDecorations(state: EditorState) {
   const { selection } = state;
-  if (!selection.empty) return DecorationSet.empty;
-
   const editingState =
     inlineCodeEditingPluginKey.getState(state) ??
     EMPTY_INLINE_CODE_EDITING_STATE;
@@ -358,34 +366,41 @@ function getInlineCodeEditingDecorations(state: EditorState) {
   }
 
   const activeRange = editingState.activeRange;
-  const range =
-    activeRange &&
+  const selectionIsWithinActiveRange =
+    activeRange !== null &&
     selection.from >= activeRange.from &&
-    selection.from <= activeRange.to
-      ? findInlineCodeRange(state, selection.from, true)
-      : findInlineCodeRange(state, selection.from);
+    selection.to <= activeRange.to;
+  const range = selectionIsWithinActiveRange
+    ? findInlineCodeRange(state, selection.from, true)
+    : selection.empty
+      ? findInlineCodeRange(state, selection.from)
+      : null;
   if (!range) return DecorationSet.empty;
 
-  const decorations = [
+  const decorations: Decoration[] = [
     Decoration.inline(range.from, range.to, {
       class: INLINE_CODE_EDITING_CONTENT_CLASS,
     }),
-    Decoration.widget(
-      selection.from,
-      () => {
-        const caret = document.createElement("span");
-        caret.className = INLINE_CODE_EDITING_CARET_CLASS;
-        caret.contentEditable = "false";
-        caret.setAttribute("aria-hidden", "true");
-        return caret;
-      },
-      {
-        key: `inline-code-editing-caret-${selection.from}`,
-        // 行首从右侧继承 code mark，其他位置从左侧继承，确保光标始终留在胶囊内。
-        side: selection.from === range.from ? 1 : -1,
-      },
-    ),
   ];
+  if (selection.empty) {
+    decorations.push(
+      Decoration.widget(
+        selection.from,
+        () => {
+          const caret = document.createElement("span");
+          caret.className = INLINE_CODE_EDITING_CARET_CLASS;
+          caret.contentEditable = "false";
+          caret.setAttribute("aria-hidden", "true");
+          return caret;
+        },
+        {
+          key: `inline-code-editing-caret-${selection.from}`,
+          // 行首从右侧继承 code mark，其他位置从左侧继承，确保光标始终留在胶囊内。
+          side: selection.from === range.from ? 1 : -1,
+        },
+      ),
+    );
+  }
 
   return DecorationSet.create(state.doc, decorations);
 }
@@ -430,23 +445,19 @@ const inlineCodeEditingExtension = createExtension({
             mappedState.suppressedSelectionPosition;
           if (
             preservedPosition !== null &&
-            transaction.selection.empty &&
             (mappedState.activeRange
               ? transaction.selection.from >= mappedState.activeRange.from &&
-                transaction.selection.from <= mappedState.activeRange.to
-              : transaction.selection.from === preservedPosition)
+                transaction.selection.to <= mappedState.activeRange.to
+              : transaction.selection.empty &&
+                transaction.selection.from === preservedPosition)
           ) {
             return mappedState;
           }
 
-          if (wasEditingInlineCode && transaction.selection.empty) {
-            const nextRange = findInlineCodeRange(
-              newState,
-              transaction.selection.from,
-              true,
-            );
+          if (wasEditingInlineCode) {
+            const nextRange = findInlineCodeRangeForSelection(newState);
             if (nextRange) {
-              // 上下键直接进入另一段行内代码时迁移编辑范围，后续左右移动到边界仍显示光标。
+              // 选区进入或完整落在行内代码时迁移编辑范围，保留反引号与原生选中效果。
               return {
                 activeRange: nextRange,
                 suppressedSelectionPosition: null,
