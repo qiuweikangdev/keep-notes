@@ -20,6 +20,10 @@ type WindowSaveSuccessHandler = (
   content: string,
 ) => void | Promise<void>;
 
+interface CreateWindowOptions {
+  show?: boolean;
+}
+
 // macOS: 使用原生标题栏隐藏模式，显示红绿灯按钮
 // Windows/Linux: 使用无边框透明窗口，自定义标题栏
 const windowConfig: Electron.BrowserWindowConstructorOptions = {
@@ -50,7 +54,11 @@ const windowConfig: Electron.BrowserWindowConstructorOptions = {
   },
 };
 
-export function createWindow(initialTarget?: WindowOpenTarget): BrowserWindow {
+export function createWindow(
+  initialTarget?: WindowOpenTarget,
+  options: CreateWindowOptions = {},
+): BrowserWindow {
+  const { show = true } = options;
   const win = new BrowserWindow(windowConfig);
   mainWindows.add(win);
 
@@ -61,12 +69,12 @@ export function createWindow(initialTarget?: WindowOpenTarget): BrowserWindow {
 
   registerWindowShortcuts(win);
 
-  if (!app.isPackaged) {
+  if (!app.isPackaged && show) {
     win.webContents.openDevTools();
   }
 
   win.on("ready-to-show", () => {
-    win.show();
+    if (show) win.show();
   });
 
   if (initialTarget) {

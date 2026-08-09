@@ -1,9 +1,9 @@
 import process from "node:process";
 import { join } from "node:path";
-import { BrowserWindow, app, session } from "electron";
+import { app, session } from "electron";
 import { electronApp, optimizer } from "@electron-toolkit/utils";
 import icon from "../../resources/icon.png?asset";
-import { createWindow, focusMainWindow } from "./window";
+import { createWindow, focusMainWindow, getMainWindow } from "./window";
 import { registerAllIpc } from "./ipc";
 import { registerAppMenu } from "./menu";
 import { initializeReminderIpc } from "./ipc/reminder.ipc";
@@ -20,6 +20,7 @@ import {
   DEFAULT_QUICK_EDITOR_SHORTCUT,
   disposeQuickEditorWindow,
 } from "./quick-editor-window";
+import { createTray, disposeTray, refreshTray } from "./tray";
 
 const APP_ID = "com.keep-notes";
 const APP_NAME = "Keep Notes";
@@ -46,7 +47,12 @@ if (!hasSingleInstanceLock) {
 } else {
   app.on("second-instance", () => {
     // 重复启动只唤醒已有主窗口，避免多个进程争抢全局快捷键。
-    focusMainWindow();
+    if (process.platform === "darwin") refreshTray();
+    if (!getMainWindow()) {
+      createWindow();
+    } else {
+      focusMainWindow();
+    }
   });
 
   app.whenReady().then(async () => {
@@ -80,23 +86,28 @@ if (!hasSingleInstanceLock) {
     await initializeReminderIpc();
     await initializeNotificationIpc();
     await initializeExportIpc();
-    createWindow();
+    createTray();
+    // 主窗口在后台预加载，可从系统托盘或 macOS Dock 随时唤醒。
+    createWindow(undefined, { show: false });
 
     app.on("activate", () => {
-      if (BrowserWindow.getAllWindows().length === 0) {
+      // 从 Dock 激活时刷新状态栏项目，处理显示器仅熄屏但仍被系统识别的情况。
+      if (process.platform === "darwin") refreshTray();
+      if (!getMainWindow()) {
         createWindow();
+      } else {
+        focusMainWindow();
       }
     });
   });
 }
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
+  // 托盘应用在所有窗口关闭后继续运行，由托盘菜单显式退出。
 });
 
 app.on("will-quit", () => {
+  disposeTray();
   disposeReminderWindow();
   disposeQuickEditorWindow();
 });

@@ -15,6 +15,7 @@ const electronMocks = vi.hoisted(() => ({
   showMessageBox: vi.fn(),
   showSaveDialog: vi.fn(),
   focusApp: vi.fn(),
+  isPackaged: true,
 }));
 const getCachedDirtyState = vi.hoisted(() => vi.fn(() => false));
 
@@ -54,6 +55,7 @@ const BrowserWindowMock = vi.hoisted(() =>
     return {
       options,
       webContents: {
+        isDevToolsOpened: vi.fn(() => false),
         openDevTools: vi.fn(),
         once: vi.fn(),
         setWindowOpenHandler: vi.fn(),
@@ -76,7 +78,12 @@ const BrowserWindowMock = vi.hoisted(() =>
 
 vi.mock("electron", () => ({
   BrowserWindow: BrowserWindowMock,
-  app: { isPackaged: true, focus: electronMocks.focusApp },
+  app: {
+    get isPackaged() {
+      return electronMocks.isPackaged;
+    },
+    focus: electronMocks.focusApp,
+  },
   shell: { openExternal: vi.fn() },
   dialog: electronMocks,
 }));
@@ -133,6 +140,20 @@ describe("resolveWindowOpenTarget", () => {
 });
 
 describe("createWindow", () => {
+  it("can preload the main window without showing it", () => {
+    const win = createWindow(undefined, { show: false });
+    const on = win.on as unknown as {
+      mock: { calls: Array<[string, () => void]> };
+    };
+    const readyToShow = on.mock.calls.find(
+      ([event]) => event === "ready-to-show",
+    )?.[1];
+
+    expect(readyToShow).toBeTypeOf("function");
+    readyToShow?.();
+    expect(win.show).not.toHaveBeenCalled();
+  });
+
   it("configures the app icon for the current platform", () => {
     createWindow();
 
@@ -170,6 +191,20 @@ describe("createWindow", () => {
     } else {
       expect(electronMocks.focusApp).not.toHaveBeenCalled();
       expect(win.moveTop).not.toHaveBeenCalled();
+    }
+  });
+
+  it("does not open DevTools when a hidden main window is revealed", () => {
+    electronMocks.isPackaged = false;
+
+    try {
+      const win = createWindow(undefined, { show: false });
+
+      focusMainWindow();
+
+      expect(win.webContents.openDevTools).not.toHaveBeenCalled();
+    } finally {
+      electronMocks.isPackaged = true;
     }
   });
 });
