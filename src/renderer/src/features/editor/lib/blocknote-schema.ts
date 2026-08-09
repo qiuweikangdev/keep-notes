@@ -104,6 +104,7 @@ const INLINE_CODE_EDITING_END_CLASS = "editor-inline-code__editing-end";
 const INLINE_CODE_COMPOSING_CONTENT_CLASS =
   "editor-inline-code__composing-content";
 const INLINE_CODE_LATIN_CONTENT_CLASS = "editor-inline-code__latin-content";
+const INLINE_CODE_TRAILING_CLICK_SLOP = 16;
 const inlineCodeLatinContentPattern = /[\u0020-\u007e]+/g;
 
 type InlineCodeEditingState = {
@@ -352,7 +353,58 @@ function findInlineCodeRange(
   );
 }
 
-function getInlineCodeFromPointerEvent(event: MouseEvent) {
+function findTrailingInlineCodeAtPointer(
+  view: EditorView,
+  eventTarget: Element | null,
+  event: MouseEvent,
+) {
+  const blockContent = eventTarget?.closest(".bn-block-content");
+  const inlineContent =
+    eventTarget?.closest(".bn-inline-content") ??
+    blockContent?.querySelector(".bn-inline-content");
+  const searchRoot = inlineContent ?? view.dom;
+
+  let closestCode: Element | null = null;
+  let closestDistance = Number.POSITIVE_INFINITY;
+  for (const inlineCode of searchRoot.querySelectorAll(
+    "code:not(.editor-code-block__content)",
+  )) {
+    const bounds = inlineCode.getBoundingClientRect();
+    if (bounds.width <= 0 || bounds.height <= 0) continue;
+    const trailingDistance = event.clientX - bounds.right;
+    if (
+      event.clientY < bounds.top ||
+      event.clientY > bounds.bottom ||
+      trailingDistance < 0 ||
+      trailingDistance > INLINE_CODE_TRAILING_CLICK_SLOP ||
+      trailingDistance >= closestDistance
+    ) {
+      continue;
+    }
+    let range = findInlineCodeRangeFromElement(view, inlineCode);
+    if (!range) {
+      const insidePosition = view.posAtCoords({
+        left: Math.max(bounds.left, bounds.right - 1),
+        top: Math.min(
+          bounds.bottom - 1,
+          Math.max(bounds.top + 1, event.clientY),
+        ),
+      })?.pos;
+      range =
+        insidePosition === undefined
+          ? null
+          : findInlineCodeRange(view.state, insidePosition, true);
+    }
+    if (!range) continue;
+
+    closestCode = inlineCode;
+    closestDistance = trailingDistance;
+  }
+
+  return closestCode;
+}
+
+function getInlineCodeFromPointerEvent(view: EditorView, event: MouseEvent) {
   const eventTarget =
     event.target instanceof Element
       ? event.target
@@ -361,23 +413,35 @@ function getInlineCodeFromPointerEvent(event: MouseEvent) {
   let inlineCode = eventTarget?.closest(
     "code:not(.editor-code-block__content)",
   );
-  if (!inlineCode) return null;
-
-  const contentBounds = inlineCode.getBoundingClientRect();
-  const hasMeasurableBounds =
-    contentBounds.width > 0 && contentBounds.height > 0;
-  const pointerIsInsideContent =
-    event.clientX >= contentBounds.left &&
-    event.clientX <= contentBounds.right &&
-    event.clientY >= contentBounds.top &&
-    event.clientY <= contentBounds.bottom;
-
-  // 反引号位于 code 盒子外，只有胶囊本体参与聚焦与拖选。
-  if (hasMeasurableBounds && !pointerIsInsideContent) {
-    inlineCode = null;
+  if (inlineCode) {
+    const contentBounds = inlineCode.getBoundingClientRect();
+    const hasMeasurableBounds =
+      contentBounds.width > 0 && contentBounds.height > 0;
+    const pointerIsInsideContent =
+      event.clientX >= contentBounds.left &&
+      event.clientX <= contentBounds.right &&
+      event.clientY >= contentBounds.top &&
+      event.clientY <= contentBounds.bottom;
+    if (!hasMeasurableBounds || pointerIsInsideContent) return inlineCode;
   }
 
-  return inlineCode;
+  // 行尾 code 的视觉末端允许少量命中余量，保证点击最后字符右缘也能落到 code 末尾。
+  return findTrailingInlineCodeAtPointer(view, eventTarget, event);
+}
+
+function findInlineCodeRangeFromElement(view: EditorView, inlineCode: Element) {
+  const domOffsets = [0, inlineCode.childNodes.length];
+  for (const domOffset of domOffsets) {
+    try {
+      const position = view.posAtDOM(inlineCode, domOffset);
+      const range = findInlineCodeRange(view.state, position, true);
+      if (range) return range;
+    } catch {
+      // DOM 正在由 ProseMirror 重绘时可能暂时无法映射，继续回退到坐标位置。
+    }
+  }
+
+  return null;
 }
 
 function findInlineCodeRangeForSelection(state: EditorState) {
@@ -708,21 +772,33 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
             return;
           }
 
-          const inlineCode = getInlineCodeFromPointerEvent(event);
-          const pointerPosition = inlineCode
+          const inlineCode = getInlineCodeFromPointerEvent(editorView, event);
+          const coordinatePosition = inlineCode
             ? editorView.posAtCoords({
                 left: event.clientX,
                 top: event.clientY,
               })?.pos
             : undefined;
-          const range =
-            pointerPosition === undefined
-              ? null
-              : findInlineCodeRange(editorView.state, pointerPosition, true);
-          if (!range || pointerPosition === undefined) {
+          const range = inlineCode
+            ? (findInlineCodeRangeFromElement(editorView, inlineCode) ??
+              (coordinatePosition === undefined
+                ? null
+                : findInlineCodeRange(
+                    editorView.state,
+                    coordinatePosition,
+                    true,
+                  )))
+            : null;
+          if (!range || !inlineCode) {
             resetInlineCodeSelectionDrag();
             return;
           }
+          const contentBounds = inlineCode.getBoundingClientRect();
+          const pointerPosition =
+            coordinatePosition ??
+            (event.clientX <= (contentBounds.left + contentBounds.right) / 2
+              ? range.from
+              : range.to);
 
           inlineCodeSelectionDrag = {
             active: false,
@@ -861,11 +937,7 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
           event.stopImmediatePropagation();
         };
 
-        editorView.dom.addEventListener(
-          "mousedown",
-          handleInlineCodeMouseDown,
-          true,
-        );
+        document.addEventListener("mousedown", handleInlineCodeMouseDown, true);
         editorView.dom.addEventListener(
           "dragstart",
           handleInlineCodeDragStart,
@@ -888,7 +960,7 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
         window.addEventListener("blur", resetInlineCodeSelectionDrag);
         return {
           destroy() {
-            editorView.dom.removeEventListener(
+            document.removeEventListener(
               "mousedown",
               handleInlineCodeMouseDown,
               true,
@@ -940,9 +1012,10 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
         handleClick(view, position, event) {
           if (event.button !== 0) return false;
 
-          const inlineCode = getInlineCodeFromPointerEvent(event);
+          const inlineCode = getInlineCodeFromPointerEvent(view, event);
           const activeRange = inlineCode
-            ? findInlineCodeRange(view.state, position, true)
+            ? (findInlineCodeRangeFromElement(view, inlineCode) ??
+              findInlineCodeRange(view.state, position, true))
             : null;
 
           // 只记录真实点击目标，不改写浏览器已经确定的原生选区。

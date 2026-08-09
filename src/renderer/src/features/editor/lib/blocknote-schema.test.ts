@@ -1510,6 +1510,57 @@ describe("editor BlockNote schema", () => {
     expect(view.state.selection.from).toBe(cursorPosition);
   });
 
+  it("places the caret at the code end from its trailing visual edge", () => {
+    const { container, inlineCodePosition, view } =
+      renderInlineCodeTestEditor();
+    const inlineCode = container.querySelector("code");
+    const codeEnd = inlineCodePosition + 4;
+    expect(inlineCode).not.toBe(null);
+
+    vi.spyOn(
+      inlineCode as HTMLElement,
+      "getBoundingClientRect",
+    ).mockReturnValue({
+      bottom: 30,
+      height: 20,
+      left: 10,
+      right: 80,
+      top: 10,
+      width: 70,
+      x: 10,
+      y: 10,
+      toJSON: () => ({}),
+    });
+    vi.spyOn(view, "posAtCoords").mockReturnValue({
+      inside: -1,
+      pos: codeEnd + 1,
+    });
+
+    const mouseDown = new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+      clientX: 84,
+      clientY: 20,
+    });
+    // 行尾空白位于收缩宽度的 editorView.dom 外，必须由 document 捕获后再映射回当前 view。
+    expect(container.dispatchEvent(mouseDown)).toBe(false);
+
+    const mouseUp = new MouseEvent("mouseup", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+      clientX: 84,
+      clientY: 20,
+    });
+    expect(document.dispatchEvent(mouseUp)).toBe(false);
+    expect(view.state.selection.from).toBe(codeEnd);
+    expect(view.state.selection.empty).toBe(true);
+    expect(
+      container.querySelector(".editor-inline-code__editing-caret"),
+    ).not.toBe(null);
+  });
+
   it("uses the native caret while composing text inside inline code", async () => {
     const { container, inlineCodePosition, view } =
       renderInlineCodeTestEditor();
@@ -1979,7 +2030,7 @@ describe("editor BlockNote schema", () => {
     expect(view.state.selection.from).toBe((firstPosition as number) + 1);
   });
 
-  it("does not expand inline code when an outside click maps to its range", () => {
+  it("expands only within the inline code trailing click tolerance", () => {
     const { container, editor, inlineCodePosition, view } =
       renderInlineCodeTestEditor();
     const position = inlineCodePosition + 1;
@@ -2027,7 +2078,12 @@ describe("editor BlockNote schema", () => {
       container.querySelector(".editor-inline-code__editing-content"),
     ).not.toBe(null);
 
-    vi.spyOn(code as HTMLElement, "getBoundingClientRect").mockReturnValue({
+    const trailingCode = container.querySelector("code");
+    expect(trailingCode).not.toBe(null);
+    vi.spyOn(
+      trailingCode as HTMLElement,
+      "getBoundingClientRect",
+    ).mockReturnValue({
       bottom: 30,
       height: 20,
       left: 10,
@@ -2041,15 +2097,50 @@ describe("editor BlockNote schema", () => {
     const markerClick = new MouseEvent("click", {
       bubbles: true,
       button: 0,
-      clientX: 84,
+      clientX: 95,
       clientY: 20,
     });
     Object.defineProperty(markerClick, "target", {
       configurable: true,
-      value: code,
+      value: container,
     });
     view.someProp("handleClick", (handler) =>
       handler(view, position, markerClick),
+    );
+
+    expect(
+      container.querySelector(".editor-inline-code__editing-content"),
+    ).not.toBe(null);
+
+    const updatedCode = container.querySelector("code");
+    expect(updatedCode).not.toBe(null);
+    vi.spyOn(
+      updatedCode as HTMLElement,
+      "getBoundingClientRect",
+    ).mockReturnValue({
+      bottom: 30,
+      height: 20,
+      left: 10,
+      right: 80,
+      top: 10,
+      width: 70,
+      x: 10,
+      y: 10,
+      toJSON: () => ({}),
+    });
+
+    const farOutsideClick = new MouseEvent("click", {
+      bubbles: true,
+      button: 0,
+      clientX: 97,
+      clientY: 20,
+    });
+    Object.defineProperty(farOutsideClick, "target", {
+      configurable: true,
+      value: container,
+    });
+    view.someProp("handleClick", (handler) =>
+      handler(view, position, farOutsideClick),
     );
 
     expect(
