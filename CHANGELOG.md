@@ -1,3 +1,37 @@
+# [2.21.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.20.1...v2.21.0) (2026-08-09)
+
+
+### Bug Fixes
+
+* focus inline code at trailing edge ([834ff72](https://github.com/qiuweikangdev/keep-notes/commit/834ff72f3b54eeda094bf0da6db331d09d55440f))
+* inline code state ([03f7d82](https://github.com/qiuweikangdev/keep-notes/commit/03f7d82cfaef27e61aa4be8444a5fea25289f8b5))
+* persist large document edits when hidden ([d9694e0](https://github.com/qiuweikangdev/keep-notes/commit/d9694e0830f535ffdb46949583baf97984043f8a))
+* preserve inline code selection state ([59e2d3a](https://github.com/qiuweikangdev/keep-notes/commit/59e2d3aa0e2cf6d0259ed5eeb125345a6cbac4c9))
+* preserve scroll across external refresh paths ([09f3593](https://github.com/qiuweikangdev/keep-notes/commit/09f3593359b3e237023f815c89243a3a7cd1a635))
+* preserve scroll on external file updates ([1e57416](https://github.com/qiuweikangdev/keep-notes/commit/1e57416f007dda0a6331ae9b3a3a91b5b73d1c13))
+* prevent floating editor tab recreation ([a7f263e](https://github.com/qiuweikangdev/keep-notes/commit/a7f263eca81edc34b5972cf924722ff420718f95))
+* protect deferred editor saves on close ([cc46202](https://github.com/qiuweikangdev/keep-notes/commit/cc46202022015768948ed7127a1170eba1b3e2a6))
+
+
+### Features
+
+* add resilient system tray support ([2ddcb64](https://github.com/qiuweikangdev/keep-notes/commit/2ddcb6491a2ed1b679da78da37dc801906029498))
+
+
+### Performance Improvements
+
+* batch large document serialization ([872ba07](https://github.com/qiuweikangdev/keep-notes/commit/872ba07910b3f54a9dfcb2b14e967982eacd5299))
+* debounce large document serialization ([2c86059](https://github.com/qiuweikangdev/keep-notes/commit/2c8605995fb104ac30afcd4a7e14589147195f80))
+* defer large rich editor exports ([2055055](https://github.com/qiuweikangdev/keep-notes/commit/205505514ae3e174e2cd5d61059af1f5d955334c))
+* stabilize large document mode switching ([bdda435](https://github.com/qiuweikangdev/keep-notes/commit/bdda435191ec613bdb079931a13f4647c126cc1c))
+* switch away from large documents promptly ([0855081](https://github.com/qiuweikangdev/keep-notes/commit/085508151ce04d2c6166a7d6ec28e7c7c6b04fb6))
+
+
+## Commit Summary
+
+- Compared with: v2.20.1
+- Total commits: 16
+
 ## [2.20.1](https://github.com/qiuweikangdev/keep-notes/compare/v2.20.0...v2.20.1) (2026-08-01)
 
 
