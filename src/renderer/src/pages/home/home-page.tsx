@@ -49,11 +49,9 @@ function HomePageContent() {
     panelRef,
     collapsed,
     toggleCollapse,
-    handleLayoutChange,
-    handleLayoutChanged,
+    handleLayout,
     handleCollapse,
     handleExpand,
-    handleDidMount,
   } = usePanel();
   const [isMaximized] = useState(false);
   const isOpen = useDiffStore((state) => state.isOpen);
@@ -229,11 +227,7 @@ function HomePageContent() {
       <TitleBar collapsed={collapsed} onToggleCollapse={toggleCollapse} />
 
       <div className="flex-1 overflow-hidden">
-        <PanelGroup
-          direction="horizontal"
-          onLayoutChange={handleLayoutChange}
-          onLayoutChanged={handleLayoutChanged}
-        >
+        <PanelGroup direction="horizontal" onLayout={handleLayout}>
           <Panel
             ref={panelRef}
             id="sidebar"
@@ -243,7 +237,6 @@ function HomePageContent() {
             collapsible
             onCollapse={handleCollapse}
             onExpand={handleExpand}
-            onDidMount={handleDidMount}
           >
             <Sidebar />
           </Panel>

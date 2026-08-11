@@ -1166,9 +1166,13 @@ function repairJoinedFencedCodeFirstLines(markdown: string): string | null {
 
 export function repairMarkdownSourceBeforeParse(markdown: string): string {
   const tableHardBreaksRepaired = normalizeSerializedTableHardBreaks(markdown);
+  // 打开历史文件时先补回表格块级边界，避免标准 GFM 把相邻表格或表格后的段落吞进同一张表。
+  const tableBoundariesRepaired = normalizeSerializedTableBoundaries(
+    tableHardBreaksRepaired,
+  );
   const fencedCodeRepaired =
-    repairJoinedFencedCodeFirstLines(tableHardBreaksRepaired) ??
-    tableHardBreaksRepaired;
+    repairJoinedFencedCodeFirstLines(tableBoundariesRepaired) ??
+    tableBoundariesRepaired;
   const listMarkerRepaired =
     repairJoinedUnorderedListMarkers(fencedCodeRepaired) ?? fencedCodeRepaired;
   return (

@@ -274,7 +274,8 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
   const handleDragOver = useCallback(
     (e: React.DragEvent) => {
       // 仅接管文件拖放，BlockNote 表格和普通块拖拽继续交给编辑器处理。
-      if (!isEditorFileDrag(e.dataTransfer.types)) {
+      const types = e.dataTransfer?.types;
+      if (!types || !isEditorFileDrag(types)) {
         return;
       }
       e.preventDefault();
@@ -287,7 +288,8 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
 
   const handleDragLeave = useCallback(
     (e: React.DragEvent) => {
-      if (!isEditorFileDrag(e.dataTransfer.types)) {
+      const types = e.dataTransfer?.types;
+      if (!types || !isEditorFileDrag(types)) {
         return;
       }
       e.preventDefault();
@@ -304,7 +306,8 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
 
   const handleDrop = useCallback(
     async (e: React.DragEvent) => {
-      if (!isEditorFileDrag(e.dataTransfer.types)) {
+      const types = e.dataTransfer?.types;
+      if (!types || !isEditorFileDrag(types)) {
         return;
       }
       e.preventDefault();

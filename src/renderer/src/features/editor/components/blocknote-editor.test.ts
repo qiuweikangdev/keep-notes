@@ -3648,6 +3648,88 @@ describe("BlockNoteEditor persistent session runtime", () => {
 
     session.view.unmount();
   });
+
+  it("ignores internal dragleave events without dataTransfer", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    setupSessionTab("C:/notes/current.md");
+    const session = renderRealSession("C:/notes/current.md");
+
+    await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    const scrollContainer = session.view.container.querySelector<HTMLElement>(
+      ".editor-rich-scroll",
+    )!;
+
+    expect(() =>
+      fireEvent.dragLeave(scrollContainer, { relatedTarget: document.body }),
+    ).not.toThrow();
+
+    session.view.unmount();
+  });
+
+  it("stops mousemove events from a removed table block", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    setupSessionTab("C:/notes/current.md");
+    const session = renderRealSession(
+      "C:/notes/current.md",
+      false,
+      "| Key | Value |\n| --- | --- |\n| A | B |",
+    );
+
+    await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    const scrollContainer = session.view.container.querySelector<HTMLElement>(
+      ".editor-rich-scroll",
+    )!;
+    const tableContent = scrollContainer.querySelector<HTMLElement>(
+      '[data-content-type="table"]',
+    )!;
+    const blockRoot = tableContent.closest<HTMLElement>("[data-id]")!;
+    const tableWrapper =
+      tableContent.querySelector<HTMLElement>(".tableWrapper")!;
+    const nativeMouseMove = vi.fn();
+    tableWrapper.addEventListener("mousemove", nativeMouseMove);
+    blockRoot.dataset.id = "removed-table-id";
+
+    fireEvent.mouseMove(tableWrapper);
+
+    expect(nativeMouseMove).not.toHaveBeenCalled();
+    tableWrapper.removeEventListener("mousemove", nativeMouseMove);
+    session.view.unmount();
+  });
+
+  it("stops mousemove events while table handles have no active block", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    setupSessionTab("C:/notes/current.md");
+    const session = renderRealSession(
+      "C:/notes/current.md",
+      false,
+      "| Key | Value |\n| --- | --- |\n| A | B |",
+    );
+
+    await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    const editor = session.runtime.current!.editor;
+    const tableContent = editor.prosemirrorView.dom.querySelector<HTMLElement>(
+      '[data-content-type="table"]',
+    )!;
+    const tableWrapper =
+      tableContent.querySelector<HTMLElement>(".tableWrapper")!;
+    const tableHandlesView = (
+      editor.prosemirrorView as unknown as { pluginViews?: unknown[] }
+    ).pluginViews?.find(
+      (pluginView) =>
+        pluginView &&
+        typeof pluginView === "object" &&
+        "mouseMoveHandler" in pluginView,
+    ) as { state?: { block?: unknown } } | undefined;
+    expect(tableHandlesView).toBeDefined();
+    tableHandlesView!.state = { block: undefined };
+
+    expect(() => fireEvent.mouseMove(tableWrapper)).not.toThrow();
+
+    session.view.unmount();
+  });
 });
 
 function setupSessionTab(

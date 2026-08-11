@@ -151,6 +151,83 @@ function findSelectedCodeMirrorView(editor: CoreBlockNoteEditor) {
   }
 }
 
+function shouldSuppressStaleTableMouseMove(
+  editor: CoreBlockNoteEditor,
+  target: EventTarget | null,
+): boolean {
+  if (!(target instanceof Element)) return false;
+
+  const tableWrapper = target.closest(".tableWrapper");
+  if (!tableWrapper) return false;
+
+  const tableContent = tableWrapper.closest<HTMLElement>(
+    '[data-content-type="table"]',
+  );
+  const blockRoot = tableContent?.closest<HTMLElement>("[data-id]");
+  const blockId = blockRoot?.dataset.id;
+  // BlockNote 0.51 的表格句柄在表格删除后仍可能收到 mousemove；失效 DOM 不应再交给句柄插件处理。
+  return !blockId || editor.getBlock(blockId)?.type !== "table";
+}
+
+interface TableHandlesRuntimeView {
+  mouseMoveHandler?: (event: MouseEvent) => unknown;
+  state?: { block?: unknown };
+}
+
+const patchedTableHandlesViews = new WeakSet<object>();
+
+function patchTableHandlesMouseMoveHandler(
+  editor: CoreBlockNoteEditor,
+): boolean {
+  let prosemirrorView: {
+    dom: HTMLElement;
+    pluginViews?: unknown[];
+  };
+  let pluginViews: unknown[];
+
+  try {
+    // 编辑器实例创建时 ProseMirror 视图还未挂载，访问该属性会直接抛错。
+    prosemirrorView = editor.prosemirrorView as unknown as {
+      dom: HTMLElement;
+      pluginViews?: unknown[];
+    };
+    pluginViews = prosemirrorView.pluginViews ?? [];
+  } catch {
+    return false;
+  }
+
+  let patched = false;
+  for (const candidate of pluginViews) {
+    if (
+      !candidate ||
+      typeof candidate !== "object" ||
+      patchedTableHandlesViews.has(candidate)
+    ) {
+      continue;
+    }
+
+    const tableHandlesView = candidate as TableHandlesRuntimeView;
+    const originalHandler = tableHandlesView.mouseMoveHandler;
+    if (!originalHandler) continue;
+
+    const safeHandler = (event: MouseEvent) => {
+      // BlockNote 0.51 在表格删除后会保留无 block 的句柄状态，随后 mousemove 会读取 undefined.id。
+      if (tableHandlesView.state && !tableHandlesView.state.block) {
+        return;
+      }
+      return originalHandler(event);
+    };
+
+    prosemirrorView.dom.removeEventListener("mousemove", originalHandler);
+    prosemirrorView.dom.addEventListener("mousemove", safeHandler);
+    tableHandlesView.mouseMoveHandler = safeHandler;
+    patchedTableHandlesViews.add(candidate);
+    patched = true;
+  }
+
+  return patched;
+}
+
 function getPastedTableCellContent(
   editor: CoreBlockNoteEditor,
   cell: HTMLTableCellElement,
@@ -1855,6 +1932,26 @@ function MountedBlockNoteEditor({
     configureRichTextUndoHistory(editor);
   }, [editor]);
 
+  useEffect(() => {
+    let cancelled = false;
+    let retryCount = 0;
+    let retryTimer: number | null = null;
+
+    const patchWhenMounted = () => {
+      if (cancelled || patchTableHandlesMouseMoveHandler(editor)) return;
+      if (retryCount >= 10) return;
+
+      retryCount += 1;
+      retryTimer = window.setTimeout(patchWhenMounted, 0);
+    };
+
+    patchWhenMounted();
+    return () => {
+      cancelled = true;
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
+    };
+  }, [editor]);
+
   // 获取 store 中的方法
   const setOutlineHeadingsForPath = useEditorStore(
     (state) => state.setOutlineHeadingsForPath,
@@ -2597,8 +2694,13 @@ function MountedBlockNoteEditor({
   } as CSSProperties;
 
   const blockExternalFileDrop = useCallback((event: React.DragEvent) => {
-    const types = event.dataTransfer.types;
-    if (types.includes("blocknote/html") || !isEditorFileDrag(types)) {
+    const types = event.dataTransfer?.types;
+    // 部分浏览器在内部块拖拽结束时会派发没有 dataTransfer 的 dragleave，不能阻断编辑器清理流程。
+    if (
+      !types ||
+      types.includes("blocknote/html") ||
+      !isEditorFileDrag(types)
+    ) {
       return false;
     }
 
@@ -2606,6 +2708,17 @@ function MountedBlockNoteEditor({
     event.stopPropagation();
     return true;
   }, []);
+
+  const handleStaleTableMouseMoveCapture = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      // 首次进入表格时插件视图可能才刚完成挂载，此处再尝试一次兼容补丁，确保事件到达插件前已完成替换。
+      patchTableHandlesMouseMoveHandler(editor);
+      if (shouldSuppressStaleTableMouseMove(editor, event.target)) {
+        event.stopPropagation();
+      }
+    },
+    [editor],
+  );
 
   const handleFileDragOverCapture = useCallback(
     (event: React.DragEvent) => {
@@ -2979,6 +3092,7 @@ function MountedBlockNoteEditor({
       onPointerDownCapture={handlePointerDownCapture}
       onTouchStartCapture={cancelPendingViewportRestore}
       onWheelCapture={cancelPendingViewportRestore}
+      onMouseMoveCapture={handleStaleTableMouseMoveCapture}
       onCopyCapture={handleCopyCapture}
       onPasteCapture={handlePasteCapture}
       onCutCapture={markUserIntent}

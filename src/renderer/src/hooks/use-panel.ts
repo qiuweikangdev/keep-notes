@@ -1,4 +1,10 @@
-import { useCallback, useRef, useState, type MutableRefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type MutableRefObject,
+} from "react";
 import { useUIStore } from "@/store/ui.store";
 import type { ImperativePanelHandle, Layout } from "react-resizable-panels";
 
@@ -46,6 +52,32 @@ export function usePanel() {
     [setPanelSize],
   );
 
+  const layoutCommitTimerRef = useRef<number | null>(null);
+  const handleLayout = useCallback(
+    (layout: Layout) => {
+      handleLayoutChange(layout);
+      if (layoutCommitTimerRef.current !== null) {
+        window.clearTimeout(layoutCommitTimerRef.current);
+      }
+
+      // react-resizable-panels v2 只有 onLayout；空闲一小段时间后再持久化，避免拖拽过程频繁写 store。
+      layoutCommitTimerRef.current = window.setTimeout(() => {
+        handleLayoutChanged(layout);
+        layoutCommitTimerRef.current = null;
+      }, 120);
+    },
+    [handleLayoutChange, handleLayoutChanged],
+  );
+
+  useEffect(
+    () => () => {
+      if (layoutCommitTimerRef.current !== null) {
+        window.clearTimeout(layoutCommitTimerRef.current);
+      }
+    },
+    [],
+  );
+
   const handleCollapse = useCallback(() => {
     setCollapsed(true);
   }, []);
@@ -67,6 +99,7 @@ export function usePanel() {
     toggleCollapse,
     handleLayoutChange,
     handleLayoutChanged,
+    handleLayout,
     handleCollapse,
     handleExpand,
     handleDidMount,

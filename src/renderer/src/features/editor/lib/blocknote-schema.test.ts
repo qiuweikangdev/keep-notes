@@ -965,6 +965,51 @@ describe("editor BlockNote schema", () => {
     expect(repairedRendered.match(/<tr>/gu)).toHaveLength(6);
   });
 
+  it("repairs legacy joined table source before reopening", async () => {
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        createMarkdownTableTestBlock(),
+        createMarkdownTableTestBlock(),
+      ],
+    });
+    const serialized = await serializeMarkdown(editor, editor.document);
+    const joinedLegacySource = serialized.replace(/\n\n(?=\|\s*2\s*\|)/u, "\n");
+
+    const reopenedBlocks = await parseMarkdown(editor, joinedLegacySource);
+
+    expect(reopenedBlocks.map((block) => block.type)).toEqual([
+      "table",
+      "table",
+    ]);
+  });
+
+  it("repairs a legacy paragraph boundary after a table before reopening", async () => {
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        { type: "paragraph", content: "2" },
+        createMarkdownTableTestBlock(),
+        { type: "paragraph", content: "2" },
+        createMarkdownTableTestBlock(),
+      ],
+    });
+    const serialized = await serializeMarkdown(editor, editor.document);
+    const joinedLegacySource = serialized.replace(
+      /\n\n(2\n\n(?=\|\s*2\s*\|))/u,
+      "\n$1",
+    );
+
+    const reopenedBlocks = await parseMarkdown(editor, joinedLegacySource);
+
+    expect(reopenedBlocks.map((block) => block.type)).toEqual([
+      "paragraph",
+      "table",
+      "paragraph",
+      "table",
+    ]);
+  });
+
   it("serializes a long quote-owned list in bounded batches", async () => {
     const editor = BlockNoteEditor.create({
       schema: editorSchema,
