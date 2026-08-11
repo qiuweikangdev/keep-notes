@@ -1755,6 +1755,102 @@ describe("BlockNoteEditor code paste", () => {
     }
   });
 
+  it("serializes multiline cells from an external HTML table without breaking the table", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/multiline-rich-table-paste.md";
+    setupSessionTab(path);
+    const session = renderRealSession(path, false, "");
+
+    try {
+      vi.stubGlobal("ClipboardEvent", Event);
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const editor = session.runtime.current!.editor;
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "clipboardData", {
+        value: {
+          getData: (type: string) =>
+            type === "text/html"
+              ? [
+                  "<table>",
+                  "<thead><tr><th>Key</th><th>Description</th></tr></thead>",
+                  "<tbody><tr><td>welcome</td><td><p>First line</p><p>Second line</p></td></tr></tbody>",
+                  "</table>",
+                ].join("")
+              : type === "text/plain"
+                ? "Key\tDescription\nwelcome\tFirst line\nSecond line"
+                : "",
+          types: ["text/html", "text/plain"],
+        },
+      });
+
+      act(() => {
+        editor.prosemirrorView.dom.dispatchEvent(event);
+      });
+
+      const serialized = await markdownMocks.actualSerializeMarkdown!(
+        editor,
+        editor.document,
+      );
+      expect(serialized).toContain("First line<br>Second line");
+      expect(serialized).not.toContain("First line\\\nSecond line");
+    } finally {
+      session.view.unmount();
+    }
+  });
+
+  it("uses the first row as the Markdown header for an external table without th cells", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/headerless-rich-table-paste.md";
+    setupSessionTab(path);
+    const session = renderRealSession(path, false, "");
+
+    try {
+      vi.stubGlobal("ClipboardEvent", Event);
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const editor = session.runtime.current!.editor;
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "clipboardData", {
+        value: {
+          getData: (type: string) =>
+            type === "text/html"
+              ? [
+                  "<table><tbody>",
+                  "<tr><td>Key</td><td>Description</td></tr>",
+                  "<tr><td>welcome</td><td>Hello</td></tr>",
+                  "</tbody></table>",
+                ].join("")
+              : type === "text/plain"
+                ? "Key\tDescription\nwelcome\tHello"
+                : "",
+          types: ["text/html", "text/plain"],
+        },
+      });
+
+      act(() => {
+        editor.prosemirrorView.dom.dispatchEvent(event);
+      });
+
+      expect(editor.document[0]).toMatchObject({
+        type: "table",
+        content: { headerRows: 1, rows: [{}, {}] },
+      });
+      const serialized = await markdownMocks.actualSerializeMarkdown!(
+        editor,
+        editor.document,
+      );
+      const reopenedBlocks = await editor.tryParseMarkdownToBlocks(serialized);
+      expect(reopenedBlocks).toHaveLength(1);
+      expect(reopenedBlocks[0]).toMatchObject({
+        type: "table",
+        content: { rows: [{}, {}] },
+      });
+    } finally {
+      session.view.unmount();
+    }
+  });
+
   it("preserves rich text blocks surrounding an external HTML table", async () => {
     setupMatchMedia();
     setupDomMeasurements();

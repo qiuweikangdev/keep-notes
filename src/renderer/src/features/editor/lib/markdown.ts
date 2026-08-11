@@ -47,6 +47,8 @@ const ROOT_UNORDERED_LIST_LINE_PATTERN = /^([ \t]{0,3})([-+*])([ \t]+)(.*)$/u;
 const UNORDERED_LIST_LINE_PATTERN = /^([ \t]*)([-+*])([ \t]+)(.*)$/u;
 const FENCED_CODE_LINE_PATTERN = /^ {0,3}(```+|~~~+)/u;
 const FENCED_CODE_OPENING_PATTERN = /^( {0,3})(```+|~~~+)(.*)$/u;
+const SERIALIZED_TABLE_ROW_PATTERN = /^\s*\|.*\|\s*$/u;
+const SERIALIZED_TABLE_SEPARATOR_PATTERN = /^\s*\|(?:\s*:?-{3,}:?\s*\|)+\s*$/u;
 
 interface FencedCodeLanguageCandidate {
   canonicalId: string;
@@ -471,6 +473,136 @@ function normalizeMarkupHardBreaks(markdown: string): string {
   return normalizeMarkupSpacerLines(
     lines.map((line) => `${line.text}${line.ending}`).join(""),
   );
+}
+
+function normalizeSerializedTableHardBreaks(markdown: string): string {
+  const lines = splitMarkdownLines(markdown);
+  const normalizedLines: MarkdownLine[] = [];
+  let openingFence: string | null = null;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (openingFence) {
+      normalizedLines.push(line);
+      if (getClosingFenceMatch(line.text, openingFence)) openingFence = null;
+      continue;
+    }
+
+    const openingMatch = line.text.match(FENCED_CODE_LINE_PATTERN);
+    if (openingMatch) {
+      openingFence = openingMatch[1];
+      normalizedLines.push(line);
+      continue;
+    }
+
+    if (!/^\s*\|/u.test(line.text) || !line.text.endsWith("\\")) {
+      normalizedLines.push(line);
+      continue;
+    }
+
+    let text = line.text;
+    let ending = line.ending;
+    let continuationIndex = index;
+    while (text.endsWith("\\") && continuationIndex + 1 < lines.length) {
+      const continuation = lines[continuationIndex + 1];
+      text = `${text.slice(0, -1)}<br>${continuation.text}`;
+      ending = continuation.ending;
+      continuationIndex += 1;
+    }
+
+    if (/\|\s*$/u.test(text)) {
+      // Markdown 表格行不能跨物理行；HTML 换行可被 GFM 和 BlockNote 稳定往返。
+      normalizedLines.push({ ending, text });
+      index = continuationIndex;
+      continue;
+    }
+
+    normalizedLines.push(line);
+  }
+
+  return normalizedLines.map((line) => `${line.text}${line.ending}`).join("");
+}
+
+function normalizeSerializedTableBoundaries(markdown: string): string {
+  const lines = splitMarkdownLines(markdown);
+  const normalizedLines: MarkdownLine[] = [];
+  let openingFence: string | null = null;
+  let tableHasSeparator = false;
+
+  for (const line of lines) {
+    if (openingFence) {
+      normalizedLines.push(line);
+      if (getClosingFenceMatch(line.text, openingFence)) openingFence = null;
+      continue;
+    }
+
+    const openingMatch = line.text.match(FENCED_CODE_LINE_PATTERN);
+    if (openingMatch) {
+      if (tableHasSeparator) {
+        const previous = normalizedLines.at(-1);
+        normalizedLines.push({
+          ending: previous?.ending || line.ending || "\n",
+          text: "",
+        });
+      }
+      openingFence = openingMatch[1];
+      tableHasSeparator = false;
+      normalizedLines.push(line);
+      continue;
+    }
+
+    if (!SERIALIZED_TABLE_ROW_PATTERN.test(line.text)) {
+      if (tableHasSeparator && line.text.trim()) {
+        const previous = normalizedLines.at(-1);
+        // GFM 会把表格后的无管道普通文本继续当成数据行，必须补回块级空行。
+        normalizedLines.push({
+          ending: previous?.ending || line.ending || "\n",
+          text: "",
+        });
+      }
+      tableHasSeparator = false;
+      normalizedLines.push(line);
+      continue;
+    }
+
+    const isSeparator = SERIALIZED_TABLE_SEPARATOR_PATTERN.test(line.text);
+    const header = normalizedLines.at(-1);
+    if (
+      isSeparator &&
+      tableHasSeparator &&
+      header &&
+      SERIALIZED_TABLE_ROW_PATTERN.test(header.text) &&
+      !SERIALIZED_TABLE_SEPARATOR_PATTERN.test(header.text)
+    ) {
+      // 旧版源码会把相邻表格直接拼接；在第二个分隔行前补回表头边界空行。
+      normalizedLines.splice(-1, 0, {
+        ending: header.ending || line.ending || "\n",
+        text: "",
+      });
+    }
+
+    if (isSeparator) tableHasSeparator = true;
+    normalizedLines.push(line);
+  }
+
+  return normalizedLines.map((line) => `${line.text}${line.ending}`).join("");
+}
+
+function normalizeMarkdownLineEndings(value: string): string {
+  return value.replace(/\r\n?/gu, "\n");
+}
+
+function repairSerializedTableBoundarySource(
+  source: string,
+  baseline: string,
+): string | null {
+  const normalized = normalizeSerializedTableBoundaries(source);
+  if (normalized === source) return null;
+
+  return normalizeMarkdownLineEndings(normalized) ===
+    normalizeMarkdownLineEndings(baseline)
+    ? normalized
+    : null;
 }
 
 function getClosingFenceMatch(line: string, openingFence: string) {
@@ -1033,8 +1165,10 @@ function repairJoinedFencedCodeFirstLines(markdown: string): string | null {
 }
 
 export function repairMarkdownSourceBeforeParse(markdown: string): string {
+  const tableHardBreaksRepaired = normalizeSerializedTableHardBreaks(markdown);
   const fencedCodeRepaired =
-    repairJoinedFencedCodeFirstLines(markdown) ?? markdown;
+    repairJoinedFencedCodeFirstLines(tableHardBreaksRepaired) ??
+    tableHardBreaksRepaired;
   const listMarkerRepaired =
     repairJoinedUnorderedListMarkers(fencedCodeRepaired) ?? fencedCodeRepaired;
   return (
@@ -1501,6 +1635,7 @@ function isMarkupTagOpener(source: string, offset: number): boolean {
 function lineContainsMarkupForParser(
   source: string,
   inlineCodeFenceLength: { current: number },
+  allowTableBreaks = false,
 ): boolean {
   for (let offset = 0; offset < source.length; ) {
     if (source[offset] === "`") {
@@ -1520,6 +1655,13 @@ function lineContainsMarkupForParser(
       source[offset] === "<" &&
       isMarkupTagOpener(source, offset)
     ) {
+      const tableBreak = allowTableBreaks
+        ? source.slice(offset).match(/^<br\s*\/?>/iu)
+        : null;
+      if (tableBreak) {
+        offset += tableBreak[0].length;
+        continue;
+      }
       return true;
     }
     offset += 1;
@@ -1568,7 +1710,11 @@ function protectMarkupForParser(markdown: string): ProtectedMarkup {
     if (
       !markupBlockActive &&
       !/^(?: {4}|\t)/u.test(line.text) &&
-      lineContainsMarkupForParser(line.text, inlineCodeFenceLength)
+      lineContainsMarkupForParser(
+        line.text,
+        inlineCodeFenceLength,
+        /^\s*\|.*\|\s*$/u.test(line.text),
+      )
     ) {
       markupBlockActive = true;
     }
@@ -1699,12 +1845,15 @@ export function preserveMarkdownSource(
   baseline: string,
   edited: string,
 ): string {
+  const repairedTableBoundarySource =
+    repairSerializedTableBoundarySource(source, baseline) ?? source;
   const repairedJoinedListSource = repairJoinedUnorderedListSource(
-    source,
+    repairedTableBoundarySource,
     baseline,
   );
   const repairedListMarkerSource =
-    repairedJoinedListSource ?? repairMarkdownSourceBeforeParse(source);
+    repairedJoinedListSource ??
+    repairMarkdownSourceBeforeParse(repairedTableBoundarySource);
   const preservationSource = repairedListMarkerSource;
   const finalizeMarkdown = (markdown: string) =>
     repairMarkdownSourceAfterPreserve(preservationSource, markdown, edited);
@@ -2645,7 +2794,7 @@ export async function serializeMarkdown<TBlock>(
     serializableBlocks,
   );
   return normalizeSerializedCodeBlockContent(
-    normalizeMarkupHardBreaks(markdown),
+    normalizeSerializedTableHardBreaks(normalizeMarkupHardBreaks(markdown)),
     serializableBlocks,
   );
 }

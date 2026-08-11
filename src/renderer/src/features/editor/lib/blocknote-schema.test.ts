@@ -15,6 +15,7 @@ import { EditorView, getDrawSelectionConfig } from "@codemirror/view";
 import { AllSelection, NodeSelection, TextSelection } from "@tiptap/pm/state";
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import MarkdownIt from "markdown-it";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -29,6 +30,7 @@ import { shouldStopEditorCodeBlockNodeViewEvent } from "./editor-code-block-node
 import * as blocknoteSchemaModule from "./blocknote-schema";
 import {
   parseMarkdown,
+  preserveMarkdownSource,
   repairMarkdownSourceBeforeParse,
   serializeMarkdown,
 } from "./markdown";
@@ -93,6 +95,21 @@ function setupMatchMedia() {
       removeListener: () => undefined,
     }),
   });
+}
+
+function createMarkdownTableTestBlock() {
+  return {
+    type: "table" as const,
+    content: {
+      type: "tableContent" as const,
+      headerRows: 1,
+      rows: [
+        { cells: ["2", "32", "434324234234234", "4324"] },
+        { cells: ["111", "232323", "23423", "42344234"] },
+        { cells: ["aa", "234234234234", "423424324", "22"] },
+      ],
+    },
+  };
 }
 
 function renderInlineCodeTestEditor() {
@@ -803,6 +820,149 @@ describe("editor BlockNote schema", () => {
     expect(
       Math.max(...serialize.mock.calls.map(([blocks]) => blocks?.length ?? 0)),
     ).toBeLessThanOrEqual(24);
+  });
+
+  it("round-trips hard breaks inside Markdown table cells", async () => {
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "table",
+          content: {
+            type: "tableContent",
+            headerRows: 1,
+            rows: [
+              { cells: ["Key", "Description"] },
+              { cells: ["welcome", "First line\nSecond line"] },
+            ],
+          },
+        },
+      ],
+    });
+
+    const serialized = await serializeMarkdown(editor, editor.document);
+    const reopenedBlocks = await parseMarkdown(editor, serialized);
+    const legacyBrokenSource = serialized.replace(
+      "First line<br>Second line",
+      "First line\\\nSecond line",
+    );
+    const repairedLegacyBlocks = await parseMarkdown(
+      editor,
+      legacyBrokenSource,
+    );
+
+    expect(serialized).toContain("First line<br>Second line");
+    expect(serialized).not.toContain("First line\\\nSecond line");
+    expect(repairMarkdownSourceBeforeParse(legacyBrokenSource)).toBe(
+      serialized,
+    );
+    expect(reopenedBlocks).toHaveLength(1);
+    expect(repairedLegacyBlocks).toHaveLength(1);
+    expect(repairedLegacyBlocks[0].type).toBe(reopenedBlocks[0].type);
+    expect(repairedLegacyBlocks[0].content).toEqual(reopenedBlocks[0].content);
+    expect(reopenedBlocks[0]).toMatchObject({
+      type: "table",
+      content: {
+        rows: [
+          {
+            cells: [
+              { content: [{ text: "Key" }] },
+              { content: [{ text: "Description" }] },
+            ],
+          },
+          {
+            cells: [
+              { content: [{ text: "welcome" }] },
+              { content: [{ text: "First line\nSecond line" }] },
+            ],
+          },
+        ],
+      },
+    });
+  });
+
+  it("separates adjacent tables for standard GFM consumers", async () => {
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        createMarkdownTableTestBlock(),
+        createMarkdownTableTestBlock(),
+      ],
+    });
+
+    const blocknoteSerialized = editor.blocksToMarkdownLossy(editor.document);
+    const serialized = await serializeMarkdown(editor, editor.document);
+    const blocknoteRendered = new MarkdownIt().render(blocknoteSerialized);
+    const rendered = new MarkdownIt().render(serialized);
+    const reopenedBlocks = await parseMarkdown(editor, serialized);
+    const compactSource = [
+      "| 2 | 32 | 434324234234234 | 4324 |",
+      "| --- | --- | --- | --- |",
+      "| 111 | 232323 | 23423 | 42344234 |",
+      "| aa | 234234234234 | 423424324 | 22 |",
+      "",
+    ].join("\n");
+    const firstTableBaseline = editor.blocksToMarkdownLossy([
+      editor.document[0],
+    ]);
+    const preserved = preserveMarkdownSource(
+      compactSource,
+      firstTableBaseline,
+      serialized,
+    );
+    const preservedRendered = new MarkdownIt().render(preserved);
+    const joinedLegacySource = serialized.replace(/\n\n(?=\|\s*2\s*\|)/u, "\n");
+    const repairedLegacySource = preserveMarkdownSource(
+      joinedLegacySource,
+      serialized,
+      serialized,
+    );
+
+    expect(blocknoteRendered.match(/<table>/gu)).toHaveLength(2);
+    expect(serialized).toMatch(/\|\s*aa\s*\|[^\n]*\n\n\|\s*2\s*\|/u);
+    expect(rendered.match(/<table>/gu)).toHaveLength(2);
+    expect(preservedRendered.match(/<table>/gu)).toHaveLength(2);
+    expect(
+      new MarkdownIt().render(joinedLegacySource).match(/<table>/gu),
+    ).toHaveLength(1);
+    expect(repairedLegacySource).toBe(serialized);
+    expect(
+      new MarkdownIt().render(repairedLegacySource).match(/<table>/gu),
+    ).toHaveLength(2);
+    expect(reopenedBlocks.map((block) => block.type)).toEqual([
+      "table",
+      "table",
+    ]);
+  });
+
+  it("separates a paragraph following a table for standard GFM consumers", async () => {
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        { type: "paragraph", content: "2" },
+        createMarkdownTableTestBlock(),
+        { type: "paragraph", content: "2" },
+        createMarkdownTableTestBlock(),
+      ],
+    });
+    const serialized = await serializeMarkdown(editor, editor.document);
+    const joinedLegacySource = serialized.replace(
+      /\n\n(2\n\n(?=\|\s*2\s*\|))/u,
+      "\n$1",
+    );
+    const repairedLegacySource = preserveMarkdownSource(
+      joinedLegacySource,
+      serialized,
+      serialized,
+    );
+    const brokenRendered = new MarkdownIt().render(joinedLegacySource);
+    const repairedRendered = new MarkdownIt().render(repairedLegacySource);
+
+    expect(brokenRendered.match(/<p>/gu)).toHaveLength(1);
+    expect(brokenRendered.match(/<tr>/gu)).toHaveLength(7);
+    expect(repairedLegacySource).toBe(serialized);
+    expect(repairedRendered.match(/<p>/gu)).toHaveLength(2);
+    expect(repairedRendered.match(/<tr>/gu)).toHaveLength(6);
   });
 
   it("serializes a long quote-owned list in bounded batches", async () => {

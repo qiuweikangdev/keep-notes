@@ -211,8 +211,9 @@ function parsePastedHTMLTable(
   if (rows.length === 0) return null;
 
   const detectedHeaderRows = getPastedTableHeaderRowCount(table, rows);
+  // GFM 表格必须有表头；外部全 td 表格若保留为 0，保存时会生成一行空表头并在重开后错位。
   const headerRows =
-    detectedHeaderRows === -1 ? rows.length : detectedHeaderRows;
+    detectedHeaderRows === -1 ? rows.length : Math.max(1, detectedHeaderRows);
   const headerCols = getPastedTableHeaderColumnCount(rows, headerRows);
 
   return {
