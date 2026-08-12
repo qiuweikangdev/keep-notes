@@ -3,7 +3,12 @@ import { join } from "node:path";
 import { app, session } from "electron";
 import { electronApp, optimizer } from "@electron-toolkit/utils";
 import icon from "../../resources/icon.png?asset";
-import { createWindow, focusMainWindow, getMainWindow } from "./window";
+import {
+  createWindow,
+  focusMainWindow,
+  getMainWindow,
+  openMarkdownFileInCurrentWindow,
+} from "./window";
 import { registerAllIpc } from "./ipc";
 import { registerAppMenu } from "./menu";
 import { initializeReminderIpc } from "./ipc/reminder.ipc";
@@ -21,11 +26,38 @@ import {
   disposeQuickEditorWindow,
 } from "./quick-editor-window";
 import { createTray, disposeTray, refreshTray } from "./tray";
+import {
+  getMarkdownFilePathsFromCommandLine,
+  normalizeMarkdownFilePath,
+} from "./markdown-open";
 
 const APP_ID = "com.keep-notes";
 const APP_NAME = "Keep Notes";
 
 app.setName(APP_NAME);
+
+const pendingMarkdownFilePaths = new Set(
+  getMarkdownFilePathsFromCommandLine(process.argv),
+);
+let canOpenMarkdownFiles = false;
+
+function requestMarkdownFileOpen(filePath: string): void {
+  const markdownPath = normalizeMarkdownFilePath(filePath);
+  if (!markdownPath) return;
+
+  if (!canOpenMarkdownFiles) {
+    pendingMarkdownFilePaths.add(markdownPath);
+    return;
+  }
+
+  void openMarkdownFileInCurrentWindow(markdownPath);
+}
+
+// macOS 会通过 open-file 事件把 Finder 的“打开方式”请求交给已启动或正在启动的应用。
+app.on("open-file", (event, filePath) => {
+  event.preventDefault();
+  requestMarkdownFileOpen(filePath);
+});
 
 if (!app.isPackaged) {
   // 开发版使用独立数据目录，避免与已安装版本争用缓存和网络状态文件。
@@ -45,9 +77,17 @@ const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) {
   app.quit();
 } else {
-  app.on("second-instance", () => {
+  app.on("second-instance", (_event, commandLine, workingDirectory) => {
     // 重复启动只唤醒已有主窗口，避免多个进程争抢全局快捷键。
     if (process.platform === "darwin") refreshTray();
+    const markdownFilePaths = getMarkdownFilePathsFromCommandLine(
+      commandLine,
+      workingDirectory,
+    );
+    if (markdownFilePaths.length > 0) {
+      markdownFilePaths.forEach(requestMarkdownFileOpen);
+      return;
+    }
     if (!getMainWindow()) {
       createWindow();
     } else {
@@ -89,6 +129,11 @@ if (!hasSingleInstanceLock) {
     createTray();
     // 主窗口在后台预加载，可从系统托盘或 macOS Dock 随时唤醒。
     createWindow(undefined, { show: false });
+    canOpenMarkdownFiles = true;
+    pendingMarkdownFilePaths.forEach((filePath) => {
+      void openMarkdownFileInCurrentWindow(filePath);
+    });
+    pendingMarkdownFilePaths.clear();
 
     app.on("activate", () => {
       // 从 Dock 激活时刷新状态栏项目，处理显示器仅熄屏但仍被系统识别的情况。

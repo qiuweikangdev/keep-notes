@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const invoke = vi.fn();
+const getPathForFile = vi.fn();
 
 vi.mock("electron", () => ({
   ipcRenderer: {
@@ -8,11 +9,22 @@ vi.mock("electron", () => ({
     on: vi.fn(),
     removeListener: vi.fn(),
   },
+  webUtils: { getPathForFile },
 }));
 
 describe("fileApi", () => {
   beforeEach(() => {
     invoke.mockReset();
+    getPathForFile.mockReset();
+  });
+
+  it("gets a dropped file path through Electron webUtils", async () => {
+    const { fileApi } = await import("./file.api");
+    const file = new File(["# Note"], "note.md");
+    getPathForFile.mockReturnValue("/workspace/notes/note.md");
+
+    expect(fileApi.getPathForFile(file)).toBe("/workspace/notes/note.md");
+    expect(getPathForFile).toHaveBeenCalledWith(file);
   });
 
   it("invokes the copy-path channel", async () => {

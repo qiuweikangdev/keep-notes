@@ -1,4 +1,4 @@
-import { ipcRenderer } from "electron";
+import { ipcRenderer, webUtils } from "electron";
 import type { IpcRendererEvent } from "electron";
 import { IPC_CHANNELS } from "../../shared/constants";
 import type {
@@ -13,6 +13,10 @@ import type {
 } from "../../shared/types";
 
 export const fileApi = {
+  getPathForFile: (file: File): string => {
+    return webUtils.getPathForFile(file);
+  },
+
   readFile: (filePath: string): Promise<string> => {
     return ipcRenderer.invoke(IPC_CHANNELS.FILE.READ, filePath);
   },

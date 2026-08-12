@@ -177,6 +177,64 @@ export async function openPathInNewWindow(
   }
 }
 
+export async function openMarkdownFileInCurrentWindow(
+  filePath: string,
+  deps: {
+    createWindow?: (
+      target?: WindowOpenTarget,
+      options?: CreateWindowOptions,
+    ) => BrowserWindow;
+    focusMainWindow?: () => void;
+    getMainWindow?: () => BrowserWindow | null;
+    stat?: typeof fs.promises.stat;
+  } = {},
+): Promise<boolean> {
+  const {
+    createWindow: createWindowImpl = createWindow,
+    focusMainWindow: focusMainWindowImpl = focusMainWindow,
+    getMainWindow: getMainWindowImpl = getMainWindow,
+    stat = fs.promises.stat,
+  } = deps;
+
+  try {
+    const stats = await stat(filePath);
+    if (!stats.isFile() || !filePath.toLowerCase().endsWith(".md")) {
+      return false;
+    }
+
+    const target: WindowOpenTarget = {
+      filePath,
+      openInNewTab: true,
+    };
+    const currentWindow = getMainWindowImpl();
+
+    if (!currentWindow) {
+      createWindowImpl(target);
+      return true;
+    }
+
+    const sendTarget = () => {
+      if (currentWindow.isDestroyed()) return;
+      currentWindow.webContents.send(IPC_CHANNELS.WINDOW.OPEN_TARGET, target);
+    };
+
+    // 预加载窗口尚未完成时延后发送，避免 renderer 监听器还未注册而丢失系统打开请求。
+    if (currentWindow.webContents.isLoadingMainFrame()) {
+      currentWindow.webContents.once("did-finish-load", sendTarget);
+    } else {
+      sendTarget();
+    }
+    focusMainWindowImpl();
+    return true;
+  } catch (error) {
+    console.error(
+      "Error while opening Markdown file in current window:",
+      error,
+    );
+    return false;
+  }
+}
+
 function isCloseSaveSnapshot(value: unknown): value is CloseSaveSnapshot {
   if (typeof value !== "object" || value === null) return false;
 

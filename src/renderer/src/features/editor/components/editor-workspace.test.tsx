@@ -298,6 +298,32 @@ describe("EditorWorkspace split rich editor mount", () => {
     );
   });
 
+  it("binds a new rich tab to the dragged file while its content is loading", () => {
+    useEditorStore.setState({
+      activeGroupId: "group-1",
+      panelGroups: [
+        {
+          id: "group-1",
+          activeTabId: "tab-dropped",
+          direction: "horizontal",
+          tabs: [
+            {
+              ...createTab("tab-dropped", null, ""),
+              pendingFilePath: "/notes/dragged.md",
+              loadStatus: "loading",
+            },
+          ],
+        },
+      ],
+    });
+
+    render(<EditorWorkspace groupId="group-1" tabId="tab-dropped" />);
+
+    expect(screen.getByTestId("rich-document-pane")).toHaveTextContent(
+      "group-1:tab-dropped:/notes/dragged.md",
+    );
+  });
+
   it("opens the find widget outside the translucent editor tree", () => {
     const { container } = render(
       <EditorWorkspace groupId="group-1" tabId="tab-1" />,

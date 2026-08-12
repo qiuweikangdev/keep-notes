@@ -436,6 +436,7 @@ describe("Editor split panels", () => {
       expect(electronMocks.openFile).toHaveBeenCalledWith(
         draggedPath,
         "group-2",
+        { openInNewTab: true },
       );
     });
   });
@@ -537,6 +538,7 @@ describe("Editor split panels", () => {
       expect(electronMocks.openFile).toHaveBeenCalledWith(
         draggedPath,
         "group-2",
+        { openInNewTab: true },
       );
     });
   });

@@ -5,6 +5,7 @@ import {
   checkAndCloseWindow,
   createWindow,
   focusMainWindow,
+  openMarkdownFileInCurrentWindow,
   openPathInNewWindow,
   resolveWindowOpenTarget,
   saveAndClose,
@@ -57,6 +58,7 @@ const BrowserWindowMock = vi.hoisted(() =>
       webContents: {
         isDevToolsOpened: vi.fn(() => false),
         openDevTools: vi.fn(),
+        isLoadingMainFrame: vi.fn(() => false),
         once: vi.fn(),
         setWindowOpenHandler: vi.fn(),
         send: vi.fn(),
@@ -226,6 +228,54 @@ describe("openPathInNewWindow", () => {
     expect(createWindow).toHaveBeenCalledWith({
       rootPath: path.dirname(filePath),
       filePath,
+    });
+  });
+});
+
+describe("openMarkdownFileInCurrentWindow", () => {
+  it("sends a Markdown file to the existing window as a new tab", async () => {
+    const currentWindow = BrowserWindowMock(
+      {},
+    ) as unknown as Electron.BrowserWindow;
+    const focusCurrentWindow = vi.fn();
+    const filePath = "/workspace/outside/daily.md";
+
+    await expect(
+      openMarkdownFileInCurrentWindow(filePath, {
+        focusMainWindow: focusCurrentWindow,
+        getMainWindow: () => currentWindow,
+        stat: vi.fn(async () => ({
+          isFile: () => true,
+        })) as unknown as typeof fs.promises.stat,
+      }),
+    ).resolves.toBe(true);
+
+    expect(currentWindow.webContents.send).toHaveBeenCalledWith(
+      "window:open-target",
+      { filePath, openInNewTab: true },
+    );
+    expect(focusCurrentWindow).toHaveBeenCalledOnce();
+  });
+
+  it("creates a window with the Markdown target when none exists", async () => {
+    const createCurrentWindow = vi.fn(() =>
+      BrowserWindowMock({}),
+    ) as unknown as (target?: WindowOpenTarget) => Electron.BrowserWindow;
+    const filePath = "/workspace/outside/daily.md";
+
+    await expect(
+      openMarkdownFileInCurrentWindow(filePath, {
+        createWindow: createCurrentWindow,
+        getMainWindow: () => null,
+        stat: vi.fn(async () => ({
+          isFile: () => true,
+        })) as unknown as typeof fs.promises.stat,
+      }),
+    ).resolves.toBe(true);
+
+    expect(createCurrentWindow).toHaveBeenCalledWith({
+      filePath,
+      openInNewTab: true,
     });
   });
 });

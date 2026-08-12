@@ -84,25 +84,25 @@ function HomePageContent() {
   }, []);
 
   useEffect(() => {
-    const applyWindowTarget = async () => {
-      const target = window.electronAPI.consumeWindowOpenTarget();
+    const applyWindowTarget = async (
+      target: ReturnType<typeof window.electronAPI.consumeWindowOpenTarget>,
+    ) => {
       if (!target) return;
 
-      await loadTree(target.rootPath);
-      if (target.filePath) {
+      if (target.rootPath) await loadTree(target.rootPath);
+      if (!target.filePath) return;
+
+      if (target.openInNewTab) {
+        await openFile(target.filePath, undefined, { openInNewTab: true });
+      } else {
         await openFile(target.filePath);
       }
     };
 
-    void applyWindowTarget();
+    void applyWindowTarget(window.electronAPI.consumeWindowOpenTarget());
 
     return window.electronAPI.onWindowOpenTarget((target) => {
-      void (async () => {
-        await loadTree(target.rootPath);
-        if (target.filePath) {
-          await openFile(target.filePath);
-        }
-      })();
+      void applyWindowTarget(target);
     });
   }, [loadTree, openFile]);
 

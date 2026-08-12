@@ -176,10 +176,17 @@ export interface QuickEditorSaveResult {
   source: NonNullable<QuickEditorWindowContent["source"]>;
 }
 
-export interface WindowOpenTarget {
-  rootPath: string;
-  filePath?: string;
-}
+export type WindowOpenTarget =
+  | {
+      rootPath: string;
+      filePath?: string;
+      openInNewTab?: false;
+    }
+  | {
+      rootPath?: never;
+      filePath: string;
+      openInNewTab: true;
+    };
 
 export interface AppInfo {
   version: string;

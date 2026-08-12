@@ -29,5 +29,15 @@ export function getDraggedFilePath(dataTransfer: FileDragDataTransfer) {
   if (internalPath) return internalPath;
 
   const [file] = Array.from(dataTransfer.files ?? []);
-  return (file as FileWithPath | undefined)?.path ?? "";
+  if (!file) return "";
+
+  const legacyPath = (file as FileWithPath).path;
+  if (legacyPath) return legacyPath;
+
+  try {
+    // Electron 32+ 移除了 File.path，必须通过 preload 中的 webUtils 安全获取系统路径。
+    return window.electronAPI?.getPathForFile?.(file) ?? "";
+  } catch {
+    return "";
+  }
 }

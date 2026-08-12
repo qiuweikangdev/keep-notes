@@ -181,7 +181,8 @@ export function RichDocumentSessionHost({
       getActiveBinding,
       getBoundTabIds: () =>
         richDocumentSessionManager.getBoundTabIds(normalizedPath),
-      onFileDrop: (filePath, binding) => openFile(filePath, binding.groupId),
+      onFileDrop: (filePath, binding) =>
+        openFile(filePath, binding.groupId, { openInNewTab: true }),
       onMarkdownChange: (content) => {
         const store = useEditorStore.getState();
         const synchronizedTabIds = selectSynchronizedTabIds(

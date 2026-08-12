@@ -288,14 +288,20 @@ export function useElectron() {
   );
 
   const openFile = useCallback(
-    async (filePath: string, targetGroupId?: string) => {
+    async (
+      filePath: string,
+      targetGroupId?: string,
+      options: { openInNewTab?: boolean } = {},
+    ) => {
       let state = useEditorStore.getState();
       let targetGroup = targetGroupId
         ? state.panelGroups.find((group) => group.id === targetGroupId)
         : state.panelGroups.find((group) => group.id === state.activeGroupId);
+      let createdInitialTab = false;
 
       if (targetGroup && targetGroup.tabs.length === 0) {
         state.addTab(targetGroup.id);
+        createdInitialTab = true;
         state = useEditorStore.getState();
         targetGroup = state.panelGroups.find(
           (group) => group.id === targetGroup!.id,
@@ -317,7 +323,10 @@ export function useElectron() {
           return;
         }
 
-        tabId = selectFileOpenTabId(targetGroup, state.addTab);
+        tabId =
+          options.openInNewTab && !createdInitialTab
+            ? state.addTab(targetGroup.id)
+            : selectFileOpenTabId(targetGroup, state.addTab);
         if (tabId !== targetGroup.activeTabId) {
           state = useEditorStore.getState();
           targetGroup = state.panelGroups.find(

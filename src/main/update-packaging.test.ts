@@ -13,4 +13,15 @@ describe("update packaging config", () => {
       /mac:\n(?:  .+\n)*  artifactName: \$\{name\}-\$\{version\}-\$\{arch\}-mac\.\$\{ext\}/,
     );
   });
+
+  it("registers Keep Notes as a Markdown editor", () => {
+    const config = readFileSync(
+      resolve(process.cwd(), "electron-builder.yml"),
+      "utf8",
+    );
+
+    expect(config).toMatch(
+      /fileAssociations:\n(?:  .+\n)*  - ext: md\n(?:    .+\n)*    role: Editor/,
+    );
+  });
 });

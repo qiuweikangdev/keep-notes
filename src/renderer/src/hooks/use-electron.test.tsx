@@ -224,6 +224,32 @@ describe("useElectron file reuse", () => {
     });
   });
 
+  it("opens an externally requested file in a new tab", async () => {
+    const previousPath = "C:/notes/current.md";
+    const targetPath = "C:/outside/external.md";
+    setupOpenFileTab(previousPath, "# Current", "source");
+    readFile.mockResolvedValue("# External");
+    const { result } = renderHook(() => useElectron());
+
+    await act(async () => {
+      await result.current.openFile(targetPath, undefined, {
+        openInNewTab: true,
+      });
+    });
+
+    const tabs = useEditorStore.getState().panelGroups[0].tabs;
+    expect(tabs).toHaveLength(2);
+    expect(tabs[0]).toMatchObject({
+      filePath: previousPath,
+      content: "# Current",
+    });
+    expect(tabs[1]).toMatchObject({
+      filePath: targetPath,
+      content: "# External",
+      loadStatus: "ready",
+    });
+  });
+
   it("opens the target before a previous large rich-text serialization settles", async () => {
     vi.useFakeTimers();
     const previousPath = "C:/notes/large-previous.md";

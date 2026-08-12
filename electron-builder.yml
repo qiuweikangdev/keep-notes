@@ -11,6 +11,12 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/**
+fileAssociations:
+  - ext: md
+    name: Markdown Document
+    description: Markdown document
+    mimeType: text/markdown
+    role: Editor
 win:
   icon: build/icon.ico
   executableName: keep-notes

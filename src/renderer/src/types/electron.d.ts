@@ -57,6 +57,7 @@ export interface ElectronAPI {
   getPlatform: () => string;
   // 监听菜单动作（macOS 应用菜单触发）
   onMenuAction: (callback: (action: string) => void) => () => void;
+  getPathForFile: (file: File) => string;
   readFile: (filePath: string) => Promise<string>;
   writeFile: (filePath: string, content: string) => Promise<void>;
   loadImageAsDataUrl: (source: string) => Promise<string | null>;

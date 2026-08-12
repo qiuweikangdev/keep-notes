@@ -332,7 +332,7 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
       }
 
       // 打开文件，指定目标面板组
-      await openFile(filePath, groupId);
+      await openFile(filePath, groupId, { openInNewTab: true });
     },
     [clearFileDragTargetGroupId, groupId, openFile],
   );
