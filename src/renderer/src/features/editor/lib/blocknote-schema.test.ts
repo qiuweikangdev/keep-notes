@@ -2905,6 +2905,44 @@ describe("editor BlockNote schema", () => {
     },
   );
 
+  it("normalizes text selections left on a block group boundary", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        { type: "paragraph", content: "Before" },
+        {
+          type: "table",
+          content: {
+            type: "tableContent",
+            rows: [
+              {
+                cells: ["A", "B"],
+              },
+            ],
+          },
+        },
+      ],
+    });
+    render(createElement(BlockNoteView, { editor }));
+
+    const view = editor.prosemirrorView;
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const invalidSelection = TextSelection.create(
+      view.state.doc,
+      1,
+      view.state.doc.content.size - 1,
+    );
+    expect(invalidSelection.$from.parent.inlineContent).toBe(false);
+
+    view.dispatch(view.state.tr.setSelection(invalidSelection));
+
+    expect(view.state.selection).toBeInstanceOf(TextSelection);
+    expect(view.state.selection.$from.parent.inlineContent).toBe(true);
+    expect(view.state.selection.$to.parent.inlineContent).toBe(true);
+    warning.mockRestore();
+  });
+
   it("renders JavaScript code blocks with CodeMirror", async () => {
     setupMatchMedia();
     const editor = BlockNoteEditor.create({

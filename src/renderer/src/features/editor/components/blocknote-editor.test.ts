@@ -1,4 +1,7 @@
-import { BlockNoteEditor as CoreBlockNoteEditor } from "@blocknote/core";
+import {
+  BlockNoteEditor as CoreBlockNoteEditor,
+  getNodeById,
+} from "@blocknote/core";
 import {
   FormattingToolbarExtension,
   SideMenuExtension,
@@ -12,7 +15,7 @@ import {
   render,
   waitFor,
 } from "@testing-library/react";
-import { AllSelection, TextSelection } from "@tiptap/pm/state";
+import { AllSelection, NodeSelection, TextSelection } from "@tiptap/pm/state";
 import { createElement, StrictMode } from "react";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -43,6 +46,8 @@ import {
   isSelectionStartingAtRichEditorTextStart,
   focusEditorOutlineBlock,
   moveCursorAfterUploadedImage,
+  moveRichEditorBlocksToDocumentEnd,
+  readRichEditorDraggedBlockIds,
   pasteExternalHTMLTables,
   pasteMarkupAsPlainText,
   resolveEditorTextPosition,
@@ -167,6 +172,10 @@ function setupMatchMedia() {
 }
 
 function setupDomMeasurements() {
+  Object.defineProperty(document, "elementFromPoint", {
+    configurable: true,
+    value: () => document.body,
+  });
   Object.defineProperty(document, "elementsFromPoint", {
     configurable: true,
     value: () => [],
@@ -210,6 +219,19 @@ function selectTextByContent(editor: CoreBlockNoteEditor, text: string) {
 }
 
 describe("BlockNoteEditor rich text selection", () => {
+  it("reads a dragged block from a structurally compatible node selection", () => {
+    const editor = {
+      getSelection: () => undefined,
+      prosemirrorState: {
+        selection: {
+          node: { attrs: { id: "table-id" } },
+        },
+      },
+    } as unknown as CoreBlockNoteEditor;
+
+    expect(readRichEditorDraggedBlockIds(editor)).toEqual(["table-id"]);
+  });
+
   it("lets the quote-aware controller own the block side menu", () => {
     expect(richEditorDefaultUIProps.sideMenu).toBe(false);
   });
@@ -1750,6 +1772,76 @@ describe("BlockNoteEditor code paste", () => {
           ],
         },
       });
+    } finally {
+      session.view.unmount();
+    }
+  });
+
+  it("keeps the pasted four-column table identical in rich text and Markdown source", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/four-column-rich-table-paste.md";
+    setupSessionTab(path);
+    const session = renderRealSession(path, false, "");
+
+    try {
+      vi.stubGlobal("ClipboardEvent", Event);
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const editor = session.runtime.current!.editor;
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "clipboardData", {
+        value: {
+          getData: (type: string) =>
+            type === "text/html"
+              ? [
+                  "<table><thead><tr>",
+                  "<th>2</th><th>32</th><th>434324234234234</th><th>4324</th>",
+                  "</tr></thead><tbody>",
+                  "<tr><td>111</td><td>232323</td><td>23423</td><td>42344234</td></tr>",
+                  "<tr><td>aa</td><td>234234234234</td><td>423424324</td><td>22</td></tr>",
+                  "</tbody></table>",
+                ].join("")
+              : "2\t32\t434324234234234\t4324\n111\t232323\t23423\t42344234\naa\t234234234234\t423424324\t22",
+          types: ["text/html", "text/plain"],
+        },
+      });
+
+      act(() => {
+        editor.prosemirrorView.dom.dispatchEvent(event);
+      });
+
+      expect(editor.document).toHaveLength(1);
+      expect(editor.document[0].type).toBe("table");
+      const serialized = await markdownMocks.actualSerializeMarkdown!(
+        editor,
+        editor.document,
+      );
+      expect(serialized).toBe(
+        [
+          "| 2          | 32           | 434324234234234 | 4324       |",
+          "| ---------- | ------------ | --------------- | ---------- |",
+          "| 111        | 232323       | 23423           | 42344234   |",
+          "| aa         | 234234234234 | 423424324       | 22         |",
+          "",
+        ].join("\n"),
+      );
+      session.callbacks.onMarkdownChange.mockClear();
+      await session.runtime.current!.serializePendingChange();
+      expect(session.callbacks.onMarkdownChange).toHaveBeenCalledWith(
+        serialized.trimEnd(),
+      );
+
+      const reopenedBlocks = await editor.tryParseMarkdownToBlocks(serialized);
+      expect(reopenedBlocks).toHaveLength(1);
+      expect(reopenedBlocks[0].type).toBe("table");
+      expect(reopenedBlocks[0].content).toMatchObject({
+        headerRows: 1,
+      });
+      expect(
+        reopenedBlocks[0].content.rows.map(
+          (row) => row.cells[0].content?.[0]?.text,
+        ),
+      ).toEqual(["2", "111", "aa"]);
     } finally {
       session.view.unmount();
     }
@@ -3597,6 +3689,138 @@ describe("BlockNoteEditor persistent session runtime", () => {
     fireEvent.dragOver(scrollContainer, { dataTransfer });
 
     expect(useEditorStore.getState().fileDragTargetGroupId).toBeNull();
+
+    session.view.unmount();
+  });
+
+  it("moves an internal drop at the document end without native copying", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    setupSessionTab("C:/notes/end-drop.md");
+    const source = "| Key | Value |\n| --- | --- |\n| A | B |";
+    const session = renderRealSession("C:/notes/end-drop.md", false, source);
+
+    await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    const trailingWidget =
+      session.view.container.querySelector<HTMLElement>(".bn-trailing-block")!;
+    const dataTransfer = {
+      dropEffect: "none",
+      getData: vi.fn(() => ""),
+      types: ["blocknote/html"],
+    } as unknown as DataTransfer;
+    const editor = session.runtime.current!.editor;
+    const view = editor.prosemirrorView;
+    const table = editor.document[0];
+    const tablePosition = getNodeById(table.id, view.state.doc)?.posBeforeNode;
+    expect(tablePosition).toBeDefined();
+    act(() => {
+      view.dispatch(
+        view.state.tr.setSelection(
+          NodeSelection.create(view.state.doc, tablePosition!),
+        ),
+      );
+      view.dragging = {
+        move: true,
+        slice: view.state.selection.content(),
+      };
+    });
+    const serializedBeforeDrag = await markdownMocks.actualSerializeMarkdown!(
+      editor,
+      editor.document,
+    );
+
+    const scrollContainer = session.view.container.querySelector<HTMLElement>(
+      ".editor-rich-scroll",
+    )!;
+    fireEvent.dragStart(scrollContainer, { dataTransfer });
+    act(() => {
+      editor.setTextCursorPosition(table, "end");
+    });
+    fireEvent.dragOver(trailingWidget, { dataTransfer });
+
+    const lastBlock = editor.document.at(-1);
+    expect(lastBlock?.type).toBe("table");
+    expect(
+      session.view.container.querySelector(".bn-trailing-block"),
+    ).not.toBeNull();
+    await expect(
+      markdownMocks.actualSerializeMarkdown!(editor, editor.document),
+    ).resolves.toBe(serializedBeforeDrag);
+
+    fireEvent.drop(trailingWidget, { dataTransfer });
+
+    expect(editor.document.map((block) => block.type)).toEqual([
+      "table",
+      "paragraph",
+    ]);
+    expect(
+      editor.document.filter((block) => block.id === table.id),
+    ).toHaveLength(1);
+    expect(editor.getTextCursorPosition().block.id).toBe(
+      editor.document.at(-1)?.id,
+    );
+    await expect(
+      markdownMocks.actualSerializeMarkdown!(editor, editor.document),
+    ).resolves.toBe(serializedBeforeDrag);
+
+    session.view.unmount();
+  });
+
+  it("moves a block to the document end without copying it", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    setupSessionTab("C:/notes/normalize-end-drop.md");
+    const session = renderRealSession(
+      "C:/notes/normalize-end-drop.md",
+      false,
+      "Before\n\n| Key | Value |\n| --- | --- |\n| A | B |",
+    );
+
+    await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    const editor = session.runtime.current!.editor;
+    const table = editor.document.find((block) => block.type === "table")!;
+    const tableId = table.id;
+
+    act(() => {
+      moveRichEditorBlocksToDocumentEnd(editor, [tableId]);
+    });
+
+    const blocks = editor.document;
+    expect(blocks.at(-2)?.id).toBe(tableId);
+    expect(blocks.at(-1)?.type).toBe("paragraph");
+    expect(blocks.at(-1)?.content).toEqual([]);
+    expect(editor.getTextCursorPosition().block.id).toBe(blocks.at(-1)?.id);
+    expect(blocks.filter((block) => block.id === tableId)).toHaveLength(1);
+    expect(blocks.filter((block) => block.type === "table")).toHaveLength(1);
+
+    session.view.unmount();
+  });
+
+  it("keeps a last block unique when moving it behind itself", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    setupSessionTab("C:/notes/already-last-end-drop.md");
+    const session = renderRealSession(
+      "C:/notes/already-last-end-drop.md",
+      false,
+      "| Key | Value |\n| --- | --- |\n| A | B |",
+    );
+
+    await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    const editor = session.runtime.current!.editor;
+    const tableId = editor.document[0].id;
+
+    act(() => {
+      moveRichEditorBlocksToDocumentEnd(editor, [tableId]);
+    });
+
+    expect(editor.document.map((block) => block.type)).toEqual([
+      "table",
+      "paragraph",
+    ]);
+    expect(
+      editor.document.filter((block) => block.id === tableId),
+    ).toHaveLength(1);
 
     session.view.unmount();
   });

@@ -1160,6 +1160,41 @@ const fullDocumentClearExtension = createExtension({
   },
 });
 
+function normalizeBlockBoundaryTextSelection(state: EditorState) {
+  const { selection } = state;
+  if (!(selection instanceof TextSelection)) return null;
+  if (
+    selection.$anchor.parent.inlineContent &&
+    selection.$head.parent.inlineContent
+  ) {
+    return null;
+  }
+
+  // 块删除或拖拽映射可能把 TextSelection 暂时留在 blockGroup 边界；就近恢复为合法文本选区。
+  const normalizedSelection = TextSelection.between(
+    selection.$anchor,
+    selection.$head,
+  );
+  return normalizedSelection.eq(selection) ? null : normalizedSelection;
+}
+
+const blockBoundarySelectionNormalizerExtension = createExtension({
+  key: "editor-block-boundary-selection-normalizer",
+  prosemirrorPlugins: [
+    new Plugin({
+      appendTransaction(_transactions, _oldState, newState) {
+        const normalizedSelection =
+          normalizeBlockBoundaryTextSelection(newState);
+        if (!normalizedSelection) return null;
+
+        return newState.tr
+          .setSelection(normalizedSelection)
+          .setMeta("addToHistory", false);
+      },
+    }),
+  ],
+});
+
 const baseCodeBlockSpec = createCodeBlockSpec(codeBlockOptions);
 
 const editorCodeBlockExtensions = [
@@ -1632,6 +1667,7 @@ const editorParagraphSpec = {
   ...defaultBlockSpecs.paragraph,
   extensions: [
     ...(defaultBlockSpecs.paragraph.extensions ?? []),
+    blockBoundarySelectionNormalizerExtension(),
     fullDocumentClearExtension(),
     inlineCodeBackspaceExtension(),
     inlineCodeEditingExtension(),

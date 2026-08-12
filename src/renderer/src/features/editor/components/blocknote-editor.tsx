@@ -1108,7 +1108,27 @@ function EditorFormattingToolbarContent(props: FormattingToolbarProps) {
   );
 }
 
+function isFormattingToolbarSelectionSafe(selection: Selection) {
+  return !(
+    selection instanceof TextSelection &&
+    (!selection.$from.parent.inlineContent ||
+      !selection.$to.parent.inlineContent)
+  );
+}
+
 export function EditorFormattingToolbar() {
+  const editor = useBlockNoteEditor();
+  const selectionIsSafe = useEditorState({
+    editor,
+    selector: ({ editor: currentEditor }) =>
+      isFormattingToolbarSelectionSafe(
+        currentEditor.prosemirrorState.selection,
+      ),
+  });
+
+  // BlockNote 0.51 的表格按钮会把 blockGroup 边界再减一并 resolve，异常选区期间不渲染工具栏。
+  if (!selectionIsSafe) return null;
+
   return (
     <FormattingToolbarController
       formattingToolbar={EditorFormattingToolbarContent}
@@ -1163,6 +1183,97 @@ function createBlockIdSelector(blockId: string) {
 const LIVE_EDITOR_BLOCK_SELECTOR = '[data-node-type="blockOuter"][data-id]';
 const OUTLINE_ACTIVATION_VIEWPORT_RATIO = 0.25;
 const OUTLINE_ACTIVATION_MIN_OFFSET = 24;
+
+function isEmptyRichEditorParagraph(block: Block | undefined) {
+  return (
+    block?.type === "paragraph" &&
+    Array.isArray(block.content) &&
+    block.content.length === 0 &&
+    block.children.length === 0
+  );
+}
+
+export function readRichEditorDraggedBlockIds(
+  editor: CoreBlockNoteEditor,
+): string[] {
+  const selection = editor.prosemirrorState.selection;
+  if ("node" in selection) {
+    const blockId = selection.node.attrs.id;
+    return typeof blockId === "string" ? [blockId] : [];
+  }
+
+  const selectedBlocks = editor.getSelection()?.blocks;
+  if (selectedBlocks?.length) {
+    return selectedBlocks.map((block) => block.id);
+  }
+
+  return [];
+}
+
+export function moveRichEditorBlocksToDocumentEnd(
+  editor: CoreBlockNoteEditor,
+  draggedBlockIds: string[],
+) {
+  const draggedBlockIdSet = new Set(draggedBlockIds);
+  const draggedBlocks = draggedBlockIds
+    .map((blockId) => editor.getBlock(blockId))
+    .filter((block): block is Block => block !== undefined);
+  if (draggedBlocks.length === 0) return false;
+
+  editor.transact(() => {
+    const documentBeforeMove = editor.document;
+    const existingTrailingParagraph = documentBeforeMove.at(-1);
+    if (
+      existingTrailingParagraph &&
+      !draggedBlockIdSet.has(existingTrailingParagraph.id) &&
+      isEmptyRichEditorParagraph(existingTrailingParagraph)
+    ) {
+      editor.removeBlocks([existingTrailingParagraph]);
+    }
+
+    const referenceBlock = editor.document.findLast(
+      (block) => !draggedBlockIdSet.has(block.id),
+    );
+    let movedBlocks = draggedBlocks;
+    if (referenceBlock) {
+      // 末尾 drop 由应用独占处理，原块先删除再插入，避免 ProseMirror 再粘贴一份拖拽切片。
+      editor.removeBlocks(draggedBlocks);
+      movedBlocks = editor.insertBlocks(draggedBlocks, referenceBlock, "after");
+    }
+
+    const lastMovedBlock = movedBlocks.at(-1) ?? editor.document.at(-1);
+    if (!lastMovedBlock) return;
+    const [trailingParagraph] = editor.insertBlocks(
+      [{ type: "paragraph" }],
+      lastMovedBlock,
+      "after",
+    );
+    if (trailingParagraph) {
+      // 落下后把光标放进末尾空行，确保占位提示可见，也让用户可以直接继续输入。
+      editor.setTextCursorPosition(trailingParagraph, "start");
+    }
+  });
+
+  return true;
+}
+
+function isRichEditorDocumentEndDrag(
+  editor: CoreBlockNoteEditor,
+  event: React.DragEvent,
+) {
+  const target = event.target instanceof Element ? event.target : null;
+  if (target?.closest(".bn-trailing-block")) return true;
+
+  const lastBlock = editor.document.at(-1);
+  if (!lastBlock) return false;
+
+  const lastBlockElement = findEditorBlockElement(
+    editor.prosemirrorView.dom,
+    lastBlock.id,
+  );
+  const bounds = lastBlockElement?.getBoundingClientRect();
+  return Boolean(bounds && bounds.height > 0 && event.clientY >= bounds.bottom);
+}
 
 function createEditorOutlineSnapshot(blocks: Block[]): EditorOutlineSnapshot {
   const headings: EditorOutlineSnapshot["headings"] = [];
@@ -1901,6 +2012,7 @@ function MountedBlockNoteEditor({
     null,
   );
   const selectionDragAnchorRef = useRef<number | null>(null);
+  const draggedBlockIdsRef = useRef<string[] | null>(null);
   const applyTokenRef = useRef(0);
   const lifecycleGenerationRef = useRef(0);
   const lifecycleActiveRef = useRef(true);
@@ -2722,13 +2834,18 @@ function MountedBlockNoteEditor({
 
   const handleFileDragOverCapture = useCallback(
     (event: React.DragEvent) => {
+      if (event.dataTransfer?.types.includes("blocknote/html")) {
+        // dragover 期间只记录原块，不能修改文档，否则原生 drop 会把拖拽切片复制一份。
+        draggedBlockIdsRef.current ??= readRichEditorDraggedBlockIds(editor);
+        return;
+      }
       if (!blockExternalFileDrop(event)) return;
 
       const binding = controllerRef.current.getActiveBinding();
       if (!binding) return;
       useEditorStore.getState().setFileDragTargetGroupId(binding.groupId);
     },
-    [blockExternalFileDrop],
+    [blockExternalFileDrop, editor],
   );
 
   const handleFileDragLeaveCapture = useCallback(
@@ -2752,6 +2869,17 @@ function MountedBlockNoteEditor({
   const markUserIntent = useCallback(() => {
     changeGateRef.current.markUserIntent();
   }, []);
+
+  const handleBlockDragStart = useCallback(
+    (event: React.DragEvent<HTMLDivElement>) => {
+      if (!event.dataTransfer.types.includes("blocknote/html")) return;
+
+      // BlockNote 会先在拖拽手柄的 target 阶段选中原块并写入 dataTransfer；
+      // 必须在随后冒泡到容器时记录，capture/dragover 阶段读取会拿到旧光标或空选择。
+      draggedBlockIdsRef.current = readRichEditorDraggedBlockIds(editor);
+    },
+    [editor],
+  );
 
   const handlePasteCapture = useCallback(
     (event: React.ClipboardEvent<HTMLDivElement>) => {
@@ -2784,6 +2912,22 @@ function MountedBlockNoteEditor({
 
   const handleDropCapture = useCallback(
     (event: React.DragEvent) => {
+      const draggedBlockIds = draggedBlockIdsRef.current;
+      if (
+        draggedBlockIds?.length &&
+        isRichEditorDocumentEndDrag(editor, event)
+      ) {
+        draggedBlockIdsRef.current = null;
+        event.preventDefault();
+        event.stopPropagation();
+        event.nativeEvent.stopImmediatePropagation();
+        event.dataTransfer.dropEffect = "move";
+        moveRichEditorBlocksToDocumentEnd(editor, draggedBlockIds);
+        editor.prosemirrorView.dragging = null;
+        markUserIntent();
+        return;
+      }
+
       if (!blockExternalFileDrop(event)) {
         markUserIntent();
         return;
@@ -2800,8 +2944,12 @@ function MountedBlockNoteEditor({
       // Portal 中的富文本事件不会稳定经过所属面板，直接按当前绑定转交文件打开。
       void controllerRef.current.onFileDrop(filePath, binding);
     },
-    [blockExternalFileDrop, markUserIntent],
+    [blockExternalFileDrop, editor, markUserIntent],
   );
+
+  const handleDragEndCapture = useCallback(() => {
+    draggedBlockIdsRef.current = null;
+  }, []);
 
   const handleFocus = useCallback(() => {
     const binding = controllerRef.current.getActiveBinding();
@@ -3098,6 +3246,8 @@ function MountedBlockNoteEditor({
       onCutCapture={markUserIntent}
       onCompositionStartCapture={markUserIntent}
       onDragStartCapture={markUserIntent}
+      onDragStart={handleBlockDragStart}
+      onDragEndCapture={handleDragEndCapture}
       onDragOverCapture={handleFileDragOverCapture}
       onDragLeaveCapture={handleFileDragLeaveCapture}
       onDropCapture={handleDropCapture}
