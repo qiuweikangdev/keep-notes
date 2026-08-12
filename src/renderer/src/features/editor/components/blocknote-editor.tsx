@@ -26,6 +26,7 @@ import { EditorView as CodeMirrorView } from "@codemirror/view";
 import { CodeXml } from "lucide-react";
 import {
   BlockNoteEditor as CoreBlockNoteEditor,
+  getNodeById,
   type Block,
   type InlineContent,
   type PartialBlock,
@@ -33,6 +34,7 @@ import {
 import { SideMenuExtension } from "@blocknote/core/extensions";
 import {
   AllSelection,
+  NodeSelection,
   Plugin,
   PluginKey,
   TextSelection,
@@ -1220,15 +1222,31 @@ export function moveRichEditorBlocksToDocumentEnd(
     .filter((block): block is Block => block !== undefined);
   if (draggedBlocks.length === 0) return false;
 
-  editor.transact(() => {
-    const documentBeforeMove = editor.document;
-    const existingTrailingParagraph = documentBeforeMove.at(-1);
-    if (
-      existingTrailingParagraph &&
-      !draggedBlockIdSet.has(existingTrailingParagraph.id) &&
-      isEmptyRichEditorParagraph(existingTrailingParagraph)
-    ) {
-      editor.removeBlocks([existingTrailingParagraph]);
+  const documentBeforeMove = editor.document;
+  const lastDraggedBlockIndex = documentBeforeMove.findLastIndex((block) =>
+    draggedBlockIdSet.has(block.id),
+  );
+  const draggedBlocksAlreadyAtEnd = documentBeforeMove
+    .slice(lastDraggedBlockIndex + 1)
+    .every(
+      (block) =>
+        draggedBlockIdSet.has(block.id) || isEmptyRichEditorParagraph(block),
+    );
+
+  editor.transact((transaction) => {
+    const trailingParagraphs: Block[] = [];
+    for (let index = editor.document.length - 1; index >= 0; index -= 1) {
+      const block = editor.document[index];
+      if (
+        draggedBlockIdSet.has(block.id) ||
+        !isEmptyRichEditorParagraph(block)
+      ) {
+        break;
+      }
+      trailingParagraphs.unshift(block);
+    }
+    if (trailingParagraphs.length > 0) {
+      editor.removeBlocks(trailingParagraphs);
     }
 
     const referenceBlock = editor.document.findLast(
@@ -1241,16 +1259,29 @@ export function moveRichEditorBlocksToDocumentEnd(
       movedBlocks = editor.insertBlocks(draggedBlocks, referenceBlock, "after");
     }
 
-    const lastMovedBlock = movedBlocks.at(-1) ?? editor.document.at(-1);
-    if (!lastMovedBlock) return;
-    const [trailingParagraph] = editor.insertBlocks(
-      [{ type: "paragraph" }],
-      lastMovedBlock,
-      "after",
-    );
-    if (trailingParagraph) {
-      // 落下后把光标放进末尾空行，确保占位提示可见，也让用户可以直接继续输入。
-      editor.setTextCursorPosition(trailingParagraph, "start");
+    if (draggedBlocksAlreadyAtEnd) {
+      const firstMovedBlock = movedBlocks[0] ?? editor.document.at(-1);
+      if (firstMovedBlock) {
+        // 以硬换行落实虚拟末尾块，既让块真实下移，也让源码用 <br> 保留该位置供重新打开。
+        editor.insertBlocks(
+          [{ type: "paragraph", content: "\n" }],
+          firstMovedBlock,
+          "before",
+        );
+      }
+    }
+
+    const lastMovedBlock = movedBlocks.at(-1);
+    if (lastMovedBlock) {
+      const movedBlockPosition = getNodeById(
+        lastMovedBlock.id,
+        transaction.doc,
+      )?.posBeforeNode;
+      if (movedBlockPosition !== undefined) {
+        transaction.setSelection(
+          NodeSelection.create(transaction.doc, movedBlockPosition),
+        );
+      }
     }
   });
 
@@ -2013,6 +2044,7 @@ function MountedBlockNoteEditor({
   );
   const selectionDragAnchorRef = useRef<number | null>(null);
   const draggedBlockIdsRef = useRef<string[] | null>(null);
+  const documentEndDropActiveRef = useRef(false);
   const applyTokenRef = useRef(0);
   const lifecycleGenerationRef = useRef(0);
   const lifecycleActiveRef = useRef(true);
@@ -2821,6 +2853,16 @@ function MountedBlockNoteEditor({
     return true;
   }, []);
 
+  const setDocumentEndDropActive = useCallback((active: boolean) => {
+    if (documentEndDropActiveRef.current === active) return;
+
+    documentEndDropActiveRef.current = active;
+    scrollContainerRef.current?.toggleAttribute(
+      "data-block-drop-at-document-end",
+      active,
+    );
+  }, []);
+
   const handleStaleTableMouseMoveCapture = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
       // 首次进入表格时插件视图可能才刚完成挂载，此处再尝试一次兼容补丁，确保事件到达插件前已完成替换。
@@ -2835,8 +2877,18 @@ function MountedBlockNoteEditor({
   const handleFileDragOverCapture = useCallback(
     (event: React.DragEvent) => {
       if (event.dataTransfer?.types.includes("blocknote/html")) {
-        // dragover 期间只记录原块，不能修改文档，否则原生 drop 会把拖拽切片复制一份。
+        // dragover 期间只记录原块和落点，不修改文档，避免原生 drop 同时插入拖拽切片。
         draggedBlockIdsRef.current ??= readRichEditorDraggedBlockIds(editor);
+        const isDocumentEndDrop = Boolean(
+          draggedBlockIdsRef.current.length > 0 &&
+          isRichEditorDocumentEndDrag(editor, event),
+        );
+        setDocumentEndDropActive(isDocumentEndDrop);
+        if (isDocumentEndDrop) {
+          // 末尾空白区域本身不是可编辑节点，必须显式允许 drop，并保持移动语义。
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "move";
+        }
         return;
       }
       if (!blockExternalFileDrop(event)) return;
@@ -2845,11 +2897,23 @@ function MountedBlockNoteEditor({
       if (!binding) return;
       useEditorStore.getState().setFileDragTargetGroupId(binding.groupId);
     },
-    [blockExternalFileDrop, editor],
+    [blockExternalFileDrop, editor, setDocumentEndDropActive],
   );
 
   const handleFileDragLeaveCapture = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
+      if (event.dataTransfer?.types.includes("blocknote/html")) {
+        const nextTarget = event.relatedTarget;
+        if (
+          nextTarget instanceof Node &&
+          event.currentTarget.contains(nextTarget)
+        ) {
+          return;
+        }
+        setDocumentEndDropActive(false);
+        return;
+      }
+
       if (!blockExternalFileDrop(event)) return;
 
       const nextTarget = event.relatedTarget;
@@ -2863,7 +2927,7 @@ function MountedBlockNoteEditor({
       const binding = controllerRef.current.getActiveBinding();
       useEditorStore.getState().clearFileDragTargetGroupId(binding?.groupId);
     },
-    [blockExternalFileDrop],
+    [blockExternalFileDrop, setDocumentEndDropActive],
   );
 
   const markUserIntent = useCallback(() => {
@@ -2913,6 +2977,7 @@ function MountedBlockNoteEditor({
   const handleDropCapture = useCallback(
     (event: React.DragEvent) => {
       const draggedBlockIds = draggedBlockIdsRef.current;
+      setDocumentEndDropActive(false);
       if (
         draggedBlockIds?.length &&
         isRichEditorDocumentEndDrag(editor, event)
@@ -2944,12 +3009,13 @@ function MountedBlockNoteEditor({
       // Portal 中的富文本事件不会稳定经过所属面板，直接按当前绑定转交文件打开。
       void controllerRef.current.onFileDrop(filePath, binding);
     },
-    [blockExternalFileDrop, editor, markUserIntent],
+    [blockExternalFileDrop, editor, markUserIntent, setDocumentEndDropActive],
   );
 
   const handleDragEndCapture = useCallback(() => {
     draggedBlockIdsRef.current = null;
-  }, []);
+    setDocumentEndDropActive(false);
+  }, [setDocumentEndDropActive]);
 
   const handleFocus = useCallback(() => {
     const binding = controllerRef.current.getActiveBinding();

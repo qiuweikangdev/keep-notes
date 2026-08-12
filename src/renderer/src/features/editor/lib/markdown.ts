@@ -2243,6 +2243,32 @@ function promoteMarkdownImageParagraph<TBlock>(block: TBlock): TBlock {
   return createImageBlockFromParagraph(block, image);
 }
 
+function restoreStandaloneHardBreakParagraphs<TBlock>(blocks: TBlock[]) {
+  return blocks.map((block) => {
+    if (!isRecord(block)) return block;
+
+    let restoredBlock: Record<string, unknown> = block;
+    if (
+      block.type === "paragraph" &&
+      /^\s*<br\s*\/?>\s*$/iu.test(getInlineText(block.content))
+    ) {
+      restoredBlock = {
+        ...restoredBlock,
+        content: [{ type: "text", text: "\n", styles: {} }],
+      };
+    }
+
+    if (Array.isArray(restoredBlock.children)) {
+      restoredBlock = {
+        ...restoredBlock,
+        children: restoreStandaloneHardBreakParagraphs(restoredBlock.children),
+      };
+    }
+
+    return restoredBlock as TBlock;
+  });
+}
+
 async function resolveImageBlockUrls<TBlock>(
   blocks: TBlock[],
   options: MarkdownParseOptions,
@@ -2775,13 +2801,48 @@ export async function parseMarkdown<TBlock>(
           protectedMarkup.replacements,
         );
   return resolveImageBlockUrls(
-    restoreQuoteListChildren(restoredBlocks, normalized.descriptors),
+    restoreStandaloneHardBreakParagraphs(
+      restoreQuoteListChildren(restoredBlocks, normalized.descriptors),
+    ),
     options,
   );
 }
 
 function yieldToMain(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+const STANDALONE_HARD_BREAK_SERIALIZATION_MARKER =
+  "KEEP_NOTES_STANDALONE_HARD_BREAK_7B24E0F7";
+
+function markStandaloneHardBreakParagraphs<TBlock>(blocks: TBlock[]): TBlock[] {
+  return blocks.map((block) => {
+    if (!isRecord(block)) return block;
+
+    let markedBlock: Record<string, unknown> = block;
+    if (block.type === "paragraph" && getInlineText(block.content) === "\n") {
+      // BlockNote 会丢弃仅含硬换行的段落，先用稳定标记参与序列化，稍后恢复为显式 HTML 换行。
+      markedBlock = {
+        ...markedBlock,
+        content: [
+          {
+            type: "text",
+            text: STANDALONE_HARD_BREAK_SERIALIZATION_MARKER,
+            styles: {},
+          },
+        ],
+      };
+    }
+
+    if (Array.isArray(markedBlock.children)) {
+      markedBlock = {
+        ...markedBlock,
+        children: markStandaloneHardBreakParagraphs(markedBlock.children),
+      };
+    }
+
+    return markedBlock as TBlock;
+  });
 }
 
 export async function serializeMarkdown<TBlock>(
@@ -2792,7 +2853,9 @@ export async function serializeMarkdown<TBlock>(
   await yieldToMain();
   // 列表末尾第一次 Enter 会短暂产生空列表项；BlockNote 会把它导出为裸 `*`/`1.`，
   // 且这种无内容、无子块的编辑态占位不应进入 Markdown 或后续解析缓存。
-  const serializableBlocks = omitTransientEmptyListItems(blocks);
+  const serializableBlocks = markStandaloneHardBreakParagraphs(
+    omitTransientEmptyListItems(blocks),
+  );
   const markdown = await serializeQuoteListBlocks(
     serializer,
     serializableBlocks,
@@ -2800,5 +2863,5 @@ export async function serializeMarkdown<TBlock>(
   return normalizeSerializedCodeBlockContent(
     normalizeSerializedTableHardBreaks(normalizeMarkupHardBreaks(markdown)),
     serializableBlocks,
-  );
+  ).replaceAll(STANDALONE_HARD_BREAK_SERIALIZATION_MARKER, "<br />");
 }

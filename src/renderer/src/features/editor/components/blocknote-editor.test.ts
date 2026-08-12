@@ -34,6 +34,7 @@ import {
   LARGE_DOCUMENT_SERIALIZATION_QUIET_PERIOD_MS,
   LARGE_DOCUMENT_CHAR_LIMIT,
 } from "../lib/editor-large-document";
+import { parseMarkdown } from "../lib/markdown";
 import { RichPreviewCache } from "../lib/rich-preview-cache";
 import {
   BlockNoteEditor,
@@ -3740,6 +3741,8 @@ describe("BlockNoteEditor persistent session runtime", () => {
 
     const lastBlock = editor.document.at(-1);
     expect(lastBlock?.type).toBe("table");
+    expect(dataTransfer.dropEffect).toBe("move");
+    expect(scrollContainer).toHaveAttribute("data-block-drop-at-document-end");
     expect(
       session.view.container.querySelector(".bn-trailing-block"),
     ).not.toBeNull();
@@ -3750,18 +3753,31 @@ describe("BlockNoteEditor persistent session runtime", () => {
     fireEvent.drop(trailingWidget, { dataTransfer });
 
     expect(editor.document.map((block) => block.type)).toEqual([
-      "table",
       "paragraph",
+      "table",
     ]);
+    expect(editor.document[0].content).toMatchObject([{ text: "\n" }]);
     expect(
       editor.document.filter((block) => block.id === table.id),
     ).toHaveLength(1);
-    expect(editor.getTextCursorPosition().block.id).toBe(
-      editor.document.at(-1)?.id,
+    expect(readRichEditorDraggedBlockIds(editor)).toEqual([table.id]);
+    expect(scrollContainer).not.toHaveAttribute(
+      "data-block-drop-at-document-end",
     );
-    await expect(
-      markdownMocks.actualSerializeMarkdown!(editor, editor.document),
-    ).resolves.toBe(serializedBeforeDrag);
+    expect(
+      session.view.container.querySelector(".bn-trailing-block"),
+    ).not.toBeNull();
+    const serializedAfterDrop = await markdownMocks.actualSerializeMarkdown!(
+      editor,
+      editor.document,
+    );
+    expect(serializedAfterDrop).toBe(`<br />\n\n${serializedBeforeDrag}`);
+    const reopenedBlocks = await parseMarkdown(editor, serializedAfterDrop);
+    expect(reopenedBlocks.map((block) => block.type)).toEqual([
+      "paragraph",
+      "table",
+    ]);
+    expect(reopenedBlocks[0].content).toMatchObject([{ text: "\n" }]);
 
     session.view.unmount();
   });
@@ -3773,7 +3789,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
     const session = renderRealSession(
       "C:/notes/normalize-end-drop.md",
       false,
-      "Before\n\n| Key | Value |\n| --- | --- |\n| A | B |",
+      "| Key | Value |\n| --- | --- |\n| A | B |\n\nAfter",
     );
 
     await waitFor(() => expect(session.runtime.current).not.toBeNull());
@@ -3786,10 +3802,8 @@ describe("BlockNoteEditor persistent session runtime", () => {
     });
 
     const blocks = editor.document;
-    expect(blocks.at(-2)?.id).toBe(tableId);
-    expect(blocks.at(-1)?.type).toBe("paragraph");
-    expect(blocks.at(-1)?.content).toEqual([]);
-    expect(editor.getTextCursorPosition().block.id).toBe(blocks.at(-1)?.id);
+    expect(blocks.map((block) => block.type)).toEqual(["paragraph", "table"]);
+    expect(blocks.at(-1)?.id).toBe(tableId);
     expect(blocks.filter((block) => block.id === tableId)).toHaveLength(1);
     expect(blocks.filter((block) => block.type === "table")).toHaveLength(1);
 
@@ -3815,8 +3829,22 @@ describe("BlockNoteEditor persistent session runtime", () => {
     });
 
     expect(editor.document.map((block) => block.type)).toEqual([
-      "table",
       "paragraph",
+      "table",
+    ]);
+    expect(editor.document[0].content).toMatchObject([{ text: "\n" }]);
+    expect(
+      editor.document.filter((block) => block.id === tableId),
+    ).toHaveLength(1);
+
+    act(() => {
+      moveRichEditorBlocksToDocumentEnd(editor, [tableId]);
+    });
+
+    expect(editor.document.map((block) => block.type)).toEqual([
+      "paragraph",
+      "paragraph",
+      "table",
     ]);
     expect(
       editor.document.filter((block) => block.id === tableId),

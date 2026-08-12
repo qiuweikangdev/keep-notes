@@ -107,6 +107,40 @@
   line-height: var(--editor-line-height, 1.75);
 }
 
+.editor-rich-scroll .bn-trailing-block {
+  position: relative;
+}
+
+.editor-rich-scroll .bn-trailing-block::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border-color);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transform: scaleX(0.98);
+  transform-origin: center;
+  transition:
+    opacity 140ms ease-out,
+    transform 140ms ease-out;
+}
+
+.editor-rich-scroll[data-block-drop-at-document-end]
+  .bn-trailing-block::before {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editor-rich-scroll .bn-trailing-block::before {
+    transition: none;
+  }
+}
+
 :is(.bn-editor, .bn-editor-preview) h1,
 :is(.bn-editor, .bn-editor-preview) h2,
 :is(.bn-editor, .bn-editor-preview) h3 {
