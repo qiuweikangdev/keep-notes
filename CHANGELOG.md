@@ -1,3 +1,24 @@
+# [2.22.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.21.0...v2.22.0) (2026-08-12)
+
+
+### Bug Fixes
+
+* keep pasted tables consistent across editor modes ([f63f05c](https://github.com/qiuweikangdev/keep-notes/commit/f63f05ce4194398b4ab998eaa1c8d84ea0329160))
+* match rich editor block drag behavior ([a7cbb8b](https://github.com/qiuweikangdev/keep-notes/commit/a7cbb8bac01568cdbcc7b21b2d66026e8161fc28))
+* preserve markdown table boundaries ([7592eb5](https://github.com/qiuweikangdev/keep-notes/commit/7592eb56744a357850fc51dfd6f7fd347a530f57))
+* prevent editor drag and table handle errors ([25d0758](https://github.com/qiuweikangdev/keep-notes/commit/25d0758c6187ca0cf6a8156595ee3623ed17f6b5))
+
+
+### Features
+
+* open external markdown files in editor tabs ([4709ecf](https://github.com/qiuweikangdev/keep-notes/commit/4709ecffcb22502816e4ac2411913c3b56ffd76e))
+
+
+## Commit Summary
+
+- Compared with: v2.21.0
+- Total commits: 5
+
 # [2.21.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.20.1...v2.21.0) (2026-08-09)
 
 
