@@ -167,7 +167,7 @@ button:not(:disabled):not([aria-disabled="true"]):not([role="switch"]):not(
   [data-selected="true"]
 ):not([data-selection-surface="true"]):not([data-variant="destructive"]):not(
   .quick-open-folder button
-):not(.sidebar-bottom-bar):not(.update-button):hover {
+):not(.sidebar-bottom-bar):hover {
   background-color: var(--button-hover-bg) !important;
   color: var(--text-primary) !important;
 }
@@ -176,32 +176,8 @@ button:not(:disabled):not([aria-disabled="true"]):not([role="switch"]):not(
   [data-selected="true"]
 ):not([data-selection-surface="true"]):not([data-variant="destructive"]):not(
   .quick-open-folder button
-):not(.sidebar-bottom-bar):not(.update-button):active {
+):not(.sidebar-bottom-bar):active {
   background-color: var(--button-active-bg) !important;
-}
-
-.update-button:not([style*="var(--accent-color)"]):hover {
-  background-color: var(--button-hover-bg) !important;
-}
-
-.update-button:not([style*="var(--accent-color)"]):active {
-  background-color: var(--button-active-bg) !important;
-}
-
-.update-button[style*="var(--accent-color)"]:hover {
-  background-color: color-mix(
-    in srgb,
-    var(--accent-color) 85%,
-    black
-  ) !important;
-}
-
-.update-button[style*="var(--accent-color)"]:active {
-  background-color: color-mix(
-    in srgb,
-    var(--accent-color) 75%,
-    black
-  ) !important;
 }
 
 button[data-ui-button="true"] {

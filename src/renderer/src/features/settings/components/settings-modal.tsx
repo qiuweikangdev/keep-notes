@@ -155,6 +155,7 @@ export function SettingsModal() {
     defaultUpdateState.currentVersion;
 
   const progressPercent = Math.round(updateState.progress?.percent ?? 0);
+  const updateStatusText = getUpdateStatusText(updateState);
   const repositoryLabel = getRepositoryLabel(appInfo.repositoryUrl);
   const availableExternalOpenApps = externalOpenApps.filter(
     (app) => app.available,
@@ -586,35 +587,26 @@ export function SettingsModal() {
 
                 <div className="flex flex-shrink-0 items-center gap-2">
                   {updateState.status === "available" ? (
-                    <button
+                    <Button
                       type="button"
                       onClick={handleDownloadUpdate}
-                      className="update-button inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors"
-                      style={{
-                        backgroundColor: "var(--accent-color)",
-                        border: "none",
-                        color: "#fff",
-                      }}
+                      className="gap-1.5"
                     >
                       <Download className="h-4 w-4" />
                       {updateState.version
                         ? `更新到 v${updateState.version}`
                         : "更新"}
-                    </button>
+                    </Button>
                   ) : (
-                    <button
+                    <Button
                       type="button"
                       onClick={handleCheckForUpdates}
                       disabled={
                         updateState.status === "checking" ||
                         updateState.status === "downloading"
                       }
-                      className="update-button inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50"
-                      style={{
-                        backgroundColor: "transparent",
-                        border: "1px solid var(--border-color)",
-                        color: "var(--text-primary)",
-                      }}
+                      variant="outline"
+                      className="gap-1.5"
                     >
                       {updateState.status === "checking" ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -624,19 +616,21 @@ export function SettingsModal() {
                       {updateState.status === "checking"
                         ? "检查中..."
                         : "检查更新"}
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>
 
-              <div
-                className="mt-4 border-t pt-3 text-sm"
-                style={{ borderColor: "var(--border-color)" }}
-              >
-                <span style={{ color: "var(--text-secondary)" }}>
-                  {getUpdateStatusText(updateState)}
-                </span>
-              </div>
+              {updateStatusText && (
+                <div
+                  className="mt-4 border-t pt-3 text-sm"
+                  style={{ borderColor: "var(--border-color)" }}
+                >
+                  <span style={{ color: "var(--text-secondary)" }}>
+                    {updateStatusText}
+                  </span>
+                </div>
+              )}
 
               {updateState.status === "downloading" && (
                 <div className="mt-4">
@@ -681,9 +675,8 @@ export function SettingsModal() {
                 <div className="mt-4">
                   <Button
                     type="button"
-                    size="sm"
                     onClick={handleInstallUpdate}
-                    className="h-8 gap-1.5 px-3"
+                    className="gap-1.5"
                   >
                     <Download className="h-4 w-4" />
                     立即安装
@@ -803,7 +796,7 @@ export function SettingsModal() {
                 type="button"
                 onPointerDown={(event) => event.stopPropagation()}
                 data-theme-control="true"
-                className="rounded-lg p-1"
+                className="flex h-8 w-8 items-center justify-center rounded-lg outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-color)]"
                 style={{ color: "var(--text-muted)" }}
                 aria-label="关闭设置"
               >
@@ -821,9 +814,10 @@ export function SettingsModal() {
           className="flex min-h-0 flex-1 gap-0 overflow-hidden"
         >
           {/* 左侧导航 */}
-          <div
+          <nav
             data-testid="settings-navigation"
-            className="w-[180px] flex-shrink-0 overflow-y-auto p-2 sm:w-[220px]"
+            aria-label="设置分类"
+            className="min-h-0 w-[180px] flex-shrink-0 overflow-y-auto p-2 sm:w-[220px]"
             style={{ borderRight: "1px solid var(--border-color)" }}
           >
             {settingsMenuItems.map((item) => {
@@ -859,12 +853,12 @@ export function SettingsModal() {
                 </button>
               );
             })}
-          </div>
+          </nav>
 
           {/* 右侧内容 */}
           <div
             data-testid="settings-content"
-            className="min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6"
+            className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6"
             style={{ backgroundColor: "var(--bg-primary)" }}
           >
             {renderContent()}

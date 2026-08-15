@@ -236,9 +236,8 @@ describe("SettingsModal about tab", () => {
     ).toBeInTheDocument();
 
     const checkButton = screen.getByRole("button", { name: /检查更新/ });
-    expect(checkButton.getAttribute("style")).toContain(
-      "background-color: transparent",
-    );
+    expect(checkButton).toHaveAttribute("data-ui-button", "true");
+    expect(checkButton).toHaveAttribute("data-variant", "outline");
 
     await waitFor(() => {
       expect(window.electronAPI.checkForUpdates).toHaveBeenCalledTimes(1);
@@ -259,6 +258,31 @@ describe("SettingsModal about tab", () => {
     await waitFor(() => {
       expect(screen.getByText("v2.0.0")).toBeInTheDocument();
     });
+  });
+
+  it("does not reserve an empty status row when an update is available", async () => {
+    electronAPI.getUpdateState.mockResolvedValueOnce({
+      status: "available",
+      currentVersion: "2.0.0",
+      version: "2.1.0",
+    });
+    electronAPI.checkForUpdates.mockResolvedValueOnce({
+      status: "available",
+      currentVersion: "2.0.0",
+      version: "2.1.0",
+    });
+
+    render(<SettingsModal />);
+
+    fireEvent.click(screen.getByRole("button", { name: /关于/ }));
+
+    const updateButton = await screen.findByRole("button", {
+      name: "更新到 v2.1.0",
+    });
+    expect(updateButton).toHaveAttribute("data-ui-button", "true");
+    expect(
+      screen.getByTestId("about-app-card").querySelector("div.border-t"),
+    ).not.toBeInTheDocument();
   });
 
   it("renames the notification settings menu item to app notification config", () => {
