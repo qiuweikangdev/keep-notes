@@ -1,3 +1,25 @@
+## [2.22.1](https://github.com/qiuweikangdev/keep-notes/compare/v2.22.0...v2.22.1) (2026-08-15)
+
+
+### Bug Fixes
+
+* align plain paragraph line breaks ([42c4846](https://github.com/qiuweikangdev/keep-notes/commit/42c48469b8065be94ed27d47dd1f8b24be7483b9))
+* align settings and git dialog headers ([3c5fd2e](https://github.com/qiuweikangdev/keep-notes/commit/3c5fd2ed3b655d768e75767a136a602a27f016f5))
+* clear editor tabs when switching workspaces ([2e0aa0c](https://github.com/qiuweikangdev/keep-notes/commit/2e0aa0c552a026a48e1819f330679519f81756c6))
+* handle external code block paste ([0cacd45](https://github.com/qiuweikangdev/keep-notes/commit/0cacd450be4cd174e3a8a5b144ab1e75c2d3404b))
+* keep active outline heading stable on hover ([d08da73](https://github.com/qiuweikangdev/keep-notes/commit/d08da73479eedff720bd3897c4e34a1ca71c4609))
+* normalize markdown editor focus border ([161b7d0](https://github.com/qiuweikangdev/keep-notes/commit/161b7d089e05028e5566eb882be1f8cc9c6d64e6))
+* preserve markdown source formatting after rich edits ([c001b4b](https://github.com/qiuweikangdev/keep-notes/commit/c001b4baed706438be8b16a284fb18c295f608d3))
+* protect unsaved edits from external file updates ([6c41554](https://github.com/qiuweikangdev/keep-notes/commit/6c415541718bd4066abac19c4535cdda83b4f979))
+* show uppercase markdown files ([60756a6](https://github.com/qiuweikangdev/keep-notes/commit/60756a6b30a741f5710673586320986138623c36))
+* stabilize outline navigation highlight ([c04609c](https://github.com/qiuweikangdev/keep-notes/commit/c04609c56806e75e38c54b29665714191c629cab))
+
+
+## Commit Summary
+
+- Compared with: v2.22.0
+- Total commits: 13
+
 # [2.22.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.21.0...v2.22.0) (2026-08-12)
 
 
