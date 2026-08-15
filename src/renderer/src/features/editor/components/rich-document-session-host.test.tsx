@@ -319,6 +319,7 @@ describe("RichDocumentSessionHost", () => {
     await act(async () => {
       await Promise.all(flushes);
     });
+    useEditorStore.getState().setFileSaveState(path, "clean", null);
 
     act(() => {
       emitFileChange?.(path, "# External document");
@@ -409,7 +410,18 @@ describe("RichDocumentSessionHost", () => {
     act(() => {
       emitExternalChange?.("# External document");
     });
-    expect(runtime.editor.replaceBlocks).toHaveBeenCalledTimes(1);
+    expect(runtime.editor.replaceBlocks).not.toHaveBeenCalled();
+    expect(
+      useEditorStore
+        .getState()
+        .panelGroups.flatMap((group) => group.tabs)
+        .filter((tab) => tab.filePath?.replaceAll("\\", "/") === path)
+        .map((tab) => tab.content),
+    ).toEqual([
+      "# Serialized document",
+      "# Serialized document",
+      "# Serialized document",
+    ]);
 
     releaseFirst();
     releaseSecond();
@@ -462,13 +474,13 @@ describe("RichDocumentSessionHost", () => {
     act(() => {
       emitExternalChange?.("# External");
     });
-    expect(runtime.editor.replaceBlocks).toHaveBeenCalledTimes(1);
+    expect(runtime.editor.replaceBlocks).not.toHaveBeenCalled();
     expect(
       useEditorStore
         .getState()
         .panelGroups.flatMap((group) => group.tabs)
         .map((tab) => tab.content),
-    ).toEqual(["# External", "# External"]);
+    ).toEqual(["# Serialized", "# Serialized"]);
 
     releaseFirst();
     releaseSecond();

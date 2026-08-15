@@ -17,7 +17,11 @@ import {
   subscribeToEditorFile,
 } from "../lib/editor-runtime";
 import { selectEditorWorkspaceSignature } from "../lib/editor-view-selectors";
-import { shouldApplyExternalFileChange } from "../lib/editor-external-change";
+import {
+  EXTERNAL_FILE_CONFLICT_MESSAGE,
+  shouldApplyExternalFileChange,
+  shouldDeferExternalFileChange,
+} from "../lib/editor-external-change";
 import { repairMarkdownSourceBeforeParse } from "../lib/markdown";
 import { getEditorDocumentPath } from "../lib/editor-document-path";
 import { normalizeRichDocumentPath } from "../lib/rich-document-surface-registry";
@@ -73,6 +77,7 @@ export function EditorWorkspace({
   const tabMode = tab?.mode ?? "rich";
   const tabContent = tab?.content ?? "";
   const tabParseErrorMessage = tab?.parseErrorMessage ?? null;
+  const tabExternalChangeMessage = tab?.externalChangeMessage ?? null;
   const tabScrollTop = tab?.scrollTop ?? 0;
   const tabResetKey = tab
     ? (tab.pendingFilePath ?? tab.filePath ?? tab.id)
@@ -105,7 +110,6 @@ export function EditorWorkspace({
     if (!tabFilePath || tabMode !== "source") return;
     const path = tabFilePath;
     return subscribeToEditorFile(path, (content) => {
-      editorCache.setContent(path, content);
       const state = useEditorStore.getState();
       const currentTab = state.panelGroups
         .find((item) => item.id === groupId)
@@ -123,13 +127,28 @@ export function EditorWorkspace({
         currentTab.content,
         content,
       );
+      if (
+        shouldDeferExternalFileChange(
+          currentTab.content,
+          content,
+          currentTab.isDirty,
+        )
+      ) {
+        state.setTabExternalChange(
+          groupId,
+          tabId,
+          EXTERNAL_FILE_CONFLICT_MESSAGE,
+        );
+        return;
+      }
+      editorCache.setContent(path, content);
       // 同路径外部刷新保留视口，但沿用原有加载完成语义清理保存与解析状态。
       state.completeTabLoad(groupId, tabId, path, content, {
         preserveScrollTop: true,
       });
       // 富文本优先监听可能已经同步过内容；此时不要再次提升其他标签的 reloadKey。
       if (shouldSynchronizeOtherTabs) {
-        state.syncFileContent(path, content, tabId);
+        state.syncExternalFileContent(path, content, tabId);
       }
     });
   }, [groupId, tabFilePath, tabId, tabMode]);
@@ -405,43 +424,53 @@ export function EditorWorkspace({
         onSelectAllMatches={selectAllMatches}
         onUndoReplace={undoLastReplacement}
       />
-      <div className="min-h-0 flex-1 overflow-hidden">
-        {tabMode === "source" ? (
-          <div className="flex h-full min-h-0 flex-col">
-            {tabParseErrorMessage ? (
-              <div
-                role="status"
-                className="border-b border-[var(--border-color)] bg-[color-mix(in_srgb,var(--danger-color)_8%,var(--bg-primary))] px-4 py-2 text-xs text-[var(--danger-color)]"
-              >
-                {tabParseErrorMessage}
-                。已保留完整源码，请修正后重试富文本模式。
-              </div>
-            ) : null}
-            <div className="min-h-0 flex-1">
-              <MarkdownSourceEditor
-                ref={sourceEditorRef}
-                fontFamily={appearance.codeFont}
-                fontSize={appearance.fontSize}
-                lineHeight={appearance.lineHeight}
-                value={tabContent}
-                resetKey={tabResetKey}
-                scrollTop={tabScrollTop}
-                onChange={handleSourceChange}
-                onScrollTopChange={(scrollTop) =>
-                  setTabScrollTop(groupId, tabId, scrollTop)
-                }
-              />
-            </div>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {tabExternalChangeMessage ? (
+          <div
+            role="alert"
+            className="shrink-0 border-b border-[var(--border-color)] bg-[color-mix(in_srgb,var(--danger-color)_8%,var(--bg-primary))] px-4 py-2 text-xs text-[var(--text-secondary)]"
+          >
+            {tabExternalChangeMessage}
           </div>
-        ) : tabDocumentPath ? (
-          <RichDocumentPane
-            groupId={groupId}
-            tabId={tabId}
-            path={tabDocumentPath}
-          />
-        ) : (
-          <EditorStateView status="empty" />
-        )}
+        ) : null}
+        <div className="min-h-0 flex-1 overflow-hidden">
+          {tabMode === "source" ? (
+            <div className="flex h-full min-h-0 flex-col">
+              {tabParseErrorMessage ? (
+                <div
+                  role="status"
+                  className="border-b border-[var(--border-color)] bg-[color-mix(in_srgb,var(--danger-color)_8%,var(--bg-primary))] px-4 py-2 text-xs text-[var(--danger-color)]"
+                >
+                  {tabParseErrorMessage}
+                  。已保留完整源码，请修正后重试富文本模式。
+                </div>
+              ) : null}
+              <div className="min-h-0 flex-1">
+                <MarkdownSourceEditor
+                  ref={sourceEditorRef}
+                  fontFamily={appearance.codeFont}
+                  fontSize={appearance.fontSize}
+                  lineHeight={appearance.lineHeight}
+                  value={tabContent}
+                  resetKey={tabResetKey}
+                  scrollTop={tabScrollTop}
+                  onChange={handleSourceChange}
+                  onScrollTopChange={(scrollTop) =>
+                    setTabScrollTop(groupId, tabId, scrollTop)
+                  }
+                />
+              </div>
+            </div>
+          ) : tabDocumentPath ? (
+            <RichDocumentPane
+              groupId={groupId}
+              tabId={tabId}
+              path={tabDocumentPath}
+            />
+          ) : (
+            <EditorStateView status="empty" />
+          )}
+        </div>
       </div>
     </div>
   );

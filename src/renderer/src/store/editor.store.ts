@@ -6,6 +6,7 @@ import {
   normalizePersistedAppearance,
   normalizePersistedPanelGroups,
 } from "@/features/editor/lib/editor-state-migration";
+import { EXTERNAL_FILE_CONFLICT_MESSAGE } from "@/features/editor/lib/editor-external-change";
 import {
   beginFileTransition,
   completeFileTransition,
@@ -59,6 +60,7 @@ export interface EditorTab {
   saveStatus: EditorSaveStatus;
   errorMessage: string | null;
   parseErrorMessage: string | null;
+  externalChangeMessage?: string | null;
   scrollTop: number;
 }
 
@@ -156,6 +158,11 @@ export interface EditorState {
     tabId: string,
     message: string | null,
   ) => void;
+  setTabExternalChange: (
+    groupId: string,
+    tabId: string,
+    message: string | null,
+  ) => void;
   setTabScrollTop: (groupId: string, tabId: string, scrollTop: number) => void;
   recordRecentOpenedFile: (path: string) => void;
   setFileSaveState: (
@@ -169,6 +176,11 @@ export interface EditorState {
     content: string,
     sourceTabId?: string,
     synchronizedTabIds?: readonly string[],
+  ) => void;
+  syncExternalFileContent: (
+    path: string,
+    content: string,
+    sourceTabId?: string,
   ) => void;
 
   // 大纲操作
@@ -255,6 +267,7 @@ const createDefaultTab = (filePath?: string | null): EditorTab => ({
   saveStatus: "clean",
   errorMessage: null,
   parseErrorMessage: null,
+  externalChangeMessage: null,
   scrollTop: 0,
 });
 
@@ -601,6 +614,7 @@ export const useEditorStore = create<EditorState>()(
                           isDirty,
                           saveStatus: isDirty ? "dirty" : "clean",
                           errorMessage: null,
+                          externalChangeMessage: t.externalChangeMessage,
                         };
                       }),
                     }
@@ -629,6 +643,7 @@ export const useEditorStore = create<EditorState>()(
                             pendingFilePath: null,
                             temporaryTitle: path ? null : t.temporaryTitle,
                             isDirty: false,
+                            externalChangeMessage: null,
                           }
                         : t,
                     ),
@@ -888,6 +903,23 @@ export const useEditorStore = create<EditorState>()(
           });
         },
 
+        setTabExternalChange: (groupId, tabId, message) => {
+          set((state) => ({
+            panelGroups: state.panelGroups.map((group) =>
+              group.id === groupId
+                ? {
+                    ...group,
+                    tabs: group.tabs.map((tab) =>
+                      tab.id === tabId
+                        ? { ...tab, externalChangeMessage: message }
+                        : tab,
+                    ),
+                  }
+                : group,
+            ),
+          }));
+        },
+
         recordRecentOpenedFile: (path) => {
           set((state) => ({
             recentOpenedFilePaths: pushRecentOpenedFilePath(
@@ -908,6 +940,8 @@ export const useEditorStore = create<EditorState>()(
                       saveStatus: status,
                       isDirty: status !== "clean",
                       errorMessage: message,
+                      externalChangeMessage:
+                        status === "clean" ? null : tab.externalChangeMessage,
                     }
                   : tab,
               ),
@@ -963,7 +997,8 @@ export const useEditorStore = create<EditorState>()(
                 if (
                   tab.content === content &&
                   tab.wordCount === content.length &&
-                  tab.reloadKey === reloadKey
+                  tab.reloadKey === reloadKey &&
+                  (tab.externalChangeMessage ?? null) === null
                 ) {
                   return tab;
                 }
@@ -975,6 +1010,61 @@ export const useEditorStore = create<EditorState>()(
                   content,
                   wordCount: content.length,
                   reloadKey,
+                  externalChangeMessage: null,
+                };
+              });
+              return groupChanged ? { ...group, tabs } : group;
+            });
+            return changed ? { panelGroups } : state;
+          });
+        },
+
+        syncExternalFileContent: (path, content, sourceTabId) => {
+          set((state) => {
+            let changed = false;
+            const panelGroups = state.panelGroups.map((group) => {
+              let groupChanged = false;
+              const tabs = group.tabs.map((tab) => {
+                if (
+                  !matchesEditorFilePath(tab.filePath, path) ||
+                  tab.id === sourceTabId
+                ) {
+                  return tab;
+                }
+
+                if (tab.isDirty) {
+                  if (
+                    tab.content === content ||
+                    tab.externalChangeMessage === EXTERNAL_FILE_CONFLICT_MESSAGE
+                  ) {
+                    return tab;
+                  }
+                  changed = true;
+                  groupChanged = true;
+                  return {
+                    ...tab,
+                    externalChangeMessage: EXTERNAL_FILE_CONFLICT_MESSAGE,
+                  };
+                }
+
+                const reloadKey =
+                  tab.content === content ? tab.reloadKey : tab.reloadKey + 1;
+                if (
+                  tab.content === content &&
+                  tab.wordCount === content.length &&
+                  (tab.externalChangeMessage ?? null) === null
+                ) {
+                  return tab;
+                }
+
+                changed = true;
+                groupChanged = true;
+                return {
+                  ...tab,
+                  content,
+                  wordCount: content.length,
+                  reloadKey,
+                  externalChangeMessage: null,
                 };
               });
               return groupChanged ? { ...group, tabs } : group;
@@ -1005,6 +1095,7 @@ export const useEditorStore = create<EditorState>()(
                             saveStatus: "clean",
                             errorMessage: null,
                             parseErrorMessage: null,
+                            externalChangeMessage: null,
                             scrollTop: 0,
                           }
                         : t,

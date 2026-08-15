@@ -90,7 +90,7 @@ describe("EditorWorkspace split rich editor mount", () => {
     expect(subscribeToEditorFile).not.toHaveBeenCalled();
   });
 
-  it("preserves the source editor scroll position after an external file update", () => {
+  it("keeps unsaved source edits when an external file update arrives", () => {
     let emitExternalChange: ((content: string) => void) | null = null;
     vi.mocked(subscribeToEditorFile).mockImplementationOnce(
       (_path, listener) => {
@@ -128,19 +128,21 @@ describe("EditorWorkspace split rich editor mount", () => {
       emitExternalChange?.("# Updated outside\n\nNew content\n");
     });
 
-    expect(editor).toHaveValue("# Updated outside\n\nNew content\n");
+    expect(editor).toHaveValue("# Large\n");
     expect(editor.scrollTop).toBe(480);
+    expect(screen.getByRole("alert")).toHaveTextContent("文件已被外部修改");
     const tab = useEditorStore
       .getState()
       .panelGroups[0].tabs.find((candidate) => candidate.id === "tab-1");
     expect(tab).toMatchObject({
       scrollTop: 480,
-      isDirty: false,
-      saveStatus: "clean",
-      errorMessage: null,
-      parseErrorMessage: null,
+      isDirty: true,
+      saveStatus: "error",
+      errorMessage: "save failed",
+      parseErrorMessage: "parse failed",
       loadStatus: "ready",
     });
+    expect(tab?.externalChangeMessage).toContain("文件已被外部修改");
   });
 
   it("cleans source state without reloading rich tabs after prioritized synchronization", () => {

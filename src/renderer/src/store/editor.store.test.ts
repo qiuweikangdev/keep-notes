@@ -464,4 +464,37 @@ describe("editor store", () => {
 
     expect(useEditorStore.getState().panelGroups[1].tabs[0].reloadKey).toBe(1);
   });
+
+  it("preserves dirty tabs and marks the external file conflict", () => {
+    const sourceGroup = useEditorStore.getState().panelGroups[0];
+    useEditorStore.setState({
+      panelGroups: [
+        sourceGroup,
+        {
+          ...sourceGroup,
+          id: "group-2",
+          activeTabId: "tab-2",
+          tabs: [{ ...sourceGroup.tabs[0], id: "tab-2" }],
+        },
+      ],
+    });
+    useEditorStore.getState().setTabContent("group-1", "tab-1", "local");
+
+    useEditorStore.getState().syncExternalFileContent("note.md", "external");
+
+    const tabs = useEditorStore
+      .getState()
+      .panelGroups.flatMap((group) => group.tabs);
+    expect(tabs[0]).toMatchObject({
+      content: "local",
+      isDirty: true,
+      externalChangeMessage: expect.stringContaining("文件已被外部修改"),
+    });
+    expect(tabs[1]).toMatchObject({
+      content: "external",
+      isDirty: false,
+      reloadKey: 1,
+      externalChangeMessage: null,
+    });
+  });
 });
