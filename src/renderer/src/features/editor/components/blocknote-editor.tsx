@@ -2039,6 +2039,7 @@ function MountedBlockNoteEditor({
   controllerRef.current = controller;
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const suppressProgrammaticScrollUntilRef = useRef(0);
+  const programmaticOutlineScrollRef = useRef(false);
   const pendingViewportRestoreRef = useRef<EditorViewportSnapshot | null>(null);
   const scrollWriterRef = useRef<RichPaneScrollIdleWriter | null>(null);
   if (!scrollWriterRef.current) {
@@ -2160,14 +2161,18 @@ function MountedBlockNoteEditor({
 
       const scrollToken = outlineScrollTokenRef.current + 1;
       outlineScrollTokenRef.current = scrollToken;
+      // 大纲跳转期间滚动事件来自程序对齐，不能让视口判定覆盖用户刚点击的标题。
+      programmaticOutlineScrollRef.current = true;
 
       if (!focusEditorOutlineBlock(editor, blockId)) {
+        programmaticOutlineScrollRef.current = false;
         return false;
       }
 
       const getTarget = () =>
         findEditorBlockElement(editor.domElement, blockId);
       if (!getTarget()) {
+        programmaticOutlineScrollRef.current = false;
         return false;
       }
 
@@ -2185,6 +2190,7 @@ function MountedBlockNoteEditor({
   const cancelPendingViewportRestore = useCallback(() => {
     // 从预览层激活时真实编辑器收不到 pointerdown，聚焦前必须主动终止旧窗格的跨帧校正。
     outlineScrollTokenRef.current += 1;
+    programmaticOutlineScrollRef.current = false;
     suppressProgrammaticScrollUntilRef.current = 0;
     pendingViewportRestoreRef.current = null;
   }, []);
@@ -2240,6 +2246,7 @@ function MountedBlockNoteEditor({
       cancelPendingOutlineScrollActivation();
       const scrollToken = outlineScrollTokenRef.current + 1;
       outlineScrollTokenRef.current = scrollToken;
+      programmaticOutlineScrollRef.current = false;
       pendingViewportRestoreRef.current = {
         scrollTop: state.scrollTop,
         topBlockId: state.topBlockId,
@@ -3067,6 +3074,7 @@ function MountedBlockNoteEditor({
     (event: React.UIEvent<HTMLDivElement>) => {
       const owner = readCurrentScrollOwner();
       if (!owner) return;
+      if (programmaticOutlineScrollRef.current) return;
       if (
         suppressProgrammaticScrollUntilRef.current > 0 &&
         performance.now() <= suppressProgrammaticScrollUntilRef.current
@@ -3097,6 +3105,7 @@ function MountedBlockNoteEditor({
         const pending = pendingOutlineScrollActivationRef.current;
         pendingOutlineScrollActivationRef.current = null;
         if (!pending || !isActiveEditorRef.current) return;
+        if (programmaticOutlineScrollRef.current) return;
 
         // 面板可能在滚动帧提交前已切换；旧 owner 不能覆盖新面板的大纲状态。
         const currentOwner = readCurrentScrollOwner();

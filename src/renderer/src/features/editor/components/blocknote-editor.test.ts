@@ -3091,6 +3091,81 @@ describe("BlockNoteEditor persistent session runtime", () => {
     session.view.unmount();
   });
 
+  it("keeps the clicked outline heading active during programmatic scrolling", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/outline-programmatic-scroll.md";
+    const content = "# First\nIntro\n## Second\nDetails";
+    setupSessionTab(path, { content });
+    const session = renderRealSession(path, false, content);
+
+    await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    const runtime = session.runtime.current!;
+    const scrollContainer = session.view.container.querySelector<HTMLElement>(
+      ".editor-rich-scroll",
+    )!;
+    const [firstHeading, , secondHeading] = runtime.editor.document;
+    const firstHeadingElement =
+      runtime.editor.domElement.querySelector<HTMLElement>(
+        `[data-id="${firstHeading.id}"]`,
+      )!;
+    const scheduledFrames: FrameRequestCallback[] = [];
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn((callback: FrameRequestCallback) => {
+        scheduledFrames.push(callback);
+        return scheduledFrames.length;
+      }),
+    );
+    vi.spyOn(scrollContainer, "getBoundingClientRect").mockReturnValue({
+      ...createRect(),
+      bottom: 500,
+      height: 400,
+      right: 400,
+      top: 100,
+      width: 400,
+    });
+    vi.spyOn(
+      runtime.editor.domElement,
+      "getBoundingClientRect",
+    ).mockReturnValue({
+      ...createRect(),
+      bottom: 900,
+      height: 800,
+      right: 400,
+      top: 100,
+      width: 400,
+    });
+    vi.spyOn(firstHeadingElement, "getBoundingClientRect").mockReturnValue({
+      ...createRect(),
+      bottom: 140,
+      height: 40,
+      top: 100,
+      width: 400,
+    });
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => firstHeadingElement,
+    });
+
+    useEditorStore
+      .getState()
+      .setActiveHeadingIdForPane("group-session:tab-session", secondHeading.id);
+
+    const performanceNow = vi.spyOn(performance, "now").mockReturnValue(1000);
+    expect(runtime.scrollToBlock(secondHeading.id)).toBe(true);
+    performanceNow.mockReturnValue(2000);
+    fireEvent.scroll(scrollContainer);
+    act(() => scheduledFrames.shift()?.(16));
+
+    expect(
+      useEditorStore.getState().activeHeadingIdByPane[
+        "group-session:tab-session"
+      ],
+    ).toBe(secondHeading.id);
+    session.view.unmount();
+  });
+
   it("does not persist a programmatic pane scroll restoration as user scroll", async () => {
     setupMatchMedia();
     setupDomMeasurements();
