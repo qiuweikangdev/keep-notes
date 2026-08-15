@@ -83,3 +83,11 @@ describe("shared selection interaction styles", () => {
     );
   });
 });
+
+describe("markdown source editor surface styles", () => {
+  it("keeps the editor borderless instead of using form-control focus styles", () => {
+    expect(stylesheet).toMatch(
+      /textarea\[aria-label="Markdown 源码"\]\s*\{[\s\S]*border:\s*0 !important;[\s\S]*border-radius:\s*0;[\s\S]*box-shadow:\s*none !important;[\s\S]*outline:\s*none !important;/,
+    );
+  });
+});

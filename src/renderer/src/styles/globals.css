@@ -84,6 +84,11 @@ button[data-selection-surface="true"][data-selection-context="secondary"][data-s
 textarea[aria-label="Markdown 源码"] {
   tab-size: 2;
   caret-color: var(--accent-color);
+  /* 源码编辑器是内容面板，不应继承表单 textarea 的默认边框和焦点 ring。 */
+  border: 0 !important;
+  border-radius: 0;
+  box-shadow: none !important;
+  outline: none !important;
 }
 
 ::highlight(keep-notes-find-match) {
