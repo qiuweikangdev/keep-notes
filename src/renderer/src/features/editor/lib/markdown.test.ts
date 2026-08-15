@@ -916,6 +916,72 @@ describe("preserveMarkdownSource", () => {
       source.replace("cockpit-tools", "cockpit-tools1"),
     );
   });
+
+  it("keeps untouched quote and table source stable during a rich-text edit", () => {
+    const source = [
+      "# Editor audit sandbox",
+      "",
+      "- first item",
+      "- second item",
+      "  - nested item",
+      "",
+      "1. ordered one",
+      "2. ordered two",
+      "",
+      "> Quote line one",
+      "> Quote line two",
+      "",
+      "| Name | Value |",
+      "| --- | --- |",
+      "| Alpha | 1 |",
+      "| Beta | 2 |",
+      "",
+      "After",
+    ].join("\n");
+    const edited = [
+      "# Editor audit sandbox",
+      "",
+      "- first item",
+      "- second item",
+      "  - nested item",
+      "",
+      "1. ordered onennSave marker",
+      "2. ordered two",
+      "",
+      "> Quote line one\\",
+      ">  Quote line two",
+      "",
+      "| Name       | Value      |",
+      "| ---------- | ---------- |",
+      "| Alpha      | 1          |",
+      "| Beta       | 2          |",
+      "",
+      "After",
+    ].join("\n");
+
+    expect(preserveMarkdownSource(source, source, edited)).toBe(
+      source.replace("ordered one", "ordered onennSave marker"),
+    );
+  });
+
+  it("keeps table separators and cell spacing when a cell changes", () => {
+    const source = [
+      "| Name | Value |",
+      "| --- | --- |",
+      "| Alpha | 1 |",
+      "| Beta | 2 |",
+    ].join("\n");
+    const edited = [
+      "| Name       | Value      |",
+      "| ---------- | ---------- |",
+      "| Alpha      | 10         |",
+      "| Beta       | 2          |",
+    ].join("\n");
+
+    expect(preserveMarkdownSource(source, source, edited)).toBe(
+      source.replace("| Alpha | 1 |", "| Alpha | 10 |"),
+    );
+  });
 });
 
 describe("ensureEditableBlocks", () => {

@@ -1844,6 +1844,195 @@ function normalizeUnorderedListMarkers(source: string, result: string): string {
   return normalized.map((line) => `${line.text}${line.ending}`).join("");
 }
 
+interface MarkdownLineBlock {
+  end: number;
+  start: number;
+}
+
+function collectMarkdownLineBlocks(
+  lines: MarkdownLine[],
+  matches: (text: string) => boolean,
+): MarkdownLineBlock[] {
+  const blocks: MarkdownLineBlock[] = [];
+  let start: number | null = null;
+
+  for (let index = 0; index <= lines.length; index += 1) {
+    const matched = index < lines.length && matches(lines[index].text);
+    if (matched) {
+      start ??= index;
+      continue;
+    }
+    if (start !== null) {
+      blocks.push({ end: index, start });
+      start = null;
+    }
+  }
+
+  return blocks;
+}
+
+function normalizeSerializedQuoteLineContent(content: string): string {
+  // BlockNote 会把同一引用块的换行导出为硬换行，并在下一行多补一个空格。
+  const withoutHardBreak = content.endsWith("\\")
+    ? content.slice(0, -1)
+    : content;
+  return withoutHardBreak.replace(/^ /u, "");
+}
+
+function restoreQuoteSourceFormatting(source: string, markdown: string) {
+  const sourceLines = splitMarkdownLines(source);
+  const resultLines = splitMarkdownLines(markdown);
+  const sourceBlocks = collectMarkdownLineBlocks(sourceLines, (text) =>
+    /^\s*> ?/u.test(text),
+  );
+  const resultBlocks = collectMarkdownLineBlocks(resultLines, (text) =>
+    /^\s*> ?/u.test(text),
+  );
+
+  if (sourceBlocks.length !== resultBlocks.length) return markdown;
+
+  for (let index = 0; index < sourceBlocks.length; index += 1) {
+    const sourceBlock = sourceBlocks[index];
+    const resultBlock = resultBlocks[index];
+    if (
+      sourceBlock.end - sourceBlock.start !==
+      resultBlock.end - resultBlock.start
+    ) {
+      continue;
+    }
+
+    const nextLines = resultLines.slice(resultBlock.start, resultBlock.end);
+    const canRestore = nextLines.every((line, offset) => {
+      return (
+        /^\s*> ?/u.test(line.text) &&
+        /^\s*> ?/u.test(sourceLines[sourceBlock.start + offset].text)
+      );
+    });
+    if (!canRestore) continue;
+
+    for (let offset = 0; offset < nextLines.length; offset += 1) {
+      const sourceLine = sourceLines[sourceBlock.start + offset];
+      const resultLine = nextLines[offset];
+      const sourceMatch = sourceLine.text.match(/^(\s*> ?)/u);
+      const resultMatch = resultLine.text.match(/^\s*> ?(.*)$/u);
+      if (!sourceMatch || !resultMatch) continue;
+      resultLines[resultBlock.start + offset] = {
+        ending: sourceLine.ending,
+        text: `${sourceMatch[1]}${normalizeSerializedQuoteLineContent(resultMatch[1])}`,
+      };
+    }
+  }
+
+  return resultLines.map((line) => `${line.text}${line.ending}`).join("");
+}
+
+interface MarkdownTableRow {
+  cells: string[];
+  prefix: string;
+  suffix: string;
+}
+
+function splitMarkdownTableRow(text: string): MarkdownTableRow | null {
+  const match = text.match(/^(\s*\|)(.*)(\|\s*)$/u);
+  if (!match) return null;
+
+  const cells: string[] = [];
+  let cellStart = 0;
+  let escaped = false;
+  for (let index = 0; index < match[2].length; index += 1) {
+    const character = match[2][index];
+    if (character === "\\") {
+      escaped = !escaped;
+      continue;
+    }
+    if (character !== "|" || escaped) {
+      escaped = false;
+      continue;
+    }
+    cells.push(match[2].slice(cellStart, index));
+    cellStart = index + 1;
+  }
+  cells.push(match[2].slice(cellStart));
+
+  return { cells, prefix: match[1], suffix: match[3] };
+}
+
+function preserveTableCellSpacing(sourceCell: string, editedCell: string) {
+  const leadingWhitespace = sourceCell.match(/^\s*/u)?.[0] ?? "";
+  const trailingWhitespace = sourceCell.match(/\s*$/u)?.[0] ?? "";
+  return `${leadingWhitespace}${editedCell.trim()}${trailingWhitespace}`;
+}
+
+function isMarkdownTableSeparatorRow(row: MarkdownTableRow): boolean {
+  return row.cells.every((cell) => /^:?-{3,}:?$/u.test(cell.trim()));
+}
+
+function restoreTableSourceFormatting(source: string, markdown: string) {
+  const sourceLines = splitMarkdownLines(source);
+  const resultLines = splitMarkdownLines(markdown);
+  const sourceBlocks = collectMarkdownLineBlocks(sourceLines, (text) =>
+    SERIALIZED_TABLE_ROW_PATTERN.test(text),
+  );
+  const resultBlocks = collectMarkdownLineBlocks(resultLines, (text) =>
+    SERIALIZED_TABLE_ROW_PATTERN.test(text),
+  );
+
+  if (sourceBlocks.length !== resultBlocks.length) return markdown;
+
+  for (let index = 0; index < sourceBlocks.length; index += 1) {
+    const sourceBlock = sourceBlocks[index];
+    const resultBlock = resultBlocks[index];
+    if (
+      sourceBlock.end - sourceBlock.start !==
+      resultBlock.end - resultBlock.start
+    ) {
+      continue;
+    }
+
+    const sourceRows = sourceLines
+      .slice(sourceBlock.start, sourceBlock.end)
+      .map((line) => splitMarkdownTableRow(line.text));
+    const resultRows = resultLines
+      .slice(resultBlock.start, resultBlock.end)
+      .map((line) => splitMarkdownTableRow(line.text));
+    if (
+      sourceRows.some((row) => row === null) ||
+      resultRows.some((row) => row === null) ||
+      sourceRows.some(
+        (row, rowIndex) =>
+          row && row.cells.length !== resultRows[rowIndex]?.cells.length,
+      )
+    ) {
+      continue;
+    }
+
+    for (let rowIndex = 0; rowIndex < sourceRows.length; rowIndex += 1) {
+      const sourceRow = sourceRows[rowIndex];
+      const resultRow = resultRows[rowIndex];
+      if (!sourceRow || !resultRow) continue;
+      const sourceLine = sourceLines[sourceBlock.start + rowIndex];
+      const cells = isMarkdownTableSeparatorRow(sourceRow)
+        ? sourceRow.cells
+        : resultRow.cells.map((cell, cellIndex) =>
+            preserveTableCellSpacing(sourceRow.cells[cellIndex], cell),
+          );
+      resultLines[resultBlock.start + rowIndex] = {
+        ending: sourceLine.ending,
+        text: `${sourceRow.prefix}${cells.join("|")}${sourceRow.suffix}`,
+      };
+    }
+  }
+
+  return resultLines.map((line) => `${line.text}${line.ending}`).join("");
+}
+
+function restoreStableSourceFormatting(source: string, markdown: string) {
+  return restoreQuoteSourceFormatting(
+    source,
+    restoreTableSourceFormatting(source, markdown),
+  );
+}
+
 export function preserveMarkdownSource(
   source: string,
   baseline: string,
@@ -1860,7 +2049,10 @@ export function preserveMarkdownSource(
     repairMarkdownSourceBeforeParse(repairedTableBoundarySource);
   const preservationSource = repairedListMarkerSource;
   const finalizeMarkdown = (markdown: string) =>
-    repairMarkdownSourceAfterPreserve(preservationSource, markdown, edited);
+    restoreStableSourceFormatting(
+      preservationSource,
+      repairMarkdownSourceAfterPreserve(preservationSource, markdown, edited),
+    );
 
   // 空白文件没有可供差异映射的源码边界，直接采用编辑器结果可避免换行被映射成空格或空段落。
   if (!preservationSource.trim()) {
