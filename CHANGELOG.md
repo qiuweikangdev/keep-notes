@@ -1,3 +1,16 @@
+## [2.22.2](https://github.com/qiuweikangdev/keep-notes/compare/v2.22.1...v2.22.2) (2026-08-15)
+
+
+### Bug Fixes
+
+* preserve markdown image urls ([3d6d331](https://github.com/qiuweikangdev/keep-notes/commit/3d6d3315984157fe07f79e9db693641dd8b115c8))
+
+
+## Commit Summary
+
+- Compared with: v2.22.1
+- Total commits: 1
+
 ## [2.22.1](https://github.com/qiuweikangdev/keep-notes/compare/v2.22.0...v2.22.1) (2026-08-15)
 
 
