@@ -746,7 +746,7 @@ describe("editor BlockNote schema", () => {
     });
   });
 
-  it("keeps real BlockNote markdown unchanged across serialization batches", async () => {
+  it("keeps real BlockNote markdown structure across serialization batches", async () => {
     const editor = BlockNoteEditor.create({
       schema: editorSchema,
       initialContent: [
@@ -812,10 +812,15 @@ describe("editor BlockNote schema", () => {
       ],
     });
     const expected = editor.blocksToMarkdownLossy(editor.document);
+    const firstListBoundary = expected.indexOf("\n\n* Bullet item 1");
+    expect(firstListBoundary).toBeGreaterThan(0);
+    const compactExpected =
+      expected.slice(0, firstListBoundary).replace(/\n{2,}/gu, "\n") +
+      expected.slice(firstListBoundary);
     const serialize = vi.spyOn(editor, "blocksToMarkdownLossy");
 
     await expect(serializeMarkdown(editor, editor.document)).resolves.toBe(
-      expected,
+      compactExpected,
     );
     expect(
       Math.max(...serialize.mock.calls.map(([blocks]) => blocks?.length ?? 0)),
@@ -879,6 +884,24 @@ describe("editor BlockNote schema", () => {
         ],
       },
     });
+  });
+
+  it("keeps adjacent plain paragraph line breaks compact in Markdown source", async () => {
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        { type: "paragraph", content: "First" },
+        { type: "paragraph", content: "Second" },
+        { type: "paragraph", content: "Third" },
+      ],
+    });
+
+    const serialized = await serializeMarkdown(editor, editor.document);
+    expect(serialized).toBe("First\nSecond\nThird\n");
+    const reopenedBlocks = await parseMarkdown(editor, serialized);
+    await expect(serializeMarkdown(editor, reopenedBlocks)).resolves.toBe(
+      serialized,
+    );
   });
 
   it("separates adjacent tables for standard GFM consumers", async () => {

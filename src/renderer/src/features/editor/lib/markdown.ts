@@ -2033,6 +2033,80 @@ function restoreStableSourceFormatting(source: string, markdown: string) {
   );
 }
 
+function isPlainMarkdownTextLine(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed || /^ {0,3}(?:#{1,6}\s|[-+*]\s|\d+[.)]\s|>)/u.test(trimmed)) {
+    return false;
+  }
+  if (/^\s*(?:\|.*\||```+|~~~+)\s*$/u.test(text)) return false;
+  if (/^\s*(?:<\/?[A-Za-z]|(?:---+|\*\*\*|___+)\s*$)/u.test(text)) {
+    return false;
+  }
+  return !/^ {4}/u.test(text);
+}
+
+function hasCompactPlainParagraphBoundary(
+  baselineLines: MarkdownLine[],
+  previousText: string,
+  nextText: string,
+): boolean {
+  for (let index = 0; index + 1 < baselineLines.length; index += 1) {
+    if (
+      baselineLines[index].text === previousText &&
+      baselineLines[index + 1].text === nextText &&
+      isPlainMarkdownTextLine(previousText) &&
+      isPlainMarkdownTextLine(nextText)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function removeLegacyPlainParagraphSpacer(
+  canonicalMarkdown: string,
+  markdown: string,
+): string {
+  const resultLines = splitMarkdownLines(markdown);
+  const canonicalLines = splitMarkdownLines(canonicalMarkdown);
+  const removedLineIndexes = new Set<number>();
+  for (let index = 0; index < resultLines.length; index += 1) {
+    if (resultLines[index].text.trim() !== "") continue;
+
+    let nextContentIndex = index + 1;
+    while (
+      nextContentIndex < resultLines.length &&
+      resultLines[nextContentIndex].text.trim() === ""
+    ) {
+      nextContentIndex += 1;
+    }
+    const previous = resultLines[index - 1];
+    const next = resultLines[nextContentIndex];
+    if (
+      !previous ||
+      !next ||
+      !isPlainMarkdownTextLine(previous.text) ||
+      !isPlainMarkdownTextLine(next.text) ||
+      !hasCompactPlainParagraphBoundary(
+        canonicalLines,
+        previous.text,
+        next.text,
+      )
+    ) {
+      continue;
+    }
+
+    // 只删除旧序列化器补出的第一条空行；用户额外保留的空行继续保留。
+    removedLineIndexes.add(index);
+  }
+
+  if (removedLineIndexes.size === 0) return markdown;
+  return resultLines
+    .filter((_line, index) => !removedLineIndexes.has(index))
+    .map((line) => `${line.text}${line.ending}`)
+    .join("");
+}
+
 export function preserveMarkdownSource(
   source: string,
   baseline: string,
@@ -2048,11 +2122,19 @@ export function preserveMarkdownSource(
     repairedJoinedListSource ??
     repairMarkdownSourceBeforeParse(repairedTableBoundarySource);
   const preservationSource = repairedListMarkerSource;
-  const finalizeMarkdown = (markdown: string) =>
-    restoreStableSourceFormatting(
+  const finalizeMarkdown = (markdown: string) => {
+    const repaired = repairMarkdownSourceAfterPreserve(
       preservationSource,
-      repairMarkdownSourceAfterPreserve(preservationSource, markdown, edited),
+      markdown,
+      edited,
     );
+    return restoreStableSourceFormatting(
+      preservationSource,
+      baseline === edited
+        ? repaired
+        : removeLegacyPlainParagraphSpacer(edited, repaired),
+    );
+  };
 
   // 空白文件没有可供差异映射的源码边界，直接采用编辑器结果可避免换行被映射成空格或空段落。
   if (!preservationSource.trim()) {
@@ -2815,12 +2897,80 @@ interface MarkdownSerializationBatch<TBlock> {
   separator: "" | "\n" | "\n\n";
 }
 
+function isCompactParagraphBlock<TBlock>(block: TBlock): boolean {
+  const text = isRecord(block) ? getInlineText(block.content) : "";
+  const containsMarkup = /<\/?[A-Za-z][A-Za-z0-9-]*/u.test(text);
+  const containsBracedSource = text.includes("{") && text.includes("}");
+  return (
+    isRecord(block) &&
+    getMarkdownBlockType(block) === "paragraph" &&
+    Array.isArray(block.content) &&
+    !containsMarkup &&
+    !containsBracedSource &&
+    Boolean(text.trim())
+  );
+}
+
+function hasAdjacentCompactParagraphs<TBlock>(blocks: TBlock[]): boolean {
+  return blocks.some(
+    (block, index) =>
+      isCompactParagraphBlock(block) &&
+      isCompactParagraphBlock(blocks[index + 1]),
+  );
+}
+
+function normalizeSerializedPlainParagraphBreaks(markdown: string): string {
+  // BlockNote 会把普通段落里的软换行导出为反斜杠加前置空格，源码模式应恢复为用户看到的单换行。
+  return markdown.replace(/\\\n[ \t]?/gu, "\n");
+}
+
+async function serializeBlockSequence<TBlock>(
+  serializer: MarkdownSerializer<TBlock>,
+  blocks: TBlock[],
+): Promise<string> {
+  const hasPlainParagraphBreaks = blocks.some(
+    (block) =>
+      isCompactParagraphBlock(block) &&
+      getInlineText(block.content).includes("\n"),
+  );
+  if (!hasAdjacentCompactParagraphs(blocks) && !hasPlainParagraphBreaks) {
+    return serializer.blocksToMarkdownLossy(blocks);
+  }
+
+  const chunks: string[] = [];
+  let index = 0;
+  while (index < blocks.length) {
+    const isParagraph = isCompactParagraphBlock(blocks[index]);
+    const startIndex = index;
+    while (
+      index < blocks.length &&
+      isCompactParagraphBlock(blocks[index]) === isParagraph
+    ) {
+      index += 1;
+    }
+
+    const chunk = await serializer.blocksToMarkdownLossy(
+      blocks.slice(startIndex, index),
+    );
+    // 连续普通段落在富文本中就是连续文本行，源码只保留一个换行；其他块仍由 Markdown 序列化器保持原有间距。
+    chunks.push(
+      isParagraph
+        ? normalizeSerializedPlainParagraphBreaks(chunk)
+            .replace(/\n{2,}/gu, "\n")
+            .trimEnd()
+        : chunk.trimEnd(),
+    );
+  }
+
+  return `${chunks.join("\n\n")}\n`;
+}
+
 async function serializeBlockBatches<TBlock>(
   serializer: MarkdownSerializer<TBlock>,
   blocks: TBlock[],
 ): Promise<string> {
   if (blocks.length <= MARKDOWN_SERIALIZATION_BATCH_SIZE) {
-    return serializer.blocksToMarkdownLossy(blocks);
+    return serializeBlockSequence(serializer, blocks);
   }
 
   const batches: MarkdownSerializationBatch<TBlock>[] = [];
@@ -2868,7 +3018,8 @@ async function serializeBlockBatches<TBlock>(
   for (const currentBatch of batches) {
     // BlockNote 的导出包含同步 HTML DOM 构建；批次间主动让出事件循环，避免模式切换后形成单个长任务。
     if (!isFirstBatch) await yieldToMain();
-    const markdown = await serializer.blocksToMarkdownLossy(
+    const markdown = await serializeBlockSequence(
+      serializer,
       currentBatch.blocks,
     );
     serialized += `${currentBatch.separator}${markdown.trimEnd()}`;

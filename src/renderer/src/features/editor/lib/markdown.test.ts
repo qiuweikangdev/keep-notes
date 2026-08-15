@@ -636,6 +636,19 @@ describe("repairMarkdownSourceBeforeParse", () => {
 });
 
 describe("preserveMarkdownSource", () => {
+  it("does not restore serializer-added blank lines after a rich-text edit", () => {
+    const source = "First\n\nSecond\n\nThird\n";
+    const baseline = "First\nSecond\nThird\n";
+    const edited = "First\nSecond updated\nThird\n";
+
+    expect(preserveMarkdownSource(source, baseline, edited)).toBe(edited);
+    const editedWithInsertedParagraph =
+      "First\nInserted\nSecond updated\nThird\n";
+    expect(
+      preserveMarkdownSource(source, baseline, editedWithInsertedParagraph),
+    ).toBe(editedWithInsertedParagraph);
+  });
+
   it("preserves source markers across every nested list depth", () => {
     const source = [
       "- 父列表",
