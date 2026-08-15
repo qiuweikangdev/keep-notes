@@ -153,6 +153,24 @@ function findSelectedCodeMirrorView(editor: CoreBlockNoteEditor) {
   }
 }
 
+function isCodeMirrorPasteTarget(
+  editor: CoreBlockNoteEditor,
+  event: ClipboardEvent,
+): boolean {
+  const target = getElementFromEventTarget(event.target);
+  if (
+    target?.closest(".editor-code-block__codemirror, .cm-editor, .cm-content")
+  ) {
+    return true;
+  }
+
+  try {
+    return editor.getTextCursorPosition().block.type === "codeBlock";
+  } catch {
+    return false;
+  }
+}
+
 function shouldSuppressStaleTableMouseMove(
   editor: CoreBlockNoteEditor,
   target: EventTarget | null,
@@ -497,6 +515,11 @@ export function pasteExternalHTMLTables(
     return false;
   }
 
+  if (isCodeMirrorPasteTarget(editor, event)) {
+    // 代码块内的粘贴必须交给 CodeMirror，避免外部 HTML 先被转换成新的 BlockNote 块。
+    return false;
+  }
+
   if (clipboardData.types.includes("blocknote/html")) {
     const internalHTML = clipboardData.getData("blocknote/html");
     const externalHTML = clipboardData.getData("text/html");
@@ -554,7 +577,10 @@ export function pasteExternalHTMLTables(
   const tables = Array.from(container.querySelectorAll("table")).filter(
     (table) => !table.parentElement?.closest("table"),
   );
-  if (tables.length === 0) return false;
+  const codeBlocks = Array.from(container.querySelectorAll("pre")).filter(
+    (pre) => !pre.parentElement?.closest("table"),
+  );
+  if (tables.length === 0 && codeBlocks.length === 0) return false;
 
   const mixedBlocks = parseMixedPastedHTML(editor, container, tables);
   if (!mixedBlocks) return false;

@@ -1069,6 +1069,90 @@ describe("BlockNoteEditor user intent tracking", () => {
 });
 
 describe("BlockNoteEditor code paste", () => {
+  it("pastes a standalone external HTML code block as a code block", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    vi.stubGlobal("ClipboardEvent", Event);
+    const path = "C:/notes/external-html-code-block-paste.md";
+    const source = "const value = 1;\nconsole.log(value);";
+    setupSessionTab(path);
+    const session = renderRealSession(path, false, "");
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const editor = session.runtime.current!.editor;
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "clipboardData", {
+        value: {
+          getData: (type: string) =>
+            type === "text/html"
+              ? `<pre><code class="language-typescript">${source}</code></pre>`
+              : type === "text/plain"
+                ? source
+                : "",
+          types: ["text/html", "text/plain"],
+        },
+      });
+
+      act(() => {
+        editor.prosemirrorView.dom.dispatchEvent(event);
+      });
+
+      await waitFor(() => {
+        expect(editor.document[0]?.type).toBe("codeBlock");
+      });
+      expect(editor.document[0]).toMatchObject({
+        type: "codeBlock",
+        props: { language: "typescript" },
+        content: [{ type: "text", text: source, styles: {} }],
+      });
+    } finally {
+      session.view.unmount();
+    }
+  });
+
+  it("keeps an external HTML code block paste inside the active CodeMirror", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    vi.stubGlobal("ClipboardEvent", Event);
+    const path = "C:/notes/external-html-code-block-into-code.md";
+    const content = "```text\n\n```";
+    const source = "first line\n  second line";
+    setupSessionTab(path, { content });
+    const session = renderRealSession(path, false, content);
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const codeMirrorElement = await waitFor(() => {
+        const element =
+          session.view.container.querySelector<HTMLElement>(".cm-editor");
+        expect(element).not.toBeNull();
+        return element!;
+      });
+      const codeMirror = CodeMirrorView.findFromDOM(codeMirrorElement);
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "clipboardData", {
+        value: {
+          getData: (type: string) =>
+            type === "text/html"
+              ? `<pre><code class="language-text">${source}</code></pre>`
+              : type === "text/plain"
+                ? source
+                : "",
+          types: ["text/html", "text/plain"],
+        },
+      });
+
+      codeMirror.focus();
+      codeMirror.contentDOM.dispatchEvent(event);
+
+      await waitFor(() => expect(codeMirror.state.doc.toString()).toBe(source));
+      expect(session.runtime.current!.editor.document).toHaveLength(1);
+    } finally {
+      session.view.unmount();
+    }
+  });
+
   it("lets CodeMirror handle multiline markup paste without flattening it", () => {
     const insertInlineContent = vi.fn();
     const editor = { insertInlineContent } as never;
