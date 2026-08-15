@@ -847,7 +847,7 @@ function persistRichPaneScroll(
   store.setTabScrollTop(owner.groupId, owner.tabId, scrollTop);
 }
 
-const MARKDOWN_PARSER_VERSION = "blocknote-v10";
+const MARKDOWN_PARSER_VERSION = "blocknote-v11";
 
 export function getMarkdownParserCacheVersion(reloadKey: number) {
   return `${MARKDOWN_PARSER_VERSION}:${reloadKey}`;
@@ -2089,13 +2089,6 @@ function MountedBlockNoteEditor({
     }
   }, [appearance.opacity, surface]);
 
-  const loadEditorImageUrl = useCallback(async (url: string) => {
-    try {
-      return (await window.electronAPI.loadImageAsDataUrl(url)) ?? url;
-    } catch {
-      return url;
-    }
-  }, []);
   editorRef.current = editor;
 
   useLayoutEffect(() => {
@@ -2709,11 +2702,7 @@ function MountedBlockNoteEditor({
           ? editorCache.getBlocks(path, source, parserCacheVersion)
           : null;
         const parsedBlocks =
-          cached?.blocks ??
-          (await parseMarkdown(editor, source || "", {
-            markdownFilePath: path,
-            resolveImageUrl: loadEditorImageUrl,
-          }));
+          cached?.blocks ?? (await parseMarkdown(editor, source || ""));
         const blocks = ensureEditableBlocks(parsedBlocks, () => {
           return { type: "paragraph", content: [] } as Block;
         });
@@ -2834,7 +2823,6 @@ function MountedBlockNoteEditor({
     cancelPendingEditorWork,
     editor,
     ensureRichRuntime,
-    loadEditorImageUrl,
     path,
     reloadKey,
   ]);

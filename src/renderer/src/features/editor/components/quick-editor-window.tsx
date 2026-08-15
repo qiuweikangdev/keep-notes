@@ -60,6 +60,7 @@ import {
   markdownEquals,
   parseMarkdown,
   preserveMarkdownSource,
+  resolveEditorImageUrl,
   serializeMarkdown,
 } from "../lib/markdown";
 import { FindWidget } from "./find-widget";
@@ -284,9 +285,25 @@ export function QuickEditorWindow() {
       (callback) => window.setTimeout(callback, 0),
     ),
   );
+  const resolveQuickEditorFileUrl = useCallback(async (url: string) => {
+    const resolvedUrl = resolveEditorImageUrl(
+      url,
+      sourceRef.current?.filePath ?? null,
+    );
+    try {
+      // 图片仅在编辑器 DOM 中使用 Data URL，BlockNote 节点仍保存 Markdown 原始路径。
+      return (
+        (await window.electronAPI.loadImageAsDataUrl(resolvedUrl)) ??
+        resolvedUrl
+      );
+    } catch {
+      return resolvedUrl;
+    }
+  }, []);
   const editor = useCreateBlockNote({
     placeholders: { default: EDITOR_EMPTY_PLACEHOLDER },
     schema: editorSchema,
+    resolveFileUrl: resolveQuickEditorFileUrl,
     uploadFile: handleImageUploadRef.current,
   });
   editorRef.current = editor;

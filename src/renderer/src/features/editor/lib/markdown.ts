@@ -10,11 +10,6 @@ export interface MarkdownSerializer<TBlock> {
   blocksToMarkdownLossy(blocks: TBlock[]): Promise<string> | string;
 }
 
-export interface MarkdownParseOptions {
-  markdownFilePath?: string | null;
-  resolveImageUrl?: (url: string) => Promise<string | null> | string | null;
-}
-
 interface MarkdownTreeBlock {
   children?: MarkdownTreeBlock[];
   type?: unknown;
@@ -2517,6 +2512,20 @@ function promoteMarkdownImageParagraph<TBlock>(block: TBlock): TBlock {
   return createImageBlockFromParagraph(block, image);
 }
 
+function promoteMarkdownImageBlocks<TBlock>(blocks: TBlock[]): TBlock[] {
+  return blocks.map((block) => {
+    const promotedBlock = promoteMarkdownImageParagraph(block);
+    if (!isRecord(promotedBlock) || !Array.isArray(promotedBlock.children)) {
+      return promotedBlock;
+    }
+
+    return {
+      ...promotedBlock,
+      children: promoteMarkdownImageBlocks(promotedBlock.children as TBlock[]),
+    } as TBlock;
+  });
+}
+
 function restoreStandaloneHardBreakParagraphs<TBlock>(blocks: TBlock[]) {
   return blocks.map((block) => {
     if (!isRecord(block)) return block;
@@ -2541,61 +2550,6 @@ function restoreStandaloneHardBreakParagraphs<TBlock>(blocks: TBlock[]) {
 
     return restoredBlock as TBlock;
   });
-}
-
-async function resolveImageBlockUrls<TBlock>(
-  blocks: TBlock[],
-  options: MarkdownParseOptions,
-): Promise<TBlock[]> {
-  return Promise.all(
-    blocks.map(async (block) => {
-      const promotedBlock = promoteMarkdownImageParagraph(block);
-      if (!isRecord(promotedBlock)) return promotedBlock;
-
-      let nextBlock: Record<string, unknown> = promotedBlock;
-      const props = isRecord(promotedBlock.props) ? promotedBlock.props : null;
-      const sourceUrl =
-        props && typeof props.url === "string" ? props.url : null;
-
-      if (
-        options.resolveImageUrl &&
-        promotedBlock.type === "image" &&
-        sourceUrl
-      ) {
-        const resolvedUrl = resolveEditorImageUrl(
-          sourceUrl,
-          options.markdownFilePath ?? null,
-        );
-        const imageDataUrl = await options.resolveImageUrl(resolvedUrl);
-
-        if (imageDataUrl && imageDataUrl !== sourceUrl) {
-          // BlockNote 的图片节点直接使用 props.url 渲染，提前转为 data URL 可避开 Electron 资源来源限制。
-          nextBlock = {
-            ...nextBlock,
-            props: {
-              ...props,
-              url: imageDataUrl,
-            },
-          };
-        }
-      }
-
-      if (Array.isArray(nextBlock.children)) {
-        const children = await resolveImageBlockUrls(
-          nextBlock.children,
-          options,
-        );
-        if (children !== nextBlock.children) {
-          nextBlock = {
-            ...nextBlock,
-            children,
-          };
-        }
-      }
-
-      return nextBlock as TBlock;
-    }),
-  );
 }
 
 const QUOTE_LINE_PATTERN = /^> ?/u;
@@ -3123,7 +3077,6 @@ async function serializeQuoteListBlocks<TBlock>(
 export async function parseMarkdown<TBlock>(
   parser: MarkdownParser<TBlock>,
   markdown: string,
-  options: MarkdownParseOptions = {},
 ): Promise<TBlock[]> {
   // 仅规范化传给 BlockNote 的解析副本；原始源码仍用于编辑、比较和保存。
   const repairedMarkdown = repairMarkdownSourceBeforeParse(markdown);
@@ -3143,12 +3096,11 @@ export async function parseMarkdown<TBlock>(
           protectedMarkup.continuationMarker,
           protectedMarkup.replacements,
         );
-  return resolveImageBlockUrls(
-    restoreStandaloneHardBreakParagraphs(
-      restoreQuoteListChildren(restoredBlocks, normalized.descriptors),
-    ),
-    options,
+  // 图片节点保留 Markdown 原始 URL，展示层通过 resolveFileUrl 加载资源，避免把 Base64 写回源码。
+  const normalizedBlocks = restoreStandaloneHardBreakParagraphs(
+    restoreQuoteListChildren(restoredBlocks, normalized.descriptors),
   );
+  return promoteMarkdownImageBlocks(normalizedBlocks);
 }
 
 function yieldToMain(): Promise<void> {

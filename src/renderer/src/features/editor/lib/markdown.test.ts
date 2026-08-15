@@ -385,7 +385,7 @@ describe("Markdown source preservation", () => {
     expect(source).toBe("\uFEFF# Title  \r\n\r\n* item\t \r\n\r\n");
   });
 
-  it("hydrates parsed image block URLs for editor rendering", async () => {
+  it("keeps parsed image block URLs for the editor rendering resolver", async () => {
     await expect(
       parseMarkdown(
         {
@@ -399,16 +399,12 @@ describe("Markdown source preservation", () => {
           ],
         },
         "![img](images/demo.webp)",
-        {
-          markdownFilePath: "/Users/me/notes/a.md",
-          resolveImageUrl: async (url) => `data:${url}`,
-        },
       ),
     ).resolves.toEqual([
       {
         type: "image",
         props: {
-          url: "data:file:///Users/me/notes/images/demo.webp",
+          url: "images/demo.webp",
         },
       },
     ]);
@@ -446,16 +442,13 @@ describe("Markdown source preservation", () => {
           ],
         },
         `![image-20260702141804557](${sourceUrl})`,
-        {
-          resolveImageUrl: async (url) => `data:${url}`,
-        },
       ),
     ).resolves.toEqual([
       {
         type: "image",
         props: {
           name: "image-20260702141804557",
-          url: `data:${sourceUrl}`,
+          url: sourceUrl,
         },
       },
     ]);

@@ -746,6 +746,24 @@ describe("editor BlockNote schema", () => {
     });
   });
 
+  it("keeps Markdown image paths when round-tripping through BlockNote", async () => {
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    const source = "![demo](images/demo.png)\n";
+
+    const blocks = await parseMarkdown(editor, source);
+    const serialized = await serializeMarkdown(editor, blocks);
+
+    expect(blocks[0]).toMatchObject({
+      type: "image",
+      props: { name: "demo", url: "images/demo.png" },
+    });
+    expect(serialized).toBe(source);
+    expect(serialized).not.toContain("data:image/");
+  });
+
   it("keeps real BlockNote markdown structure across serialization batches", async () => {
     const editor = BlockNoteEditor.create({
       schema: editorSchema,
