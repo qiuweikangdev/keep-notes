@@ -20,8 +20,6 @@ import {
   ListTree,
   Plus,
   FolderPlus,
-  Search,
-  X,
   ExternalLink,
   Copy,
   Pencil,
@@ -45,12 +43,9 @@ import { useDiffStore } from "@/store/diff.store";
 import { showNoDiffContentToast } from "@/features/diff/lib/diff-toast";
 import { areDiffContentsEqual } from "@/features/diff/lib/diff-content";
 import { QuickActionsPanel } from "./quick-actions-panel";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { ContextMenu } from "@/components/ui/context-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Tooltip } from "@/components/ui/tooltip";
-import type { TreeNode as TreeNodeType } from "@/types";
 import { CodeResult } from "@/types";
 import { cn } from "@/lib/cn";
 import { showAppToast } from "@/lib/app-toast";
@@ -126,7 +121,6 @@ export function FileTree() {
     openInNewWindow,
     moveItem,
     loadDirectory,
-    ensureFullTreeLoaded,
   } = useElectron();
 
   const appearance = useEditorStore((s) => s.appearance);
@@ -143,8 +137,6 @@ export function FileTree() {
   });
   const openCreateReminder = useReminderStore((s) => s.openCreateDialog);
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showSearch, setShowSearch] = useState(false);
   const [creatingInfo, setCreatingInfo] = useState<CreatingInfo | null>(null);
   const [createValue, setCreateValue] = useState("");
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
@@ -447,16 +439,6 @@ export function FileTree() {
     setCreatingInfo({ type: "folder", parentKey: treeRoot.key, level: 0 });
   }, [treeRoot]);
 
-  const handleToggleSearch = useCallback(() => {
-    setShowSearch((value) => !value);
-    if (showSearch) {
-      setSearchQuery("");
-    } else {
-      // 文件搜索显式触发完整目录索引，工作区首次打开仍保持浅层读取。
-      void ensureFullTreeLoaded();
-    }
-  }, [ensureFullTreeLoaded, showSearch]);
-
   // 根节点拖拽处理
   const isTreeFileDrag = useCallback((e: React.DragEvent) => {
     return e.dataTransfer.types.includes(KEEP_NOTES_FILE_DRAG_TYPE);
@@ -542,43 +524,11 @@ export function FileTree() {
     ],
   );
 
-  // 过滤树数据
-  const filteredTreeData = useMemo(() => {
-    if (!searchQuery.trim()) return treeData;
-
-    const filterNodes = (nodes: TreeNodeType[]): TreeNodeType[] => {
-      return nodes.reduce<TreeNodeType[]>((acc, node) => {
-        const matchesSearch = node.title
-          .toLowerCase()
-          .includes(searchQuery.toLowerCase());
-        const filteredChildren = node.children
-          ? filterNodes(node.children)
-          : [];
-
-        if (matchesSearch || filteredChildren.length > 0) {
-          acc.push({
-            ...node,
-            children:
-              filteredChildren.length > 0 ? filteredChildren : node.children,
-          });
-        }
-        return acc;
-      }, []);
-    };
-
-    return filterNodes(treeData);
-  }, [treeData, searchQuery]);
-
   // 展平树结构
   const flatNodes = useMemo(() => {
     if (!isRootExpanded) return [];
-    return flattenTree(
-      filteredTreeData,
-      expandedKeys,
-      1,
-      treeRoot?.key ?? null,
-    );
-  }, [filteredTreeData, expandedKeys, isRootExpanded, treeRoot?.key]);
+    return flattenTree(treeData, expandedKeys, 1, treeRoot?.key ?? null);
+  }, [treeData, expandedKeys, isRootExpanded, treeRoot?.key]);
 
   // 处理节点点击
   const handleNodeClick = useCallback(
@@ -753,42 +703,6 @@ export function FileTree() {
                 {sidebarView === "file" ? "文件" : "大纲"}
               </span>
             </div>
-            <Tooltip.Provider>
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <button
-                    type="button"
-                    className={TOOL_BUTTON_CLASS}
-                    style={{ color: "var(--text-muted)" }}
-                    onClick={handleToggleSearch}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                      e.currentTarget.style.color = "var(--text-primary)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "transparent";
-                      e.currentTarget.style.color = "var(--text-muted)";
-                    }}
-                  >
-                    {showSearch ? (
-                      <X className="h-3.5 w-3.5" />
-                    ) : (
-                      <Search className="h-3.5 w-3.5" />
-                    )}
-                  </button>
-                </Tooltip.Trigger>
-                <Tooltip.Portal>
-                  <Tooltip.Content
-                    className="z-50 rounded-md bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md"
-                    side="bottom"
-                    sideOffset={5}
-                  >
-                    {showSearch ? "关闭搜索" : "搜索文件"}
-                    <Tooltip.Arrow className="fill-popover" />
-                  </Tooltip.Content>
-                </Tooltip.Portal>
-              </Tooltip.Root>
-            </Tooltip.Provider>
           </div>
 
           <div
@@ -801,34 +715,6 @@ export function FileTree() {
           >
             {sidebarView === "file" ? (
               <>
-                {showSearch ? (
-                  <div className="px-2 pb-2">
-                    <div className="relative">
-                      <Search
-                        className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
-                        style={{ color: "var(--text-muted)" }}
-                      />
-                      <Input
-                        placeholder="搜索文件..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="h-8 rounded-md pl-7 pr-7 text-[12px]"
-                        autoFocus
-                      />
-                      {searchQuery ? (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="absolute right-1 top-1/2 h-5 w-5 -translate-y-1/2"
-                          onClick={() => setSearchQuery("")}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : null}
-
                 {isRootCreating ? (
                   <div
                     className="mx-2 mb-1 flex h-7 items-center rounded-md"
@@ -1027,7 +913,7 @@ export function FileTree() {
                     className="flex h-28 items-center justify-center text-[12px]"
                     style={{ color: "var(--text-muted)" }}
                   >
-                    {searchQuery ? "没有匹配的文件" : "文件夹为空"}
+                    文件夹为空
                   </div>
                 ) : null}
               </>

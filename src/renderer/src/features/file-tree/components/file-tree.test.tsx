@@ -106,6 +106,14 @@ describe("FileTree context menu", () => {
     });
   });
 
+  it("does not render the redundant file tree search action", () => {
+    render(<FileTree />);
+
+    expect(
+      screen.queryByRole("button", { name: "搜索文件" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("expands an unloaded directory immediately and loads its children in the background", () => {
     electronMocks.loadDirectory.mockResolvedValue(true);
     useTreeStore.setState({
