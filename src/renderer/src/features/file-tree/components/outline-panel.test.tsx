@@ -30,6 +30,33 @@ describe("OutlinePanel", () => {
     ).toBeInTheDocument();
   });
 
+  it("does not add hover styling to the active heading", () => {
+    render(
+      <OutlinePanel
+        headings={[
+          { id: "heading-1", text: "Active heading", level: 1 },
+          { id: "heading-2", text: "Other heading", level: 1 },
+        ]}
+        activeHeadingId="heading-1"
+        resetKey="note.md"
+        onHeadingClick={vi.fn()}
+      />,
+    );
+
+    const activeHeading = screen.getByRole("button", {
+      name: "Active heading",
+    });
+    const otherHeading = screen.getByRole("button", {
+      name: "Other heading",
+    });
+
+    expect(activeHeading).toHaveAttribute("data-selected", "true");
+    expect(activeHeading).not.toHaveClass(
+      "hover:bg-[var(--file-tree-row-hover)]",
+    );
+    expect(otherHeading).toHaveClass("hover:bg-[var(--file-tree-row-hover)]");
+  });
+
   it("scrolls the outline when clicking the custom scrollbar track", () => {
     const { container } = render(
       <OutlinePanel

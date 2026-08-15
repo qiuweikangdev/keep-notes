@@ -1,4 +1,5 @@
 import { forwardRef, memo, useCallback } from "react";
+import { cn } from "@/lib/cn";
 
 interface OutlineHeadingItemProps {
   id: string;
@@ -23,32 +24,21 @@ const OutlineHeadingItemBase = forwardRef<
       ref={ref}
       type="button"
       aria-current={isActive ? "location" : undefined}
-      className="flex w-full items-center py-1.5 text-left text-[13px] transition-colors duration-200"
+      data-selected={isActive ? "true" : undefined}
+      className={cn(
+        "flex w-full items-center py-1.5 text-left text-[13px] transition-colors duration-200",
+        isActive
+          ? "bg-[var(--file-tree-row-selected)] text-[var(--accent-color)] font-medium"
+          : "bg-transparent text-[var(--text-secondary)] hover:bg-[var(--file-tree-row-hover)] hover:text-[var(--text-primary)]",
+      )}
       style={{
         paddingLeft: `${12 + indent}px`,
         paddingRight: "12px",
-        color: isActive ? "var(--accent-color)" : "var(--text-secondary)",
-        backgroundColor: isActive
-          ? "var(--file-tree-row-selected)"
-          : "transparent",
-        fontWeight: isActive ? 500 : 400,
         borderRight: isActive
           ? "2px solid var(--accent-color)"
           : "2px solid transparent",
       }}
       onClick={handleClick}
-      onMouseEnter={(e) => {
-        if (!isActive) {
-          e.currentTarget.style.backgroundColor = "var(--file-tree-row-hover)";
-          e.currentTarget.style.color = "var(--text-primary)";
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (!isActive) {
-          e.currentTarget.style.backgroundColor = "transparent";
-          e.currentTarget.style.color = "var(--text-secondary)";
-        }
-      }}
     >
       <span className="truncate">{text}</span>
     </button>
