@@ -20,6 +20,7 @@ import {
 } from "@/features/editor/lib/editor-runtime";
 import { isLargeEditorDocument } from "@/features/editor/lib/editor-large-document";
 import { selectFileOpenTabId } from "@/features/editor/lib/editor-tab-opening";
+import { normalizeRichDocumentPath } from "@/features/editor/lib/rich-document-surface-registry";
 import { findNodeByKey } from "@/features/file-tree/utils";
 import { getDirectoriesToRefresh } from "@/features/file-tree/tree-data";
 import {
@@ -37,6 +38,50 @@ let workspaceRefreshInFlight = false;
 let pendingWorkspaceChangeBatch: WorkspaceChangeBatch | null = null;
 const directoryLoadPromises = new Map<string, Promise<boolean>>();
 let fullTreeLoad: { rootPath: string; promise: Promise<boolean> } | undefined;
+
+async function prepareEditorForWorkspaceSwitch(): Promise<boolean> {
+  const state = useEditorStore.getState();
+  const tabs = state.panelGroups.flatMap((group) =>
+    group.tabs.map((tab) => ({ groupId: group.id, tab })),
+  );
+  const hasDirtyUntitledTab = tabs.some(
+    ({ tab }) => tab.filePath === null && tab.isDirty,
+  );
+
+  if (
+    hasDirtyUntitledTab &&
+    !window.confirm(
+      "当前有未保存的未命名文档，切换工作区将放弃这些内容。继续吗？",
+    )
+  ) {
+    return false;
+  }
+
+  try {
+    // 切换工作区前先排空可写入文件，避免清理标签页时遗失最后一段编辑。
+    for (const { groupId, tab } of tabs) {
+      if (!tab.filePath) continue;
+      await flushEditorChange(groupId, tab.id);
+      if (!(await editorSaveCoordinator.flush(tab.filePath))) return false;
+    }
+
+    // 大文档切换可能由后台协调器托管序列化，必须确认这些任务也已落盘。
+    if (
+      (await backgroundEditorSaveCoordinator.getNextCloseSnapshot()) !== null
+    ) {
+      return false;
+    }
+  } catch (error) {
+    console.error("Failed to prepare editor for workspace switch:", error);
+    return false;
+  }
+
+  // 工作区是标签页路径的边界；切换成功后不再展示旧工作区的标签页。
+  for (const { groupId, tab } of tabs) {
+    useEditorStore.getState().removeTab(groupId, tab.id);
+  }
+  return true;
+}
 
 function mergeWorkspaceChangeBatches(
   current: WorkspaceChangeBatch | null,
@@ -255,6 +300,15 @@ export function useElectron() {
   const openFolder = useCallback(async () => {
     const result = await window.electronAPI.openDialog();
     if (result.code === CodeResult.Success && result.data) {
+      const currentRootPath = useTreeStore.getState().treeRoot?.key;
+      if (
+        currentRootPath &&
+        normalizeRichDocumentPath(currentRootPath) !==
+          normalizeRichDocumentPath(result.data.treeRoot.key) &&
+        !(await prepareEditorForWorkspaceSwitch())
+      ) {
+        return null;
+      }
       setTreeData(result.data.treeData);
       setTreeRoot(result.data.treeRoot);
       useTreeStore.getState().setTreeFullyLoaded(false);
@@ -273,6 +327,15 @@ export function useElectron() {
     async (path: string) => {
       const result = await window.electronAPI.generateTree(path);
       if (result.code === CodeResult.Success && result.data) {
+        const currentRootPath = useTreeStore.getState().treeRoot?.key;
+        if (
+          currentRootPath &&
+          normalizeRichDocumentPath(currentRootPath) !==
+            normalizeRichDocumentPath(result.data.treeRoot.key) &&
+          !(await prepareEditorForWorkspaceSwitch())
+        ) {
+          return;
+        }
         setTreeData(result.data.treeData);
         setTreeRoot(result.data.treeRoot);
         useTreeStore.getState().setTreeFullyLoaded(false);

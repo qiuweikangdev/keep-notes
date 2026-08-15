@@ -206,6 +206,59 @@ describe("useElectron workspace tree loading", () => {
       expect(readDirectory).toHaveBeenCalledWith("/workspace/notes/docs");
     });
   });
+
+  it("clears old editor tabs when loading a different workspace", async () => {
+    useTreeStore.setState({
+      treeRoot: { title: "old", key: "/workspace/old" },
+      treeData: [],
+    });
+    useEditorStore.setState({
+      activeGroupId: "group-old",
+      panelGroups: [
+        {
+          id: "group-old",
+          activeTabId: "tab-old",
+          direction: "horizontal",
+          tabs: [
+            {
+              id: "tab-old",
+              filePath: "/workspace/old/note.md",
+              pendingFilePath: null,
+              content: "# Old workspace",
+              wordCount: 16,
+              isDirty: false,
+              reloadKey: 0,
+              mode: "source",
+              loadStatus: "ready",
+              saveStatus: "clean",
+              errorMessage: null,
+              parseErrorMessage: null,
+              scrollTop: 0,
+            },
+          ],
+        },
+      ],
+    });
+    generateTree.mockResolvedValue({
+      code: CodeResult.Success,
+      data: {
+        treeRoot: { title: "new", key: "/workspace/new" },
+        treeData: [{ title: "fresh.md", key: "/workspace/new/fresh.md" }],
+      },
+    });
+    const { result } = renderHook(() => useElectron());
+
+    await act(async () => {
+      await result.current.loadTree("/workspace/new");
+    });
+
+    expect(useTreeStore.getState().treeRoot).toEqual({
+      title: "new",
+      key: "/workspace/new",
+    });
+    expect(useEditorStore.getState().panelGroups).toHaveLength(1);
+    expect(useEditorStore.getState().panelGroups[0].tabs).toEqual([]);
+  });
 });
 
 describe("useElectron file reuse", () => {
