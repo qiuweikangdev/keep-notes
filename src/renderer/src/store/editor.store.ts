@@ -6,7 +6,6 @@ import {
   normalizePersistedAppearance,
   normalizePersistedPanelGroups,
 } from "@/features/editor/lib/editor-state-migration";
-import { EXTERNAL_FILE_CONFLICT_MESSAGE } from "@/features/editor/lib/editor-external-change";
 import {
   beginFileTransition,
   completeFileTransition,
@@ -60,7 +59,6 @@ export interface EditorTab {
   saveStatus: EditorSaveStatus;
   errorMessage: string | null;
   parseErrorMessage: string | null;
-  externalChangeMessage?: string | null;
   scrollTop: number;
 }
 
@@ -154,11 +152,6 @@ export interface EditorState {
     options?: { reloadRichDocument?: boolean },
   ) => void;
   setTabParseError: (
-    groupId: string,
-    tabId: string,
-    message: string | null,
-  ) => void;
-  setTabExternalChange: (
     groupId: string,
     tabId: string,
     message: string | null,
@@ -267,7 +260,6 @@ const createDefaultTab = (filePath?: string | null): EditorTab => ({
   saveStatus: "clean",
   errorMessage: null,
   parseErrorMessage: null,
-  externalChangeMessage: null,
   scrollTop: 0,
 });
 
@@ -614,7 +606,6 @@ export const useEditorStore = create<EditorState>()(
                           isDirty,
                           saveStatus: isDirty ? "dirty" : "clean",
                           errorMessage: null,
-                          externalChangeMessage: t.externalChangeMessage,
                         };
                       }),
                     }
@@ -643,7 +634,6 @@ export const useEditorStore = create<EditorState>()(
                             pendingFilePath: null,
                             temporaryTitle: path ? null : t.temporaryTitle,
                             isDirty: false,
-                            externalChangeMessage: null,
                           }
                         : t,
                     ),
@@ -903,23 +893,6 @@ export const useEditorStore = create<EditorState>()(
           });
         },
 
-        setTabExternalChange: (groupId, tabId, message) => {
-          set((state) => ({
-            panelGroups: state.panelGroups.map((group) =>
-              group.id === groupId
-                ? {
-                    ...group,
-                    tabs: group.tabs.map((tab) =>
-                      tab.id === tabId
-                        ? { ...tab, externalChangeMessage: message }
-                        : tab,
-                    ),
-                  }
-                : group,
-            ),
-          }));
-        },
-
         recordRecentOpenedFile: (path) => {
           set((state) => ({
             recentOpenedFilePaths: pushRecentOpenedFilePath(
@@ -940,8 +913,6 @@ export const useEditorStore = create<EditorState>()(
                       saveStatus: status,
                       isDirty: status !== "clean",
                       errorMessage: message,
-                      externalChangeMessage:
-                        status === "clean" ? null : tab.externalChangeMessage,
                     }
                   : tab,
               ),
@@ -997,8 +968,7 @@ export const useEditorStore = create<EditorState>()(
                 if (
                   tab.content === content &&
                   tab.wordCount === content.length &&
-                  tab.reloadKey === reloadKey &&
-                  (tab.externalChangeMessage ?? null) === null
+                  tab.reloadKey === reloadKey
                 ) {
                   return tab;
                 }
@@ -1010,7 +980,6 @@ export const useEditorStore = create<EditorState>()(
                   content,
                   wordCount: content.length,
                   reloadKey,
-                  externalChangeMessage: null,
                 };
               });
               return groupChanged ? { ...group, tabs } : group;
@@ -1032,27 +1001,13 @@ export const useEditorStore = create<EditorState>()(
                   return tab;
                 }
 
-                if (tab.isDirty) {
-                  if (
-                    tab.content === content ||
-                    tab.externalChangeMessage === EXTERNAL_FILE_CONFLICT_MESSAGE
-                  ) {
-                    return tab;
-                  }
-                  changed = true;
-                  groupChanged = true;
-                  return {
-                    ...tab,
-                    externalChangeMessage: EXTERNAL_FILE_CONFLICT_MESSAGE,
-                  };
-                }
+                if (tab.isDirty) return tab;
 
                 const reloadKey =
                   tab.content === content ? tab.reloadKey : tab.reloadKey + 1;
                 if (
                   tab.content === content &&
-                  tab.wordCount === content.length &&
-                  (tab.externalChangeMessage ?? null) === null
+                  tab.wordCount === content.length
                 ) {
                   return tab;
                 }
@@ -1064,7 +1019,6 @@ export const useEditorStore = create<EditorState>()(
                   content,
                   wordCount: content.length,
                   reloadKey,
-                  externalChangeMessage: null,
                 };
               });
               return groupChanged ? { ...group, tabs } : group;
@@ -1095,7 +1049,6 @@ export const useEditorStore = create<EditorState>()(
                             saveStatus: "clean",
                             errorMessage: null,
                             parseErrorMessage: null,
-                            externalChangeMessage: null,
                             scrollTop: 0,
                           }
                         : t,

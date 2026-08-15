@@ -11,7 +11,6 @@ export function beginFileTransition(tab: EditorTab, path: string): EditorTab {
     loadStatus: "loading",
     errorMessage: null,
     parseErrorMessage: null,
-    externalChangeMessage: null,
     scrollTop: 0,
   };
 }
@@ -37,7 +36,6 @@ export function completeFileTransition(
     isDirty: false,
     errorMessage: null,
     parseErrorMessage: null,
-    externalChangeMessage: null,
     scrollTop: options?.preserveScrollTop ? tab.scrollTop : 0,
     reloadKey: tab.reloadKey + 1,
   };

@@ -488,13 +488,11 @@ describe("editor store", () => {
     expect(tabs[0]).toMatchObject({
       content: "local",
       isDirty: true,
-      externalChangeMessage: expect.stringContaining("文件已被外部修改"),
     });
     expect(tabs[1]).toMatchObject({
       content: "external",
       isDirty: false,
       reloadKey: 1,
-      externalChangeMessage: null,
     });
   });
 });

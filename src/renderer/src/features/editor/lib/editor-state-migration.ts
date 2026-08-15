@@ -14,7 +14,6 @@ type AddedEditorTabFields = {
   saveStatus: EditorSaveStatus;
   errorMessage: string | null;
   parseErrorMessage: string | null;
-  externalChangeMessage: string | null;
   scrollTop: number;
 };
 
@@ -94,7 +93,6 @@ export function normalizePersistedPanelGroups(
       saveStatus: tab.saveStatus ?? (tab.isDirty ? "dirty" : "clean"),
       errorMessage: tab.errorMessage ?? null,
       parseErrorMessage: tab.parseErrorMessage ?? null,
-      externalChangeMessage: tab.externalChangeMessage ?? null,
       scrollTop: tab.scrollTop ?? 0,
     })),
   }));

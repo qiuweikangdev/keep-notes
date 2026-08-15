@@ -33,7 +33,6 @@ describe("normalizePersistedPanelGroups", () => {
       saveStatus: "dirty",
       errorMessage: null,
       parseErrorMessage: null,
-      externalChangeMessage: null,
       scrollTop: 0,
     });
   });

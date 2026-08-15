@@ -130,7 +130,6 @@ describe("EditorWorkspace split rich editor mount", () => {
 
     expect(editor).toHaveValue("# Large\n");
     expect(editor.scrollTop).toBe(480);
-    expect(screen.getByRole("alert")).toHaveTextContent("文件已被外部修改");
     const tab = useEditorStore
       .getState()
       .panelGroups[0].tabs.find((candidate) => candidate.id === "tab-1");
@@ -142,7 +141,6 @@ describe("EditorWorkspace split rich editor mount", () => {
       parseErrorMessage: "parse failed",
       loadStatus: "ready",
     });
-    expect(tab?.externalChangeMessage).toContain("文件已被外部修改");
   });
 
   it("cleans source state without reloading rich tabs after prioritized synchronization", () => {

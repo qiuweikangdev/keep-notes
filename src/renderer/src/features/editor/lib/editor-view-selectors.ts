@@ -98,7 +98,6 @@ export function selectEditorWorkspaceSignature(groupId: string, tabId: string) {
       tab.reloadKey,
       tab.errorMessage ?? "",
       tab.parseErrorMessage ?? "",
-      tab.externalChangeMessage ?? "",
       tab.scrollTop,
       contentSignature,
     ].join("\u001e");
