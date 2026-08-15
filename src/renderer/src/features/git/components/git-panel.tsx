@@ -1934,7 +1934,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             onClick={onClose}
             onPointerDown={(event) => event.stopPropagation()}
             data-theme-control="true"
-            className="flex h-8 w-8 items-center justify-center rounded-md"
+            className="flex h-8 w-8 items-center justify-center rounded-md outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-color)]"
             style={{ color: "var(--text-muted)" }}
             aria-label="关闭"
           >

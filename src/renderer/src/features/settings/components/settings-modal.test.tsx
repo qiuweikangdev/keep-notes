@@ -129,10 +129,27 @@ describe("SettingsModal about tab", () => {
     expect(dragHandle?.style.borderBottom).toBe(
       "1px solid var(--border-color)",
     );
+    expect(dragHandle).toHaveStyle({
+      backgroundColor: "var(--bg-primary)",
+    });
+    expect(dragHandle).toHaveClass(
+      "h-14",
+      "shrink-0",
+      "items-center",
+      "justify-between",
+      "px-5",
+    );
+    expect(screen.getByTestId("settings-dialog-icon")).toHaveClass(
+      "h-[18px]",
+      "w-[18px]",
+    );
+    expect(screen.getByText("设置")).toHaveClass("text-sm", "font-semibold");
     expect(screen.getByTestId("settings-dialog-icon")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "关闭设置" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "关闭设置" })).toHaveClass(
+      "h-8",
+      "w-8",
+      "rounded-md",
+    );
   });
 
   it("uses semantic selected navigation and a primary content surface", () => {

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useUIStore } from "@/store/ui.store";
 import { useEditorStore } from "@/store/editor.store";
 import { useTheme } from "@/hooks/use-theme";
-import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { DialogResizeHandles } from "@/components/ui/dialog-resize-handles";
 import { useResizableDialog } from "@/hooks/use-resizable-dialog";
 import { ThemeModeSelector } from "@/components/ui/theme-mode-selector";
@@ -770,44 +770,47 @@ export function SettingsModal() {
           }
         }}
       >
-        <DialogHeader
+        <div
           data-dialog-drag-handle
           {...dragHandleProps}
-          className="flex-shrink-0 select-none space-y-0"
-          style={{ borderBottom: "1px solid var(--border-color)" }}
+          className="flex h-14 shrink-0 select-none items-center justify-between px-5"
+          style={{
+            backgroundColor: "var(--bg-primary)",
+            borderBottom: "1px solid var(--border-color)",
+          }}
         >
-          <div className="flex items-center justify-between p-4">
-            <div className="flex items-center gap-2">
-              <SettingsIcon
-                data-testid="settings-dialog-icon"
-                className="h-5 w-5"
-                style={{ color: "var(--text-muted)" }}
-                aria-hidden="true"
-              />
-              <Dialog.Title
-                className="text-sm font-medium leading-5"
+          <div className="flex items-center gap-2.5">
+            <SettingsIcon
+              data-testid="settings-dialog-icon"
+              className="h-[18px] w-[18px]"
+              style={{ color: "var(--text-muted)" }}
+              aria-hidden="true"
+            />
+            <Dialog.Title asChild>
+              <span
+                className="text-sm font-semibold"
                 style={{ color: "var(--text-primary)" }}
               >
                 设置
-              </Dialog.Title>
-            </div>
-            <Dialog.Close asChild>
-              <button
-                type="button"
-                onPointerDown={(event) => event.stopPropagation()}
-                data-theme-control="true"
-                className="flex h-8 w-8 items-center justify-center rounded-lg outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-color)]"
-                style={{ color: "var(--text-muted)" }}
-                aria-label="关闭设置"
-              >
-                <X className="h-4 w-4" aria-hidden="true" />
-              </button>
-            </Dialog.Close>
+              </span>
+            </Dialog.Title>
           </div>
+          <Dialog.Close asChild>
+            <button
+              type="button"
+              onPointerDown={(event) => event.stopPropagation()}
+              data-theme-control="true"
+              className="flex h-8 w-8 items-center justify-center rounded-md outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-color)]"
+              style={{ color: "var(--text-muted)" }}
+              aria-label="关闭设置"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </Dialog.Close>
           <Dialog.Description className="sr-only">
             配置应用外观、快捷键、应用通知、导出选项和关于信息。
           </Dialog.Description>
-        </DialogHeader>
+        </div>
 
         <div
           data-testid="settings-layout"
