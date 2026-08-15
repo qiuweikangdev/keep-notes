@@ -33,7 +33,11 @@ import { useDiffStore } from "@/store/diff.store";
 import { useEditorStore } from "@/store/editor.store";
 import { showNoDiffContentToast } from "@/features/diff/lib/diff-toast";
 import { areDiffContentsEqual } from "@/features/diff/lib/diff-content";
-import { buildRenamedFileKey, getRevealInFileManagerLabel } from "../utils";
+import {
+  buildRenamedFileKey,
+  getRevealInFileManagerLabel,
+  isMarkdownFileName,
+} from "../utils";
 
 interface CreatingInfo {
   type: "file" | "folder";
@@ -128,7 +132,7 @@ export const TreeNode = memo(function TreeNode({
 
   const isFolder = Array.isArray(node.children);
   const hasChildren = Boolean(node.children?.length);
-  const isMarkdown = node.title.endsWith(".md");
+  const isMarkdown = isMarkdownFileName(node.title);
   const revealInFileManagerLabel = getRevealInFileManagerLabel(
     window.electronAPI?.getPlatform(),
   );
@@ -270,13 +274,13 @@ export const TreeNode = memo(function TreeNode({
     setRenameInputWidth(
       renameLabelRef.current?.getBoundingClientRect().width ?? null,
     );
-    setRenameValue(node.title.replace(/\.md$/, ""));
+    setRenameValue(node.title.replace(/\.md$/iu, ""));
     setIsRenaming(true);
   }, [node.title]);
 
   const handleRenameConfirm = useCallback(async () => {
     const title = renameValue.trim();
-    const current = node.title.replace(/\.md$/, "");
+    const current = node.title.replace(/\.md$/iu, "");
     if (!title || title === current) {
       setIsRenaming(false);
       return;

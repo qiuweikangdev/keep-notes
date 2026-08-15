@@ -27,6 +27,10 @@ const IMAGE_MIME_BY_EXTENSION = new Map([
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 const ATTACHMENTS_DIR_NAME = "attachments";
 
+function isMarkdownFile(fileName: string) {
+  return path.extname(fileName).toLowerCase() === ".md";
+}
+
 interface ImageFetchResponse {
   ok: boolean;
   status: number;
@@ -61,7 +65,7 @@ export async function readDirectory(directoryPath: string) {
 
       if (stats.isDirectory() && !file.startsWith(".")) {
         directories.push(file);
-      } else if ([".md"].includes(path.extname(file))) {
+      } else if (isMarkdownFile(file)) {
         markdownFiles.push(file);
       }
     }
@@ -127,7 +131,7 @@ export async function readDirectoryShallow(
           children: [],
           isLoaded: false,
         });
-      } else if (isFile && path.extname(entry.name) === ".md") {
+      } else if (isFile && isMarkdownFile(entry.name)) {
         markdownFiles.push({ title: entry.name, key: entryPath });
       }
     }

@@ -64,6 +64,7 @@ import {
   findNodeByKey,
   flattenTree,
   getRevealInFileManagerLabel,
+  isMarkdownFileName,
   normalizeTreePath,
   REVEAL_FILE_TREE_NODE_EVENT,
   shouldRevealFileTreeOnViewChange,
@@ -598,7 +599,7 @@ export function FileTree() {
         if (isExpanding && flatNode.isLoaded === false) {
           void loadDirectory(flatNode.key);
         }
-      } else if (flatNode.title.endsWith(".md")) {
+      } else if (isMarkdownFileName(flatNode.title)) {
         // 调用标题栏的 addToHistory
         window.__addFileToHistory?.(flatNode.key);
         void openFile(flatNode.key);
@@ -1384,7 +1385,7 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
     setRenameInputWidth(
       renameLabelRef.current?.getBoundingClientRect().width ?? null,
     );
-    setRenameValue(flatNode.title.replace(/\.md$/, ""));
+    setRenameValue(flatNode.title.replace(/\.md$/iu, ""));
     setIsRenaming(true);
   }, [flatNode.title]);
 
@@ -1409,7 +1410,7 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
   // 确认重命名
   const handleRenameConfirm = useCallback(async () => {
     const title = renameValue.trim();
-    const current = flatNode.title.replace(/\.md$/, "");
+    const current = flatNode.title.replace(/\.md$/iu, "");
     if (!title || title === current) {
       setIsRenaming(false);
       return;
@@ -1772,7 +1773,7 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
 
         <ContextMenu.Portal>
           <ContextMenu.Content className={MENU_CONTENT_CLASS}>
-            {flatNode.title.endsWith(".md") ? (
+            {isMarkdownFileName(flatNode.title) ? (
               <ContextMenu.Item
                 className={MENU_ITEM_CLASS}
                 onClick={() => {
@@ -1783,7 +1784,7 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
               </ContextMenu.Item>
             ) : null}
 
-            {flatNode.title.endsWith(".md") ? (
+            {isMarkdownFileName(flatNode.title) ? (
               <ContextMenu.Item
                 className={MENU_ITEM_CLASS}
                 onClick={() => openCreateReminder(flatNode.key)}
@@ -1842,7 +1843,7 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
               </ContextMenu.Item>
             ) : null}
 
-            {flatNode.title.endsWith(".md") ? (
+            {isMarkdownFileName(flatNode.title) ? (
               <ContextMenu.Item
                 className={MENU_ITEM_CLASS}
                 onClick={() => {

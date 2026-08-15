@@ -25,6 +25,10 @@ export function normalizeTreePath(path: string) {
   return path.replace(/\\/g, "/").replace(/\/+$/, "");
 }
 
+export function isMarkdownFileName(fileName: string) {
+  return fileName.toLowerCase().endsWith(".md");
+}
+
 // 生成新建节点的完整 key，保持与主进程创建路径规则一致。
 export function buildCreatedNodeKey(
   parentKey: string,

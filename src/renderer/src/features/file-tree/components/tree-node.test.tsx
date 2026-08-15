@@ -53,4 +53,19 @@ describe("TreeNode context menu", () => {
       await screen.findByRole("menuitem", { name: /导出/ }),
     ).toBeInTheDocument();
   });
+
+  it("treats uppercase Markdown extensions as editable files", async () => {
+    render(
+      <TreeNode
+        node={{ title: "README.MD", key: "/notes/README.MD" }}
+        level={0}
+      />,
+    );
+
+    fireEvent.contextMenu(screen.getByText("README.MD"));
+
+    expect(
+      await screen.findByRole("menuitem", { name: "打开", exact: true }),
+    ).toBeInTheDocument();
+  });
 });

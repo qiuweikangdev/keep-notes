@@ -54,6 +54,7 @@ describe("readDirectory", () => {
       fs.promises.writeFile(path.join(root, "10-summary.md"), ""),
       fs.promises.writeFile(path.join(root, "2-plan.md"), ""),
       fs.promises.writeFile(path.join(root, "1-intro.md"), ""),
+      fs.promises.writeFile(path.join(root, "README.MD"), ""),
     ]);
 
     const tree = await readDirectory(root);
@@ -64,6 +65,7 @@ describe("readDirectory", () => {
       "1-intro.md",
       "2-plan.md",
       "10-summary.md",
+      "README.MD",
     ]);
   });
 
@@ -76,6 +78,7 @@ describe("readDirectory", () => {
     await fs.promises.mkdir(docsPath);
     await fs.promises.writeFile(path.join(docsPath, "nested.md"), "");
     await fs.promises.writeFile(path.join(root, "root.md"), "");
+    await fs.promises.writeFile(path.join(root, "README.MD"), "");
 
     const tree = await readDirectoryShallow(root);
 
@@ -86,6 +89,7 @@ describe("readDirectory", () => {
         children: [],
         isLoaded: false,
       },
+      { title: "README.MD", key: path.join(root, "README.MD") },
       { title: "root.md", key: path.join(root, "root.md") },
     ]);
   });
