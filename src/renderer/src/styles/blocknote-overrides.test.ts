@@ -409,6 +409,13 @@ describe("blocknote overrides stylesheet", () => {
     expect(editingCodeRule).toMatch(/font-weight:\s*400 !important;/);
     expect(editingCodeRule).toMatch(/caret-color:\s*transparent !important;/);
 
+    const editingCaretHostRule = getRule(
+      ".bn-editor.ProseMirror-focused:has(.editor-inline-code__editing-caret)",
+    );
+    expect(editingCaretHostRule).toMatch(
+      /caret-color:\s*transparent !important;/,
+    );
+
     const firstFragmentRule = getRule(
       ".bn-editor.ProseMirror-focused code:not(.editor-code-block__content):has( .editor-inline-code__editing-start )",
     );

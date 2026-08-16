@@ -766,6 +766,11 @@ html.rich-editor-selection-drag-locked * {
   caret-color: transparent !important;
 }
 
+/* 自定义行内代码光标存在时隐藏编辑器原生光标，避免代码首位同时出现两个光标。 */
+.bn-editor.ProseMirror-focused:has(.editor-inline-code__editing-caret) {
+  caret-color: transparent !important;
+}
+
 .bn-editor.ProseMirror-focused
   code:not(.editor-code-block__content):has(
     .editor-inline-code__editing-content

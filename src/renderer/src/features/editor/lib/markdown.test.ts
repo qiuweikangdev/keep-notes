@@ -642,6 +642,66 @@ describe("preserveMarkdownSource", () => {
     ).toBe(editedWithInsertedParagraph);
   });
 
+  it("removes serializer-added blank lines between nested list items", () => {
+    const source = [
+      "# 测试",
+      "",
+      "* 列表1",
+      "",
+      "  * 列表2",
+      "",
+      "  * test222332232223222 `行32内代码`",
+      "",
+      "  * `2行内代码`",
+      "",
+    ].join("\n");
+    const baseline = [
+      "# 测试",
+      "",
+      "* 列表1",
+      "  * 列表2",
+      "  * test222332232223222 `行32内代码`",
+      "  * `2行内代码`",
+      "",
+    ].join("\n");
+    const edited = baseline.replace("列表2", "列表2更新");
+
+    const result = preserveMarkdownSource(source, baseline, edited);
+    expect(result).toBe(
+      [
+        "# 测试",
+        "",
+        "* 列表1",
+        "  * 列表2更新",
+        "  * test222332232223222 `行32内代码`",
+        "  * `2行内代码`",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("reconciles legacy block gaps even without a rich-text edit", () => {
+    const source = ["# 测试", "", "", "", "* 列表1", "  * 列表2", ""].join(
+      "\n",
+    );
+    const baseline = "# 测试\n\n- 列表1\n  - 列表2\n";
+
+    expect(preserveMarkdownSource(source, baseline, baseline)).toBe(
+      "# 测试\n\n* 列表1\n  * 列表2\n",
+    );
+  });
+
+  it("reconciles the exact nested-list source shape from the editor", () => {
+    const source =
+      "# 测试\n\n\n\n* 列表1\n  * 列表2\n  * test22233223222322222`行32内代码` \n  * `2行内代码`\n";
+    const baseline =
+      "# 测试\n\n* 列表1\n  * 列表2\n  * test22233223222322222`行32内代码`\n  * `2行内代码`\n";
+
+    expect(preserveMarkdownSource(source, baseline, baseline)).toBe(
+      "# 测试\n\n* 列表1\n  * 列表2\n  * test22233223222322222`行32内代码` \n  * `2行内代码`\n",
+    );
+  });
+
   it("preserves source markers across every nested list depth", () => {
     const source = [
       "- 父列表",

@@ -110,7 +110,9 @@ export function EditorToolbar({
           currentTab.filePath !== null &&
           !shouldFlushRichEditorBeforeAction(currentTab.content);
         if (!shouldSaveInBackground) {
-          await flushEditorChange(groupId, currentTab.id);
+          await flushEditorChange(groupId, currentTab.id, {
+            reconcileSource: true,
+          });
         } else {
           const filePath = currentTab.filePath;
           const releaseBackground = richDocumentSessionManager.retainBackground(
@@ -120,7 +122,12 @@ export function EditorToolbar({
           backgroundEditorSaveCoordinator.track({
             path: filePath,
             flush: async () => {
-              await richDocumentSessionManager.serializePendingChange(filePath);
+              await richDocumentSessionManager.serializePendingChange(
+                filePath,
+                {
+                  reconcileSource: true,
+                },
+              );
               return editorSaveCoordinator.flush(filePath);
             },
             getContent: () => editorSaveCoordinator.getPendingContent(filePath),

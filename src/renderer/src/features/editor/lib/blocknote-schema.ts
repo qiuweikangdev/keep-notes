@@ -551,6 +551,51 @@ function movePureInlineCodeCaret(view: EditorView, direction: -1 | 1) {
   return true;
 }
 
+function moveInlineCodeCaretHorizontally(view: EditorView, direction: -1 | 1) {
+  if (!view.state.selection.empty) return false;
+
+  const editingState =
+    inlineCodeEditingPluginKey.getState(view.state) ??
+    EMPTY_INLINE_CODE_EDITING_STATE;
+  if (editingState.suppressedSelectionPosition === view.state.selection.from) {
+    return false;
+  }
+
+  const activeRange =
+    editingState.activeRange ??
+    findInlineCodeRange(view.state, view.state.selection.from, true);
+  if (
+    !activeRange ||
+    view.state.selection.from < activeRange.from ||
+    view.state.selection.from > activeRange.to
+  ) {
+    return false;
+  }
+
+  const targetPosition = view.state.selection.from + direction;
+  if (targetPosition < activeRange.from || targetPosition > activeRange.to) {
+    // 同一个文档位置既可能是代码内首位，也可能是代码外侧边界；离开时清掉装饰态，避免双光标。
+    view.dispatch(
+      view.state.tr.setMeta(inlineCodeEditingPluginKey, {
+        activeRange: null,
+        suppressedSelectionPosition: view.state.selection.from,
+      }),
+    );
+    return true;
+  }
+
+  // 自定义反引号和光标 widget 会让浏览器在列表首位把 ArrowLeft 吞掉；这里用文档位置显式推进一个字符。
+  view.dispatch(
+    view.state.tr
+      .setSelection(TextSelection.create(view.state.doc, targetPosition))
+      .setMeta(inlineCodeEditingPluginKey, {
+        activeRange,
+        suppressedSelectionPosition: null,
+      }),
+  );
+  return true;
+}
+
 function getInlineCodeEditingDecorations(state: EditorState) {
   const { selection } = state;
   const editingState =
@@ -618,8 +663,8 @@ function getInlineCodeEditingDecorations(state: EditorState) {
         },
         {
           key: `inline-code-editing-caret-${selection.from}`,
-          // 行首从右侧继承 code mark，其他位置从左侧继承，确保光标始终留在胶囊内。
-          side: selection.from === range.from ? 1 : -1,
+          // 行首要排在开头反引号之前；否则文档位置虽已到 range.from，视觉光标仍停在反引号之后。
+          side: selection.from === range.from ? -3 : -1,
         },
       ),
     );
@@ -652,15 +697,12 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
           const nextState = transaction.getMeta(inlineCodeEditingPluginKey) as
             | InlineCodeEditingState
             | undefined;
-          if (nextState) {
-            return {
-              ...editingState,
-              ...nextState,
-            };
-          }
 
-          let mappedState = editingState;
-          if (transaction.docChanged) {
+          // 输入事务可能同时携带插件 meta；先合并显式状态，但仍继续处理文档映射，避免旧 activeRange 穿过代码边界泄漏。
+          let mappedState = nextState
+            ? { ...editingState, ...nextState }
+            : editingState;
+          if (transaction.docChanged && !nextState) {
             mappedState = editingState.activeRange
               ? {
                   activeRange: {
@@ -682,6 +724,33 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
                     ),
                   }
                 : EMPTY_INLINE_CODE_EDITING_STATE;
+          }
+          if (transaction.docChanged && mappedState.activeRange) {
+            const currentRange = newState.selection.empty
+              ? findInlineCodeRange(newState, newState.selection.from, true)
+              : null;
+            const positionBeforeCode =
+              currentRange !== null &&
+              newState.selection.from === currentRange.from
+                ? newState.doc.resolve(newState.selection.from).nodeBefore
+                : null;
+            const positionBeforeCodeIsCodeText =
+              positionBeforeCode?.isText === true &&
+              positionBeforeCode.marks.some(
+                (mark) => mark.type === newState.schema.marks.code,
+              );
+            const selectionEnteredCodeFromOutside =
+              currentRange !== null &&
+              newState.selection.from === currentRange.from &&
+              !positionBeforeCodeIsCodeText;
+            if (selectionEnteredCodeFromOutside) {
+              // 代码首位前插入普通文本后，选区仍停在同一个视觉边界；此时必须退出代码编辑态。
+              mappedState = {
+                activeRange: null,
+                isComposing: mappedState.isComposing,
+                suppressedSelectionPosition: newState.selection.from,
+              };
+            }
           }
           const selectionChanged =
             transaction.selectionSet ||
@@ -936,6 +1005,29 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
           event.preventDefault();
           event.stopImmediatePropagation();
         };
+        const handleHorizontalKeyDown = (event: KeyboardEvent) => {
+          const direction =
+            event.key === "ArrowLeft" || event.key === "Left"
+              ? -1
+              : event.key === "ArrowRight" || event.key === "Right"
+                ? 1
+                : 0;
+          if (
+            direction === 0 ||
+            event.altKey ||
+            event.ctrlKey ||
+            event.metaKey ||
+            event.shiftKey
+          ) {
+            return;
+          }
+
+          if (!moveInlineCodeCaretHorizontally(editorView, direction)) return;
+
+          // 捕获阶段先于编辑器默认按键插件执行，避免装饰 widget 把首位光标移动到相邻块。
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        };
 
         document.addEventListener("mousedown", handleInlineCodeMouseDown, true);
         editorView.dom.addEventListener(
@@ -955,6 +1047,11 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
           true,
         );
         editorView.dom.addEventListener("keydown", handleVerticalKeyDown, true);
+        editorView.dom.addEventListener(
+          "keydown",
+          handleHorizontalKeyDown,
+          true,
+        );
         document.addEventListener("mousemove", handleInlineCodeMouseMove, true);
         document.addEventListener("mouseup", handleInlineCodeMouseUp, true);
         window.addEventListener("blur", resetInlineCodeSelectionDrag);
@@ -988,6 +1085,11 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
             editorView.dom.removeEventListener(
               "keydown",
               handleVerticalKeyDown,
+              true,
+            );
+            editorView.dom.removeEventListener(
+              "keydown",
+              handleHorizontalKeyDown,
               true,
             );
             document.removeEventListener(

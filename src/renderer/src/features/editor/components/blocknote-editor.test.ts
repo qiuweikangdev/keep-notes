@@ -1362,6 +1362,77 @@ describe("BlockNoteEditor code paste", () => {
     }
   });
 
+  it("replaces the initial empty paragraph when pasting copied rich blocks", () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    vi.stubGlobal("ClipboardEvent", Event);
+
+    const sourceEditor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        { type: "heading", props: { level: 1 }, content: "标题" },
+        { type: "bulletListItem", content: "列表1" },
+        { type: "bulletListItem", content: "列表2" },
+      ],
+    });
+    const targetEditor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    const sourceView = render(
+      createElement(BlockNoteView, { editor: sourceEditor }),
+    );
+    const targetView = render(
+      createElement(BlockNoteView, { editor: targetEditor }),
+    );
+
+    try {
+      sourceEditor.prosemirrorView.dispatch(
+        sourceEditor.prosemirrorView.state.tr.setSelection(
+          new AllSelection(sourceEditor.prosemirrorView.state.doc),
+        ),
+      );
+
+      const clipboard = new Map<string, string>();
+      const copyEvent = new Event("copy", { bubbles: true, cancelable: true });
+      Object.defineProperty(copyEvent, "clipboardData", {
+        value: {
+          clearData: () => clipboard.clear(),
+          setData: (type: string, value: string) => clipboard.set(type, value),
+        },
+      });
+      sourceEditor.prosemirrorView.dom.dispatchEvent(copyEvent);
+
+      const pasteEvent = new Event("paste", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(pasteEvent, "clipboardData", {
+        value: {
+          getData: (type: string) => clipboard.get(type) ?? "",
+          types: Array.from(clipboard.keys()),
+        },
+      });
+
+      expect(
+        pasteExternalHTMLTables(targetEditor, pasteEvent as ClipboardEvent),
+      ).toBe(true);
+      expect(targetEditor.document.map((block) => block.type)).toEqual([
+        "heading",
+        "bulletListItem",
+        "bulletListItem",
+      ]);
+      expect(targetEditor.document.map((block) => block.content)).toEqual([
+        [{ type: "text", text: "标题", styles: {} }],
+        [{ type: "text", text: "列表1", styles: {} }],
+        [{ type: "text", text: "列表2", styles: {} }],
+      ]);
+    } finally {
+      sourceView.unmount();
+      targetView.unmount();
+    }
+  });
+
   it("lets BlockNote handle its internal table clipboard data", () => {
     setupMatchMedia();
     setupDomMeasurements();
@@ -4075,6 +4146,27 @@ describe("BlockNoteEditor persistent session runtime", () => {
       fireEvent.dragLeave(scrollContainer, { relatedTarget: document.body }),
     ).not.toThrow();
 
+    session.view.unmount();
+  });
+
+  it("reconciles source spacing when explicitly flushed without a rich edit", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/nested-list-spacing.md";
+    const source =
+      "# 测试\n\n\n\n* 列表1\n  * 列表2\n  * test22233223222322222`行32内代码` \n  * `2行内代码`\n";
+    const expected =
+      "# 测试\n\n* 列表1\n  * 列表2\n  * test22233223222322222`行32内代码` \n  * `2行内代码`\n";
+    setupSessionTab(path, { content: source });
+    const session = renderRealSession(path, false, source);
+
+    await waitFor(() => expect(session.runtime.current).not.toBeNull());
+    session.callbacks.onMarkdownChange.mockClear();
+    await session.runtime.current!.serializePendingChange({
+      reconcileSource: true,
+    });
+
+    expect(session.callbacks.onMarkdownChange).toHaveBeenCalledWith(expected);
     session.view.unmount();
   });
 

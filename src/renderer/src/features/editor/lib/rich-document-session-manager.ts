@@ -12,7 +12,9 @@ export interface RichDocumentRuntime {
   path: string;
   surface: HTMLElement;
   captureVisualSnapshot?: () => void;
-  serializePendingChange: () => Promise<void>;
+  serializePendingChange: (options?: {
+    reconcileSource?: boolean;
+  }) => Promise<void>;
   discardPendingChange?: () => void;
   cancelPendingWork: () => void;
   destroy: () => void;
@@ -324,7 +326,10 @@ export class RichDocumentSessionManager {
     return this.getRuntime(path);
   }
 
-  serializePendingChange(path: string): Promise<void> {
+  serializePendingChange(
+    path: string,
+    options?: { reconcileSource?: boolean },
+  ): Promise<void> {
     const normalizedPath = normalizeRichDocumentPath(path);
     const pending = this.pendingSerializations.get(normalizedPath);
     if (pending) return pending;
@@ -333,11 +338,13 @@ export class RichDocumentSessionManager {
     if (!runtime) return Promise.resolve();
 
     // 同一路径的多个面板可能同时请求 flush；底层文档只序列化一次。
-    const serialization = runtime.serializePendingChange().finally(() => {
-      if (this.pendingSerializations.get(normalizedPath) === serialization) {
-        this.pendingSerializations.delete(normalizedPath);
-      }
-    });
+    const serialization = runtime
+      .serializePendingChange(options)
+      .finally(() => {
+        if (this.pendingSerializations.get(normalizedPath) === serialization) {
+          this.pendingSerializations.delete(normalizedPath);
+        }
+      });
     this.pendingSerializations.set(normalizedPath, serialization);
     return serialization;
   }

@@ -628,6 +628,127 @@ describe("editor BlockNote schema", () => {
     expect(blocks.map(getInlineText).join("")).not.toContain("*");
   });
 
+  it("serializes multiline nested list descendants with matching Markdown indentation", async () => {
+    const editor = BlockNoteEditor.create({ schema: editorSchema });
+    const source = [
+      "* parent",
+      "  * child one line one",
+      "    child one line two",
+      "  * child two line one",
+      "    child two line two",
+      "* sibling",
+    ].join("\n");
+
+    const blocks = await parseMarkdown(editor, source);
+    const serialized = await serializeMarkdown(editor, blocks);
+    expect(serialized).toBe(`${source}\n`);
+    expect(blocks[0]).toMatchObject({
+      type: "bulletListItem",
+      children: [
+        {
+          type: "bulletListItem",
+          children: [
+            {
+              type: "paragraph",
+              content: [{ type: "text", text: "child one line two" }],
+            },
+          ],
+        },
+        {
+          type: "bulletListItem",
+          children: [
+            {
+              type: "paragraph",
+              content: [{ type: "text", text: "child two line two" }],
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("serializes nested list siblings without spacer lines", async () => {
+    const editor = BlockNoteEditor.create({ schema: editorSchema });
+    const source = [
+      "# 测试",
+      "",
+      "* 列表1",
+      "",
+      "  * 列表2",
+      "",
+      "  * test222332232223222 `行32内代码`",
+      "",
+      "  * `2行内代码`",
+    ].join("\n");
+
+    const blocks = await parseMarkdown(editor, source);
+    const serialized = await serializeMarkdown(editor, blocks);
+
+    expect(serialized).toBe(
+      "# 测试\n\n* 列表1\n  * 列表2\n  * test222332232223222 `行32内代码`\n  * `2行内代码`\n",
+    );
+  });
+
+  it("preserves nested list indentation and source markers after a child edit", async () => {
+    const editor = BlockNoteEditor.create({ schema: editorSchema });
+    const source = [
+      "- parent",
+      "  - child one",
+      "    child continuation",
+      "  - child two",
+      "    child continuation two",
+      "- sibling",
+    ].join("\n");
+    const blocks = await parseMarkdown(editor, source);
+    const baseline = await serializeMarkdown(editor, blocks);
+    const parent = blocks[0];
+    const editedBlocks = blocks.map((block, blockIndex) =>
+      blockIndex !== 0
+        ? block
+        : {
+            ...block,
+            children: block.children.map((child, childIndex) =>
+              childIndex !== 0
+                ? child
+                : {
+                    ...child,
+                    children: child.children.map((nested, nestedIndex) =>
+                      nestedIndex !== 0
+                        ? nested
+                        : {
+                            ...nested,
+                            content: [
+                              {
+                                type: "text" as const,
+                                text: "child continuation updated",
+                                styles: {},
+                              },
+                            ],
+                          },
+                    ),
+                  },
+            ),
+          },
+    );
+
+    expect(parent.type).toBe("bulletListItem");
+    const edited = await serializeMarkdown(editor, editedBlocks);
+    expect(preserveMarkdownSource(source, baseline, edited)).toBe(
+      source.replace("child continuation", "child continuation updated"),
+    );
+  });
+
+  it("keeps an asterisk in bullet text instead of treating it as another marker", async () => {
+    const editor = BlockNoteEditor.create({ schema: editorSchema });
+    const blocks = await parseMarkdown(editor, "* Use * as a wildcard");
+
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toMatchObject({
+      type: "bulletListItem",
+      content: [{ type: "text", text: "Use * as a wildcard" }],
+    });
+  });
+
   it("parses a bare URL in a markdown bullet as a link", async () => {
     const editor = BlockNoteEditor.create({
       schema: editorSchema,
@@ -2274,6 +2395,191 @@ describe("editor BlockNote schema", () => {
 
     expect(upEvent.defaultPrevented).toBe(true);
     expect(view.state.selection.from).toBe((firstPosition as number) + 1);
+  });
+
+  it("keeps horizontal navigation inside list-first inline code", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        { type: "paragraph", content: "heading" },
+        {
+          type: "bulletListItem",
+          content: [{ type: "text", text: "code", styles: { code: true } }],
+        },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+    const view = editor.prosemirrorView;
+    let codePosition: number | undefined;
+    view.state.doc.descendants((node, position) => {
+      if (node.isText && node.text === "code") codePosition = position;
+      return true;
+    });
+    expect(codePosition).toBeTypeOf("number");
+
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, (codePosition as number) + 1),
+      ),
+    );
+    const code = container.querySelector("code");
+    const click = new MouseEvent("click", { button: 0, bubbles: true });
+    Object.defineProperty(click, "target", {
+      configurable: true,
+      value: code,
+    });
+    view.someProp("handleClick", (handler) =>
+      handler(view, (codePosition as number) + 1, click),
+    );
+
+    const firstLeft = new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      key: "ArrowLeft",
+    });
+    view.dom.dispatchEvent(firstLeft);
+    expect(firstLeft.defaultPrevented).toBe(true);
+    expect(view.state.selection.from).toBe(codePosition);
+    expect(
+      view.posAtDOM(
+        container.querySelector(".editor-inline-code__editing-caret") as Node,
+        0,
+      ),
+    ).toBe(codePosition);
+    const editingCaret = container.querySelector(
+      ".editor-inline-code__editing-caret",
+    );
+    const openingMarker = container.querySelector(
+      ".editor-inline-code__editing-marker--start",
+    );
+    expect(openingMarker?.previousElementSibling).toBe(editingCaret);
+
+    const right = new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      key: "ArrowRight",
+    });
+    view.dom.dispatchEvent(right);
+    expect(right.defaultPrevented).toBe(true);
+    expect(view.state.selection.from).toBe((codePosition as number) + 1);
+
+    view.dom.dispatchEvent(firstLeft);
+    expect(view.state.selection.from).toBe(codePosition);
+    const exitLeft = new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      key: "ArrowLeft",
+    });
+    view.dom.dispatchEvent(exitLeft);
+    expect(exitLeft.defaultPrevented).toBe(true);
+    expect(view.state.selection.from).toBe(codePosition);
+    expect(container.querySelector(".editor-inline-code__editing-caret")).toBe(
+      null,
+    );
+  });
+
+  it("does not keep the inline code caret after text is inserted before its boundary", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "bulletListItem",
+          content: [
+            { type: "text", text: "prefix", styles: {} },
+            { type: "text", text: "code", styles: { code: true } },
+          ],
+        },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+    const view = editor.prosemirrorView;
+    let codePosition: number | undefined;
+    view.state.doc.descendants((node, position) => {
+      if (node.isText && node.text === "code") codePosition = position;
+      return true;
+    });
+    expect(codePosition).toBeTypeOf("number");
+
+    const boundary = codePosition as number;
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, boundary),
+      ),
+    );
+    const code = container.querySelector("code");
+    const click = new MouseEvent("click", { button: 0, bubbles: true });
+    Object.defineProperty(click, "target", {
+      configurable: true,
+      value: code,
+    });
+    view.someProp("handleClick", (handler) => handler(view, boundary, click));
+    view.dispatch(
+      view.state.tr.replaceWith(
+        boundary,
+        boundary,
+        view.state.schema.text("x"),
+      ),
+    );
+
+    expect(container.querySelector(".editor-inline-code__editing-caret")).toBe(
+      null,
+    );
+    expect(
+      container.querySelector(".editor-inline-code__editing-content"),
+    ).toBe(null);
+  });
+
+  it("clears the inline code caret when an input transaction carries plugin state", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "bulletListItem",
+          content: [
+            { type: "text", text: "prefix", styles: {} },
+            { type: "text", text: "code", styles: { code: true } },
+          ],
+        },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+    const view = editor.prosemirrorView;
+    let codePosition: number | undefined;
+    view.state.doc.descendants((node, position) => {
+      if (node.isText && node.text === "code") codePosition = position;
+      return true;
+    });
+    expect(codePosition).toBeTypeOf("number");
+
+    const boundary = codePosition as number;
+    view.dispatch(
+      view.state.tr
+        .setSelection(TextSelection.create(view.state.doc, boundary))
+        .setMeta("editor-inline-code-editing$", {
+          activeRange: { from: boundary, to: boundary + 4 },
+          isComposing: false,
+          suppressedSelectionPosition: null,
+        }),
+    );
+    view.dispatch(
+      view.state.tr
+        .replaceWith(boundary, boundary, view.state.schema.text("x"))
+        .setMeta("editor-inline-code-editing$", {
+          activeRange: { from: boundary + 1, to: boundary + 5 },
+          isComposing: false,
+          suppressedSelectionPosition: null,
+        }),
+    );
+
+    expect(container.querySelector(".editor-inline-code__editing-caret")).toBe(
+      null,
+    );
+    expect(
+      container.querySelector(".editor-inline-code__editing-content"),
+    ).toBe(null);
   });
 
   it("expands only within the inline code trailing click tolerance", () => {

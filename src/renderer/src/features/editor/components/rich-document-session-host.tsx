@@ -8,6 +8,7 @@ import { useEditorStore } from "@/store/editor.store";
 import {
   editorCache,
   editorSaveCoordinator,
+  type FlushEditorChangeOptions,
   registerEditorChangeFlusher,
   richDocumentSessionManager,
   subscribeToEditorFile,
@@ -308,8 +309,11 @@ export function RichDocumentSessionHost({
         registerEditorChangeFlusher(
           group.id,
           tab.id,
-          () =>
-            richDocumentSessionManager.serializePendingChange(normalizedPath),
+          (options?: FlushEditorChangeOptions) =>
+            richDocumentSessionManager.serializePendingChange(
+              normalizedPath,
+              options,
+            ),
           () =>
             richDocumentSessionManager
               .getRuntime(normalizedPath)

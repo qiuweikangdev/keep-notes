@@ -564,6 +564,19 @@ export function pasteExternalHTMLTables(
       return true;
     }
 
+    // 新建标签页会先放置一个空段落作为编辑占位；整段富文本粘贴到这里时必须替换它，
+    // 否则 BlockNote 默认按“在当前块后插入”处理，首个真实块前就会多出一行。
+    if (
+      editor.document.length === 1 &&
+      isEmptyRichEditorParagraph(editor.document[0])
+    ) {
+      const parsedBlocks = editor.tryParseHTMLToBlocks(internalHTML);
+      if (parsedBlocks.length > 0) {
+        editor.replaceBlocks(editor.document, parsedBlocks);
+        return true;
+      }
+    }
+
     // 整表或单元格选区保留原生 MIME，由 BlockNote 还原表格结构和光标语义。
     return false;
   }
@@ -713,6 +726,10 @@ interface EditorOutlineSnapshot {
 
 interface PendingOutlineScrollActivation {
   owner: RichPaneScrollOwner;
+}
+
+interface SerializeChangeOptions {
+  reconcileSource?: boolean;
 }
 
 const EMPTY_EDITOR_OUTLINE_SNAPSHOT: EditorOutlineSnapshot = {
@@ -2055,7 +2072,9 @@ function MountedBlockNoteEditor({
   const serializationCancelRef = useRef<(() => void) | null>(null);
   const serializationInFlightRef = useRef<Promise<void> | null>(null);
   const serializationQueuedRef = useRef(false);
-  const serializeChangeRef = useRef<() => Promise<void>>(async () => {});
+  const serializeChangeRef = useRef<
+    (options?: SerializeChangeOptions) => Promise<void>
+  >(async () => {});
   const outlineUpdateCancelRef = useRef<(() => void) | null>(null);
   const outlineScrollTokenRef = useRef(0);
   const outlineSnapshotRef = useRef(EMPTY_EDITOR_OUTLINE_SNAPSHOT);
@@ -2392,10 +2411,10 @@ function MountedBlockNoteEditor({
         readViewState,
         restoreViewState,
         scrollToBlock,
-        serializePendingChange: async () => {
+        serializePendingChange: async (options) => {
           serializationCancelRef.current?.();
           serializationCancelRef.current = null;
-          await serializeChangeRef.current();
+          await serializeChangeRef.current(options);
         },
         discardPendingChange: () => {
           // 源码模式接管后使已在途的旧序列化失效；保留 runtime 供同文件的其他可见窗格继续重载。
@@ -2512,127 +2531,142 @@ function MountedBlockNoteEditor({
     );
   }, [editor, reloadKey]);
 
-  const serializeChange = useCallback(async () => {
-    const lifecycleGeneration = lifecycleGenerationRef.current;
-    const isCurrentLifecycle = () =>
-      lifecycleActiveRef.current &&
-      lifecycleGenerationRef.current === lifecycleGeneration;
-    if (!isCurrentLifecycle() || suppressChangeRef.current) return;
-    // 待保存 revision 在窗口失焦后仍需排空，否则最后一次输入不会进入自动保存写盘链路。
-    if (serializationInFlightRef.current) {
-      serializationQueuedRef.current = true;
-      await serializationInFlightRef.current;
-      if (!isCurrentLifecycle()) return;
-      if (changeGateRef.current.capturePendingRevision() === null) return;
-
-      // 显式 flush 可能与旧版本序列化重叠；等待后必须继续排空新 revision，
-      // 否则切换模式/文件会取消 finally 安排的 idle 任务并留下旧列表快照。
-      serializationCancelRef.current?.();
-      serializationCancelRef.current = null;
-      await serializeChangeRef.current();
-      return;
-    }
-
-    const pendingRevision = changeGateRef.current.capturePendingRevision();
-    if (pendingRevision === null) return;
-
-    const runSerialization = (async () => {
-      if (baselineSerializationRef.current) {
-        await baselineSerializationRef.current;
+  const serializeChange = useCallback(
+    async (options?: SerializeChangeOptions) => {
+      const reconcileSource = options?.reconcileSource === true;
+      const lifecycleGeneration = lifecycleGenerationRef.current;
+      const isCurrentLifecycle = () =>
+        lifecycleActiveRef.current &&
+        lifecycleGenerationRef.current === lifecycleGeneration;
+      if (!isCurrentLifecycle() || suppressChangeRef.current) return;
+      // 待保存 revision 在窗口失焦后仍需排空，否则最后一次输入不会进入自动保存写盘链路。
+      if (serializationInFlightRef.current) {
+        serializationQueuedRef.current = true;
+        await serializationInFlightRef.current;
         if (!isCurrentLifecycle()) return;
+        if (
+          changeGateRef.current.capturePendingRevision() === null &&
+          !reconcileSource
+        ) {
+          return;
+        }
+
+        // 显式 flush 可能与旧版本序列化重叠；等待后必须继续排空新 revision，
+        // 否则切换模式/文件会取消 finally 安排的 idle 任务并留下旧列表快照。
+        serializationCancelRef.current?.();
+        serializationCancelRef.current = null;
+        await serializeChangeRef.current(options);
+        return;
       }
-      // 同一次序列化和缓存必须使用同一棵不可变块快照；输入可能在异步导出期间继续更新。
-      const serializedBlocks = editor.document;
-      const serialized = await serializeMarkdown(editor, serializedBlocks);
-      if (!isCurrentLifecycle()) return;
-      const baseline = serializedBaselineRef.current;
-      if (baseline === null) {
+
+      const pendingRevision = changeGateRef.current.capturePendingRevision();
+      if (pendingRevision === null && !reconcileSource) return;
+
+      const runSerialization = (async () => {
+        if (baselineSerializationRef.current) {
+          await baselineSerializationRef.current;
+          if (!isCurrentLifecycle()) return;
+        }
+        // 同一次序列化和缓存必须使用同一棵不可变块快照；输入可能在异步导出期间继续更新。
+        const serializedBlocks = editor.document;
+        const serialized = await serializeMarkdown(editor, serializedBlocks);
+        if (!isCurrentLifecycle()) return;
+        const baseline = serializedBaselineRef.current;
+        if (baseline === null) {
+          if (!isCurrentLifecycle()) return;
+          serializedBaselineRef.current = serialized;
+          if (path) {
+            const parserCacheVersion = getMarkdownParserCacheVersion(reloadKey);
+            if (!isCurrentLifecycle()) return;
+            editorCache.setBlocks(
+              path,
+              contentRef.current,
+              serializedBlocks,
+              parserCacheVersion,
+              serialized,
+            );
+          }
+          if (!isCurrentLifecycle()) return;
+          if (pendingRevision !== null) {
+            changeGateRef.current.markSerialized(pendingRevision);
+          }
+          return;
+        }
+        // 在序列化和源码保留之间让出主线程，确保用户交互（弹窗/菜单点击）不被阻塞。
+        await yieldToMain();
+        if (!isCurrentLifecycle()) return;
+        const markdown = resolveSerializedMarkdownChange(
+          contentRef.current,
+          baseline,
+          serialized,
+        );
         if (!isCurrentLifecycle()) return;
         serializedBaselineRef.current = serialized;
+        if (markdown === null) {
+          if (!isCurrentLifecycle()) return;
+          if (pendingRevision !== null) {
+            changeGateRef.current.markSerialized(pendingRevision);
+          }
+          return;
+        }
+
+        // 只有当前文档真正序列化成功后，才推进解析缓存对应的源码快照。
+        contentRef.current = markdown;
+        appliedSourceRef.current = markdown;
         if (path) {
           const parserCacheVersion = getMarkdownParserCacheVersion(reloadKey);
           if (!isCurrentLifecycle()) return;
+          editorCache.setContent(path, markdown);
+          if (!isCurrentLifecycle()) return;
           editorCache.setBlocks(
             path,
-            contentRef.current,
+            markdown,
             serializedBlocks,
             parserCacheVersion,
             serialized,
           );
         }
         if (!isCurrentLifecycle()) return;
-        changeGateRef.current.markSerialized(pendingRevision);
-        return;
-      }
-      // 在序列化和源码保留之间让出主线程，确保用户交互（弹窗/菜单点击）不被阻塞。
-      await yieldToMain();
-      if (!isCurrentLifecycle()) return;
-      const markdown = resolveSerializedMarkdownChange(
-        contentRef.current,
-        baseline,
-        serialized,
-      );
-      if (!isCurrentLifecycle()) return;
-      serializedBaselineRef.current = serialized;
-      if (markdown === null) {
+        controllerRef.current.onWordCountChange(markdown.length);
         if (!isCurrentLifecycle()) return;
-        changeGateRef.current.markSerialized(pendingRevision);
-        return;
-      }
-
-      // 只有当前文档真正序列化成功后，才推进解析缓存对应的源码快照。
-      contentRef.current = markdown;
-      appliedSourceRef.current = markdown;
-      if (path) {
-        const parserCacheVersion = getMarkdownParserCacheVersion(reloadKey);
+        controllerRef.current.onMarkdownChange(markdown);
         if (!isCurrentLifecycle()) return;
-        editorCache.setContent(path, markdown);
-        if (!isCurrentLifecycle()) return;
-        editorCache.setBlocks(
-          path,
-          markdown,
-          serializedBlocks,
-          parserCacheVersion,
-          serialized,
-        );
-      }
-      if (!isCurrentLifecycle()) return;
-      controllerRef.current.onWordCountChange(markdown.length);
-      if (!isCurrentLifecycle()) return;
-      controllerRef.current.onMarkdownChange(markdown);
-      if (!isCurrentLifecycle()) return;
-      changeGateRef.current.markSerialized(pendingRevision);
-    })();
-
-    serializationInFlightRef.current = runSerialization;
-    try {
-      await runSerialization;
-    } finally {
-      if (serializationInFlightRef.current === runSerialization) {
-        serializationInFlightRef.current = null;
-      }
-      if (
-        isCurrentLifecycle() &&
-        serializationQueuedRef.current &&
-        changeGateRef.current.capturePendingRevision() !== null
-      ) {
-        serializationQueuedRef.current = false;
-        if (serializationCancelRef.current) {
-          serializationCancelRef.current();
+        if (pendingRevision !== null) {
+          changeGateRef.current.markSerialized(pendingRevision);
         }
-        serializationCancelRef.current = scheduleEditorIdleTask(
-          () => {
-            serializationCancelRef.current = null;
-            void serializeChangeRef.current();
-          },
-          1200,
-          getEditorSerializationQuietPeriod(contentRef.current),
-        );
-      } else {
-        serializationQueuedRef.current = false;
+      })();
+
+      serializationInFlightRef.current = runSerialization;
+      try {
+        await runSerialization;
+      } finally {
+        if (serializationInFlightRef.current === runSerialization) {
+          serializationInFlightRef.current = null;
+        }
+        if (
+          isCurrentLifecycle() &&
+          serializationQueuedRef.current &&
+          changeGateRef.current.capturePendingRevision() !== null
+        ) {
+          serializationQueuedRef.current = false;
+          if (serializationCancelRef.current) {
+            serializationCancelRef.current();
+          }
+          serializationCancelRef.current = scheduleEditorIdleTask(
+            () => {
+              serializationCancelRef.current = null;
+              void serializeChangeRef.current();
+            },
+            1200,
+            getEditorSerializationQuietPeriod(contentRef.current),
+          );
+        } else {
+          serializationQueuedRef.current = false;
+        }
       }
-    }
-  }, [editor, path, reloadKey]);
+    },
+    [editor, path, reloadKey],
+  );
   serializeChangeRef.current = serializeChange;
 
   useEditorChange(() => {

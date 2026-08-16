@@ -59,7 +59,13 @@ export const editorSaveCoordinator = createEditorSaveCoordinator({
   },
 });
 
-type EditorChangeFlusher = () => Promise<void>;
+export interface FlushEditorChangeOptions {
+  reconcileSource?: boolean;
+}
+
+type EditorChangeFlusher = (
+  options?: FlushEditorChangeOptions,
+) => Promise<void>;
 const editorChangeFlushers = new Map<string, EditorChangeFlusher>();
 const editorChangeCancellers = new Map<string, () => void>();
 const fileWatchRegistry = new FileWatchRegistry({
@@ -102,8 +108,10 @@ export function registerEditorChangeFlusher(
 export async function flushEditorChange(
   groupId: string,
   tabId: string,
+  options?: FlushEditorChangeOptions,
 ): Promise<void> {
-  await editorChangeFlushers.get(editorInstanceKey(groupId, tabId))?.();
+  const flusher = editorChangeFlushers.get(editorInstanceKey(groupId, tabId));
+  await flusher?.(options);
 }
 
 export function cancelEditorChange(groupId: string, tabId: string): void {

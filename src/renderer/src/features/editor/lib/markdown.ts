@@ -1168,11 +1168,11 @@ export function repairMarkdownSourceBeforeParse(markdown: string): string {
   const fencedCodeRepaired =
     repairJoinedFencedCodeFirstLines(tableBoundariesRepaired) ??
     tableBoundariesRepaired;
-  const listMarkerRepaired =
-    repairJoinedUnorderedListMarkers(fencedCodeRepaired) ?? fencedCodeRepaired;
+  // 不在无基线的打开阶段猜测 `*` 是否是拼接列表标记；正文中的 `* ` 也可能是合法内容。
+  // 有富文本序列化基线时，preserveMarkdownSource 会通过 repairJoinedUnorderedListSource 精确恢复。
   return (
-    repairTrailingOrphanUnorderedListMarker(listMarkerRepaired) ??
-    listMarkerRepaired
+    repairTrailingOrphanUnorderedListMarker(fencedCodeRepaired) ??
+    fencedCodeRepaired
   );
 }
 
@@ -2028,71 +2028,129 @@ function restoreStableSourceFormatting(source: string, markdown: string) {
   );
 }
 
-function isPlainMarkdownTextLine(text: string): boolean {
-  const trimmed = text.trim();
-  if (!trimmed || /^ {0,3}(?:#{1,6}\s|[-+*]\s|\d+[.)]\s|>)/u.test(trimmed)) {
-    return false;
-  }
-  if (/^\s*(?:\|.*\||```+|~~~+)\s*$/u.test(text)) return false;
-  if (/^\s*(?:<\/?[A-Za-z]|(?:---+|\*\*\*|___+)\s*$)/u.test(text)) {
-    return false;
-  }
-  return !/^ {4}/u.test(text);
+interface MarkdownBlankBoundary {
+  nextContentIndex: number;
+  previousContentIndex: number;
+  start: number;
+  count: number;
 }
 
-function hasCompactPlainParagraphBoundary(
-  baselineLines: MarkdownLine[],
-  previousText: string,
-  nextText: string,
-): boolean {
-  for (let index = 0; index + 1 < baselineLines.length; index += 1) {
-    if (
-      baselineLines[index].text === previousText &&
-      baselineLines[index + 1].text === nextText &&
-      isPlainMarkdownTextLine(previousText) &&
-      isPlainMarkdownTextLine(nextText)
-    ) {
-      return true;
+interface MarkdownBlankBoundaryMap {
+  boundaries: Map<string, MarkdownBlankBoundary>;
+  contentCount: number;
+}
+
+function getMarkdownFenceState(lines: MarkdownLine[]): boolean[] {
+  const state: boolean[] = [];
+  let openingFence: { character: "`" | "~"; length: number } | null = null;
+
+  for (const line of lines) {
+    state.push(openingFence !== null);
+    if (openingFence) {
+      const closingPattern = new RegExp(
+        `^ {0,3}${openingFence.character}{${openingFence.length},}\\s*$`,
+        "u",
+      );
+      if (closingPattern.test(line.text)) openingFence = null;
+      continue;
+    }
+
+    const openingMatch = line.text.match(/^ {0,3}(`{3,}|~{3,})/u);
+    if (openingMatch) {
+      openingFence = {
+        character: openingMatch[1][0] as "`" | "~",
+        length: openingMatch[1].length,
+      };
     }
   }
-  return false;
+
+  return state;
 }
 
-function removeLegacyPlainParagraphSpacer(
+function getMarkdownLineShape(text: string): string {
+  const trimmed = text.trimStart();
+  if (/^#{1,6}(?:\s|$)/u.test(trimmed)) return "heading";
+  if (/^(?:[-+*])\s+/u.test(trimmed)) return "unordered-list";
+  if (/^\d+[.)]\s+/u.test(trimmed)) return "ordered-list";
+  if (/^> ?/u.test(trimmed)) return "quote";
+  if (/^(?:```+|~~~+)/u.test(trimmed)) return "fence";
+  if (/^\|.*\|$/u.test(trimmed)) return "table";
+  return "text";
+}
+
+function collectMarkdownBlankBoundaries(
+  lines: MarkdownLine[],
+): MarkdownBlankBoundaryMap {
+  const fenceState = getMarkdownFenceState(lines);
+  const boundaries = new Map<string, MarkdownBlankBoundary>();
+  let previousContentIndex = -1;
+  let contentOrdinal = 0;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    if (lines[index].text.trim() === "") continue;
+
+    if (previousContentIndex >= 0) {
+      const previousOrdinal = contentOrdinal - 1;
+      const key = `${previousOrdinal}:${contentOrdinal}`;
+      if (!fenceState[previousContentIndex] && !fenceState[index]) {
+        boundaries.set(key, {
+          nextContentIndex: index,
+          previousContentIndex,
+          start: previousContentIndex + 1,
+          count: index - previousContentIndex - 1,
+        });
+      }
+    }
+
+    previousContentIndex = index;
+    contentOrdinal += 1;
+  }
+
+  return { boundaries, contentCount: contentOrdinal };
+}
+
+function removeExcessCanonicalBlankLines(
   canonicalMarkdown: string,
   markdown: string,
 ): string {
   const resultLines = splitMarkdownLines(markdown);
   const canonicalLines = splitMarkdownLines(canonicalMarkdown);
-  const removedLineIndexes = new Set<number>();
-  for (let index = 0; index < resultLines.length; index += 1) {
-    if (resultLines[index].text.trim() !== "") continue;
+  const resultBoundaries = collectMarkdownBlankBoundaries(resultLines);
+  const canonicalBoundaries = collectMarkdownBlankBoundaries(canonicalLines);
+  if (resultBoundaries.contentCount !== canonicalBoundaries.contentCount) {
+    return markdown;
+  }
 
-    let nextContentIndex = index + 1;
-    while (
-      nextContentIndex < resultLines.length &&
-      resultLines[nextContentIndex].text.trim() === ""
-    ) {
-      nextContentIndex += 1;
-    }
-    const previous = resultLines[index - 1];
-    const next = resultLines[nextContentIndex];
+  const removedLineIndexes = new Set<number>();
+  for (const [key, resultBoundary] of resultBoundaries.boundaries) {
+    const canonicalBoundary = canonicalBoundaries.boundaries.get(key);
+    if (!canonicalBoundary) continue;
+
+    const resultPrevious = resultLines[resultBoundary.previousContentIndex];
+    const resultNext = resultLines[resultBoundary.nextContentIndex];
+    const canonicalPrevious =
+      canonicalLines[canonicalBoundary.previousContentIndex];
+    const canonicalNext = canonicalLines[canonicalBoundary.nextContentIndex];
     if (
-      !previous ||
-      !next ||
-      !isPlainMarkdownTextLine(previous.text) ||
-      !isPlainMarkdownTextLine(next.text) ||
-      !hasCompactPlainParagraphBoundary(
-        canonicalLines,
-        previous.text,
-        next.text,
-      )
+      !resultPrevious ||
+      !resultNext ||
+      !canonicalPrevious ||
+      !canonicalNext ||
+      getMarkdownLineShape(resultPrevious.text) !==
+        getMarkdownLineShape(canonicalPrevious.text) ||
+      getMarkdownLineShape(resultNext.text) !==
+        getMarkdownLineShape(canonicalNext.text)
     ) {
       continue;
     }
 
-    // 只删除旧序列化器补出的第一条空行；用户额外保留的空行继续保留。
-    removedLineIndexes.add(index);
+    const excessLineCount = resultBoundary.count - canonicalBoundary.count;
+    if (excessLineCount <= 0) continue;
+
+    // 只压缩超过富文本序列化基线的空行，源码原有的规范间距和行尾格式继续保留。
+    for (let offset = 0; offset < excessLineCount; offset += 1) {
+      removedLineIndexes.add(resultBoundary.start + offset);
+    }
   }
 
   if (removedLineIndexes.size === 0) return markdown;
@@ -2125,9 +2183,7 @@ export function preserveMarkdownSource(
     );
     return restoreStableSourceFormatting(
       preservationSource,
-      baseline === edited
-        ? repaired
-        : removeLegacyPlainParagraphSpacer(edited, repaired),
+      removeExcessCanonicalBlankLines(edited, repaired),
     );
   };
 
@@ -2878,10 +2934,138 @@ function normalizeSerializedPlainParagraphBreaks(markdown: string): string {
   return markdown.replace(/\\\n[ \t]?/gu, "\n");
 }
 
+function stripBlockChildren<TBlock>(block: TBlock): TBlock {
+  if (!isRecord(block) || !Array.isArray(block.children)) return block;
+
+  const blockWithoutChildren = { ...block };
+  delete blockWithoutChildren.children;
+  return blockWithoutChildren as TBlock;
+}
+
+function getBlockChildren<TBlock>(block: TBlock): TBlock[] {
+  if (!isRecord(block) || !Array.isArray(block.children)) return [];
+  return block.children as TBlock[];
+}
+
+function hasNestedBlockSerializationRisk<TBlock>(block: TBlock): boolean {
+  const children = getBlockChildren(block);
+  return (
+    children.length > 0 &&
+    (children.some((child) => getMarkdownListKind(child) === null) ||
+      children.some(hasNestedBlockSerializationRisk))
+  );
+}
+
+function indentNestedMarkdown(markdown: string): string {
+  return markdown
+    .split("\n")
+    .map((line) => (line ? `  ${line}` : line))
+    .join("\n");
+}
+
+function getNestedBlockSeparator<TBlock>(
+  parent: TBlock | null,
+  previous: TBlock | undefined,
+  current: TBlock,
+): "" | "\n" | "\n\n" {
+  if (!previous) return "";
+  if (isSameListRun(previous, current)) return "\n";
+  if (isCompactParagraphBlock(previous) && isCompactParagraphBlock(current)) {
+    return "\n";
+  }
+
+  // 列表项下的普通段落是同一列表项的续行，不能让序列化器产生无缩进的列表外段落。
+  if (
+    parent &&
+    getMarkdownListKind(parent) !== null &&
+    isSameListRun(parent, previous) &&
+    isCompactParagraphBlock(current)
+  ) {
+    return "\n";
+  }
+
+  return "\n\n";
+}
+
+async function serializeBlockTree<TBlock>(
+  serializer: MarkdownSerializer<TBlock>,
+  block: TBlock,
+  numberedListStart?: number,
+): Promise<string> {
+  const children = getBlockChildren(block);
+  const blockWithoutChildren = stripBlockChildren(block);
+  const serializedBlock =
+    numberedListStart === undefined
+      ? blockWithoutChildren
+      : withNumberedListStart(blockWithoutChildren, numberedListStart);
+  const rawBlockMarkdown = await serializer.blocksToMarkdownLossy([
+    serializedBlock,
+  ]);
+  const blockMarkdown = (
+    isCompactParagraphBlock(blockWithoutChildren)
+      ? normalizeSerializedPlainParagraphBreaks(rawBlockMarkdown)
+      : rawBlockMarkdown
+  ).trimEnd();
+
+  if (children.length === 0) return blockMarkdown;
+
+  const childrenMarkdown = await serializeBlockSequence(
+    serializer,
+    children,
+    block,
+  );
+  const nestedMarkdown = indentNestedMarkdown(childrenMarkdown.trimEnd());
+  const separator = getNestedBlockSeparator(block, block, children[0]);
+  return `${blockMarkdown}${separator}${nestedMarkdown}`;
+}
+
+async function serializeBlockTreeSequence<TBlock>(
+  serializer: MarkdownSerializer<TBlock>,
+  blocks: TBlock[],
+  parent: TBlock | null,
+): Promise<string> {
+  const chunks: string[] = [];
+  let previousBlock: TBlock | undefined;
+  let numberedListIndex = 0;
+
+  for (const block of blocks) {
+    const listKind = getMarkdownListKind(block);
+    const continuesNumberedList =
+      listKind === "ordered" &&
+      previousBlock !== undefined &&
+      isSameListRun(previousBlock, block);
+    if (listKind === "ordered") {
+      numberedListIndex = continuesNumberedList
+        ? numberedListIndex + 1
+        : getNumberedListStart(block);
+    } else {
+      numberedListIndex = 0;
+    }
+
+    const chunk = await serializeBlockTree(
+      serializer,
+      block,
+      listKind === "ordered" ? numberedListIndex : undefined,
+    );
+    if (chunk) {
+      const separator = getNestedBlockSeparator(parent, previousBlock, block);
+      chunks.push(`${separator}${chunk}`);
+    }
+    previousBlock = block;
+  }
+
+  return `${chunks.join("")}\n`;
+}
+
 async function serializeBlockSequence<TBlock>(
   serializer: MarkdownSerializer<TBlock>,
   blocks: TBlock[],
+  parent: TBlock | null = null,
 ): Promise<string> {
+  if (blocks.some(hasNestedBlockSerializationRisk)) {
+    return serializeBlockTreeSequence(serializer, blocks, parent);
+  }
+
   const hasPlainParagraphBreaks = blocks.some(
     (block) =>
       isCompactParagraphBlock(block) &&
