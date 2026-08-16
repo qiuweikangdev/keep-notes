@@ -1433,6 +1433,142 @@ describe("BlockNoteEditor code paste", () => {
     }
   });
 
+  it("keeps inline-code boundary navigation after pasting copied blocks into an empty tab", () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    vi.stubGlobal("ClipboardEvent", Event);
+
+    const sourceEditor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "bulletListItem",
+          content: [
+            { type: "text", text: "prefix", styles: {} },
+            { type: "text", text: "code", styles: { code: true } },
+          ],
+        },
+      ],
+    });
+    const targetEditor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    const sourceView = render(
+      createElement(BlockNoteView, { editor: sourceEditor }),
+    );
+    const targetView = render(
+      createElement(BlockNoteView, { editor: targetEditor }),
+    );
+
+    try {
+      sourceEditor.prosemirrorView.dispatch(
+        sourceEditor.prosemirrorView.state.tr.setSelection(
+          new AllSelection(sourceEditor.prosemirrorView.state.doc),
+        ),
+      );
+
+      const clipboard = new Map<string, string>();
+      const copyEvent = new Event("copy", { bubbles: true, cancelable: true });
+      Object.defineProperty(copyEvent, "clipboardData", {
+        value: {
+          clearData: () => clipboard.clear(),
+          setData: (type: string, value: string) => clipboard.set(type, value),
+        },
+      });
+      sourceEditor.prosemirrorView.dom.dispatchEvent(copyEvent);
+
+      const pasteEvent = new Event("paste", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(pasteEvent, "clipboardData", {
+        value: {
+          getData: (type: string) => clipboard.get(type) ?? "",
+          types: Array.from(clipboard.keys()),
+        },
+      });
+      expect(
+        pasteExternalHTMLTables(targetEditor, pasteEvent as ClipboardEvent),
+      ).toBe(true);
+
+      const targetViewState = targetEditor.prosemirrorView;
+      let codePosition: number | undefined;
+      targetViewState.state.doc.descendants((node, position) => {
+        if (node.isText && node.text === "code") codePosition = position;
+        return true;
+      });
+      expect(codePosition).toBeTypeOf("number");
+
+      const code = targetView.container.querySelector("code");
+      expect(code).not.toBe(null);
+      const click = new MouseEvent("click", { button: 0, bubbles: true });
+      Object.defineProperty(click, "target", {
+        configurable: true,
+        value: code,
+      });
+      targetViewState.dispatch(
+        targetViewState.state.tr.setSelection(
+          TextSelection.create(
+            targetViewState.state.doc,
+            (codePosition as number) + 1,
+          ),
+        ),
+      );
+      targetViewState.someProp("handleClick", (handler) =>
+        handler(targetViewState, (codePosition as number) + 1, click),
+      );
+      targetViewState.focus();
+
+      const leftToCodeStart = new KeyboardEvent("keydown", {
+        bubbles: true,
+        cancelable: true,
+        key: "ArrowLeft",
+      });
+      targetViewState.dom.dispatchEvent(leftToCodeStart);
+      const leftToBoundary = new KeyboardEvent("keydown", {
+        bubbles: true,
+        cancelable: true,
+        key: "ArrowLeft",
+      });
+      targetViewState.dom.dispatchEvent(leftToBoundary);
+      expect(leftToBoundary.defaultPrevented).toBe(true);
+
+      const dispatchTextInput = (text: string) => {
+        const input = new InputEvent("beforeinput", {
+          bubbles: true,
+          cancelable: true,
+          data: text,
+          inputType: "insertText",
+        });
+        const nativeInputAllowed = targetViewState.dom.dispatchEvent(input);
+        if (nativeInputAllowed) {
+          targetViewState.dispatch(targetViewState.state.tr.insertText(text));
+        }
+        targetViewState.dom.dispatchEvent(
+          new Event("input", { bubbles: true }),
+        );
+      };
+
+      dispatchTextInput("2");
+      const rightToCodeStart = new KeyboardEvent("keydown", {
+        bubbles: true,
+        cancelable: true,
+        key: "ArrowRight",
+      });
+      targetViewState.dom.dispatchEvent(rightToCodeStart);
+      dispatchTextInput("1");
+
+      expect(targetEditor.document[0].content).toEqual([
+        { type: "text", text: "prefix2", styles: {} },
+        { type: "text", text: "1code", styles: { code: true } },
+      ]);
+    } finally {
+      sourceView.unmount();
+      targetView.unmount();
+    }
+  });
+
   it("lets BlockNote handle its internal table clipboard data", () => {
     setupMatchMedia();
     setupDomMeasurements();

@@ -109,12 +109,14 @@ const inlineCodeLatinContentPattern = /[\u0020-\u007e]+/g;
 
 type InlineCodeEditingState = {
   activeRange: { from: number; to: number } | null;
+  openingBoundaryPosition: number | null;
   isComposing: boolean;
   suppressedSelectionPosition: number | null;
 };
 
 const EMPTY_INLINE_CODE_EDITING_STATE: InlineCodeEditingState = {
   activeRange: null,
+  openingBoundaryPosition: null,
   isComposing: false,
   suppressedSelectionPosition: null,
 };
@@ -544,6 +546,7 @@ function movePureInlineCodeCaret(view: EditorView, direction: -1 | 1) {
       )
       .setMeta(inlineCodeEditingPluginKey, {
         activeRange: targetRange,
+        openingBoundaryPosition: null,
         suppressedSelectionPosition: null,
       })
       .scrollIntoView(),
@@ -572,12 +575,83 @@ function moveInlineCodeCaretHorizontally(view: EditorView, direction: -1 | 1) {
     return false;
   }
 
+  const selectionAtVirtualOpeningBoundary =
+    editingState.openingBoundaryPosition === activeRange.from &&
+    (view.state.selection.from === activeRange.from ||
+      view.state.selection.from === activeRange.from + 1);
+  if (selectionAtVirtualOpeningBoundary) {
+    if (direction === 1) {
+      // 原生选区被校正到首字符后时，右移仍只应进入代码首位，不能再跳过首字符。
+      view.dispatch(
+        view.state.tr
+          .setSelection(TextSelection.create(view.state.doc, activeRange.from))
+          .setMeta(inlineCodeEditingPluginKey, {
+            activeRange,
+            openingBoundaryPosition: null,
+            suppressedSelectionPosition: null,
+          }),
+      );
+      view.focus();
+      return true;
+    }
+
+    if (view.state.selection.from === activeRange.from + 1) {
+      // 左移先把浏览器校正的位置锚回虚拟边界；下一次左移才离开行内代码。
+      view.dispatch(
+        view.state.tr
+          .setSelection(TextSelection.create(view.state.doc, activeRange.from))
+          .setMeta(inlineCodeEditingPluginKey, {
+            activeRange,
+            openingBoundaryPosition: activeRange.from,
+            suppressedSelectionPosition: null,
+          }),
+      );
+      view.focus();
+      return true;
+    }
+  }
+
+  if (
+    direction === 1 &&
+    view.state.selection.from === activeRange.from &&
+    editingState.openingBoundaryPosition === activeRange.from
+  ) {
+    // 虚拟光标和代码首位共用文档位置；右移只切换回反引号之后，不能跳过首个字符。
+    view.dispatch(
+      view.state.tr.setMeta(inlineCodeEditingPluginKey, {
+        activeRange,
+        openingBoundaryPosition: null,
+        suppressedSelectionPosition: null,
+      }),
+    );
+    return true;
+  }
+
   const targetPosition = view.state.selection.from + direction;
   if (targetPosition < activeRange.from || targetPosition > activeRange.to) {
+    if (
+      direction === -1 &&
+      view.state.selection.from === activeRange.from &&
+      editingState.openingBoundaryPosition !== activeRange.from
+    ) {
+      // 行首的文档位置与反引号后的首字符位置相同；第一次左移只切换到反引号左侧的虚拟光标。
+      view.dispatch(
+        view.state.tr.setMeta(inlineCodeEditingPluginKey, {
+          activeRange,
+          openingBoundaryPosition: activeRange.from,
+          suppressedSelectionPosition: null,
+        }),
+      );
+      // 装饰光标是不可编辑 widget；切到虚拟边界后主动恢复编辑器焦点，保证反引号和光标样式仍处于编辑态。
+      view.focus();
+      return true;
+    }
+
     // 同一个文档位置既可能是代码内首位，也可能是代码外侧边界；离开时清掉装饰态，避免双光标。
     view.dispatch(
       view.state.tr.setMeta(inlineCodeEditingPluginKey, {
         activeRange: null,
+        openingBoundaryPosition: null,
         suppressedSelectionPosition: view.state.selection.from,
       }),
     );
@@ -590,9 +664,110 @@ function moveInlineCodeCaretHorizontally(view: EditorView, direction: -1 | 1) {
       .setSelection(TextSelection.create(view.state.doc, targetPosition))
       .setMeta(inlineCodeEditingPluginKey, {
         activeRange,
+        openingBoundaryPosition: null,
         suppressedSelectionPosition: null,
       }),
   );
+  return true;
+}
+
+function insertInlineCodeBoundaryText(view: EditorView, text: string) {
+  const editingState =
+    inlineCodeEditingPluginKey.getState(view.state) ??
+    EMPTY_INLINE_CODE_EDITING_STATE;
+  const activeRange = editingState.activeRange;
+  const selection = view.state.selection;
+  const selectionAtVirtualBoundary =
+    selection.from === activeRange?.from ||
+    (activeRange !== null && selection.from === activeRange.from + 1);
+
+  if (
+    !activeRange ||
+    editingState.openingBoundaryPosition !== activeRange.from ||
+    editingState.isComposing ||
+    !text ||
+    text.includes("\n") ||
+    !view.state.selection.empty ||
+    !selectionAtVirtualBoundary
+  ) {
+    return false;
+  }
+
+  // 浏览器同步 contenteditable 选区时，虚拟边界偶尔会短暂落到首字符后一个位置；仍按边界处理，避免连续输入逐字进入 code mark。
+  const insertedLength = text.length;
+  const nextCodeRange = {
+    from: activeRange.from + insertedLength,
+    to: activeRange.to + insertedLength,
+  };
+  const transaction = view.state.tr.replaceWith(
+    activeRange.from,
+    activeRange.from,
+    view.state.schema.text(text),
+  );
+  transaction
+    .setSelection(
+      TextSelection.create(transaction.doc, activeRange.from + insertedLength),
+    )
+    .setMeta(inlineCodeEditingPluginKey, {
+      activeRange: nextCodeRange,
+      openingBoundaryPosition: nextCodeRange.from,
+      isComposing: false,
+      suppressedSelectionPosition: null,
+    });
+  view.dispatch(transaction);
+  view.focus();
+  return true;
+}
+
+function insertInlineCodeEditingText(view: EditorView, text: string) {
+  const editingState =
+    inlineCodeEditingPluginKey.getState(view.state) ??
+    EMPTY_INLINE_CODE_EDITING_STATE;
+  const selection = view.state.selection;
+  const activeRange = editingState.activeRange;
+  const currentRange = findInlineCodeRange(view.state, selection.from, true);
+
+  if (
+    !activeRange ||
+    !currentRange ||
+    editingState.isComposing ||
+    !text ||
+    text.includes("\n") ||
+    selection.from < currentRange.from ||
+    selection.to > currentRange.to
+  ) {
+    return false;
+  }
+
+  const codeMark = view.state.schema.marks.code;
+  if (!codeMark) return false;
+
+  const resolvedPosition = view.state.doc.resolve(selection.from);
+  const marks = view.state.storedMarks ?? resolvedPosition.marks();
+  const insertionMarks = marks.some((mark) => mark.type === codeMark)
+    ? marks
+    : [...marks, codeMark.create()];
+  const transaction = view.state.tr.replaceWith(
+    selection.from,
+    selection.to,
+    view.state.schema.text(text, insertionMarks),
+  );
+  const nextRange = {
+    from: transaction.mapping.map(currentRange.from, -1),
+    to: transaction.mapping.map(currentRange.to, 1),
+  };
+  transaction
+    .setSelection(
+      TextSelection.create(transaction.doc, selection.from + text.length),
+    )
+    .setMeta(inlineCodeEditingPluginKey, {
+      activeRange: nextRange,
+      openingBoundaryPosition: null,
+      isComposing: false,
+      suppressedSelectionPosition: null,
+    });
+  view.dispatch(transaction);
+  view.focus();
   return true;
 }
 
@@ -651,6 +826,8 @@ function getInlineCodeEditingDecorations(state: EditorState) {
     );
   }
   if (selection.empty && !editingState.isComposing) {
+    const caretIsBeforeOpeningMarker =
+      editingState.openingBoundaryPosition === range.from;
     decorations.push(
       Decoration.widget(
         selection.from,
@@ -662,9 +839,9 @@ function getInlineCodeEditingDecorations(state: EditorState) {
           return caret;
         },
         {
-          key: `inline-code-editing-caret-${selection.from}`,
-          // 行首要排在开头反引号之前；否则文档位置虽已到 range.from，视觉光标仍停在反引号之后。
-          side: selection.from === range.from ? -3 : -1,
+          key: `inline-code-editing-caret-${selection.from}-${caretIsBeforeOpeningMarker}`,
+          // 普通行首光标位于开头反引号之后；虚拟边界光标才位于反引号之前。
+          side: caretIsBeforeOpeningMarker ? -4 : -1,
         },
       ),
     );
@@ -712,12 +889,20 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
                     ),
                     to: transaction.mapping.map(editingState.activeRange.to, 1),
                   },
+                  openingBoundaryPosition:
+                    editingState.openingBoundaryPosition === null
+                      ? null
+                      : transaction.mapping.map(
+                          editingState.openingBoundaryPosition,
+                          -1,
+                        ),
                   isComposing: editingState.isComposing,
                   suppressedSelectionPosition: null,
                 }
               : editingState.suppressedSelectionPosition !== null
                 ? {
                     activeRange: null,
+                    openingBoundaryPosition: null,
                     isComposing: editingState.isComposing,
                     suppressedSelectionPosition: transaction.mapping.map(
                       editingState.suppressedSelectionPosition,
@@ -742,11 +927,13 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
             const selectionEnteredCodeFromOutside =
               currentRange !== null &&
               newState.selection.from === currentRange.from &&
-              !positionBeforeCodeIsCodeText;
+              !positionBeforeCodeIsCodeText &&
+              mappedState.openingBoundaryPosition !== currentRange.from;
             if (selectionEnteredCodeFromOutside) {
               // 代码首位前插入普通文本后，选区仍停在同一个视觉边界；此时必须退出代码编辑态。
               mappedState = {
                 activeRange: null,
+                openingBoundaryPosition: null,
                 isComposing: mappedState.isComposing,
                 suppressedSelectionPosition: newState.selection.from,
               };
@@ -778,6 +965,7 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
               // 选区进入或完整落在行内代码时迁移编辑范围，保留反引号与原生选中效果。
               return {
                 activeRange: nextRange,
+                openingBoundaryPosition: null,
                 isComposing: mappedState.isComposing,
                 suppressedSelectionPosition: null,
               };
@@ -797,6 +985,8 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
         } | null = null;
         let suppressNextInlineCodeClick = false;
         let compositionEndTimer: number | null = null;
+        let suppressNextInlineCodeInput = false;
+        let suppressNextInlineCodeInputTimer: number | null = null;
 
         const resetInlineCodeSelectionDrag = () => {
           inlineCodeSelectionDrag = null;
@@ -920,6 +1110,7 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
                 selectionIsWithinInlineCode
                   ? {
                       activeRange: drag.range,
+                      openingBoundaryPosition: null,
                       suppressedSelectionPosition: null,
                     }
                   : EMPTY_INLINE_CODE_EDITING_STATE,
@@ -956,6 +1147,7 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
                 )
                 .setMeta(inlineCodeEditingPluginKey, {
                   activeRange: drag.range,
+                  openingBoundaryPosition: null,
                   suppressedSelectionPosition: null,
                 }),
             );
@@ -1005,7 +1197,82 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
           event.preventDefault();
           event.stopImmediatePropagation();
         };
+        const handleInlineCodeBeforeInput = (event: InputEvent) => {
+          if (
+            event.inputType !== "insertText" ||
+            !event.data ||
+            event.isComposing
+          ) {
+            return;
+          }
+
+          const eventTarget = event.target;
+          const eventIsInsideEditor =
+            eventTarget instanceof Node && editorView.dom.contains(eventTarget);
+          const selectionIsInsideInlineCode =
+            editorView.state.selection.empty &&
+            findInlineCodeRange(
+              editorView.state,
+              editorView.state.selection.from,
+              true,
+            ) !== null;
+          if (
+            !eventIsInsideEditor &&
+            !editorView.hasFocus() &&
+            !selectionIsInsideInlineCode
+          ) {
+            return;
+          }
+
+          const handled =
+            insertInlineCodeBoundaryText(editorView, event.data) ||
+            insertInlineCodeEditingText(editorView, event.data);
+          if (!handled) return;
+
+          // 在 beforeinput 阶段消费边界输入，并屏蔽同一输入操作随后触发的 DOM 重读。
+          suppressNextInlineCodeInput = true;
+          if (suppressNextInlineCodeInputTimer !== null) {
+            window.clearTimeout(suppressNextInlineCodeInputTimer);
+          }
+          suppressNextInlineCodeInputTimer = window.setTimeout(() => {
+            suppressNextInlineCodeInput = false;
+            suppressNextInlineCodeInputTimer = null;
+          }, 0);
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        };
+        const handleInlineCodeInput = (event: Event) => {
+          if (!suppressNextInlineCodeInput) return;
+
+          suppressNextInlineCodeInput = false;
+          if (suppressNextInlineCodeInputTimer !== null) {
+            window.clearTimeout(suppressNextInlineCodeInputTimer);
+            suppressNextInlineCodeInputTimer = null;
+          }
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        };
         const handleHorizontalKeyDown = (event: KeyboardEvent) => {
+          const eventTarget = event.target;
+          const eventIsInsideEditor =
+            eventTarget instanceof Node && editorView.dom.contains(eventTarget);
+          const selectionIsInsideInlineCode =
+            editorView.state.selection.empty &&
+            findInlineCodeRange(
+              editorView.state,
+              editorView.state.selection.from,
+              true,
+            ) !== null;
+          // 反引号和自定义光标是 contentEditable=false 的 widget；它们可能让事件目标脱离编辑器根节点。
+          // 某些 Chromium 路径会把 widget 上的方向键事件目标报告为 document；只要选区仍在当前行内代码中，就继续由当前编辑器接管。
+          if (
+            !eventIsInsideEditor &&
+            !editorView.hasFocus() &&
+            !selectionIsInsideInlineCode
+          ) {
+            return;
+          }
+
           const direction =
             event.key === "ArrowLeft" || event.key === "Left"
               ? -1
@@ -1022,7 +1289,9 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
             return;
           }
 
-          if (!moveInlineCodeCaretHorizontally(editorView, direction)) return;
+          if (!moveInlineCodeCaretHorizontally(editorView, direction)) {
+            return;
+          }
 
           // 捕获阶段先于编辑器默认按键插件执行，避免装饰 widget 把首位光标移动到相邻块。
           event.preventDefault();
@@ -1047,11 +1316,13 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
           true,
         );
         editorView.dom.addEventListener("keydown", handleVerticalKeyDown, true);
-        editorView.dom.addEventListener(
-          "keydown",
-          handleHorizontalKeyDown,
+        document.addEventListener(
+          "beforeinput",
+          handleInlineCodeBeforeInput,
           true,
         );
+        document.addEventListener("input", handleInlineCodeInput, true);
+        document.addEventListener("keydown", handleHorizontalKeyDown, true);
         document.addEventListener("mousemove", handleInlineCodeMouseMove, true);
         document.addEventListener("mouseup", handleInlineCodeMouseUp, true);
         window.addEventListener("blur", resetInlineCodeSelectionDrag);
@@ -1087,7 +1358,13 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
               handleVerticalKeyDown,
               true,
             );
-            editorView.dom.removeEventListener(
+            document.removeEventListener(
+              "beforeinput",
+              handleInlineCodeBeforeInput,
+              true,
+            );
+            document.removeEventListener("input", handleInlineCodeInput, true);
+            document.removeEventListener(
               "keydown",
               handleHorizontalKeyDown,
               true,
@@ -1106,11 +1383,22 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
             if (compositionEndTimer !== null) {
               window.clearTimeout(compositionEndTimer);
             }
+            if (suppressNextInlineCodeInputTimer !== null) {
+              window.clearTimeout(suppressNextInlineCodeInputTimer);
+            }
           },
         };
       },
       props: {
         decorations: getInlineCodeEditingDecorations,
+        handleTextInput(view, from, to, text) {
+          if (from !== to || from !== view.state.selection.from) return false;
+
+          return (
+            insertInlineCodeBoundaryText(view, text) ||
+            insertInlineCodeEditingText(view, text)
+          );
+        },
         handleClick(view, position, event) {
           if (event.button !== 0) return false;
 
@@ -1127,10 +1415,18 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
               activeRange
                 ? {
                     activeRange,
+                    openingBoundaryPosition:
+                      event.target instanceof Element &&
+                      event.target.closest(
+                        `.${INLINE_CODE_EDITING_MARKER_CLASS}--start`,
+                      )
+                        ? activeRange.from
+                        : null,
                     suppressedSelectionPosition: null,
                   }
                 : {
                     activeRange: null,
+                    openingBoundaryPosition: null,
                     suppressedSelectionPosition: position,
                   },
             ),

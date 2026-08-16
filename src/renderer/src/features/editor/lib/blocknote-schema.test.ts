@@ -2432,7 +2432,6 @@ describe("editor BlockNote schema", () => {
     view.someProp("handleClick", (handler) =>
       handler(view, (codePosition as number) + 1, click),
     );
-
     const firstLeft = new KeyboardEvent("keydown", {
       bubbles: true,
       cancelable: true,
@@ -2453,19 +2452,41 @@ describe("editor BlockNote schema", () => {
     const openingMarker = container.querySelector(
       ".editor-inline-code__editing-marker--start",
     );
-    expect(openingMarker?.previousElementSibling).toBe(editingCaret);
+    expect(openingMarker?.nextElementSibling).toBe(editingCaret);
+    expect(
+      Array.from(
+        container.querySelectorAll(".editor-inline-code__editing-marker"),
+        (marker) => marker.textContent,
+      ),
+    ).toEqual(["`", "`"]);
 
     const right = new KeyboardEvent("keydown", {
       bubbles: true,
       cancelable: true,
       key: "ArrowRight",
     });
-    view.dom.dispatchEvent(right);
+    (editingCaret as HTMLElement).dispatchEvent(right);
     expect(right.defaultPrevented).toBe(true);
     expect(view.state.selection.from).toBe((codePosition as number) + 1);
 
     view.dom.dispatchEvent(firstLeft);
     expect(view.state.selection.from).toBe(codePosition);
+    const boundaryLeft = new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      key: "ArrowLeft",
+    });
+    view.dom.dispatchEvent(boundaryLeft);
+    expect(boundaryLeft.defaultPrevented).toBe(true);
+    expect(view.state.selection.from).toBe(codePosition);
+    const boundaryCaret = container.querySelector(
+      ".editor-inline-code__editing-caret",
+    );
+    const boundaryMarker = container.querySelector(
+      ".editor-inline-code__editing-marker--start",
+    );
+    expect(boundaryMarker?.previousElementSibling).toBe(boundaryCaret);
+
     const exitLeft = new KeyboardEvent("keydown", {
       bubbles: true,
       cancelable: true,
@@ -2477,6 +2498,306 @@ describe("editor BlockNote schema", () => {
     expect(container.querySelector(".editor-inline-code__editing-caret")).toBe(
       null,
     );
+  });
+
+  it("inserts plain text to the left of a list-first inline code boundary", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "bulletListItem",
+          content: [{ type: "text", text: "code", styles: { code: true } }],
+        },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+    const view = editor.prosemirrorView;
+    let codePosition: number | undefined;
+    view.state.doc.descendants((node, position) => {
+      if (node.isText && node.text === "code") codePosition = position;
+      return true;
+    });
+    expect(codePosition).toBeTypeOf("number");
+
+    const boundary = codePosition as number;
+    view.dispatch(
+      view.state.tr
+        .setSelection(TextSelection.create(view.state.doc, boundary))
+        .setMeta("editor-inline-code-editing$", {
+          activeRange: { from: boundary, to: boundary + 4 },
+          openingBoundaryPosition: boundary,
+          isComposing: false,
+          suppressedSelectionPosition: null,
+        }),
+    );
+
+    const input = new InputEvent("beforeinput", {
+      bubbles: true,
+      cancelable: true,
+      data: "2",
+      inputType: "insertText",
+    });
+    view.dom.dispatchEvent(input);
+    expect(input.defaultPrevented).toBe(true);
+
+    expect(view.state.selection.from).toBe(boundary + 1);
+    const inlineTextNodes: Array<{ text: string; isCode: boolean }> = [];
+    view.state.doc.descendants((node) => {
+      if (node.isText && node.text) {
+        inlineTextNodes.push({
+          text: node.text,
+          isCode: node.marks.some((mark) => mark.type.name === "code"),
+        });
+      }
+      return true;
+    });
+    expect(inlineTextNodes).toContainEqual({ text: "2", isCode: false });
+    expect(inlineTextNodes).toContainEqual({ text: "code", isCode: true });
+    const openingMarker = container.querySelector(
+      ".editor-inline-code__editing-marker--start",
+    );
+    const boundaryCaret = container.querySelector(
+      ".editor-inline-code__editing-caret",
+    );
+    expect(openingMarker?.previousElementSibling).toBe(boundaryCaret);
+  });
+
+  it("inserts text inside a list-first inline code at its content start", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "bulletListItem",
+          content: [{ type: "text", text: "code", styles: { code: true } }],
+        },
+      ],
+    });
+    render(createElement(BlockNoteView, { editor }));
+    const view = editor.prosemirrorView;
+    let codePosition: number | undefined;
+    view.state.doc.descendants((node, position) => {
+      if (node.isText && node.text === "code") codePosition = position;
+      return true;
+    });
+    expect(codePosition).toBeTypeOf("number");
+
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, codePosition as number),
+      ),
+    );
+    simulateTextInput(editor, "1");
+
+    expect(editor.document[0].content).toEqual([
+      {
+        type: "text",
+        text: "1code",
+        styles: { code: true },
+      },
+    ]);
+  });
+
+  it("keeps the first code character reachable after leaving the virtual opening boundary", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "bulletListItem",
+          content: [{ type: "text", text: "code", styles: { code: true } }],
+        },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+    const view = editor.prosemirrorView;
+    let codePosition: number | undefined;
+    view.state.doc.descendants((node, position) => {
+      if (node.isText && node.text === "code") codePosition = position;
+      return true;
+    });
+    expect(codePosition).toBeTypeOf("number");
+
+    const boundary = codePosition as number;
+    view.dispatch(
+      view.state.tr
+        .setSelection(TextSelection.create(view.state.doc, boundary))
+        .setMeta("editor-inline-code-editing$", {
+          activeRange: { from: boundary, to: boundary + 4 },
+          openingBoundaryPosition: boundary,
+          isComposing: false,
+          suppressedSelectionPosition: null,
+        }),
+    );
+
+    const right = new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      key: "ArrowRight",
+    });
+    view.dom.dispatchEvent(right);
+
+    expect(right.defaultPrevented).toBe(true);
+    expect(view.state.selection.from).toBe(boundary);
+    simulateTextInput(editor, "1");
+    expect(editor.document[0].content).toEqual([
+      {
+        type: "text",
+        text: "1code",
+        styles: { code: true },
+      },
+    ]);
+    expect(
+      container.querySelectorAll(".editor-inline-code__editing-marker"),
+    ).toHaveLength(2);
+  });
+
+  it("keeps code insertion active after repeated input at the virtual opening boundary", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "bulletListItem",
+          content: [{ type: "text", text: "code", styles: { code: true } }],
+        },
+      ],
+    });
+    render(createElement(BlockNoteView, { editor }));
+    const view = editor.prosemirrorView;
+    let codePosition: number | undefined;
+    view.state.doc.descendants((node, position) => {
+      if (node.isText && node.text === "code") codePosition = position;
+      return true;
+    });
+    expect(codePosition).toBeTypeOf("number");
+
+    const boundary = codePosition as number;
+    view.dispatch(
+      view.state.tr
+        .setSelection(TextSelection.create(view.state.doc, boundary))
+        .setMeta("editor-inline-code-editing$", {
+          activeRange: { from: boundary, to: boundary + 4 },
+          openingBoundaryPosition: boundary,
+          isComposing: false,
+          suppressedSelectionPosition: null,
+        }),
+    );
+
+    for (const character of "2222222") {
+      const input = new InputEvent("beforeinput", {
+        bubbles: true,
+        cancelable: true,
+        data: character,
+        inputType: "insertText",
+      });
+      const nativeInputAllowed = view.dom.dispatchEvent(input);
+      if (nativeInputAllowed) {
+        view.dispatch(view.state.tr.insertText(character));
+      }
+      view.dom.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    const right = new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      key: "ArrowRight",
+    });
+    view.dom.dispatchEvent(right);
+    expect(right.defaultPrevented).toBe(true);
+
+    simulateTextInput(editor, "1");
+    expect(editor.document[0].content).toEqual([
+      { type: "text", text: "2222222", styles: {} },
+      { type: "text", text: "1code", styles: { code: true } },
+    ]);
+  });
+
+  it("keeps a browser-normalized caret at the virtual opening boundary", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "bulletListItem",
+          content: [{ type: "text", text: "code", styles: { code: true } }],
+        },
+      ],
+    });
+    render(createElement(BlockNoteView, { editor }));
+    const view = editor.prosemirrorView;
+    let codePosition: number | undefined;
+    view.state.doc.descendants((node, position) => {
+      if (node.isText && node.text === "code") codePosition = position;
+      return true;
+    });
+    expect(codePosition).toBeTypeOf("number");
+
+    const boundary = codePosition as number;
+    view.dispatch(
+      view.state.tr
+        .setSelection(TextSelection.create(view.state.doc, boundary + 1))
+        .setMeta("editor-inline-code-editing$", {
+          activeRange: { from: boundary, to: boundary + 4 },
+          openingBoundaryPosition: boundary,
+          isComposing: false,
+          suppressedSelectionPosition: null,
+        }),
+    );
+
+    typeString(editor, "222");
+
+    expect(editor.document[0].content).toEqual([
+      { type: "text", text: "222", styles: {} },
+      { type: "text", text: "code", styles: { code: true } },
+    ]);
+  });
+
+  it("reanchors right navigation before the first code character after paste input", () => {
+    setupMatchMedia();
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "bulletListItem",
+          content: [{ type: "text", text: "code", styles: { code: true } }],
+        },
+      ],
+    });
+    render(createElement(BlockNoteView, { editor }));
+    const view = editor.prosemirrorView;
+    let codePosition: number | undefined;
+    view.state.doc.descendants((node, position) => {
+      if (node.isText && node.text === "code") codePosition = position;
+      return true;
+    });
+    expect(codePosition).toBeTypeOf("number");
+
+    const boundary = codePosition as number;
+    view.dispatch(
+      view.state.tr
+        .setSelection(TextSelection.create(view.state.doc, boundary + 1))
+        .setMeta("editor-inline-code-editing$", {
+          activeRange: { from: boundary, to: boundary + 4 },
+          openingBoundaryPosition: boundary,
+          isComposing: false,
+          suppressedSelectionPosition: null,
+        }),
+    );
+
+    const right = new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      key: "ArrowRight",
+    });
+    view.dom.dispatchEvent(right);
+    expect(right.defaultPrevented).toBe(true);
+    expect(view.state.selection.from).toBe(boundary);
+
+    simulateTextInput(editor, "1");
+    expect(editor.document[0].content).toEqual([
+      { type: "text", text: "1code", styles: { code: true } },
+    ]);
   });
 
   it("does not keep the inline code caret after text is inserted before its boundary", () => {
@@ -2858,7 +3179,7 @@ describe("editor BlockNote schema", () => {
       view.dispatch(view.state.tr.insertText("y"));
     }
 
-    expect(inputEvent.defaultPrevented).toBe(false);
+    expect(inputEvent.defaultPrevented).toBe(true);
     expect(editor.document[0].content).toEqual([
       {
         type: "text",

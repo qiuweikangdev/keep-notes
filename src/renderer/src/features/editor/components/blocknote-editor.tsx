@@ -573,6 +573,8 @@ export function pasteExternalHTMLTables(
       const parsedBlocks = editor.tryParseHTMLToBlocks(internalHTML);
       if (parsedBlocks.length > 0) {
         editor.replaceBlocks(editor.document, parsedBlocks);
+        // 整段粘贴会替换占位段落；清掉旧选区映射，避免新文档中的行内代码继承旧编辑范围。
+        clearInlineCodeEditingState(editor);
         return true;
       }
     }
