@@ -127,8 +127,8 @@ if (!hasSingleInstanceLock) {
     await initializeNotificationIpc();
     await initializeExportIpc();
     createTray();
-    // 主窗口在后台预加载，可从系统托盘或 macOS Dock 随时唤醒。
-    createWindow(undefined, { show: false });
+    // 启动和更新重启后都直接显示主窗口，同时保留系统托盘常驻能力。
+    createWindow(undefined, { show: true });
     canOpenMarkdownFiles = true;
     pendingMarkdownFilePaths.forEach((filePath) => {
       void openMarkdownFileInCurrentWindow(filePath);
