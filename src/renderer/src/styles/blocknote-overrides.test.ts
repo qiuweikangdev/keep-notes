@@ -380,28 +380,35 @@ describe("blocknote overrides stylesheet", () => {
     ).toMatch(/font-weight:\s*500 !important;/);
   });
 
-  it("uses Vditor-style visual markers with a zero-width selection caret", () => {
-    const markerRule = getRule(
-      ".bn-editor.ProseMirror-focused code:not(.editor-code-block__content):has( .editor-inline-code__editing-start )::before, .bn-editor.ProseMirror-focused code:not(.editor-code-block__content):has( .editor-inline-code__editing-end )::after",
-    );
+  it("uses Vditor-style visual markers with stable selection carets", () => {
+    const markerRule = stylesheet.match(
+      /\.bn-editor\s+code:not\(\.editor-code-block__content\):has\(\s+\.editor-inline-code__editing-content\s+\)::before,[\s\S]*?\.editor-inline-code__editing-end\s*\)\s*::after\s*\{([\s\S]*?)\n\}/,
+    )?.[1];
+    expect(markerRule).toBeDefined();
     expect(markerRule).toMatch(/position:\s*absolute;/);
     expect(markerRule).toMatch(/content:\s*"`";/);
     expect(markerRule).toMatch(/color:\s*var\(--text-primary\);/);
     expect(markerRule).toMatch(/pointer-events:\s*none;/);
     expect(markerRule).toMatch(/transform:\s*translateY\(-50%\);/);
+    expect(stylesheet).toMatch(
+      /\.editor-inline-code__editing-content\s*\)\s*::before,[\s\S]*\.editor-inline-code__editing-end\s*\)\s*::before\s*\{[\s\S]*left:\s*-0\.65em;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.bn-editor:has\(\.editor-inline-code__editing-marker\)[\s\S]*content:\s*none;/,
+    );
 
     const markerWidgetRule = getRule(
-      ".bn-editor.ProseMirror-focused .editor-inline-code__editing-marker",
+      ".bn-editor .editor-inline-code__editing-marker",
     );
     expect(markerWidgetRule).toMatch(/display:\s*inline-block;/);
     expect(markerWidgetRule).toMatch(
       /color:\s*var\(--text-primary\) !important;/,
     );
     expect(markerWidgetRule).toMatch(/background:\s*transparent !important;/);
-    expect(markerWidgetRule).toMatch(/pointer-events:\s*none;/);
+    expect(markerWidgetRule).toMatch(/pointer-events:\s*auto;/);
 
     const editingCodeRule = getRule(
-      ".bn-editor.ProseMirror-focused code:not(.editor-code-block__content):has( .editor-inline-code__editing-content )",
+      ".bn-editor code:not(.editor-code-block__content):has( .editor-inline-code__editing-content )",
     );
     expect(editingCodeRule).not.toMatch(/margin-inline:/);
     expect(editingCodeRule).toMatch(/padding-inline:\s*0 !important;/);
@@ -410,14 +417,14 @@ describe("blocknote overrides stylesheet", () => {
     expect(editingCodeRule).toMatch(/caret-color:\s*transparent !important;/);
 
     const editingCaretHostRule = getRule(
-      ".bn-editor.ProseMirror-focused:has(.editor-inline-code__editing-caret)",
+      ".bn-editor:has(.editor-inline-code__editing-content)",
     );
     expect(editingCaretHostRule).toMatch(
       /caret-color:\s*transparent !important;/,
     );
 
     const firstFragmentRule = getRule(
-      ".bn-editor.ProseMirror-focused code:not(.editor-code-block__content):has( .editor-inline-code__editing-start )",
+      ".bn-editor code:not(.editor-code-block__content):has( .editor-inline-code__editing-start )",
     );
     expect(firstFragmentRule).toMatch(/padding-left:\s*4px !important;/);
     expect(firstFragmentRule).toMatch(
@@ -425,7 +432,7 @@ describe("blocknote overrides stylesheet", () => {
     );
 
     const lastFragmentRule = getRule(
-      ".bn-editor.ProseMirror-focused code:not(.editor-code-block__content):has(.editor-inline-code__editing-end)",
+      ".bn-editor code:not(.editor-code-block__content):has(.editor-inline-code__editing-end)",
     );
     expect(lastFragmentRule).toMatch(/padding-right:\s*4px !important;/);
     expect(lastFragmentRule).toMatch(
@@ -433,7 +440,7 @@ describe("blocknote overrides stylesheet", () => {
     );
 
     const editingContentRule = getRule(
-      ".bn-editor.ProseMirror-focused code:not(.editor-code-block__content) .editor-inline-code__editing-content",
+      ".bn-editor code:not(.editor-code-block__content) .editor-inline-code__editing-content",
     );
     expect(editingContentRule).toMatch(/color:\s*inherit !important;/);
     expect(editingContentRule).toMatch(
@@ -447,19 +454,28 @@ describe("blocknote overrides stylesheet", () => {
     expect(editingContentRule).not.toMatch(/padding:/);
 
     const editingCaretRule = getRule(
-      ".bn-editor.ProseMirror-focused .editor-inline-code__editing-caret",
+      ".bn-editor .editor-inline-code__editing-caret",
     );
     expect(editingCaretRule).toMatch(/display:\s*inline-block;/);
-    expect(editingCaretRule).toMatch(/width:\s*0;/);
-    expect(editingCaretRule).toMatch(/pointer-events:\s*none;/);
-    const editingCaretIndicatorRule = getRule(
-      ".bn-editor.ProseMirror-focused .editor-inline-code__editing-caret::after",
-    );
-    expect(editingCaretIndicatorRule).toMatch(
+    expect(editingCaretRule).toMatch(/width:\s*2px;/);
+    expect(editingCaretRule).toMatch(
       /background-color:\s*var\(--accent-color\);/,
     );
-    expect(editingCaretIndicatorRule).not.toMatch(/animation:/);
+    expect(editingCaretRule).toMatch(/pointer-events:\s*none;/);
     expect(stylesheet).not.toMatch(/editor-inline-code-caret-blink/);
+    expect(stylesheet).not.toMatch(/editor-inline-code__editing-caret-anchor/);
+    expect(stylesheet).not.toMatch(
+      /editor-inline-code__editing-opening-boundary/,
+    );
+
+    const trailingCaretRule = getRule(
+      ".bn-editor .editor-inline-code__editing-trailing-caret",
+    );
+    expect(trailingCaretRule).toMatch(/display:\s*inline-block;/);
+    expect(trailingCaretRule).toMatch(/width:\s*2px;/);
+    expect(trailingCaretRule).toMatch(
+      /background-color:\s*var\(--accent-color\);/,
+    );
 
     const nativeSelectionRule = getRule(
       ":is(.bn-editor, .bn-editor-preview) ::selection",

@@ -115,6 +115,7 @@ import {
   clearInlineCodeEditingState,
   editorSchema,
   normalizeInlineCodeMarkers,
+  preserveInlineCodeEditingState,
 } from "../lib/blocknote-schema";
 import { getSupportedCodeBlockLanguageId } from "../lib/editor-code-block-languages";
 import {
@@ -3163,6 +3164,10 @@ function MountedBlockNoteEditor({
     else scrollWriterRef.current?.flushAll();
   }, [readCurrentScrollOwner]);
 
+  const handleBlurCapture = useCallback(() => {
+    preserveInlineCodeEditingState(editor);
+  }, [editor]);
+
   const handlePointerDownCapture = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
       cancelPendingViewportRestore();
@@ -3356,6 +3361,7 @@ function MountedBlockNoteEditor({
       ref={scrollContainerRef}
       className="editor-rich-scroll h-full overflow-y-auto overflow-x-hidden"
       style={editorStyle}
+      onBlurCapture={handleBlurCapture}
       onBlur={handleBlur}
       onFocus={handleFocus}
       onClick={handleFocus}

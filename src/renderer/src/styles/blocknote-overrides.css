@@ -754,7 +754,7 @@ html.rich-editor-selection-drag-locked * {
   font-weight: 500 !important;
 }
 
-.bn-editor.ProseMirror-focused
+.bn-editor
   code:not(.editor-code-block__content):has(
     .editor-inline-code__editing-content
   ) {
@@ -767,11 +767,11 @@ html.rich-editor-selection-drag-locked * {
 }
 
 /* 自定义行内代码光标存在时隐藏编辑器原生光标，避免代码首位同时出现两个光标。 */
-.bn-editor.ProseMirror-focused:has(.editor-inline-code__editing-caret) {
+.bn-editor:has(.editor-inline-code__editing-content) {
   caret-color: transparent !important;
 }
 
-.bn-editor.ProseMirror-focused
+.bn-editor
   code:not(.editor-code-block__content):has(
     .editor-inline-code__editing-content
   )
@@ -783,7 +783,7 @@ html.rich-editor-selection-drag-locked * {
   opacity: 1;
 }
 
-.bn-editor.ProseMirror-focused
+.bn-editor
   code:not(.editor-code-block__content):has(
     .editor-inline-code__editing-start
   ) {
@@ -793,7 +793,7 @@ html.rich-editor-selection-drag-locked * {
   border-bottom-left-radius: 4px !important;
 }
 
-.bn-editor.ProseMirror-focused
+.bn-editor
   code:not(.editor-code-block__content):has(.editor-inline-code__editing-end) {
   margin-right: 0.5em;
   padding-right: 4px !important;
@@ -801,19 +801,23 @@ html.rich-editor-selection-drag-locked * {
   border-bottom-right-radius: 4px !important;
 }
 
-.bn-editor.ProseMirror-focused:has(.editor-inline-code__editing-marker)
+.bn-editor:has(.editor-inline-code__editing-marker)
   code:not(.editor-code-block__content):has(
     .editor-inline-code__editing-start
   ) {
   margin-left: 0;
 }
 
-.bn-editor.ProseMirror-focused:has(.editor-inline-code__editing-marker)
+.bn-editor:has(.editor-inline-code__editing-marker)
   code:not(.editor-code-block__content):has(.editor-inline-code__editing-end) {
   margin-right: 0;
 }
 
-.bn-editor.ProseMirror-focused .editor-inline-code__editing-marker {
+.bn-editor .editor-inline-code__editing-marker {
+  /*
+   * 反引号 widget 处于 code mark 的外侧，直接作为编辑态的可见标记渲染。
+   * 它不参与 code 背景和文字颜色，避免编辑态与预览态混在一起。
+   */
   display: inline-block;
   color: var(--text-primary) !important;
   -webkit-text-fill-color: var(--text-primary) !important;
@@ -822,26 +826,31 @@ html.rich-editor-selection-drag-locked * {
   font-size: 1em;
   font-weight: 400;
   line-height: inherit;
-  pointer-events: none;
+  /* 允许点击可见反引号，鼠标事件会由编辑器映射回相邻的 code mark。 */
+  pointer-events: auto;
   user-select: none;
   white-space: pre;
 }
 
-.bn-editor.ProseMirror-focused .editor-inline-code__editing-marker--start {
+.bn-editor .editor-inline-code__editing-marker--start {
   margin-left: 0.5em;
   margin-right: 1px;
 }
 
-.bn-editor.ProseMirror-focused .editor-inline-code__editing-marker--end {
+.bn-editor .editor-inline-code__editing-marker--end {
   margin-left: 1px;
   margin-right: 0.5em;
 }
 
-.bn-editor.ProseMirror-focused
+.bn-editor
   code:not(.editor-code-block__content):has(
-    .editor-inline-code__editing-start
+    .editor-inline-code__editing-content
   )::before,
-.bn-editor.ProseMirror-focused
+.bn-editor
+  code:not(.editor-code-block__content):has(
+    .editor-inline-code__editing-end
+  )::before,
+.bn-editor
   code:not(.editor-code-block__content):has(
     .editor-inline-code__editing-end
   )::after {
@@ -858,32 +867,39 @@ html.rich-editor-selection-drag-locked * {
   white-space: pre;
 }
 
-.bn-editor.ProseMirror-focused:has(.editor-inline-code__editing-marker)
+.bn-editor
+  code:not(.editor-code-block__content):has(
+    .editor-inline-code__editing-content
+  )::before,
+.bn-editor
+  code:not(.editor-code-block__content):has(
+    .editor-inline-code__editing-end
+  )::before {
+  /* 开头反引号必须落在 code 外侧，否则会和首个字符重叠而看起来像没有渲染。 */
+  left: -0.65em;
+  z-index: 1;
+}
+
+/* 有真实反引号 widget 时关闭伪元素，避免失焦后同一侧出现两个反引号。 */
+.bn-editor:has(.editor-inline-code__editing-marker)
   code:not(.editor-code-block__content):has(
     .editor-inline-code__editing-start
   )::before,
-.bn-editor.ProseMirror-focused:has(.editor-inline-code__editing-marker)
+.bn-editor:has(.editor-inline-code__editing-marker)
   code:not(.editor-code-block__content):has(
     .editor-inline-code__editing-end
   )::after {
   content: none;
 }
 
-.bn-editor.ProseMirror-focused
-  code:not(.editor-code-block__content):has(
-    .editor-inline-code__editing-start
-  )::before {
-  right: calc(100% + 1px);
-}
-
-.bn-editor.ProseMirror-focused
+.bn-editor
   code:not(.editor-code-block__content):has(
     .editor-inline-code__editing-end
   )::after {
   left: calc(100% + 1px);
 }
 
-.bn-editor.ProseMirror-focused
+.bn-editor
   code:not(.editor-code-block__content)
   .editor-inline-code__editing-content {
   color: inherit !important;
@@ -892,14 +908,14 @@ html.rich-editor-selection-drag-locked * {
   caret-color: transparent !important;
 }
 
-.bn-editor.ProseMirror-focused
+.bn-editor
   code:not(.editor-code-block__content)
   .editor-inline-code__composing-content {
   /* 中文输入法组合期间使用浏览器原生光标，避免不可编辑光标节点切断 code mark。 */
   caret-color: var(--accent-color) !important;
 }
 
-.bn-editor.ProseMirror-focused
+.bn-editor
   code:not(.editor-code-block__content):has(
     .editor-inline-code__editing-content
   )
@@ -910,25 +926,36 @@ html.rich-editor-selection-drag-locked * {
   caret-color: transparent !important;
 }
 
-.bn-editor.ProseMirror-focused .editor-inline-code__editing-caret {
+/* 行内代码光标使用真实宽度的 widget，直接锚定 ProseMirror 选区，避免字符包装层重排造成错位。 */
+.bn-editor .editor-inline-code__editing-caret {
   position: relative;
   display: inline-block;
-  width: 0;
-  height: 1em;
-  vertical-align: -0.14em;
-  pointer-events: none;
-  user-select: none;
-}
-
-.bn-editor.ProseMirror-focused .editor-inline-code__editing-caret::after {
-  position: absolute;
-  top: -0.12em;
-  left: -1px;
   width: 2px;
   height: 1.24em;
+  margin-inline-start: -1px;
+  margin-inline-end: -1px;
+  vertical-align: -0.12em;
   border-radius: 1px;
   background-color: var(--accent-color);
-  content: "";
+  pointer-events: none;
+  user-select: none;
+  z-index: 1;
+}
+
+/* 行尾光标使用真实宽度的 widget，确保失焦恢复、连续输入和 Chromium 重排后仍可见。 */
+.bn-editor .editor-inline-code__editing-trailing-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.24em;
+  margin-inline-start: -1px;
+  margin-inline-end: -1px;
+  vertical-align: -0.12em;
+  border-radius: 1px;
+  background-color: var(--accent-color);
+  pointer-events: none;
+  user-select: none;
+  position: relative;
+  z-index: 1;
 }
 
 .bn-block-content[data-content-type="checkListItem"] > div:has(> input) {
