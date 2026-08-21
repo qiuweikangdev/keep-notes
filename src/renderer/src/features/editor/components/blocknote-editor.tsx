@@ -255,7 +255,16 @@ function getPastedTableCellContent(
   const inlineBlocks = editor
     .tryParseHTMLToBlocks(cell.innerHTML)
     .map((block) => block.content)
-    .filter((content): content is InlineContent[] => Array.isArray(content));
+    .filter((content): content is InlineContent[] => Array.isArray(content))
+    .filter((content) =>
+      content.some((item) => {
+        if (!item || typeof item !== "object") return false;
+        const inline = item as { text?: unknown };
+        return typeof inline.text === "string"
+          ? inline.text.trim().length > 0
+          : true;
+      }),
+    );
 
   if (inlineBlocks.length === 0) return cell.textContent ?? "";
 

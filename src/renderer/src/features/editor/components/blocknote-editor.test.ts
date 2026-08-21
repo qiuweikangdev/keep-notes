@@ -2028,6 +2028,70 @@ describe("BlockNoteEditor code paste", () => {
     }
   });
 
+  it("keeps pipe-delimited text when pasted cells contain empty HTML blocks", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/empty-leading-table-cell-paste.md";
+    setupSessionTab(path);
+    const session = renderRealSession(path, false, "");
+
+    try {
+      vi.stubGlobal("ClipboardEvent", Event);
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const editor = session.runtime.current!.editor;
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "clipboardData", {
+        value: {
+          getData: (type: string) =>
+            type === "text/html"
+              ? [
+                  "<table><tbody>",
+                  "<tr><td>语言标识</td><td>Description</td></tr>",
+                  "<tr><td>en</td><td><div><br></div><div>| Watch {movie_name} now! |</div></td></tr>",
+                  "</tbody></table>",
+                ].join("")
+              : type === "text/plain"
+                ? "语言标识\tDescription\nen\t| Watch {movie_name} now! |"
+                : "",
+          types: ["text/html", "text/plain"],
+        },
+      });
+
+      act(() => {
+        editor.prosemirrorView.dom.dispatchEvent(event);
+      });
+
+      const serialized = await markdownMocks.actualSerializeMarkdown!(
+        editor,
+        editor.document,
+      );
+      expect(serialized).toMatch(
+        /\|\s*en\s*\|\s*\\\|\s*Watch \{movie_name\} now!\s*\\\|\s*\|/u,
+      );
+      expect(serialized).not.toContain("| en | \n");
+      expect(serialized).not.toContain("\n\nWatch");
+
+      const reopenedBlocks = await editor.tryParseMarkdownToBlocks(serialized);
+      expect(reopenedBlocks).toHaveLength(1);
+      expect(reopenedBlocks[0]).toMatchObject({
+        type: "table",
+        content: {
+          rows: [
+            {},
+            {
+              cells: [
+                { content: [{ text: "en" }] },
+                { content: [{ text: "| Watch {movie_name} now! |" }] },
+              ],
+            },
+          ],
+        },
+      });
+    } finally {
+      session.view.unmount();
+    }
+  });
+
   it("preserves rich text blocks surrounding an external HTML table", async () => {
     setupMatchMedia();
     setupDomMeasurements();
