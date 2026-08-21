@@ -1,3 +1,20 @@
+## [2.22.3](https://github.com/qiuweikangdev/keep-notes/compare/v2.22.2...v2.22.3) (2026-08-21)
+
+
+### Bug Fixes
+
+* align rich editor paste and markdown source ([97e5002](https://github.com/qiuweikangdev/keep-notes/commit/97e5002901bf7d2128f2b70a0ad5e03befccc573))
+* preserve external table rows on paste ([6b63339](https://github.com/qiuweikangdev/keep-notes/commit/6b63339622f15fb43fe56120a10d1867a62d8878))
+* preserve inline code caret boundaries after paste ([18d96fe](https://github.com/qiuweikangdev/keep-notes/commit/18d96fe9ec312cf2b75c0dfbcead1c73d0c9290f))
+* show main window on startup ([5145a43](https://github.com/qiuweikangdev/keep-notes/commit/5145a432ed7bce39d2e6e40520f85da31634ef4a))
+* stabilize inline code cursor positioning ([1f9a2d5](https://github.com/qiuweikangdev/keep-notes/commit/1f9a2d5fbd840655a73a130f26eef8f4ae371967))
+
+
+## Commit Summary
+
+- Compared with: v2.22.2
+- Total commits: 5
+
 ## [2.22.2](https://github.com/qiuweikangdev/keep-notes/compare/v2.22.1...v2.22.2) (2026-08-15)
 
 
