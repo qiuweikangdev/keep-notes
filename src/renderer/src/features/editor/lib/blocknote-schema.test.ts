@@ -1034,6 +1034,42 @@ describe("editor BlockNote schema", () => {
     });
   });
 
+  it("maps GFM table alignment markers to BlockNote table cells", async () => {
+    const editor = BlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    const source = [
+      "| Name | Amount | Notes |",
+      "| :--- | ---: | :---: |",
+      "| Apple | 2 | Keep |",
+    ].join("\n");
+
+    const blocks = await parseMarkdown(editor, `${source}\n`);
+
+    expect(blocks[0].type).toBe("table");
+    expect(
+      blocks[0].content.rows[0].cells.map((cell) => cell.props.textAlignment),
+    ).toEqual(["left", "right", "center"]);
+
+    editor.replaceBlocks(editor.document, blocks);
+    const alignments: string[] = [];
+    editor.prosemirrorState.doc.descendants((node) => {
+      if (node.type.name === "tableCell" || node.type.name === "tableHeader") {
+        alignments.push(node.attrs.textAlignment);
+      }
+    });
+
+    expect(alignments).toEqual([
+      "left",
+      "right",
+      "center",
+      "left",
+      "right",
+      "center",
+    ]);
+  });
+
   it("keeps adjacent plain paragraph line breaks compact in Markdown source", async () => {
     const editor = BlockNoteEditor.create({
       schema: editorSchema,

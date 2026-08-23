@@ -701,4 +701,16 @@ describe("blocknote overrides stylesheet", () => {
       /\.bn-mantine \.bn-extend-button-add-remove-rows\s*\{[\s\S]*width:\s*calc\(100% - 22px\);/,
     );
   });
+
+  it("renders Markdown table cell alignment in rich text", () => {
+    expect(stylesheet).toMatch(
+      /\[data-content-type="table"\][\s\S]*data-text-alignment="center"[\s\S]*text-align:\s*center;/,
+    );
+    expect(stylesheet).toMatch(
+      /\[data-content-type="table"\][\s\S]*data-text-alignment="right"[\s\S]*text-align:\s*right;/,
+    );
+    expect(stylesheet).toMatch(
+      /\[data-content-type="table"\][\s\S]*data-text-alignment="justify"[\s\S]*text-align:\s*justify;/,
+    );
+  });
 });

@@ -1048,6 +1048,21 @@ describe("preserveMarkdownSource", () => {
       source.replace("| Alpha | 1 |", "| Alpha | 10 |"),
     );
   });
+
+  it("keeps GFM table alignment markers when a cell changes", () => {
+    const source = [
+      "| Name | Value | Notes |",
+      "| :--- | ---: | :---: |",
+      "| Alpha | 1 | Keep |",
+    ].join("\n");
+    const edited = [
+      "| Name | Value | Notes |",
+      "| :--- | ---: | :---: |",
+      "| Alpha | 10 | Updated |",
+    ].join("\n");
+
+    expect(preserveMarkdownSource(source, source, edited)).toBe(edited);
+  });
 });
 
 describe("ensureEditableBlocks", () => {

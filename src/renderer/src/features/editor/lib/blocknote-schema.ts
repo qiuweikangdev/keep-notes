@@ -21,7 +21,7 @@ import {
   FormattingToolbarExtension,
   SideMenuExtension,
 } from "@blocknote/core/extensions";
-import { InputRule } from "@tiptap/core";
+import { Extension, InputRule } from "@tiptap/core";
 import Code from "@tiptap/extension-code";
 import { closeHistory } from "@tiptap/pm/history";
 import {
@@ -56,6 +56,46 @@ const codeBlockOptions: Partial<CodeBlockOptions> = {
   defaultLanguage: "text",
   supportedLanguages: editorCodeBlockSupportedLanguages,
 };
+
+const editorMarkdownTableAlignmentExtension = createExtension({
+  key: "editor-markdown-table-alignment",
+  tiptapExtensions: [
+    Extension.create({
+      name: "editorMarkdownTableAlignment",
+      addGlobalAttributes() {
+        return [
+          {
+            // Markdown 表格解析结果使用 align 属性；BlockNote 默认扩展只识别 data-text-alignment。
+            types: ["tableCell", "tableHeader"],
+            attributes: {
+              textAlignment: {
+                default: "left",
+                parseHTML: (element: HTMLElement) => {
+                  const alignment =
+                    element.getAttribute("data-text-alignment") ??
+                    element.getAttribute("align") ??
+                    element.style.textAlign;
+
+                  return alignment === "center" ||
+                    alignment === "right" ||
+                    alignment === "justify"
+                    ? alignment
+                    : "left";
+                },
+                renderHTML: (attributes: { textAlignment?: string }) => {
+                  if (attributes.textAlignment === "left") return {};
+                  return {
+                    "data-text-alignment": attributes.textAlignment,
+                  };
+                },
+              },
+            },
+          },
+        ];
+      },
+    }),
+  ],
+});
 
 const editorInlineCodeStyleSpec = createStyleSpecFromTipTapMark(
   Code.extend({
@@ -2737,12 +2777,21 @@ const editorParagraphSpec = {
   ],
 };
 
+const editorTableSpec = {
+  ...defaultBlockSpecs.table,
+  extensions: [
+    ...(defaultBlockSpecs.table.extensions ?? []),
+    editorMarkdownTableAlignmentExtension,
+  ],
+};
+
 export const editorBlockSpecs = {
   ...defaultBlockSpecs,
   bulletListItem: editorBulletListItemSpec,
   codeBlock: editorCodeBlockSpec,
   paragraph: editorParagraphSpec,
   quote: editorQuoteBlockSpec,
+  table: editorTableSpec,
 };
 
 export const editorStyleSpecs = {

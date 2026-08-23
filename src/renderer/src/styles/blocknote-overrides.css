@@ -1012,6 +1012,24 @@ html.rich-editor-selection-drag-locked * {
   font-weight: 600;
 }
 
+:is(.bn-editor, .bn-editor-preview)
+  [data-content-type="table"]
+  :is(th, td)[data-text-alignment="center"] {
+  text-align: center;
+}
+
+:is(.bn-editor, .bn-editor-preview)
+  [data-content-type="table"]
+  :is(th, td)[data-text-alignment="right"] {
+  text-align: right;
+}
+
+:is(.bn-editor, .bn-editor-preview)
+  [data-content-type="table"]
+  :is(th, td)[data-text-alignment="justify"] {
+  text-align: justify;
+}
+
 /* 菜单和工具栏背景 */
 .bn-mantine .mantine-Menu-dropdown,
 .bn-mantine .bn-menu-dropdown {
