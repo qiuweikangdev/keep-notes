@@ -51,6 +51,7 @@ import {
   readRichEditorDraggedBlockIds,
   pasteExternalHTMLTables,
   pasteMarkupAsPlainText,
+  patchTableHandlesCellSelection,
   resolveEditorTextPosition,
   resolveEditorTextPositions,
   registerRichEditorSelectionDragGuardPlugin,
@@ -4432,6 +4433,21 @@ describe("BlockNoteEditor persistent session runtime", () => {
     expect(() => fireEvent.mouseMove(tableWrapper)).not.toThrow();
 
     session.view.unmount();
+  });
+
+  it("treats invalid table cell selection positions as no selection", () => {
+    const tableHandlesExtension = {
+      getCellSelection: vi.fn(() => {
+        throw new RangeError("Position -1 out of range");
+      }),
+    };
+    const editor = {
+      getExtension: vi.fn(() => tableHandlesExtension),
+    } as unknown as CoreBlockNoteEditor;
+
+    expect(patchTableHandlesCellSelection(editor)).toBe(true);
+    expect(tableHandlesExtension.getCellSelection()).toBeUndefined();
+    expect(patchTableHandlesCellSelection(editor)).toBe(false);
   });
 });
 

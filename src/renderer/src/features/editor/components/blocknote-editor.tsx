@@ -195,7 +195,58 @@ interface TableHandlesRuntimeView {
   state?: { block?: unknown };
 }
 
+interface TableHandlesRuntimeExtension {
+  getCellSelection?: () => unknown;
+}
+
 const patchedTableHandlesViews = new WeakSet<object>();
+const patchedTableHandlesExtensions = new WeakSet<object>();
+
+function isInvalidTableCellSelectionError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    error.name === "RangeError" &&
+    "message" in error &&
+    typeof error.message === "string" &&
+    /Position -\d+ out of range/u.test(error.message)
+  );
+}
+
+export function patchTableHandlesCellSelection(
+  editor: CoreBlockNoteEditor,
+): boolean {
+  let tableHandlesExtension: TableHandlesRuntimeExtension | undefined;
+  try {
+    tableHandlesExtension = editor.getExtension("tableHandles") as
+      | TableHandlesRuntimeExtension
+      | undefined;
+  } catch {
+    return false;
+  }
+
+  if (
+    !tableHandlesExtension ||
+    typeof tableHandlesExtension.getCellSelection !== "function" ||
+    patchedTableHandlesExtensions.has(tableHandlesExtension)
+  ) {
+    return false;
+  }
+
+  const originalGetCellSelection = tableHandlesExtension.getCellSelection;
+  tableHandlesExtension.getCellSelection = () => {
+    try {
+      return originalGetCellSelection.call(tableHandlesExtension);
+    } catch (error) {
+      // BlockNote 0.51 在表格首单元格或文档重载的失效选区上会 resolve(-1)，此时视为无单元格选区。
+      if (isInvalidTableCellSelectionError(error)) return undefined;
+      throw error;
+    }
+  };
+  patchedTableHandlesExtensions.add(tableHandlesExtension);
+  return true;
+}
 
 function patchTableHandlesMouseMoveHandler(
   editor: CoreBlockNoteEditor,
@@ -2008,6 +2059,7 @@ function BlockNoteEditorInner(props: BlockNoteEditorInnerProps) {
           uploadFile: proxies.uploadFile,
         }),
     );
+    patchTableHandlesCellSelection(mounted.entry.editor);
     ownerEditorRef.current = mounted.entry.editor;
     setMountedOwner((current) =>
       current === mounted.entry ? current : mounted.entry,
@@ -2125,6 +2177,7 @@ function MountedBlockNoteEditor({
   useLayoutEffect(() => {
     // BlockNote 挂载后替换默认的 100 步历史栈，避免长时间编辑时丢弃早期撤销记录。
     configureRichTextUndoHistory(editor);
+    patchTableHandlesCellSelection(editor);
   }, [editor]);
 
   useEffect(() => {
@@ -2133,6 +2186,7 @@ function MountedBlockNoteEditor({
     let retryTimer: number | null = null;
 
     const patchWhenMounted = () => {
+      patchTableHandlesCellSelection(editor);
       if (cancelled || patchTableHandlesMouseMoveHandler(editor)) return;
       if (retryCount >= 10) return;
 
@@ -2933,6 +2987,7 @@ function MountedBlockNoteEditor({
   const handleStaleTableMouseMoveCapture = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
       // 首次进入表格时插件视图可能才刚完成挂载，此处再尝试一次兼容补丁，确保事件到达插件前已完成替换。
+      patchTableHandlesCellSelection(editor);
       patchTableHandlesMouseMoveHandler(editor);
       if (shouldSuppressStaleTableMouseMove(editor, event.target)) {
         event.stopPropagation();

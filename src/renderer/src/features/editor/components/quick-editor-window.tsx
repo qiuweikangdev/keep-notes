@@ -75,6 +75,7 @@ import {
   handleRichEditorSelectAllShortcut,
   pasteExternalHTMLTables,
   pasteMarkupAsPlainText,
+  patchTableHandlesCellSelection,
   RICH_EDITOR_SELECTION_DRAG_LOCK_CLASS,
   registerRichEditorSelectionDragGuardPlugin,
   richEditorDefaultUIProps,
@@ -307,6 +308,8 @@ export function QuickEditorWindow() {
     uploadFile: handleImageUploadRef.current,
   });
   editorRef.current = editor;
+  // useCreateBlockNote 返回时扩展已经初始化；同步打补丁，避免 BlockNoteView 首次渲染时 selector 先执行。
+  patchTableHandlesCellSelection(editor);
 
   const handleRichEditorPasteCapture = useCallback(
     (event: ReactClipboardEvent<HTMLDivElement>) => {
@@ -328,6 +331,7 @@ export function QuickEditorWindow() {
   useLayoutEffect(() => {
     // 与面板富文本共用撤销深度，避免独立窗口在长时间编辑后过早丢失撤销记录。
     configureRichTextUndoHistory(editor);
+    patchTableHandlesCellSelection(editor);
   }, [editor]);
 
   const updateActiveHeading = useCallback((nextHeadingId: string | null) => {
