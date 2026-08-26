@@ -389,6 +389,66 @@ describe("quick editor floating window", () => {
     });
   });
 
+  it("returns a floating editor to the main window that created it", () => {
+    const otherMainWindow = {
+      isDestroyed: vi.fn(() => false),
+      webContents: { send: vi.fn() },
+    } as unknown as Electron.BrowserWindow;
+    const owner = windowMocks.mainWindow as unknown as Electron.BrowserWindow;
+    const win = createQuickEditorWindow(
+      { content: "owner draft", source: null },
+      owner,
+    );
+    windowMocks.getMainWindow.mockReturnValue(otherMainWindow);
+
+    returnToMainWindowFromQuickEditor(
+      { content: "updated owner draft", source: null },
+      win,
+    );
+
+    expect(owner.webContents.send).toHaveBeenCalledWith(
+      IPC_CHANNELS.QUICK_EDITOR.IMPORT_CONTENT,
+    );
+    expect(otherMainWindow.webContents.send).not.toHaveBeenCalled();
+    expect(windowMocks.focusMainWindow).toHaveBeenCalledWith(owner);
+    expect(consumePendingQuickEditorContent(otherMainWindow)).toBeNull();
+    expect(consumePendingQuickEditorContent(owner)).toEqual({
+      content: "updated owner draft",
+      source: null,
+    });
+  });
+
+  it("keeps live updates isolated between main-window owners", () => {
+    const otherMainWindow = {
+      isDestroyed: vi.fn(() => false),
+      webContents: { send: vi.fn() },
+    } as unknown as Electron.BrowserWindow;
+    const owner = windowMocks.mainWindow as unknown as Electron.BrowserWindow;
+    const source = {
+      groupId: "group-1",
+      tabId: "tab-1",
+      filePath: "/notes/readme.md",
+    };
+    const ownerWindow = createQuickEditorWindow(
+      { content: "# Owner", source },
+      owner,
+    );
+    const otherWindow = createQuickEditorWindow(
+      { content: "# Other", source },
+      otherMainWindow,
+    );
+    vi.mocked(ownerWindow.webContents.send).mockClear();
+    vi.mocked(otherWindow.webContents.send).mockClear();
+
+    syncQuickEditorContent({ content: "# Owner update", source }, owner);
+
+    expect(ownerWindow.webContents.send).toHaveBeenCalledWith(
+      IPC_CHANNELS.QUICK_EDITOR.CONTENT_UPDATED,
+      { content: "# Owner update", source },
+    );
+    expect(otherWindow.webContents.send).not.toHaveBeenCalled();
+  });
+
   it("sends initial content only to the floating editor that owns it", () => {
     createQuickEditorWindow({ content: "# First draft", source: null });
     createQuickEditorWindow({ content: "# Second draft", source: null });
@@ -600,8 +660,8 @@ describe("quick editor floating window", () => {
   });
 
   it("keeps the quick editor open when no main application is available", () => {
+    windowMocks.getMainWindow.mockReturnValue(null);
     const win = showQuickEditorWindow();
-    windowMocks.getMainWindow.mockReturnValueOnce(null);
 
     returnToMainWindowFromQuickEditor(
       { content: "quick draft", source: null },

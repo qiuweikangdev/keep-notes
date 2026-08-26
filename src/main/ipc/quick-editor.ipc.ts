@@ -31,13 +31,16 @@ export function registerQuickEditorIpc(): void {
     },
   );
 
-  ipcMain.on(IPC_CHANNELS.QUICK_EDITOR.SHOW_WINDOW, () => {
-    showQuickEditorWindow();
+  ipcMain.on(IPC_CHANNELS.QUICK_EDITOR.SHOW_WINDOW, (event) => {
+    showQuickEditorWindow(getBrowserWindow(event));
   });
 
-  ipcMain.on(IPC_CHANNELS.QUICK_EDITOR.CREATE_WINDOW, (_, content: unknown) => {
-    createQuickEditorWindow(content);
-  });
+  ipcMain.on(
+    IPC_CHANNELS.QUICK_EDITOR.CREATE_WINDOW,
+    (event, content: unknown) => {
+      createQuickEditorWindow(content, getBrowserWindow(event));
+    },
+  );
 
   ipcMain.on(
     IPC_CHANNELS.QUICK_EDITOR.SYNC_CONTENT,
@@ -46,9 +49,12 @@ export function registerQuickEditorIpc(): void {
     },
   );
 
-  ipcMain.on(IPC_CHANNELS.QUICK_EDITOR.DETACH_SOURCE, (_, source: unknown) => {
-    detachQuickEditorSource(source);
-  });
+  ipcMain.on(
+    IPC_CHANNELS.QUICK_EDITOR.DETACH_SOURCE,
+    (event, source: unknown) => {
+      detachQuickEditorSource(source, getBrowserWindow(event));
+    },
+  );
 
   ipcMain.handle(
     IPC_CHANNELS.QUICK_EDITOR.SAVE_CONTENT,
@@ -92,7 +98,7 @@ export function registerQuickEditorIpc(): void {
     },
   );
 
-  ipcMain.handle(IPC_CHANNELS.QUICK_EDITOR.CONSUME_CONTENT, () => {
-    return consumePendingQuickEditorContent();
+  ipcMain.handle(IPC_CHANNELS.QUICK_EDITOR.CONSUME_CONTENT, (event) => {
+    return consumePendingQuickEditorContent(getBrowserWindow(event));
   });
 }

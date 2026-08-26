@@ -15,6 +15,7 @@ import { destroyReminderWindow } from "./reminder-window";
 const isMac = process.platform === "darwin";
 const closeInProgressWindows = new WeakSet<BrowserWindow>();
 const mainWindows = new Set<BrowserWindow>();
+let lastFocusedMainWindow: BrowserWindow | null = null;
 type WindowSaveSuccessHandler = (
   filePath: string,
   content: string,
@@ -62,8 +63,14 @@ export function createWindow(
   const win = new BrowserWindow(windowConfig);
   mainWindows.add(win);
 
+  // 记录最近获得焦点的主窗口，浮窗暂时抢走焦点时仍能准确回到原窗口。
+  win.on("focus", () => {
+    lastFocusedMainWindow = win;
+  });
+
   win.once("closed", () => {
     mainWindows.delete(win);
+    if (lastFocusedMainWindow === win) lastFocusedMainWindow = null;
     if (mainWindows.size === 0) destroyReminderWindow();
   });
 
@@ -115,14 +122,25 @@ export function createWindow(
 }
 
 export function getMainWindow(): BrowserWindow | null {
+  if (
+    lastFocusedMainWindow &&
+    !lastFocusedMainWindow.isDestroyed() &&
+    mainWindows.has(lastFocusedMainWindow)
+  ) {
+    return lastFocusedMainWindow;
+  }
+
   const windows = [...mainWindows];
   return (
     windows.toReversed().find((candidate) => !candidate.isDestroyed()) ?? null
   );
 }
 
-export function focusMainWindow(): void {
-  const win = getMainWindow();
+export function focusMainWindow(target?: BrowserWindow | null): void {
+  const win =
+    target && mainWindows.has(target) && !target.isDestroyed()
+      ? target
+      : getMainWindow();
 
   if (!win) return;
 

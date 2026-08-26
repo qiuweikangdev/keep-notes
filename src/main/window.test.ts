@@ -196,6 +196,22 @@ describe("createWindow", () => {
     }
   });
 
+  it("returns to the most recently focused main window", () => {
+    const firstWindow = createWindow();
+    const secondWindow = createWindow();
+    const firstFocusHandler = (
+      firstWindow.on as unknown as {
+        mock: { calls: Array<[string, () => void]> };
+      }
+    ).mock.calls.find(([event]) => event === "focus")?.[1];
+
+    firstFocusHandler?.();
+    focusMainWindow();
+
+    expect(firstWindow.focus).toHaveBeenCalledOnce();
+    expect(secondWindow.focus).not.toHaveBeenCalled();
+  });
+
   it("does not open DevTools when a hidden main window is revealed", () => {
     electronMocks.isPackaged = false;
 

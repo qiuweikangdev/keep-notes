@@ -37,12 +37,16 @@ let quickEditorWindow: BrowserWindow | null = null;
 const quickEditorWindows = new Set<BrowserWindow>();
 let registeredShortcutKeys: string[] = [];
 const closingQuickEditorWindows = new Set<BrowserWindow>();
-const pendingQuickEditorContents: QuickEditorWindowContent[] = [];
+const pendingQuickEditorContents: Array<{
+  mainWindow: BrowserWindow;
+  content: QuickEditorWindowContent;
+}> = [];
+const quickEditorWindowOwners = new Map<BrowserWindow, BrowserWindow>();
 const quickEditorWindowSources = new Map<
   BrowserWindow,
   NonNullable<QuickEditorWindowContent["source"]>
 >();
-const detachedQuickEditorSources = new Set<string>();
+const detachedQuickEditorSources = new Map<BrowserWindow, Set<string>>();
 interface QuickEditorFileWrite {
   complete: Promise<void>;
   content: string;
@@ -164,10 +168,68 @@ function getQuickEditorSourceKey(
   return JSON.stringify([source.groupId, source.tabId, source.filePath]);
 }
 
+function getQuickEditorMainWindow(win: BrowserWindow): BrowserWindow | null {
+  const owner = quickEditorWindowOwners.get(win);
+  if (owner) return owner.isDestroyed() ? null : owner;
+
+  const fallback = getMainWindow();
+  return fallback && !fallback.isDestroyed() ? fallback : null;
+}
+
+function resolveQuickEditorMainWindow(
+  sourceWindow?: BrowserWindow | null,
+): BrowserWindow | null {
+  if (sourceWindow) {
+    const owner = quickEditorWindowOwners.get(sourceWindow);
+    if (owner) return owner.isDestroyed() ? null : owner;
+    if (!sourceWindow.isDestroyed()) return sourceWindow;
+  }
+
+  const fallback = getMainWindow();
+  return fallback && !fallback.isDestroyed() ? fallback : null;
+}
+
+function getDetachedSources(
+  mainWindow: BrowserWindow,
+  create = false,
+): Set<string> | undefined {
+  const sources = detachedQuickEditorSources.get(mainWindow);
+  if (sources || !create) return sources;
+
+  const nextSources = new Set<string>();
+  detachedQuickEditorSources.set(mainWindow, nextSources);
+  return nextSources;
+}
+
+function clearDetachedQuickEditorSource(
+  mainWindow: BrowserWindow | null,
+  source: NonNullable<QuickEditorWindowContent["source"]>,
+): void {
+  if (!mainWindow) return;
+  const sources = getDetachedSources(mainWindow);
+  sources?.delete(getQuickEditorSourceKey(source));
+  if (sources?.size === 0) detachedQuickEditorSources.delete(mainWindow);
+}
+
+function isDetachedQuickEditorSource(
+  mainWindow: BrowserWindow | null,
+  source: NonNullable<QuickEditorWindowContent["source"]>,
+): boolean {
+  return (
+    mainWindow !== null &&
+    getDetachedSources(mainWindow)?.has(getQuickEditorSourceKey(source)) ===
+      true
+  );
+}
+
 function getKnownQuickEditorSource(
   source: NonNullable<QuickEditorWindowContent["source"]>,
+  mainWindow?: BrowserWindow | null,
 ): NonNullable<QuickEditorWindowContent["source"]> | undefined {
-  for (const knownSource of quickEditorWindowSources.values()) {
+  for (const [win, knownSource] of quickEditorWindowSources) {
+    if (mainWindow && getQuickEditorMainWindow(win) !== mainWindow) {
+      continue;
+    }
     if (hasSameQuickEditorSource(knownSource, source)) return knownSource;
   }
   return undefined;
@@ -315,19 +377,23 @@ function animateQuickEditorHeight(
   });
 }
 
-export function showQuickEditorWindow(): BrowserWindow {
+export function showQuickEditorWindow(
+  sourceWindow?: BrowserWindow | null,
+): BrowserWindow {
   if (quickEditorWindow && !quickEditorWindow.isDestroyed()) {
     revealQuickEditorWindow(quickEditorWindow);
     return quickEditorWindow;
   }
 
-  return createQuickEditorWindow();
+  return createQuickEditorWindow(null, sourceWindow);
 }
 
 export function createQuickEditorWindow(
   initialValue: unknown = null,
+  sourceWindow?: BrowserWindow | null,
 ): BrowserWindow {
   const initialContent = normalizeQuickEditorWindowContent(initialValue);
+  const mainWindow = resolveQuickEditorMainWindow(sourceWindow);
   const bounds = getQuickEditorWindowBounds(quickEditorWindows.size);
   const win = new BrowserWindow({
     ...bounds,
@@ -353,14 +419,13 @@ export function createQuickEditorWindow(
   });
 
   quickEditorWindows.add(win);
+  if (mainWindow) quickEditorWindowOwners.set(win, mainWindow);
   const collapseState = createQuickEditorCollapseState(bounds.height);
   quickEditorCollapseStates.set(win, collapseState);
   if (initialContent?.source) {
     quickEditorWindowSources.set(win, initialContent.source);
     // 用户再次从主标签显式创建浮窗时，恢复这条来源的双向实时同步。
-    detachedQuickEditorSources.delete(
-      getQuickEditorSourceKey(initialContent.source),
-    );
+    clearDetachedQuickEditorSource(mainWindow, initialContent.source);
   }
   if (!quickEditorWindow || quickEditorWindow.isDestroyed()) {
     quickEditorWindow = win;
@@ -426,6 +491,7 @@ export function createQuickEditorWindow(
 
   win.once("closed", () => {
     quickEditorWindows.delete(win);
+    quickEditorWindowOwners.delete(win);
     quickEditorWindowSources.delete(win);
     closingQuickEditorWindows.delete(win);
     clearQuickEditorCollapseState(win);
@@ -535,13 +601,16 @@ function associateQuickEditorFile(
     content,
     source: savedSource,
   };
+  const mainWindow = getQuickEditorMainWindow(win);
 
   for (const candidate of quickEditorWindows) {
     const candidateSource = quickEditorWindowSources.get(candidate);
+    const candidateMainWindow = getQuickEditorMainWindow(candidate);
     const isSameDraft =
       candidate === win ||
       (previousSource &&
         candidateSource &&
+        candidateMainWindow === mainWindow &&
         hasSameQuickEditorSource(candidateSource, previousSource));
     if (!isSameDraft) continue;
 
@@ -555,7 +624,6 @@ function associateQuickEditorFile(
   }
 
   if (!previousSource) return savedSource;
-  const mainWindow = getMainWindow();
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send(
       IPC_CHANNELS.QUICK_EDITOR.CONTENT_UPDATED,
@@ -615,14 +683,14 @@ export function returnToMainWindowFromQuickEditor(
     return;
   }
 
-  const mainWindow = getMainWindow();
-  if (!mainWindow) return;
+  const mainWindow = getQuickEditorMainWindow(win);
+  if (!mainWindow || mainWindow.isDestroyed()) return;
 
-  // 每个浮窗独立入队，主窗口切焦或热重载后仍能按顺序消费草稿。
-  pendingQuickEditorContents.push(content);
+  // 回传内容绑定到创建浮窗的主窗口，避免其他主窗口获得焦点时误消费。
+  pendingQuickEditorContents.push({ mainWindow, content });
   mainWindow.webContents.send(IPC_CHANNELS.QUICK_EDITOR.IMPORT_CONTENT);
   win.destroy();
-  focusMainWindow();
+  focusMainWindow(mainWindow);
 }
 
 /** 在关联的标签页与浮窗之间广播实时编辑快照。 */
@@ -634,9 +702,12 @@ export function syncQuickEditorContent(
   if (!incomingContent?.source) return;
 
   const senderIsQuickEditor = sender !== null && quickEditorWindows.has(sender);
+  const mainWindow = senderIsQuickEditor
+    ? getQuickEditorMainWindow(sender!)
+    : sender;
   const source = senderIsQuickEditor
     ? quickEditorWindowSources.get(sender!)
-    : (getKnownQuickEditorSource(incomingContent.source) ??
+    : (getKnownQuickEditorSource(incomingContent.source, mainWindow) ??
       incomingContent.source);
   if (!source) return;
 
@@ -644,17 +715,14 @@ export function syncQuickEditorContent(
     content: incomingContent.content,
     source,
   };
-  const sourceKey = getQuickEditorSourceKey(source);
-
   if (senderIsQuickEditor) {
     if (source.filePath) {
       // 来源路径取自主进程创建浮窗时保存的关联关系，不信任渲染进程临时传入的路径。
       persistQuickEditorFile(source.filePath, content.content);
     }
 
-    const mainWindow = getMainWindow();
     if (
-      !detachedQuickEditorSources.has(sourceKey) &&
+      !isDetachedQuickEditorSource(mainWindow, source) &&
       mainWindow &&
       !mainWindow.isDestroyed()
     ) {
@@ -665,7 +733,7 @@ export function syncQuickEditorContent(
     }
   } else {
     // 主标签再次产生编辑时，说明该来源已经重新打开，可恢复浮窗到主窗口的同步。
-    detachedQuickEditorSources.delete(sourceKey);
+    clearDetachedQuickEditorSource(mainWindow, source);
   }
 
   for (const win of quickEditorWindows) {
@@ -674,6 +742,9 @@ export function syncQuickEditorContent(
       win === sender ||
       win.isDestroyed() ||
       !windowSource ||
+      (senderIsQuickEditor
+        ? !mainWindow || getQuickEditorMainWindow(win) !== mainWindow
+        : mainWindow && getQuickEditorMainWindow(win) !== mainWindow) ||
       !hasSameQuickEditorSource(windowSource, source)
     ) {
       continue;
@@ -683,10 +754,17 @@ export function syncQuickEditorContent(
 }
 
 /** 标签关闭后停止把关联浮窗的实时输入推回主窗口，避免自动重建标签。 */
-export function detachQuickEditorSource(value: unknown): void {
+export function detachQuickEditorSource(
+  value: unknown,
+  sourceWindow?: BrowserWindow | null,
+): void {
   const source = normalizeQuickEditorSource(value);
-  if (!source || !getKnownQuickEditorSource(source)) return;
-  detachedQuickEditorSources.add(getQuickEditorSourceKey(source));
+  if (!source) return;
+
+  const mainWindow = resolveQuickEditorMainWindow(sourceWindow);
+  if (!mainWindow) return;
+  if (!getKnownQuickEditorSource(source, mainWindow)) return;
+  getDetachedSources(mainWindow, true)?.add(getQuickEditorSourceKey(source));
 }
 
 /** 等待关联浮窗的最新快照落盘，避免 Git 回滚与旧写入任务交错。 */
@@ -698,14 +776,24 @@ export async function flushQuickEditorContent(source: unknown): Promise<void> {
 
 /** 将浮窗文件操作请求转交给主窗口，主窗口负责复用完整的编辑器与 Git 状态。 */
 /** 回滚完成后销毁同一来源的浮窗，避免旧快照重新写回已回滚文件。 */
-export function consumePendingQuickEditorContent(): QuickEditorWindowContent | null {
-  return pendingQuickEditorContents.shift() ?? null;
+export function consumePendingQuickEditorContent(
+  mainWindow?: BrowserWindow | null,
+): QuickEditorWindowContent | null {
+  const pendingIndex = mainWindow
+    ? pendingQuickEditorContents.findIndex(
+        (pending) => pending.mainWindow === mainWindow,
+      )
+    : 0;
+  if (pendingIndex < 0) return null;
+
+  return pendingQuickEditorContents.splice(pendingIndex, 1)[0]?.content ?? null;
 }
 
 export function destroyQuickEditorWindow(): void {
   const windows = [...quickEditorWindows];
   windows.forEach(clearQuickEditorCollapseState);
   quickEditorWindows.clear();
+  quickEditorWindowOwners.clear();
   quickEditorWindowSources.clear();
   closingQuickEditorWindows.clear();
   quickEditorWindow = null;

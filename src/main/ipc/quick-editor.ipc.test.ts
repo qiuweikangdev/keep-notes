@@ -95,10 +95,40 @@ describe("quick editor collapse IPC", () => {
       filePath: "/notes/readme.md",
     };
 
+    const mainWindow = { id: "main-window" };
+    utilsMocks.getBrowserWindow.mockReturnValue(mainWindow);
+
     getListener(IPC_CHANNELS.QUICK_EDITOR.DETACH_SOURCE)({}, source);
 
     expect(quickEditorMocks.detachQuickEditorSource).toHaveBeenCalledWith(
       source,
+      mainWindow,
     );
+  });
+
+  it("passes the sender main window to floating-editor creation", () => {
+    const mainWindow = { id: "main-window" };
+    const content = { content: "# Draft", source: null };
+    utilsMocks.getBrowserWindow.mockReturnValue(mainWindow);
+
+    getListener(IPC_CHANNELS.QUICK_EDITOR.CREATE_WINDOW)({}, content);
+
+    expect(quickEditorMocks.createQuickEditorWindow).toHaveBeenCalledWith(
+      content,
+      mainWindow,
+    );
+  });
+
+  it("consumes pending content for the sender main window", () => {
+    const mainWindow = { id: "main-window" };
+    utilsMocks.getBrowserWindow.mockReturnValue(mainWindow);
+
+    getHandler(IPC_CHANNELS.QUICK_EDITOR.CONSUME_CONTENT)({
+      sender: { id: 9 },
+    });
+
+    expect(
+      quickEditorMocks.consumePendingQuickEditorContent,
+    ).toHaveBeenCalledWith(mainWindow);
   });
 });
