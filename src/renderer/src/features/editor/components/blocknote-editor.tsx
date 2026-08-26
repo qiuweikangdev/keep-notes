@@ -409,7 +409,7 @@ function getPastedInlineContentText(content: unknown): string {
 }
 
 function getPastedCodeBlockLanguage(
-  pre: HTMLPreElement,
+  pre: HTMLElement,
   code: HTMLElement | null,
 ): string {
   const explicitLanguage =
@@ -435,6 +435,23 @@ function parsePastedHTMLCodeBlock(pre: HTMLPreElement): PartialBlock {
       language: getPastedCodeBlockLanguage(pre, code),
     },
     content: code?.textContent ?? pre.textContent ?? "",
+  };
+}
+
+function parsePastedInternalHTMLCodeBlock(
+  blockContent: HTMLElement,
+): PartialBlock {
+  return {
+    type: "codeBlock",
+    props: {
+      language: getPastedCodeBlockLanguage(blockContent, null),
+    },
+    // 内部 HTML 的代码块不是 pre/code，必须在空白预处理前读取原始 textContent。
+    content:
+      blockContent.querySelector<HTMLElement>(".bn-inline-content")
+        ?.textContent ??
+      blockContent.textContent ??
+      "",
   };
 }
 
@@ -567,6 +584,36 @@ function parseMixedPastedHTML(
     : null;
 }
 
+function parseInternalHTMLWithCodeBlocks(
+  editor: CoreBlockNoteEditor,
+  container: HTMLDivElement,
+): PartialBlock[] | null {
+  const codeBlocks = Array.from(
+    container.querySelectorAll<HTMLElement>('[data-content-type="codeBlock"]'),
+  ).filter(
+    (blockContent) =>
+      !blockContent.parentElement?.closest('[data-content-type="codeBlock"]'),
+  );
+  if (codeBlocks.length === 0) {
+    return editor.tryParseHTMLToBlocks(container.innerHTML);
+  }
+
+  const placeholders = codeBlocks.map((blockContent, index) => {
+    const marker = `\uE000keep-notes-internal-code-${index}\uE001`;
+    const placeholder = document.createElement("p");
+    placeholder.textContent = marker;
+    const block = parsePastedInternalHTMLCodeBlock(blockContent);
+    blockContent.replaceWith(placeholder);
+    return { block, marker };
+  });
+  const parsedBlocks = editor.tryParseHTMLToBlocks(container.innerHTML);
+  const replaced = replacePastedBlockPlaceholders(parsedBlocks, placeholders);
+
+  return replaced.replacementCount === placeholders.length
+    ? replaced.blocks
+    : null;
+}
+
 export function pasteExternalHTMLTables(
   editor: CoreBlockNoteEditor,
   event: ClipboardEvent,
@@ -588,6 +635,9 @@ export function pasteExternalHTMLTables(
 
     const internalContainer = document.createElement("div");
     internalContainer.innerHTML = internalHTML;
+    const hasInternalCodeBlocks = Boolean(
+      internalContainer.querySelector('[data-content-type="codeBlock"]'),
+    );
     const slice = internalContainer
       .querySelector("[data-pm-slice]")
       ?.getAttribute("data-pm-slice");
@@ -625,19 +675,36 @@ export function pasteExternalHTMLTables(
       return true;
     }
 
+    const parsedInternalBlocks = hasInternalCodeBlocks
+      ? parseInternalHTMLWithCodeBlocks(editor, internalContainer)
+      : null;
+
     // 新建标签页会先放置一个空段落作为编辑占位；整段富文本粘贴到这里时必须替换它，
     // 否则 BlockNote 默认按“在当前块后插入”处理，首个真实块前就会多出一行。
     if (
       editor.document.length === 1 &&
       isEmptyRichEditorParagraph(editor.document[0])
     ) {
-      const parsedBlocks = editor.tryParseHTMLToBlocks(internalHTML);
-      if (parsedBlocks.length > 0) {
+      const parsedBlocks = hasInternalCodeBlocks
+        ? parsedInternalBlocks
+        : editor.tryParseHTMLToBlocks(internalHTML);
+      if (parsedBlocks && parsedBlocks.length > 0) {
         editor.replaceBlocks(editor.document, parsedBlocks);
         // 整段粘贴会替换占位段落；清掉旧选区映射，避免新文档中的行内代码继承旧编辑范围。
         clearInlineCodeEditingState(editor);
         return true;
       }
+    }
+
+    if (hasInternalCodeBlocks) {
+      if (!parsedInternalBlocks || parsedInternalBlocks.length === 0) {
+        return false;
+      }
+
+      // 内部 HTML 的代码块先用普通段落占位，插入后再恢复，避免 BlockNote 的默认 HTML 空白规则压平换行。
+      pasteParsedRichBlocks(editor, parsedInternalBlocks);
+      clearInlineCodeEditingState(editor);
+      return true;
     }
 
     // 整表或单元格选区保留原生 MIME，由 BlockNote 还原表格结构和光标语义。

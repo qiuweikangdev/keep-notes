@@ -1434,6 +1434,84 @@ describe("BlockNoteEditor code paste", () => {
     }
   });
 
+  it("preserves multiline code blocks when pasting copied rich blocks into an empty tab", () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    vi.stubGlobal("ClipboardEvent", Event);
+
+    const source = [
+      "function greet(name: string) {",
+      "  return `Hello, ${name}`;",
+      "}",
+    ].join("\n");
+    const sourceEditor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        { type: "heading", props: { level: 2 }, content: "Example" },
+        {
+          type: "codeBlock",
+          props: { language: "typescript" },
+          content: source,
+        },
+      ],
+    });
+    const targetEditor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    const sourceView = render(
+      createElement(BlockNoteView, { editor: sourceEditor }),
+    );
+    const targetView = render(
+      createElement(BlockNoteView, { editor: targetEditor }),
+    );
+
+    try {
+      sourceEditor.prosemirrorView.dispatch(
+        sourceEditor.prosemirrorView.state.tr.setSelection(
+          new AllSelection(sourceEditor.prosemirrorView.state.doc),
+        ),
+      );
+
+      const clipboard = new Map<string, string>();
+      const copyEvent = new Event("copy", { bubbles: true, cancelable: true });
+      Object.defineProperty(copyEvent, "clipboardData", {
+        value: {
+          clearData: () => clipboard.clear(),
+          setData: (type: string, value: string) => clipboard.set(type, value),
+        },
+      });
+      sourceEditor.prosemirrorView.dom.dispatchEvent(copyEvent);
+
+      const pasteEvent = new Event("paste", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(pasteEvent, "clipboardData", {
+        value: {
+          getData: (type: string) => clipboard.get(type) ?? "",
+          types: Array.from(clipboard.keys()),
+        },
+      });
+
+      expect(
+        pasteExternalHTMLTables(targetEditor, pasteEvent as ClipboardEvent),
+      ).toBe(true);
+      expect(targetEditor.document.map((block) => block.type)).toEqual([
+        "heading",
+        "codeBlock",
+      ]);
+      expect(targetEditor.document[1]).toMatchObject({
+        type: "codeBlock",
+        props: { language: "typescript" },
+        content: [{ type: "text", text: source, styles: {} }],
+      });
+    } finally {
+      sourceView.unmount();
+      targetView.unmount();
+    }
+  });
+
   it("keeps inline-code boundary navigation after pasting copied blocks into an empty tab", () => {
     setupMatchMedia();
     setupDomMeasurements();
