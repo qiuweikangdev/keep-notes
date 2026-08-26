@@ -93,7 +93,7 @@ describe("WorkspaceWatchRegistry", () => {
       debounceMs: 80,
     });
 
-    registry.watchWorkspace("notes", onChange);
+    registry.watchWorkspace(1, "notes", onChange);
     listener?.("rename", "a.md");
     listener?.("change", "b.md");
     vi.advanceTimersByTime(79);
@@ -109,7 +109,7 @@ describe("WorkspaceWatchRegistry", () => {
       hasUnknownPath: false,
     });
 
-    registry.unwatchWorkspace("notes");
+    registry.unwatchWorkspace(1, "notes");
     expect(close).toHaveBeenCalledTimes(1);
   });
 
@@ -127,13 +127,13 @@ describe("WorkspaceWatchRegistry", () => {
       debounceMs: 80,
     });
 
-    registry.watchWorkspace("notes", onChange);
+    registry.watchWorkspace(1, "notes", onChange);
     listener?.("change", "node_modules/pkg/index.js");
     listener?.("change", ".DS_Store");
     vi.advanceTimersByTime(80);
     expect(onChange).not.toHaveBeenCalled();
 
-    registry.unwatchWorkspace("notes");
+    registry.unwatchWorkspace(1, "notes");
   });
 
   it("reports an unknown-path fallback when fs.watch omits the file name", () => {
@@ -150,7 +150,7 @@ describe("WorkspaceWatchRegistry", () => {
       debounceMs: 80,
     });
 
-    registry.watchWorkspace("notes", onChange);
+    registry.watchWorkspace(1, "notes", onChange);
     listener?.("rename", null);
     vi.advanceTimersByTime(80);
 
@@ -159,6 +159,39 @@ describe("WorkspaceWatchRegistry", () => {
       events: [],
       hasUnknownPath: true,
     });
+  });
+
+  it("shares one watcher across windows and closes it after the last release", () => {
+    vi.useFakeTimers();
+    const close = vi.fn();
+    const watchListeners: Array<
+      (eventType: string, fileName: string | Buffer | null) => void
+    > = [];
+    const firstWindowListener = vi.fn();
+    const secondWindowListener = vi.fn();
+    const registry = new WorkspaceWatchRegistry({
+      watch: (_path, _options, callback) => {
+        watchListeners.push(callback);
+        return { close };
+      },
+      debounceMs: 80,
+    });
+
+    registry.watchWorkspace(1, "notes", firstWindowListener);
+    registry.watchWorkspace(2, "notes", secondWindowListener);
+    registry.watchWorkspace(1, "notes", firstWindowListener);
+
+    expect(watchListeners).toHaveLength(1);
+    watchListeners[0]("change", "daily.md");
+    vi.advanceTimersByTime(80);
+
+    expect(firstWindowListener).toHaveBeenCalledTimes(1);
+    expect(secondWindowListener).toHaveBeenCalledTimes(1);
+
+    registry.unwatchWorkspace(1, "notes");
+    expect(close).not.toHaveBeenCalled();
+    registry.unwatchWorkspace(2, "notes");
+    expect(close).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -185,7 +218,7 @@ describe("FileContentWatchRegistry", () => {
       debounceMs: 80,
     });
 
-    registry.watchFile("notes/daily.md", onChange);
+    registry.watchFile(1, "notes/daily.md", onChange);
     listener?.("rename", "daily.md");
 
     expect(watchedPath).toBe("notes");
@@ -195,7 +228,7 @@ describe("FileContentWatchRegistry", () => {
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(onChange).toHaveBeenCalledWith("notes/daily.md", "updated");
 
-    registry.unwatchFile("notes/daily.md");
+    registry.unwatchFile(1, "notes/daily.md");
     expect(close).toHaveBeenCalledTimes(1);
   });
 
@@ -215,7 +248,7 @@ describe("FileContentWatchRegistry", () => {
       debounceMs: 80,
     });
 
-    registry.watchFile("notes/daily.md", onChange);
+    registry.watchFile(1, "notes/daily.md", onChange);
     listener?.("change", "other.md");
     listener?.("rename", ".DS_Store");
     vi.advanceTimersByTime(80);
@@ -223,7 +256,7 @@ describe("FileContentWatchRegistry", () => {
     expect(readFile).not.toHaveBeenCalled();
     expect(onChange).not.toHaveBeenCalled();
 
-    registry.unwatchFile("notes/daily.md");
+    registry.unwatchFile(1, "notes/daily.md");
   });
 
   it("coalesces repeated file events into one content update", async () => {
@@ -242,7 +275,7 @@ describe("FileContentWatchRegistry", () => {
       debounceMs: 80,
     });
 
-    registry.watchFile("notes/daily.md", onChange);
+    registry.watchFile(1, "notes/daily.md", onChange);
     listener?.("rename", "daily.md");
     vi.advanceTimersByTime(40);
     listener?.("change", "daily.md");
@@ -252,6 +285,46 @@ describe("FileContentWatchRegistry", () => {
     expect(readFile).toHaveBeenCalledTimes(1);
     expect(onChange).toHaveBeenCalledTimes(1);
 
-    registry.unwatchFile("notes/daily.md");
+    registry.unwatchFile(1, "notes/daily.md");
+  });
+
+  it("shares one watcher across windows and broadcasts the file once", async () => {
+    vi.useFakeTimers();
+    const close = vi.fn();
+    const watchListeners: Array<
+      (eventType: string, fileName: string | Buffer | null) => void
+    > = [];
+    const firstWindowListener = vi.fn();
+    const secondWindowListener = vi.fn();
+    const registry = new FileContentWatchRegistry({
+      watch: (_path, _options, callback) => {
+        watchListeners.push(callback);
+        return { close };
+      },
+      readFile: vi.fn().mockResolvedValue("updated"),
+      debounceMs: 80,
+    });
+
+    registry.watchFile(1, "notes/daily.md", firstWindowListener);
+    registry.watchFile(2, "notes/daily.md", secondWindowListener);
+    registry.watchFile(1, "notes/daily.md", firstWindowListener);
+
+    expect(watchListeners).toHaveLength(1);
+    watchListeners[0]("change", "daily.md");
+    vi.advanceTimersByTime(80);
+    await vi.runAllTimersAsync();
+
+    expect(firstWindowListener).toHaveBeenCalledWith(
+      "notes/daily.md",
+      "updated",
+    );
+    expect(secondWindowListener).toHaveBeenCalledWith(
+      "notes/daily.md",
+      "updated",
+    );
+    registry.unwatchFile(1, "notes/daily.md");
+    expect(close).not.toHaveBeenCalled();
+    registry.unwatchFile(2, "notes/daily.md");
+    expect(close).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { ipcMain, type BrowserWindow } from "electron";
 import { IPC_CHANNELS } from "../../shared/constants";
 import { CodeResult, type ExternalOpenAppId } from "../../shared/types";
 import { getBrowserWindow } from "../utils";
@@ -28,6 +28,18 @@ import {
 
 const fileWatchRegistry = new FileContentWatchRegistry();
 const workspaceWatchRegistry = new WorkspaceWatchRegistry();
+const watchCleanupWindows = new WeakSet<BrowserWindow>();
+
+function ensureWindowWatchCleanup(win: BrowserWindow): void {
+  if (watchCleanupWindows.has(win)) return;
+
+  watchCleanupWindows.add(win);
+  const ownerId = win.webContents.id;
+  win.once("closed", () => {
+    fileWatchRegistry.unwatchOwner(ownerId);
+    workspaceWatchRegistry.unwatchOwner(ownerId);
+  });
+}
 
 export function registerFileIpc(): void {
   ipcMain.handle(IPC_CHANNELS.FILE.READ, async (_, filePath: string) => {
@@ -134,26 +146,28 @@ export function registerFileIpc(): void {
     if (!win) return;
 
     try {
-      fileWatchRegistry.watchFile(filePath, (changedFilePath, content) => {
-        if (win.isDestroyed()) return;
-        win.webContents.send(
-          IPC_CHANNELS.FILE.ON_FILE_CHANGED,
-          changedFilePath,
-          content,
-        );
-      });
-
-      win.once("closed", () => {
-        fileWatchRegistry.unwatchFile(filePath);
-        workspaceWatchRegistry.unwatchAll();
-      });
+      ensureWindowWatchCleanup(win);
+      fileWatchRegistry.watchFile(
+        win.webContents.id,
+        filePath,
+        (changedFilePath, content) => {
+          if (win.isDestroyed()) return;
+          win.webContents.send(
+            IPC_CHANNELS.FILE.ON_FILE_CHANGED,
+            changedFilePath,
+            content,
+          );
+        },
+      );
     } catch (error) {
       console.error("Failed to watch file:", error);
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.FILE.UNWATCH, async (_, filePath: string) => {
-    fileWatchRegistry.unwatchFile(filePath);
+  ipcMain.handle(IPC_CHANNELS.FILE.UNWATCH, async (event, filePath: string) => {
+    const win = getBrowserWindow(event);
+    if (!win) return;
+    fileWatchRegistry.unwatchFile(win.webContents.id, filePath);
   });
 
   ipcMain.handle(
@@ -165,17 +179,18 @@ export function registerFileIpc(): void {
       if (!win) return;
 
       try {
-        workspaceWatchRegistry.watchWorkspace(rootPath, (changeBatch) => {
-          if (win.isDestroyed()) return;
-          win.webContents.send(
-            IPC_CHANNELS.FILE.ON_WORKSPACE_CHANGED,
-            changeBatch,
-          );
-        });
-
-        win.once("closed", () => {
-          workspaceWatchRegistry.unwatchWorkspace(rootPath);
-        });
+        ensureWindowWatchCleanup(win);
+        workspaceWatchRegistry.watchWorkspace(
+          win.webContents.id,
+          rootPath,
+          (changeBatch) => {
+            if (win.isDestroyed()) return;
+            win.webContents.send(
+              IPC_CHANNELS.FILE.ON_WORKSPACE_CHANGED,
+              changeBatch,
+            );
+          },
+        );
       } catch (error) {
         console.error("Failed to watch workspace:", error);
       }
@@ -184,8 +199,10 @@ export function registerFileIpc(): void {
 
   ipcMain.handle(
     IPC_CHANNELS.FILE.UNWATCH_WORKSPACE,
-    async (_, rootPath: string) => {
-      workspaceWatchRegistry.unwatchWorkspace(rootPath);
+    async (event, rootPath: string) => {
+      const win = getBrowserWindow(event);
+      if (!win) return;
+      workspaceWatchRegistry.unwatchWorkspace(win.webContents.id, rootPath);
     },
   );
 }

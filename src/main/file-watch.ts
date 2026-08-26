@@ -40,7 +40,7 @@ interface FileContentWatchRegistryOptions {
 
 interface WorkspaceWatchEntry {
   watcher: WatchHandle;
-  onChange: (batch: WorkspaceChangeBatch) => void;
+  listeners: Map<number, (batch: WorkspaceChangeBatch) => void>;
   debounceTimer: ReturnType<typeof setTimeout> | null;
   pendingEvents: Map<string, WorkspaceChangeEvent>;
   hasUnknownPath: boolean;
@@ -48,7 +48,10 @@ interface WorkspaceWatchEntry {
 
 interface FileContentWatchEntry {
   watcher: WatchHandle;
-  onChange: (filePath: string, content: string) => void | Promise<void>;
+  listeners: Map<
+    number,
+    (filePath: string, content: string) => void | Promise<void>
+  >;
   debounceTimer: ReturnType<typeof setTimeout> | null;
 }
 
@@ -99,10 +102,16 @@ export class WorkspaceWatchRegistry {
   }
 
   watchWorkspace(
+    ownerId: number,
     rootPath: string,
     onChange: (batch: WorkspaceChangeBatch) => void,
   ): void {
-    this.unwatchWorkspace(rootPath);
+    const existingEntry = this.watchers.get(rootPath);
+    if (existingEntry) {
+      // 同一窗口重复订阅只更新回调，避免 Strict Mode 或竞态导致引用计数虚增。
+      existingEntry.listeners.set(ownerId, onChange);
+      return;
+    }
 
     const watcher = this.watch(
       rootPath,
@@ -139,33 +148,38 @@ export class WorkspaceWatchRegistry {
           };
           entry.pendingEvents.clear();
           entry.hasUnknownPath = false;
-          entry.onChange(batch);
+          for (const listener of entry.listeners.values()) {
+            listener(batch);
+          }
         }, this.debounceMs);
       },
     );
 
     this.watchers.set(rootPath, {
       watcher,
-      onChange,
+      listeners: new Map([[ownerId, onChange]]),
       debounceTimer: null,
       pendingEvents: new Map(),
       hasUnknownPath: false,
     });
   }
 
-  unwatchWorkspace(rootPath: string): void {
+  unwatchWorkspace(ownerId: number, rootPath: string): void {
     const entry = this.watchers.get(rootPath);
     if (!entry) return;
+
+    entry.listeners.delete(ownerId);
+    if (entry.listeners.size > 0) return;
 
     if (entry.debounceTimer) clearTimeout(entry.debounceTimer);
     entry.watcher.close();
     this.watchers.delete(rootPath);
   }
 
-  unwatchAll(): void {
-    [...this.watchers.keys()].forEach((rootPath) =>
-      this.unwatchWorkspace(rootPath),
-    );
+  unwatchOwner(ownerId: number): void {
+    for (const rootPath of this.watchers.keys()) {
+      this.unwatchWorkspace(ownerId, rootPath);
+    }
   }
 }
 
@@ -187,12 +201,18 @@ export class FileContentWatchRegistry {
   }
 
   watchFile(
+    ownerId: number,
     filePath: string,
     onChange: (filePath: string, content: string) => void | Promise<void>,
   ): void {
     if (shouldIgnoreFsWatchPath(filePath)) return;
 
-    this.unwatchFile(filePath);
+    const existingEntry = this.watchers.get(filePath);
+    if (existingEntry) {
+      // 同一窗口重复订阅只更新回调，避免 Strict Mode 或竞态导致引用计数虚增。
+      existingEntry.listeners.set(ownerId, onChange);
+      return;
+    }
 
     const directoryPath = path.dirname(filePath);
     const targetName = path.basename(filePath);
@@ -214,22 +234,27 @@ export class FileContentWatchRegistry {
 
     this.watchers.set(filePath, {
       watcher,
-      onChange,
+      listeners: new Map([[ownerId, onChange]]),
       debounceTimer: null,
     });
   }
 
-  unwatchFile(filePath: string): void {
+  unwatchFile(ownerId: number, filePath: string): void {
     const entry = this.watchers.get(filePath);
     if (!entry) return;
+
+    entry.listeners.delete(ownerId);
+    if (entry.listeners.size > 0) return;
 
     if (entry.debounceTimer) clearTimeout(entry.debounceTimer);
     entry.watcher.close();
     this.watchers.delete(filePath);
   }
 
-  unwatchAll(): void {
-    [...this.watchers.keys()].forEach((filePath) => this.unwatchFile(filePath));
+  unwatchOwner(ownerId: number): void {
+    for (const filePath of this.watchers.keys()) {
+      this.unwatchFile(ownerId, filePath);
+    }
   }
 
   private async emitFileContent(
@@ -241,7 +266,11 @@ export class FileContentWatchRegistry {
     try {
       const content = await this.readFile(filePath);
       if (this.watchers.get(filePath) !== entry) return;
-      await entry.onChange(filePath, content);
+      await Promise.all(
+        [...entry.listeners.values()].map((listener) =>
+          listener(filePath, content),
+        ),
+      );
     } catch (error) {
       // 文件替换过程中可能短暂不存在，等待下一次 rename/change 事件再同步即可。
       if (isFileMissingError(error)) return;
