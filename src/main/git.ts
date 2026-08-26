@@ -349,9 +349,8 @@ export async function commit(
 
     // 如果需要推送
     if (options.push) {
-      const branchSummary = await git.branchLocal();
-      const currentBranch = branchSummary.current;
-      await git.push("origin", currentBranch);
+      // 直接推送当前 HEAD，与命令行 `git push origin HEAD` 保持一致，避免额外查询分支及 simple-git 的附加参数。
+      await git.raw(["push", "origin", "HEAD"]);
     }
 
     return {
@@ -370,9 +369,8 @@ export async function commit(
 export async function push(dirPath: string): Promise<ApiResponse> {
   try {
     const git = getGitInstance(dirPath);
-    const branchSummary = await git.branchLocal();
-    const currentBranch = branchSummary.current;
-    await git.push("origin", currentBranch);
+    // 直接推送当前 HEAD，与用户在终端验证过的快速路径一致。
+    await git.raw(["push", "origin", "HEAD"]);
     return {
       code: CodeResult.Success,
       message: "推送成功",

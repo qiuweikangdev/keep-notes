@@ -1024,7 +1024,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         const options: GitCommitOptions = {
           message,
           push: pushAfterCommit,
-          files: includeUntracked ? undefined : [],
+          // 状态列表已经包含当前所有待提交文件，按路径暂存可避免 `git add .` 扫描整个工作区。
+          files: includeUntracked ? allFilePaths : [],
         };
         const result = await commitChanges(dir, options);
         if (result.code === CodeResult.Success) {
@@ -1033,8 +1034,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           setHistoryHasMore(true);
           setSelectedCommitHash("");
           setSelectedCommitDetail(null);
-          await loadGitInfo();
-          await loadTree(dir);
+          // 提交不会改变磁盘文件树，只刷新 Git 状态即可；推送后的 ahead/behind 也会同步更新。
+          await refreshGitStatus(dir);
           showMessage(
             "success",
             pushAfterCommit ? "提交并推送成功" : "提交成功",
@@ -1053,9 +1054,9 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       getCurrentDir,
       commitMessage,
       includeUntracked,
+      allFilePaths,
       commitChanges,
-      loadGitInfo,
-      loadTree,
+      refreshGitStatus,
     ],
   );
 

@@ -1059,6 +1059,27 @@ describe("GitPanel", () => {
     });
   });
 
+  it("stages only the visible changes when committing with unstaged changes included", async () => {
+    electronMocks.commitChanges.mockResolvedValue({
+      code: CodeResult.Success,
+    });
+
+    render(<GitPanel isOpen onClose={vi.fn()} />);
+
+    await screen.findByText("changed.md");
+    fireEvent.click(screen.getByRole("button", { name: "提交" }));
+
+    await waitFor(() => {
+      expect(electronMocks.commitChanges).toHaveBeenCalledWith(
+        "/notes",
+        expect.objectContaining({
+          files: ["changed.md", "new.md", "removed.md"],
+          push: false,
+        }),
+      );
+    });
+  });
+
   it("refreshes both change sections after staging remaining file changes", async () => {
     electronMocks.getGitStatus
       .mockResolvedValueOnce({

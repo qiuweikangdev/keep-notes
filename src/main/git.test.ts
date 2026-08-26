@@ -5,6 +5,7 @@ import {
   deleteBranch,
   discardChanges,
   getFileHeadContent,
+  push,
   renameBranch,
 } from "./git";
 
@@ -151,6 +152,26 @@ describe("git working tree operations", () => {
 
     expect(gitMocks.add).toHaveBeenCalledWith(".");
     expect(gitMocks.commit).toHaveBeenCalledWith("test: include working tree");
+    expect(result.code).toBe(CodeResult.Success);
+  });
+
+  it("pushes the current HEAD without resolving the local branch", async () => {
+    const result = await commit("/notes", {
+      message: "test: push current head",
+      files: [],
+      push: true,
+    });
+
+    expect(gitMocks.branchLocal).not.toHaveBeenCalled();
+    expect(gitMocks.raw).toHaveBeenCalledWith(["push", "origin", "HEAD"]);
+    expect(result.code).toBe(CodeResult.Success);
+  });
+
+  it("uses the current HEAD for standalone pushes", async () => {
+    const result = await push("/notes");
+
+    expect(gitMocks.branchLocal).not.toHaveBeenCalled();
+    expect(gitMocks.raw).toHaveBeenCalledWith(["push", "origin", "HEAD"]);
     expect(result.code).toBe(CodeResult.Success);
   });
 });
