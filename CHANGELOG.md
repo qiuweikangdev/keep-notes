@@ -1,3 +1,20 @@
+## [2.22.4](https://github.com/qiuweikangdev/keep-notes/compare/v2.22.3...v2.22.4) (2026-08-26)
+
+
+### Bug Fixes
+
+* guard invalid table cell selections ([d065e97](https://github.com/qiuweikangdev/keep-notes/commit/d065e9784d3c0ee431bac3eb1e5274ec925ff738))
+* preserve GFM table alignment ([bbb833f](https://github.com/qiuweikangdev/keep-notes/commit/bbb833f9d82aef9cb8fa4488c792e8c327fd9c65))
+* preserve multiline code blocks when pasting rich text ([9abef73](https://github.com/qiuweikangdev/keep-notes/commit/9abef73ed0aa1901ab5a2d232e490858fc0ef78d))
+* route editor events to owning windows ([6f2b228](https://github.com/qiuweikangdev/keep-notes/commit/6f2b228f25f25aac683887f931c6f2929bb52c24))
+* route floating editors to their owner windows ([5285386](https://github.com/qiuweikangdev/keep-notes/commit/528538608926dfdbcac6e6f5c0874049d8a3da9d))
+
+
+## Commit Summary
+
+- Compared with: v2.22.3
+- Total commits: 5
+
 ## [2.22.3](https://github.com/qiuweikangdev/keep-notes/compare/v2.22.2...v2.22.3) (2026-08-21)
 
 
