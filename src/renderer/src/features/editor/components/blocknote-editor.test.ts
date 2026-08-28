@@ -16,6 +16,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { AllSelection, NodeSelection, TextSelection } from "@tiptap/pm/state";
+import { CellSelection } from "@tiptap/pm/tables";
 import { createElement, StrictMode } from "react";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -29,6 +30,7 @@ import {
   editorSaveCoordinator,
   richPaneViewStateRegistry,
 } from "../lib/editor-runtime";
+import { configureRichTextUndoHistory } from "../lib/editor-undo-history";
 import { requestEditorViewportPreservation } from "../lib/editor-viewport";
 import {
   LARGE_DOCUMENT_SERIALIZATION_QUIET_PERIOD_MS,
@@ -1112,6 +1114,77 @@ describe("BlockNoteEditor code paste", () => {
     }
   });
 
+  it("keeps a single code block as a sibling when pasting into an existing paragraph", () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    vi.stubGlobal("ClipboardEvent", Event);
+
+    const source = "const value = 1;\nconsole.log(value);";
+    const editor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "BeforeAfter" }],
+    });
+    const view = render(createElement(BlockNoteView, { editor }));
+    configureRichTextUndoHistory(editor);
+
+    try {
+      let textPosition: number | null = null;
+      editor.prosemirrorView.state.doc.descendants((node, position) => {
+        if (node.isText && node.text === "BeforeAfter") {
+          textPosition = position;
+          return false;
+        }
+        return textPosition === null;
+      });
+      expect(textPosition).not.toBeNull();
+      editor.prosemirrorView.dispatch(
+        editor.prosemirrorView.state.tr.setSelection(
+          TextSelection.create(
+            editor.prosemirrorView.state.doc,
+            textPosition! + "Before".length,
+          ),
+        ),
+      );
+
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "clipboardData", {
+        value: {
+          getData: (type: string) =>
+            type === "text/html"
+              ? `<pre><code data-language="typescript">${source}</code></pre>`
+              : source,
+          types: ["text/html", "text/plain"],
+        },
+      });
+
+      expect(pasteExternalHTMLTables(editor, event as ClipboardEvent)).toBe(
+        true,
+      );
+      expect(editor.document.map((block) => block.type)).toEqual([
+        "paragraph",
+        "codeBlock",
+        "paragraph",
+      ]);
+      expect(editor.document[0].content).toMatchObject([{ text: "Before" }]);
+      expect(editor.document[1]).toMatchObject({
+        type: "codeBlock",
+        props: { language: "typescript" },
+        content: [{ text: source }],
+      });
+      expect(editor.document[2].content).toMatchObject([{ text: "After" }]);
+      expect(JSON.stringify(editor.document)).not.toContain(
+        "keep-notes-insert-code",
+      );
+
+      expect(editor.undo()).toBe(true);
+      expect(editor.document).toMatchObject([
+        { type: "paragraph", content: [{ text: "BeforeAfter" }] },
+      ]);
+    } finally {
+      view.unmount();
+    }
+  });
+
   it("keeps an external HTML code block paste inside the active CodeMirror", async () => {
     setupMatchMedia();
     setupDomMeasurements();
@@ -1386,7 +1459,6 @@ describe("BlockNoteEditor code paste", () => {
     const targetView = render(
       createElement(BlockNoteView, { editor: targetEditor }),
     );
-
     try {
       sourceEditor.prosemirrorView.dispatch(
         sourceEditor.prosemirrorView.state.tr.setSelection(
@@ -1509,6 +1581,261 @@ describe("BlockNoteEditor code paste", () => {
     } finally {
       sourceView.unmount();
       targetView.unmount();
+    }
+  });
+
+  it("pastes text selected inside an internal code block as plain text", () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    vi.stubGlobal("ClipboardEvent", Event);
+
+    const source = "const value = 1;\nconsole.log(value);";
+    const selectedText = "value = 1";
+    const sourceEditor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "codeBlock",
+          props: { language: "typescript" },
+          content: source,
+        },
+      ],
+    });
+    const targetEditor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "Before " }],
+    });
+    const sourceView = render(
+      createElement(BlockNoteView, { editor: sourceEditor }),
+    );
+    const targetView = render(
+      createElement(BlockNoteView, { editor: targetEditor }),
+    );
+
+    try {
+      let sourcePosition: number | null = null;
+      sourceEditor.prosemirrorView.state.doc.descendants((node, position) => {
+        if (node.isText && node.text === source) {
+          sourcePosition = position;
+          return false;
+        }
+        return sourcePosition === null;
+      });
+      expect(sourcePosition).not.toBeNull();
+      const selectionStart = source.indexOf(selectedText);
+      sourceEditor.prosemirrorView.dispatch(
+        sourceEditor.prosemirrorView.state.tr.setSelection(
+          TextSelection.create(
+            sourceEditor.prosemirrorView.state.doc,
+            sourcePosition! + selectionStart,
+            sourcePosition! + selectionStart + selectedText.length,
+          ),
+        ),
+      );
+
+      const clipboard = new Map<string, string>();
+      const copyEvent = new Event("copy", { bubbles: true, cancelable: true });
+      Object.defineProperty(copyEvent, "clipboardData", {
+        value: {
+          clearData: () => clipboard.clear(),
+          setData: (type: string, value: string) => clipboard.set(type, value),
+        },
+      });
+      sourceEditor.prosemirrorView.dom.dispatchEvent(copyEvent);
+      expect(clipboard.get("blocknote/html")).toContain("codeBlock");
+
+      targetEditor.setTextCursorPosition(targetEditor.document[0], "end");
+      const pasteEvent = new Event("paste", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(pasteEvent, "clipboardData", {
+        value: {
+          getData: (type: string) => clipboard.get(type) ?? "",
+          types: Array.from(clipboard.keys()),
+        },
+      });
+
+      expect(
+        pasteExternalHTMLTables(targetEditor, pasteEvent as ClipboardEvent),
+      ).toBe(true);
+      expect(targetEditor.document).toHaveLength(1);
+      expect(targetEditor.document[0]).toMatchObject({
+        type: "paragraph",
+        content: [{ text: `Before ${selectedText}` }],
+      });
+      expect(JSON.stringify(targetEditor.document)).not.toContain(
+        "keep-notes-insert-code",
+      );
+    } finally {
+      sourceView.unmount();
+      targetView.unmount();
+    }
+  });
+
+  it("restores copied code blocks when pasting at the end of an existing paragraph", () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    vi.stubGlobal("ClipboardEvent", Event);
+
+    const source = [
+      "function greet(name: string) {",
+      "  return `Hello, ${name}`;",
+      "}",
+    ].join("\n");
+    const secondSource = 'console.log(greet("Keep Notes"));';
+    const sourceEditor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "codeBlock",
+          props: { language: "typescript" },
+          content: source,
+        },
+        { type: "paragraph", content: "Between blocks" },
+        {
+          type: "codeBlock",
+          props: { language: "typescript" },
+          content: secondSource,
+        },
+      ],
+    });
+    const targetEditor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "Before" }],
+    });
+    const middleTargetEditor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "BeforeAfter" }],
+    });
+    const sourceView = render(
+      createElement(BlockNoteView, { editor: sourceEditor }),
+    );
+    const targetView = render(
+      createElement(BlockNoteView, { editor: targetEditor }),
+    );
+    const middleTargetView = render(
+      createElement(BlockNoteView, { editor: middleTargetEditor }),
+    );
+    configureRichTextUndoHistory(targetEditor);
+
+    try {
+      sourceEditor.prosemirrorView.dispatch(
+        sourceEditor.prosemirrorView.state.tr.setSelection(
+          new AllSelection(sourceEditor.prosemirrorView.state.doc),
+        ),
+      );
+
+      const clipboard = new Map<string, string>();
+      const copyEvent = new Event("copy", { bubbles: true, cancelable: true });
+      Object.defineProperty(copyEvent, "clipboardData", {
+        value: {
+          clearData: () => clipboard.clear(),
+          setData: (type: string, value: string) => clipboard.set(type, value),
+        },
+      });
+      sourceEditor.prosemirrorView.dom.dispatchEvent(copyEvent);
+      targetEditor.setTextCursorPosition(targetEditor.document[0], "end");
+      const pasteEvent = new Event("paste", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(pasteEvent, "clipboardData", {
+        value: {
+          getData: (type: string) => clipboard.get(type) ?? "",
+          types: Array.from(clipboard.keys()),
+        },
+      });
+
+      expect(
+        pasteExternalHTMLTables(targetEditor, pasteEvent as ClipboardEvent),
+      ).toBe(true);
+      expect(targetEditor.document.map((block) => block.type)).toEqual([
+        "paragraph",
+        "codeBlock",
+        "paragraph",
+        "codeBlock",
+      ]);
+      expect(targetEditor.document[0].content).toMatchObject([
+        { text: "Before" },
+      ]);
+      expect(targetEditor.document[1]).toMatchObject({
+        type: "codeBlock",
+        props: { language: "typescript" },
+        content: [{ text: source }],
+      });
+      expect(targetEditor.document[2].content).toMatchObject([
+        { text: "Between blocks" },
+      ]);
+      expect(targetEditor.document[3]).toMatchObject({
+        type: "codeBlock",
+        props: { language: "typescript" },
+        content: [{ text: secondSource }],
+      });
+      expect(
+        targetEditor.document
+          .map((block) => JSON.stringify(block.content))
+          .join("\n"),
+      ).not.toContain("keep-notes-insert-code");
+      expect(targetEditor.undo()).toBe(true);
+      expect(targetEditor.document).toMatchObject([
+        { type: "paragraph", content: [{ text: "Before" }] },
+      ]);
+      expect(JSON.stringify(targetEditor.document)).not.toContain(
+        "keep-notes-insert-code",
+      );
+
+      let middleTextPosition: number | null = null;
+      middleTargetEditor.prosemirrorView.state.doc.descendants(
+        (node, position) => {
+          if (node.isText && node.text === "BeforeAfter") {
+            middleTextPosition = position;
+            return false;
+          }
+          return middleTextPosition === null;
+        },
+      );
+      expect(middleTextPosition).not.toBeNull();
+      middleTargetEditor.prosemirrorView.dispatch(
+        middleTargetEditor.prosemirrorView.state.tr.setSelection(
+          TextSelection.create(
+            middleTargetEditor.prosemirrorView.state.doc,
+            middleTextPosition! + "Before".length,
+          ),
+        ),
+      );
+      const middlePasteEvent = new Event("paste", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(middlePasteEvent, "clipboardData", {
+        value: {
+          getData: (type: string) => clipboard.get(type) ?? "",
+          types: Array.from(clipboard.keys()),
+        },
+      });
+      expect(
+        pasteExternalHTMLTables(
+          middleTargetEditor,
+          middlePasteEvent as ClipboardEvent,
+        ),
+      ).toBe(true);
+      expect(middleTargetEditor.document.map((block) => block.type)).toEqual([
+        "paragraph",
+        "codeBlock",
+        "paragraph",
+        "codeBlock",
+        "paragraph",
+      ]);
+      expect(
+        middleTargetEditor.document.map((block) =>
+          JSON.stringify(block.content),
+        ),
+      ).not.toContain(expect.stringContaining("keep-notes-insert-code"));
+    } finally {
+      sourceView.unmount();
+      targetView.unmount();
+      middleTargetView.unmount();
     }
   });
 
@@ -1769,6 +2096,95 @@ describe("BlockNoteEditor code paste", () => {
       ]);
     } finally {
       session.view.unmount();
+    }
+  });
+
+  it("pastes a partial internal table cell selection as plain text", () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    vi.stubGlobal("ClipboardEvent", Event);
+
+    const sourceEditor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "table",
+          content: {
+            type: "tableContent",
+            rows: [
+              { cells: ["Header A", "Header B"] },
+              { cells: ["Value A", "Value B"] },
+            ],
+          },
+        },
+      ],
+    });
+    const targetEditor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    const sourceView = render(
+      createElement(BlockNoteView, { editor: sourceEditor }),
+    );
+    const targetView = render(
+      createElement(BlockNoteView, { editor: targetEditor }),
+    );
+
+    try {
+      const cellPositions: number[] = [];
+      sourceEditor.prosemirrorView.state.doc.descendants((node, position) => {
+        if (
+          node.type.name === "tableCell" ||
+          node.type.name === "tableHeader"
+        ) {
+          cellPositions.push(position);
+        }
+        return true;
+      });
+      expect(cellPositions).toHaveLength(4);
+      sourceEditor.prosemirrorView.dispatch(
+        sourceEditor.prosemirrorView.state.tr.setSelection(
+          CellSelection.create(
+            sourceEditor.prosemirrorView.state.doc,
+            cellPositions[0],
+            cellPositions[1],
+          ),
+        ),
+      );
+
+      const clipboard = new Map<string, string>();
+      const copyEvent = new Event("copy", { bubbles: true, cancelable: true });
+      Object.defineProperty(copyEvent, "clipboardData", {
+        value: {
+          clearData: () => clipboard.clear(),
+          setData: (type: string, value: string) => clipboard.set(type, value),
+        },
+      });
+      sourceEditor.prosemirrorView.dom.dispatchEvent(copyEvent);
+      expect(clipboard.get("text/html")).toContain("<table>");
+
+      const pasteEvent = new Event("paste", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(pasteEvent, "clipboardData", {
+        value: {
+          getData: (type: string) => clipboard.get(type) ?? "",
+          types: Array.from(clipboard.keys()),
+        },
+      });
+
+      expect(
+        pasteExternalHTMLTables(targetEditor, pasteEvent as ClipboardEvent),
+      ).toBe(true);
+      expect(targetEditor.document).toHaveLength(1);
+      expect(targetEditor.document[0]).toMatchObject({
+        type: "paragraph",
+        content: [{ text: "Header A\tHeader B" }],
+      });
+    } finally {
+      sourceView.unmount();
+      targetView.unmount();
     }
   });
 
@@ -2145,6 +2561,47 @@ describe("BlockNoteEditor code paste", () => {
       });
     } finally {
       session.view.unmount();
+    }
+  });
+
+  it("pastes an external HTML fragment selected inside a table cell as inline text", () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    vi.stubGlobal("ClipboardEvent", Event);
+    const editor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    const view = render(createElement(BlockNoteView, { editor }));
+
+    try {
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "clipboardData", {
+        value: {
+          getData: (type: string) =>
+            type === "text/html"
+              ? [
+                  "<table><tbody><tr><td>Before ",
+                  "<!--StartFragment--><strong>Selected text</strong><!--EndFragment-->",
+                  " after</td></tr></tbody></table>",
+                ].join("")
+              : type === "text/plain"
+                ? "Selected text"
+                : "",
+          types: ["text/html", "text/plain"],
+        },
+      });
+
+      expect(pasteExternalHTMLTables(editor, event as ClipboardEvent)).toBe(
+        true,
+      );
+      expect(editor.document).toHaveLength(1);
+      expect(editor.document[0]).toMatchObject({
+        type: "paragraph",
+        content: [{ text: "Selected text", styles: { bold: true } }],
+      });
+    } finally {
+      view.unmount();
     }
   });
 

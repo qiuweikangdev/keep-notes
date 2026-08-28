@@ -282,6 +282,32 @@ describe("quick editor content detection", () => {
     expect(floatingRichEditor.textContent).toContain("Floating table context");
     expect(screen.getByText("Keep this paragraph.")).toBeInTheDocument();
     expect(screen.getByText("Keep this list item")).toBeInTheDocument();
+
+    const tableCount = document.querySelectorAll(
+      '[data-content-type="table"]',
+    ).length;
+    fireEvent.paste(floatingRichEditor, {
+      clipboardData: {
+        getData: (type: string) =>
+          type === "text/html"
+            ? [
+                "<table><tbody><tr><td>Before ",
+                "<!--StartFragment--><strong>Floating cell text</strong><!--EndFragment-->",
+                " after</td></tr></tbody></table>",
+              ].join("")
+            : type === "text/plain"
+              ? "Floating cell text"
+              : "",
+        types: ["text/html", "text/plain"],
+      },
+    });
+
+    await waitFor(() =>
+      expect(floatingRichEditor.textContent).toContain("Floating cell text"),
+    );
+    expect(
+      document.querySelectorAll('[data-content-type="table"]'),
+    ).toHaveLength(tableCount);
   });
 
   it("renders fenced code blocks with the same parser as the panel editor", async () => {
