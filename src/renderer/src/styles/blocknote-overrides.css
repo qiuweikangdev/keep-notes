@@ -107,6 +107,12 @@
   line-height: var(--editor-line-height, 1.75);
 }
 
+/* 浅色富文本保留 Inter 的拉丁字形，并显式使用平台中文字体回退。 */
+.light :is(.bn-editor, .bn-editor-preview) {
+  font-family: var(--font-editor-light) !important;
+  font-kerning: normal;
+}
+
 .editor-rich-scroll .bn-trailing-block {
   position: relative;
 }

@@ -8,6 +8,23 @@ const stylesheet = readFileSync(
   "utf8",
 );
 
+describe("light-theme typography", () => {
+  it("uses explicit platform fallbacks for shared UI text", () => {
+    expect(stylesheet).toMatch(
+      /--font-ui-light:\s*[\s\S]*"Microsoft YaHei UI"[\s\S]*"PingFang SC"[\s\S]*;/,
+    );
+    expect(stylesheet).toMatch(
+      /body\.light\s*\{[\s\S]*font-family:\s*var\(--font-ui-light\);/,
+    );
+  });
+
+  it("restores platform font smoothing in light mode", () => {
+    expect(stylesheet).toMatch(
+      /body\.light\s*\{[\s\S]*font-kerning:\s*normal;[\s\S]*-webkit-font-smoothing:\s*auto;[\s\S]*-moz-osx-font-smoothing:\s*auto;/,
+    );
+  });
+});
+
 describe("global scrollbar styles", () => {
   it("shows the shared sidebar scrollbar only while its shell is hovered", () => {
     expect(stylesheet).toMatch(

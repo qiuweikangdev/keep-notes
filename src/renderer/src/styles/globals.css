@@ -26,6 +26,17 @@
   --file-tree-file-icon: var(--text-muted);
   --command-palette-hover-bg: var(--selection-row-hover);
   --command-palette-active-bg: var(--selection-row-selected);
+  --font-ui:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-ui-light:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
+    "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-editor-light:
+    "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
+    "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 /* 浅色侧栏底色较深，文件树使用更深的中性灰以匹配白色弹窗中的感知对比。 */
@@ -148,15 +159,21 @@ body,
 }
 
 body {
-  font-family:
-    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-ui);
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: transparent;
   color: var(--text-primary);
+}
+
+/* 浅色模式交给平台使用默认抗锯齿，避免灰阶渲染让小字号文字显得发虚。 */
+body.light {
+  font-family: var(--font-ui-light);
+  font-kerning: normal;
+  -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
 }
 
 button {

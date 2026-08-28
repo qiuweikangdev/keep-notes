@@ -23,6 +23,12 @@ function getRule(selector: string) {
 }
 
 describe("blocknote overrides stylesheet", () => {
+  it("uses Inter with explicit CJK fallbacks for light rich text", () => {
+    expect(stylesheet).toMatch(
+      /\.light\s+:is\(\.bn-editor,\s*\.bn-editor-preview\)\s*\{[\s\S]*font-family:\s*var\(--font-editor-light\) !important;[\s\S]*font-kerning:\s*normal;/,
+    );
+  });
+
   it("defines theme-aware code block colors", () => {
     expect(getRule('.bn-root[data-color-scheme="light"]')).toMatch(
       /--editor-code-block-bg:\s*#f5f8ff;/,
