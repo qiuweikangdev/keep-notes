@@ -1155,20 +1155,6 @@ html.rich-editor-selection-drag-locked * {
   color: #ffffff !important;
 }
 
-/* 大文档仅布局实时编辑器的可视块；DOM 与 ProseMirror 文档仍完整保留，可随滚动立即编辑。 */
-[data-rich-document-surface] .bn-editor > .bn-block-group > .bn-block-outer {
-  content-visibility: auto;
-  contain-intrinsic-block-size: auto 80px;
-}
-
-[data-rich-document-surface]
-  .bn-editor
-  > .bn-block-group
-  > .bn-block-outer:has(.editor-code-block-language-popover) {
-  /* 弹窗打开时解除块级绘制隔离，避免语言选项被代码块边界裁剪。 */
-  content-visibility: visible;
-}
-
 /* 被动窗格只布局可见富文本块，并隔离其重排与绘制。 */
 .rich-virtual-preview {
   contain: layout style paint;

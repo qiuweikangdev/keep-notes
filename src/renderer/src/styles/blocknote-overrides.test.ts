@@ -105,14 +105,12 @@ describe("blocknote overrides stylesheet", () => {
     expect(inlineContentRule).toMatch(/overflow-wrap:\s*anywhere;/);
   });
 
-  it("skips offscreen live rich blocks during split and resize layout", () => {
-    const liveBlockRule = getRule(
-      "[data-rich-document-surface] .bn-editor > .bn-block-group > .bn-block-outer",
-    );
-
-    expect(liveBlockRule).toBeDefined();
-    expect(liveBlockRule).toMatch(/content-visibility:\s*auto;/);
-    expect(liveBlockRule).toMatch(/contain-intrinsic-block-size:\s*auto 80px;/);
+  it("keeps live rich blocks fully laid out for editable caret hit testing", () => {
+    expect(
+      getRule(
+        "[data-rich-document-surface] .bn-editor > .bn-block-group > .bn-block-outer",
+      ),
+    ).toBeUndefined();
   });
 
   it("skips offscreen overscan blocks in virtual rich previews", () => {
@@ -531,14 +529,6 @@ describe("blocknote overrides stylesheet", () => {
         ".editor-code-block__toolbar:has(.editor-code-block-language-popover)",
       ),
     ).toMatch(/z-index:\s*60;/);
-  });
-
-  it("disables block paint containment while a code language popover is open", () => {
-    expect(
-      getRule(
-        "[data-rich-document-surface] .bn-editor > .bn-block-group > .bn-block-outer:has(.editor-code-block-language-popover)",
-      ),
-    ).toMatch(/content-visibility:\s*visible;/);
   });
 
   it("keeps the code block copy action hidden until hover", () => {
