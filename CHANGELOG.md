@@ -1,3 +1,19 @@
+## [2.22.5](https://github.com/qiuweikangdev/keep-notes/compare/v2.22.4...v2.22.5) (2026-08-28)
+
+
+### Bug Fixes
+
+* prevent rich paste placeholders leaking on undo ([ca6fc55](https://github.com/qiuweikangdev/keep-notes/commit/ca6fc55b8e0000e12fb578fc5be0b21b8a436a2b))
+* sharpen light theme typography ([8b3a951](https://github.com/qiuweikangdev/keep-notes/commit/8b3a951fb5b98b9fa2ec1489189b6c42ef04e084))
+* speed up git commit and push ([8691f96](https://github.com/qiuweikangdev/keep-notes/commit/8691f96478dd8f03fa667999867b1d77433e7978))
+* stabilize rich editor caret hit testing ([1451202](https://github.com/qiuweikangdev/keep-notes/commit/14512029cc92c904560657ca1cb72e0647dff311))
+
+
+## Commit Summary
+
+- Compared with: v2.22.4
+- Total commits: 4
+
 ## [2.22.4](https://github.com/qiuweikangdev/keep-notes/compare/v2.22.3...v2.22.4) (2026-08-26)
 
 
