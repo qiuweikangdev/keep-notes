@@ -18,20 +18,68 @@ import type {
   GitFileContentSource,
 } from "../shared/types";
 
+const GIT_REMOTE_TIMEOUT_MS = 120_000;
+
+interface GitInstanceOptions {
+  remote?: boolean;
+}
+
 // 获取 Git 实例
-function getGitInstance(baseDir: string): SimpleGit {
-  return simpleGit({
+function getGitInstance(
+  baseDir: string,
+  options: GitInstanceOptions = {},
+): SimpleGit {
+  const git = simpleGit({
     baseDir,
     binary: "git",
     // 仅为当前 Git 子进程关闭路径转义，避免读取状态时反复写入 .git/config。
-    config: ["core.quotepath=false"],
+    config: [
+      "core.quotepath=false",
+      ...(options.remote
+        ? [
+            // 网络连接失败或传输持续低于 1 B/s 时，让 Git 尽快结束，而不是等待系统默认超时。
+            "http.connectTimeout=15",
+            "http.lowSpeedLimit=1",
+            "http.lowSpeedTime=30",
+          ]
+        : []),
+    ],
+    ...(options.remote
+      ? {
+          // simple-git 的 block timeout 是滚动超时，可同时覆盖无输出的凭据/网络卡死。
+          timeout: { block: GIT_REMOTE_TIMEOUT_MS },
+        }
+      : {}),
   });
+
+  if (options.remote) {
+    // Electron 子进程没有可用的交互式终端，禁止 Git 等待用户名或密码输入。
+    git.env("GIT_TERMINAL_PROMPT", "0");
+  }
+
+  return git;
 }
 
 const normalizeGitPath = (p: string) => p.replace(/\\/g, "/");
 
 const getGitErrorMessage = (e: unknown) =>
   e instanceof Error ? e.toString() : String(e);
+
+const getRemoteGitErrorMessage = (e: unknown) => {
+  const message = getGitErrorMessage(e);
+  const normalizedMessage = message.toLowerCase();
+  if (normalizedMessage.includes("block timeout reached")) {
+    return "GitHub 远程操作超时，请检查网络、代理或 GitHub 凭据后重试";
+  }
+  if (
+    normalizedMessage.includes("terminal prompts disabled") ||
+    normalizedMessage.includes("could not read username") ||
+    normalizedMessage.includes("authentication failed")
+  ) {
+    return "GitHub 凭据不可用，请检查 Git 凭据配置后重试";
+  }
+  return message;
+};
 
 const toCommitFileStatus = (statusCode: string): GitCommitFileStatus => {
   const status = statusCode.charAt(0);
@@ -350,7 +398,11 @@ export async function commit(
     // 如果需要推送
     if (options.push) {
       // 直接推送当前 HEAD，与命令行 `git push origin HEAD` 保持一致，避免额外查询分支及 simple-git 的附加参数。
-      await git.raw(["push", "origin", "HEAD"]);
+      await getGitInstance(dirPath, { remote: true }).raw([
+        "push",
+        "origin",
+        "HEAD",
+      ]);
     }
 
     return {
@@ -360,7 +412,7 @@ export async function commit(
   } catch (e: any) {
     return {
       code: CodeResult.Fail,
-      message: e.toString(),
+      message: getRemoteGitErrorMessage(e),
     };
   }
 }
@@ -368,7 +420,7 @@ export async function commit(
 // 推送到远程
 export async function push(dirPath: string): Promise<ApiResponse> {
   try {
-    const git = getGitInstance(dirPath);
+    const git = getGitInstance(dirPath, { remote: true });
     // 直接推送当前 HEAD，与用户在终端验证过的快速路径一致。
     await git.raw(["push", "origin", "HEAD"]);
     return {
@@ -378,7 +430,7 @@ export async function push(dirPath: string): Promise<ApiResponse> {
   } catch (e: any) {
     return {
       code: CodeResult.Fail,
-      message: e.toString(),
+      message: getRemoteGitErrorMessage(e),
     };
   }
 }
@@ -386,7 +438,7 @@ export async function push(dirPath: string): Promise<ApiResponse> {
 // 从远程拉取
 export async function pull(dirPath: string): Promise<ApiResponse> {
   try {
-    const git = getGitInstance(dirPath);
+    const git = getGitInstance(dirPath, { remote: true });
     await git.pull();
     return {
       code: CodeResult.Success,
@@ -395,7 +447,7 @@ export async function pull(dirPath: string): Promise<ApiResponse> {
   } catch (e: any) {
     return {
       code: CodeResult.Fail,
-      message: e.toString(),
+      message: getRemoteGitErrorMessage(e),
     };
   }
 }
@@ -724,7 +776,7 @@ export async function openFile(
 
 // 保留原有的 download 和 upload 函数以保持向后兼容
 export async function download(gitConfig: GitConfig): Promise<ApiResponse> {
-  const git = getGitInstance(gitConfig.dir);
+  const git = getGitInstance(gitConfig.dir, { remote: true });
   try {
     const isRepo = await git.checkIsRepo();
     if (!isRepo) {
@@ -739,13 +791,13 @@ export async function download(gitConfig: GitConfig): Promise<ApiResponse> {
   } catch (e: any) {
     return {
       code: CodeResult.Fail,
-      message: e.toString(),
+      message: getRemoteGitErrorMessage(e),
     };
   }
 }
 
 export async function upload(gitConfig: GitConfig): Promise<ApiResponse> {
-  const git = getGitInstance(gitConfig.dir);
+  const git = getGitInstance(gitConfig.dir, { remote: true });
   try {
     const isRepo = await git.checkIsRepo();
     const commitMessage = dayjs().format("YYYY-MM-DD HH:mm:ss");
@@ -771,7 +823,7 @@ export async function upload(gitConfig: GitConfig): Promise<ApiResponse> {
     await git.addConfig("user.email", gitConfig.email);
     await git.add(".");
     await git.commit(commitMessage);
-    await git.push("origin", "HEAD");
+    await git.raw(["push", "origin", "HEAD"]);
 
     return {
       code: CodeResult.Success,
@@ -780,7 +832,7 @@ export async function upload(gitConfig: GitConfig): Promise<ApiResponse> {
   } catch (e: any) {
     return {
       code: CodeResult.Fail,
-      message: e.toString(),
+      message: getRemoteGitErrorMessage(e),
     };
   }
 }

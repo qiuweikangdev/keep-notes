@@ -15,6 +15,7 @@ const gitMocks = vi.hoisted(() => ({
   checkout: vi.fn(),
   commit: vi.fn(),
   deleteLocalBranch: vi.fn(),
+  env: vi.fn(),
   raw: vi.fn(),
   simpleGit: vi.fn(),
   status: vi.fn(),
@@ -30,6 +31,7 @@ describe("git branch operations", () => {
     gitMocks.simpleGit.mockReturnValue({
       branchLocal: gitMocks.branchLocal,
       deleteLocalBranch: gitMocks.deleteLocalBranch,
+      env: gitMocks.env,
       raw: gitMocks.raw,
     });
   });
@@ -81,6 +83,7 @@ describe("git file content", () => {
       add: gitMocks.add,
       checkout: gitMocks.checkout,
       commit: gitMocks.commit,
+      env: gitMocks.env,
       raw: gitMocks.raw,
       status: gitMocks.status,
     });
@@ -110,6 +113,7 @@ describe("git working tree operations", () => {
       add: gitMocks.add,
       checkout: gitMocks.checkout,
       commit: gitMocks.commit,
+      env: gitMocks.env,
       raw: gitMocks.raw,
       status: gitMocks.status,
     });
@@ -164,6 +168,18 @@ describe("git working tree operations", () => {
 
     expect(gitMocks.branchLocal).not.toHaveBeenCalled();
     expect(gitMocks.raw).toHaveBeenCalledWith(["push", "origin", "HEAD"]);
+    expect(gitMocks.simpleGit).toHaveBeenCalledTimes(2);
+    expect(gitMocks.simpleGit.mock.calls[1][0]).toEqual(
+      expect.objectContaining({
+        config: expect.arrayContaining([
+          "http.connectTimeout=15",
+          "http.lowSpeedLimit=1",
+          "http.lowSpeedTime=30",
+        ]),
+        timeout: { block: 120_000 },
+      }),
+    );
+    expect(gitMocks.env).toHaveBeenCalledWith("GIT_TERMINAL_PROMPT", "0");
     expect(result.code).toBe(CodeResult.Success);
   });
 
@@ -173,5 +189,18 @@ describe("git working tree operations", () => {
     expect(gitMocks.branchLocal).not.toHaveBeenCalled();
     expect(gitMocks.raw).toHaveBeenCalledWith(["push", "origin", "HEAD"]);
     expect(result.code).toBe(CodeResult.Success);
+  });
+
+  it("returns a retryable message when a remote operation times out", async () => {
+    gitMocks.raw.mockRejectedValueOnce(
+      new Error("GitPluginError: block timeout reached"),
+    );
+
+    const result = await push("/notes");
+
+    expect(result).toEqual({
+      code: CodeResult.Fail,
+      message: "GitHub 远程操作超时，请检查网络、代理或 GitHub 凭据后重试",
+    });
   });
 });
