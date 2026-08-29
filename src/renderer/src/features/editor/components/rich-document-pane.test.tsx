@@ -318,7 +318,7 @@ describe("RichDocumentPane", () => {
     expect(screen.getByTestId("virtual-rich-preview")).toBeInTheDocument();
   });
 
-  it("keeps the outgoing rich document visible until the next file runtime is ready", () => {
+  it("hides the outgoing rich document until the next file runtime is ready", () => {
     const nextPath = "C:/notes/next.md";
     const view = render(
       <RichDocumentPane groupId="group-1" tabId="tab-1" path={path} />,
@@ -339,11 +339,11 @@ describe("RichDocumentPane", () => {
     );
 
     expect(screen.queryByTestId("editor-loading-skeleton")).toBeNull();
-    expect(outgoingRuntime.surface.style.visibility).toBe("visible");
-    expect(outgoingRuntime.surface.dataset.activePaneKey).toBe("group-1:tab-1");
-    expect(richDocumentSessionManager.getVisiblePaneKeys(path)).toEqual([
-      "group-1:tab-1",
-    ]);
+    expect(screen.getByTestId("editor-pending-canvas")).toBeInTheDocument();
+    expect(outgoingRuntime.surface.style.visibility).toBe("hidden");
+    expect(outgoingRuntime.surface.dataset.activePaneKey).toBeUndefined();
+    expect(richDocumentSessionManager.getActiveBinding()).toBeNull();
+    expect(richDocumentSessionManager.getVisiblePaneKeys(path)).toEqual([]);
     expect(richDocumentSessionManager.getVisiblePaneKeys(nextPath)).toEqual([
       "group-1:tab-1",
     ]);

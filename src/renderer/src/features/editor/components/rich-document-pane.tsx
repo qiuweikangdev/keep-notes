@@ -124,10 +124,13 @@ export function RichDocumentPane({
   if (runtime) {
     lastReadyRuntimeRef.current = { path: normalizedPath, runtime };
   }
-  const displayedRuntime = runtime ?? lastReadyRuntimeRef.current?.runtime;
-  const displayedPath = runtime
-    ? normalizedPath
-    : (lastReadyRuntimeRef.current?.path ?? normalizedPath);
+  // 路径切换期间只允许回退到同一路径的 runtime，不能把旧文档 surface 显示在新标签页下。
+  const displayedRuntime =
+    runtime ??
+    (lastReadyRuntimeRef.current?.path === normalizedPath
+      ? lastReadyRuntimeRef.current.runtime
+      : null);
+  const displayedPath = normalizedPath;
   const isLive = useEditorStore(
     (state) =>
       state.activeGroupId === groupId &&
@@ -169,10 +172,17 @@ export function RichDocumentPane({
   }, [paneKey, releaseRegistration]);
 
   useLayoutEffect(() => {
+    // 目标 runtime 尚未就绪时也要先卸载旧文档，避免旧 surface 继续覆盖当前标签页。
+    for (const registeredPath of Array.from(registrationsRef.current.keys())) {
+      if (registeredPath !== normalizedPath) {
+        releaseRegistration(registeredPath, false);
+      }
+    }
+
     const host = hostRef.current;
     if (!host || registrationsRef.current.has(normalizedPath)) return;
 
-    // 新文件先注册到同一宿主，但旧文件绑定保留到目标 runtime 就绪，避免切换期间出现 loading 闪烁。
+    // 新文件先注册到同一宿主；目标 runtime 就绪前由 pending canvas 承接切换状态。
     const releaseVisible = richDocumentSessionManager.retainVisible(
       normalizedPath,
       { paneKey, groupId, tabId },
