@@ -40,11 +40,6 @@ import {
   type UploadedImageCursorEditor,
 } from "../lib/editor-image";
 import { EDITOR_EMPTY_PLACEHOLDER } from "../lib/editor-placeholder";
-import {
-  LARGE_DOCUMENT_CHAR_LIMIT,
-  LARGE_DOCUMENT_SERIALIZATION_QUIET_PERIOD_MS,
-  scheduleEditorIdleTask,
-} from "../lib/editor-large-document";
 import { configureRichTextUndoHistory } from "../lib/editor-undo-history";
 import { scheduleStableEditorBlockScroll } from "../lib/editor-viewport";
 import {
@@ -236,8 +231,6 @@ export function QuickEditorWindow() {
   const lastSyncedContentRef = useRef<string | null>(null);
   const serializedBaselineRef = useRef<string | null>(null);
   const syncRevisionRef = useRef(0);
-  const contentSyncCancelRef = useRef<(() => void) | null>(null);
-  const contentSyncRevisionRef = useRef(0);
   const editorRef = useRef<CoreBlockNoteEditor | null>(null);
   const sourceEditorRef = useRef<HTMLTextAreaElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -518,79 +511,48 @@ export function QuickEditorWindow() {
     };
   }, []);
 
-  const cancelPendingContentSync = useCallback(() => {
-    contentSyncCancelRef.current?.();
-    contentSyncCancelRef.current = null;
-    contentSyncRevisionRef.current += 1;
-  }, []);
+  const syncContentToSource = useCallback(() => {
+    const source = sourceRef.current;
+    const sourceContent = lastSyncedContentRef.current;
+    const baseline = serializedBaselineRef.current;
+    const shouldRefreshFind = isFindOpenRef.current;
+    if (!source && !shouldRefreshFind) return;
 
-  const syncContentToSource = useCallback(
-    (options: { defer?: boolean } = {}) => {
-      cancelPendingContentSync();
-      const revision = ++contentSyncRevisionRef.current;
-      const run = () => {
-        contentSyncCancelRef.current = null;
-        const source = sourceRef.current;
-        const sourceContent = lastSyncedContentRef.current;
-        const baseline = serializedBaselineRef.current;
-        const shouldRefreshFind = isFindOpenRef.current;
-        if (!source && !shouldRefreshFind) return;
-
-        void serializeMarkdown(editor, editor.document).then((serialized) => {
-          if (revision !== contentSyncRevisionRef.current) return;
-
-          // 与主编辑器保持一致：以加载时的序列化结果为基线，只把真实编辑映射回原始 Markdown。
-          const content = resolveQuickEditorMarkdown(
-            sourceContent,
-            baseline,
-            serialized,
-          );
-          serializedBaselineRef.current = serialized;
-          lastSyncedContentRef.current = content;
-          if (shouldRefreshFind) setFindContent(content);
-          if (!source || sourceContent === null) return;
-          if (markdownEquals(content, sourceContent)) return;
-
-          window.electronAPI.syncQuickEditorContent({ content, source });
-        });
-      };
-
-      if (!options.defer) {
-        run();
+    const revision = ++syncRevisionRef.current;
+    void serializeMarkdown(editor, editor.document).then((serialized) => {
+      if (revision !== syncRevisionRef.current) {
         return;
       }
 
-      const documentLength =
-        editor.prosemirrorView.state.doc.textContent.length;
-      // 粘贴长文档后先让编辑器完成首帧渲染，避免同步序列化与 BlockNote 大量 DOM 更新争抢主线程。
-      contentSyncCancelRef.current = scheduleEditorIdleTask(
-        run,
-        1200,
-        documentLength >= LARGE_DOCUMENT_CHAR_LIMIT
-          ? LARGE_DOCUMENT_SERIALIZATION_QUIET_PERIOD_MS
-          : 0,
+      // 与主编辑器保持一致：以加载时的序列化结果为基线，只把真实编辑映射回原始 Markdown。
+      const content = resolveQuickEditorMarkdown(
+        sourceContent,
+        baseline,
+        serialized,
       );
-    },
-    [cancelPendingContentSync, editor],
-  );
+      serializedBaselineRef.current = serialized;
+      lastSyncedContentRef.current = content;
+      if (shouldRefreshFind) setFindContent(content);
+      if (!source || sourceContent === null) return;
+      if (markdownEquals(content, sourceContent)) return;
 
-  useEffect(() => () => cancelPendingContentSync(), [cancelPendingContentSync]);
+      window.electronAPI.syncQuickEditorContent({ content, source });
+    });
+  }, [editor]);
 
   const getCurrentEditorContent = useCallback(async () => {
     if (editorMode === "source") return sourceMarkdownRef.current;
 
-    cancelPendingContentSync();
     const serialized = await serializeMarkdown(editor, editor.document);
     return resolveQuickEditorMarkdown(
       lastSyncedContentRef.current,
       serializedBaselineRef.current,
       serialized,
     );
-  }, [cancelPendingContentSync, editor, editorMode]);
+  }, [editor, editorMode]);
 
   const applyRestoredContent = useCallback(
     async (content: string, source: QuickEditorWindowContent["source"]) => {
-      cancelPendingContentSync();
       const revision = ++syncRevisionRef.current;
       const blocks = await parseMarkdown(editor, content);
       const baseline = await serializeMarkdown(editor, blocks);
@@ -608,7 +570,7 @@ export function QuickEditorWindow() {
       editor.replaceBlocks(editor.document, blocks);
       syncDirtyState(hasUnsavedQuickEditorContent(content, source));
     },
-    [cancelPendingContentSync, editor, syncDirtyState],
+    [editor, syncDirtyState],
   );
 
   const handleSourceChange = useCallback(
@@ -632,11 +594,7 @@ export function QuickEditorWindow() {
         editor.document as unknown as QuickEditorBlock[],
       ),
     );
-    syncContentToSource({
-      defer:
-        editor.prosemirrorView.state.doc.textContent.length >=
-        LARGE_DOCUMENT_CHAR_LIMIT,
-    });
+    syncContentToSource();
     handleOutlineDocumentChange();
   }, editor);
 
@@ -906,7 +864,6 @@ export function QuickEditorWindow() {
     async (content: string, shouldPushUndo = true) => {
       const currentContent = findContent;
       if (content === currentContent) return;
-      cancelPendingContentSync();
       const revision = ++syncRevisionRef.current;
 
       try {
@@ -931,7 +888,7 @@ export function QuickEditorWindow() {
         // 替换后的 Markdown 无法解析时保留当前内容，避免损坏浮窗草稿。
       }
     },
-    [cancelPendingContentSync, editor, findContent],
+    [editor, findContent],
   );
 
   const replaceCurrentMatch = useCallback(() => {
@@ -1026,7 +983,6 @@ export function QuickEditorWindow() {
       initialContent: QuickEditorWindowContent,
     ) => {
       if (cancelled) return;
-      cancelPendingContentSync();
       const revision = ++syncRevisionRef.current;
       try {
         const blocks = await parseMarkdown(editor, initialContent.content);
@@ -1065,7 +1021,7 @@ export function QuickEditorWindow() {
       cancelled = true;
       unsubscribe();
     };
-  }, [cancelPendingContentSync, editor, syncDirtyState]);
+  }, [editor, syncDirtyState]);
 
   useEffect(() => {
     let active = true;
@@ -1091,7 +1047,6 @@ export function QuickEditorWindow() {
     let cancelled = false;
     const applyLiveContent = async (content: QuickEditorWindowContent) => {
       if (cancelled) return;
-      cancelPendingContentSync();
       const revision = ++syncRevisionRef.current;
       try {
         const blocks = await parseMarkdown(editor, content.content);
@@ -1125,7 +1080,7 @@ export function QuickEditorWindow() {
       cancelled = true;
       unsubscribe();
     };
-  }, [cancelPendingContentSync, editor, syncDirtyState]);
+  }, [editor, syncDirtyState]);
 
   const handleReturnToApplication = useCallback(async () => {
     if (returnInProgressRef.current) return;
@@ -1259,7 +1214,6 @@ export function QuickEditorWindow() {
   ]);
 
   const handleToggleEditorMode = useCallback(async () => {
-    cancelPendingContentSync();
     if (editorMode === "rich") {
       const content = await getCurrentEditorContent();
       sourceMarkdownRef.current = content;
@@ -1286,7 +1240,6 @@ export function QuickEditorWindow() {
       // 源码暂时无法解析时保留源码模式和内容，避免切换过程丢失用户输入。
     }
   }, [
-    cancelPendingContentSync,
     closeFindWidget,
     editor,
     editorMode,
