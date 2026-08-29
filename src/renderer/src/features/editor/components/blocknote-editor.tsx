@@ -64,7 +64,7 @@ import {
   matchesEditorDocumentPath,
 } from "../lib/editor-document-path";
 import {
-  getEditorSerializationQuietPeriod,
+  getEditorSerializationQuietPeriodForLength,
   scheduleEditorIdleTask,
 } from "../lib/editor-large-document";
 import type { RichDocumentRuntime } from "../lib/rich-document-session-manager";
@@ -1497,6 +1497,15 @@ function normalizeNativeTableSelectionHtml(
 
 function normalizeNativeSelectionText(value: string): string {
   return value.replace(/\s+/gu, " ").trim();
+}
+
+function getCurrentEditorTextLength(editor: CoreBlockNoteEditor): number {
+  try {
+    // 读取当前 ProseMirror 文档而不是旧 Markdown 快照，确保“空标签页粘贴长文档”也进入大文档降频策略。
+    return editor.prosemirrorView.state.doc.textContent.length;
+  } catch {
+    return 0;
+  }
 }
 
 export function copyMarkupSelectionAsPlainText(
@@ -3564,7 +3573,9 @@ function MountedBlockNoteEditor({
               void serializeChangeRef.current();
             },
             1200,
-            getEditorSerializationQuietPeriod(contentRef.current),
+            getEditorSerializationQuietPeriodForLength(
+              getCurrentEditorTextLength(editor),
+            ),
           );
         } else {
           serializationQueuedRef.current = false;
@@ -3581,7 +3592,7 @@ function MountedBlockNoteEditor({
       serializationCancelRef.current();
     }
     // 大文档序列化会占用主线程；后台保存让位给弹窗、菜单等即时交互。
-    const docLength = contentRef.current.length;
+    const docLength = getCurrentEditorTextLength(editor);
     const idleTimeout =
       docLength > 20000
         ? 15000
@@ -3596,7 +3607,7 @@ function MountedBlockNoteEditor({
         void serializeChange();
       },
       idleTimeout,
-      getEditorSerializationQuietPeriod(contentRef.current),
+      getEditorSerializationQuietPeriodForLength(docLength),
     );
 
     // 大纲提取同样会遍历整棵文档树，大文档下延后执行，避免抢占点击反馈。
@@ -3605,13 +3616,17 @@ function MountedBlockNoteEditor({
     }
     const outlineIdleTimeout =
       docLength > 20000 ? 12000 : docLength > 12000 ? 7000 : 1500;
-    outlineUpdateCancelRef.current = scheduleEditorIdleTask(() => {
-      outlineUpdateCancelRef.current = null;
-      if (!isActiveEditorRef.current) return;
-      if (serializationInFlightRef.current) return;
+    outlineUpdateCancelRef.current = scheduleEditorIdleTask(
+      () => {
+        outlineUpdateCancelRef.current = null;
+        if (!isActiveEditorRef.current) return;
+        if (serializationInFlightRef.current) return;
 
-      updateOutlineHeadings();
-    }, outlineIdleTimeout);
+        updateOutlineHeadings();
+      },
+      outlineIdleTimeout,
+      getEditorSerializationQuietPeriodForLength(docLength),
+    );
   }, editor);
 
   useEffect(() => {

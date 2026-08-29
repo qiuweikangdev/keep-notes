@@ -16,7 +16,13 @@ export function isLargeEditorDocument(content: string): boolean {
 }
 
 export function getEditorSerializationQuietPeriod(content: string): number {
-  return isLargeEditorDocument(content)
+  return getEditorSerializationQuietPeriodForLength(content.length);
+}
+
+export function getEditorSerializationQuietPeriodForLength(
+  documentLength: number,
+): number {
+  return documentLength >= LARGE_DOCUMENT_CHAR_LIMIT
     ? LARGE_DOCUMENT_SERIALIZATION_QUIET_PERIOD_MS
     : 0;
 }

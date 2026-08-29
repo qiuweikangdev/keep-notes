@@ -1556,6 +1556,90 @@ describe("BlockNoteEditor code paste", () => {
     }
   });
 
+  it("keeps headings when copying a whole document that contains tables and code", () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    vi.stubGlobal("ClipboardEvent", Event);
+
+    const sourceEditor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        { type: "heading", props: { level: 1 }, content: "完整文档标题" },
+        { type: "paragraph", content: "正文" },
+        {
+          type: "table",
+          content: {
+            type: "tableContent",
+            rows: [
+              { cells: ["变量", "说明"] },
+              { cells: ["CRON_SECRET", "定时任务令牌"] },
+            ],
+          },
+        },
+        {
+          type: "codeBlock",
+          props: { language: "text" },
+          content: "curl https://example.com",
+        },
+      ],
+    });
+    const targetEditor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    const sourceView = render(
+      createElement(BlockNoteView, { editor: sourceEditor }),
+    );
+    const targetView = render(
+      createElement(BlockNoteView, { editor: targetEditor }),
+    );
+
+    try {
+      sourceEditor.prosemirrorView.dispatch(
+        sourceEditor.prosemirrorView.state.tr.setSelection(
+          new AllSelection(sourceEditor.prosemirrorView.state.doc),
+        ),
+      );
+
+      const clipboard = new Map<string, string>();
+      const copyEvent = new Event("copy", { bubbles: true, cancelable: true });
+      Object.defineProperty(copyEvent, "clipboardData", {
+        value: {
+          clearData: () => clipboard.clear(),
+          setData: (type: string, value: string) => clipboard.set(type, value),
+        },
+      });
+      sourceEditor.prosemirrorView.dom.dispatchEvent(copyEvent);
+
+      const pasteEvent = new Event("paste", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(pasteEvent, "clipboardData", {
+        value: {
+          getData: (type: string) => clipboard.get(type) ?? "",
+          types: Array.from(clipboard.keys()),
+        },
+      });
+
+      expect(
+        pasteExternalHTMLTables(targetEditor, pasteEvent as ClipboardEvent),
+      ).toBe(true);
+      expect(targetEditor.document.map((block) => block.type)).toEqual([
+        "heading",
+        "paragraph",
+        "table",
+        "codeBlock",
+      ]);
+      expect(targetEditor.document[0]?.content).toEqual([
+        { type: "text", text: "完整文档标题", styles: {} },
+      ]);
+    } finally {
+      sourceView.unmount();
+      targetView.unmount();
+    }
+  });
+
   it("preserves multiline code blocks when pasting copied rich blocks into an empty tab", () => {
     setupMatchMedia();
     setupDomMeasurements();
@@ -3970,6 +4054,65 @@ describe("BlockNoteEditor markup copy", () => {
       targetView.unmount();
     }
   });
+
+  it("repairs cross-block copy when the event originates in CodeMirror", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    vi.stubGlobal("ClipboardEvent", Event);
+    const path = "C:/notes/codemirror-copy-event.md";
+    const markdown = "# Title\n\nIntro\n\n```ts\nconst value = 1;\n```";
+    setupSessionTab(path, { content: markdown, wordCount: markdown.length });
+    const session = renderRealSession(path, false, markdown);
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const editor = session.runtime.current!.editor;
+      let selectionFrom: number | null = null;
+      let selectionTo: number | null = null;
+      editor.prosemirrorView.state.doc.descendants((node, position) => {
+        if (node.isText && node.text === "Title") selectionFrom = position;
+        if (node.isText && node.text === "const value = 1;") {
+          selectionTo = position + node.nodeSize;
+        }
+        return true;
+      });
+      expect(selectionFrom).not.toBeNull();
+      expect(selectionTo).not.toBeNull();
+      editor.prosemirrorView.dispatch(
+        editor.prosemirrorView.state.tr.setSelection(
+          TextSelection.create(
+            editor.prosemirrorView.state.doc,
+            selectionFrom!,
+            selectionTo!,
+          ),
+        ),
+      );
+
+      const codeMirrorContent =
+        editor.domElement.querySelector<HTMLElement>(".cm-content");
+      expect(codeMirrorContent).not.toBeNull();
+      const clipboard = new Map<string, string>();
+      const copyEvent = new Event("copy", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(copyEvent, "clipboardData", {
+        value: {
+          clearData: () => clipboard.clear(),
+          setData: (type: string, value: string) => clipboard.set(type, value),
+        },
+      });
+
+      codeMirrorContent!.dispatchEvent(copyEvent);
+
+      expect(copyEvent.defaultPrevented).toBe(true);
+      expect(clipboard.get("blocknote/html")).toContain("Title");
+      expect(clipboard.get("text/html")).toContain("<h1>");
+      expect(clipboard.get("text/plain")).toContain("const value = 1;");
+    } finally {
+      session.view.unmount();
+    }
+  });
 });
 
 describe("BlockNoteEditor persistent session runtime", () => {
@@ -4005,7 +4148,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
       fireEvent.keyDown(scrollContainer, { key: "x" });
       act(() => {
         runtime.editor.updateBlock(runtime.editor.document[0], {
-          content: `${"x".repeat(LARGE_DOCUMENT_CHAR_LIMIT - 2)}y`,
+          content: "x".repeat(LARGE_DOCUMENT_CHAR_LIMIT),
         });
       });
       const immediateIdleRequests = requestIdleCallback.mock.calls.length;
@@ -4020,6 +4163,55 @@ describe("BlockNoteEditor persistent session runtime", () => {
 
       act(() => vi.advanceTimersByTime(1));
       expect(requestIdleCallback).toHaveBeenCalledTimes(immediateIdleRequests);
+      expect(markdownMocks.serializeMarkdown).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+      session.view.unmount();
+    }
+  });
+
+  it("does not serialize immediately when a large rich paste replaces an empty tab", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/large-paste.md";
+    setupSessionTab(path, { content: "", wordCount: 0 });
+    const session = renderRealSession(path, false, "");
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      await waitFor(() =>
+        expect(markdownMocks.serializeMarkdown).toHaveBeenCalled(),
+      );
+      await act(async () => {
+        await markdownMocks.serializeMarkdown.mock.results[0]?.value;
+      });
+      markdownMocks.serializeMarkdown.mockClear();
+
+      vi.useFakeTimers();
+      const longTitle = "x".repeat(LARGE_DOCUMENT_CHAR_LIMIT);
+      const runtime = session.runtime.current!;
+      fireEvent.keyDown(
+        session.view.container.querySelector<HTMLElement>(
+          ".editor-rich-scroll",
+        ),
+        { key: "x" },
+      );
+      act(() => {
+        // 模拟粘贴完成后的文档替换，验证调度依据新文档长度而不是旧源码快照。
+        runtime.editor.replaceBlocks(runtime.editor.document, [
+          { type: "heading", props: { level: 1 }, content: longTitle },
+        ]);
+      });
+
+      expect(markdownMocks.serializeMarkdown).not.toHaveBeenCalled();
+      act(() =>
+        vi.advanceTimersByTime(
+          LARGE_DOCUMENT_SERIALIZATION_QUIET_PERIOD_MS - 1,
+        ),
+      );
+      expect(markdownMocks.serializeMarkdown).not.toHaveBeenCalled();
+
+      act(() => vi.advanceTimersByTime(1));
       expect(markdownMocks.serializeMarkdown).toHaveBeenCalledOnce();
     } finally {
       vi.useRealTimers();
@@ -4057,7 +4249,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
       fireEvent.keyDown(scrollContainer, { key: "x" });
       act(() => {
         runtime.editor.updateBlock(runtime.editor.document[0], {
-          content: `${"x".repeat(LARGE_DOCUMENT_CHAR_LIMIT - 2)}y`,
+          content: "x".repeat(LARGE_DOCUMENT_CHAR_LIMIT),
         });
       });
       vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
@@ -4112,7 +4304,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
       fireEvent.keyDown(scrollContainer, { key: "x" });
       act(() => {
         runtime.editor.updateBlock(runtime.editor.document[0], {
-          content: `${"x".repeat(LARGE_DOCUMENT_CHAR_LIMIT - 2)}y`,
+          content: "x".repeat(LARGE_DOCUMENT_CHAR_LIMIT),
         });
       });
       const immediateIdleRequests = requestIdleCallback.mock.calls.length;

@@ -32,6 +32,7 @@ import {
 import { useEditorStore } from "@/store/editor.store";
 import { OutlinePanel } from "./outline-panel";
 import { scrollEditorOutlineBlock } from "@/features/editor/lib/editor-outline-navigation";
+import { getEditorDocumentPath } from "@/features/editor/lib/editor-document-path";
 import { normalizeRichDocumentPath } from "@/features/editor/lib/rich-document-surface-registry";
 import { toRichPaneKey } from "@/features/editor/lib/rich-pane-view-state";
 import { useTreeStore } from "@/store/tree.store";
@@ -135,6 +136,15 @@ export function FileTree() {
     );
     return activeTab?.pendingFilePath ?? activeTab?.filePath ?? null;
   });
+  const activeDocumentPath = useEditorStore((state) => {
+    const activeGroup = state.panelGroups.find(
+      (group) => group.id === state.activeGroupId,
+    );
+    const activeTab = activeGroup?.tabs.find(
+      (tab) => tab.id === activeGroup.activeTabId,
+    );
+    return activeTab ? getEditorDocumentPath(activeTab) : null;
+  });
   const openCreateReminder = useReminderStore((s) => s.openCreateDialog);
 
   const [creatingInfo, setCreatingInfo] = useState<CreatingInfo | null>(null);
@@ -170,13 +180,13 @@ export function FileTree() {
     );
     return group ? toRichPaneKey(group.id, group.activeTabId) : null;
   });
-  const normalizedActiveFilePath = activeFilePath
-    ? normalizeRichDocumentPath(activeFilePath)
+  const normalizedActiveDocumentPath = activeDocumentPath
+    ? normalizeRichDocumentPath(activeDocumentPath)
     : null;
   // 标题结构按文档共享，选中标题按 pane 隔离，切换同文件分栏时不会串联状态。
   const headings = useEditorStore((state) =>
-    normalizedActiveFilePath
-      ? (state.outlineHeadingsByPath[normalizedActiveFilePath] ??
+    normalizedActiveDocumentPath
+      ? (state.outlineHeadingsByPath[normalizedActiveDocumentPath] ??
         EMPTY_OUTLINE_HEADINGS)
       : EMPTY_OUTLINE_HEADINGS,
   );
@@ -921,7 +931,7 @@ export function FileTree() {
               <OutlinePanel
                 headings={headings}
                 activeHeadingId={activeHeadingId}
-                resetKey={`${activeOutlinePaneKey ?? "none"}:${activeFilePath ?? ""}`}
+                resetKey={`${activeOutlinePaneKey ?? "none"}:${normalizedActiveDocumentPath ?? ""}`}
                 onHeadingClick={handleHeadingClick}
               />
             )}

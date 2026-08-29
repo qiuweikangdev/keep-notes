@@ -18,6 +18,7 @@ import { KEEP_NOTES_FILE_DRAG_TYPE } from "@/lib/file-drag";
 import { REVEAL_FILE_TREE_NODE_EVENT } from "../utils";
 import { registerEditorOutlineNavigator } from "@/features/editor/lib/editor-outline-navigation";
 import { richDocumentSessionManager } from "@/features/editor/lib/editor-runtime";
+import { getEditorDocumentPath } from "@/features/editor/lib/editor-document-path";
 
 const electronMocks = vi.hoisted(() => ({
   openFolder: vi.fn(),
@@ -347,6 +348,55 @@ describe("FileTree context menu", () => {
     staleManagerBinding.mockRestore();
     unregisterFirst();
     unregisterSecond();
+  });
+
+  it("shows the outline for a pasted document in an untitled tab", () => {
+    const tab = {
+      id: "untitled-tab",
+      filePath: null,
+      pendingFilePath: null,
+      temporaryTitle: null,
+      content: "# Intro\n## Details",
+      wordCount: 16,
+      isDirty: true,
+      reloadKey: 1,
+      mode: "rich" as const,
+      loadStatus: "ready" as const,
+      saveStatus: "dirty" as const,
+      errorMessage: null,
+      parseErrorMessage: null,
+      scrollTop: 0,
+    };
+    const path = getEditorDocumentPath(tab);
+    useEditorStore.setState({
+      activeGroupId: "group-untitled",
+      appearance: {
+        ...useEditorStore.getState().appearance,
+        sidebarView: "outline",
+      },
+      panelGroups: [
+        {
+          id: "group-untitled",
+          activeTabId: tab.id,
+          direction: "horizontal",
+          tabs: [tab],
+        },
+      ],
+      outlineHeadingsByPath: {
+        [path]: [
+          { id: "heading-1", text: "Intro", level: 1 },
+          { id: "heading-2", text: "Details", level: 2 },
+        ],
+      },
+      activeHeadingIdByPane: {
+        "group-untitled:untitled-tab": "heading-1",
+      },
+    });
+
+    render(<FileTree />);
+
+    expect(screen.getByRole("button", { name: "Intro" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Details" })).toBeVisible();
   });
 
   it("opens the diff dialog from the virtualized file node menu", async () => {

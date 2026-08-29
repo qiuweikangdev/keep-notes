@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   LARGE_DOCUMENT_SERIALIZATION_QUIET_PERIOD_MS,
   getEditorSerializationQuietPeriod,
+  getEditorSerializationQuietPeriodForLength,
   scheduleEditorIdleTask,
   type EditorIdleSchedulerEnvironment,
 } from "./editor-large-document";
@@ -97,6 +98,10 @@ describe("large document idle scheduling", () => {
   it("uses the quiet period only at the existing large-document threshold", () => {
     expect(getEditorSerializationQuietPeriod("x".repeat(9_999))).toBe(0);
     expect(getEditorSerializationQuietPeriod("x".repeat(10_000))).toBe(
+      LARGE_DOCUMENT_SERIALIZATION_QUIET_PERIOD_MS,
+    );
+    expect(getEditorSerializationQuietPeriodForLength(9_999)).toBe(0);
+    expect(getEditorSerializationQuietPeriodForLength(10_000)).toBe(
       LARGE_DOCUMENT_SERIALIZATION_QUIET_PERIOD_MS,
     );
   });
