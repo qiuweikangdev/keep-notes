@@ -1,3 +1,22 @@
+## [2.22.6](https://github.com/qiuweikangdev/keep-notes/compare/v2.22.5...v2.22.6) (2026-08-29)
+
+
+### Bug Fixes
+
+* keep rich paste responsive and outline-aware ([3dea3e1](https://github.com/qiuweikangdev/keep-notes/commit/3dea3e11a2b703d722e06e28d67a0ed9fe7659bb))
+* preserve quick editor interaction timing ([c1d1eb1](https://github.com/qiuweikangdev/keep-notes/commit/c1d1eb1a7e36b44e1fe7ba3dee4b4bb30026676d))
+* preserve rich editor clipboard formats ([67a1393](https://github.com/qiuweikangdev/keep-notes/commit/67a1393c90fb71098f9fba26facefb9c4c61ceff))
+* prevent git remote operation timeouts ([066e7ab](https://github.com/qiuweikangdev/keep-notes/commit/066e7abc57e3ee90ccb013bc91dc9df57e439ae4))
+* prevent stale rich surface during tab switch ([b6f877b](https://github.com/qiuweikangdev/keep-notes/commit/b6f877b3d85aeafe990b11c64d729ad5233e29e5))
+* refresh outline after rich paste ([a8013be](https://github.com/qiuweikangdev/keep-notes/commit/a8013bea7304ec796c0699a12c408d423a2fe103))
+* render diff content in electron ([94ba2b4](https://github.com/qiuweikangdev/keep-notes/commit/94ba2b4192ef544f30a1d028c70bc30eca605837))
+
+
+## Commit Summary
+
+- Compared with: v2.22.5
+- Total commits: 7
+
 ## [2.22.5](https://github.com/qiuweikangdev/keep-notes/compare/v2.22.4...v2.22.5) (2026-08-28)
 
 
