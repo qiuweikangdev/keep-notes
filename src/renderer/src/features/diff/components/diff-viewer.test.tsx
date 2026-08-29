@@ -81,8 +81,10 @@ describe("DiffViewer", () => {
     });
 
     const props = fileDiffSpy.mock.calls[0]?.[0] as {
+      disableWorkerPool?: boolean;
       options?: { unsafeCSS?: string };
     };
+    expect(props.disableWorkerPool).toBe(true);
     const unsafeCSS = props.options?.unsafeCSS ?? "";
 
     expect(unsafeCSS).toContain(":host");

@@ -350,6 +350,8 @@ export function DiffViewer({
             fileDiff={fileDiff}
             options={diffOptions}
             className="diff-viewer__pierre"
+            // Electron 渲染进程不使用 Pierre 的 WorkerPool，直接走主线程渲染，避免内容树停留在空白状态。
+            disableWorkerPool
           />
         ) : currentStatus === "error" ? (
           <div className="flex h-full items-center justify-center text-sm text-[var(--text-muted)]">
