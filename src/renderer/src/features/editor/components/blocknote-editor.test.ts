@@ -1437,6 +1437,52 @@ describe("BlockNoteEditor code paste", () => {
     }
   });
 
+  it("updates the outline immediately after rich paste in an untitled tab", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    vi.stubGlobal("ClipboardEvent", Event);
+    const path = "keep-notes-untitled://tab-session";
+    setupSessionTab(path, {
+      filePath: null,
+      pendingFilePath: null,
+      content: "",
+      wordCount: 0,
+    });
+    const session = renderRealSession(path, false, "");
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+
+      const editor = session.runtime.current!.editor;
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "clipboardData", {
+        value: {
+          getData: (type: string) =>
+            type === "text/html"
+              ? "<h1>Pasted title</h1><p>Body</p>"
+              : type === "text/plain"
+                ? "Pasted title\nBody"
+                : "",
+          types: ["text/html", "text/plain"],
+        },
+      });
+
+      act(() => {
+        editor.prosemirrorView.dom.dispatchEvent(event);
+      });
+
+      expect(useEditorStore.getState().outlineHeadingsByPath[path]).toEqual([
+        {
+          id: editor.document[0].id,
+          text: "Pasted title",
+          level: 1,
+        },
+      ]);
+    } finally {
+      session.view.unmount();
+    }
+  });
+
   it("preserves standard rich HTML structure when pasting into an empty tab", () => {
     setupMatchMedia();
     setupDomMeasurements();

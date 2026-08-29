@@ -2291,6 +2291,19 @@ function createEditorOutlineSnapshot(blocks: Block[]): EditorOutlineSnapshot {
   return { activeHeadingIdByBlockId, headings };
 }
 
+function updateActiveEditorOutline(
+  editor: CoreBlockNoteEditor,
+  controller: RichEditorSessionController,
+): void {
+  if (!controller.getActiveBinding()) return;
+
+  // 粘贴会同步替换编辑器文档；在粘贴处理器返回前写入大纲，避免等待空闲任务或切换标签页才刷新。
+  const { headings } = createEditorOutlineSnapshot(editor.document);
+  useEditorStore
+    .getState()
+    .setOutlineHeadingsForPath(controller.path, headings);
+}
+
 function isSameOutlineScrollOwner(
   first: RichPaneScrollOwner,
   second: RichPaneScrollOwner,
@@ -2899,10 +2912,13 @@ function BlockNoteEditorInner(props: BlockNoteEditorInnerProps) {
         CoreBlockNoteEditor.create({
           initialContent: undefined,
           placeholders: { default: EDITOR_EMPTY_PLACEHOLDER },
-          pasteHandler: ({ event, editor, defaultPasteHandler }) =>
-            pasteExternalHTMLTables(editor, event)
-              ? true
-              : defaultPasteHandler(),
+          pasteHandler: ({ event, editor, defaultPasteHandler }) => {
+            const handled = pasteExternalHTMLTables(editor, event);
+            if (!handled) return defaultPasteHandler();
+
+            updateActiveEditorOutline(editor, controller);
+            return true;
+          },
           resolveFileUrl: proxies.resolveFileUrl,
           schema: editorSchema,
           uploadFile: proxies.uploadFile,
@@ -3925,12 +3941,18 @@ function MountedBlockNoteEditor({
   const handlePasteCapture = useCallback(
     (event: React.ClipboardEvent<HTMLDivElement>) => {
       markUserIntent();
-      if (
-        !pasteExternalHTMLTables(editor, event.nativeEvent) &&
-        !pasteMarkupAsPlainText(editor, event.nativeEvent)
-      ) {
+      const handledExternalPaste = pasteExternalHTMLTables(
+        editor,
+        event.nativeEvent,
+      );
+      const handledMarkupPaste =
+        !handledExternalPaste &&
+        pasteMarkupAsPlainText(editor, event.nativeEvent);
+      if (!handledExternalPaste && !handledMarkupPaste) {
         return;
       }
+
+      if (handledExternalPaste) updateOutlineHeadings();
 
       // 容器捕获阶段优先于编辑器实例处理，热更新后也能覆盖旧实例的粘贴规则。
       event.preventDefault();
