@@ -69,6 +69,7 @@ import {
   createRichEditorSelectionDragGuardPlugin,
   EditorFormattingToolbar,
   EditorSideMenuController,
+  copyMarkupSelectionAsPlainText,
   focusEditorOutlineBlock,
   getRichEditorInlineContentFromTarget,
   handleRichEditorHeadingShortcut,
@@ -327,6 +328,18 @@ export function QuickEditorWindow() {
     },
     [editor],
   );
+
+  useEffect(() => {
+    if (editorMode !== "rich") return;
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+
+    const handleNativeCopy = (event: ClipboardEvent) => {
+      copyMarkupSelectionAsPlainText(editor, event);
+    };
+    scrollContainer.addEventListener("copy", handleNativeCopy);
+    return () => scrollContainer.removeEventListener("copy", handleNativeCopy);
+  }, [editor, editorMode]);
 
   useLayoutEffect(() => {
     // 与面板富文本共用撤销深度，避免独立窗口在长时间编辑后过早丢失撤销记录。

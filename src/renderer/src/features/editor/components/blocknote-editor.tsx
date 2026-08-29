@@ -27,6 +27,7 @@ import { CodeXml } from "lucide-react";
 import {
   BlockNoteEditor as CoreBlockNoteEditor,
   getNodeById,
+  selectedFragmentToHTML,
   type Block,
   type InlineContent,
   type PartialBlock,
@@ -41,6 +42,7 @@ import {
   type Selection,
   type Transaction,
 } from "@tiptap/pm/state";
+import { CellSelection } from "@tiptap/pm/tables";
 import {
   Fragment,
   Slice,
@@ -1085,7 +1087,9 @@ export function pasteExternalHTMLTables(
     ) {
       const parsedBlocks = hasInternalCodeBlocks
         ? parsedInternalBlocks
-        : editor.tryParseHTMLToBlocks(internalHTML);
+        : editor.tryParseHTMLToBlocks(
+            hasInternalTableBlock ? internalHTML : externalHTML,
+          );
       if (parsedBlocks && parsedBlocks.length > 0) {
         editor.replaceBlocks(editor.document, parsedBlocks);
         // 整段粘贴会替换占位段落；清掉旧选区映射，避免新文档中的行内代码继承旧编辑范围。
@@ -1115,10 +1119,14 @@ export function pasteExternalHTMLTables(
 
   const externalHTML = clipboardData.getData("text/html");
   const fragment = getPastedHTMLFragment(externalHTML);
+  const normalizedExternalHTML = normalizePastedTableFragmentHtml(externalHTML);
+  const normalizedFragmentHTML = normalizePastedTableFragmentHtml(
+    fragment.html,
+  );
   const completeContainer = document.createElement("div");
-  completeContainer.innerHTML = externalHTML;
+  completeContainer.innerHTML = normalizedExternalHTML;
   const container = document.createElement("div");
-  container.innerHTML = fragment.html;
+  container.innerHTML = normalizedFragmentHTML;
   const completeHasStructuredBlock = Boolean(
     completeContainer.querySelector("table, pre"),
   );
@@ -1133,7 +1141,7 @@ export function pasteExternalHTMLTables(
     // Chromium/Office 会保留完整祖先 HTML，但 StartFragment/EndFragment 才是用户真正选择的单元格或代码文字。
     return insertPastedTextContent(
       editor,
-      fragment.html,
+      normalizedFragmentHTML,
       clipboardData.getData("text/plain"),
     );
   }
@@ -1143,7 +1151,24 @@ export function pasteExternalHTMLTables(
   const codeBlocks = Array.from(container.querySelectorAll("pre")).filter(
     (pre) => !pre.parentElement?.closest("table"),
   );
-  if (tables.length === 0 && codeBlocks.length === 0) return false;
+  if (tables.length === 0 && codeBlocks.length === 0) {
+    const plainText = clipboardData.getData("text/plain");
+    const isRichClipboard = externalHTML !== plainText;
+    if (
+      isRichClipboard &&
+      editor.document.length === 1 &&
+      isEmptyRichEditorParagraph(editor.document[0])
+    ) {
+      const parsedBlocks = editor.tryParseHTMLToBlocks(container.innerHTML);
+      if (parsedBlocks.length > 0) {
+        // 没有 blocknote/html 时，空标签页也要直接按标准 HTML 替换占位段落，保留标题、列表和行内样式。
+        editor.replaceBlocks(editor.document, parsedBlocks);
+        clearInlineCodeEditingState(editor);
+        return true;
+      }
+    }
+    return false;
+  }
 
   const mixedBlocks = parseMixedPastedHTML(editor, container, tables);
   if (!mixedBlocks) return false;
@@ -1201,6 +1226,14 @@ export function pasteMarkupAsPlainText(
     return true;
   }
 
+  const externalHTML = event.clipboardData?.types.includes("text/html")
+    ? event.clipboardData.getData("text/html")
+    : "";
+  if (externalHTML && externalHTML !== source) {
+    // HTML 与纯文本不一致时说明剪贴板包含真正的富文本，不能按源码文本拦截。
+    return false;
+  }
+
   if (!/<\/?[A-Za-z][^>]*>/.test(source)) return false;
 
   // 源码标签按普通文案写入同一段落，避免每个源码行被序列化成独立 Markdown 段落。
@@ -1211,12 +1244,325 @@ export function pasteMarkupAsPlainText(
   return true;
 }
 
-function copyMarkupSelectionAsPlainText(
+function findSelectionTableDepth(position: Selection["$from"]): number | null {
+  for (let depth = position.depth; depth > 0; depth -= 1) {
+    const node = position.node(depth);
+    if (node.type.name === "table" || node.type.spec.tableRole === "table") {
+      return depth;
+    }
+  }
+  return null;
+}
+
+function getSharedSelectionTable(selection: Selection): {
+  blockId: string | null;
+  node: ProseMirrorNode;
+  start: number;
+} | null {
+  const fromDepth = findSelectionTableDepth(selection.$from);
+  const toDepth = findSelectionTableDepth(selection.$to);
+  if (fromDepth === null || toDepth === null) return null;
+
+  const fromStart = selection.$from.before(fromDepth);
+  const toStart = selection.$to.before(toDepth);
+  const fromTable = selection.$from.node(fromDepth);
+  if (fromStart !== toStart || fromTable !== selection.$to.node(toDepth)) {
+    return null;
+  }
+
+  let blockId: string | null = null;
+  for (let depth = fromDepth - 1; depth > 0; depth -= 1) {
+    const node = selection.$from.node(depth);
+    if (
+      node.type.name === "blockContainer" &&
+      typeof node.attrs.id === "string"
+    ) {
+      blockId = node.attrs.id;
+      break;
+    }
+  }
+  return { blockId, node: fromTable, start: fromStart };
+}
+
+function getCompleteTableSelectionBlock(
+  editor: CoreBlockNoteEditor,
+  selection: Selection,
+): Block | null {
+  const table = getSharedSelectionTable(selection);
+  if (!table) return null;
+
+  let totalCellCount = 0;
+  let firstTextPosition: number | null = null;
+  let lastTextPosition: number | null = null;
+  table.node.descendants((node, position) => {
+    if (
+      node.type.name === "tableCell" ||
+      node.type.name === "tableHeader" ||
+      node.type.spec.tableRole === "cell" ||
+      node.type.spec.tableRole === "header_cell"
+    ) {
+      totalCellCount += 1;
+    }
+    if (!node.isText) return true;
+
+    const absolutePosition = table.start + 1 + position;
+    firstTextPosition ??= absolutePosition;
+    lastTextPosition = absolutePosition + node.nodeSize;
+    return true;
+  });
+  if (totalCellCount === 0) return null;
+
+  let isComplete = false;
+  if (selection instanceof CellSelection) {
+    let selectedCellCount = 0;
+    selection.forEachCell(() => {
+      selectedCellCount += 1;
+    });
+    isComplete = selectedCellCount === totalCellCount;
+  } else {
+    isComplete =
+      firstTextPosition !== null &&
+      lastTextPosition !== null &&
+      selection.from <= firstTextPosition &&
+      selection.to >= lastTextPosition;
+  }
+  if (!isComplete || !table.blockId) return null;
+
+  const block = editor.getBlock(table.blockId);
+  return block?.type === "table" ? block : null;
+}
+
+function getCodeBlockDepth(position: Selection["$from"]): number | null {
+  for (let depth = position.depth; depth > 0; depth -= 1) {
+    const node = position.node(depth);
+    if (node.type.name === "codeBlock") return depth;
+  }
+  return null;
+}
+
+function isSelectionInsideSingleCodeBlock(selection: Selection): boolean {
+  const fromDepth = getCodeBlockDepth(selection.$from);
+  const toDepth = getCodeBlockDepth(selection.$to);
+  if (fromDepth === null || toDepth === null) return false;
+
+  return (
+    selection.$from.before(fromDepth) === selection.$to.before(toDepth) &&
+    selection.$from.node(fromDepth) === selection.$to.node(toDepth)
+  );
+}
+
+function selectionContainsCodeBlock(selection: Selection): boolean {
+  let containsCodeBlock = false;
+  selection.$from.doc.nodesBetween(selection.from, selection.to, (node) => {
+    if (node.type.name === "codeBlock") {
+      containsCodeBlock = true;
+      return false;
+    }
+    return !containsCodeBlock;
+  });
+  return containsCodeBlock;
+}
+
+function getNativeRichTextSelection(
+  editor: CoreBlockNoteEditor,
+): { html: string; text: string } | null {
+  const selection = window.getSelection?.();
+  if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+    return null;
+  }
+
+  const editorElement = editor.prosemirrorView.dom;
+  const anchorElement = getElementFromEventTarget(selection.anchorNode);
+  const focusElement = getElementFromEventTarget(selection.focusNode);
+  const anchorCodeMirror = anchorElement?.closest(
+    ".editor-code-block__codemirror, .cm-editor, .cm-content",
+  );
+  const focusCodeMirror = focusElement?.closest(
+    ".editor-code-block__codemirror, .cm-editor, .cm-content",
+  );
+  if (
+    !selection.anchorNode ||
+    !selection.focusNode ||
+    !editorElement.contains(selection.anchorNode) ||
+    !editorElement.contains(selection.focusNode) ||
+    (anchorCodeMirror &&
+      focusCodeMirror &&
+      anchorCodeMirror === focusCodeMirror)
+  ) {
+    return null;
+  }
+
+  const range = selection.getRangeAt(0);
+  if (!editorElement.contains(range.commonAncestorContainer)) return null;
+
+  const container = document.createElement("div");
+  container.append(range.cloneContents());
+  const html = normalizeNativeRichTextSelectionHtml(
+    selection,
+    range,
+    container,
+  );
+  const text = selection.toString();
+  return html && text ? { html, text } : null;
+}
+
+function normalizeTableFragmentHtml(container: HTMLElement): string | null {
+  if (container.querySelector("table")) return container.innerHTML;
+
+  const rows = Array.from(container.querySelectorAll("tr"));
+  if (rows.length > 0) {
+    const table = document.createElement("table");
+    table.innerHTML = container.innerHTML;
+    return table.outerHTML;
+  }
+
+  const cells = Array.from(container.querySelectorAll("td, th"));
+  if (cells.length === 0) return null;
+
+  const table = document.createElement("table");
+  const row = document.createElement("tr");
+  row.append(...cells);
+  table.append(row);
+  return table.outerHTML;
+}
+
+function normalizePastedTableFragmentHtml(source: string): string {
+  const container = document.createElement("div");
+  container.innerHTML = source;
+  return normalizeTableFragmentHtml(container) ?? source;
+}
+
+function normalizeNativeCodeMirrorFragments(container: HTMLDivElement): void {
+  const codeMirrorContents = Array.from(
+    container.querySelectorAll<HTMLElement>(".cm-content"),
+  );
+  for (const content of codeMirrorContents) {
+    const shell = content.closest<HTMLElement>(".editor-code-block-shell");
+    const codeMirrorRoot =
+      shell ??
+      content.closest<HTMLElement>(
+        ".editor-code-block__codemirror, .cm-editor",
+      ) ??
+      content;
+    const lines = Array.from(content.querySelectorAll<HTMLElement>(".cm-line"));
+    const codeText = (
+      lines.length > 0
+        ? lines.map((line) => line.textContent ?? "")
+        : [content.textContent ?? ""]
+    ).join("\n");
+    const pre = document.createElement("pre");
+    const code = document.createElement("code");
+    const language = shell?.dataset.language;
+    if (language) code.dataset.language = language;
+    code.textContent = codeText;
+    pre.append(code);
+    codeMirrorRoot.replaceWith(pre);
+  }
+}
+
+function normalizeNativeRichTextSelectionHtml(
+  selection: globalThis.Selection,
+  range: Range,
+  container: HTMLDivElement,
+): string {
+  // CodeMirror 的 DOM 不是 BlockNote 的标准 HTML，先转换为外部可解析的 pre/code。
+  normalizeNativeCodeMirrorFragments(container);
+  return normalizeNativeTableSelectionHtml(selection, range, container);
+}
+
+function normalizeNativeTableSelectionHtml(
+  selection: globalThis.Selection,
+  range: Range,
+  container: HTMLDivElement,
+): string {
+  const anchorTable = getElementFromEventTarget(selection.anchorNode)?.closest(
+    "table",
+  );
+  const focusTable = getElementFromEventTarget(selection.focusNode)?.closest(
+    "table",
+  );
+  if (!anchorTable || anchorTable !== focusTable) return container.innerHTML;
+
+  if (
+    normalizeNativeSelectionText(range.toString()) ===
+    normalizeNativeSelectionText(anchorTable.textContent ?? "")
+  ) {
+    // 浏览器从表格首个单元格拖到末尾时，cloneContents 只会返回 tr；完整表格复制应补回 table 外壳。
+    return anchorTable.outerHTML;
+  }
+
+  // 部分表格选区也可能只返回 tr/td 片段，补一个合法 table 祖先，避免粘贴解析器把它降级成普通文本。
+  return normalizeTableFragmentHtml(container) ?? container.innerHTML;
+}
+
+function normalizeNativeSelectionText(value: string): string {
+  return value.replace(/\s+/gu, " ").trim();
+}
+
+export function copyMarkupSelectionAsPlainText(
   editor: CoreBlockNoteEditor,
   event: ClipboardEvent,
 ): boolean {
   const selection = editor.prosemirrorView.state.selection;
-  if (selection.empty || !event.clipboardData) return false;
+  const target = getElementFromEventTarget(event.target);
+  const isCodeMirrorTarget = Boolean(
+    target?.closest(".editor-code-block__codemirror, .cm-editor, .cm-content"),
+  );
+  if (!event.clipboardData) return false;
+  const hasRichClipboard = Array.from(event.clipboardData.types ?? []).some(
+    (type) => type === "blocknote/html" || type === "text/html",
+  );
+  if (
+    !selection.empty &&
+    selectionContainsCodeBlock(selection) &&
+    !isSelectionInsideSingleCodeBlock(selection) &&
+    (isCodeMirrorTarget || !hasRichClipboard)
+  ) {
+    // 代码块 NodeView 设置了 contenteditable=false，BlockNote 会跳过这类 copy 事件。
+    // 跨块选区仍应使用 ProseMirror 逻辑选区导出完整的标题、列表、表格和代码块格式。
+    const { clipboardHTML, externalHTML, markdown } = selectedFragmentToHTML(
+      editor.prosemirrorView,
+      editor,
+    );
+    event.preventDefault();
+    event.clipboardData.clearData();
+    event.clipboardData.setData("blocknote/html", clipboardHTML);
+    event.clipboardData.setData("text/html", externalHTML);
+    event.clipboardData.setData("text/plain", markdown);
+    return true;
+  }
+  if (isCodeMirrorTarget && isSelectionInsideSingleCodeBlock(selection)) {
+    // 代码块由 CodeMirror 负责复制，避免富文本编辑器覆盖它的纯文本内容。
+    return false;
+  }
+
+  if (selection.empty) {
+    const nativeSelection = getNativeRichTextSelection(editor);
+    if (!nativeSelection) return false;
+
+    // 逻辑选区为空时 BlockNote 会让浏览器处理复制；这里把真实 DOM 选区补写为标准富文本 MIME。
+    event.preventDefault();
+    event.clipboardData.clearData();
+    event.clipboardData.setData("text/html", nativeSelection.html);
+    event.clipboardData.setData("text/plain", nativeSelection.text);
+    return true;
+  }
+
+  const completeTableBlock = getCompleteTableSelectionBlock(editor, selection);
+  if (completeTableBlock) {
+    // BlockNote 无法导出跨越全部单元格文字的选区；改为重新序列化整张表，并移除失效的内部切片 MIME。
+    event.preventDefault();
+    event.clipboardData.clearData();
+    event.clipboardData.setData(
+      "text/html",
+      editor.blocksToHTMLLossy([completeTableBlock]),
+    );
+    event.clipboardData.setData(
+      "text/plain",
+      editor.blocksToMarkdownLossy([completeTableBlock]),
+    );
+    return true;
+  }
 
   const source = editor.prosemirrorView.state.doc.textBetween(
     selection.from,
@@ -1230,10 +1576,7 @@ function copyMarkupSelectionAsPlainText(
     return false;
   }
 
-  // BlockNote 会把硬换行序列化成反斜杠换行；复制标签源码时改写纯文本，确保代码块拿到原始行结构。
-  event.preventDefault();
-  event.stopImmediatePropagation();
-  event.clipboardData.clearData();
+  // 复制事件在冒泡阶段处理，BlockNote 已先写入 blocknote/html 和 text/html；这里只修正纯文本，保留富文本 MIME。
   event.clipboardData.setData("text/plain", source);
   return true;
 }
@@ -3582,16 +3925,17 @@ function MountedBlockNoteEditor({
     [editor, markUserIntent],
   );
 
-  const handleCopyCapture = useCallback(
-    (event: React.ClipboardEvent<HTMLDivElement>) => {
-      if (!copyMarkupSelectionAsPlainText(editor, event.nativeEvent)) return;
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
 
-      event.preventDefault();
-      event.stopPropagation();
-      event.nativeEvent.stopImmediatePropagation();
-    },
-    [editor],
-  );
+    // 编辑器表面通过 React Portal 挂到 body；直接监听实际 DOM，确保复制兜底不受 Portal 事件委托影响。
+    const handleNativeCopy = (event: ClipboardEvent) => {
+      copyMarkupSelectionAsPlainText(editor, event);
+    };
+    scrollContainer.addEventListener("copy", handleNativeCopy);
+    return () => scrollContainer.removeEventListener("copy", handleNativeCopy);
+  }, [editor]);
 
   const handleDropCapture = useCallback(
     (event: React.DragEvent) => {
@@ -3933,7 +4277,6 @@ function MountedBlockNoteEditor({
       onTouchStartCapture={cancelPendingViewportRestore}
       onWheelCapture={cancelPendingViewportRestore}
       onMouseMoveCapture={handleStaleTableMouseMoveCapture}
-      onCopyCapture={handleCopyCapture}
       onPasteCapture={handlePasteCapture}
       onCutCapture={markUserIntent}
       onCompositionStartCapture={markUserIntent}

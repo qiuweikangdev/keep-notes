@@ -41,6 +41,7 @@ import { RichPreviewCache } from "../lib/rich-preview-cache";
 import {
   BlockNoteEditor,
   createRichEditorSelectionDragGuardPlugin,
+  copyMarkupSelectionAsPlainText,
   EditorFormattingToolbar,
   focusEditorAtPreviewAnchor,
   getRichEditorInlineContentFromTarget,
@@ -1436,6 +1437,55 @@ describe("BlockNoteEditor code paste", () => {
     }
   });
 
+  it("preserves standard rich HTML structure when pasting into an empty tab", () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    vi.stubGlobal("ClipboardEvent", Event);
+
+    const editor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    const view = render(createElement(BlockNoteView, { editor }));
+    const html = [
+      "<h1>飞书机器人热点推送实现说明</h1>",
+      "<p>本文说明项目的用户级飞书热点推送。</p>",
+      "<ol><li><p>整体目标</p></li><li><p>全链路流程</p></li></ol>",
+    ].join("");
+    const plainText =
+      "# 飞书机器人热点推送实现说明\n\n本文说明项目的用户级飞书热点推送。\n\n1. 整体目标\n2. 全链路流程";
+
+    try {
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "clipboardData", {
+        value: {
+          getData: (type: string) =>
+            type === "text/html"
+              ? html
+              : type === "text/plain"
+                ? plainText
+                : "",
+          types: ["text/html", "text/plain"],
+        },
+      });
+
+      expect(pasteExternalHTMLTables(editor, event as ClipboardEvent)).toBe(
+        true,
+      );
+      expect(editor.document.map((block) => block.type)).toEqual([
+        "heading",
+        "paragraph",
+        "numberedListItem",
+        "numberedListItem",
+      ]);
+      expect(editor.document[0].content).toEqual([
+        { type: "text", text: "飞书机器人热点推送实现说明", styles: {} },
+      ]);
+    } finally {
+      view.unmount();
+    }
+  });
+
   it("replaces the initial empty paragraph when pasting copied rich blocks", () => {
     setupMatchMedia();
     setupDomMeasurements();
@@ -2096,6 +2146,101 @@ describe("BlockNoteEditor code paste", () => {
       ]);
     } finally {
       session.view.unmount();
+    }
+  });
+
+  it("preserves a complete table selected by dragging across all cell text", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    vi.stubGlobal("ClipboardEvent", Event);
+    const path = "C:/notes/complete-table-text-selection.md";
+    const source = [
+      "| `Header A` | Header B |",
+      "| --- | --- |",
+      "| Value A | Value B |",
+    ].join("\n");
+    setupSessionTab(path, { content: source, wordCount: source.length });
+    const session = renderRealSession(path, false, source);
+    const targetEditor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    const targetView = render(
+      createElement(BlockNoteView, { editor: targetEditor }),
+    );
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const sourceEditor = session.runtime.current!.editor;
+      await waitFor(() => expect(sourceEditor.document[0]?.type).toBe("table"));
+
+      const textPositions: Array<{ from: number; to: number }> = [];
+      sourceEditor.prosemirrorView.state.doc.descendants((node, position) => {
+        if (node.isText) {
+          textPositions.push({ from: position, to: position + node.nodeSize });
+        }
+        return true;
+      });
+      expect(textPositions).toHaveLength(4);
+      sourceEditor.prosemirrorView.dispatch(
+        sourceEditor.prosemirrorView.state.tr.setSelection(
+          TextSelection.create(
+            sourceEditor.prosemirrorView.state.doc,
+            textPositions[0].from,
+            textPositions.at(-1)!.to,
+          ),
+        ),
+      );
+
+      const clipboard = new Map<string, string>();
+      const copyEvent = new Event("copy", { bubbles: true, cancelable: true });
+      Object.defineProperty(copyEvent, "clipboardData", {
+        value: {
+          clearData: () => clipboard.clear(),
+          getData: (type: string) => clipboard.get(type) ?? "",
+          setData: (type: string, value: string) => clipboard.set(type, value),
+        },
+      });
+      sourceEditor.prosemirrorView.dom.dispatchEvent(copyEvent);
+      expect(clipboard.has("blocknote/html")).toBe(false);
+      expect(clipboard.get("text/html")).toContain("<table>");
+
+      const pasteEvent = new Event("paste", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(pasteEvent, "clipboardData", {
+        value: {
+          getData: (type: string) => clipboard.get(type) ?? "",
+          types: Array.from(clipboard.keys()),
+        },
+      });
+      expect(
+        pasteExternalHTMLTables(targetEditor, pasteEvent as ClipboardEvent),
+      ).toBe(true);
+      expect(targetEditor.document).toHaveLength(1);
+      expect(targetEditor.document[0]).toMatchObject({
+        type: "table",
+        content: {
+          rows: [
+            {
+              cells: [
+                { content: [{ text: "Header A", styles: { code: true } }] },
+                { content: [{ text: "Header B" }] },
+              ],
+            },
+            {
+              cells: [
+                { content: [{ text: "Value A" }] },
+                { content: [{ text: "Value B" }] },
+              ],
+            },
+          ],
+        },
+      });
+    } finally {
+      session.view.unmount();
+      targetView.unmount();
     }
   });
 
@@ -3255,6 +3400,243 @@ describe("BlockNoteEditor code paste", () => {
 });
 
 describe("BlockNoteEditor markup copy", () => {
+  it("repairs a native table selection when the editor selection is empty", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    vi.stubGlobal("ClipboardEvent", Event);
+
+    const path = "C:/notes/native-table-copy.md";
+    const source = [
+      "# Feishu notification",
+      "",
+      "| Variable | Required |",
+      "| --- | --- |",
+      "| `CRON_SECRET` | Yes |",
+      "| `FEISHU_BOT_SECRET` | No |",
+    ].join("\n");
+    setupSessionTab(path, { content: source, wordCount: source.length });
+    const session = renderRealSession(path, false, source);
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const editor = session.runtime.current!.editor;
+      const table = editor.prosemirrorView.dom.querySelector("table");
+      expect(table).not.toBeNull();
+      const firstText = table?.querySelector("th p, td p")?.firstChild;
+      const lastText = table?.querySelector("td:last-child p")?.firstChild;
+      expect(firstText).toBeInstanceOf(Text);
+      expect(lastText).toBeInstanceOf(Text);
+      if (!firstText || !lastText) return;
+
+      const nativeSelection = window.getSelection()!;
+      nativeSelection.removeAllRanges();
+      const range = document.createRange();
+      range.setStart(firstText, 0);
+      range.setEnd(lastText, lastText.textContent?.length ?? 0);
+      nativeSelection.addRange(range);
+
+      const clipboard = new Map<string, string>();
+      const copyEvent = new Event("copy", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(copyEvent, "clipboardData", {
+        value: {
+          clearData: () => clipboard.clear(),
+          setData: (type: string, value: string) => clipboard.set(type, value),
+        },
+      });
+      editor.prosemirrorView.dom.dispatchEvent(copyEvent);
+
+      expect(copyEvent.defaultPrevented).toBe(true);
+      expect(clipboard.get("text/html")).toContain("<table>");
+      expect(clipboard.get("text/plain")).toContain("CRON_SECRET");
+
+      const targetEditor = CoreBlockNoteEditor.create({
+        schema: editorSchema,
+        initialContent: [{ type: "paragraph", content: "" }],
+      });
+      const pasteEvent = new Event("paste", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(pasteEvent, "clipboardData", {
+        value: {
+          getData: (type: string) => clipboard.get(type) ?? "",
+          types: Array.from(clipboard.keys()),
+        },
+      });
+
+      expect(
+        pasteExternalHTMLTables(targetEditor, pasteEvent as ClipboardEvent),
+      ).toBe(true);
+      expect(targetEditor.document).toHaveLength(1);
+      expect(targetEditor.document[0]?.type).toBe("table");
+    } finally {
+      window.getSelection()?.removeAllRanges();
+      session.view.unmount();
+    }
+  });
+
+  it("repairs a native selection that ends inside CodeMirror", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    vi.stubGlobal("ClipboardEvent", Event);
+
+    const path = "C:/notes/native-code-copy.md";
+    const source = [
+      "# Feishu notification",
+      "",
+      "Rich text before the code block.",
+      "",
+      "```json",
+      '{"enabled": true}',
+      "```",
+    ].join("\n");
+    setupSessionTab(path, { content: source, wordCount: source.length });
+    const session = renderRealSession(path, false, source);
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const editor = session.runtime.current!.editor;
+      const headingText =
+        editor.prosemirrorView.dom.querySelector(
+          ".bn-inline-content",
+        )?.firstChild;
+      const codeLine = editor.prosemirrorView.dom.querySelector<HTMLElement>(
+        ".cm-content .cm-line",
+      );
+      expect(headingText).toBeInstanceOf(Text);
+      expect(codeLine).not.toBeNull();
+      if (!headingText || !codeLine) return;
+
+      const nativeSelection = window.getSelection()!;
+      nativeSelection.removeAllRanges();
+      const range = document.createRange();
+      range.setStart(headingText, 0);
+      range.setEnd(codeLine, codeLine.childNodes.length);
+      nativeSelection.addRange(range);
+
+      const clipboard = new Map<string, string>();
+      const copyEvent = new Event("copy", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(copyEvent, "clipboardData", {
+        value: {
+          clearData: () => clipboard.clear(),
+          setData: (type: string, value: string) => clipboard.set(type, value),
+        },
+      });
+      editor.prosemirrorView.dom.dispatchEvent(copyEvent);
+
+      expect(copyEvent.defaultPrevented).toBe(true);
+      expect(clipboard.get("text/html")).toContain("<h1");
+      expect(clipboard.get("text/html")).toContain("<pre>");
+      expect(clipboard.get("text/plain")).toContain('{"enabled": true}');
+    } finally {
+      window.getSelection()?.removeAllRanges();
+      session.view.unmount();
+    }
+  });
+
+  it("writes rich HTML when the browser selection is ahead of the editor selection", () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    vi.stubGlobal("ClipboardEvent", Event);
+
+    const editor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        { type: "heading", props: { level: 1 }, content: "标题" },
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: "加粗", styles: { bold: true } },
+            { type: "text", text: "正文", styles: {} },
+          ],
+        },
+        { type: "numberedListItem", content: "列表" },
+      ],
+    });
+    const view = render(createElement(BlockNoteView, { editor }));
+    const targetEditor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    const targetView = render(
+      createElement(BlockNoteView, { editor: targetEditor }),
+    );
+
+    try {
+      const inlineContents =
+        editor.prosemirrorView.dom.querySelectorAll(".bn-inline-content");
+      const firstText = inlineContents[0]?.firstChild;
+      const lastText = inlineContents[inlineContents.length - 1]?.firstChild;
+      expect(firstText).toBeInstanceOf(Text);
+      expect(lastText).toBeInstanceOf(Text);
+      if (!firstText || !lastText) return;
+
+      const nativeSelection = window.getSelection()!;
+      nativeSelection.removeAllRanges();
+      const range = document.createRange();
+      range.setStart(firstText, 0);
+      range.setEnd(lastText, lastText.textContent?.length ?? 0);
+      nativeSelection.addRange(range);
+
+      const setData = vi.fn();
+      const copyEvent = new Event("copy", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(copyEvent, "clipboardData", {
+        value: { clearData: vi.fn(), setData },
+      });
+
+      expect(
+        copyMarkupSelectionAsPlainText(editor, copyEvent as ClipboardEvent),
+      ).toBe(true);
+      expect(copyEvent.defaultPrevented).toBe(true);
+      const html = setData.mock.calls.find(
+        ([type]) => type === "text/html",
+      )?.[1];
+      if (typeof html !== "string") throw new Error("Rich HTML was not copied");
+      expect(html).toEqual(expect.stringContaining("<h1"));
+      expect(html).toEqual(expect.stringContaining("<strong>"));
+      expect(html).toEqual(
+        expect.stringContaining('data-content-type="numberedListItem"'),
+      );
+
+      const pasteEvent = new Event("paste", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(pasteEvent, "clipboardData", {
+        value: {
+          getData: (type: string) =>
+            type === "text/html"
+              ? html
+              : type === "text/plain"
+                ? "标题加粗正文列表"
+                : "",
+          types: ["text/html", "text/plain"],
+        },
+      });
+      expect(
+        pasteExternalHTMLTables(targetEditor, pasteEvent as ClipboardEvent),
+      ).toBe(true);
+      expect(targetEditor.document.map((block) => block.type)).toEqual([
+        "heading",
+        "paragraph",
+        "numberedListItem",
+      ]);
+    } finally {
+      window.getSelection()?.removeAllRanges();
+      view.unmount();
+      targetView.unmount();
+    }
+  });
+
   it("preserves markup line breaks when copying from rich text", async () => {
     setupMatchMedia();
     setupDomMeasurements();
@@ -3371,6 +3753,221 @@ describe("BlockNoteEditor markup copy", () => {
       );
     } finally {
       session.view.unmount();
+    }
+  });
+
+  it("keeps rich clipboard formats when copying multiline formatted content", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    vi.stubGlobal("ClipboardEvent", Event);
+
+    const path = "C:/notes/multiline-formatted-copy.md";
+    const source = "# Title\n\n**Bold text** with {braces}";
+    setupSessionTab(path, { content: source, wordCount: source.length });
+    const session = renderRealSession(path, false, source);
+    const targetEditor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    const targetView = render(
+      createElement(BlockNoteView, { editor: targetEditor }),
+    );
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const sourceEditor = session.runtime.current!.editor;
+      sourceEditor.prosemirrorView.dispatch(
+        sourceEditor.prosemirrorView.state.tr.setSelection(
+          new AllSelection(sourceEditor.prosemirrorView.state.doc),
+        ),
+      );
+
+      const clipboard = new Map<string, string>();
+      const copyEvent = new Event("copy", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(copyEvent, "clipboardData", {
+        value: {
+          clearData: () => clipboard.clear(),
+          setData: (type: string, value: string) => clipboard.set(type, value),
+        },
+      });
+      sourceEditor.prosemirrorView.dom.dispatchEvent(copyEvent);
+
+      expect(clipboard.has("blocknote/html")).toBe(true);
+      expect(clipboard.get("text/html")).toContain("<strong>");
+      expect(clipboard.get("text/plain")).toContain("Title");
+      expect(clipboard.get("text/plain")).toContain("braces");
+
+      const pasteEvent = new Event("paste", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(pasteEvent, "clipboardData", {
+        value: {
+          getData: (type: string) => clipboard.get(type) ?? "",
+          types: Array.from(clipboard.keys()),
+        },
+      });
+
+      expect(
+        pasteExternalHTMLTables(targetEditor, pasteEvent as ClipboardEvent),
+      ).toBe(true);
+      expect(targetEditor.document.map((block) => block.type)).toEqual([
+        "heading",
+        "paragraph",
+      ]);
+      expect(targetEditor.document[1].content).toEqual([
+        { type: "text", text: "Bold text", styles: { bold: true } },
+        { type: "text", text: " with {braces}", styles: {} },
+      ]);
+    } finally {
+      session.view.unmount();
+      targetView.unmount();
+    }
+  });
+
+  it("preserves a mixed document selection ending inside a code block", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    vi.stubGlobal("ClipboardEvent", Event);
+
+    const markdown = [
+      "# 飞书机器人热点推送",
+      "",
+      "本文说明 `ai-hot-trend` 当前已接入的飞书群机器人热点推送。",
+      "",
+      "## 适用范围",
+      "",
+      "- 推送目标是飞书群里的自定义机器人。",
+      "- 需要取得 Webhook 地址。",
+      "",
+      "```json",
+      "{",
+      '  "path": "/api/notify/feishu/daily",',
+      '  "schedule": "0 1 * * *"',
+      "}",
+      "```",
+      "",
+      "| 变量 | 用途 | 本地是否需要 |",
+      "| --- | --- | --- |",
+      "| `CRON_SECRET` | Vercel Cron 调度令牌 | 必填 |",
+      "| `FEISHU_BOT_SECRET` | 飞书签名密钥 | 可选 |",
+      "",
+      "## 本地验证",
+      "",
+      "```bash",
+      "pnpm dev",
+      "```",
+    ].join("\n");
+    const sourceEditor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    const targetEditor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    const sourceView = render(
+      createElement(BlockNoteView, { editor: sourceEditor }),
+    );
+    const targetView = render(
+      createElement(BlockNoteView, { editor: targetEditor }),
+    );
+
+    try {
+      sourceEditor.replaceBlocks(
+        sourceEditor.document,
+        await parseMarkdown(sourceEditor, markdown),
+      );
+      let selectionFrom: number | null = null;
+      let selectionTo: number | null = null;
+      sourceEditor.prosemirrorView.state.doc.descendants((node, position) => {
+        if (node.isText && node.text === "飞书机器人热点推送") {
+          selectionFrom = position;
+        }
+        if (node.isText && node.text === "pnpm dev") {
+          selectionTo = position + "pnpm".length;
+        }
+        return true;
+      });
+      expect(selectionFrom).not.toBeNull();
+      expect(selectionTo).not.toBeNull();
+      sourceEditor.prosemirrorView.dispatch(
+        sourceEditor.prosemirrorView.state.tr.setSelection(
+          TextSelection.create(
+            sourceEditor.prosemirrorView.state.doc,
+            selectionFrom!,
+            selectionTo!,
+          ),
+        ),
+      );
+
+      const clipboard = new Map<string, string>();
+      const copyEvent = new Event("copy", { bubbles: true, cancelable: true });
+      Object.defineProperty(copyEvent, "clipboardData", {
+        value: {
+          clearData: () => clipboard.clear(),
+          setData: (type: string, value: string) => clipboard.set(type, value),
+        },
+      });
+      sourceEditor.prosemirrorView.dom.dispatchEvent(copyEvent);
+
+      // 真实跨块拖选通常以代码块的 CodeMirror 节点作为 copy 事件目标。
+      // 用同一个逻辑选区模拟该事件目标，确认不会被误判为“代码块内复制”。
+      const copyRepairEvent = new Event("copy", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(copyRepairEvent, "clipboardData", {
+        value: {
+          clearData: () => clipboard.clear(),
+          setData: (type: string, value: string) => clipboard.set(type, value),
+        },
+      });
+      const codeMirrorTarget = document.createElement("div");
+      codeMirrorTarget.className = "cm-content";
+      Object.defineProperty(copyRepairEvent, "target", {
+        configurable: true,
+        value: codeMirrorTarget,
+      });
+      copyMarkupSelectionAsPlainText(
+        sourceEditor,
+        copyRepairEvent as ClipboardEvent,
+      );
+
+      expect(clipboard.get("text/html")).toContain("<h1>");
+      expect(clipboard.get("blocknote/html")).toBeTruthy();
+
+      const pasteEvent = new Event("paste", {
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(pasteEvent, "clipboardData", {
+        value: {
+          getData: (type: string) => clipboard.get(type) ?? "",
+          types: Array.from(clipboard.keys()),
+        },
+      });
+      expect(
+        pasteExternalHTMLTables(targetEditor, pasteEvent as ClipboardEvent),
+      ).toBe(true);
+
+      expect(targetEditor.document.map((block) => block.type)).toEqual(
+        sourceEditor.document.map((block) => block.type),
+      );
+      expect(
+        targetEditor.document.filter((block) => block.type === "table"),
+      ).toHaveLength(1);
+      expect(
+        targetEditor.document.filter((block) => block.type === "codeBlock"),
+      ).toHaveLength(2);
+      expect(JSON.stringify(targetEditor.document)).toContain("CRON_SECRET");
+      expect(JSON.stringify(targetEditor.document)).toContain("pnpm");
+    } finally {
+      sourceView.unmount();
+      targetView.unmount();
     }
   });
 });
