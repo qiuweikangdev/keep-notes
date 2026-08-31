@@ -1,3 +1,22 @@
+## [2.22.7](https://github.com/qiuweikangdev/keep-notes/compare/v2.22.6...v2.22.7) (2026-08-31)
+
+
+### Bug Fixes
+
+* flush live rich edits before window close ([52680bb](https://github.com/qiuweikangdev/keep-notes/commit/52680bb078bae731b21f36cf5bdab6fc0ba0eb56))
+* isolate find replacement undo by document ([5085fdd](https://github.com/qiuweikangdev/keep-notes/commit/5085fdd48fb5b0846275cfcbe728cdb1c2b19893))
+* reconcile rich content before source mode ([57886f9](https://github.com/qiuweikangdev/keep-notes/commit/57886f9fc2f9c503e4c5ff0b53f2b02635ce646a))
+* replace text from the latest rich snapshot ([953b906](https://github.com/qiuweikangdev/keep-notes/commit/953b906cecc2d904ee8bca31ef5b3310894ed008))
+* save tabs through every close action ([a6b89bc](https://github.com/qiuweikangdev/keep-notes/commit/a6b89bc62a01d325296a4d27ba0eb0a9976d61fa))
+* snapshot rich content before diff actions ([46d6352](https://github.com/qiuweikangdev/keep-notes/commit/46d63528b82b0f2894eda6cb7e1cd32adc6362e3))
+* surface and retry rich serialization errors ([bdf1716](https://github.com/qiuweikangdev/keep-notes/commit/bdf17166e178037e2f38a83bc0badbabb1b554e4))
+
+
+## Commit Summary
+
+- Compared with: v2.22.6
+- Total commits: 7
+
 ## [2.22.6](https://github.com/qiuweikangdev/keep-notes/compare/v2.22.5...v2.22.6) (2026-08-29)
 
 
