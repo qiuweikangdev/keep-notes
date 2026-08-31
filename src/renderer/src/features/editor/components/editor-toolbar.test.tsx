@@ -96,6 +96,28 @@ function renderToolbar({
   );
 }
 
+function registerDeferredRichSnapshot(path: string, latestContent: string) {
+  let finishSerialization!: () => void;
+  const serializationGate = new Promise<void>((resolve) => {
+    finishSerialization = resolve;
+  });
+  const serializePendingChange = vi.fn(async () => {
+    await serializationGate;
+    useEditorStore.getState().syncFileContent(path, latestContent);
+  });
+  unregisterRuntime = richDocumentSessionManager.registerRuntime(path, {
+    path,
+    surface: document.createElement("div"),
+    serializePendingChange,
+    cancelPendingWork: vi.fn(),
+    destroy: vi.fn(),
+    isDirty: () => true,
+    isSaving: () => false,
+    isReloading: () => false,
+  });
+  return { finishSerialization, serializePendingChange };
+}
+
 describe("EditorToolbar diff action", () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -270,6 +292,71 @@ describe("EditorToolbar diff action", () => {
           repositoryRoot: "/notes",
         },
       });
+    });
+  });
+
+  it("opens a large document floating window with the latest rich snapshot", async () => {
+    const path = "/notes/readme.md";
+    const latestContent = `${"latest ".repeat(1600)}content`;
+    const { finishSerialization, serializePendingChange } =
+      registerDeferredRichSnapshot(path, latestContent);
+    useEditorStore.setState((state) => ({
+      panelGroups: state.panelGroups.map((group) => ({
+        ...group,
+        tabs: group.tabs.map((tab) => ({
+          ...tab,
+          content: "x".repeat(10_000),
+        })),
+      })),
+    }));
+    renderToolbar();
+
+    openActionMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "浮动窗口" }));
+
+    await waitFor(() => expect(serializePendingChange).toHaveBeenCalledOnce());
+    expect(window.electronAPI.createQuickEditorWindow).not.toHaveBeenCalled();
+    finishSerialization();
+    await waitFor(() => {
+      expect(window.electronAPI.createQuickEditorWindow).toHaveBeenCalledWith(
+        expect.objectContaining({ content: latestContent }),
+      );
+    });
+  });
+
+  it("compares a large document with the latest rich snapshot", async () => {
+    const path = "/notes/readme.md";
+    const latestContent = `${"latest diff ".repeat(1200)}content`;
+    const { finishSerialization, serializePendingChange } =
+      registerDeferredRichSnapshot(path, latestContent);
+    electronMocks.getFileHeadContent.mockResolvedValue({
+      code: CodeResult.Success,
+      data: "# Head",
+    });
+    useEditorStore.setState((state) => ({
+      panelGroups: state.panelGroups.map((group) => ({
+        ...group,
+        tabs: group.tabs.map((tab) => ({
+          ...tab,
+          content: "x".repeat(10_000),
+        })),
+      })),
+    }));
+    renderToolbar();
+
+    await screen.findByRole("button", { name: "标签页操作" });
+    openActionMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "比较差异" }));
+
+    await waitFor(() => expect(serializePendingChange).toHaveBeenCalledOnce());
+    expect(electronMocks.getFileHeadContent).not.toHaveBeenCalled();
+    finishSerialization();
+    await waitFor(() => {
+      expect(diffStoreMock.openDiff).toHaveBeenCalledWith(
+        path,
+        "# Head",
+        latestContent,
+      );
     });
   });
 

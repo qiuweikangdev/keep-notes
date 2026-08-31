@@ -15,7 +15,11 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { useElectron } from "@/hooks/use-electron";
 import { useDiffStore } from "@/store/diff.store";
-import { useEditorStore, type EditorMode } from "@/store/editor.store";
+import {
+  useEditorStore,
+  type EditorMode,
+  type EditorTab,
+} from "@/store/editor.store";
 import { useTreeStore } from "@/store/tree.store";
 import { CodeResult } from "@/types";
 import { getRevealInFileManagerLabel } from "@/features/file-tree/utils";
@@ -32,7 +36,6 @@ import {
   richDocumentSessionManager,
 } from "../lib/editor-runtime";
 import { discardFileChanges } from "../lib/discard-file-changes";
-import { shouldFlushRichEditorBeforeAction } from "../lib/editor-large-document";
 import { selectEditorToolbarSignature } from "../lib/editor-view-selectors";
 
 interface EditorToolbarProps {
@@ -99,28 +102,37 @@ export function EditorToolbar({
     };
   }, [detectGitRepo, repositoryRoot]);
 
-  const handleModeChange = useCallback(
-    async (mode: EditorMode) => {
-      const currentTab = getActiveTab();
-      if (!currentTab || currentTab.mode === mode) return;
-
-      if (currentTab.mode === "rich" && mode === "source") {
-        const documentPath = getEditorDocumentPath(currentTab);
+  const flushRichSnapshot = useCallback(
+    async (
+      targetTab: EditorTab,
+      reconcileSource = false,
+    ): Promise<EditorTab | null> => {
+      if (targetTab.mode === "rich") {
+        const documentPath = getEditorDocumentPath(targetTab);
         if (richDocumentSessionManager.getRuntime(documentPath)) {
           await richDocumentSessionManager.serializePendingChange(
             documentPath,
-            {
-              reconcileSource: true,
-            },
+            { reconcileSource },
           );
         } else {
-          await flushEditorChange(groupId, currentTab.id, {
-            reconcileSource: true,
-          });
+          await flushEditorChange(groupId, targetTab.id, { reconcileSource });
         }
-        // 等待期间用户可能切换标签；只提交最初目标，避免异步结果改错活动文档。
-        const latestTab = getActiveTab();
-        if (!latestTab || latestTab.id !== currentTab.id) return;
+      }
+
+      const latestTab = getActiveTab();
+      return latestTab?.id === targetTab.id ? latestTab : null;
+    },
+    [getActiveTab, groupId],
+  );
+
+  const handleModeChange = useCallback(
+    async (mode: EditorMode) => {
+      let currentTab = getActiveTab();
+      if (!currentTab || currentTab.mode === mode) return;
+
+      if (currentTab.mode === "rich" && mode === "source") {
+        currentTab = await flushRichSnapshot(currentTab, true);
+        if (!currentTab) return;
       }
       if (mode === "rich") {
         setTabParseError(groupId, currentTab.id, null);
@@ -133,28 +145,16 @@ export function EditorToolbar({
         reloadRichDocument: !canReuseRichDocument,
       });
     },
-    [getActiveTab, groupId, setTabMode, setTabParseError],
+    [flushRichSnapshot, getActiveTab, groupId, setTabMode, setTabParseError],
   );
 
   const handleDiff = useCallback(async () => {
-    const currentTab = getActiveTab();
+    let currentTab = getActiveTab();
     if (!currentTab?.filePath || !repositoryRoot) return;
+    currentTab = await flushRichSnapshot(currentTab);
+    if (!currentTab?.filePath) return;
     const filePath = currentTab.filePath;
-
-    // 大文档富文本序列化会阻塞主线程；小文档才同步 flush，保证菜单和弹窗先响应。
-    if (
-      currentTab.mode === "rich" &&
-      shouldFlushRichEditorBeforeAction(currentTab.content)
-    ) {
-      await flushEditorChange(groupId, currentTab.id);
-    }
-
-    // 直接使用当前标签快照；大文档不再为了 diff 弹窗强制等待整文序列化。
-    const matchedTab = useEditorStore
-      .getState()
-      .panelGroups.flatMap((g) => g.tabs)
-      .find((t) => t.id === currentTab.id);
-    const editorContent = matchedTab?.content ?? currentTab.content;
+    const editorContent = currentTab.content;
 
     const relativePath = toGitRelativePath(repositoryRoot, filePath);
     const result = await getFileHeadContent(repositoryRoot, relativePath);
@@ -183,10 +183,10 @@ export function EditorToolbar({
     updateContent(headContent, editorContent);
   }, [
     closeDiff,
+    flushRichSnapshot,
     getActiveTab,
     getFileHeadContent,
     getGitStatus,
-    groupId,
     openDiff,
     repositoryRoot,
     updateContent,
@@ -208,14 +208,7 @@ export function EditorToolbar({
     let currentTab = getActiveTab();
     if (!currentTab) return;
 
-    if (
-      currentTab.mode === "rich" &&
-      shouldFlushRichEditorBeforeAction(currentTab.content)
-    ) {
-      await flushEditorChange(groupId, currentTab.id);
-      currentTab = getActiveTab();
-    }
-
+    currentTab = await flushRichSnapshot(currentTab);
     if (!currentTab) return;
     window.electronAPI.createQuickEditorWindow({
       content: currentTab.content,
@@ -227,7 +220,7 @@ export function EditorToolbar({
         repositoryRoot,
       },
     });
-  }, [getActiveTab, groupId, repositoryRoot]);
+  }, [flushRichSnapshot, getActiveTab, groupId, repositoryRoot]);
 
   const handleDiscard = useCallback(async () => {
     const currentTab = getActiveTab();
