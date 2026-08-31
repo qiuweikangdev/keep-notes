@@ -518,6 +518,51 @@ describe("EditorWorkspace split rich editor mount", () => {
     );
   });
 
+  it("does not apply a replacement undo snapshot to another tab", async () => {
+    useEditorStore.setState({
+      activeGroupId: "group-1",
+      panelGroups: [
+        {
+          id: "group-1",
+          activeTabId: "tab-a",
+          direction: "horizontal",
+          tabs: [
+            createTab("tab-a", "a.md", "token A"),
+            createTab("tab-b", "b.md", "token B"),
+          ],
+        },
+      ],
+    });
+    const view = render(<EditorWorkspace groupId="group-1" tabId="tab-a" />);
+    act(() => editorFindController.open("group-1", "tab-a"));
+    fireEvent.change(screen.getByPlaceholderText("查找"), {
+      target: { value: "token" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "展开替换" }));
+    fireEvent.change(screen.getByPlaceholderText("替换"), {
+      target: { value: "changed" },
+    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "替换全部匹配" }),
+    );
+    await waitFor(() => {
+      expect(useEditorStore.getState().panelGroups[0].tabs[0].content).toBe(
+        "changed A",
+      );
+    });
+
+    act(() => useEditorStore.getState().setActiveTab("group-1", "tab-b"));
+    view.rerender(<EditorWorkspace groupId="group-1" tabId="tab-b" />);
+    fireEvent.keyDown(screen.getByRole("search"), {
+      key: "z",
+      ctrlKey: true,
+    });
+
+    expect(useEditorStore.getState().panelGroups[0].tabs[1].content).toBe(
+      "token B",
+    );
+  });
+
   it("cancels pending rich work before repairing source content", async () => {
     useEditorStore.setState((state) => ({
       panelGroups: state.panelGroups.map((group) =>

@@ -59,7 +59,7 @@ export function EditorWorkspace({
 }) {
   const editorRootRef = useRef<HTMLDivElement>(null);
   const sourceEditorRef = useRef<HTMLTextAreaElement>(null);
-  const replacementUndoStackRef = useRef<string[]>([]);
+  const replacementUndoStacksRef = useRef(new Map<string, string[]>());
   const [isFindOpen, setIsFindOpen] = useState(false);
   const [findFocusRequestKey, setFindFocusRequestKey] = useState(0);
   const [isReplaceOpen, setIsReplaceOpen] = useState(false);
@@ -302,7 +302,10 @@ export function EditorWorkspace({
       if (!currentTab) return;
       if (content === currentTab.content) return;
       if (shouldPushUndo) {
-        replacementUndoStackRef.current.push(currentTab.content);
+        const undoKey = `${groupId}:${tabId}:${getEditorDocumentPath(currentTab)}`;
+        const undoStack = replacementUndoStacksRef.current.get(undoKey) ?? [];
+        undoStack.push(currentTab.content);
+        replacementUndoStacksRef.current.set(undoKey, undoStack);
       }
       setTabContent(groupId, tabId, content);
       if (currentTab.filePath) {
@@ -380,10 +383,18 @@ export function EditorWorkspace({
   ]);
 
   const undoLastReplacement = useCallback(() => {
-    const previousContent = replacementUndoStackRef.current.pop();
-    if (!previousContent) return;
+    const currentTab = getCurrentTab();
+    if (!currentTab) return;
+    const undoKey = `${groupId}:${tabId}:${getEditorDocumentPath(currentTab)}`;
+    const undoStack = replacementUndoStacksRef.current.get(undoKey);
+    if (!undoStack) return;
+    const previousContent = undoStack.pop();
+    if (previousContent === undefined) return;
+    if (undoStack.length === 0) {
+      replacementUndoStacksRef.current.delete(undoKey);
+    }
     applyFindReplacement(previousContent, false);
-  }, [applyFindReplacement]);
+  }, [applyFindReplacement, getCurrentTab, groupId, tabId]);
 
   const selectAllMatches = useCallback(() => {
     if (!findQuery || rawMatches.length === 0) return;
