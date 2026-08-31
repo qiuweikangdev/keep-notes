@@ -25,10 +25,9 @@ import {
 } from "@/features/diff/lib/diff-toast";
 import { areDiffContentsEqual } from "@/features/diff/lib/diff-content";
 import { hasNoHeadVersion, toGitRelativePath } from "../lib/editor-git-actions";
+import { getEditorDocumentPath } from "../lib/editor-document-path";
 import {
-  backgroundEditorSaveCoordinator,
   editorCache,
-  editorSaveCoordinator,
   flushEditorChange,
   richDocumentSessionManager,
 } from "../lib/editor-runtime";
@@ -106,43 +105,22 @@ export function EditorToolbar({
       if (!currentTab || currentTab.mode === mode) return;
 
       if (currentTab.mode === "rich" && mode === "source") {
-        const shouldSaveInBackground =
-          currentTab.filePath !== null &&
-          !shouldFlushRichEditorBeforeAction(currentTab.content);
-        if (!shouldSaveInBackground) {
+        const documentPath = getEditorDocumentPath(currentTab);
+        if (richDocumentSessionManager.getRuntime(documentPath)) {
+          await richDocumentSessionManager.serializePendingChange(
+            documentPath,
+            {
+              reconcileSource: true,
+            },
+          );
+        } else {
           await flushEditorChange(groupId, currentTab.id, {
             reconcileSource: true,
           });
-        } else {
-          const filePath = currentTab.filePath;
-          const releaseBackground = richDocumentSessionManager.retainBackground(
-            filePath,
-            currentTab.id,
-          );
-          backgroundEditorSaveCoordinator.track({
-            path: filePath,
-            flush: async () => {
-              await richDocumentSessionManager.serializePendingChange(
-                filePath,
-                {
-                  reconcileSource: true,
-                },
-              );
-              return editorSaveCoordinator.flush(filePath);
-            },
-            getContent: () => editorSaveCoordinator.getPendingContent(filePath),
-            release: releaseBackground,
-          });
-
-          // 先切换界面让浏览器完成绘制，再序列化大文档；后台持有确保旧会话不会被提前销毁。
-          setTabMode(groupId, currentTab.id, mode);
-          window.setTimeout(() => {
-            void backgroundEditorSaveCoordinator
-              .flush(filePath)
-              .catch(() => undefined);
-          }, 0);
-          return;
         }
+        // 等待期间用户可能切换标签；只提交最初目标，避免异步结果改错活动文档。
+        const latestTab = getActiveTab();
+        if (!latestTab || latestTab.id !== currentTab.id) return;
       }
       if (mode === "rich") {
         setTabParseError(groupId, currentTab.id, null);

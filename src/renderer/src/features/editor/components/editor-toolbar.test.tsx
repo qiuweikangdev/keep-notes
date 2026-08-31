@@ -301,7 +301,7 @@ describe("EditorToolbar diff action", () => {
     });
   });
 
-  it("switches a large document immediately and saves its rich-text changes in the background", async () => {
+  it("waits for the latest large rich snapshot before switching to source mode", async () => {
     const path = "/notes/readme.md";
     const latestContent = `${"large content ".repeat(900)}updated`;
     let finishSerialization!: () => void;
@@ -343,14 +343,15 @@ describe("EditorToolbar diff action", () => {
     openActionMenu();
     fireEvent.click(screen.getByRole("menuitem", { name: "编辑模式切换" }));
 
-    expect(useEditorStore.getState().panelGroups[0].tabs[0].mode).toBe(
-      "source",
-    );
     await waitFor(() => expect(serializePendingChange).toHaveBeenCalledOnce());
-    expect(backgroundEditorSaveCoordinator.hasPending(path)).toBe(true);
+    expect(useEditorStore.getState().panelGroups[0].tabs[0].mode).toBe("rich");
 
     finishSerialization();
     await waitFor(() => {
+      expect(useEditorStore.getState().panelGroups[0].tabs[0]).toMatchObject({
+        mode: "source",
+        content: latestContent,
+      });
       expect(window.electronAPI.writeFile).toHaveBeenCalledWith(
         path,
         latestContent,
