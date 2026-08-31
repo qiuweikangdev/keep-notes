@@ -13,6 +13,7 @@ import {
   editorSaveCoordinator,
   flushEditorChange,
 } from "@/features/editor/lib/editor-runtime";
+import { closeEditorTab } from "@/features/editor/lib/editor-tab-closing";
 
 /**
  * 将 KeyboardEvent 转换为内部快捷键字符串
@@ -114,10 +115,22 @@ export function useKeyboardShortcuts() {
   const treeData = useTreeStore((state) => state.treeData);
   const setFilePath = useEditorStore((state) => state.setFilePath);
   const resetEditor = useEditorStore((state) => state.resetEditor);
-  const removeTab = useEditorStore((state) => state.removeTab);
   const isSettingsOpen = useUIStore((state) => state.isSettingsOpen);
   const setSettingsOpen = useUIStore((state) => state.setSettingsOpen);
   const shortcutMap = useShortcutMap();
+
+  const closeActiveEditorTab = useCallback(() => {
+    const state = useEditorStore.getState();
+    const activeGroup = state.panelGroups.find(
+      (group) => group.id === state.activeGroupId,
+    );
+    if (activeGroup) {
+      void closeEditorTab(activeGroup.id, activeGroup.activeTabId);
+    } else if (state.filePath) {
+      setFilePath(null);
+      resetEditor();
+    }
+  }, [resetEditor, setFilePath]);
 
   const saveActiveEditorAs = useCallback(async () => {
     const target = getActiveEditorTarget();
@@ -186,16 +199,7 @@ export function useKeyboardShortcuts() {
 
         case "closeTab": {
           e.preventDefault();
-          const state = useEditorStore.getState();
-          const activeGroup = state.panelGroups.find(
-            (g) => g.id === state.activeGroupId,
-          );
-          if (activeGroup) {
-            removeTab(activeGroup.id, activeGroup.activeTabId);
-          } else if (state.filePath) {
-            setFilePath(null);
-            resetEditor();
-          }
+          closeActiveEditorTab();
           break;
         }
 
@@ -245,11 +249,9 @@ export function useKeyboardShortcuts() {
       openFolder,
       treeRoot,
       treeData,
-      setFilePath,
-      resetEditor,
       toggleCollapse,
       toggleTheme,
-      removeTab,
+      closeActiveEditorTab,
       isSettingsOpen,
       saveActiveEditorFile,
     ],
@@ -291,16 +293,7 @@ export function useKeyboardShortcuts() {
           break;
 
         case "closeTab": {
-          const state = useEditorStore.getState();
-          const activeGroup = state.panelGroups.find(
-            (g) => g.id === state.activeGroupId,
-          );
-          if (activeGroup) {
-            removeTab(activeGroup.id, activeGroup.activeTabId);
-          } else if (state.filePath) {
-            setFilePath(null);
-            resetEditor();
-          }
+          closeActiveEditorTab();
           break;
         }
 
@@ -328,9 +321,7 @@ export function useKeyboardShortcuts() {
     treeRoot,
     treeData,
     openFolder,
-    removeTab,
-    setFilePath,
-    resetEditor,
+    closeActiveEditorTab,
     toggleCollapse,
     toggleTheme,
     setSettingsOpen,

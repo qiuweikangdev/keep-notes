@@ -1,6 +1,7 @@
 import { render, waitFor, cleanup, fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { editorSaveCoordinator } from "@/features/editor/lib/editor-runtime";
 import {
   useEditorStore,
   type EditorPanelGroup,
@@ -47,17 +48,25 @@ function setActiveEditorTab(
 describe("useKeyboardShortcuts save action", () => {
   const saveAs = vi.fn();
   const writeFile = vi.fn();
+  let menuActionListener: ((action: "closeTab") => void) | null = null;
 
   beforeEach(() => {
     vi.useRealTimers();
+    const state = useEditorStore.getState();
+    const group = state.panelGroups[0];
+    if (group.tabs.length === 0) state.addTab(group.id);
     saveAs.mockResolvedValue({ code: 0, data: { filePath: "/notes/new.md" } });
     writeFile.mockResolvedValue(undefined);
+    menuActionListener = null;
 
     Object.defineProperty(window, "electronAPI", {
       configurable: true,
       value: {
         getPlatform: () => "darwin",
-        onMenuAction: () => () => undefined,
+        onMenuAction: (listener: (action: "closeTab") => void) => {
+          menuActionListener = listener;
+          return () => undefined;
+        },
         saveAs,
         writeFile,
       },
@@ -65,6 +74,7 @@ describe("useKeyboardShortcuts save action", () => {
   });
 
   afterEach(() => {
+    editorSaveCoordinator.cancel("/notes/close-shortcut.md");
     cleanup();
     vi.clearAllMocks();
   });
@@ -104,6 +114,36 @@ describe("useKeyboardShortcuts save action", () => {
 
     await waitFor(() => {
       expect(saveAs).toHaveBeenCalledWith("# Draft", "会议记录");
+    });
+  });
+
+  it("saves the active tab before Cmd+W removes it", async () => {
+    setActiveEditorTab("/notes/close-shortcut.md", "# Latest");
+    render(<KeyboardShortcutsHarness />);
+
+    fireEvent.keyDown(window, { key: "w", metaKey: true });
+
+    await waitFor(() => {
+      expect(writeFile).toHaveBeenCalledWith(
+        "/notes/close-shortcut.md",
+        "# Latest",
+      );
+      expect(useEditorStore.getState().panelGroups[0].tabs).toHaveLength(0);
+    });
+  });
+
+  it("routes the application menu close action through the same save path", async () => {
+    setActiveEditorTab("/notes/close-shortcut.md", "# Menu latest");
+    render(<KeyboardShortcutsHarness />);
+
+    menuActionListener?.("closeTab");
+
+    await waitFor(() => {
+      expect(writeFile).toHaveBeenCalledWith(
+        "/notes/close-shortcut.md",
+        "# Menu latest",
+      );
+      expect(useEditorStore.getState().panelGroups[0].tabs).toHaveLength(0);
     });
   });
 });

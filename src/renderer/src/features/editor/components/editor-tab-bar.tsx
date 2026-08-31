@@ -18,11 +18,8 @@ import { useElectron } from "@/hooks/use-electron";
 import { showAppToast } from "@/lib/app-toast";
 import { useTreeStore } from "@/store/tree.store";
 import { CodeResult } from "@/types";
-import {
-  editorSaveCoordinator,
-  flushEditorChange,
-} from "../lib/editor-runtime";
 import { editorSplitPaintCoordinator } from "../lib/editor-performance";
+import { closeEditorTab } from "../lib/editor-tab-closing";
 import { selectTabBarSignature } from "../lib/editor-view-selectors";
 import { EditorToolbar } from "./editor-toolbar";
 
@@ -83,7 +80,6 @@ export function splitEditorPanel(
 export function EditorTabBar({ groupId }: EditorTabBarProps) {
   useEditorStore(selectTabBarSignature(groupId));
   const setActiveTab = useEditorStore((state) => state.setActiveTab);
-  const removeTab = useEditorStore((state) => state.removeTab);
   const addTab = useEditorStore((state) => state.addTab);
   const addPanelGroup = useEditorStore((state) => state.addPanelGroup);
   const setTabTemporaryTitle = useEditorStore(
@@ -137,19 +133,8 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
   };
 
   const closeTab = useCallback(
-    async (tabId: string) => {
-      const state = useEditorStore.getState();
-      const tab = state.panelGroups
-        .find((item) => item.id === groupId)
-        ?.tabs.find((item) => item.id === tabId);
-      // 关闭标签前按路径冲刷，避免最后一段输入仍停留在自动保存等待期。
-      if (tab?.filePath) {
-        await flushEditorChange(groupId, tabId);
-        await editorSaveCoordinator.flush(tab.filePath);
-      }
-      removeTab(groupId, tabId);
-    },
-    [groupId, removeTab],
+    (tabId: string) => closeEditorTab(groupId, tabId),
+    [groupId],
   );
 
   const handleCloseTab = (e: React.MouseEvent, tabId: string) => {
