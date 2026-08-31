@@ -18,6 +18,7 @@ import {
   isUntitledDocumentPath,
   matchesEditorDocumentPath,
 } from "../lib/editor-document-path";
+import { isEditorSerializationError } from "../lib/editor-serialization-error";
 import {
   completeEditorViewportPreservation,
   requestEditorViewportPreservation,
@@ -262,6 +263,49 @@ export function RichDocumentSessionHost({
           return;
         }
         useEditorStore.getState().setFileParseState(normalizedPath, message);
+      },
+      onSerializationError: (message) => {
+        useEditorStore.setState((state) => {
+          let changed = false;
+          const panelGroups = state.panelGroups.map((group) => {
+            let groupChanged = false;
+            const tabs = group.tabs.map((tab) => {
+              if (!matchesEditorDocumentPath(tab, normalizedPath)) return tab;
+              if (message) {
+                if (
+                  tab.saveStatus === "error" &&
+                  tab.errorMessage === message
+                ) {
+                  return tab;
+                }
+                changed = true;
+                groupChanged = true;
+                return {
+                  ...tab,
+                  isDirty: true,
+                  saveStatus: "error" as const,
+                  errorMessage: message,
+                };
+              }
+              if (
+                tab.saveStatus !== "error" ||
+                !isEditorSerializationError(tab.errorMessage)
+              ) {
+                return tab;
+              }
+              changed = true;
+              groupChanged = true;
+              return {
+                ...tab,
+                isDirty: true,
+                saveStatus: "dirty" as const,
+                errorMessage: null,
+              };
+            });
+            return groupChanged ? { ...group, tabs } : group;
+          });
+          return changed ? { panelGroups } : state;
+        });
       },
       onRuntimeReady: (runtime) =>
         richDocumentSessionManager.registerRuntime(normalizedPath, runtime),

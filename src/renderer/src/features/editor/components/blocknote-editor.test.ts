@@ -4375,6 +4375,69 @@ describe("BlockNoteEditor persistent session runtime", () => {
     }
   });
 
+  it("reports a serialization failure and retries the pending revision", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/serialization-retry.md";
+    setupSessionTab(path);
+    const session = renderRealSession(path);
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      await waitFor(() =>
+        expect(markdownMocks.serializeMarkdown).toHaveBeenCalled(),
+      );
+      await act(async () => {
+        await markdownMocks.serializeMarkdown.mock.results[0]?.value;
+      });
+      markdownMocks.serializeMarkdown.mockClear();
+      session.callbacks.onSerializationError.mockClear();
+      session.callbacks.onMarkdownChange.mockClear();
+      markdownMocks.serializeMarkdown
+        .mockRejectedValueOnce(new Error("serialize failed"))
+        .mockResolvedValueOnce("# Recovered");
+
+      const runtime = session.runtime.current!;
+      const scrollContainer = session.view.container.querySelector<HTMLElement>(
+        ".editor-rich-scroll",
+      )!;
+      fireEvent.keyDown(scrollContainer, { key: "x" });
+      act(() => {
+        runtime.editor.updateBlock(runtime.editor.document[0], {
+          content: "changed",
+        });
+      });
+
+      let serializationError: unknown;
+      await act(async () => {
+        try {
+          await runtime.serializePendingChange();
+        } catch (error) {
+          serializationError = error;
+        }
+      });
+      expect(serializationError).toEqual(new Error("serialize failed"));
+      expect(session.callbacks.onSerializationError).toHaveBeenLastCalledWith(
+        "富文本序列化失败：serialize failed",
+      );
+      expect(session.callbacks.onMarkdownChange).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await runtime.serializePendingChange();
+      });
+      expect(session.callbacks.onMarkdownChange).toHaveBeenCalledWith(
+        "# Recovered",
+      );
+      expect(session.callbacks.onSerializationError).toHaveBeenLastCalledWith(
+        null,
+      );
+      expect(editorSaveCoordinator.getPendingContent(path)).toBe("# Recovered");
+    } finally {
+      editorSaveCoordinator.cancel(path);
+      session.view.unmount();
+    }
+  });
+
   it("keeps inserted list parents and children separated in markdown", async () => {
     setupMatchMedia();
     setupDomMeasurements();
@@ -5884,6 +5947,7 @@ function createRealSession(path: string, sourceContent = "# Initial") {
     }),
     onWordCountChange: vi.fn(),
     onParseStateChange: vi.fn(),
+    onSerializationError: vi.fn(),
   };
   const controller: RichEditorSessionController = {
     path,
@@ -5899,6 +5963,7 @@ function createRealSession(path: string, sourceContent = "# Initial") {
     onMarkdownChange: callbacks.onMarkdownChange,
     onWordCountChange: callbacks.onWordCountChange,
     onParseStateChange: callbacks.onParseStateChange,
+    onSerializationError: callbacks.onSerializationError,
     onRuntimeReady: (nextRuntime) => {
       runtime.current = nextRuntime;
       return () => {

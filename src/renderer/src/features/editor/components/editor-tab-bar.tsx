@@ -1,5 +1,6 @@
 import { useEditorStore } from "@/store/editor.store";
 import {
+  AlertCircle,
   FileText,
   Pencil,
   X,
@@ -327,10 +328,19 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
                 }
               }}
             >
-              <FileText
-                className="h-3.5 w-3.5 flex-shrink-0"
-                style={{ color: "var(--text-muted)" }}
-              />
+              {tab.saveStatus === "error" ? (
+                <AlertCircle
+                  role="img"
+                  aria-label={tab.errorMessage ?? "保存失败"}
+                  title={tab.errorMessage ?? "保存失败"}
+                  className="h-3.5 w-3.5 flex-shrink-0 text-red-500"
+                />
+              ) : (
+                <FileText
+                  className="h-3.5 w-3.5 flex-shrink-0"
+                  style={{ color: "var(--text-muted)" }}
+                />
+              )}
               {renamingTabId === tab.id ? (
                 <input
                   ref={renameInputRef}

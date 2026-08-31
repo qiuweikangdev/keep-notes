@@ -31,6 +31,7 @@ const sessionMocks = vi.hoisted(() => ({
     onDocumentChange: () => void;
     onMarkdownChange: (content: string) => void;
     onParseStateChange: (message: string | null) => void;
+    onSerializationError: (message: string | null) => void;
     onRuntimeReady: (runtime: MockRuntime) => () => void;
     onWordCountChange: (count: number) => void;
     path: string;
@@ -232,6 +233,39 @@ describe("RichDocumentSessionHost", () => {
       saveStatus: "dirty",
     });
 
+    release();
+  });
+
+  it("exposes serialization failures and clears them after a successful retry", () => {
+    const path = "C:/notes/serialization-error.md";
+    useEditorStore.setState({
+      activeGroupId: "group-1",
+      panelGroups: [createGroups(path)[0]],
+    });
+    const release = richDocumentSessionManager.retainVisible(path, {
+      paneKey: "group-1:tab-1",
+      groupId: "group-1",
+      tabId: "tab-1",
+    });
+    render(<RichDocumentSessionHost path={path} />);
+
+    act(() => {
+      sessionMocks.controller?.onSerializationError(
+        "富文本序列化失败：serialize failed",
+      );
+    });
+    expect(useEditorStore.getState().panelGroups[0].tabs[0]).toMatchObject({
+      isDirty: true,
+      saveStatus: "error",
+      errorMessage: "富文本序列化失败：serialize failed",
+    });
+
+    act(() => sessionMocks.controller?.onSerializationError(null));
+    expect(useEditorStore.getState().panelGroups[0].tabs[0]).toMatchObject({
+      isDirty: true,
+      saveStatus: "dirty",
+      errorMessage: null,
+    });
     release();
   });
 

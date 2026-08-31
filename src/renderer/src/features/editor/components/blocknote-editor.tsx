@@ -94,6 +94,7 @@ import {
   serializeMarkdown,
 } from "../lib/markdown";
 import { EditorChangeGate } from "../lib/editor-change-gate";
+import { formatEditorSerializationError } from "../lib/editor-serialization-error";
 import {
   createEditorCodeLineTarget,
   readEditorCodeViewportAnchor,
@@ -1693,6 +1694,7 @@ export interface RichEditorSessionController {
   onMarkdownChange: (content: string) => void;
   onWordCountChange: (count: number) => void;
   onParseStateChange: (message: string | null) => void;
+  onSerializationError: (message: string | null) => void;
   onRuntimeReady: (runtime: RichBlockNoteRuntime) => () => void;
 }
 
@@ -2999,6 +3001,7 @@ function MountedBlockNoteEditor({
   const appliedSourceRef = useRef(content);
   const serializedBaselineRef = useRef<string | null>(null);
   const baselineSerializationRef = useRef<Promise<string | null> | null>(null);
+  const baselineRetryBlocksRef = useRef<Block[] | null>(null);
   const serializationCancelRef = useRef<(() => void) | null>(null);
   const serializationInFlightRef = useRef<Promise<void> | null>(null);
   const serializationQueuedRef = useRef(false);
@@ -3478,7 +3481,8 @@ function MountedBlockNoteEditor({
         if (!isCurrentLifecycle()) return;
         if (
           changeGateRef.current.capturePendingRevision() === null &&
-          !reconcileSource
+          !reconcileSource &&
+          !baselineRetryBlocksRef.current
         ) {
           return;
         }
@@ -3492,12 +3496,29 @@ function MountedBlockNoteEditor({
       }
 
       const pendingRevision = changeGateRef.current.capturePendingRevision();
-      if (pendingRevision === null && !reconcileSource) return;
+      if (
+        pendingRevision === null &&
+        !reconcileSource &&
+        !baselineRetryBlocksRef.current
+      ) {
+        return;
+      }
 
       const runSerialization = (async () => {
         if (baselineSerializationRef.current) {
           await baselineSerializationRef.current;
           if (!isCurrentLifecycle()) return;
+        }
+        if (
+          serializedBaselineRef.current === null &&
+          baselineRetryBlocksRef.current
+        ) {
+          // 初始基线失败后必须先重试原始块快照，不能把用户编辑后的文档误当成基线。
+          const retryBlocks = baselineRetryBlocksRef.current;
+          const retriedBaseline = await serializeMarkdown(editor, retryBlocks);
+          if (!isCurrentLifecycle()) return;
+          serializedBaselineRef.current = retriedBaseline;
+          baselineRetryBlocksRef.current = null;
         }
         // 同一次序列化和缓存必须使用同一棵不可变块快照；输入可能在异步导出期间继续更新。
         const serializedBlocks = editor.document;
@@ -3571,6 +3592,16 @@ function MountedBlockNoteEditor({
       serializationInFlightRef.current = runSerialization;
       try {
         await runSerialization;
+        if (isCurrentLifecycle()) {
+          controllerRef.current.onSerializationError(null);
+        }
+      } catch (error) {
+        if (isCurrentLifecycle()) {
+          controllerRef.current.onSerializationError(
+            formatEditorSerializationError(error),
+          );
+        }
+        throw error;
       } finally {
         if (serializationInFlightRef.current === runSerialization) {
           serializationInFlightRef.current = null;
@@ -3587,7 +3618,7 @@ function MountedBlockNoteEditor({
           serializationCancelRef.current = scheduleEditorIdleTask(
             () => {
               serializationCancelRef.current = null;
-              void serializeChangeRef.current();
+              void serializeChangeRef.current().catch(() => undefined);
             },
             1200,
             getEditorSerializationQuietPeriodForLength(
@@ -3623,7 +3654,7 @@ function MountedBlockNoteEditor({
     serializationCancelRef.current = scheduleEditorIdleTask(
       () => {
         serializationCancelRef.current = null;
-        void serializeChange();
+        void serializeChange().catch(() => undefined);
       },
       idleTimeout,
       getEditorSerializationQuietPeriodForLength(docLength),
@@ -3653,6 +3684,7 @@ function MountedBlockNoteEditor({
     const applyToken = ++applyTokenRef.current;
     const viewportPreservationVersion = readEditorViewportPreservation(path);
     baselineSerializationRef.current = null;
+    baselineRetryBlocksRef.current = null;
     cacheAppliedDocument();
     suppressChangeRef.current = true;
     changeGateRef.current.resetAfterProgrammaticChange();
@@ -3727,6 +3759,7 @@ function MountedBlockNoteEditor({
           const baselinePath = path;
           const baselineSource = source;
           const baselineBlocks = normalizedBlocks;
+          baselineRetryBlocksRef.current = baselineBlocks;
           const baselineParserCacheVersion = parserCacheVersion;
           const baselinePromise = (async () => {
             // 先让新面板完成一次绘制，再序列化大文档基线，避免拆分时出现空白闪烁。
@@ -3738,6 +3771,7 @@ function MountedBlockNoteEditor({
             );
             if (applyToken !== applyTokenRef.current) return null;
             serializedBaselineRef.current = serializedBaseline;
+            baselineRetryBlocksRef.current = null;
             if (baselinePath) {
               editorCache.setBlocks(
                 baselinePath,
@@ -3750,11 +3784,25 @@ function MountedBlockNoteEditor({
             return serializedBaseline;
           })();
           baselineSerializationRef.current = baselinePromise;
-          void baselinePromise.finally(() => {
-            if (baselineSerializationRef.current === baselinePromise) {
-              baselineSerializationRef.current = null;
-            }
-          });
+          void baselinePromise.then(
+            () => {
+              if (baselineSerializationRef.current === baselinePromise) {
+                baselineSerializationRef.current = null;
+              }
+              if (applyToken === applyTokenRef.current) {
+                controllerRef.current.onSerializationError(null);
+              }
+            },
+            (error: unknown) => {
+              if (baselineSerializationRef.current === baselinePromise) {
+                baselineSerializationRef.current = null;
+              }
+              if (applyToken !== applyTokenRef.current) return;
+              controllerRef.current.onSerializationError(
+                formatEditorSerializationError(error),
+              );
+            },
+          );
         }
 
         // 内容加载完成后更新大纲标题列表
@@ -3790,6 +3838,7 @@ function MountedBlockNoteEditor({
       lifecycleGenerationRef.current += 1;
       cancelPendingEditorWork();
       baselineSerializationRef.current = null;
+      baselineRetryBlocksRef.current = null;
     };
     // 普通输入只更新 contentRef；仅文件切换或显式重载时替换整篇文档。
   }, [
