@@ -1689,6 +1689,7 @@ export interface RichEditorSessionController {
     filePath: string,
     binding: RichEditorBinding,
   ) => Promise<void> | void;
+  onDocumentChange: () => void;
   onMarkdownChange: (content: string) => void;
   onWordCountChange: (count: number) => void;
   onParseStateChange: (message: string | null) => void;
@@ -3604,6 +3605,8 @@ function MountedBlockNoteEditor({
 
   useEditorChange(() => {
     if (changeGateRef.current.capturePendingRevision() === null) return;
+    // 文档事务发生时立即登记脏状态，关闭保护不能等待 Markdown 序列化完成。
+    controllerRef.current.onDocumentChange();
     if (serializationCancelRef.current) {
       serializationCancelRef.current();
     }

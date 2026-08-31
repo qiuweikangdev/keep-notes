@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   backgroundEditorSaveCoordinator,
   editorSaveCoordinator,
+  richDocumentSessionManager,
 } from "@/features/editor/lib/editor-runtime";
 import { BACKGROUND_EDITOR_SAVE_GROUP_ID } from "@/features/editor/lib/editor-background-save-coordinator";
 import { useEditorStore } from "@/store/editor.store";
@@ -55,11 +56,11 @@ describe("EditorBridge close protection", () => {
     backgroundEditorSaveCoordinator.cancelAll();
   });
 
-  it("reports a background draft and selects it for close saving", () => {
+  it("reports a background draft and selects it for close saving", async () => {
     render(<EditorBridge />);
 
     expect(updateDirtyState).toHaveBeenLastCalledWith(true);
-    expect((window as any).__getNextDirtyEditor()).toEqual({
+    await expect((window as any).__getNextDirtyEditor()).resolves.toEqual({
       groupId: "group-1",
       tabId: "tab-draft",
       content: "draft",
@@ -92,13 +93,15 @@ describe("EditorBridge close protection", () => {
     expect(updateDirtyState).toHaveBeenLastCalledWith(false);
   });
 
-  it("keeps a draft dirty when its content changes while the snapshot is saving", () => {
+  it("keeps a draft dirty when its content changes while the snapshot is saving", async () => {
     render(<EditorBridge />);
 
-    expect((window as any).__getNextDirtyEditor()).toMatchObject({
-      content: "draft",
-      filePath: null,
-    });
+    await expect((window as any).__getNextDirtyEditor()).resolves.toMatchObject(
+      {
+        content: "draft",
+        filePath: null,
+      },
+    );
 
     act(() => {
       useEditorStore
@@ -120,13 +123,54 @@ describe("EditorBridge close protection", () => {
       content: 'new "draft"\nline',
       isDirty: true,
     });
-    expect((window as any).__getNextDirtyEditor()).toEqual({
+    await expect((window as any).__getNextDirtyEditor()).resolves.toEqual({
       groupId: "group-1",
       tabId: "tab-draft",
       content: 'new "draft"\nline',
       filePath: "/notes/draft.md",
     });
     expect(updateDirtyState).toHaveBeenLastCalledWith(true);
+  });
+
+  it("serializes a live rich revision before returning its close snapshot", async () => {
+    useEditorStore.setState((state) => ({
+      panelGroups: state.panelGroups.map((group) => ({
+        ...group,
+        activeTabId: "tab-clean",
+        tabs: group.tabs.map((tab) =>
+          tab.id === "tab-clean"
+            ? { ...tab, isDirty: true, saveStatus: "dirty" as const }
+            : { ...tab, isDirty: false, saveStatus: "clean" as const },
+        ),
+      })),
+    }));
+    const releaseRuntime = richDocumentSessionManager.registerRuntime(
+      "/notes/clean.md",
+      {
+        path: "/notes/clean.md",
+        surface: document.createElement("div"),
+        serializePendingChange: vi.fn(async () => {
+          useEditorStore
+            .getState()
+            .setTabContent("group-1", "tab-clean", "latest live content");
+        }),
+        cancelPendingWork: vi.fn(),
+        destroy: vi.fn(),
+        isDirty: () => true,
+        isSaving: () => false,
+        isReloading: () => false,
+      },
+    );
+    render(<EditorBridge />);
+
+    await expect((window as any).__getNextDirtyEditor()).resolves.toMatchObject(
+      {
+        groupId: "group-1",
+        tabId: "tab-clean",
+        content: "latest live content",
+      },
+    );
+    releaseRuntime();
   });
 
   it("keeps close protection active while a reused large document saves in background", async () => {

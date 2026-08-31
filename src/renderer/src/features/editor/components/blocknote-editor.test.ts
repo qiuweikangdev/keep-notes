@@ -4282,6 +4282,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
         await markdownMocks.serializeMarkdown.mock.results[0]?.value;
       });
       markdownMocks.serializeMarkdown.mockClear();
+      session.callbacks.onDocumentChange.mockClear();
       markdownMocks.serializeMarkdown.mockResolvedValue(
         "# Latest while hidden",
       );
@@ -4298,6 +4299,8 @@ describe("BlockNoteEditor persistent session runtime", () => {
           content: "x".repeat(LARGE_DOCUMENT_CHAR_LIMIT),
         });
       });
+      expect(session.callbacks.onDocumentChange).toHaveBeenCalledOnce();
+      expect(markdownMocks.serializeMarkdown).not.toHaveBeenCalled();
       vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
 
       await act(async () => {
@@ -5871,6 +5874,7 @@ function createRealSession(path: string, sourceContent = "# Initial") {
   const runtime = { current: null as RichBlockNoteRuntime | null };
   const callbacks = {
     onFileDrop: vi.fn(),
+    onDocumentChange: vi.fn(),
     onMarkdownChange: vi.fn((content: string) => {
       const diffState = useDiffStore.getState();
       if (diffState.isOpen && diffState.filePath === path) {
@@ -5891,6 +5895,7 @@ function createRealSession(path: string, sourceContent = "# Initial") {
     }),
     getBoundTabIds: () => ["tab-session"],
     onFileDrop: callbacks.onFileDrop,
+    onDocumentChange: callbacks.onDocumentChange,
     onMarkdownChange: callbacks.onMarkdownChange,
     onWordCountChange: callbacks.onWordCountChange,
     onParseStateChange: callbacks.onParseStateChange,

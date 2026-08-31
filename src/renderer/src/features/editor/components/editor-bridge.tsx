@@ -3,7 +3,9 @@ import type { CloseSaveSnapshot } from "@shared/types";
 import {
   backgroundEditorSaveCoordinator,
   editorSaveCoordinator,
+  richDocumentSessionManager,
 } from "@/features/editor/lib/editor-runtime";
+import { getEditorDocumentPath } from "@/features/editor/lib/editor-document-path";
 import type { EditorState } from "@/store/editor.store";
 import { useEditorStore } from "@/store/editor.store";
 
@@ -97,14 +99,35 @@ export function EditorBridge() {
       }
     };
 
-    (window as any).__getNextDirtyEditor = () => {
-      const state = useEditorStore.getState();
-      const snapshot = selectNextDirtyEditor(state);
-      if (snapshot) {
-        // 关闭保存前激活目标标签，确保界面与即将保存的草稿身份保持一致。
+    (window as any).__getNextDirtyEditor = async () => {
+      while (true) {
+        const state = useEditorStore.getState();
+        const snapshot = selectNextDirtyEditor(state);
+        if (!snapshot) {
+          return backgroundEditorSaveCoordinator.getNextCloseSnapshot();
+        }
+
+        // 关闭保存前激活目标标签，并从实时富文本树刷新 Markdown，不能返回延迟的 store 快照。
         state.setActiveTab(snapshot.groupId, snapshot.tabId);
+        const targetTab = state.panelGroups
+          .find((group) => group.id === snapshot.groupId)
+          ?.tabs.find((tab) => tab.id === snapshot.tabId);
+        if (!targetTab) continue;
+
+        const documentPath = getEditorDocumentPath(targetTab);
+        if (richDocumentSessionManager.getRuntime(documentPath)) {
+          await richDocumentSessionManager.serializePendingChange(documentPath);
+        }
+
+        const refreshed = selectNextDirtyEditor(useEditorStore.getState());
+        if (
+          refreshed &&
+          refreshed.groupId === snapshot.groupId &&
+          refreshed.tabId === snapshot.tabId
+        ) {
+          return refreshed;
+        }
       }
-      return snapshot ?? backgroundEditorSaveCoordinator.getNextCloseSnapshot();
     };
 
     (window as any).__onCloseSaveSuccess = (

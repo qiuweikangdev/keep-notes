@@ -28,6 +28,7 @@ const sessionMocks = vi.hoisted(() => ({
       paneKey: `${string}:${string}`;
       path: string;
     } | null;
+    onDocumentChange: () => void;
     onMarkdownChange: (content: string) => void;
     onParseStateChange: (message: string | null) => void;
     onRuntimeReady: (runtime: MockRuntime) => () => void;
@@ -193,7 +194,6 @@ describe("RichDocumentSessionHost", () => {
       groupId: "group-1",
       tabId: tab.id,
     });
-
     render(<RichDocumentSessionHost path={path} />);
     act(() => {
       sessionMocks.controller?.onMarkdownChange("# Draft");
@@ -205,6 +205,32 @@ describe("RichDocumentSessionHost", () => {
     });
     expect(window.electronAPI.watchFile).not.toHaveBeenCalled();
     expect(scheduleSave).not.toHaveBeenCalled();
+
+    release();
+  });
+
+  it("marks the live document dirty before its Markdown snapshot is serialized", () => {
+    const path = "C:/notes/live-dirty.md";
+    useEditorStore.setState({
+      activeGroupId: "group-1",
+      panelGroups: [createGroups(path)[0]],
+    });
+    const release = richDocumentSessionManager.retainVisible(path, {
+      paneKey: "group-1:tab-1",
+      groupId: "group-1",
+      tabId: "tab-1",
+    });
+    const initialContent =
+      useEditorStore.getState().panelGroups[0].tabs[0].content;
+
+    render(<RichDocumentSessionHost path={path} />);
+    act(() => sessionMocks.controller?.onDocumentChange());
+
+    expect(useEditorStore.getState().panelGroups[0].tabs[0]).toMatchObject({
+      content: initialContent,
+      isDirty: true,
+      saveStatus: "dirty",
+    });
 
     release();
   });

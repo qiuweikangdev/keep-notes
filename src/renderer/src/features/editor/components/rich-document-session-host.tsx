@@ -184,6 +184,28 @@ export function RichDocumentSessionHost({
         richDocumentSessionManager.getBoundTabIds(normalizedPath),
       onFileDrop: (filePath, binding) =>
         openFile(filePath, binding.groupId, { openInNewTab: true }),
+      onDocumentChange: () => {
+        // BlockNote 保留实时文档；先同步脏状态，序列化完成后再更新 Markdown 快照。
+        useEditorStore.setState((state) => {
+          let changed = false;
+          const panelGroups = state.panelGroups.map((group) => {
+            let groupChanged = false;
+            const tabs = group.tabs.map((tab) => {
+              if (
+                !matchesEditorDocumentPath(tab, normalizedPath) ||
+                (tab.isDirty && tab.saveStatus === "dirty")
+              ) {
+                return tab;
+              }
+              changed = true;
+              groupChanged = true;
+              return { ...tab, isDirty: true, saveStatus: "dirty" as const };
+            });
+            return groupChanged ? { ...group, tabs } : group;
+          });
+          return changed ? { panelGroups } : state;
+        });
+      },
       onMarkdownChange: (content) => {
         const store = useEditorStore.getState();
         const synchronizedTabIds = selectSynchronizedTabIds(
