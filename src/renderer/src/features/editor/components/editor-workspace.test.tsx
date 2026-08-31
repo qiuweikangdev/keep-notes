@@ -35,8 +35,18 @@ vi.mock("../lib/editor-runtime", () => ({
   },
   richDocumentSessionManager: {
     discardPendingChange: vi.fn(),
+    getRuntime: vi.fn(() => null),
+    serializePendingChange: vi.fn(async () => undefined),
   },
   subscribeToEditorFile: vi.fn(() => () => {}),
+}));
+
+vi.mock("../lib/editor-find-highlights", () => ({
+  clearEditorFindHighlights: vi.fn(),
+  collectEditorFindRanges: vi.fn(() => []),
+  renderEditorFindHighlightFallback: vi.fn(() => vi.fn()),
+  selectEditorFindRanges: vi.fn(),
+  scrollRangeIntoView: vi.fn(),
 }));
 
 vi.mock("./rich-document-pane", () => ({
@@ -391,7 +401,7 @@ describe("EditorWorkspace split rich editor mount", () => {
     expect(screen.queryByTestId("editor-loading-skeleton")).toBeNull();
   });
 
-  it("cancels a pending rich-text save before source editing takes ownership", () => {
+  it("cancels a pending rich-text save before source editing takes ownership", async () => {
     useEditorStore.setState((state) => ({
       panelGroups: state.panelGroups.map((group) =>
         group.id === "group-1"
@@ -410,12 +420,14 @@ describe("EditorWorkspace split rich editor mount", () => {
       target: { value: "# Source edit\n" },
     });
 
-    expect(backgroundEditorSaveCoordinator.cancel).toHaveBeenCalledWith(
-      "large.md",
-    );
-    expect(
-      richDocumentSessionManager.discardPendingChange,
-    ).toHaveBeenCalledWith("large.md");
+    await waitFor(() => {
+      expect(backgroundEditorSaveCoordinator.cancel).toHaveBeenCalledWith(
+        "large.md",
+      );
+      expect(
+        richDocumentSessionManager.discardPendingChange,
+      ).toHaveBeenCalledWith("large.md");
+    });
   });
 
   it("cancels pending rich work before source-mode replace all", async () => {
@@ -445,12 +457,65 @@ describe("EditorWorkspace split rich editor mount", () => {
       await screen.findByRole("button", { name: "替换全部匹配" }),
     );
 
-    expect(backgroundEditorSaveCoordinator.cancel).toHaveBeenCalledWith(
-      "large.md",
+    await waitFor(() => {
+      expect(backgroundEditorSaveCoordinator.cancel).toHaveBeenCalledWith(
+        "large.md",
+      );
+      expect(
+        richDocumentSessionManager.discardPendingChange,
+      ).toHaveBeenCalledWith("large.md");
+    });
+  });
+
+  it("serializes live rich content before applying find replacement", async () => {
+    useEditorStore.setState((state) => ({
+      panelGroups: state.panelGroups.map((group) =>
+        group.id === "group-1"
+          ? {
+              ...group,
+              tabs: group.tabs.map((tab) =>
+                tab.id === "tab-1" ? { ...tab, content: "# Large\n" } : tab,
+              ),
+            }
+          : group,
+      ),
+    }));
+    vi.mocked(
+      richDocumentSessionManager.serializePendingChange,
+    ).mockImplementationOnce(async () => {
+      useEditorStore
+        .getState()
+        .setTabContent("group-1", "tab-1", "# Latest live input\n\nLarge\n");
+    });
+    render(<EditorWorkspace groupId="group-1" tabId="tab-1" />);
+    act(() => editorFindController.open("group-1", "tab-1"));
+
+    fireEvent.change(screen.getByPlaceholderText("查找"), {
+      target: { value: "Large" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "展开替换" }));
+    fireEvent.change(screen.getByPlaceholderText("替换"), {
+      target: { value: "Updated" },
+    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "替换全部匹配" }),
     );
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().panelGroups[0].tabs[0].content).toBe(
+        "# Latest live input\n\nUpdated\n",
+      );
+    });
     expect(
-      richDocumentSessionManager.discardPendingChange,
+      richDocumentSessionManager.serializePendingChange,
     ).toHaveBeenCalledWith("large.md");
+    expect(
+      vi.mocked(richDocumentSessionManager.serializePendingChange).mock
+        .invocationCallOrder[0],
+    ).toBeLessThan(
+      vi.mocked(richDocumentSessionManager.discardPendingChange).mock
+        .invocationCallOrder[0],
+    );
   });
 
   it("cancels pending rich work before repairing source content", async () => {

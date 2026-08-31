@@ -324,10 +324,28 @@ export function EditorWorkspace({
     ],
   );
 
-  const replaceCurrentMatch = useCallback(() => {
-    const currentTab = getCurrentTab();
+  const getCurrentReplacementTab = useCallback(async () => {
+    let currentTab = getCurrentTab();
+    if (!currentTab) return null;
+    if (currentTab.mode === "rich") {
+      // 查找结果可以来自旧 store 快照；替换前先把实时 BlockNote 文档序列化完成。
+      await richDocumentSessionManager.serializePendingChange(
+        getEditorDocumentPath(currentTab),
+      );
+      currentTab = getCurrentTab();
+    }
+    return currentTab ?? null;
+  }, [getCurrentTab]);
+
+  const replaceCurrentMatch = useCallback(async () => {
+    const currentTab = await getCurrentReplacementTab();
     if (!currentTab) return;
-    const match = rawMatches[activeFindIndex];
+    const currentMatches = findTextMatches(
+      currentTab.content,
+      findQuery,
+      findOptions,
+    );
+    const match = currentMatches[activeFindIndex];
     if (!match) return;
     applyFindReplacement(
       replaceTextMatch(currentTab.content, match, replacement),
@@ -335,18 +353,31 @@ export function EditorWorkspace({
   }, [
     activeFindIndex,
     applyFindReplacement,
-    getCurrentTab,
-    rawMatches,
+    findOptions,
+    findQuery,
+    getCurrentReplacementTab,
     replacement,
   ]);
 
-  const replaceAllMatches = useCallback(() => {
-    const currentTab = getCurrentTab();
-    if (!currentTab || rawMatches.length === 0) return;
-    applyFindReplacement(
-      replaceAllTextMatches(currentTab.content, rawMatches, replacement),
+  const replaceAllMatches = useCallback(async () => {
+    const currentTab = await getCurrentReplacementTab();
+    if (!currentTab) return;
+    const currentMatches = findTextMatches(
+      currentTab.content,
+      findQuery,
+      findOptions,
     );
-  }, [applyFindReplacement, getCurrentTab, rawMatches, replacement]);
+    if (currentMatches.length === 0) return;
+    applyFindReplacement(
+      replaceAllTextMatches(currentTab.content, currentMatches, replacement),
+    );
+  }, [
+    applyFindReplacement,
+    findOptions,
+    findQuery,
+    getCurrentReplacementTab,
+    replacement,
+  ]);
 
   const undoLastReplacement = useCallback(() => {
     const previousContent = replacementUndoStackRef.current.pop();
