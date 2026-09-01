@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useEditorStore } from "@/store/editor.store";
+import { CodeResult } from "@/types";
 import {
   editorSaveCoordinator,
   registerEditorChangeFlusher,
@@ -40,7 +41,7 @@ describe("closeEditorTab", () => {
     const group = state.panelGroups[0];
     if (group.tabs.length === 0) state.addTab(group.id);
     saveAs.mockResolvedValue({
-      code: 0,
+      code: CodeResult.Success,
       data: { filePath: "C:/notes/saved-draft.md" },
     });
     writeFile.mockResolvedValue(undefined);

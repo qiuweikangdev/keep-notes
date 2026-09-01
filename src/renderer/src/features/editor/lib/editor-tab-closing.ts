@@ -1,4 +1,5 @@
 import { useEditorStore } from "@/store/editor.store";
+import { CodeResult } from "@/types";
 import { editorSaveCoordinator, flushEditorChange } from "./editor-runtime";
 
 const closeTasks = new Map<string, Promise<boolean>>();
@@ -29,7 +30,7 @@ async function performCloseEditorTab(
       const result = tab.temporaryTitle
         ? await window.electronAPI.saveAs(tab.content, tab.temporaryTitle)
         : await window.electronAPI.saveAs(tab.content);
-      if (result.code !== 0 || !result.data) return false;
+      if (result.code !== CodeResult.Success || !result.data) return false;
 
       const state = useEditorStore.getState();
       state.setTabFilePath(groupId, tabId, result.data.filePath);

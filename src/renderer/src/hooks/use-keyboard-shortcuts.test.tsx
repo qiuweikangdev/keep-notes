@@ -2,6 +2,7 @@ import { render, waitFor, cleanup, fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { editorSaveCoordinator } from "@/features/editor/lib/editor-runtime";
+import { CodeResult } from "@/types";
 import {
   useEditorStore,
   type EditorPanelGroup,
@@ -55,7 +56,10 @@ describe("useKeyboardShortcuts save action", () => {
     const state = useEditorStore.getState();
     const group = state.panelGroups[0];
     if (group.tabs.length === 0) state.addTab(group.id);
-    saveAs.mockResolvedValue({ code: 0, data: { filePath: "/notes/new.md" } });
+    saveAs.mockResolvedValue({
+      code: CodeResult.Success,
+      data: { filePath: "/notes/new.md" },
+    });
     writeFile.mockResolvedValue(undefined);
     menuActionListener = null;
 
@@ -94,7 +98,7 @@ describe("useKeyboardShortcuts save action", () => {
     expect(saveAs).not.toHaveBeenCalled();
   });
 
-  it("opens the save dialog for an untitled active editor tab", async () => {
+  it("associates an untitled tab with the saved file and saves edits directly afterward", async () => {
     setActiveEditorTab(null, "# Untitled");
     render(<KeyboardShortcutsHarness />);
 
@@ -102,8 +106,17 @@ describe("useKeyboardShortcuts save action", () => {
 
     await waitFor(() => {
       expect(saveAs).toHaveBeenCalledWith("# Untitled");
+      expect(useEditorStore.getState().panelGroups[0].tabs[0]).toMatchObject({
+        filePath: "/notes/new.md",
+        isDirty: false,
+      });
     });
-    expect(writeFile).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(window, { key: "s", metaKey: true });
+    await waitFor(() => {
+      expect(writeFile).toHaveBeenCalledWith("/notes/new.md", "# Untitled");
+    });
+    expect(saveAs).toHaveBeenCalledTimes(1);
   });
 
   it("uses an untitled tab's temporary title as the save dialog file name", async () => {

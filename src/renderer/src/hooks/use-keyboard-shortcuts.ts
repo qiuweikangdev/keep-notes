@@ -5,6 +5,7 @@ import { useUIStore } from "@/store/ui.store";
 import { useElectron } from "@/hooks/use-electron";
 import { usePanel } from "@/hooks/use-panel";
 import { useTheme } from "@/hooks/use-theme";
+import { CodeResult } from "@/types";
 import {
   useShortcutsStore,
   type ShortcutAction,
@@ -146,7 +147,7 @@ export function useKeyboardShortcuts() {
           latestTarget.temporaryTitle,
         )
       : await window.electronAPI.saveAs(latestTarget.content);
-    if (result.code === 0 && result.data) {
+    if (result.code === CodeResult.Success && result.data) {
       markSaveAsSuccess(result.data.filePath);
     }
   }, []);
