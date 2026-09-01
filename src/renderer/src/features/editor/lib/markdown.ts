@@ -234,6 +234,81 @@ function collectMarkdownEdits(changes: Change[]): MarkdownEdit[] {
   return edits;
 }
 
+function separateMisplacedTerminalLineEnding(
+  baseline: string,
+  edited: string,
+  changes: Change[],
+): Change[] {
+  const baselineEnding = baseline.match(/(?:\r\n|\r|\n)$/u)?.[0];
+  const editedEndingStart = edited.search(/(?:\r\n|\r|\n)$/u);
+  if (!baselineEnding || editedEndingStart < 0) return changes;
+
+  const baselineEndingStart = baseline.length - baselineEnding.length;
+  const separated: Change[] = [];
+  let baselineOffset = 0;
+  let editedOffset = 0;
+
+  for (const change of changes) {
+    if (change.added || change.removed || !change.value) {
+      separated.push(change);
+      if (change.added) editedOffset += change.value.length;
+      else if (change.removed) baselineOffset += change.value.length;
+      else {
+        baselineOffset += change.value.length;
+        editedOffset += change.value.length;
+      }
+      continue;
+    }
+
+    let valueOffset = 0;
+    while (valueOffset < change.value.length) {
+      const currentBaselineOffset = baselineOffset + valueOffset;
+      const currentEditedOffset = editedOffset + valueOffset;
+      if (
+        currentBaselineOffset === baselineEndingStart &&
+        currentEditedOffset !== editedEndingStart &&
+        change.value.startsWith(baselineEnding, valueOffset)
+      ) {
+        // 基线末尾换行若对应到新内容中间，拆成删除/插入，避免 diff 把它当成可复用边界。
+        separated.push({
+          count: baselineEnding.length,
+          added: false,
+          removed: true,
+          value: baselineEnding,
+        });
+        separated.push({
+          count: baselineEnding.length,
+          added: true,
+          removed: false,
+          value: baselineEnding,
+        });
+        valueOffset += baselineEnding.length;
+        continue;
+      }
+
+      const distanceToBaselineEnding =
+        baselineEndingStart - currentBaselineOffset;
+      const segmentLength =
+        distanceToBaselineEnding > 0 &&
+        distanceToBaselineEnding < change.value.length - valueOffset
+          ? distanceToBaselineEnding
+          : change.value.length - valueOffset;
+      separated.push({
+        count: segmentLength,
+        added: false,
+        removed: false,
+        value: change.value.slice(valueOffset, valueOffset + segmentLength),
+      });
+      valueOffset += segmentLength;
+    }
+
+    baselineOffset += change.value.length;
+    editedOffset += change.value.length;
+  }
+
+  return separated;
+}
+
 function locateExactChangedText(
   source: string,
   oldText: string,
@@ -2237,7 +2312,20 @@ export function preserveMarkdownSource(
   }
 
   const boundaryMap = createSourceBoundaryMap(baseline, preservationSource);
-  const edits = collectMarkdownEdits(diffChars(baseline, edited));
+  const changes = separateMisplacedTerminalLineEnding(
+    baseline,
+    edited,
+    diffChars(baseline, edited),
+  );
+  // 整篇替换时，基线末尾换行可能被字符 diff 错配到新内容中间，不能让源码保留逻辑吞掉真实换行。
+  if (
+    !changes.some(
+      (change) => !change.added && !change.removed && /\S/u.test(change.value),
+    )
+  ) {
+    return finalizeMarkdown(edited);
+  }
+  const edits = collectMarkdownEdits(changes);
   const mappedEdits = edits.map((edit) => {
     const oldText = baseline.slice(edit.start, edit.end);
     let start = chooseSourceBoundary(

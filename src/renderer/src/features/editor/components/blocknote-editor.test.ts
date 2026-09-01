@@ -4162,6 +4162,90 @@ describe("BlockNoteEditor markup copy", () => {
 });
 
 describe("BlockNoteEditor persistent session runtime", () => {
+  it("keeps newly inserted multiline rich paragraphs separated when reconciling the source", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/multiline-paragraph-reconcile.md";
+    const expected = "测试1\n测试2";
+    setupSessionTab(path, { content: "# Initial", wordCount: 9 });
+    const session = renderRealSession(path, false, "# Initial");
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      await waitFor(() =>
+        expect(markdownMocks.serializeMarkdown).toHaveBeenCalled(),
+      );
+      await act(async () => {
+        await markdownMocks.serializeMarkdown.mock.results[0]?.value;
+      });
+      session.callbacks.onMarkdownChange.mockClear();
+      const editor = session.runtime.current!.editor;
+      fireEvent.keyDown(
+        session.view.container.querySelector<HTMLElement>(
+          ".editor-rich-scroll",
+        ),
+        { key: "x" },
+      );
+      act(() => {
+        editor.replaceBlocks(editor.document, [
+          { type: "paragraph", content: "测试1" },
+          { type: "paragraph", content: "测试2" },
+        ]);
+      });
+      await act(async () => {
+        await session.runtime.current!.serializePendingChange({
+          reconcileSource: true,
+        });
+      });
+
+      expect(session.callbacks.onMarkdownChange).toHaveBeenCalledWith(expected);
+    } finally {
+      session.view.unmount();
+    }
+  });
+
+  it("preserves line breaks inside a rich-text paragraph during Markdown serialization", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/multiline-paragraph.md";
+    const source = "测试1\n测试2";
+    const editedSource = "测试1更新\n测试2";
+    setupSessionTab(path, { content: source, wordCount: source.length });
+    const session = renderRealSession(path, false, source);
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const editor = session.runtime.current!.editor;
+      await waitFor(() =>
+        expect(markdownMocks.serializeMarkdown).toHaveBeenCalled(),
+      );
+      await act(async () => {
+        await markdownMocks.serializeMarkdown.mock.results[0]?.value;
+      });
+      session.callbacks.onMarkdownChange.mockClear();
+      fireEvent.keyDown(
+        session.view.container.querySelector<HTMLElement>(
+          ".editor-rich-scroll",
+        ),
+        { key: "x" },
+      );
+      act(() => {
+        editor.updateBlock(editor.document[0], {
+          content: "测试1更新\n 测试2",
+        });
+      });
+      await act(async () => {
+        await session.runtime.current!.serializePendingChange();
+      });
+
+      expect(session.callbacks.onMarkdownChange).toHaveBeenCalledWith(
+        editedSource,
+      );
+    } finally {
+      session.view.unmount();
+    }
+  });
+
   it("serializes a large document as soon as its quiet period ends", async () => {
     setupMatchMedia();
     setupDomMeasurements();

@@ -864,6 +864,12 @@ describe("preserveMarkdownSource", () => {
     expect(preserveMarkdownSource(source, baseline, baseline)).toBe(source);
   });
 
+  it("keeps line breaks when rich text replaces the whole source document", () => {
+    expect(
+      preserveMarkdownSource("# Initial", "# Initial\n", "测试1\n测试2\n"),
+    ).toBe("测试1\n测试2");
+  });
+
   it("maps an edit to the correct repeated line", () => {
     const source = "- item\n- item\n";
     const baseline = "- item\n\n- item\n";
