@@ -1,3 +1,19 @@
+## [2.22.8](https://github.com/qiuweikangdev/keep-notes/compare/v2.22.7...v2.22.8) (2026-09-04)
+
+
+### Bug Fixes
+
+* associate untitled editor tabs after save ([22a1cc2](https://github.com/qiuweikangdev/keep-notes/commit/22a1cc2c04415a81ec2788dab49527b5c9f29599))
+* confirm before saving untitled tabs ([45b50ce](https://github.com/qiuweikangdev/keep-notes/commit/45b50ce7373cc663c5daa7f51b141141a1f8085d))
+* preserve multiline Markdown line breaks ([912da3b](https://github.com/qiuweikangdev/keep-notes/commit/912da3be7460f150c605608828e4fc568e545d8b))
+* switch sidebar to file tree when selecting workspace ([3ba17a4](https://github.com/qiuweikangdev/keep-notes/commit/3ba17a4fb82a191c41bf0267125885b65823189b))
+
+
+## Commit Summary
+
+- Compared with: v2.22.7
+- Total commits: 4
+
 ## [2.22.7](https://github.com/qiuweikangdev/keep-notes/compare/v2.22.6...v2.22.7) (2026-08-31)
 
 
