@@ -48,6 +48,7 @@ export const IPC_CHANNELS = {
     LOAD_IMAGE_AS_DATA_URL: "file:load-image-as-data-url",
     SAVE_IMAGE_ATTACHMENT: "file:save-image-attachment",
     SAVE_AS: "file:save-as",
+    CONFIRM_CLOSE_UNTITLED: "file:confirm-close-untitled",
     OPEN_DIALOG: "file:open-dialog",
     GET_SELECTED_PATH: "file:get-selected-path",
     GENERATE_TREE: "file:generate-tree",

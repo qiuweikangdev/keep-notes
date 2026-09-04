@@ -27,6 +27,16 @@ async function performCloseEditorTab(
       }
       if (!(await editorSaveCoordinator.flush(tab.filePath))) return false;
     } else if (tab.isDirty) {
+      const closeAction = await window.electronAPI.confirmCloseUntitled(
+        tab.temporaryTitle,
+      );
+      if (closeAction === "cancel") return false;
+
+      if (closeAction === "discard") {
+        useEditorStore.getState().removeTab(groupId, tabId);
+        return true;
+      }
+
       const result = tab.temporaryTitle
         ? await window.electronAPI.saveAs(tab.content, tab.temporaryTitle)
         : await window.electronAPI.saveAs(tab.content);

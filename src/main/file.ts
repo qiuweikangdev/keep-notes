@@ -8,6 +8,7 @@ import {
   type SaveImageAttachmentInput,
   type SaveImageAttachmentResult,
   type TreeNode,
+  type UntitledCloseAction,
 } from "../shared/types";
 import { compareFileTreeTitles } from "../shared/file-tree-sort";
 import { listExternalOpenApps, openWithExternalApp } from "./external-open";
@@ -413,6 +414,28 @@ export async function saveAsDialog(
     console.error("Error while saving file:", error);
     return { code: CodeResult.Fail };
   }
+}
+
+export async function confirmCloseUntitledDialog(
+  win: Electron.BrowserWindow,
+  temporaryTitle?: string,
+): Promise<UntitledCloseAction> {
+  const safeTitle = basename(temporaryTitle?.trim() || "未命名");
+  const result = await dialog.showMessageBox(win, {
+    type: "warning",
+    buttons: ["保存", "不保存", "取消"],
+    defaultId: 0,
+    cancelId: 2,
+    noLink: true,
+    title: "保存更改",
+    message: `是否保存“${safeTitle}”的更改？`,
+    detail: "未保存的内容将会丢失。",
+  });
+
+  // 系统弹窗关闭按钮与 Escape 都映射为取消，避免意外丢弃草稿。
+  if (result.response === 0) return "save";
+  if (result.response === 1) return "discard";
+  return "cancel";
 }
 
 export async function openDialog(win: Electron.BrowserWindow) {

@@ -31,6 +31,7 @@ import type {
   ExportFileResult,
   WorkspaceChangeBatch,
   ThemeName,
+  UntitledCloseAction,
 } from "@shared/types";
 
 export interface ElectronAPI {
@@ -68,6 +69,9 @@ export interface ElectronAPI {
     content: string,
     defaultFileName?: string,
   ) => Promise<ApiResponse<{ filePath: string }>>;
+  confirmCloseUntitled: (
+    temporaryTitle?: string,
+  ) => Promise<UntitledCloseAction>;
   openDialog: () => Promise<
     ApiResponse<{
       treeData: TreeNode[];

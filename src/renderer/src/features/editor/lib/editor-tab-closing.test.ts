@@ -34,6 +34,7 @@ function seedTab(filePath: string | null, content: string): void {
 
 describe("closeEditorTab", () => {
   const saveAs = vi.fn();
+  const confirmCloseUntitled = vi.fn();
   const writeFile = vi.fn();
 
   beforeEach(() => {
@@ -44,10 +45,16 @@ describe("closeEditorTab", () => {
       code: CodeResult.Success,
       data: { filePath: "C:/notes/saved-draft.md" },
     });
+    confirmCloseUntitled.mockResolvedValue("save");
     writeFile.mockResolvedValue(undefined);
     Object.defineProperty(window, "electronAPI", {
       configurable: true,
-      value: { ...window.electronAPI, saveAs, writeFile },
+      value: {
+        ...window.electronAPI,
+        confirmCloseUntitled,
+        saveAs,
+        writeFile,
+      },
     });
   });
 
@@ -92,6 +99,31 @@ describe("closeEditorTab", () => {
 
     expect(saveAs).toHaveBeenCalledWith("# Draft", "关闭测试");
     expect(useEditorStore.getState().panelGroups[0].tabs).toHaveLength(1);
+  });
+
+  it("keeps an untitled dirty tab when closing is cancelled", async () => {
+    seedTab(null, "# Draft");
+    confirmCloseUntitled.mockResolvedValue("cancel");
+
+    await expect(
+      closeEditorTab(useEditorStore.getState().activeGroupId, "tab-close"),
+    ).resolves.toBe(false);
+
+    expect(confirmCloseUntitled).toHaveBeenCalledWith("关闭测试");
+    expect(saveAs).not.toHaveBeenCalled();
+    expect(useEditorStore.getState().panelGroups[0].tabs).toHaveLength(1);
+  });
+
+  it("discards an untitled dirty tab without opening Save As", async () => {
+    seedTab(null, "# Draft");
+    confirmCloseUntitled.mockResolvedValue("discard");
+
+    await expect(
+      closeEditorTab(useEditorStore.getState().activeGroupId, "tab-close"),
+    ).resolves.toBe(true);
+
+    expect(saveAs).not.toHaveBeenCalled();
+    expect(useEditorStore.getState().panelGroups[0]?.tabs).toHaveLength(0);
   });
 
   it("saves an untitled dirty tab before removing it", async () => {

@@ -9,6 +9,7 @@ import type {
   SaveImageAttachmentResult,
   TreeInfo,
   TreeNode,
+  UntitledCloseAction,
   WorkspaceChangeBatch,
 } from "../../shared/types";
 
@@ -43,6 +44,15 @@ export const fileApi = {
       IPC_CHANNELS.FILE.SAVE_AS,
       content,
       defaultFileName,
+    );
+  },
+
+  confirmCloseUntitled: (
+    temporaryTitle?: string,
+  ): Promise<UntitledCloseAction> => {
+    return ipcRenderer.invoke(
+      IPC_CHANNELS.FILE.CONFIRM_CLOSE_UNTITLED,
+      temporaryTitle,
     );
   },
 

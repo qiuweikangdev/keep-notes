@@ -10,6 +10,7 @@ import {
   readDirectoryShallow,
   saveImageAttachment,
   saveAsDialog,
+  confirmCloseUntitledDialog,
 } from "./file";
 
 vi.mock("electron", () => ({
@@ -19,6 +20,7 @@ vi.mock("electron", () => ({
   dialog: {
     showOpenDialog: vi.fn(),
     showSaveDialog: vi.fn(),
+    showMessageBox: vi.fn(),
   },
   net: {
     fetch: vi.fn(),
@@ -235,6 +237,29 @@ describe("saveAsDialog", () => {
     expect(dialog.showSaveDialog).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ defaultPath: "会议记录.md" }),
+    );
+  });
+});
+
+describe("confirmCloseUntitledDialog", () => {
+  it.each([
+    [0, "save"],
+    [1, "discard"],
+    [2, "cancel"],
+  ] as const)("maps response %s to %s", async (response, action) => {
+    vi.mocked(dialog.showMessageBox).mockResolvedValue({ response });
+
+    await expect(
+      confirmCloseUntitledDialog({} as Electron.BrowserWindow, "会议记录"),
+    ).resolves.toBe(action);
+
+    expect(dialog.showMessageBox).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        buttons: ["保存", "不保存", "取消"],
+        message: "是否保存“会议记录”的更改？",
+        cancelId: 2,
+      }),
     );
   });
 });

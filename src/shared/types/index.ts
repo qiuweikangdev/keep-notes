@@ -12,6 +12,8 @@ export enum CodeResult {
   Success = 1,
 }
 
+export type UntitledCloseAction = "save" | "discard" | "cancel";
+
 export interface TreeNode {
   title: string;
   key: string;

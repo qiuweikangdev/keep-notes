@@ -53,6 +53,17 @@ describe("fileApi", () => {
     expect(invoke).toHaveBeenCalledWith("file:save-image-attachment", payload);
   });
 
+  it("invokes the untitled-close confirmation channel", async () => {
+    const { fileApi } = await import("./file.api");
+
+    await fileApi.confirmCloseUntitled("会议记录");
+
+    expect(invoke).toHaveBeenCalledWith(
+      "file:confirm-close-untitled",
+      "会议记录",
+    );
+  });
+
   it("invokes the open-in-new-window channel", async () => {
     const { fileApi } = await import("./file.api");
 

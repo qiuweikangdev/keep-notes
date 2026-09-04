@@ -17,6 +17,7 @@ import {
   copyPathToClipboard,
   listAvailableExternalOpenApps,
   openPathWithExternalApp,
+  confirmCloseUntitledDialog,
 } from "../file";
 import type { SaveImageAttachmentInput } from "../../shared/types";
 import { openPathInNewWindow } from "../window";
@@ -72,6 +73,14 @@ export function registerFileIpc(): void {
     async (event, content: string, defaultFileName?: string) => {
       const win = getBrowserWindow(event);
       return saveAsDialog(win, content, defaultFileName);
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.FILE.CONFIRM_CLOSE_UNTITLED,
+    async (event, temporaryTitle?: string) => {
+      const win = getBrowserWindow(event);
+      return confirmCloseUntitledDialog(win, temporaryTitle);
     },
   );
 
