@@ -164,7 +164,7 @@ describe("SearchModal", () => {
     expect(screen.getByText("fourth.md")).toBeInTheDocument();
   });
 
-  it("shows up to five recent folders when no workspace is open", async () => {
+  it("loads a selected folder and switches the sidebar to the file tree", async () => {
     const user = userEvent.setup();
     useTreeStore.setState({
       treeRoot: null,
@@ -173,6 +173,12 @@ describe("SearchModal", () => {
         title: `folder-${index + 1}`,
         path: `C:\\workspaces\\folder-${index + 1}`,
       })),
+    });
+    useEditorStore.setState({
+      appearance: {
+        ...useEditorStore.getState().appearance,
+        sidebarView: "outline",
+      },
     });
 
     render(<SearchModal isOpen onClose={vi.fn()} />);
@@ -188,6 +194,7 @@ describe("SearchModal", () => {
     await user.click(screen.getByText("folder-1"));
 
     expect(loadTree).toHaveBeenCalledWith("C:\\workspaces\\folder-1");
+    expect(useEditorStore.getState().appearance.sidebarView).toBe("file");
     expect(openFile).not.toHaveBeenCalled();
   });
 

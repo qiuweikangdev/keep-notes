@@ -261,6 +261,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const openSelectedResult = useCallback(
     (result: SearchResult) => {
       if (result.kind === "folder") {
+        setSidebarView("file");
         loadTree(result.key);
       } else {
         setSidebarView("file");
