@@ -3424,7 +3424,40 @@ export async function parseMarkdown<TBlock>(
   const normalizedBlocks = restoreStandaloneHardBreakParagraphs(
     restoreQuoteListChildren(restoredBlocks, normalized.descriptors),
   );
-  return promoteMarkdownImageBlocks(normalizedBlocks);
+  return protectLiteralBackticks(
+    promoteMarkdownImageBlocks(normalizedBlocks),
+    false,
+  ) as TBlock[];
+}
+
+function protectLiteralBackticks(value: unknown, exporting: boolean): unknown {
+  if (Array.isArray(value))
+    return value.map((item) => protectLiteralBackticks(item, exporting));
+  if (!isRecord(value)) return value;
+  if (value.type === "codeBlock") return value;
+  if (
+    value.type === "text" &&
+    typeof value.text === "string" &&
+    value.text.includes("`") &&
+    isRecord(value.styles) &&
+    !value.styles.code
+  ) {
+    // Markdown 解析已区分代码和字面文本；为字面反引号保存内部标记，并在导出时恢复转义。
+    return exporting
+      ? {
+          ...value,
+          text: value.styles.literalBacktick
+            ? value.text.replaceAll("`", "\\`")
+            : value.text,
+        }
+      : { ...value, styles: { ...value.styles, literalBacktick: true } };
+  }
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [
+      key,
+      protectLiteralBackticks(item, exporting),
+    ]),
+  );
 }
 
 function yieldToMain(): Promise<void> {
@@ -3477,7 +3510,7 @@ export async function serializeMarkdown<TBlock>(
   );
   const markdown = await serializeQuoteListBlocks(
     serializer,
-    serializableBlocks,
+    protectLiteralBackticks(serializableBlocks, true) as TBlock[],
   );
   return normalizeSerializedCodeBlockContent(
     normalizeSerializedTableHardBreaks(normalizeMarkupHardBreaks(markdown)),

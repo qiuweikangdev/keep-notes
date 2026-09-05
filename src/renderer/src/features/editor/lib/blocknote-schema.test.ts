@@ -264,6 +264,46 @@ function readCodeBlockNodeViewStopDecision(target: Element, eventType: string) {
 }
 
 describe("editor BlockNote schema", () => {
+  it("does not escape template literals inside fenced code", async () => {
+    const editor = BlockNoteEditor.create({ schema: editorSchema });
+    const source = "```js\nconst text = `hello`;\n```\n";
+    const blocks = await parseMarkdown(editor, source);
+    expect(await serializeMarkdown(editor, blocks)).toBe(source);
+  });
+  it("keeps escaped backticks literal after load, normalization, editing and export", async () => {
+    const editor = BlockNoteEditor.create({ schema: editorSchema });
+    const source = "literal \\`token\\` and `real code`\n";
+    editor.replaceBlocks(editor.document, await parseMarkdown(editor, source));
+    normalizeInlineCodeMarkers(editor);
+    const blocks = editor.document;
+    const baseline = await serializeMarkdown(editor, blocks);
+    expect(baseline).toContain("\\`token\\`");
+    const text = blocks[0].content;
+    expect(text).toContainEqual(
+      expect.objectContaining({
+        text: "literal `token` and ",
+        styles: { literalBacktick: true },
+      }),
+    );
+    editor.insertBlocks(
+      [{ type: "paragraph", content: "Another paragraph" }],
+      blocks[0],
+      "after",
+    );
+    const saved = preserveMarkdownSource(
+      source,
+      baseline,
+      await serializeMarkdown(editor, editor.document),
+    );
+    const html = new MarkdownIt().render(saved);
+    expect(html).toContain("literal `token` and <code>real code</code>");
+    const reopened = await parseMarkdown(editor, saved);
+    editor.replaceBlocks(editor.document, reopened);
+    normalizeInlineCodeMarkers(editor);
+    expect(await serializeMarkdown(editor, editor.document)).toContain(
+      "\\`token\\`",
+    );
+  });
   it("replaces the default code block while preserving common blocks", () => {
     expect(Object.keys(editorBlockSpecs)).toContain("paragraph");
     expect(Object.keys(editorBlockSpecs)).toContain("quote");

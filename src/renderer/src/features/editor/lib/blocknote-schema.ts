@@ -21,7 +21,7 @@ import {
   FormattingToolbarExtension,
   SideMenuExtension,
 } from "@blocknote/core/extensions";
-import { Extension, InputRule } from "@tiptap/core";
+import { Extension, InputRule, Mark as TiptapMark } from "@tiptap/core";
 import Code from "@tiptap/extension-code";
 import { closeHistory } from "@tiptap/pm/history";
 import {
@@ -198,6 +198,8 @@ function collectInlineCodeMarkerReplacements(
     if (!node.isText || !node.text) return true;
     if (!shouldScanNode(pos, node.nodeSize)) return true;
     if (node.marks.some((mark) => mark.type === codeMark)) return true;
+    if (node.marks.some((mark) => mark.type.name === "literalBacktick"))
+      return true;
     if (state.doc.resolve(pos).parent.type.spec.code) return true;
 
     for (const match of node.text.matchAll(inlineCodeMarkerPattern)) {
@@ -2797,6 +2799,16 @@ export const editorBlockSpecs = {
 export const editorStyleSpecs = {
   ...defaultStyleSpecs,
   code: editorInlineCodeStyleSpec,
+  // 解析后仍是纯文本的反引号必须保留字面语义，不能被输入兜底转换再次解释。
+  literalBacktick: createStyleSpecFromTipTapMark(
+    TiptapMark.create({
+      name: "literalBacktick",
+      inclusive: false,
+      parseHTML: () => [{ tag: "span[data-literal-backtick]" }],
+      renderHTML: () => ["span", { "data-literal-backtick": "true" }, 0],
+    }),
+    "boolean",
+  ),
 };
 
 export const editorSchema = BlockNoteSchema.create({
