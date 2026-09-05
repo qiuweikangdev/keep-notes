@@ -3,6 +3,7 @@ import {
   AlertCircle,
   FileText,
   Pencil,
+  Plus,
   X,
   SplitSquareVertical,
   SplitSquareHorizontal,
@@ -104,6 +105,7 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
   const [renamingTabWidth, setRenamingTabWidth] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const renameInputRef = useRef<HTMLInputElement>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
   const isRenameComposingRef = useRef(false);
   const isRenameCancelledRef = useRef(false);
   const isRenameSubmittingRef = useRef(false);
@@ -111,12 +113,23 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
   // 关闭右键菜单
   useEffect(() => {
     if (!contextMenu) return;
+    const origin = document.activeElement as HTMLElement | null;
+    contextMenuRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
     const handleClose = () => setContextMenu(null);
+    const handleEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        handleClose();
+        origin?.focus();
+      }
+    };
     document.addEventListener("click", handleClose);
     document.addEventListener("contextmenu", handleClose);
+    document.addEventListener("keydown", handleEscape);
     return () => {
       document.removeEventListener("click", handleClose);
       document.removeEventListener("contextmenu", handleClose);
+      document.removeEventListener("keydown", handleEscape);
     };
   }, [contextMenu]);
 
@@ -126,8 +139,6 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
       renameInputRef.current.select();
     }
   }, [renamingTabId]);
-
-  if (!group) return null;
 
   const handleTabClick = (tabId: string) => {
     setActiveTab(groupId, tabId);
@@ -184,7 +195,7 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
   };
 
   const handleStartRename = () => {
-    const tab = group.tabs.find((item) => item.id === contextMenu?.tabId);
+    const tab = group?.tabs.find((item) => item.id === contextMenu?.tabId);
     if (!tab) return;
 
     isRenameCancelledRef.current = false;
@@ -285,6 +296,8 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
     [handleRenameConfirm],
   );
 
+  if (!group) return null;
+
   return (
     <div
       className="flex h-[35px] flex-shrink-0 items-center relative"
@@ -294,7 +307,11 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
       }}
     >
       {/* 标签页列表 */}
-      <div className="flex flex-1 overflow-x-auto scrollbar-none h-full">
+      <div
+        role="tablist"
+        aria-label="编辑器标签页"
+        className="flex flex-1 overflow-x-auto scrollbar-none h-full"
+      >
         {group.tabs.map((tab) => {
           const displayPath = tab.pendingFilePath ?? tab.filePath;
           const fileName =
@@ -304,7 +321,12 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
           return (
             <div
               key={tab.id}
-              className="group flex h-full items-center gap-1.5 px-2.5 cursor-pointer border-r relative select-none"
+              role="tab"
+              aria-selected={isActive}
+              aria-label={fileName}
+              title={displayPath ?? fileName}
+              tabIndex={isActive ? 0 : -1}
+              className="group flex h-full items-center gap-1.5 px-2.5 cursor-pointer border-r relative select-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--accent-color)]"
               style={{
                 backgroundColor: isActive ? "var(--bg-primary)" : "transparent",
                 borderColor: "var(--border-color)",
@@ -316,6 +338,58 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
                     : undefined,
               }}
               onClick={() => handleTabClick(tab.id)}
+              onKeyDown={(event) => {
+                if (event.target !== event.currentTarget) return;
+                const index = group.tabs.findIndex(
+                  (item) => item.id === tab.id,
+                );
+                let nextIndex: number | null = null;
+                if (event.key === "ArrowRight")
+                  nextIndex = (index + 1) % group.tabs.length;
+                if (event.key === "ArrowLeft")
+                  nextIndex =
+                    (index - 1 + group.tabs.length) % group.tabs.length;
+                if (event.key === "Home") nextIndex = 0;
+                if (event.key === "End") nextIndex = group.tabs.length - 1;
+                if (nextIndex !== null) {
+                  event.preventDefault();
+                  handleTabClick(group.tabs[nextIndex].id);
+                  const next =
+                    event.currentTarget.parentElement?.querySelectorAll<HTMLElement>(
+                      '[role="tab"]',
+                    )[nextIndex];
+                  next?.focus();
+                  next?.scrollIntoView({ block: "nearest", inline: "nearest" });
+                } else if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  handleTabClick(tab.id);
+                } else if (event.key === "Delete") {
+                  event.preventDefault();
+                  const list = event.currentTarget.parentElement;
+                  void closeTab(tab.id).then((closed) => {
+                    if (closed)
+                      requestAnimationFrame(() =>
+                        list
+                          ?.querySelector<HTMLElement>(
+                            '[role="tab"][aria-selected="true"]',
+                          )
+                          ?.focus(),
+                      );
+                  });
+                } else if (
+                  event.key === "ContextMenu" ||
+                  (event.shiftKey && event.key === "F10")
+                ) {
+                  event.preventDefault();
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  setContextMenu({
+                    x: rect.left,
+                    y: rect.bottom,
+                    tabId: tab.id,
+                    tabWidth: rect.width,
+                  });
+                }
+              }}
               onContextMenu={(e) => handleContextMenu(e, tab.id)}
               onMouseEnter={(e) => {
                 if (!isActive) {
@@ -371,8 +445,12 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
                 </span>
               )}
               <button
+                type="button"
+                aria-label={`关闭 ${fileName}`}
+                title={`关闭 ${fileName}`}
+                tabIndex={isActive ? 0 : -1}
                 onClick={(e) => handleCloseTab(e, tab.id)}
-                className="flex-shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="flex-shrink-0 rounded p-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:outline focus-visible:outline-2 transition-opacity"
                 style={{ color: "var(--text-muted)" }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.backgroundColor = "var(--hover-bg)";
@@ -395,6 +473,15 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
         className="flex h-full flex-shrink-0 items-center gap-1 px-1"
         style={{ borderLeft: "1px solid var(--border-color)" }}
       >
+        <button
+          type="button"
+          aria-label="新建标签页"
+          title="新建标签页"
+          onClick={handleNewTab}
+          className="flex h-7 w-7 items-center justify-center rounded text-[var(--text-muted)] hover:bg-[var(--hover-bg)] focus-visible:outline focus-visible:outline-2"
+        >
+          <Plus aria-hidden="true" className="h-3.5 w-3.5" />
+        </button>
         <EditorToolbar
           groupId={groupId}
           onNewTab={handleNewTab}
@@ -407,6 +494,34 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
       {contextMenu
         ? createPortal(
             <div
+              ref={contextMenuRef}
+              role="menu"
+              aria-label="标签页操作"
+              onKeyDown={(event) => {
+                const items = Array.from(
+                  event.currentTarget.querySelectorAll<HTMLButtonElement>(
+                    "button:not(:disabled)",
+                  ),
+                );
+                const index = items.indexOf(
+                  document.activeElement as HTMLButtonElement,
+                );
+                const nextIndex =
+                  event.key === "ArrowDown"
+                    ? (index + 1) % items.length
+                    : event.key === "ArrowUp"
+                      ? (index - 1 + items.length) % items.length
+                      : event.key === "Home"
+                        ? 0
+                        : event.key === "End"
+                          ? items.length - 1
+                          : null;
+                if (nextIndex !== null) {
+                  event.preventDefault();
+                  items[nextIndex]?.focus();
+                }
+                if (event.key === "Tab") setContextMenu(null);
+              }}
               className="fixed z-[100] min-w-[180px] py-1"
               style={{
                 left: contextMenu.x,
@@ -480,7 +595,9 @@ function MenuButton({
 }) {
   return (
     <button
-      className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs transition-colors"
+      role="menuitem"
+      tabIndex={-1}
+      className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs transition-colors focus-visible:bg-[var(--hover-bg)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2"
       style={{
         color: "var(--text-primary)",
         opacity: disabled ? 0.45 : 1,
