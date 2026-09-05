@@ -95,6 +95,54 @@ function assignForwardedRef<T>(ref: ForwardedRef<T>, value: T | null) {
   }
 }
 
+export function indentMarkdownSelection(
+  value: string,
+  start: number,
+  end: number,
+  outdent: boolean,
+) {
+  if (start === end && !outdent) {
+    return {
+      value: `${value.slice(0, start)}  ${value.slice(end)}`,
+      start: start + 2,
+      end: end + 2,
+    };
+  }
+
+  // 选区末端位于下一行行首时，该行不参与缩进；所有正文必须原样保留。
+  const firstLine = start === 0 ? 0 : value.lastIndexOf("\n", start - 1) + 1;
+  const lastPosition = end > start ? end - 1 : end;
+  const nextBreak = value.indexOf("\n", lastPosition);
+  const lastLine = nextBreak < 0 ? value.length : nextBreak;
+  let offset = firstLine;
+  let nextStart = start;
+  let nextEnd = end;
+  const lines = value
+    .slice(firstLine, lastLine)
+    .split("\n")
+    .map((line) => {
+      const removed = outdent
+        ? (line.match(/^(?:\t| {1,2})/)?.[0].length ?? 0)
+        : 0;
+      const delta = outdent ? -removed : 2;
+      const mapPosition = (position: number) =>
+        position < offset
+          ? 0
+          : outdent
+            ? -Math.min(removed, position - offset)
+            : delta;
+      nextStart += mapPosition(start);
+      nextEnd += mapPosition(end);
+      offset += line.length + 1;
+      return outdent ? line.slice(removed) : `  ${line}`;
+    });
+  return {
+    value: value.slice(0, firstLine) + lines.join("\n") + value.slice(lastLine),
+    start: nextStart,
+    end: nextEnd,
+  };
+}
+
 export const MarkdownSourceEditor = forwardRef<
   HTMLTextAreaElement,
   MarkdownSourceEditorProps
@@ -116,6 +164,7 @@ export const MarkdownSourceEditor = forwardRef<
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLTextAreaElement>) => {
+      if (event.nativeEvent.isComposing || event.keyCode === 229) return;
       const textarea = event.currentTarget;
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
@@ -142,14 +191,14 @@ export const MarkdownSourceEditor = forwardRef<
         return;
       }
 
-      if (event.key !== "Tab") return;
+      if (event.key !== "Tab" || event.ctrlKey || event.metaKey || event.altKey)
+        return;
       event.preventDefault();
-
-      const nextValue = `${value.slice(0, start)}  ${value.slice(end)}`;
-      onChange(nextValue);
+      const result = indentMarkdownSelection(value, start, end, event.shiftKey);
+      onChange(result.value);
 
       requestAnimationFrame(() => {
-        textarea.setSelectionRange(start + 2, start + 2);
+        textarea.setSelectionRange(result.start, result.end);
       });
     },
     [onChange, value],

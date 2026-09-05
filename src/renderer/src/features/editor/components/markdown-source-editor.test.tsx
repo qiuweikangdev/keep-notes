@@ -8,9 +8,44 @@ import {
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { MarkdownSourceEditor } from "./markdown-source-editor";
+import {
+  indentMarkdownSelection,
+  MarkdownSourceEditor,
+} from "./markdown-source-editor";
 
 describe("MarkdownSourceEditor", () => {
+  it.each([
+    ["- one\n- two", 0, 11, false, "  - one\n  - two", 2, 15],
+    ["  - one\n  - two", 2, 15, true, "- one\n- two", 0, 11],
+    ["- one\n- two", 0, 11, true, "- one\n- two", 0, 11],
+    ["one\ntwo", 0, 4, false, "  one\ntwo", 2, 6],
+    ["\tone\n two", 0, 9, true, "one\ntwo", 0, 7],
+    ["  one", 1, 1, true, "one", 0, 0],
+  ] as const)(
+    "preserves text and maps selection when indenting %j",
+    (value, start, end, outdent, nextValue, nextStart, nextEnd) => {
+      expect(indentMarkdownSelection(value, start, end, outdent)).toEqual({
+        value: nextValue,
+        start: nextStart,
+        end: nextEnd,
+      });
+    },
+  );
+
+  it("outdents a multiline selection without replacing the selected text", () => {
+    const onChange = vi.fn();
+    render(
+      <MarkdownSourceEditor
+        value={"  - one\n  - two"}
+        onChange={onChange}
+        onScrollTopChange={vi.fn()}
+      />,
+    );
+    const editor = screen.getByRole("textbox") as HTMLTextAreaElement;
+    editor.setSelectionRange(0, editor.value.length);
+    fireEvent.keyDown(editor, { key: "Tab", shiftKey: true });
+    expect(onChange).toHaveBeenCalledWith("- one\n- two");
+  });
   afterEach(() => {
     cleanup();
   });
