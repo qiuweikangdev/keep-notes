@@ -2082,7 +2082,18 @@ function restoreTableSourceFormatting(source: string, markdown: string) {
       if (!sourceRow || !resultRow) continue;
       const sourceLine = sourceLines[sourceBlock.start + rowIndex];
       const cells = isMarkdownTableSeparatorRow(sourceRow)
-        ? sourceRow.cells
+        ? sourceRow.cells.map((cell, cellIndex) => {
+            const editedCell = resultRow.cells[cellIndex];
+            const alignment = (value: string) =>
+              value.trim().endsWith(":")
+                ? value.trim().startsWith(":")
+                  ? "center"
+                  : "right"
+                : "left";
+            if (alignment(cell) === alignment(editedCell)) return cell;
+            // 保留原有空格，但对齐冒号属于用户编辑，不能被格式恢复覆盖。
+            return preserveTableCellSpacing(cell, editedCell);
+          })
         : resultRow.cells.map((cell, cellIndex) =>
             preserveTableCellSpacing(sourceRow.cells[cellIndex], cell),
           );
@@ -3036,12 +3047,54 @@ function getBlockChildren<TBlock>(block: TBlock): TBlock[] {
 }
 
 function hasNestedBlockSerializationRisk<TBlock>(block: TBlock): boolean {
+  // 表格必须单独导出，才能按对应块恢复列对齐，避免误改代码围栏中的表格示例。
+  if (getMarkdownBlockType(block) === "table") return true;
   const children = getBlockChildren(block);
   return (
     children.length > 0 &&
     (children.some((child) => getMarkdownListKind(child) === null) ||
       children.some(hasNestedBlockSerializationRisk))
   );
+}
+
+function restoreSerializedTableAlignment(
+  markdown: string,
+  block: unknown,
+): string {
+  if (!isRecord(block) || block.type !== "table" || !isRecord(block.content))
+    return markdown;
+  const rows = block.content.rows;
+  if (
+    !Array.isArray(rows) ||
+    !isRecord(rows[0]) ||
+    !Array.isArray(rows[0].cells)
+  )
+    return markdown;
+  const alignments = rows[0].cells.flatMap((cell: unknown) => {
+    const props = isRecord(cell) && isRecord(cell.props) ? cell.props : {};
+    const span =
+      typeof props.colspan === "number" ? Math.max(1, props.colspan) : 1;
+    return Array.from({ length: span }, () => props.textAlignment);
+  });
+  let restored = false;
+  return markdown
+    .split("\n")
+    .map((line) => {
+      if (restored || !SERIALIZED_TABLE_SEPARATOR_PATTERN.test(line))
+        return line;
+      restored = true;
+      let column = 0;
+      return line.replace(/:?-{3,}:?/gu, (separator) => {
+        const alignment = alignments[column++];
+        const width = Math.max(3, separator.length);
+        if (alignment === "center")
+          return `:${"-".repeat(Math.max(3, width - 2))}:`;
+        if (alignment === "right")
+          return `${"-".repeat(Math.max(3, width - 1))}:`;
+        return "-".repeat(width);
+      });
+    })
+    .join("\n");
 }
 
 function indentNestedMarkdown(markdown: string): string {
@@ -3086,9 +3139,10 @@ async function serializeBlockTree<TBlock>(
     numberedListStart === undefined
       ? blockWithoutChildren
       : withNumberedListStart(blockWithoutChildren, numberedListStart);
-  const rawBlockMarkdown = await serializer.blocksToMarkdownLossy([
+  const rawBlockMarkdown = restoreSerializedTableAlignment(
+    await serializer.blocksToMarkdownLossy([serializedBlock]),
     serializedBlock,
-  ]);
+  );
   const blockMarkdown = (
     isCompactParagraphBlock(blockWithoutChildren)
       ? normalizeSerializedPlainParagraphBreaks(rawBlockMarkdown)

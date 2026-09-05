@@ -1065,6 +1065,24 @@ describe("editor BlockNote schema", () => {
       "right",
       "center",
     ]);
+    const baseline = await serializeMarkdown(editor, editor.document);
+    expect(baseline).toMatch(/\| -+: \| :-+: \|/);
+    const table = editor.document[0];
+    if (table.type !== "table") throw new Error("Expected table");
+    const content = structuredClone(table.content);
+    for (const row of content.rows) {
+      const cell = row.cells[1];
+      if (Array.isArray(cell)) throw new Error("Expected styled cell");
+      cell.props.textAlignment = "center";
+    }
+    editor.updateBlock(table, { content });
+    const edited = await serializeMarkdown(editor, editor.document);
+    expect(edited).not.toBe(baseline);
+    const saved = preserveMarkdownSource(`${source}\n`, baseline, edited);
+    const reopened = await parseMarkdown(editor, saved);
+    expect(
+      reopened[0].content.rows[0].cells.map((cell) => cell.props.textAlignment),
+    ).toEqual(["left", "center", "center"]);
   });
 
   it("preserves distinct paragraphs across Markdown serialization and reopening", async () => {
