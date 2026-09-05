@@ -1,9 +1,11 @@
 import { diffChars, type Change } from "diff";
+import MarkdownIt from "markdown-it";
 
 import { CODE_BLOCK_LANGUAGE_OPTIONS } from "./editor-code-block-languages";
 
 export interface MarkdownParser<TBlock> {
   tryParseMarkdownToBlocks(markdown: string): Promise<TBlock[]> | TBlock[];
+  tryParseHTMLToBlocks?(html: string): Promise<TBlock[]> | TBlock[];
 }
 
 export interface MarkdownSerializer<TBlock> {
@@ -3097,10 +3099,10 @@ function restoreSerializedTableAlignment(
     .join("\n");
 }
 
-function indentNestedMarkdown(markdown: string): string {
+function indentNestedMarkdown(markdown: string, width = 2): string {
   return markdown
     .split("\n")
-    .map((line) => (line ? `  ${line}` : line))
+    .map((line) => (line ? `${" ".repeat(width)}${line}` : line))
     .join("\n");
 }
 
@@ -3122,7 +3124,7 @@ function getNestedBlockSeparator<TBlock>(
     isSameListRun(parent, previous) &&
     isCompactParagraphBlock(current)
   ) {
-    return "\n";
+    return getMarkdownListKind(parent) === "ordered" ? "\n\n" : "\n";
   }
 
   return "\n\n";
@@ -3156,7 +3158,14 @@ async function serializeBlockTree<TBlock>(
     children,
     block,
   );
-  const nestedMarkdown = indentNestedMarkdown(childrenMarkdown.trimEnd());
+  const indentWidth =
+    getMarkdownListKind(block) === "ordered"
+      ? String(numberedListStart ?? getNumberedListStart(block)).length + 2
+      : 2;
+  const nestedMarkdown = indentNestedMarkdown(
+    childrenMarkdown.trimEnd(),
+    indentWidth,
+  );
   const separator = getNestedBlockSeparator(block, block, children[0]);
   return `${blockMarkdown}${separator}${nestedMarkdown}`;
 }
@@ -3398,6 +3407,139 @@ async function serializeQuoteListBlocks<TBlock>(
   return `${chunks.join("\n\n")}\n`;
 }
 
+const listMarkdownParser = new MarkdownIt({ html: false });
+
+async function parseMarkdownWithStructuredLists<TBlock>(
+  parser: MarkdownParser<TBlock>,
+  markdown: string,
+): Promise<TBlock[]> {
+  if (!parser.tryParseHTMLToBlocks || !/^\s*\d+[.)]\s/mu.test(markdown)) {
+    return parser.tryParseMarkdownToBlocks(markdown);
+  }
+  const parseHTML = parser.tryParseHTMLToBlocks.bind(parser);
+  const tokens = listMarkdownParser.parse(markdown, {});
+  const lines = markdown.split("\n");
+  const output: TBlock[] = [];
+  let cursor = 0;
+  // 逐个解析 li 的正文与子块，避开依赖把子列表后的段落提升为新 li 的转换。
+  const parseList = async (list: Element): Promise<TBlock[]> => {
+    const result: TBlock[] = [];
+    const ordered = list.tagName === "OL";
+    const start = Number(list.getAttribute("start") ?? 1);
+    for (const item of Array.from(list.children)) {
+      if (item.tagName !== "LI") continue;
+      const head = document.createElement("p");
+      let childrenStarted = false;
+      const children: TBlock[] = [];
+      for (const node of Array.from(item.childNodes)) {
+        if (
+          node.nodeType === 3 &&
+          !node.textContent?.trim() &&
+          (childrenStarted || !head.hasChildNodes())
+        )
+          continue;
+        if (
+          node instanceof Element &&
+          (node.tagName === "UL" || node.tagName === "OL")
+        ) {
+          childrenStarted = true;
+          children.push(...(await parseList(node)));
+        } else if (
+          node instanceof Element &&
+          node.tagName === "P" &&
+          !head.hasChildNodes() &&
+          !childrenStarted
+        ) {
+          head.innerHTML = node.innerHTML;
+        } else if (
+          (node instanceof Element &&
+            (childrenStarted ||
+              (node.tagName !== "P" &&
+                !["A", "STRONG", "EM", "CODE", "S", "IMG", "BR"].includes(
+                  node.tagName,
+                )))) ||
+          (node instanceof Element && node.tagName === "P")
+        ) {
+          childrenStarted = true;
+          children.push(...(await parseHTML((node as Element).outerHTML)));
+        } else {
+          head.append(node.cloneNode(true));
+        }
+      }
+      const task =
+        !ordered && head.firstChild?.nodeType === 3
+          ? head.firstChild.textContent?.match(/^\[([ xX])\]\s+/u)
+          : null;
+      if (task && head.firstChild)
+        head.firstChild.textContent = head.firstChild.textContent!.slice(
+          task[0].length,
+        );
+      const headBlocks = await parseHTML(head.outerHTML);
+      const first = headBlocks[0] ?? { type: "paragraph", content: [] };
+      if (!isRecord(first)) continue;
+      const inlineHead = first.type === "paragraph";
+      const props = isRecord(first.props) ? first.props : {};
+      result.push({
+        ...(inlineHead ? first : { content: [] }),
+        type: ordered
+          ? "numberedListItem"
+          : task
+            ? "checkListItem"
+            : "bulletListItem",
+        props: {
+          ...props,
+          ...(ordered && result.length === 0 ? { start } : {}),
+          ...(task ? { checked: task[1].toLowerCase() === "x" } : {}),
+        },
+        children: [
+          ...(inlineHead ? headBlocks.slice(1) : headBlocks),
+          ...children,
+        ],
+      } as TBlock);
+    }
+    return result;
+  };
+  for (let index = 0; index < tokens.length; index++) {
+    const token = tokens[index];
+    if (
+      token.level !== 0 ||
+      !["ordered_list_open", "bullet_list_open"].includes(token.type) ||
+      !token.map
+    )
+      continue;
+    let endIndex = index + 1;
+    while (endIndex < tokens.length && tokens[endIndex].level !== 0) endIndex++;
+    const subtree = tokens.slice(index, endIndex + 1);
+    const hasOrderedList = subtree.some(
+      (part) => part.type === "ordered_list_open",
+    );
+    const hasComplexItems = subtree.some(
+      (part) =>
+        (part.type === "paragraph_open" && !part.hidden) ||
+        (part.level > 0 &&
+          ["ordered_list_open", "bullet_list_open"].includes(part.type)),
+    );
+    if (!hasOrderedList || !hasComplexItems) continue;
+    const [from, to] = token.map;
+    const preceding = lines.slice(cursor, from).join("\n");
+    if (preceding.trim())
+      output.push(...(await parser.tryParseMarkdownToBlocks(preceding)));
+    const container = document.createElement("div");
+    container.innerHTML = listMarkdownParser.render(
+      lines.slice(from, to).join("\n"),
+    );
+    for (const list of Array.from(container.children))
+      output.push(...(await parseList(list)));
+    cursor = to;
+    index = endIndex;
+  }
+  if (cursor === 0) return parser.tryParseMarkdownToBlocks(markdown);
+  const trailing = lines.slice(cursor).join("\n");
+  if (trailing.trim())
+    output.push(...(await parser.tryParseMarkdownToBlocks(trailing)));
+  return output;
+}
+
 export async function parseMarkdown<TBlock>(
   parser: MarkdownParser<TBlock>,
   markdown: string,
@@ -3409,7 +3551,10 @@ export async function parseMarkdown<TBlock>(
     .replace(/^\uFEFF/, "")
     .replace(/\r\n?/g, "\n");
   const normalized = normalizeQuoteListsForParser(parseInput);
-  const blocks = await parser.tryParseMarkdownToBlocks(normalized.markdown);
+  const blocks = await parseMarkdownWithStructuredLists(
+    parser,
+    normalized.markdown,
+  );
   // BlockNote 0.51 的 Markdown 解析器不再识别裸 URL；在恢复受保护源码前补回链接节点。
   const linkedBlocks = blocks.map(linkifyBareUrlsInBlock);
   const restoredBlocks =

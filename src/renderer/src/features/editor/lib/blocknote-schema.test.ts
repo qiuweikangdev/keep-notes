@@ -264,6 +264,37 @@ function readCodeBlockNodeViewStopDecision(target: Element, eventType: string) {
 }
 
 describe("editor BlockNote schema", () => {
+  it("preserves ordered list starts and continuation paragraphs around nested lists", async () => {
+    const editor = BlockNoteEditor.create({ schema: editorSchema });
+    const source = "10. parent\n    - child\n\n    paragraph\n\n11. next\n";
+    const blocks = await parseMarkdown(editor, source);
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0]).toMatchObject({
+      type: "numberedListItem",
+      props: { start: 10 },
+      children: [{ type: "bulletListItem" }, { type: "paragraph" }],
+    });
+    editor.replaceBlocks(editor.document, blocks);
+    const baseline = await serializeMarkdown(editor, editor.document);
+    editor.updateBlock(editor.document[0], { content: "parent edited" });
+    const edited = await serializeMarkdown(editor, editor.document);
+    const saved = preserveMarkdownSource(source, baseline, edited);
+    for (const markdown of [edited, saved]) {
+      const reopened = await parseMarkdown(editor, markdown);
+      expect(reopened).toHaveLength(2);
+      expect(reopened[0]).toMatchObject({
+        props: { start: 10 },
+        children: [{ type: "bulletListItem" }, { type: "paragraph" }],
+      });
+      const html = document.createElement("div");
+      html.innerHTML = new MarkdownIt().render(markdown);
+      expect(html.querySelector("ol")?.getAttribute("start")).toBe("10");
+      expect(html.querySelectorAll("ol > li")).toHaveLength(2);
+      expect(html.querySelector("ol > li > p:last-child")?.textContent).toBe(
+        "paragraph",
+      );
+    }
+  });
   it("does not escape template literals inside fenced code", async () => {
     const editor = BlockNoteEditor.create({ schema: editorSchema });
     const source = "```js\nconst text = `hello`;\n```\n";
