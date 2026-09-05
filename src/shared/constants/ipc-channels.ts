@@ -25,6 +25,7 @@ export const IPC_CHANNELS = {
     SAVE_DRAFT: "editor:save-draft",
   },
   QUICK_EDITOR: {
+    SAVE_STATE: "quick-editor:save-state",
     SOURCE_UPDATED: "quick-editor:source-updated",
     SET_GLOBAL_SHORTCUT: "quick-editor:set-global-shortcut",
     SHOW_WINDOW: "quick-editor:show-window",

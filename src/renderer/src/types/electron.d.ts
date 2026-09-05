@@ -186,6 +186,9 @@ export interface ElectronAPI {
   onQuickEditorSourceUpdated: (
     callback: (source: NonNullable<QuickEditorWindowContent["source"]>) => void,
   ) => () => void;
+  onQuickEditorSaveState: (
+    callback: (state: import("@shared/types").QuickEditorSaveState) => void,
+  ) => () => void;
   closeQuickEditorWindow: () => void;
   returnToMainWindowFromQuickEditor: (
     content: QuickEditorWindowContent,

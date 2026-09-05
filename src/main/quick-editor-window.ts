@@ -49,6 +49,7 @@ const quickEditorWindowSources = new Map<
 >();
 const detachedQuickEditorSources = new Map<BrowserWindow, Set<string>>();
 interface QuickEditorFileWrite {
+  error?: Error;
   complete: Promise<void>;
   content: string;
   isWriting: boolean;
@@ -115,6 +116,8 @@ registerFilePathMove(async (from, to) => {
   try {
     for (const [path, write] of quickEditorFileWrites) {
       if (relocatedPath(path, from, to) !== path) await write.complete;
+      if (relocatedPath(path, from, to) !== path && write.error)
+        throw write.error;
     }
     return finish;
   } catch (error) {
@@ -139,7 +142,8 @@ function persistQuickEditorFile(filePath: string, content: string): void {
   const current = quickEditorFileWrites.get(filePath);
   if (current) {
     current.content = content;
-    return;
+    if (!current.error) return;
+    quickEditorFileWrites.delete(filePath);
   }
 
   let resolve!: () => void;
@@ -163,14 +167,17 @@ function persistQuickEditorFile(filePath: string, content: string): void {
       try {
         await writeFileContent(filePath, snapshot);
       } catch (error) {
-        console.error("Failed to persist quick editor content:", error);
-        quickEditorFileWrites.delete(filePath);
+        // 写入失败保留最新快照；等待者和关联浮窗都必须得到失败状态。
+        state.error = error instanceof Error ? error : new Error(String(error));
+        state.isWriting = false;
+        publishQuickEditorSaveState(filePath, state.error.message);
         state.resolve();
         return;
       }
 
       if (state.content === snapshot) {
         quickEditorFileWrites.delete(filePath);
+        publishQuickEditorSaveState(filePath, null);
         state.resolve();
         return;
       }
@@ -178,6 +185,20 @@ function persistQuickEditorFile(filePath: string, content: string): void {
   };
 
   void drain();
+}
+
+function publishQuickEditorSaveState(
+  filePath: string,
+  error: string | null,
+): void {
+  for (const [win, source] of quickEditorWindowSources) {
+    if (source.filePath === filePath && !win.isDestroyed()) {
+      win.webContents.send(IPC_CHANNELS.QUICK_EDITOR.SAVE_STATE, {
+        filePath,
+        error,
+      });
+    }
+  }
 }
 
 function normalizeQuickEditorSource(
@@ -529,11 +550,44 @@ export function createQuickEditorWindow(
   win.on("close", (event) => {
     if (win.isDestroyed()) return;
 
-    // 已关联真实文件的浮窗内容会实时回写；未命名标签仍需在关闭时确认保存。
-    if (quickEditorWindowSources.get(win)?.filePath) return;
-
     event.preventDefault();
     if (closingQuickEditorWindows.has(win)) return;
+
+    const source = quickEditorWindowSources.get(win);
+    if (source?.filePath) {
+      closingQuickEditorWindows.add(win);
+      void (async () => {
+        try {
+          // 关闭前读取实时富文本，不能只等待已进入 IPC 的旧序列化快照。
+          let snapshot: unknown = await win.webContents.executeJavaScript(
+            "window.__getQuickEditorContent?.()",
+          );
+          while (!win.isDestroyed()) {
+            if (typeof snapshot !== "string")
+              throw new Error("编辑器尚未就绪，请稍后重试");
+            persistQuickEditorFile(source.filePath!, snapshot);
+            await flushQuickEditorContent(source);
+            if (win.isDestroyed()) return;
+            const current: unknown = await win.webContents.executeJavaScript(
+              "window.__getQuickEditorContent?.()",
+            );
+            if (current === snapshot) {
+              win.destroy();
+              return;
+            }
+            snapshot = current;
+          }
+        } catch (error) {
+          publishQuickEditorSaveState(
+            source.filePath!,
+            error instanceof Error ? error.message : "保存失败",
+          );
+        } finally {
+          closingQuickEditorWindows.delete(win);
+        }
+      })();
+      return;
+    }
 
     // 关闭入口统一经过脏状态检查，避免标题栏按钮和系统快捷键产生不同行为。
     closingQuickEditorWindows.add(win);
@@ -845,7 +899,12 @@ export function detachQuickEditorSource(
 export async function flushQuickEditorContent(source: unknown): Promise<void> {
   const normalizedSource = normalizeQuickEditorSource(source);
   if (!normalizedSource?.filePath) return;
+  const pending = quickEditorFileWrites.get(normalizedSource.filePath);
+  if (pending?.error)
+    persistQuickEditorFile(normalizedSource.filePath, pending.content);
   await quickEditorFileWrites.get(normalizedSource.filePath)?.complete;
+  const error = quickEditorFileWrites.get(normalizedSource.filePath)?.error;
+  if (error) throw error;
 }
 
 /** 将浮窗文件操作请求转交给主窗口，主窗口负责复用完整的编辑器与 Git 状态。 */

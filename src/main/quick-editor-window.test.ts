@@ -8,6 +8,7 @@ import {
   detachQuickEditorSource,
   disposeQuickEditorWindow,
   getQuickEditorCollapsed,
+  flushQuickEditorContent,
   returnToMainWindowFromQuickEditor,
   saveQuickEditorContent,
   setQuickEditorCollapsed,
@@ -44,6 +45,7 @@ const electronMocks = vi.hoisted(() => {
     readonly webContentsHandlers = new Map<string, Handler[]>();
     readonly webContents = {
       id: nextWebContentsId++,
+      executeJavaScript: vi.fn(async () => "latest snapshot"),
       once: vi.fn((event: string, handler: Handler) => {
         const handlers = this.webContentsHandlers.get(event) ?? [];
         handlers.push(handler);
@@ -737,4 +739,59 @@ describe("quick editor floating window", () => {
       );
     },
   );
+
+  it("reports failed writes and retries the retained latest snapshot", async () => {
+    const source = {
+      groupId: "group",
+      tabId: "tab",
+      filePath: "/notes/failure.md",
+    };
+    const win = createQuickEditorWindow(
+      { content: "original", source },
+      windowMocks.mainWindow,
+    );
+    fileMocks.writeFileContent.mockRejectedValueOnce(new Error("disk full"));
+    syncQuickEditorContent({ content: "latest unsaved", source }, win);
+    await expect(flushQuickEditorContent(source)).rejects.toThrow("disk full");
+    expect(win.webContents.send).toHaveBeenCalledWith(
+      IPC_CHANNELS.QUICK_EDITOR.SAVE_STATE,
+      { filePath: source.filePath, error: "disk full" },
+    );
+    await expect(flushQuickEditorContent(source)).resolves.toBeUndefined();
+    expect(fileMocks.writeFileContent).toHaveBeenLastCalledWith(
+      source.filePath,
+      "latest unsaved",
+    );
+    expect(win.webContents.send).toHaveBeenLastCalledWith(
+      IPC_CHANNELS.QUICK_EDITOR.SAVE_STATE,
+      { filePath: source.filePath, error: null },
+    );
+  });
+
+  it("keeps a linked window open if its final snapshot cannot be saved", async () => {
+    const source = {
+      groupId: "group",
+      tabId: "tab",
+      filePath: "/notes/close-failure.md",
+    };
+    const win = createQuickEditorWindow(
+      { content: "original", source },
+      windowMocks.mainWindow,
+    );
+    fileMocks.writeFileContent.mockRejectedValueOnce(new Error("disk full"));
+    win.close();
+    await vi.waitFor(() =>
+      expect(win.webContents.send).toHaveBeenCalledWith(
+        IPC_CHANNELS.QUICK_EDITOR.SAVE_STATE,
+        expect.objectContaining({ error: "disk full" }),
+      ),
+    );
+    expect(win.destroy).not.toHaveBeenCalled();
+    win.close();
+    await vi.waitFor(() => expect(win.destroy).toHaveBeenCalledOnce());
+    expect(fileMocks.writeFileContent).toHaveBeenLastCalledWith(
+      source.filePath,
+      "latest snapshot",
+    );
+  });
 });

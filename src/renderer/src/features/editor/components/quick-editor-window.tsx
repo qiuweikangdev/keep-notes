@@ -114,6 +114,7 @@ interface QuickEditorBlock {
 }
 
 interface QuickEditorBridgeWindow extends Window {
+  __getQuickEditorContent?: () => Promise<string>;
   __getNextDirtyEditor?: () => Promise<CloseSaveSnapshot | null>;
   __onCloseSaveSuccess?: (
     groupId: string,
@@ -222,6 +223,7 @@ function quickEditorHeadingSnapshotsEqual(
 }
 
 export function QuickEditorWindow() {
+  const [saveError, setSaveError] = useState<string | null>(null);
   const appearance = useEditorStore((state) => state.appearance);
   const { isDark } = useTheme({ transparentBackground: true });
   const dirtyRef = useRef(false);
@@ -561,6 +563,15 @@ export function QuickEditorWindow() {
       serialized,
     );
   }, [editor, editorMode]);
+
+  useEffect(
+    () =>
+      window.electronAPI.onQuickEditorSaveState?.((state) => {
+        if (state.filePath === sourceRef.current?.filePath)
+          setSaveError(state.error);
+      }),
+    [],
+  );
 
   const applyRestoredContent = useCallback(
     async (content: string, source: QuickEditorWindowContent["source"]) => {
@@ -939,6 +950,7 @@ export function QuickEditorWindow() {
 
   useEffect(() => {
     const bridgeWindow = window as QuickEditorBridgeWindow;
+    bridgeWindow.__getQuickEditorContent = getCurrentEditorContent;
     // 模式切换只更新内容读取回调，不能清除草稿的未保存状态。
 
     bridgeWindow["__getNextDirtyEditor"] = async () => {
@@ -972,6 +984,7 @@ export function QuickEditorWindow() {
 
     return () => {
       delete bridgeWindow["__getNextDirtyEditor"];
+      delete bridgeWindow.__getQuickEditorContent;
       delete bridgeWindow["__onCloseSaveSuccess"];
     };
   }, [getCurrentEditorContent, syncDirtyState]);
@@ -1112,9 +1125,21 @@ export function QuickEditorWindow() {
   }, [getCurrentEditorContent]);
 
   const handleSave = useCallback(async () => {
-    if (sourceRef.current?.filePath) return;
-
     const content = await getCurrentEditorContent();
+    const source = sourceRef.current;
+    if (source?.filePath) {
+      try {
+        // 重试使用实时内容，包括清空文件后的空字符串。
+        window.electronAPI.syncQuickEditorContent({ source, content });
+        await window.electronAPI.flushQuickEditorContent(source);
+        setSaveError(null);
+      } catch (error) {
+        setSaveError(
+          error instanceof Error ? error.message : "保存失败，请重试",
+        );
+      }
+      return;
+    }
     if (!content.trim()) return;
 
     const result = await window.electronAPI.saveQuickEditorContent(content);
@@ -1366,6 +1391,23 @@ export function QuickEditorWindow() {
           )}
         </div>
       </header>
+      {saveError ? (
+        <div
+          role="alert"
+          className="flex flex-shrink-0 items-center gap-2 px-3 py-2 text-xs text-[var(--text-primary)] bg-[var(--bg-secondary)]"
+        >
+          <span className="min-w-0 flex-1 break-words">
+            保存失败，内容仍保留在窗口中。{saveError}
+          </span>
+          <button
+            type="button"
+            className="rounded px-2 py-1 focus-visible:outline focus-visible:outline-2"
+            onClick={() => void handleSave()}
+          >
+            重试保存
+          </button>
+        </div>
+      ) : null}
 
       <main
         aria-hidden={editorIsHidden || undefined}

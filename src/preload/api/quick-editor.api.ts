@@ -3,6 +3,7 @@ import { IPC_CHANNELS } from "../../shared/constants";
 import type {
   ApiResponse,
   QuickEditorSaveResult,
+  QuickEditorSaveState,
   QuickEditorWindowContent,
   ShortcutRegistrationResult,
 } from "../../shared/types";
@@ -77,6 +78,20 @@ ipcRenderer.on(IPC_CHANNELS.QUICK_EDITOR.CONTENT_UPDATED, (_, content) => {
 });
 
 export const quickEditorApi = {
+  onQuickEditorSaveState: (
+    callback: (state: QuickEditorSaveState) => void,
+  ): (() => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      state: QuickEditorSaveState,
+    ) => callback(state);
+    ipcRenderer.on(IPC_CHANNELS.QUICK_EDITOR.SAVE_STATE, listener);
+    return () =>
+      ipcRenderer.removeListener(
+        IPC_CHANNELS.QUICK_EDITOR.SAVE_STATE,
+        listener,
+      );
+  },
   onQuickEditorSourceUpdated: (
     callback: (source: NonNullable<QuickEditorWindowContent["source"]>) => void,
   ): (() => void) => {
