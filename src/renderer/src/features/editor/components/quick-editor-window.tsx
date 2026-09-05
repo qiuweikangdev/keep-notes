@@ -928,7 +928,7 @@ export function QuickEditorWindow() {
 
   useEffect(() => {
     const bridgeWindow = window as QuickEditorBridgeWindow;
-    syncDirtyState(false);
+    // 模式切换只更新内容读取回调，不能清除草稿的未保存状态。
 
     bridgeWindow["__getNextDirtyEditor"] = async () => {
       if (!dirtyRef.current) return null;
@@ -962,9 +962,12 @@ export function QuickEditorWindow() {
     return () => {
       delete bridgeWindow["__getNextDirtyEditor"];
       delete bridgeWindow["__onCloseSaveSuccess"];
-      window.electronAPI.updateDirtyState(false);
     };
   }, [getCurrentEditorContent, syncDirtyState]);
+
+  useEffect(() => {
+    return () => window.electronAPI.updateDirtyState(false);
+  }, []);
 
   useEffect(() => {
     if (!isCollapseStateReady || isCollapsed) return;
