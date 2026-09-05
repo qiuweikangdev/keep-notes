@@ -3059,7 +3059,7 @@ function getNestedBlockSeparator<TBlock>(
   if (!previous) return "";
   if (isSameListRun(previous, current)) return "\n";
   if (isCompactParagraphBlock(previous) && isCompactParagraphBlock(current)) {
-    return "\n";
+    return "\n\n";
   }
 
   // 列表项下的普通段落是同一列表项的续行，不能让序列化器产生无缩进的列表外段落。
@@ -3178,12 +3178,10 @@ async function serializeBlockSequence<TBlock>(
     const chunk = await serializer.blocksToMarkdownLossy(
       blocks.slice(startIndex, index),
     );
-    // 连续普通段落在富文本中就是连续文本行，源码只保留一个换行；其他块仍由 Markdown 序列化器保持原有间距。
+    // 独立段落之间必须保留空行；单换行在 Markdown 中会把两个段落合并。
     chunks.push(
       isParagraph
-        ? normalizeSerializedPlainParagraphBreaks(chunk)
-            .replace(/\n{2,}/gu, "\n")
-            .trimEnd()
+        ? normalizeSerializedPlainParagraphBreaks(chunk).trimEnd()
         : chunk.trimEnd(),
     );
   }

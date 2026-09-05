@@ -962,13 +962,10 @@ describe("editor BlockNote schema", () => {
     const expected = editor.blocksToMarkdownLossy(editor.document);
     const firstListBoundary = expected.indexOf("\n\n* Bullet item 1");
     expect(firstListBoundary).toBeGreaterThan(0);
-    const compactExpected =
-      expected.slice(0, firstListBoundary).replace(/\n{2,}/gu, "\n") +
-      expected.slice(firstListBoundary);
     const serialize = vi.spyOn(editor, "blocksToMarkdownLossy");
 
     await expect(serializeMarkdown(editor, editor.document)).resolves.toBe(
-      compactExpected,
+      expected,
     );
     expect(
       Math.max(...serialize.mock.calls.map(([blocks]) => blocks?.length ?? 0)),
@@ -1070,7 +1067,7 @@ describe("editor BlockNote schema", () => {
     ]);
   });
 
-  it("keeps adjacent plain paragraph line breaks compact in Markdown source", async () => {
+  it("preserves distinct paragraphs across Markdown serialization and reopening", async () => {
     const editor = BlockNoteEditor.create({
       schema: editorSchema,
       initialContent: [
@@ -1081,10 +1078,30 @@ describe("editor BlockNote schema", () => {
     });
 
     const serialized = await serializeMarkdown(editor, editor.document);
-    expect(serialized).toBe("First\nSecond\nThird\n");
+    expect(serialized).toBe("First\n\nSecond\n\nThird\n");
     const reopenedBlocks = await parseMarkdown(editor, serialized);
+    expect(reopenedBlocks.map((block) => block.type)).toEqual([
+      "paragraph",
+      "paragraph",
+      "paragraph",
+    ]);
     await expect(serializeMarkdown(editor, reopenedBlocks)).resolves.toBe(
       serialized,
+    );
+  });
+
+  it("keeps paragraph boundaries when preserving source after a rich edit", async () => {
+    const editor = BlockNoteEditor.create({ schema: editorSchema });
+    const source = "one\n\ntwo\n";
+    editor.replaceBlocks(editor.document, await parseMarkdown(editor, source));
+    const baseline = await serializeMarkdown(editor, editor.document);
+    editor.updateBlock(editor.document[0], { content: "one edited" });
+    const edited = await serializeMarkdown(editor, editor.document);
+    const saved = preserveMarkdownSource(source, baseline, edited);
+    expect(saved).toBe("one edited\n\ntwo\n");
+    expect(await parseMarkdown(editor, saved)).toHaveLength(2);
+    expect(new MarkdownIt().render(saved)).toBe(
+      "<p>one edited</p>\n<p>two</p>\n",
     );
   });
 

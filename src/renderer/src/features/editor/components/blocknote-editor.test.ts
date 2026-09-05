@@ -4166,7 +4166,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
     setupMatchMedia();
     setupDomMeasurements();
     const path = "C:/notes/multiline-paragraph-reconcile.md";
-    const expected = "测试1\n测试2";
+    const expected = "测试1\n\n测试2";
     setupSessionTab(path, { content: "# Initial", wordCount: 9 });
     const session = renderRealSession(path, false, "# Initial");
 
