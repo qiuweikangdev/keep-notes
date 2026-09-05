@@ -77,6 +77,20 @@ ipcRenderer.on(IPC_CHANNELS.QUICK_EDITOR.CONTENT_UPDATED, (_, content) => {
 });
 
 export const quickEditorApi = {
+  onQuickEditorSourceUpdated: (
+    callback: (source: NonNullable<QuickEditorWindowContent["source"]>) => void,
+  ): (() => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      source: NonNullable<QuickEditorWindowContent["source"]>,
+    ) => callback(source);
+    ipcRenderer.on(IPC_CHANNELS.QUICK_EDITOR.SOURCE_UPDATED, listener);
+    return () =>
+      ipcRenderer.removeListener(
+        IPC_CHANNELS.QUICK_EDITOR.SOURCE_UPDATED,
+        listener,
+      );
+  },
   setQuickEditorGlobalShortcut: (
     keys: string[],
   ): Promise<ShortcutRegistrationResult> => {

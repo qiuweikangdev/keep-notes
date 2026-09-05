@@ -540,6 +540,17 @@ export function QuickEditorWindow() {
     });
   }, [editor]);
 
+  useEffect(
+    () =>
+      window.electronAPI.onQuickEditorSourceUpdated?.((source) => {
+        // 路径变化只更新关联元数据，保留浮窗当前输入、选区和撤销历史。
+        sourceRef.current = source;
+        setLinkedFilePath(source.filePath);
+        setLinkedRepositoryRoot(source.repositoryRoot ?? null);
+      }),
+    [],
+  );
+
   const getCurrentEditorContent = useCallback(async () => {
     if (editorMode === "source") return sourceMarkdownRef.current;
 

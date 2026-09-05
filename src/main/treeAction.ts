@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { basename, dirname, join, normalize, sep } from "node:path";
 import { shell } from "electron";
 import { CodeResult } from "../shared/types";
+import { moveFilePath } from "./file-path-move";
 import {
   deleteTreeNode,
   findNodeByKey,
@@ -156,7 +157,9 @@ export async function rename(pathStr: string, title: string, treeData: any[]) {
   }
 
   try {
-    await renamePath(pathStr, newPath, isCaseOnlyRename);
+    await moveFilePath(pathStr, newPath, () =>
+      renamePath(pathStr, newPath, isCaseOnlyRename),
+    );
     const targetNode = findNodeByKey(treeData, pathStr);
     if (targetNode) {
       updateFilePaths(targetNode, newPath);
@@ -243,7 +246,9 @@ export async function moveFileOrFolder(
       };
     }
 
-    await fsPromises.rename(sourcePath, newPath);
+    await moveFilePath(sourcePath, newPath, () =>
+      fsPromises.rename(sourcePath, newPath),
+    );
 
     const sourceNode = findNodeByKey(treeData, sourcePath);
     const treeDataResult = deleteTreeNode(treeData, sourcePath);

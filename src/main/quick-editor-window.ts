@@ -12,6 +12,7 @@ import type {
 } from "../shared/types";
 import { CodeResult } from "../shared/types";
 import { saveAsDialog, writeFileContent } from "./file";
+import { registerFilePathMove, relocatedPath } from "./file-path-move";
 import { checkAndCloseWindow, focusMainWindow, getMainWindow } from "./window";
 
 const QUICK_EDITOR_WINDOW_WIDTH = 640;
@@ -55,6 +56,72 @@ interface QuickEditorFileWrite {
 }
 
 const quickEditorFileWrites = new Map<string, QuickEditorFileWrite>();
+let movingSource: {
+  from: string;
+  to: string;
+  queued: Map<string, string>;
+} | null = null;
+
+registerFilePathMove(async (from, to) => {
+  const move = { from, to, queued: new Map<string, string>() };
+  movingSource = move;
+  const finish = (moved: boolean) => {
+    if (moved) {
+      const affected = Array.from(quickEditorWindowSources).flatMap(
+        ([win, source]) => {
+          if (!source.filePath) return [];
+          const filePath = relocatedPath(source.filePath, from, to);
+          return filePath === source.filePath
+            ? []
+            : [
+                {
+                  win,
+                  source,
+                  filePath,
+                  previousKey: getQuickEditorSourceKey(source),
+                },
+              ];
+        },
+      );
+      for (const { win, source, filePath, previousKey } of affected) {
+        const owner = getQuickEditorMainWindow(win);
+        const detached = owner
+          ? detachedQuickEditorSources.get(owner)
+          : undefined;
+        const wasDetached = detached?.delete(previousKey);
+        source.filePath = filePath;
+        if (source.repositoryRoot)
+          source.repositoryRoot = relocatedPath(
+            source.repositoryRoot,
+            from,
+            to,
+          );
+        if (wasDetached) detached?.add(getQuickEditorSourceKey(source));
+        if (!win.isDestroyed())
+          win.webContents.send(
+            IPC_CHANNELS.QUICK_EDITOR.SOURCE_UPDATED,
+            source,
+          );
+      }
+    }
+    movingSource = null;
+    // 迁移期间的最后一次输入在成功时写入新路径，失败时仍写回原文件。
+    for (const [path, content] of move.queued)
+      persistQuickEditorFile(
+        moved ? relocatedPath(path, from, to) : path,
+        content,
+      );
+  };
+  try {
+    for (const [path, write] of quickEditorFileWrites) {
+      if (relocatedPath(path, from, to) !== path) await write.complete;
+    }
+    return finish;
+  } catch (error) {
+    finish(false);
+    throw error;
+  }
+});
 const quickEditorCollapseStates = new Map<
   BrowserWindow,
   QuickEditorCollapseState
@@ -62,6 +129,13 @@ const quickEditorCollapseStates = new Map<
 
 /** 串行写入同一来源文件，并在写入期间只保留最新的浮窗快照。 */
 function persistQuickEditorFile(filePath: string, content: string): void {
+  if (
+    movingSource &&
+    relocatedPath(filePath, movingSource.from, movingSource.to) !== filePath
+  ) {
+    movingSource.queued.set(filePath, content);
+    return;
+  }
   const current = quickEditorFileWrites.get(filePath);
   if (current) {
     current.content = content;

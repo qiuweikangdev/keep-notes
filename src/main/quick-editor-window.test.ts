@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { moveFilePath } from "./file-path-move";
 import { IPC_CHANNELS } from "../shared/constants";
 import {
   configureQuickEditorGlobalShortcuts,
@@ -672,4 +673,68 @@ describe("quick editor floating window", () => {
     expect(windowMocks.focusMainWindow).not.toHaveBeenCalled();
     expect(consumePendingQuickEditorContent()).toBeNull();
   });
+
+  it("retargets a linked floating editor after a file or parent directory move", async () => {
+    const source = {
+      groupId: "group",
+      tabId: "tab",
+      filePath: "/notes/old/a.md",
+    };
+    const win = createQuickEditorWindow(
+      { content: "original", source },
+      windowMocks.mainWindow,
+    );
+    await moveFilePath("/notes/old", "/notes/new", async () => {});
+    syncQuickEditorContent({ content: "latest", source }, win);
+    expect(fileMocks.writeFileContent).toHaveBeenCalledWith(
+      "/notes/new/a.md",
+      "latest",
+    );
+    expect(win.webContents.send).toHaveBeenCalledWith(
+      IPC_CHANNELS.QUICK_EDITOR.SOURCE_UPDATED,
+      expect.objectContaining({ filePath: "/notes/new/a.md" }),
+    );
+  });
+
+  it.each([true, false])(
+    "buffers new snapshots while a path move is pending (success=%s)",
+    async (success) => {
+      const source = {
+        groupId: "group",
+        tabId: "tab",
+        filePath: "/notes/old.md",
+      };
+      const win = createQuickEditorWindow(
+        { content: "original", source },
+        windowMocks.mainWindow,
+      );
+      let finishMove!: () => void;
+      let enteredMove!: () => void;
+      const entered = new Promise<void>((resolve) => {
+        enteredMove = resolve;
+      });
+      const waiting = new Promise<void>((resolve) => {
+        finishMove = resolve;
+      });
+      const moving = moveFilePath(
+        "/notes/old.md",
+        "/notes/new.md",
+        async () => {
+          enteredMove();
+          await waiting;
+          if (!success) throw new Error("rename failed");
+        },
+      );
+      const completion = moving.catch(() => {});
+      await entered;
+      syncQuickEditorContent({ content: "during rename", source }, win);
+      expect(fileMocks.writeFileContent).not.toHaveBeenCalled();
+      finishMove();
+      await completion;
+      expect(fileMocks.writeFileContent).toHaveBeenCalledWith(
+        success ? "/notes/new.md" : "/notes/old.md",
+        "during rename",
+      );
+    },
+  );
 });
