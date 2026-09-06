@@ -10,6 +10,8 @@ interface RecentFolder {
 
 interface TreeState {
   treeData: TreeNode[];
+  /** 搜索使用的完整目录快照，不参与左侧文件树渲染。 */
+  fullTreeData: TreeNode[] | null;
   treeRoot: TreeRoot | null;
   selectedKey: string | null;
   expandedKeys: Set<string>;
@@ -19,6 +21,7 @@ interface TreeState {
   recentFolders: RecentFolder[];
 
   setTreeData: (data: TreeNode[]) => void;
+  setFullTreeData: (data: TreeNode[]) => void;
   setTreeRoot: (root: TreeRoot) => void;
   setSelectedKey: (key: string | null) => void;
   toggleExpandedKey: (key: string) => void;
@@ -40,6 +43,7 @@ export const useTreeStore = create<TreeState>()(
   persist(
     (set) => ({
       treeData: [],
+      fullTreeData: null,
       treeRoot: null,
       selectedKey: null,
       expandedKeys: new Set(),
@@ -51,7 +55,9 @@ export const useTreeStore = create<TreeState>()(
       },
       recentFolders: [],
 
-      setTreeData: (data) => set({ treeData: data }),
+      setTreeData: (data) =>
+        set({ treeData: data, fullTreeData: null, isTreeFullyLoaded: false }),
+      setFullTreeData: (data) => set({ fullTreeData: data }),
       setTreeRoot: (root) =>
         set((state) => {
           const expandedKeys = new Set(state.expandedKeys);
@@ -62,6 +68,7 @@ export const useTreeStore = create<TreeState>()(
             expandedKeys,
             ...(isNewWorkspace
               ? {
+                  fullTreeData: null,
                   isTreeFullyLoaded: false,
                   loadingDirectoryKeys: new Set<string>(),
                 }
@@ -88,6 +95,8 @@ export const useTreeStore = create<TreeState>()(
               directoryPath,
               children,
             ),
+            fullTreeData: null,
+            isTreeFullyLoaded: false,
           };
         }),
       setDirectoryLoading: (directoryPath, isLoading) =>
@@ -97,7 +106,11 @@ export const useTreeStore = create<TreeState>()(
           else loadingDirectoryKeys.delete(directoryPath);
           return { loadingDirectoryKeys };
         }),
-      setTreeFullyLoaded: (isLoaded) => set({ isTreeFullyLoaded: isLoaded }),
+      setTreeFullyLoaded: (isLoaded) =>
+        set({
+          isTreeFullyLoaded: isLoaded,
+          ...(isLoaded ? {} : { fullTreeData: null }),
+        }),
       updateNodeContent: (key, content) =>
         set((state) => {
           const updateNode = (nodes: TreeNode[]): TreeNode[] =>
@@ -130,6 +143,7 @@ export const useTreeStore = create<TreeState>()(
       resetTree: () =>
         set({
           treeData: [],
+          fullTreeData: null,
           treeRoot: null,
           selectedKey: null,
           expandedKeys: new Set(),

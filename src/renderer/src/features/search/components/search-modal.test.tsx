@@ -68,6 +68,7 @@ describe("SearchModal", () => {
     useTreeStore.setState({
       treeRoot: { title: "notes", key: "C:\\notes" },
       treeData,
+      fullTreeData: null,
       selectedKey: null,
       recentFolders: Array.from({ length: 6 }, (_, index) => ({
         title: `folder-${index + 1}`,
@@ -140,6 +141,29 @@ describe("SearchModal", () => {
 
     const rootResult = screen.getByRole("option", { name: /root\.md/ });
     expect(rootResult.querySelectorAll("span")).toHaveLength(1);
+  });
+
+  it("searches the complete catalog without replacing the visible tree", async () => {
+    const user = userEvent.setup();
+    const visibleTree = [
+      {
+        title: "docs",
+        key: "C:\\notes\\docs",
+        children: [],
+        isLoaded: false,
+      },
+    ];
+    useTreeStore.setState({
+      treeData: visibleTree,
+      fullTreeData: [{ title: "deep.md", key: "C:\\notes\\docs\\deep.md" }],
+      isTreeFullyLoaded: true,
+    });
+
+    render(<SearchModal isOpen onClose={vi.fn()} />);
+    await user.type(screen.getByRole("searchbox"), "deep");
+
+    expect(screen.getByRole("option", { name: /deep\.md/ })).toBeVisible();
+    expect(useTreeStore.getState().treeData).toEqual(visibleTree);
   });
 
   it("falls back to open files when recent opened history is empty", () => {

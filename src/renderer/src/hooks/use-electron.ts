@@ -172,7 +172,9 @@ async function ensureFullWorkspaceTree(): Promise<boolean> {
   const state = useTreeStore.getState();
   const rootPath = state.treeRoot?.key;
   if (!rootPath) return false;
-  if (state.isTreeFullyLoaded) return true;
+  if (state.isTreeFullyLoaded && state.fullTreeData) {
+    return true;
+  }
   if (fullTreeLoad?.rootPath === rootPath) return fullTreeLoad.promise;
 
   const promise = (async () => {
@@ -187,7 +189,8 @@ async function ensureFullWorkspaceTree(): Promise<boolean> {
         return false;
       }
 
-      latestState.setTreeData(result.data.treeData);
+      // 完整目录只服务于搜索，不能替换正在显示的浅层文件树，否则虚拟列表会出现空帧。
+      latestState.setFullTreeData(result.data.treeData);
       latestState.setTreeFullyLoaded(true);
       return true;
     } catch (error) {

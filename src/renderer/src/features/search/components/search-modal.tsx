@@ -153,6 +153,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const resultRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const isComposingRef = useRef(false);
   const treeData = useTreeStore((state) => state.treeData);
+  const fullTreeData = useTreeStore((state) => state.fullTreeData);
   const treeRoot = useTreeStore((state) => state.treeRoot);
   const selectedKey = useTreeStore((state) => state.selectedKey);
   const recentFolders = useTreeStore((state) => state.recentFolders);
@@ -171,8 +172,8 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   }, [ensureFullTreeLoaded, isOpen, treeRoot]);
 
   const searchableFiles = useMemo(
-    () => collectSearchableFiles(treeData),
-    [treeData],
+    () => collectSearchableFiles(fullTreeData ?? treeData),
+    [fullTreeData, treeData],
   );
 
   const defaultCandidateFilePaths = useMemo(

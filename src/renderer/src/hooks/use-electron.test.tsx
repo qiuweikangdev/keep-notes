@@ -130,7 +130,14 @@ describe("useElectron workspace tree loading", () => {
   it("builds the complete tree only when search requests it", async () => {
     useTreeStore.setState({
       treeRoot: { title: "notes", key: "/notes" },
-      treeData: [],
+      treeData: [
+        {
+          title: "docs",
+          key: "/notes/docs",
+          children: [],
+          isLoaded: false,
+        },
+      ],
       isTreeFullyLoaded: false,
     });
     generateFullTree.mockResolvedValue({
@@ -149,6 +156,17 @@ describe("useElectron workspace tree loading", () => {
 
     expect(generateFullTree).toHaveBeenCalledTimes(1);
     expect(useTreeStore.getState().isTreeFullyLoaded).toBe(true);
+    expect(useTreeStore.getState().fullTreeData).toEqual([
+      { title: "daily.md", key: "/notes/deep/daily.md" },
+    ]);
+    expect(useTreeStore.getState().treeData).toEqual([
+      {
+        title: "docs",
+        key: "/notes/docs",
+        children: [],
+        isLoaded: false,
+      },
+    ]);
   });
 
   it("refreshes only the loaded parent of a structural workspace change", async () => {
