@@ -257,7 +257,7 @@ export class ReminderService {
 
   async update(id: string, input: Partial<ReminderInput>): Promise<Reminder> {
     const timestamp = this.now().toISOString();
-    let updated: Reminder | null = null;
+    const result: { updated: Reminder | null } = { updated: null };
 
     this.reminders = this.reminders.map((reminder) => {
       if (reminder.id !== id) return reminder;
@@ -269,7 +269,7 @@ export class ReminderService {
         reminder.completed &&
         input.scheduledAt !== undefined &&
         new Date(scheduledAt).getTime() > this.now().getTime();
-      updated = {
+      result.updated = {
         ...reminder,
         ...input,
         filePath,
@@ -277,16 +277,16 @@ export class ReminderService {
         completed: rescheduledToFuture ? false : completed,
         updatedAt: timestamp,
       };
-      return updated;
+      return result.updated;
     });
 
-    if (!updated) {
+    if (!result.updated) {
       throw new Error(`Reminder not found: ${id}`);
     }
 
     this.notificationRetryAt.delete(id);
     await this.persistAndNotify();
-    return { ...updated };
+    return { ...result.updated };
   }
 
   async delete(id: string): Promise<boolean> {

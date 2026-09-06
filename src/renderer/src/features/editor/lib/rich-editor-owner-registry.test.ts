@@ -1,3 +1,4 @@
+import { editorSchema } from "./blocknote-schema";
 import { BlockNoteEditor as CoreBlockNoteEditor } from "@blocknote/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -111,8 +112,9 @@ describe("RichEditorOwnerRegistry", () => {
   });
 });
 
-function createEditorInstance(): CoreBlockNoteEditor {
+function createEditorInstance() {
   return CoreBlockNoteEditor.create({
+    schema: editorSchema,
     initialContent: [{ type: "paragraph", content: "" }],
   });
 }

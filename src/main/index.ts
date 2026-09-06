@@ -104,7 +104,10 @@ if (!hasSingleInstanceLock) {
     }
 
     app.on("browser-window-created", (_, window) => {
-      optimizer.watchWindowShortcuts(window, { zoom: true });
+      optimizer.watchWindowShortcuts(window, {
+        zoom: true,
+        escToCloseWindow: false,
+      });
       registerWindowsZoomInShortcut(window);
     });
 

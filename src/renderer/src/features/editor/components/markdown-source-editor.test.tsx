@@ -59,7 +59,9 @@ describe("MarkdownSourceEditor", () => {
         onScrollTopChange={vi.fn()}
       />,
     );
-    const editor = screen.getByRole("textbox", { name: "Markdown 源码" });
+    const editor = screen.getByRole<HTMLTextAreaElement>("textbox", {
+      name: "Markdown 源码",
+    });
     await userEvent.click(editor);
     editor.setSelectionRange(1, 1);
     await userEvent.keyboard("{Tab}");
@@ -76,7 +78,7 @@ describe("MarkdownSourceEditor", () => {
         onScrollTopChange={vi.fn()}
       />,
     );
-    const editor = within(container).getByRole("textbox", {
+    const editor = within(container).getByRole<HTMLTextAreaElement>("textbox", {
       name: "Markdown 源码",
     });
     editor.setSelectionRange(12, 12);
@@ -98,7 +100,11 @@ describe("MarkdownSourceEditor", () => {
       />,
     );
 
-    expect(screen.getByRole("textbox", { name: "Markdown 源码" })).toHaveStyle({
+    expect(
+      screen.getByRole<HTMLTextAreaElement>("textbox", {
+        name: "Markdown 源码",
+      }),
+    ).toHaveStyle({
       fontFamily: '"SF Mono", monospace',
       fontSize: "18px",
       lineHeight: "1.9",
@@ -115,7 +121,9 @@ describe("MarkdownSourceEditor", () => {
         onScrollTopChange={vi.fn()}
       />,
     );
-    const editor = screen.getByRole("textbox", { name: /Markdown/ });
+    const editor = screen.getByRole<HTMLTextAreaElement>("textbox", {
+      name: /Markdown/,
+    });
     editor.scrollTop = 320;
 
     rerender(
@@ -128,7 +136,9 @@ describe("MarkdownSourceEditor", () => {
       />,
     );
 
-    const nextEditor = screen.getByRole("textbox", { name: /Markdown/ });
+    const nextEditor = screen.getByRole<HTMLTextAreaElement>("textbox", {
+      name: /Markdown/,
+    });
     expect(nextEditor).not.toBe(editor);
     expect(nextEditor).toHaveValue("# B\n\nBody");
     expect(nextEditor.scrollTop).toBe(0);

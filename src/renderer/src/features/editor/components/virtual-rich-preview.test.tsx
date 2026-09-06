@@ -66,7 +66,7 @@ function installColorSchemeMedia(initialMatches = false) {
     onchange: null,
     addEventListener,
     removeEventListener,
-  } as MediaQueryList;
+  } as unknown as MediaQueryList;
 
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
@@ -81,7 +81,10 @@ function installColorSchemeMedia(initialMatches = false) {
     },
     setMatches(nextMatches: boolean) {
       matches = nextMatches;
-      const event = { matches, media: mediaQuery.media } as MediaQueryListEvent;
+      const event = {
+        matches,
+        media: mediaQuery.media,
+      } as unknown as MediaQueryListEvent;
       listeners.forEach((listener) => listener(event));
     },
   };
@@ -320,7 +323,7 @@ describe("VirtualRichPreview", () => {
     const props = {
       cache,
       onActivate: vi.fn(),
-      paneKey: paneKey as const,
+      paneKey: paneKey as `${string}:${string}`,
     };
     const { rerender } = render(
       <VirtualRichPreview {...props} isLive={true} />,
@@ -457,7 +460,11 @@ describe("VirtualRichPreview", () => {
       callback(0);
       return 1;
     });
-    const props = { cache, onActivate: vi.fn(), paneKey: paneKey as const };
+    const props = {
+      cache,
+      onActivate: vi.fn(),
+      paneKey: paneKey as `${string}:${string}`,
+    };
     const { rerender } = render(
       <VirtualRichPreview {...props} isLive={true} />,
     );

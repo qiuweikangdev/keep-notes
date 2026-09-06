@@ -15,7 +15,7 @@ describe("electron store selectors", () => {
       setTreeData,
       addRecentFolder,
       selectedKey: null,
-    } as Parameters<typeof selectSetTreeData>[0];
+    } as unknown as Parameters<typeof selectSetTreeData>[0];
     const updatedState = {
       ...initialState,
       selectedKey: "notes/a.md",
@@ -32,7 +32,7 @@ describe("electron store selectors", () => {
       setContent,
       incrementReloadKey,
       content: "",
-    } as Parameters<typeof selectSetContent>[0];
+    } as unknown as Parameters<typeof selectSetContent>[0];
     const updatedState = { ...initialState, content: "changed" };
 
     expect(selectSetContent(updatedState)).toBe(setContent);

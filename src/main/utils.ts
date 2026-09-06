@@ -7,7 +7,7 @@ const fsPromises = fs.promises;
 
 export function getBrowserWindow(
   event: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent,
-): BrowserWindow {
+): BrowserWindow | null {
   return BrowserWindow.fromWebContents(event.sender);
 }
 

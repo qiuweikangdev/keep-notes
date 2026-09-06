@@ -8,7 +8,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BlockNoteEditor as CoreBlockNoteEditor } from "@blocknote/core";
-import { BlockNoteView } from "@blocknote/mantine";
+import { BlockNoteView as BaseBlockNoteView } from "@blocknote/mantine";
 import { EditorView } from "@codemirror/view";
 import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -884,3 +884,9 @@ describe("EditorCodeBlock", () => {
     expect(screen.queryByText("Copied")).not.toBeInTheDocument();
   });
 });
+
+const BlockNoteView = BaseBlockNoteView<
+  typeof editorSchema.blockSchema,
+  typeof editorSchema.inlineContentSchema,
+  typeof editorSchema.styleSchema
+>;

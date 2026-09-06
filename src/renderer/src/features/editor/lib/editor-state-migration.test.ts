@@ -73,7 +73,7 @@ describe("normalizePersistedAppearance", () => {
     opacity: 100,
     padding: 72,
     showModeSwitcher: true,
-    sidebarView: "file" as const,
+    sidebarView: "file" as "file" | "outline",
   };
 
   it("uses the new default for legacy appearance settings", () => {

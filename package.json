@@ -8,7 +8,6 @@
     "type": "git",
     "url": "https://github.com/qiuweikangdev/keep-notes.git"
   },
-  "packageManager": "pnpm@11.10.0",
   "type": "module",
   "main": "./out/main/index.js",
   "scripts": {
@@ -18,7 +17,7 @@
     "lint:fix": "oxlint --fix",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "start": "electron-vite preview",
@@ -135,5 +134,6 @@
       "path": "node_modules/cz-git"
     }
   },
+  "packageManager": "pnpm@11.10.0",
   "productName": "Keep Notes"
 }

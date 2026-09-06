@@ -1,4 +1,3 @@
-export { Breadcrumb } from "./breadcrumb";
 export { Button, buttonVariants } from "./button";
 export type { ButtonProps } from "./button";
 export { ContextMenu, ContextMenuShortcut } from "./context-menu";

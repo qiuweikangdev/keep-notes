@@ -254,7 +254,9 @@ describe("reminder window global shortcut", () => {
     showReminderWindow();
     const editorWindow = showReminderEditorWindow();
     markReminderEditorRendererReady(editorWindow);
-    const request = editorWindow.webContents.send.mock.calls.at(-1)?.[1];
+    const request = vi
+      .mocked(editorWindow.webContents.send)
+      .mock.calls.at(-1)?.[1];
     markReminderEditorRequestApplied(editorWindow, request.requestId);
     const listWindow = electronMocks.windows[0];
     listWindow.hide.mockClear();
@@ -372,7 +374,9 @@ describe("reminder window global shortcut", () => {
     const shownWindow = showReminderEditorWindow();
     const editorWindow = electronMocks.windows[1];
     markReminderEditorRendererReady(shownWindow);
-    const request = editorWindow.webContents.send.mock.calls.at(-1)?.[1];
+    const request = vi
+      .mocked(editorWindow.webContents.send)
+      .mock.calls.at(-1)?.[1];
     markReminderEditorRequestApplied(shownWindow, request.requestId);
 
     expect(editorWindow.options).toMatchObject({

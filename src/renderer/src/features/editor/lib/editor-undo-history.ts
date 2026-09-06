@@ -1,4 +1,4 @@
-import type { BlockNoteEditor as CoreBlockNoteEditor } from "@blocknote/core";
+import type { RichEditor as CoreBlockNoteEditor } from "./editor-types";
 import { history } from "@tiptap/pm/history";
 
 export const RICH_TEXT_UNDO_HISTORY_DEPTH = 10_000;
@@ -26,7 +26,7 @@ export function configureRichTextUndoHistory(
   const state = editor.prosemirrorState;
   const extendedHistory = history({ depth: RICH_TEXT_UNDO_HISTORY_DEPTH });
   const currentHistoryIndex = state.plugins.findIndex(
-    (plugin) => plugin.key === extendedHistory.key,
+    (plugin) => plugin.spec.key === extendedHistory.spec.key,
   );
 
   if (currentHistoryIndex < 0) return false;

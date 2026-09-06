@@ -334,7 +334,6 @@ async function createExportContent(
       return createPdfDocument(html);
     case "image":
       return createPngDocument(html);
-    case "md":
     default:
       return markdown;
   }

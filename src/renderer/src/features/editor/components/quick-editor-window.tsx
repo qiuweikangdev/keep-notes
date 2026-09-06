@@ -11,7 +11,7 @@ import {
 } from "react";
 import { BlockNoteView } from "@blocknote/mantine";
 import { useCreateBlockNote, useEditorChange } from "@blocknote/react";
-import type { BlockNoteEditor as CoreBlockNoteEditor } from "@blocknote/core";
+import type { RichEditor as CoreBlockNoteEditor } from "../lib/editor-types";
 import { TextSelection } from "@tiptap/pm/state";
 import { ChevronDown, ChevronUp, Info, X } from "lucide-react";
 import type {
@@ -374,7 +374,9 @@ export function QuickEditorWindow() {
       if (!container || headings.length === 0) return;
 
       const activationTop = container.getBoundingClientRect().top + 24;
-      const blockElements = getQuickEditorBlockElementLookup(editor.domElement);
+      const blockElements = getQuickEditorBlockElementLookup(
+        editor.domElement ?? null,
+      );
       let nextActiveId = headings[0]?.id ?? null;
       for (const heading of headings) {
         const element = blockElements.get(heading.id);
@@ -644,7 +646,7 @@ export function QuickEditorWindow() {
       return;
     }
 
-    let clearFallbackHighlights = () => undefined;
+    let clearFallbackHighlights: () => void = () => undefined;
     const frame = window.requestAnimationFrame(() => {
       const root = editor.domElement;
       if (!root) return;
@@ -860,7 +862,7 @@ export function QuickEditorWindow() {
       if (!focusEditorOutlineBlock(editor, blockId)) return;
 
       const getTarget = () =>
-        findQuickEditorBlockElement(editor.domElement, blockId);
+        findQuickEditorBlockElement(editor.domElement ?? null, blockId);
       if (!getTarget()) return;
 
       scheduleStableEditorBlockScroll({

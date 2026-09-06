@@ -30,7 +30,7 @@ describe("registerWindowsZoomInShortcut", () => {
       alt: false,
       meta: false,
       ...input,
-    } as Electron.KeyboardInputEvent);
+    } as Electron.Input);
 
     expect(getZoomLevel).toHaveBeenCalledOnce();
     expect(setZoomLevel).toHaveBeenCalledWith(3);
@@ -49,7 +49,7 @@ describe("registerWindowsZoomInShortcut", () => {
       alt: false,
       meta: false,
       shift: false,
-    } as Electron.KeyboardInputEvent);
+    } as Electron.Input);
 
     expect(setZoomLevel).not.toHaveBeenCalled();
   });
@@ -67,14 +67,14 @@ describe("registerWindowsZoomInShortcut", () => {
 function createWindowMock() {
   let listener: (
     event: { preventDefault: () => void },
-    input: Electron.KeyboardInputEvent,
+    input: Electron.Input,
   ) => void;
   const on = vi.fn(
     (
       _eventName: string,
       callback: (
         event: { preventDefault: () => void },
-        input: Electron.KeyboardInputEvent,
+        input: Electron.Input,
       ) => void,
     ) => {
       listener = callback;
@@ -88,10 +88,8 @@ function createWindowMock() {
       webContents: { on, getZoomLevel, setZoomLevel },
     } as unknown as BrowserWindow,
     on,
-    listener: (
-      event: { preventDefault: () => void },
-      input: Electron.KeyboardInputEvent,
-    ) => listener(event, input),
+    listener: (event: { preventDefault: () => void }, input: Electron.Input) =>
+      listener(event, input),
     getZoomLevel,
     setZoomLevel,
   };

@@ -1,4 +1,5 @@
-import { BlockNoteEditor as CoreBlockNoteEditor } from "@blocknote/core";
+import type { RichEditor as CoreBlockNoteEditor } from "./editor-types";
+import { BlockNoteEditor as CoreEditorFactory } from "@blocknote/core";
 import { closeHistory, undoDepth } from "@tiptap/pm/history";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -17,7 +18,7 @@ function createMountedEditor() {
   const host = document.createElement("div");
   document.body.append(host);
 
-  const editor = CoreBlockNoteEditor.create({
+  const editor = CoreEditorFactory.create({
     schema: editorSchema,
     initialContent: [{ type: "paragraph", content: "" }],
   });

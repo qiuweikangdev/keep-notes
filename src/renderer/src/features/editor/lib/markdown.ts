@@ -707,7 +707,7 @@ function collectUnorderedListRuns(lines: MarkdownLine[]): UnorderedListRun[] {
 
   while (index < lines.length) {
     const line = lines[index];
-    const fenceMatch = openingFence
+    const fenceMatch: RegExpMatchArray | null = openingFence
       ? getClosingFenceMatch(line.text, openingFence)
       : line.text.match(FENCED_CODE_LINE_PATTERN);
     if (fenceMatch) {
@@ -1092,7 +1092,7 @@ function repairJoinedUnorderedListMarkers(
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
-    const fenceMatch = openingFence
+    const fenceMatch: RegExpMatchArray | null = openingFence
       ? getClosingFenceMatch(line.text, openingFence)
       : line.text.match(FENCED_CODE_LINE_PATTERN);
     if (fenceMatch) {
@@ -1397,7 +1397,7 @@ function preserveMovedUnorderedListItemsAcrossBlocks(
   let editedItemIndex = 0;
   const nextLines = editedLines.map((line, lineIndex) => {
     const isInsideFence = openingFence !== null;
-    const fenceMatch = openingFence
+    const fenceMatch: RegExpMatchArray | null = openingFence
       ? getClosingFenceMatch(line.text, openingFence)
       : line.text.match(FENCED_CODE_LINE_PATTERN);
     const editedMatch =
@@ -1768,7 +1768,7 @@ function protectMarkupForParser(markdown: string): ProtectedMarkup {
       continue;
     }
 
-    const fenceMatch = openingFence
+    const fenceMatch: RegExpMatchArray | null = openingFence
       ? getClosingFenceMatch(line.text, openingFence)
       : line.text.match(FENCED_CODE_LINE_PATTERN);
     if (fenceMatch) {
@@ -3220,7 +3220,7 @@ async function serializeBlockSequence<TBlock>(
   const hasPlainParagraphBreaks = blocks.some(
     (block) =>
       isCompactParagraphBlock(block) &&
-      getInlineText(block.content).includes("\n"),
+      getInlineText(isRecord(block) ? block.content : undefined).includes("\n"),
   );
   if (!hasAdjacentCompactParagraphs(blocks) && !hasPlainParagraphBreaks) {
     return serializer.blocksToMarkdownLossy(blocks);
@@ -3475,7 +3475,10 @@ async function parseMarkdownWithStructuredLists<TBlock>(
           task[0].length,
         );
       const headBlocks = await parseHTML(head.outerHTML);
-      const first = headBlocks[0] ?? { type: "paragraph", content: [] };
+      const first: unknown = headBlocks[0] ?? {
+        type: "paragraph",
+        content: [],
+      };
       if (!isRecord(first)) continue;
       const inlineHead = first.type === "paragraph";
       const props = isRecord(first.props) ? first.props : {};

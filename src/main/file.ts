@@ -52,7 +52,9 @@ interface SaveImageAttachmentDeps {
   writeFile?: typeof fs.promises.writeFile;
 }
 
-export async function readDirectory(directoryPath: string) {
+export async function readDirectory(
+  directoryPath: string,
+): Promise<TreeNode[] | null> {
   try {
     const files = await fs.promises.readdir(directoryPath);
     const directories: string[] = [];
@@ -80,7 +82,7 @@ export async function readDirectory(directoryPath: string) {
         return {
           title: dir,
           key: path.join(directoryPath, dir),
-          selectable: subtree && subtree.length > 0,
+          selectable: Boolean(subtree?.length),
           children: subtree || [],
           isLoaded: true,
         };

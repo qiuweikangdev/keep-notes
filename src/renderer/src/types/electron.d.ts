@@ -38,6 +38,7 @@ export interface ElectronAPI {
   getAppInfo: () => Promise<AppInfo>;
   getUpdateState: () => Promise<AppUpdateState>;
   checkForUpdates: () => Promise<AppUpdateState>;
+  downloadUpdate: () => Promise<AppUpdateState>;
   cancelUpdate: () => Promise<AppUpdateState>;
   installUpdate: () => Promise<void>;
   openRepository: () => Promise<boolean>;

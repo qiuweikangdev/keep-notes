@@ -2,6 +2,7 @@ import { dirname } from "node:path";
 import { app, shell } from "electron";
 import electronUpdater from "electron-updater";
 import type {
+  AppUpdater,
   CancellationToken as ElectronUpdaterCancellationToken,
   ProgressInfo,
   UpdateInfo,
@@ -29,13 +30,13 @@ interface UpdaterLike {
     cancellationToken?: ElectronUpdaterCancellationToken,
   ) => Promise<string[]>;
   quitAndInstall: (isSilent?: boolean, isForceRunAfter?: boolean) => void;
-  on: (event: string, listener: (...args: unknown[]) => void) => unknown;
+  on: AppUpdater["on"];
 }
 
 interface AppLike {
   getVersion: () => string;
   isPackaged: boolean;
-  getPath: (name: string) => string;
+  getPath: typeof app.getPath;
   quit?: () => void;
 }
 
@@ -135,8 +136,8 @@ export class AppUpdateController {
       }
 
       if (
-        this.state.status === "checking" ||
-        this.state.status === "available"
+        this.getState().status === "checking" ||
+        this.getState().status === "available"
       ) {
         this.setState({
           status: "available",
@@ -193,7 +194,7 @@ export class AppUpdateController {
         });
       }
     } catch (error) {
-      if (this.state.status === "canceled") return this.getState();
+      if (this.getState().status === "canceled") return this.getState();
       this.cancellationToken = null;
       this.setState({
         status: "error",
@@ -302,7 +303,7 @@ export class AppUpdateController {
     });
 
     this.updater.on("error", (error: Error) => {
-      if (this.state.status === "canceled") return;
+      if (this.getState().status === "canceled") return;
       this.cancellationToken = null;
       this.setState({
         status: "error",

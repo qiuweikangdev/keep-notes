@@ -31,7 +31,7 @@ type EditorStoreSnapshot = {
 const appMocks = vi.hoisted(() => ({
   editorFilePath: "/workspace/notes/today.md" as string | null,
   editorTabExists: true,
-  subscribe: vi.fn(() => () => undefined),
+  subscribe: vi.fn((_listener: unknown) => () => undefined),
   useTheme: vi.fn(() => ({ toggleTheme: vi.fn() })),
   openQuickEditorDraft: vi.fn(),
   incrementTabReloadKey: vi.fn(),
@@ -74,7 +74,7 @@ vi.mock("react-resizable-panels", () => {
           isCollapsed: () => boolean;
         }) => void;
       },
-      ref,
+      ref: React.ForwardedRef<unknown>,
     ) => {
       const [collapsed, setCollapsed] = React.useState(false);
 
@@ -114,7 +114,15 @@ vi.mock("react-resizable-panels", () => {
 });
 
 vi.mock("@/pages/home", async () => {
-  const { Panel, PanelGroup } = await import("react-resizable-panels");
+  const { Panel: BasePanel, PanelGroup } =
+    await import("react-resizable-panels");
+  const Panel = BasePanel as React.ComponentType<
+    React.ComponentProps<typeof BasePanel> & {
+      onDidMount: (
+        panel: import("react-resizable-panels").ImperativePanelHandle,
+      ) => void;
+    }
+  >;
   const { usePanel } =
     await vi.importActual<typeof import("@/hooks/use-panel")>(
       "@/hooks/use-panel",
@@ -246,7 +254,7 @@ vi.mock("@/store/editor.store", () => ({
         };
         filePath: string | null;
         content: string;
-        panelGroups: never[];
+        panelGroups: Array<{ id: string; activeTabId: string }>;
         activeGroupId: string;
         setFilePath: (path: string | null) => void;
         resetEditor: () => void;

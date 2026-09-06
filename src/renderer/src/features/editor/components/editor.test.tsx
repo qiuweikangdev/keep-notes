@@ -80,7 +80,9 @@ const editorPerformanceMocks = vi.hoisted(() => ({
   commitSplitPane: vi.fn(() => vi.fn()),
   cleanupObserver: vi.fn(),
   measure: vi.fn(<T,>(_operation: string, callback: () => T) => callback()),
-  observe: vi.fn(() => editorPerformanceMocks.cleanupObserver),
+  observe: vi.fn(
+    (_context: () => unknown) => editorPerformanceMocks.cleanupObserver,
+  ),
   resizeLayout: vi.fn(),
 }));
 
@@ -190,7 +192,6 @@ vi.mock("./rich-document-session-host", async () => {
           isDirty: () => false,
           isSaving: () => false,
           isReloading: () => false,
-          previewCache: {},
           readViewState: () => ({ scrollTop: 0, selection: null }),
           restoreViewState: vi.fn(),
         });

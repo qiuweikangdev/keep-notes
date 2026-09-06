@@ -776,11 +776,11 @@ export async function openFile(
 
 // 保留原有的 download 和 upload 函数以保持向后兼容
 export async function download(gitConfig: GitConfig): Promise<ApiResponse> {
-  const git = getGitInstance(gitConfig.dir, { remote: true });
+  const git = getGitInstance(gitConfig.localPath, { remote: true });
   try {
     const isRepo = await git.checkIsRepo();
     if (!isRepo) {
-      await git.clone(gitConfig.repoUrl, gitConfig.dir);
+      await git.clone(gitConfig.repoUrl, gitConfig.localPath);
     } else {
       await git.pull();
     }
@@ -797,7 +797,7 @@ export async function download(gitConfig: GitConfig): Promise<ApiResponse> {
 }
 
 export async function upload(gitConfig: GitConfig): Promise<ApiResponse> {
-  const git = getGitInstance(gitConfig.dir, { remote: true });
+  const git = getGitInstance(gitConfig.localPath, { remote: true });
   try {
     const isRepo = await git.checkIsRepo();
     const commitMessage = dayjs().format("YYYY-MM-DD HH:mm:ss");

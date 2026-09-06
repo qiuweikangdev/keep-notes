@@ -15,7 +15,9 @@ interface QuickActionsPanelProps {
   onClose?: () => void;
 }
 
-export function QuickActionsPanel({ onClose }: QuickActionsPanelProps) {
+export function QuickActionsPanel({
+  onClose: _onClose,
+}: QuickActionsPanelProps) {
   const treeRoot = useTreeStore((state) => state.treeRoot);
   const recentFolders = useTreeStore((state) => state.recentFolders);
   const removeRecentFolder = useTreeStore((state) => state.removeRecentFolder);
@@ -73,11 +75,6 @@ export function QuickActionsPanel({ onClose }: QuickActionsPanelProps) {
     },
     [removeRecentFolder],
   );
-
-  const handleMenuAction = useCallback((action: () => void) => {
-    action();
-    setIsMenuOpen(false);
-  }, []);
 
   // 无文件夹时的初始状态
   if (!treeRoot) {

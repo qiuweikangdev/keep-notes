@@ -1,12 +1,13 @@
+import type { RichEditor as CoreBlockNoteEditor } from "../lib/editor-types";
 import {
-  BlockNoteEditor as CoreBlockNoteEditor,
+  BlockNoteEditor as CoreEditorFactory,
   getNodeById,
 } from "@blocknote/core";
 import {
   FormattingToolbarExtension,
   SideMenuExtension,
 } from "@blocknote/core/extensions";
-import { BlockNoteView } from "@blocknote/mantine";
+import { BlockNoteView as BaseBlockNoteView } from "@blocknote/mantine";
 import { EditorView as CodeMirrorView } from "@codemirror/view";
 import {
   act,
@@ -383,7 +384,7 @@ describe("BlockNoteEditor rich text selection", () => {
   });
 
   it("rejects an accidental document-prefix selection before it renders", () => {
-    const editor = CoreBlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         { type: "paragraph", content: "First line" },
@@ -428,7 +429,7 @@ describe("BlockNoteEditor rich text selection", () => {
   });
 
   it("selects the entire ProseMirror document", () => {
-    const editor = CoreBlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         { type: "paragraph", content: "First line" },
@@ -475,7 +476,7 @@ describe("BlockNoteEditor rich text selection", () => {
   });
 
   it("handles command/control+a as full rich editor selection", () => {
-    const editor = CoreBlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         { type: "paragraph", content: "First line" },
@@ -502,7 +503,7 @@ describe("BlockNoteEditor rich text selection", () => {
   });
 
   it("lets CodeMirror handle command/control+a inside code blocks", () => {
-    const editor = CoreBlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         { type: "paragraph", content: "First line" },
@@ -510,10 +511,10 @@ describe("BlockNoteEditor rich text selection", () => {
       ],
     });
     const codeMirror = document.createElement("div");
-    codeMirror.className = "editor-code-block__codemirror";
+    codeMirror!.className = "editor-code-block__codemirror";
     const content = document.createElement("div");
     content.className = "cm-content";
-    codeMirror.append(content);
+    codeMirror!.append(content);
     const event = {
       altKey: false,
       ctrlKey: false,
@@ -547,7 +548,7 @@ describe("focusEditorAtPreviewAnchor", () => {
   });
 
   it("stops walking before trailing blocks after resolving an early target", () => {
-    const editor = CoreBlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: Array.from({ length: 200 }, (_, index) => ({
         type: "paragraph" as const,
@@ -573,7 +574,7 @@ describe("focusEditorAtPreviewAnchor", () => {
   });
 
   it("resolves both selection endpoints in one bounded document pass", () => {
-    const editor = CoreBlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: Array.from({ length: 200 }, (_, index) => ({
         type: "paragraph" as const,
@@ -616,7 +617,7 @@ describe("focusEditorAtPreviewAnchor", () => {
   });
 
   it("keeps globally correct positions for nested block containers", () => {
-    const editor = CoreBlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -644,7 +645,7 @@ describe("focusEditorAtPreviewAnchor", () => {
   });
 
   it("maps exact nested rich-text offsets and clamps them to block content", () => {
-    const editor = CoreBlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -674,7 +675,7 @@ describe("focusEditorAtPreviewAnchor", () => {
   });
 
   it("maps empty inline blocks and normalizes non-finite offsets", () => {
-    const editor = CoreBlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         { type: "paragraph", content: "" },
@@ -702,7 +703,7 @@ describe("focusEditorAtPreviewAnchor", () => {
   });
 
   it("places the exact selection without requesting browser scrolling", () => {
-    const editor = CoreBlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "Scroll target" }],
     });
@@ -721,13 +722,16 @@ describe("focusEditorAtPreviewAnchor", () => {
       textOffset: 6,
     });
 
-    expect(dispatchedTransaction?.scrolledIntoView).toBe(false);
+    expect(
+      (dispatchedTransaction as { scrolledIntoView: boolean } | null)
+        ?.scrolledIntoView,
+    ).toBe(false);
     expect(editor.prosemirrorView.state.selection.$from.parentOffset).toBe(6);
     tiptapEditor.off("transaction", readTransaction);
   });
 
   it("falls back safely when the block ID is missing", () => {
-    const editor = CoreBlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "Known" }],
     });
@@ -745,7 +749,7 @@ describe("focusEditorAtPreviewAnchor", () => {
   it.each(["resolve", "dispatch"] as const)(
     "falls back safely when ProseMirror %s fails",
     (failure) => {
-      const editor = CoreBlockNoteEditor.create({
+      const editor = CoreEditorFactory.create({
         schema: editorSchema,
         initialContent: [{ type: "paragraph", content: "Fallback" }],
       });
@@ -776,7 +780,7 @@ describe("focusEditorAtPreviewAnchor", () => {
   );
 
   it("falls back to the BlockNote cursor API for a non-text image block", () => {
-    const editor = CoreBlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -796,7 +800,7 @@ describe("focusEditorAtPreviewAnchor", () => {
 
 describe("BlockNoteEditor heading shortcuts", () => {
   it("handles command/control+number as heading level shortcut", () => {
-    const editor = CoreBlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "Heading text" }],
     });
@@ -815,7 +819,11 @@ describe("BlockNoteEditor heading shortcuts", () => {
     expect(event.preventDefault).toHaveBeenCalled();
     expect(event.stopPropagation).toHaveBeenCalled();
     expect(editor.document[0].type).toBe("heading");
-    expect(editor.document[0].props.level).toBe(2);
+    expect(
+      editor.document[0].type === "heading"
+        ? editor.document[0].props.level
+        : undefined,
+    ).toBe(2);
   });
 });
 
@@ -823,7 +831,7 @@ describe("BlockNoteEditor formatting toolbar", () => {
   it("shows an inline code action in the floating formatting toolbar", async () => {
     setupMatchMedia();
     setupDomMeasurements();
-    const editor = CoreBlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "测试" }],
     });
@@ -857,7 +865,7 @@ describe("BlockNoteEditor formatting toolbar", () => {
   it("turns selected markdown inline code markers into a code style", async () => {
     setupMatchMedia();
     setupDomMeasurements();
-    const editor = CoreBlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "`test`" }],
     });
@@ -921,7 +929,7 @@ describe("BlockNoteEditor outline navigation focus", () => {
   });
 
   it("does not fall back to a scrolling cursor API when ProseMirror fails", () => {
-    const editor = CoreBlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         { type: "heading", props: { level: 1 }, content: "Heading" },
@@ -1121,7 +1129,7 @@ describe("BlockNoteEditor code paste", () => {
     vi.stubGlobal("ClipboardEvent", Event);
 
     const source = "const value = 1;\nconsole.log(value);";
-    const editor = CoreBlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "BeforeAfter" }],
     });
@@ -1218,10 +1226,12 @@ describe("BlockNoteEditor code paste", () => {
         },
       });
 
-      codeMirror.focus();
-      codeMirror.contentDOM.dispatchEvent(event);
+      codeMirror!.focus();
+      codeMirror!.contentDOM.dispatchEvent(event);
 
-      await waitFor(() => expect(codeMirror.state.doc.toString()).toBe(source));
+      await waitFor(() =>
+        expect(codeMirror!.state.doc.toString()).toBe(source),
+      );
       expect(session.runtime.current!.editor.document).toHaveLength(1);
     } finally {
       session.view.unmount();
@@ -1235,7 +1245,7 @@ describe("BlockNoteEditor code paste", () => {
     codeMirrorContent.className = "cm-content";
     let handled = true;
     codeMirrorContent.addEventListener("paste", (event) => {
-      handled = pasteMarkupAsPlainText(editor, event);
+      handled = pasteMarkupAsPlainText(editor, event as ClipboardEvent);
     });
     const source = `<button
   type="button"
@@ -1282,7 +1292,7 @@ describe("BlockNoteEditor code paste", () => {
         return element!;
       });
       const codeMirror = CodeMirrorView.findFromDOM(codeMirrorElement);
-      codeMirror.focus();
+      codeMirror!.focus();
       const event = new Event("paste", { bubbles: true, cancelable: true });
       Object.defineProperty(event, "clipboardData", {
         value: {
@@ -1291,9 +1301,11 @@ describe("BlockNoteEditor code paste", () => {
         },
       });
 
-      codeMirror.contentDOM.dispatchEvent(event);
+      codeMirror!.contentDOM.dispatchEvent(event);
 
-      await waitFor(() => expect(codeMirror.state.doc.toString()).toBe(source));
+      await waitFor(() =>
+        expect(codeMirror!.state.doc.toString()).toBe(source),
+      );
       const serialized = await markdownMocks.actualSerializeMarkdown!(
         session.runtime.current!.editor,
         session.runtime.current!.editor.document,
@@ -1339,7 +1351,9 @@ describe("BlockNoteEditor code paste", () => {
       });
       editor.prosemirrorView.dom.dispatchEvent(event);
 
-      await waitFor(() => expect(codeMirror.state.doc.toString()).toBe(source));
+      await waitFor(() =>
+        expect(codeMirror!.state.doc.toString()).toBe(source),
+      );
       expect(editor.document).toHaveLength(1);
     } finally {
       session.view.unmount();
@@ -1378,11 +1392,13 @@ describe("BlockNoteEditor code paste", () => {
         value: editor.prosemirrorView.dom,
       });
 
-      const handled = pasteMarkupAsPlainText(editor, event);
+      const handled = pasteMarkupAsPlainText(editor, event as ClipboardEvent);
 
       expect(handled).toBe(true);
       expect(event.defaultPrevented).toBe(true);
-      await waitFor(() => expect(codeMirror.state.doc.toString()).toBe(source));
+      await waitFor(() =>
+        expect(codeMirror!.state.doc.toString()).toBe(source),
+      );
       expect(editor.document).toHaveLength(1);
       const serialized = await markdownMocks.actualSerializeMarkdown!(
         editor,
@@ -1488,7 +1504,7 @@ describe("BlockNoteEditor code paste", () => {
     setupDomMeasurements();
     vi.stubGlobal("ClipboardEvent", Event);
 
-    const editor = CoreBlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -1537,7 +1553,7 @@ describe("BlockNoteEditor code paste", () => {
     setupDomMeasurements();
     vi.stubGlobal("ClipboardEvent", Event);
 
-    const sourceEditor = CoreBlockNoteEditor.create({
+    const sourceEditor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         { type: "heading", props: { level: 1 }, content: "标题" },
@@ -1545,7 +1561,7 @@ describe("BlockNoteEditor code paste", () => {
         { type: "bulletListItem", content: "列表2" },
       ],
     });
-    const targetEditor = CoreBlockNoteEditor.create({
+    const targetEditor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -1607,7 +1623,7 @@ describe("BlockNoteEditor code paste", () => {
     setupDomMeasurements();
     vi.stubGlobal("ClipboardEvent", Event);
 
-    const sourceEditor = CoreBlockNoteEditor.create({
+    const sourceEditor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         { type: "heading", props: { level: 1 }, content: "完整文档标题" },
@@ -1629,7 +1645,7 @@ describe("BlockNoteEditor code paste", () => {
         },
       ],
     });
-    const targetEditor = CoreBlockNoteEditor.create({
+    const targetEditor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -1696,7 +1712,7 @@ describe("BlockNoteEditor code paste", () => {
       "  return `Hello, ${name}`;",
       "}",
     ].join("\n");
-    const sourceEditor = CoreBlockNoteEditor.create({
+    const sourceEditor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         { type: "heading", props: { level: 2 }, content: "Example" },
@@ -1707,7 +1723,7 @@ describe("BlockNoteEditor code paste", () => {
         },
       ],
     });
-    const targetEditor = CoreBlockNoteEditor.create({
+    const targetEditor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -1771,7 +1787,7 @@ describe("BlockNoteEditor code paste", () => {
 
     const source = "const value = 1;\nconsole.log(value);";
     const selectedText = "value = 1";
-    const sourceEditor = CoreBlockNoteEditor.create({
+    const sourceEditor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -1781,7 +1797,7 @@ describe("BlockNoteEditor code paste", () => {
         },
       ],
     });
-    const targetEditor = CoreBlockNoteEditor.create({
+    const targetEditor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "Before " }],
     });
@@ -1864,7 +1880,7 @@ describe("BlockNoteEditor code paste", () => {
       "}",
     ].join("\n");
     const secondSource = 'console.log(greet("Keep Notes"));';
-    const sourceEditor = CoreBlockNoteEditor.create({
+    const sourceEditor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -1880,11 +1896,11 @@ describe("BlockNoteEditor code paste", () => {
         },
       ],
     });
-    const targetEditor = CoreBlockNoteEditor.create({
+    const targetEditor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "Before" }],
     });
-    const middleTargetEditor = CoreBlockNoteEditor.create({
+    const middleTargetEditor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "BeforeAfter" }],
     });
@@ -2024,7 +2040,7 @@ describe("BlockNoteEditor code paste", () => {
     setupDomMeasurements();
     vi.stubGlobal("ClipboardEvent", Event);
 
-    const sourceEditor = CoreBlockNoteEditor.create({
+    const sourceEditor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -2036,7 +2052,7 @@ describe("BlockNoteEditor code paste", () => {
         },
       ],
     });
-    const targetEditor = CoreBlockNoteEditor.create({
+    const targetEditor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -2171,7 +2187,7 @@ describe("BlockNoteEditor code paste", () => {
         types: ["blocknote/html", "text/html", "text/plain"],
       },
     });
-    const editor = CoreBlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "Paste target" }],
     });
@@ -2291,7 +2307,7 @@ describe("BlockNoteEditor code paste", () => {
     ].join("\n");
     setupSessionTab(path, { content: source, wordCount: source.length });
     const session = renderRealSession(path, false, source);
-    const targetEditor = CoreBlockNoteEditor.create({
+    const targetEditor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -2379,7 +2395,7 @@ describe("BlockNoteEditor code paste", () => {
     setupDomMeasurements();
     vi.stubGlobal("ClipboardEvent", Event);
 
-    const sourceEditor = CoreBlockNoteEditor.create({
+    const sourceEditor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -2394,7 +2410,7 @@ describe("BlockNoteEditor code paste", () => {
         },
       ],
     });
-    const targetEditor = CoreBlockNoteEditor.create({
+    const targetEditor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -2843,7 +2859,7 @@ describe("BlockNoteEditor code paste", () => {
     setupMatchMedia();
     setupDomMeasurements();
     vi.stubGlobal("ClipboardEvent", Event);
-    const editor = CoreBlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -2940,10 +2956,14 @@ describe("BlockNoteEditor code paste", () => {
       expect(reopenedBlocks[0].content).toMatchObject({
         headerRows: 1,
       });
+      const table = reopenedBlocks[0];
+      if (table.type !== "table") throw new Error("Expected table");
       expect(
-        reopenedBlocks[0].content.rows.map(
-          (row) => row.cells[0].content?.[0]?.text,
-        ),
+        table.content.rows.map((row) => {
+          const cell = row.cells[0];
+          const content = Array.isArray(cell) ? cell : cell.content;
+          return content[0]?.type === "text" ? content[0].text : "";
+        }),
       ).toEqual(["2", "111", "aa"]);
     } finally {
       session.view.unmount();
@@ -3582,7 +3602,7 @@ describe("BlockNoteEditor markup copy", () => {
       expect(clipboard.get("text/html")).toContain("<table>");
       expect(clipboard.get("text/plain")).toContain("CRON_SECRET");
 
-      const targetEditor = CoreBlockNoteEditor.create({
+      const targetEditor = CoreEditorFactory.create({
         schema: editorSchema,
         initialContent: [{ type: "paragraph", content: "" }],
       });
@@ -3675,7 +3695,7 @@ describe("BlockNoteEditor markup copy", () => {
     setupDomMeasurements();
     vi.stubGlobal("ClipboardEvent", Event);
 
-    const editor = CoreBlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         { type: "heading", props: { level: 1 }, content: "标题" },
@@ -3690,7 +3710,7 @@ describe("BlockNoteEditor markup copy", () => {
       ],
     });
     const view = render(createElement(BlockNoteView, { editor }));
-    const targetEditor = CoreBlockNoteEditor.create({
+    const targetEditor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -3895,7 +3915,7 @@ describe("BlockNoteEditor markup copy", () => {
     const source = "# Title\n\n**Bold text** with {braces}";
     setupSessionTab(path, { content: source, wordCount: source.length });
     const session = renderRealSession(path, false, source);
-    const targetEditor = CoreBlockNoteEditor.create({
+    const targetEditor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -3991,11 +4011,11 @@ describe("BlockNoteEditor markup copy", () => {
       "pnpm dev",
       "```",
     ].join("\n");
-    const sourceEditor = CoreBlockNoteEditor.create({
+    const sourceEditor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
-    const targetEditor = CoreBlockNoteEditor.create({
+    const targetEditor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -4135,7 +4155,7 @@ describe("BlockNoteEditor markup copy", () => {
       );
 
       const codeMirrorContent =
-        editor.domElement.querySelector<HTMLElement>(".cm-content");
+        editor.domElement!.querySelector<HTMLElement>(".cm-content");
       expect(codeMirrorContent).not.toBeNull();
       const clipboard = new Map<string, string>();
       const copyEvent = new Event("copy", {
@@ -4183,7 +4203,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
       fireEvent.keyDown(
         session.view.container.querySelector<HTMLElement>(
           ".editor-rich-scroll",
-        ),
+        )!,
         { key: "x" },
       );
       act(() => {
@@ -4226,7 +4246,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
       fireEvent.keyDown(
         session.view.container.querySelector<HTMLElement>(
           ".editor-rich-scroll",
-        ),
+        )!,
         { key: "x" },
       );
       act(() => {
@@ -4323,7 +4343,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
       fireEvent.keyDown(
         session.view.container.querySelector<HTMLElement>(
           ".editor-rich-scroll",
-        ),
+        )!,
         { key: "x" },
       );
       act(() => {
@@ -4747,7 +4767,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
     setupMatchMedia();
     setupDomMeasurements();
     setupSessionTab("C:/notes/discarded.md");
-    const createEditor = vi.spyOn(CoreBlockNoteEditor, "create");
+    const createEditor = vi.spyOn(CoreEditorFactory, "create");
     const session = createRealSession("C:/notes/discarded.md");
 
     try {
@@ -4790,7 +4810,16 @@ describe("BlockNoteEditor persistent session runtime", () => {
     expect(scrollContainer).not.toBeNull();
     scrollContainer!.scrollTop = 84;
     expect(runtime.readViewState().scrollTop).toBe(84);
-    runtime.restoreViewState({ scrollTop: 21, selection: null });
+    runtime.restoreViewState({
+      topBlockId: null,
+      topBlockOffset: 0,
+      topCodeLine: null,
+      topCodeLineOffset: 0,
+      topBlockRatio: null,
+      width: 0,
+      scrollTop: 21,
+      selection: null,
+    });
     expect(scrollContainer!.scrollTop).toBe(21);
 
     const transactionCount = handleTransaction.mock.calls.length;
@@ -4851,7 +4880,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
       ".editor-rich-scroll",
     )!;
     const blockId = runtime.editor.document[0].id;
-    const target = runtime.editor.domElement.querySelector<HTMLElement>(
+    const target = runtime.editor.domElement!.querySelector<HTMLElement>(
       `[data-id="${blockId}"]`,
     )!;
     const scheduledFrames: FrameRequestCallback[] = [];
@@ -4874,7 +4903,16 @@ describe("BlockNoteEditor persistent session runtime", () => {
 
     expect(runtime.scrollToBlock(blockId)).toBe(true);
     expect(scrollContainer.scrollTop).toBeGreaterThan(0);
-    runtime.restoreViewState({ scrollTop: 21, selection: null });
+    runtime.restoreViewState({
+      topBlockId: null,
+      topBlockOffset: 0,
+      topCodeLine: null,
+      topCodeLineOffset: 0,
+      topBlockRatio: null,
+      width: 0,
+      scrollTop: 21,
+      selection: null,
+    });
     act(() => {
       for (const callback of scheduledFrames.splice(0)) callback(0);
     });
@@ -4898,7 +4936,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
     )!;
     const [firstHeading, , secondHeading] = runtime.editor.document;
     const firstHeadingElement =
-      runtime.editor.domElement.querySelector<HTMLElement>(
+      runtime.editor.domElement!.querySelector<HTMLElement>(
         `[data-id="${firstHeading.id}"]`,
       )!;
     const scheduledFrames: FrameRequestCallback[] = [];
@@ -4918,7 +4956,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
       width: 400,
     });
     vi.spyOn(
-      runtime.editor.domElement,
+      runtime.editor.domElement!,
       "getBoundingClientRect",
     ).mockReturnValue({
       ...createRect(),
@@ -4972,7 +5010,16 @@ describe("BlockNoteEditor persistent session runtime", () => {
     )!;
     const patch = vi.spyOn(richPaneViewStateRegistry, "patch");
 
-    runtime.restoreViewState({ scrollTop: 240, selection: null });
+    runtime.restoreViewState({
+      topBlockId: null,
+      topBlockOffset: 0,
+      topCodeLine: null,
+      topCodeLineOffset: 0,
+      topBlockRatio: null,
+      width: 0,
+      scrollTop: 240,
+      selection: null,
+    });
     fireEvent.scroll(scrollContainer);
 
     expect(patch).not.toHaveBeenCalled();
@@ -4996,7 +5043,16 @@ describe("BlockNoteEditor persistent session runtime", () => {
       "captureVisualSnapshot",
     );
 
-    runtime.restoreViewState({ scrollTop: 720, selection: null });
+    runtime.restoreViewState({
+      topBlockId: null,
+      topBlockOffset: 0,
+      topCodeLine: null,
+      topCodeLineOffset: 0,
+      topBlockRatio: null,
+      width: 0,
+      scrollTop: 720,
+      selection: null,
+    });
     scrollContainer.scrollTop = 940;
 
     expect(runtime.readViewState().scrollTop).toBe(720);
@@ -5022,7 +5078,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
       ".editor-rich-scroll",
     )!;
     const blockId = runtime.editor.document[0].id;
-    const target = runtime.editor.domElement.querySelector<HTMLElement>(
+    const target = runtime.editor.domElement!.querySelector<HTMLElement>(
       `[data-id="${blockId}"]`,
     )!;
     const scheduledFrames: FrameRequestCallback[] = [];
@@ -5043,6 +5099,10 @@ describe("BlockNoteEditor persistent session runtime", () => {
     });
 
     runtime.restoreViewState({
+      topCodeLine: null,
+      topCodeLineOffset: 0,
+      topBlockRatio: null,
+      width: 0,
       scrollTop: 240,
       selection: null,
       topBlockId: blockId,
@@ -5100,7 +5160,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
     await waitFor(() => expect(session.runtime.current).not.toBeNull());
     const runtime = session.runtime.current!;
     const blockId = runtime.editor.document[0].id;
-    const block = runtime.editor.domElement.querySelector<HTMLElement>(
+    const block = runtime.editor.domElement!.querySelector<HTMLElement>(
       `[data-node-type="blockOuter"][data-id="${blockId}"]`,
     )!;
     const nestedDataId = document.createElement("span");
@@ -5118,7 +5178,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
       width: 400,
     });
     vi.spyOn(
-      runtime.editor.domElement,
+      runtime.editor.domElement!,
       "getBoundingClientRect",
     ).mockReturnValue({
       ...createRect(),
@@ -5141,7 +5201,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
       configurable: true,
       value: elementFromPoint,
     });
-    const queryAll = vi.spyOn(runtime.editor.domElement, "querySelectorAll");
+    const queryAll = vi.spyOn(runtime.editor.domElement!, "querySelectorAll");
     queryAll.mockClear();
 
     let viewState: ReturnType<RichBlockNoteRuntime["readViewState"]>;
@@ -5184,7 +5244,16 @@ describe("BlockNoteEditor persistent session runtime", () => {
     )[0];
     runtime.editor.setTextCursorPosition(secondBlock, "start");
 
-    runtime.restoreViewState({ scrollTop: 0, selection: null });
+    runtime.restoreViewState({
+      topBlockId: null,
+      topBlockOffset: 0,
+      topCodeLine: null,
+      topCodeLineOffset: 0,
+      topBlockRatio: null,
+      width: 0,
+      scrollTop: 0,
+      selection: null,
+    });
 
     expect(runtime.editor.getTextCursorPosition().block.id).toBe(firstBlock.id);
     session.view.unmount();
@@ -5285,12 +5354,13 @@ describe("BlockNoteEditor persistent session runtime", () => {
     )!;
     const [firstHeading, intro, secondHeading, details] =
       runtime.editor.document;
-    const introElement = runtime.editor.domElement.querySelector<HTMLElement>(
+    const introElement = runtime.editor.domElement!.querySelector<HTMLElement>(
       `[data-id="${intro.id}"]`,
     )!;
-    const detailsElement = runtime.editor.domElement.querySelector<HTMLElement>(
-      `[data-id="${details.id}"]`,
-    )!;
+    const detailsElement =
+      runtime.editor.domElement!.querySelector<HTMLElement>(
+        `[data-id="${details.id}"]`,
+      )!;
     const editorBounds = {
       ...createRect(),
       bottom: 500,
@@ -5303,7 +5373,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
       editorBounds,
     );
     vi.spyOn(
-      runtime.editor.domElement,
+      runtime.editor.domElement!,
       "getBoundingClientRect",
     ).mockReturnValue(editorBounds);
     const scheduledFrames: FrameRequestCallback[] = [];
@@ -5479,7 +5549,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
     setupMatchMedia();
     setupDomMeasurements();
     setupSessionTab("C:/notes/strict.md");
-    const createEditor = vi.spyOn(CoreBlockNoteEditor, "create");
+    const createEditor = vi.spyOn(CoreEditorFactory, "create");
     const handleTransaction = vi.spyOn(
       RichPreviewCache.prototype,
       "handleTransaction",
@@ -5507,6 +5577,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
     tiptapEditor.emit("transaction", {
       editor: tiptapEditor,
       transaction: tiptapEditor.state.tr,
+      appendedTransactions: [],
     });
     expect(handleTransaction).toHaveBeenCalledTimes(transactionCalls);
 
@@ -6077,3 +6148,9 @@ function createDeferred<T>() {
   });
   return { promise, resolve };
 }
+
+const BlockNoteView = BaseBlockNoteView<
+  typeof editorSchema.blockSchema,
+  typeof editorSchema.inlineContentSchema,
+  typeof editorSchema.styleSchema
+>;

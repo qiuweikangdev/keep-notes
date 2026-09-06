@@ -34,19 +34,25 @@ describe("SettingsModal about tab", () => {
       repositoryUrl: "https://github.com/qiuweikangdev/keep-notes",
       author: "qiuweikangdev",
     })),
-    getUpdateState: vi.fn(async () => ({
-      status: "idle",
-      currentVersion: "2.0.0",
-    })),
-    checkForUpdates: vi.fn(async () => ({
-      status: "checking",
-      currentVersion: "2.0.0",
-    })),
-    cancelUpdate: vi.fn(async () => ({
-      status: "canceled",
-      currentVersion: "2.0.0",
-      version: "2.1.0",
-    })),
+    getUpdateState: vi.fn(
+      async (): Promise<import("@shared/types").AppUpdateState> => ({
+        status: "idle",
+        currentVersion: "2.0.0",
+      }),
+    ),
+    checkForUpdates: vi.fn(
+      async (): Promise<import("@shared/types").AppUpdateState> => ({
+        status: "checking",
+        currentVersion: "2.0.0",
+      }),
+    ),
+    cancelUpdate: vi.fn(
+      async (): Promise<import("@shared/types").AppUpdateState> => ({
+        status: "canceled",
+        currentVersion: "2.0.0",
+        version: "2.1.0",
+      }),
+    ),
     installUpdate: vi.fn(),
     openRepository: vi.fn(),
     onUpdateState: vi.fn(() => vi.fn()),

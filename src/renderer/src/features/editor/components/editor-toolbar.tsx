@@ -127,7 +127,7 @@ export function EditorToolbar({
 
   const handleModeChange = useCallback(
     async (mode: EditorMode) => {
-      let currentTab = getActiveTab();
+      let currentTab: EditorTab | null | undefined = getActiveTab();
       if (!currentTab || currentTab.mode === mode) return;
 
       if (currentTab.mode === "rich" && mode === "source") {
@@ -149,7 +149,7 @@ export function EditorToolbar({
   );
 
   const handleDiff = useCallback(async () => {
-    let currentTab = getActiveTab();
+    let currentTab: EditorTab | null | undefined = getActiveTab();
     if (!currentTab?.filePath || !repositoryRoot) return;
     currentTab = await flushRichSnapshot(currentTab);
     if (!currentTab?.filePath) return;
@@ -205,7 +205,7 @@ export function EditorToolbar({
   }, [getActiveTab, handleModeChange]);
 
   const handleOpenFloatingWindow = useCallback(async () => {
-    let currentTab = getActiveTab();
+    let currentTab: EditorTab | null | undefined = getActiveTab();
     if (!currentTab) return;
 
     currentTab = await flushRichSnapshot(currentTab);
@@ -229,7 +229,6 @@ export function EditorToolbar({
       repositoryRoot,
       currentTab.filePath,
       {
-        detectGitRepo,
         discardChanges,
         getFileHeadContent,
         getGitStatus,

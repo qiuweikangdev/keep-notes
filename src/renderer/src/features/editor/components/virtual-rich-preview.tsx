@@ -51,7 +51,10 @@ interface CaretPositionResult {
   offsetNode: Node;
 }
 
-interface CaretDocument extends Document {
+interface CaretDocument extends Omit<
+  Document,
+  "caretPositionFromPoint" | "caretRangeFromPoint"
+> {
   caretPositionFromPoint?: (x: number, y: number) => CaretPositionResult | null;
   caretRangeFromPoint?: (x: number, y: number) => Range | null;
 }

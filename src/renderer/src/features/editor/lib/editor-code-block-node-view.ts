@@ -46,7 +46,7 @@ import {
   type ViewUpdate,
 } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
-import type { Block, BlockNoteEditor } from "@blocknote/core";
+import type { BlockNoteEditor as CoreBlockNoteEditor } from "@blocknote/core";
 import type { Node as ProseMirrorNode, Schema } from "@tiptap/pm/model";
 import { TextSelection } from "@tiptap/pm/state";
 import type { EditorView as ProseMirrorView } from "@tiptap/pm/view";
@@ -73,6 +73,22 @@ interface CodeBlockRenderContext {
   props?: CodeBlockNodeViewProps;
   renderType?: "dom" | "nodeView";
 }
+
+interface Block {
+  id: string;
+  props: Record<string, unknown>;
+  content?: unknown;
+}
+
+type BlockNoteEditor = Pick<
+  CoreBlockNoteEditor,
+  "prosemirrorView" | "undo" | "isEditable"
+> & {
+  updateBlock(
+    block: { id: string },
+    update: { props: { language: string } },
+  ): unknown;
+};
 
 interface EditorCodeBlockNodeViewOptions {
   block: Block;
@@ -383,7 +399,7 @@ function readBlockContentText(block: Block): string {
       if ("text" in item && typeof item.text === "string") return item.text;
       if ("content" in item && Array.isArray(item.content)) {
         return item.content
-          .map((child) =>
+          .map((child: unknown) =>
             typeof child === "object" &&
             child !== null &&
             "text" in child &&

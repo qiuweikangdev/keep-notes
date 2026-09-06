@@ -65,7 +65,7 @@ describe("TreeNode context menu", () => {
     fireEvent.contextMenu(screen.getByText("README.MD"));
 
     expect(
-      await screen.findByRole("menuitem", { name: "打开", exact: true }),
+      await screen.findByRole("menuitem", { name: /^打开$/ }),
     ).toBeInTheDocument();
   });
 });

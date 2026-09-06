@@ -25,7 +25,10 @@ interface DiscardFileChangesOptions {
 export async function discardFileChanges(
   repositoryRoot: string,
   filePath: string,
-  electron: ReturnType<typeof useElectron>,
+  electron: Pick<
+    ReturnType<typeof useElectron>,
+    "getGitStatus" | "getFileHeadContent" | "discardChanges" | "loadTree"
+  >,
   options: DiscardFileChangesOptions = {},
 ): Promise<DiscardFileChangesResult> {
   const relativePath = toGitRelativePath(repositoryRoot, filePath);

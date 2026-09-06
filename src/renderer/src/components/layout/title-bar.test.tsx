@@ -1,11 +1,12 @@
 import {
+  cleanup,
   fireEvent,
   render,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TitleBar } from "./title-bar";
 import { MAC_TITLE_BAR_HEIGHT } from "@shared/title-bar";
 
@@ -28,10 +29,15 @@ vi.mock("@/store/ui.store", () => ({
 }));
 
 vi.mock("@/store/editor.store", () => ({
-  useEditorStore: () => ({
-    appearance: testState.appearance,
-    setAppearance: testState.setAppearance,
-  }),
+  useEditorStore: (
+    selector: (
+      state: Pick<typeof testState, "appearance" | "setAppearance">,
+    ) => unknown,
+  ) =>
+    selector({
+      appearance: testState.appearance,
+      setAppearance: testState.setAppearance,
+    }),
 }));
 
 vi.mock("@/hooks/use-theme", () => ({
@@ -60,13 +66,19 @@ vi.mock("@/hooks/use-electron", () => ({
 }));
 
 vi.mock("@/store/tree.store", () => ({
-  useTreeStore: () => ({
-    treeRoot: testState.treeRoot,
-    selectedKey: testState.selectedKey,
-  }),
+  useTreeStore: (
+    selector: (
+      state: Pick<typeof testState, "treeRoot" | "selectedKey">,
+    ) => unknown,
+  ) =>
+    selector({
+      treeRoot: testState.treeRoot,
+      selectedKey: testState.selectedKey,
+    }),
 }));
 
 describe("TitleBar", () => {
+  afterEach(cleanup);
   beforeEach(() => {
     testState.appearance = {
       showFileHistoryNavigation: true,

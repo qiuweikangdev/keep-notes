@@ -23,6 +23,10 @@ import { CodeResult } from "@/types";
 import { editorSplitPaintCoordinator } from "../lib/editor-performance";
 import { closeEditorTab } from "../lib/editor-tab-closing";
 import { selectTabBarSignature } from "../lib/editor-view-selectors";
+import {
+  flushEditorChange,
+  editorSaveCoordinator,
+} from "../lib/editor-runtime";
 import { EditorToolbar } from "./editor-toolbar";
 
 interface EditorTabBarProps {
@@ -406,7 +410,6 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
                 <AlertCircle
                   role="img"
                   aria-label={tab.errorMessage ?? "保存失败"}
-                  title={tab.errorMessage ?? "保存失败"}
                   className="h-3.5 w-3.5 flex-shrink-0 text-red-500"
                 />
               ) : (

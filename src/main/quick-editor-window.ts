@@ -799,7 +799,10 @@ export async function saveQuickEditorContent(
       data: { filePath: result.data.filePath, source: savedSource },
     };
   }
-  return { code: result.code, message: result.message };
+  return {
+    code: result.code,
+    message: "message" in result ? String(result.message) : undefined,
+  };
 }
 
 export function returnToMainWindowFromQuickEditor(

@@ -21,7 +21,7 @@ function installColorSchemeMedia(initialMatches = false) {
       (_type: string, listener: (event: MediaQueryListEvent) => void) =>
         listeners.delete(listener),
     ),
-  } as MediaQueryList;
+  } as unknown as MediaQueryList;
 
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
@@ -31,7 +31,10 @@ function installColorSchemeMedia(initialMatches = false) {
   return {
     setMatches(nextMatches: boolean) {
       matches = nextMatches;
-      const event = { matches, media: mediaQuery.media } as MediaQueryListEvent;
+      const event = {
+        matches,
+        media: mediaQuery.media,
+      } as unknown as MediaQueryListEvent;
       listeners.forEach((listener) => listener(event));
     },
   };

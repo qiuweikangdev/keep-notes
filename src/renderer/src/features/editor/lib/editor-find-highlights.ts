@@ -13,7 +13,7 @@ interface HighlightRegistry {
   delete: (name: string) => void;
 }
 
-interface CssWithHighlights extends CSS {
+interface CssWithHighlights {
   highlights?: HighlightRegistry;
 }
 

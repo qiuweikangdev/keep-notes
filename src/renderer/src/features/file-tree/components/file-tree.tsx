@@ -74,7 +74,8 @@ const MENU_CONTENT_CLASS =
 const MENU_ITEM_CLASS =
   "flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-[13px] outline-none data-[highlighted]:bg-[var(--selection-row-hover)]";
 const MENU_SEPARATOR_CLASS = "my-1 h-px bg-[var(--border-color)]";
-const EMPTY_OUTLINE_HEADINGS = [];
+const EMPTY_OUTLINE_HEADINGS: import("@/store/editor.store").OutlineHeading[] =
+  [];
 const TOOL_BUTTON_CLASS =
   "flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md transition-colors";
 const ROW_HEIGHT = 28; // 7 * 4 = 28px (h-7)
@@ -383,7 +384,7 @@ export function FileTree() {
       setCreatingInfo(null);
       return;
     }
-    const fn = creatingInfo.type === "file" ? createFile : createFolder;
+    const fn = creatingInfo?.type === "file" ? createFile : createFolder;
     const r = await fn(treeRoot.key, title, treeData);
     if (r.code === CodeResult.Success && r.data) {
       const newKey = buildCreatedNodeKey(
@@ -737,7 +738,7 @@ export function FileTree() {
                   >
                     <div className="flex h-[26px] w-[12px] flex-shrink-0 items-center justify-center" />
                     <div className="mr-[6px] flex h-[26px] w-[16px] flex-shrink-0 items-center justify-center">
-                      {creatingInfo.type === "file" ? (
+                      {creatingInfo?.type === "file" ? (
                         <File
                           className="h-[14px] w-[14px]"
                           style={{ color: "var(--text-muted)" }}
@@ -770,7 +771,7 @@ export function FileTree() {
                       }}
                       onClick={(e) => e.stopPropagation()}
                       placeholder={
-                        creatingInfo.type === "file"
+                        creatingInfo?.type === "file"
                           ? "输入文件名称"
                           : "输入文件夹名称"
                       }
@@ -1834,7 +1835,7 @@ function CreateInput({
       return;
     }
 
-    const fn = creatingInfo.type === "file" ? createFile : createFolder;
+    const fn = creatingInfo?.type === "file" ? createFile : createFolder;
     const treeData = useTreeStore.getState().treeData;
     const result = await fn(parentKey, title, treeData);
     if (result.code === CodeResult.Success && result.data) {
@@ -1898,7 +1899,7 @@ function CreateInput({
     >
       <div className="flex h-[26px] w-[12px] flex-shrink-0 items-center justify-center" />
       <div className="mr-[6px] flex h-[26px] w-[16px] flex-shrink-0 items-center justify-center">
-        {creatingInfo.type === "file" ? (
+        {creatingInfo?.type === "file" ? (
           <File
             className="h-[14px] w-[14px]"
             style={{ color: "var(--text-muted)" }}
@@ -1931,7 +1932,7 @@ function CreateInput({
         }}
         onClick={(e) => e.stopPropagation()}
         placeholder={
-          creatingInfo.type === "file" ? "输入文件名称" : "输入文件夹名称"
+          creatingInfo?.type === "file" ? "输入文件名称" : "输入文件夹名称"
         }
         className="h-[22px] flex-1 rounded-[3px] px-[6px] text-[13px] outline-none focus:ring-1 focus:ring-[var(--border-color)]"
         style={{

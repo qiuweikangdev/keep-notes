@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { FileDiff, type FileDiffOptions } from "@pierre/diffs/react";
+import { FileDiff } from "@pierre/diffs/react";
 import {
+  type FileDiffOptions,
   parseDiffFromFile,
   type CreatePatchOptionsNonabortable,
   type DiffsThemeNames,

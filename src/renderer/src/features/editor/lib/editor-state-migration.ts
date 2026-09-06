@@ -40,7 +40,7 @@ export function normalizePersistedAppearance<TAppearance extends object>(
   const currentPadding = (normalized as { padding?: unknown }).padding;
   if (typeof defaultPadding === "number" && currentPadding === 0) {
     // 旧版本默认值为 0，会让编辑内容贴边；迁移到当前默认内边距。
-    (normalized as { padding: number }).padding = defaultPadding;
+    (normalized as { padding?: number }).padding = defaultPadding;
   }
 
   const defaultFontSize = (defaults as { fontSize?: unknown }).fontSize;
@@ -56,7 +56,7 @@ export function normalizePersistedAppearance<TAppearance extends object>(
     currentUiFontSize !== defaultUiFontSize
   ) {
     // 旧版 UI 字号曾作为独立字段保存；现在字号只影响编辑器内容，迁移旧值到实际生效字段。
-    (normalized as { fontSize: number }).fontSize = currentUiFontSize;
+    (normalized as { fontSize?: number }).fontSize = currentUiFontSize;
   }
 
   const defaultExternalOpenApp = (
@@ -71,7 +71,7 @@ export function normalizePersistedAppearance<TAppearance extends object>(
       String(currentExternalOpenApp),
     )
   ) {
-    (normalized as { defaultExternalOpenApp: string }).defaultExternalOpenApp =
+    (normalized as { defaultExternalOpenApp?: string }).defaultExternalOpenApp =
       defaultExternalOpenApp;
   }
 

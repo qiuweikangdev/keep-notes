@@ -155,7 +155,13 @@ describe("external open apps", () => {
   });
 
   it("opens Warp at the parent directory for file targets on macOS", async () => {
-    const spawn = vi.fn(() => ({ unref: vi.fn() }));
+    const spawn = vi.fn(
+      (
+        _command: string,
+        _args: string[],
+        _options?: import("node:child_process").SpawnOptions,
+      ) => ({ unref: vi.fn() }),
+    );
 
     const result = await openWithExternalApp(
       "/workspace/notes/daily.md",
@@ -181,7 +187,13 @@ describe("external open apps", () => {
   });
 
   it("opens Windows terminal through start so a visible window is created", async () => {
-    const spawn = vi.fn(() => ({ unref: vi.fn() }));
+    const spawn = vi.fn(
+      (
+        _command: string,
+        _args: string[],
+        _options?: import("node:child_process").SpawnOptions,
+      ) => ({ unref: vi.fn() }),
+    );
     const targetPath = "C:/workspace/notes/daily&today.md";
 
     const result = await openWithExternalApp(targetPath, "terminal", {
@@ -210,7 +222,13 @@ describe("external open apps", () => {
   });
 
   it("opens Windows terminal through wt when Windows Terminal is available", async () => {
-    const spawn = vi.fn(() => ({ unref: vi.fn() }));
+    const spawn = vi.fn(
+      (
+        _command: string,
+        _args: string[],
+        _options?: import("node:child_process").SpawnOptions,
+      ) => ({ unref: vi.fn() }),
+    );
     const targetPath = "C:/workspace/notes/daily&today.md";
     const terminalPath =
       "C:/Users/Alice/AppData/Local/Microsoft/WindowsApps/wt.exe";
@@ -243,7 +261,13 @@ describe("external open apps", () => {
     process.env.LOCALAPPDATA = "C:/Users/Alice/AppData/Local";
 
     try {
-      const spawn = vi.fn(() => ({ unref: vi.fn() }));
+      const spawn = vi.fn(
+        (
+          _command: string,
+          _args: string[],
+          _options?: import("node:child_process").SpawnOptions,
+        ) => ({ unref: vi.fn() }),
+      );
       const targetPath = "C:/workspace/notes/daily&today.md";
       const codePath =
         "C:/Users/Alice/AppData/Local/Programs/Microsoft VS Code/Code.exe";
@@ -402,7 +426,13 @@ describe("external open apps", () => {
       expectedArgs,
       expectedOptions,
     }) => {
-      const spawn = vi.fn(() => ({ unref: vi.fn() }));
+      const spawn = vi.fn(
+        (
+          _command: string,
+          _args: string[],
+          _options?: import("node:child_process").SpawnOptions,
+        ) => ({ unref: vi.fn() }),
+      );
       const normalizedExecutablePath = normalizeWindowsPath(executablePath);
 
       const result = await openWithExternalApp(targetPath, appId, {

@@ -94,15 +94,15 @@ interface EditorCodeBlockEditor {
   removeBlocks?: (ids: string[]) => void;
   prosemirrorView?: {
     state: {
-      doc: ProseMirrorNode;
+      doc?: ProseMirrorNode;
       tr: {
-        setMeta: (key: string, value: unknown) => unknown;
+        setMeta?: (key: string, value: unknown) => unknown;
         setSelection?: (selection: TextSelection) => {
           scrollIntoView?: () => unknown;
         };
       };
     };
-    dispatch: (transaction: unknown) => void;
+    dispatch(transaction: unknown): void;
     focus?: () => void;
     posAtDOM?: (node: Node, offset: number) => number;
     root?: Document | ShadowRoot;
@@ -582,7 +582,7 @@ export function selectCodeBlockContent(
   selection.removeAllRanges();
   selection.addRange(range);
 
-  if (view?.posAtDOM && view.state.tr.setSelection) {
+  if (view?.posAtDOM && view.state.doc && view.state.tr.setSelection) {
     try {
       const startBoundary = getTextNodeBoundary(element, "start");
       const endBoundary = getTextNodeBoundary(element, "end");
@@ -641,7 +641,8 @@ export function refreshCodeBlockHighlighting(editor: EditorCodeBlockEditor) {
   const view = editor.prosemirrorView;
   if (!view) return;
 
-  view.dispatch(view.state.tr.setMeta("prosemirror-highlight-refresh", true));
+  if (view.state.tr.setMeta)
+    view.dispatch(view.state.tr.setMeta("prosemirror-highlight-refresh", true));
 }
 
 export function EditorCodeBlock({

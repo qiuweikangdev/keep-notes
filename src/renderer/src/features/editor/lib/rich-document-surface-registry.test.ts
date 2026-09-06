@@ -260,7 +260,10 @@ describe("RichDocumentSurfaceRegistry", () => {
     expect(surface.style.transform).toBe("translate3d(10px, 20px, 0)");
     expect(observe).toHaveBeenCalledWith(host);
 
-    resizeCallback?.([] as ResizeObserverEntry[], {} as ResizeObserver);
+    (resizeCallback as ResizeObserverCallback | null)?.(
+      [] as ResizeObserverEntry[],
+      {} as ResizeObserver,
+    );
 
     expect(surface.style.transform).toBe("translate3d(30px, 40px, 0)");
     expect(surface.style.width).toBe("420px");

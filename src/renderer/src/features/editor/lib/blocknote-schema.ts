@@ -31,7 +31,7 @@ import {
   TextSelection,
   type EditorState,
 } from "@tiptap/pm/state";
-import type { Mark, Node, Slice } from "@tiptap/pm/model";
+import type { Mark, Node as ProseMirrorNode, Slice } from "@tiptap/pm/model";
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
 
 import {
@@ -653,7 +653,7 @@ function getInlineCodePointerPosition(
           }
 
           const considerBoundary = (positionOffset: number, x: number) => {
-            const position = view.posAtDOM(textNode, positionOffset);
+            const position = view.posAtDOM(textNode!, positionOffset);
             if (position < range.from || position > range.to) return;
             const distance = Math.abs(event.clientX - x);
             if (distance < closestDistance) {
@@ -872,7 +872,7 @@ function getInlineCodeHorizontalNavigation(event: KeyboardEvent) {
           normalizedKey === "right"
         ? 1
         : 0;
-  const boundary =
+  const boundary: "start" | "end" | null =
     event.code === "Home" || normalizedKey === "home"
       ? "start"
       : event.code === "End" || normalizedKey === "end"
@@ -2324,20 +2324,24 @@ const editorCodeBlockExtensions = [
   }),
 ];
 
+const editorCodeBlockImplementation: typeof baseCodeBlockSpec.implementation = {
+  ...baseCodeBlockSpec.implementation,
+  meta: {
+    ...baseCodeBlockSpec.implementation.meta,
+  },
+  render: createEditorCodeBlockNodeView,
+  toExternalHTML: createEditorCodeBlockExternalHTML,
+};
 const editorCodeBlockSpec = createBlockSpec(
   createCodeBlockConfig(codeBlockOptions),
-  {
-    ...baseCodeBlockSpec.implementation,
-    meta: {
-      ...baseCodeBlockSpec.implementation.meta,
-    },
-    render: createEditorCodeBlockNodeView,
-    toExternalHTML: createEditorCodeBlockExternalHTML,
-  },
+  editorCodeBlockImplementation,
   editorCodeBlockExtensions,
 )();
 
-function collectParagraphTextsFromPasteNode(node: Node, texts: string[]) {
+function collectParagraphTextsFromPasteNode(
+  node: ProseMirrorNode,
+  texts: string[],
+) {
   if (node.type.name === "blockContainer") {
     const blockContent = node.firstChild;
     if (blockContent?.type.name !== "paragraph") return false;
@@ -2543,12 +2547,11 @@ const editorQuoteBlockSpec = {
 
             // 空引用行上再次按 Enter 时，移除末尾换行并切到引用块后的普通段落。
             tr.delete(selection.from - nodeBefore.nodeSize, selection.from);
-            const [insertedBlock] = insertBlocks(
-              tr,
-              [{ type: "paragraph", content: "" }],
-              block,
-              "after",
-            );
+            const [insertedBlock] = insertBlocks<
+              typeof editorSchema.blockSchema,
+              typeof editorSchema.inlineContentSchema,
+              typeof editorSchema.styleSchema
+            >(tr, [{ type: "paragraph", content: "" }], block, "after");
             const insertedNode = getNodeById(insertedBlock.id, tr.doc);
             if (insertedNode) {
               const insertedInfo = getBlockInfo(insertedNode);
@@ -2641,10 +2644,18 @@ const editorQuoteBlockSpec = {
               const tr = view.state.tr.delete(from - marker.length, from);
               const quoteNode = getNodeById(block.id, tr.doc);
               if (!quoteNode) return false;
-              const quote = nodeToBlock(quoteNode.node, tr.doc.type.schema);
+              const quote = nodeToBlock<
+                typeof editorSchema.blockSchema,
+                typeof editorSchema.inlineContentSchema,
+                typeof editorSchema.styleSchema
+              >(quoteNode.node, tr.doc.type.schema);
 
               // Chromium 的文本输入路径可能先经过独立插件；默认规则被拦截后在这里完成同样的子块转换。
-              updateBlockTr(tr, quoteNode.posBeforeNode, {
+              updateBlockTr<
+                typeof editorSchema.blockSchema,
+                typeof editorSchema.inlineContentSchema,
+                typeof editorSchema.styleSchema
+              >(tr, quoteNode.posBeforeNode, {
                 children: [
                   ...quote.children,
                   { type: "bulletListItem", content: "" },
@@ -2739,7 +2750,10 @@ const quoteAwareBulletListItemExtensions = (
   defaultBlockSpecs.bulletListItem.extensions ?? []
 ).map((extensionFactory) =>
   createExtension(({ editor }) => {
-    const extension = extensionFactory({ editor });
+    const extension =
+      typeof extensionFactory === "function"
+        ? extensionFactory({ editor })
+        : extensionFactory;
     if (extension.key !== "bullet-list-item-shortcuts") return extension;
 
     return {
@@ -2761,7 +2775,7 @@ const editorBulletListItemSpec = {
   ...defaultBlockSpecs.bulletListItem,
   extensions: [
     ...quoteAwareBulletListItemExtensions,
-    listHistoryBoundaryExtension(),
+    listHistoryBoundaryExtension,
     plainBulletListPasteExtension(),
   ],
 };
@@ -2770,12 +2784,12 @@ const editorParagraphSpec = {
   ...defaultBlockSpecs.paragraph,
   extensions: [
     ...(defaultBlockSpecs.paragraph.extensions ?? []),
-    blockBoundarySelectionNormalizerExtension(),
-    fullDocumentClearExtension(),
-    inlineCodeBackspaceExtension(),
+    blockBoundarySelectionNormalizerExtension,
+    fullDocumentClearExtension,
+    inlineCodeBackspaceExtension,
     inlineCodeEditingExtension(),
-    inlineCodeLatinContentExtension(),
-    inlineCodeNormalizerExtension(),
+    inlineCodeLatinContentExtension,
+    inlineCodeNormalizerExtension,
   ],
 };
 

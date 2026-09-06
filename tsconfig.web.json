@@ -2,8 +2,9 @@
   "compilerOptions": {
     "composite": true,
     "target": "ES2020",
+    "types": ["vite/client"],
     "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
     "moduleResolution": "bundler",
@@ -23,6 +24,5 @@
       "@shared/*": ["./src/shared/*"]
     }
   },
-  "include": ["src/renderer/src/**/*", "src/shared/**/*", "src/common/**/*"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  "include": ["src/renderer/src/**/*", "src/shared/**/*", "src/common/**/*"]
 }

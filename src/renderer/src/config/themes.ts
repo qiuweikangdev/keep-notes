@@ -29,7 +29,9 @@ export interface ThemeConfig {
   };
 }
 
-export const themes: Record<ThemeName, ThemeConfig> = {
+export const themes: Record<Exclude<ThemeName, "system">, ThemeConfig> & {
+  system?: never;
+} = {
   light: {
     name: "light",
     label: "Light",

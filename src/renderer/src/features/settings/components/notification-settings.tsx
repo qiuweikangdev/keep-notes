@@ -44,7 +44,7 @@ export function NotificationSettings() {
   const updateDesktopConfig = async (
     desktop: Partial<typeof config.desktop>,
   ) => {
-    await updateConfig({ desktop });
+    await updateConfig({ desktop: { ...config.desktop, ...desktop } });
   };
 
   /** 保存应用通知弹窗顶部标题，空值恢复默认应用名 */

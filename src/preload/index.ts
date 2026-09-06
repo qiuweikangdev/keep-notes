@@ -32,5 +32,5 @@ if (globalThis.process.contextIsolated) {
     console.error(error);
   }
 } else {
-  (window as any).electronAPI = api(window as any).gitAPI = git;
+  Object.assign(window, { electronAPI: api, gitAPI: git });
 }

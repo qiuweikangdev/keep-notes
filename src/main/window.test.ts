@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import type { WindowOpenTarget } from "../shared/types";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -9,7 +10,6 @@ import {
   openPathInNewWindow,
   resolveWindowOpenTarget,
   saveAndClose,
-  type WindowOpenTarget,
 } from "./window";
 
 const electronMocks = vi.hoisted(() => ({

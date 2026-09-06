@@ -54,7 +54,7 @@ it("preserves the unsaved draft close snapshot across mode switches", async () =
     updateDirtyState,
     syncQuickEditorContent: vi.fn(),
   });
-  const bridge = window as Window & {
+  const bridge = window as unknown as Window & {
     __getNextDirtyEditor: () => Promise<CloseSaveSnapshot | null>;
   };
   render(<QuickEditorWindow />);

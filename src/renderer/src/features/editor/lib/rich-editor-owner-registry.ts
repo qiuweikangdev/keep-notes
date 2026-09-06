@@ -1,4 +1,4 @@
-import { BlockNoteEditor as CoreBlockNoteEditor } from "@blocknote/core";
+import type { RichEditor as CoreBlockNoteEditor } from "./editor-types";
 
 export interface RichEditorOwnerHandlers {
   resolveFileUrl: (url: string) => Promise<string>;

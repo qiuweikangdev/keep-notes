@@ -9,7 +9,7 @@ export interface QuickEditorOutlineHeading {
 interface QuickEditorOutlineBlock {
   id: string;
   type: string;
-  props?: { level?: number };
+  props?: { level?: number; [key: string]: unknown };
   content?: unknown;
   children?: QuickEditorOutlineBlock[];
 }

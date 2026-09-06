@@ -119,7 +119,7 @@ describe("quick editor content detection", () => {
       filePath: null,
       temporaryTitle: "会议记录",
     };
-    const saveQuickEditorContent = vi.fn(async () => ({
+    const saveQuickEditorContent = vi.fn(async (_content: string) => ({
       code: 1,
       data: {
         filePath: "C:\\notes\\会议记录.md",

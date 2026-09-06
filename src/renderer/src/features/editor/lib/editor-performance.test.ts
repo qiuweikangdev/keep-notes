@@ -323,7 +323,7 @@ describe("editor performance diagnostics", () => {
     const coordinator = new EditorSplitPaintCoordinator({
       cancelFrame,
       defer: (callback) => deferred.push(callback),
-      measure,
+      measure: measure as import("./editor-performance").EditorOperationMeasure,
       scheduleFrame: (callback) => {
         scheduled.push(callback);
         return scheduled.length;
@@ -369,7 +369,7 @@ describe("editor performance diagnostics", () => {
     );
     const coordinator = new EditorResizeFrameCoordinator({
       cancelFrame,
-      measure,
+      measure: measure as import("./editor-performance").EditorOperationMeasure,
       scheduleFrame: (callback) => {
         scheduled.push(callback);
         return scheduled.length;

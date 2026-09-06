@@ -50,13 +50,13 @@ describe("useShortcutsStore", () => {
 
     expect(shortcut).toMatchObject({
       id: "openReminderWindow",
-      name: "搜索提醒事项",
+      name: "提醒事项浮窗",
       keys: ["CmdOrCtrl+Alt+R"],
       isSystem: true,
     });
     expect(quickEditorShortcut).toMatchObject({
       id: "openQuickEditorWindow",
-      name: "打开快速编辑",
+      name: "编辑器浮窗",
       keys: ["CmdOrCtrl+Alt+N"],
       isSystem: true,
     });
@@ -70,7 +70,7 @@ describe("useShortcutsStore", () => {
           shortcuts: [
             {
               id: "openReminderWindow",
-              name: "搜索提醒事项",
+              name: "提醒事项浮窗",
               description: "在浮动小窗口中打开并搜索提醒事项",
               keys: ["CmdOrCtrl+Alt+R"],
               isSystem: true,

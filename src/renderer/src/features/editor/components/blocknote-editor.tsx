@@ -1,3 +1,9 @@
+import type {
+  RichBlock as Block,
+  RichPartialBlock as PartialBlock,
+  RichInlineContent as InlineContent,
+} from "../lib/editor-types";
+import type { RichEditor as CoreBlockNoteEditor } from "../lib/editor-types";
 import {
   useCallback,
   useEffect,
@@ -25,12 +31,9 @@ import { BlockNoteView } from "@blocknote/mantine";
 import { EditorView as CodeMirrorView } from "@codemirror/view";
 import { CodeXml } from "lucide-react";
 import {
-  BlockNoteEditor as CoreBlockNoteEditor,
+  BlockNoteEditor as CoreEditorFactory,
   getNodeById,
   selectedFragmentToHTML,
-  type Block,
-  type InlineContent,
-  type PartialBlock,
 } from "@blocknote/core";
 import { SideMenuExtension } from "@blocknote/core/extensions";
 import {
@@ -568,7 +571,7 @@ function splitPastedInlineContentByPlaceholders(
       continue;
     }
 
-    const textItem = item as InlineContent & { text: string };
+    const textItem = item as Extract<InlineContent, { type: "text" }>;
     let offset = 0;
     while (offset < textItem.text.length) {
       let markerIndex = -1;
@@ -1596,12 +1599,12 @@ interface RichEditorSelectionTarget {
     state: {
       doc: ProseMirrorNode;
       tr: {
-        setSelection: (selection: AllSelection) => {
+        setSelection(selection: Selection): {
           scrollIntoView?: () => unknown;
         };
       };
     };
-    dispatch: (transaction: unknown) => void;
+    dispatch(transaction: unknown): void;
     focus?: () => void;
   };
 }
@@ -1704,7 +1707,7 @@ interface BlockNoteEditorInnerProps {
   editorOwnerKey: string;
   path: string | null;
   reloadKey: number;
-  surface?: HTMLElement;
+  surface: HTMLElement;
 }
 
 interface MountedBlockNoteEditorProps extends Omit<
@@ -1803,7 +1806,11 @@ export const richEditorDefaultUIProps = {
 } as const;
 
 function EditorSideMenu(props: ComponentProps<typeof SideMenu>) {
-  const editor = useBlockNoteEditor();
+  const editor = useBlockNoteEditor<
+    typeof editorSchema.blockSchema,
+    typeof editorSchema.inlineContentSchema,
+    typeof editorSchema.styleSchema
+  >();
   const sideMenu = editor.getExtension(SideMenuExtension);
   const block = useExtensionState(SideMenuExtension, {
     editor,
@@ -1949,7 +1956,8 @@ export function unregisterRichEditorSelectionDragGuardPlugin(
   const view = editor.prosemirrorView;
   const plugins = view.state.plugins.filter(
     (registeredPlugin) =>
-      registeredPlugin !== plugin && registeredPlugin.key !== plugin.key,
+      registeredPlugin !== plugin &&
+      registeredPlugin.spec.key !== plugin.spec.key,
   );
   if (plugins.length === view.state.plugins.length) return;
 
@@ -2005,7 +2013,11 @@ function applyInlineCodeStyle(editor: CoreBlockNoteEditor) {
 
 function InlineCodeStyleButton() {
   const Components = useComponentsContext()!;
-  const editor = useBlockNoteEditor();
+  const editor = useBlockNoteEditor<
+    typeof editorSchema.blockSchema,
+    typeof editorSchema.inlineContentSchema,
+    typeof editorSchema.styleSchema
+  >();
   const state = useEditorState({
     editor,
     selector: ({ editor: currentEditor }) => {
@@ -2077,7 +2089,11 @@ function isFormattingToolbarSelectionSafe(selection: Selection) {
 }
 
 export function EditorFormattingToolbar() {
-  const editor = useBlockNoteEditor();
+  const editor = useBlockNoteEditor<
+    typeof editorSchema.blockSchema,
+    typeof editorSchema.inlineContentSchema,
+    typeof editorSchema.styleSchema
+  >();
   const selectionIsSafe = useEditorState({
     editor,
     selector: ({ editor: currentEditor }) =>
@@ -2157,8 +2173,16 @@ export function readRichEditorDraggedBlockIds(
   editor: CoreBlockNoteEditor,
 ): string[] {
   const selection = editor.prosemirrorState.selection;
-  if ("node" in selection) {
-    const blockId = selection.node.attrs.id;
+  if (
+    "node" in selection &&
+    selection.node &&
+    typeof selection.node === "object" &&
+    "attrs" in selection.node &&
+    selection.node.attrs &&
+    typeof selection.node.attrs === "object"
+  ) {
+    const blockId =
+      "id" in selection.node.attrs ? selection.node.attrs.id : undefined;
     return typeof blockId === "string" ? [blockId] : [];
   }
 
@@ -2210,7 +2234,7 @@ export function moveRichEditorBlocksToDocumentEnd(
     const referenceBlock = editor.document.findLast(
       (block) => !draggedBlockIdSet.has(block.id),
     );
-    let movedBlocks = draggedBlocks;
+    let movedBlocks: { id: string }[] = draggedBlocks;
     if (referenceBlock) {
       // 末尾 drop 由应用独占处理，原块先删除再插入，避免 ProseMirror 再粘贴一份拖拽切片。
       editor.removeBlocks(draggedBlocks);
@@ -2912,14 +2936,14 @@ function BlockNoteEditorInner(props: BlockNoteEditorInnerProps) {
         uploadFile: uploadEditorImageFile,
       },
       (proxies) =>
-        CoreBlockNoteEditor.create({
+        CoreEditorFactory.create({
           initialContent: undefined,
           placeholders: { default: EDITOR_EMPTY_PLACEHOLDER },
           pasteHandler: ({ event, editor, defaultPasteHandler }) => {
             const handled = pasteExternalHTMLTables(editor, event);
             if (!handled) return defaultPasteHandler();
 
-            updateActiveEditorOutline(editor, controller);
+            updateActiveEditorOutline(editor, props.controller);
             return true;
           },
           resolveFileUrl: proxies.resolveFileUrl,
@@ -3117,7 +3141,7 @@ function MountedBlockNoteEditor({
       }
 
       const getTarget = () =>
-        findEditorBlockElement(editor.domElement, blockId);
+        findEditorBlockElement(editor.domElement ?? null, blockId);
       if (!getTarget()) {
         programmaticOutlineScrollRef.current = false;
         return false;
@@ -3165,7 +3189,7 @@ function MountedBlockNoteEditor({
         : null;
     const scrollContainer = scrollContainerRef.current;
     const viewportAnchor = scrollContainer
-      ? readLiveEditorViewportAnchor(scrollContainer, editor.domElement)
+      ? readLiveEditorViewportAnchor(scrollContainer, editor.domElement ?? null)
       : {
           topBlockId: null,
           topBlockOffset: 0,
@@ -3210,7 +3234,10 @@ function MountedBlockNoteEditor({
         let targetIsCodeLine = false;
         const getTarget = () => {
           const block = state.topBlockId
-            ? findEditorBlockElement(editor.domElement, state.topBlockId)
+            ? findEditorBlockElement(
+                editor.domElement ?? null,
+                state.topBlockId,
+              )
             : null;
           const codeLineTarget =
             block && state.topCodeLine !== null
@@ -3709,8 +3736,8 @@ function MountedBlockNoteEditor({
           : null;
         const parsedBlocks =
           cached?.blocks ?? (await parseMarkdown(editor, source || ""));
-        const blocks = ensureEditableBlocks(parsedBlocks, () => {
-          return { type: "paragraph", content: [] } as Block;
+        const blocks = ensureEditableBlocks<PartialBlock>(parsedBlocks, () => {
+          return { type: "paragraph", content: [] };
         });
         // Markdown 解析可能晚于下一次切换完成，旧结果不得再写入编辑器。
         if (applyToken !== applyTokenRef.current) return;
@@ -4104,7 +4131,7 @@ function MountedBlockNoteEditor({
       const scrollContainer = event.currentTarget;
       const viewportAnchor = readLiveEditorViewportAnchor(
         scrollContainer,
-        editor.domElement,
+        editor.domElement ?? null,
       );
 
       // 高频滚动只更新 ref/registry；Zustand 在 150ms idle 或生命周期边界才写入。
@@ -4137,7 +4164,7 @@ function MountedBlockNoteEditor({
 
         const outlineBlockId = readLiveEditorOutlineBlockId(
           scrollContainer,
-          editor.domElement,
+          editor.domElement ?? null,
         );
         const activeHeadingId = outlineBlockId
           ? (outlineSnapshotRef.current.activeHeadingIdByBlockId.get(

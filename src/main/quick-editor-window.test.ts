@@ -359,9 +359,13 @@ describe("quick editor floating window", () => {
       height: 200,
     });
 
-    await expect(setQuickEditorCollapsed(unrelated, true, true)).resolves.toBe(
-      false,
-    );
+    await expect(
+      setQuickEditorCollapsed(
+        unrelated as unknown as Electron.BrowserWindow,
+        true,
+        true,
+      ),
+    ).resolves.toBe(false);
     expect(unrelated.setMinimumSize).not.toHaveBeenCalled();
     expect(unrelated.setBounds).not.toHaveBeenCalled();
   });
@@ -684,7 +688,7 @@ describe("quick editor floating window", () => {
     };
     const win = createQuickEditorWindow(
       { content: "original", source },
-      windowMocks.mainWindow,
+      windowMocks.mainWindow as unknown as Electron.BrowserWindow,
     );
     await moveFilePath("/notes/old", "/notes/new", async () => {});
     syncQuickEditorContent({ content: "latest", source }, win);
@@ -708,7 +712,7 @@ describe("quick editor floating window", () => {
       };
       const win = createQuickEditorWindow(
         { content: "original", source },
-        windowMocks.mainWindow,
+        windowMocks.mainWindow as unknown as Electron.BrowserWindow,
       );
       let finishMove!: () => void;
       let enteredMove!: () => void;
@@ -748,7 +752,7 @@ describe("quick editor floating window", () => {
     };
     const win = createQuickEditorWindow(
       { content: "original", source },
-      windowMocks.mainWindow,
+      windowMocks.mainWindow as unknown as Electron.BrowserWindow,
     );
     fileMocks.writeFileContent.mockRejectedValueOnce(new Error("disk full"));
     syncQuickEditorContent({ content: "latest unsaved", source }, win);
@@ -776,7 +780,7 @@ describe("quick editor floating window", () => {
     };
     const win = createQuickEditorWindow(
       { content: "original", source },
-      windowMocks.mainWindow,
+      windowMocks.mainWindow as unknown as Electron.BrowserWindow,
     );
     fileMocks.writeFileContent.mockRejectedValueOnce(new Error("disk full"));
     win.close();

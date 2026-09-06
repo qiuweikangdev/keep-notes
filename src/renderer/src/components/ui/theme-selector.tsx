@@ -30,7 +30,7 @@ export function ThemeSelector({
   }, []);
 
   const themeNames = Object.keys(themes) as ThemeName[];
-  const currentTheme = themes[value];
+  const currentTheme = themes[value] ?? themes.light;
 
   return (
     <div className={cn("relative", className)} ref={dropdownRef}>
@@ -84,7 +84,7 @@ export function ThemeSelector({
           }}
         >
           {themeNames.map((name) => {
-            const theme = themes[name];
+            const theme = themes[name] ?? themes.light;
             const isSelected = name === value;
             return (
               <button

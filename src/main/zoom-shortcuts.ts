@@ -30,7 +30,7 @@ export function registerWindowsZoomInShortcut(win: BrowserWindow): void {
   });
 }
 
-function isPlusKey(input: Electron.KeyboardInputEvent): boolean {
+function isPlusKey(input: Electron.Input): boolean {
   return (
     input.code === "Equal" ||
     input.code === "NumpadAdd" ||

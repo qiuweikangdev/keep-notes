@@ -375,7 +375,7 @@ describe("RichDocumentSessionHost", () => {
       "# Saved snapshot",
     );
 
-    finishWrite?.();
+    (finishWrite as (() => void) | null)?.();
     await act(async () => {
       await Promise.all(flushes);
     });
@@ -797,7 +797,7 @@ describe("RichDocumentSessionHost", () => {
         .panelGroups.flatMap((group) => group.tabs)
         .map((tab) => tab.saveStatus),
     ).toEqual(["saving", "saving"]);
-    finishWrite?.();
+    (finishWrite as (() => void) | null)?.();
     await act(async () => {
       await flushPromise;
     });

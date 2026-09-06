@@ -171,7 +171,7 @@ export function EditorWorkspace({
       return;
     }
 
-    let clearFallbackHighlights = () => undefined;
+    let clearFallbackHighlights: () => void = () => undefined;
     const frame = requestAnimationFrame(() => {
       // 完整富文本表面常驻 body，并通过 transform 移动到当前 pane；搜索必须读取真实表面而非 pane 内的预览副本。
       const root =

@@ -68,7 +68,7 @@ const darkHighlights = {
  * 将现有主题转换为 BlockNote 主题格式
  */
 function convertThemeToBlockNote(themeName: ThemeName): BlockNoteTheme {
-  const themeConfig = themes[themeName];
+  const themeConfig = themes[themeName] ?? themes.light;
   const isDark = themeName !== "light";
 
   return {

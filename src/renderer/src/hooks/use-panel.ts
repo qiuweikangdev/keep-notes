@@ -6,9 +6,11 @@ import {
   type MutableRefObject,
 } from "react";
 import { useUIStore } from "@/store/ui.store";
-import type { ImperativePanelHandle, Layout } from "react-resizable-panels";
+import type { ImperativePanelHandle } from "react-resizable-panels";
 
 // 所有触发入口需要操作同一个侧边栏实例，因此这里共享面板句柄。
+type Layout = number[] | Record<string, number>;
+
 const sharedPanelRef: MutableRefObject<ImperativePanelHandle | null> = {
   current: null,
 };
@@ -35,7 +37,7 @@ export function usePanel() {
 
   // 拖拽过程中实时更新 ref，不触发任何重渲染
   const handleLayoutChange = useCallback((layout: Layout) => {
-    const sidebarSize = layout["sidebar"];
+    const sidebarSize = Array.isArray(layout) ? layout[0] : layout["sidebar"];
     if (typeof sidebarSize === "number") {
       dragSizeRef.current = sidebarSize;
     }
@@ -44,7 +46,7 @@ export function usePanel() {
   // 拖拽结束时一次性持久化到 store
   const handleLayoutChanged = useCallback(
     (layout: Layout) => {
-      const sidebarSize = layout["sidebar"];
+      const sidebarSize = Array.isArray(layout) ? layout[0] : layout["sidebar"];
       if (typeof sidebarSize === "number") {
         setPanelSize(sidebarSize);
       }

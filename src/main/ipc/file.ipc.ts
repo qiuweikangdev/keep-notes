@@ -72,6 +72,7 @@ export function registerFileIpc(): void {
     IPC_CHANNELS.FILE.SAVE_AS,
     async (event, content: string, defaultFileName?: string) => {
       const win = getBrowserWindow(event);
+      if (!win) throw new Error("Window no longer exists");
       return saveAsDialog(win, content, defaultFileName);
     },
   );
@@ -80,17 +81,20 @@ export function registerFileIpc(): void {
     IPC_CHANNELS.FILE.CONFIRM_CLOSE_UNTITLED,
     async (event, temporaryTitle?: string) => {
       const win = getBrowserWindow(event);
+      if (!win) throw new Error("Window no longer exists");
       return confirmCloseUntitledDialog(win, temporaryTitle);
     },
   );
 
   ipcMain.handle(IPC_CHANNELS.FILE.OPEN_DIALOG, async (event) => {
     const win = getBrowserWindow(event);
+    if (!win) throw new Error("Window no longer exists");
     return openDialog(win);
   });
 
   ipcMain.handle(IPC_CHANNELS.FILE.GET_SELECTED_PATH, async (event) => {
     const win = getBrowserWindow(event);
+    if (!win) throw new Error("Window no longer exists");
     return getSelectedPath(win);
   });
 

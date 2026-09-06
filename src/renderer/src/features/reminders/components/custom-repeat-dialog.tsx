@@ -19,7 +19,7 @@ const repeatControlClassName =
 
 function useCloseOnOutsideInteraction(
   open: boolean,
-  containerRef: RefObject<HTMLElement>,
+  containerRef: RefObject<HTMLElement | null>,
   onClose: () => void,
 ) {
   useEffect(() => {

@@ -28,7 +28,7 @@ async function performCloseEditorTab(
       if (!(await editorSaveCoordinator.flush(tab.filePath))) return false;
     } else if (tab.isDirty) {
       const closeAction = await window.electronAPI.confirmCloseUntitled(
-        tab.temporaryTitle,
+        tab.temporaryTitle ?? undefined,
       );
       if (closeAction === "cancel") return false;
 

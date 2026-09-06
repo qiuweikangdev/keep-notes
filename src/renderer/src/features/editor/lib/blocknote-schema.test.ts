@@ -1,15 +1,11 @@
-import { BlockNoteEditor } from "@blocknote/core";
+import { BlockNoteEditor as CoreEditorFactory } from "@blocknote/core";
+import type { RichEditor as BlockNoteEditor } from "./editor-types";
 import {
   FormattingToolbarExtension,
   SideMenuExtension,
 } from "@blocknote/core/extensions";
-import { BlockNoteView } from "@blocknote/mantine";
-import {
-  foldEffect,
-  foldable,
-  foldedRanges,
-  syntaxTree,
-} from "@codemirror/language";
+import { BlockNoteView as BaseBlockNoteView } from "@blocknote/mantine";
+import { syntaxTree } from "@codemirror/language";
 import { EditorSelection } from "@codemirror/state";
 import { EditorView, getDrawSelectionConfig } from "@codemirror/view";
 import { AllSelection, NodeSelection, TextSelection } from "@tiptap/pm/state";
@@ -26,7 +22,10 @@ import {
   editorSchema,
   normalizeInlineCodeMarkers,
 } from "./blocknote-schema";
-import { shouldStopEditorCodeBlockNodeViewEvent } from "./editor-code-block-node-view";
+import {
+  createEditorCodeBlockNodeView,
+  shouldStopEditorCodeBlockNodeViewEvent,
+} from "./editor-code-block-node-view";
 import * as blocknoteSchemaModule from "./blocknote-schema";
 import {
   parseMarkdown,
@@ -114,7 +113,7 @@ function createMarkdownTableTestBlock() {
 
 function renderInlineCodeTestEditor(trailingText = "") {
   setupMatchMedia();
-  const editor = BlockNoteEditor.create({
+  const editor = CoreEditorFactory.create({
     schema: editorSchema,
     initialContent: [
       {
@@ -265,7 +264,7 @@ function readCodeBlockNodeViewStopDecision(target: Element, eventType: string) {
 
 describe("editor BlockNote schema", () => {
   it("preserves ordered list starts and continuation paragraphs around nested lists", async () => {
-    const editor = BlockNoteEditor.create({ schema: editorSchema });
+    const editor = CoreEditorFactory.create({ schema: editorSchema });
     const source = "10. parent\n    - child\n\n    paragraph\n\n11. next\n";
     const blocks = await parseMarkdown(editor, source);
     expect(blocks).toHaveLength(2);
@@ -296,13 +295,13 @@ describe("editor BlockNote schema", () => {
     }
   });
   it("does not escape template literals inside fenced code", async () => {
-    const editor = BlockNoteEditor.create({ schema: editorSchema });
+    const editor = CoreEditorFactory.create({ schema: editorSchema });
     const source = "```js\nconst text = `hello`;\n```\n";
     const blocks = await parseMarkdown(editor, source);
     expect(await serializeMarkdown(editor, blocks)).toBe(source);
   });
   it("keeps escaped backticks literal after load, normalization, editing and export", async () => {
-    const editor = BlockNoteEditor.create({ schema: editorSchema });
+    const editor = CoreEditorFactory.create({ schema: editorSchema });
     const source = "literal \\`token\\` and `real code`\n";
     editor.replaceBlocks(editor.document, await parseMarkdown(editor, source));
     normalizeInlineCodeMarkers(editor);
@@ -377,9 +376,8 @@ describe("editor BlockNote schema", () => {
   });
 
   it("isolates code block DOM events from the outer ProseMirror editor like Milkdown", () => {
-    const output = editorBlockSpecs.codeBlock.implementation.render.call(
+    const output = createEditorCodeBlockNodeView.call(
       {
-        blockContentDOMAttributes: {},
         props: undefined,
         renderType: "nodeView",
       },
@@ -404,9 +402,8 @@ describe("editor BlockNote schema", () => {
   });
 
   it("renders code blocks as self-contained Milkdown-style CodeMirror node views", () => {
-    const output = editorBlockSpecs.codeBlock.implementation.render.call(
+    const output = createEditorCodeBlockNodeView.call(
       {
-        blockContentDOMAttributes: {},
         props: undefined,
         renderType: "nodeView",
       },
@@ -438,9 +435,8 @@ describe("editor BlockNote schema", () => {
   });
 
   it("keeps the focused code block cursor continuously visible and emphasized", () => {
-    const output = editorBlockSpecs.codeBlock.implementation.render.call(
+    const output = createEditorCodeBlockNodeView.call(
       {
-        blockContentDOMAttributes: {},
         props: undefined,
         renderType: "nodeView",
       },
@@ -499,7 +495,7 @@ describe("editor BlockNote schema", () => {
     "exposes the normalized %s language on the code block shell",
     async (language) => {
       setupMatchMedia();
-      const editor = BlockNoteEditor.create({
+      const editor = CoreEditorFactory.create({
         schema: editorSchema,
         initialContent: [
           {
@@ -523,7 +519,7 @@ describe("editor BlockNote schema", () => {
 
   it("keeps the shell language synchronized after a code language change", async () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -575,7 +571,7 @@ describe("editor BlockNote schema", () => {
 
   it("continues undoing in BlockNote after CodeMirror history is exhausted", async () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -630,7 +626,7 @@ describe("editor BlockNote schema", () => {
 
   it("undoes CodeMirror input one completed line at a time", async () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "codeBlock", content: "" }],
     });
@@ -689,7 +685,7 @@ describe("editor BlockNote schema", () => {
   });
 
   it("parses markdown bullet lines as sibling bullet list items", async () => {
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -709,7 +705,7 @@ describe("editor BlockNote schema", () => {
   });
 
   it("serializes multiline nested list descendants with matching Markdown indentation", async () => {
-    const editor = BlockNoteEditor.create({ schema: editorSchema });
+    const editor = CoreEditorFactory.create({ schema: editorSchema });
     const source = [
       "* parent",
       "  * child one line one",
@@ -748,7 +744,7 @@ describe("editor BlockNote schema", () => {
   });
 
   it("serializes nested list siblings without spacer lines", async () => {
-    const editor = BlockNoteEditor.create({ schema: editorSchema });
+    const editor = CoreEditorFactory.create({ schema: editorSchema });
     const source = [
       "# 测试",
       "",
@@ -770,7 +766,7 @@ describe("editor BlockNote schema", () => {
   });
 
   it("preserves nested list indentation and source markers after a child edit", async () => {
-    const editor = BlockNoteEditor.create({ schema: editorSchema });
+    const editor = CoreEditorFactory.create({ schema: editorSchema });
     const source = [
       "- parent",
       "  - child one",
@@ -782,34 +778,35 @@ describe("editor BlockNote schema", () => {
     const blocks = await parseMarkdown(editor, source);
     const baseline = await serializeMarkdown(editor, blocks);
     const parent = blocks[0];
-    const editedBlocks = blocks.map((block, blockIndex) =>
-      blockIndex !== 0
-        ? block
-        : {
-            ...block,
-            children: block.children.map((child, childIndex) =>
-              childIndex !== 0
-                ? child
-                : {
-                    ...child,
-                    children: child.children.map((nested, nestedIndex) =>
-                      nestedIndex !== 0
-                        ? nested
-                        : {
-                            ...nested,
-                            content: [
-                              {
-                                type: "text" as const,
-                                text: "child continuation updated",
-                                styles: {},
-                              },
-                            ],
-                          },
-                    ),
-                  },
-            ),
-          },
-    );
+    const editedBlocks: import("./editor-types").RichPartialBlock[] =
+      blocks.map((block, blockIndex) =>
+        blockIndex !== 0
+          ? block
+          : {
+              ...block,
+              children: block.children.map((child, childIndex) =>
+                childIndex !== 0
+                  ? child
+                  : {
+                      ...child,
+                      children: child.children.map((nested, nestedIndex) =>
+                        nestedIndex !== 0 || nested.type !== "paragraph"
+                          ? nested
+                          : {
+                              ...nested,
+                              content: [
+                                {
+                                  type: "text" as const,
+                                  text: "child continuation updated",
+                                  styles: {},
+                                },
+                              ],
+                            },
+                      ),
+                    },
+              ),
+            },
+      );
 
     expect(parent.type).toBe("bulletListItem");
     const edited = await serializeMarkdown(editor, editedBlocks);
@@ -819,7 +816,7 @@ describe("editor BlockNote schema", () => {
   });
 
   it("keeps an asterisk in bullet text instead of treating it as another marker", async () => {
-    const editor = BlockNoteEditor.create({ schema: editorSchema });
+    const editor = CoreEditorFactory.create({ schema: editorSchema });
     const blocks = await parseMarkdown(editor, "* Use * as a wildcard");
 
     expect(blocks).toHaveLength(1);
@@ -830,7 +827,7 @@ describe("editor BlockNote schema", () => {
   });
 
   it("parses a bare URL in a markdown bullet as a link", async () => {
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -851,7 +848,7 @@ describe("editor BlockNote schema", () => {
   });
 
   it("preserves the recovered first line in a malformed bash code block", async () => {
-    const editor = BlockNoteEditor.create({ schema: editorSchema });
+    const editor = CoreEditorFactory.create({ schema: editorSchema });
     const repaired = repairMarkdownSourceBeforeParse(
       "```bash写一个 while True 无限循环\n不断从数据库查任务\n```",
     );
@@ -867,7 +864,7 @@ describe("editor BlockNote schema", () => {
   });
 
   it("parses markdown inline code as styled text instead of source markers", async () => {
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -897,7 +894,7 @@ describe("editor BlockNote schema", () => {
 
   it("continues typed bullet lists without leaving markdown markers in text", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -920,7 +917,7 @@ describe("editor BlockNote schema", () => {
   });
 
   it("does not persist a transient empty bullet at the end of a list", async () => {
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         { type: "bulletListItem", content: "列表1" },
@@ -948,7 +945,7 @@ describe("editor BlockNote schema", () => {
   });
 
   it("keeps Markdown image paths when round-tripping through BlockNote", async () => {
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -966,7 +963,7 @@ describe("editor BlockNote schema", () => {
   });
 
   it("keeps real BlockNote markdown structure across serialization batches", async () => {
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         ...Array.from({ length: 23 }, (_, index) => ({
@@ -1044,7 +1041,7 @@ describe("editor BlockNote schema", () => {
   });
 
   it("round-trips hard breaks inside Markdown table cells", async () => {
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -1103,7 +1100,7 @@ describe("editor BlockNote schema", () => {
   });
 
   it("maps GFM table alignment markers to BlockNote table cells", async () => {
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -1116,8 +1113,11 @@ describe("editor BlockNote schema", () => {
     const blocks = await parseMarkdown(editor, `${source}\n`);
 
     expect(blocks[0].type).toBe("table");
+    if (blocks[0].type !== "table") throw new Error("Expected table");
     expect(
-      blocks[0].content.rows[0].cells.map((cell) => cell.props.textAlignment),
+      blocks[0].content.rows[0].cells.map((cell) =>
+        Array.isArray(cell) ? "left" : cell.props.textAlignment,
+      ),
     ).toEqual(["left", "right", "center"]);
 
     editor.replaceBlocks(editor.document, blocks);
@@ -1151,13 +1151,16 @@ describe("editor BlockNote schema", () => {
     expect(edited).not.toBe(baseline);
     const saved = preserveMarkdownSource(`${source}\n`, baseline, edited);
     const reopened = await parseMarkdown(editor, saved);
+    if (reopened[0].type !== "table") throw new Error("Expected table");
     expect(
-      reopened[0].content.rows[0].cells.map((cell) => cell.props.textAlignment),
+      reopened[0].content.rows[0].cells.map((cell) =>
+        Array.isArray(cell) ? "left" : cell.props.textAlignment,
+      ),
     ).toEqual(["left", "center", "center"]);
   });
 
   it("preserves distinct paragraphs across Markdown serialization and reopening", async () => {
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         { type: "paragraph", content: "First" },
@@ -1180,7 +1183,7 @@ describe("editor BlockNote schema", () => {
   });
 
   it("keeps paragraph boundaries when preserving source after a rich edit", async () => {
-    const editor = BlockNoteEditor.create({ schema: editorSchema });
+    const editor = CoreEditorFactory.create({ schema: editorSchema });
     const source = "one\n\ntwo\n";
     editor.replaceBlocks(editor.document, await parseMarkdown(editor, source));
     const baseline = await serializeMarkdown(editor, editor.document);
@@ -1195,7 +1198,7 @@ describe("editor BlockNote schema", () => {
   });
 
   it("separates adjacent tables for standard GFM consumers", async () => {
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         createMarkdownTableTestBlock(),
@@ -1249,7 +1252,7 @@ describe("editor BlockNote schema", () => {
   });
 
   it("separates a paragraph following a table for standard GFM consumers", async () => {
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         { type: "paragraph", content: "2" },
@@ -1279,7 +1282,7 @@ describe("editor BlockNote schema", () => {
   });
 
   it("repairs legacy joined table source before reopening", async () => {
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         createMarkdownTableTestBlock(),
@@ -1298,7 +1301,7 @@ describe("editor BlockNote schema", () => {
   });
 
   it("repairs a legacy paragraph boundary after a table before reopening", async () => {
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         { type: "paragraph", content: "2" },
@@ -1324,7 +1327,7 @@ describe("editor BlockNote schema", () => {
   });
 
   it("serializes a long quote-owned list in bounded batches", async () => {
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -1359,7 +1362,7 @@ describe("editor BlockNote schema", () => {
 
   it("undoes one completed bullet list item at a time", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -1387,7 +1390,7 @@ describe("editor BlockNote schema", () => {
 
   it("converts typed markdown inline code after Chinese text into styled text", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -1421,7 +1424,7 @@ describe("editor BlockNote schema", () => {
   it("converts keyboard-entered markdown inline code into styled text", async () => {
     setupMatchMedia();
     const user = userEvent.setup();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -1451,7 +1454,7 @@ describe("editor BlockNote schema", () => {
 
   it("marks only ASCII content for inline code font-weight compensation", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -1492,7 +1495,7 @@ describe("editor BlockNote schema", () => {
 
   it("normalizes inline code markers inserted outside input rules", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -1515,7 +1518,7 @@ describe("editor BlockNote schema", () => {
 
   it("normalizes edited inline code markers in large documents", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         { type: "paragraph", content: "x".repeat(6100) },
@@ -1541,7 +1544,7 @@ describe("editor BlockNote schema", () => {
 
   it("normalizes character-by-character inline code input in large documents", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         { type: "paragraph", content: "x".repeat(6100) },
@@ -1563,7 +1566,7 @@ describe("editor BlockNote schema", () => {
   it("normalizes browser keyboard inline code input in large paragraphs and lists", async () => {
     setupMatchMedia();
     const user = userEvent.setup();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         { type: "paragraph", content: "x".repeat(62000) },
@@ -1595,7 +1598,7 @@ describe("editor BlockNote schema", () => {
 
   it("renders standalone inline code after loading a large markdown file", async () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -1617,7 +1620,7 @@ describe("editor BlockNote schema", () => {
 
   it("renders inline code before a trailing empty list marker in a large file", async () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -1635,7 +1638,7 @@ describe("editor BlockNote schema", () => {
 
   it("renders every trailing inline code after a large markdown body", async () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -1670,7 +1673,7 @@ describe("editor BlockNote schema", () => {
 
   it("normalizes stale inline code markers while replacing a large document", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "before" }],
     });
@@ -1689,7 +1692,7 @@ describe("editor BlockNote schema", () => {
 
   it("normalizes stale inline code markers already held by an editor session", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "`stale`" }],
     });
@@ -1733,7 +1736,7 @@ describe("editor BlockNote schema", () => {
   it("keeps inline code active when deleting from its content end", async () => {
     setupMatchMedia();
     const user = userEvent.setup();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -1832,7 +1835,7 @@ describe("editor BlockNote schema", () => {
 
   it("keeps complete editing markers around styled code fragments in a large document", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         { type: "paragraph", content: "x".repeat(62000) },
@@ -2066,7 +2069,7 @@ describe("editor BlockNote schema", () => {
     });
     const rangeRect = vi
       .spyOn(Range.prototype, "getBoundingClientRect")
-      .mockImplementation(function () {
+      .mockImplementation(function (this: Range) {
         const offset = this.startOffset;
         return {
           bottom: 30,
@@ -2144,7 +2147,7 @@ describe("editor BlockNote schema", () => {
 
   it("keeps horizontal navigation when a widget reports body as the key target", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -2273,7 +2276,7 @@ describe("editor BlockNote schema", () => {
 
   it("maps the visual gap before inline code to its opening boundary", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -2414,7 +2417,11 @@ describe("editor BlockNote schema", () => {
       cancelable: true,
       key: "ArrowRight",
     });
-    inlineCodePlugin?.props.handleKeyDown?.(view, moveRight);
+    inlineCodePlugin?.props.handleKeyDown?.call(
+      inlineCodePlugin,
+      view,
+      moveRight,
+    );
     expect(view.state.selection.from).toBe(codeEnd);
     expect(
       container.querySelector(".editor-inline-code__editing-closing-boundary"),
@@ -2428,7 +2435,11 @@ describe("editor BlockNote schema", () => {
       cancelable: true,
       key: "ArrowLeft",
     });
-    inlineCodePlugin?.props.handleKeyDown?.(view, moveLeft);
+    inlineCodePlugin?.props.handleKeyDown?.call(
+      inlineCodePlugin,
+      view,
+      moveLeft,
+    );
 
     expect(
       container.querySelector(".editor-inline-code__editing-closing-boundary"),
@@ -2570,7 +2581,8 @@ describe("editor BlockNote schema", () => {
     const inlineCodePlugin = view.state.plugins.find(
       (plugin) => plugin.key === "editor-inline-code-editing$",
     );
-    inlineCodePlugin?.props.handleKeyDown?.(
+    inlineCodePlugin?.props.handleKeyDown?.call(
+      inlineCodePlugin,
       view,
       new KeyboardEvent("keydown", {
         bubbles: true,
@@ -2776,7 +2788,7 @@ describe("editor BlockNote schema", () => {
 
   it("leaves inline code editing when the selection extends outside it", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -2835,7 +2847,7 @@ describe("editor BlockNote schema", () => {
 
   it("keeps the editing caret when arrow navigation enters another inline code", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -2979,7 +2991,7 @@ describe("editor BlockNote schema", () => {
 
   it("leaves vertical navigation native when the adjacent block is not pure inline code", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -3042,7 +3054,7 @@ describe("editor BlockNote schema", () => {
 
   it("moves vertically when the cursor implicitly activates inline code", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -3097,7 +3109,7 @@ describe("editor BlockNote schema", () => {
 
   it("keeps horizontal navigation inside list-first inline code", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         { type: "paragraph", content: "heading" },
@@ -3200,7 +3212,7 @@ describe("editor BlockNote schema", () => {
 
   it("keeps the list-first inline code editing at its trailing boundary", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -3241,7 +3253,7 @@ describe("editor BlockNote schema", () => {
 
   it("inserts plain text to the left of a list-first inline code boundary", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -3304,7 +3316,7 @@ describe("editor BlockNote schema", () => {
 
   it("inserts text inside a list-first inline code at its content start", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -3340,7 +3352,7 @@ describe("editor BlockNote schema", () => {
 
   it("keeps the first code character reachable after leaving the virtual opening boundary", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -3394,7 +3406,7 @@ describe("editor BlockNote schema", () => {
 
   it("keeps code insertion active after repeated input at the virtual opening boundary", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -3454,7 +3466,7 @@ describe("editor BlockNote schema", () => {
 
   it("keeps a browser-normalized caret at the virtual opening boundary", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -3494,7 +3506,7 @@ describe("editor BlockNote schema", () => {
 
   it("reanchors right navigation before the first code character after paste input", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -3541,7 +3553,7 @@ describe("editor BlockNote schema", () => {
 
   it("does not keep the inline code caret after text is inserted before its boundary", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -3593,7 +3605,7 @@ describe("editor BlockNote schema", () => {
 
   it("clears the inline code caret when an input transaction carries plugin state", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -3927,6 +3939,7 @@ describe("editor BlockNote schema", () => {
           view.state.selection.from,
           view.state.selection.to,
           character,
+          () => view.state.tr.insertText(character),
         ),
       );
       if (!handled) {
@@ -3954,7 +3967,9 @@ describe("editor BlockNote schema", () => {
     );
 
     const handled = view.someProp("handleTextInput", (handler) =>
-      handler(view, cursorPosition, cursorPosition, "2"),
+      handler(view, cursorPosition, cursorPosition, "2", () =>
+        view.state.tr.insertText("2"),
+      ),
     );
 
     expect(handled).toBe(true);
@@ -3993,7 +4008,9 @@ describe("editor BlockNote schema", () => {
       container.querySelectorAll(".editor-inline-code__editing-marker"),
     ).toHaveLength(2);
     const handled = view.someProp("handleTextInput", (handler) =>
-      handler(view, cursorPosition, cursorPosition, "2"),
+      handler(view, cursorPosition, cursorPosition, "2", () =>
+        view.state.tr.insertText("2"),
+      ),
     );
     expect(handled).toBe(true);
     expect(editor.document[0].content).toEqual([
@@ -4004,7 +4021,9 @@ describe("editor BlockNote schema", () => {
     view.dom.dispatchEvent(new FocusEvent("blur"));
     const nextCursorPosition = view.state.selection.from;
     const handledAgain = view.someProp("handleTextInput", (handler) =>
-      handler(view, nextCursorPosition, nextCursorPosition, "3"),
+      handler(view, nextCursorPosition, nextCursorPosition, "3", () =>
+        view.state.tr.insertText("3"),
+      ),
     );
     expect(handledAgain).toBe(true);
     expect(editor.document[0].content).toEqual([
@@ -4033,7 +4052,7 @@ describe("editor BlockNote schema", () => {
     view.dom.dispatchEvent(new FocusEvent("blur"));
 
     const handled = view.someProp("handleTextInput", (handler) =>
-      handler(view, codeEnd, codeEnd, "2"),
+      handler(view, codeEnd, codeEnd, "2", () => view.state.tr.insertText("2")),
     );
 
     expect(handled).toBe(true);
@@ -4071,7 +4090,7 @@ describe("editor BlockNote schema", () => {
 
   it("deletes text inside inline code without splitting its style", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -4122,7 +4141,7 @@ describe("editor BlockNote schema", () => {
 
   it("keeps inserted text inside inline code at the native cursor", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -4207,7 +4226,7 @@ describe("editor BlockNote schema", () => {
 
   it("keeps input-rule inline code active at its content end", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -4243,7 +4262,7 @@ describe("editor BlockNote schema", () => {
   it("pastes markdown bullet text as sibling bullet items instead of inline marker residue", () => {
     setupMatchMedia();
     setupClipboardEvent();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -4263,7 +4282,7 @@ describe("editor BlockNote schema", () => {
   it("pastes plain text bullet lines as sibling bullet items instead of inline marker residue", () => {
     setupMatchMedia();
     setupClipboardEvent();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -4283,7 +4302,7 @@ describe("editor BlockNote schema", () => {
   it("pastes markdown list items as children of a non-empty quote", () => {
     setupMatchMedia();
     setupClipboardEvent();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -4314,7 +4333,7 @@ describe("editor BlockNote schema", () => {
   it("splits a pasted quote lead line from its following bullet list", () => {
     setupMatchMedia();
     setupClipboardEvent();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -4350,7 +4369,7 @@ describe("editor BlockNote schema", () => {
   it("keeps a keyboard-entered bullet list inside its quote parent", async () => {
     setupMatchMedia();
     const user = userEvent.setup();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -4384,7 +4403,7 @@ describe("editor BlockNote schema", () => {
 
   it("binds the side menu of a quote child list item to its parent quote", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -4405,11 +4424,11 @@ describe("editor BlockNote schema", () => {
       show: true,
     }));
 
-    expect(sideMenu?.store?.state.block.id).toBe(quote.id);
+    expect(sideMenu?.store?.state?.block.id).toBe(quote.id);
   });
 
   it("runs quote list input before the default bullet list rule", () => {
-    const editor = BlockNoteEditor.create({ schema: editorSchema });
+    const editor = CoreEditorFactory.create({ schema: editorSchema });
     const extension = editor.getExtension("editor-quote-list-input");
 
     expect(extension?.runsBefore).toContain("bullet-list-item-shortcuts");
@@ -4417,7 +4436,7 @@ describe("editor BlockNote schema", () => {
   });
 
   it("prevents the default bullet rule from replacing a quote block", () => {
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "quote", content: "-" }],
     });
@@ -4434,7 +4453,7 @@ describe("editor BlockNote schema", () => {
 
   it("turns bullet markers after a quote line break into child list items", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -4467,7 +4486,7 @@ describe("editor BlockNote schema", () => {
 
   it("keeps Enter-created line breaks inside quote blocks", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -4489,7 +4508,7 @@ describe("editor BlockNote schema", () => {
 
   it("exits quote blocks after pressing Enter twice on an empty quote line", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -4516,7 +4535,7 @@ describe("editor BlockNote schema", () => {
 
   it("turns an input-rule-created empty quote block into a paragraph after Backspace", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -4542,7 +4561,7 @@ describe("editor BlockNote schema", () => {
     "clears every block and collapses the selection after select-all then %s",
     (key) => {
       setupMatchMedia();
-      const editor = BlockNoteEditor.create({
+      const editor = CoreEditorFactory.create({
         schema: editorSchema,
         initialContent: [
           { type: "codeBlock", content: "const value = 1" },
@@ -4567,7 +4586,7 @@ describe("editor BlockNote schema", () => {
 
   it("normalizes text selections left on a block group boundary", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         { type: "paragraph", content: "Before" },
@@ -4605,7 +4624,7 @@ describe("editor BlockNote schema", () => {
 
   it("renders JavaScript code blocks with CodeMirror", async () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -4635,7 +4654,7 @@ describe("editor BlockNote schema", () => {
 
   it("parses Python code blocks for syntax highlighting", async () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -4657,7 +4676,7 @@ describe("editor BlockNote schema", () => {
 
   it("renders fixed-size SVG markers in the code-folding gutter", async () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -4683,7 +4702,7 @@ describe("editor BlockNote schema", () => {
   it("renders CodeMirror after creating a TypeScript code block from input", async () => {
     setupMatchMedia();
     mockCursorCoordinatesAfterDetachedMeasure();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -4719,7 +4738,7 @@ describe("editor BlockNote schema", () => {
   it("folds a real BlockNote code block with the CodeMirror gutter", async () => {
     setupMatchMedia();
     const user = userEvent.setup();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -4750,7 +4769,7 @@ describe("editor BlockNote schema", () => {
 
   it("folds a real JSON code block with the CodeMirror gutter", async () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -4788,7 +4807,7 @@ describe("editor BlockNote schema", () => {
 
   it("selects only the real BlockNote code block content with command/control+a", async () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -4829,7 +4848,7 @@ describe("editor BlockNote schema", () => {
   it("focuses CodeMirror when clicking the code block blank shell", async () => {
     setupMatchMedia();
     const user = userEvent.setup();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -4861,7 +4880,7 @@ describe("editor BlockNote schema", () => {
 
   it("collapses the CodeMirror selection when the mouse leaves", async () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -4900,7 +4919,7 @@ describe("editor BlockNote schema", () => {
     setupMatchMedia();
     const revealCursorCoordinates = mockCursorCoordinatesUntilLayoutIsReady();
     const user = userEvent.setup();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [{ type: "paragraph", content: "" }],
     });
@@ -4934,7 +4953,7 @@ describe("editor BlockNote schema", () => {
 
   it("keeps CodeMirror focused when its node selection becomes a text selection", async () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -4978,7 +4997,7 @@ describe("editor BlockNote schema", () => {
 
   it("focuses CodeMirror when clicking the code content", async () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -5017,7 +5036,7 @@ describe("editor BlockNote schema", () => {
 
   it("focuses CodeMirror when clicking the line-number gutter", async () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -5053,7 +5072,7 @@ describe("editor BlockNote schema", () => {
       configurable: true,
       value: { writeText },
     });
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -5085,7 +5104,7 @@ describe("editor BlockNote schema", () => {
   it("closes the code language picker when clicking the code area", async () => {
     setupMatchMedia();
     const user = userEvent.setup();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -5119,7 +5138,7 @@ describe("editor BlockNote schema", () => {
 
   it("removes a real empty BlockNote code block after Backspace in CodeMirror", async () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -5153,7 +5172,7 @@ describe("editor BlockNote schema", () => {
 
   it("removes a real empty BlockNote code block after Backspace reaches the outer editor", () => {
     setupMatchMedia();
-    const editor = BlockNoteEditor.create({
+    const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
         {
@@ -5177,3 +5196,9 @@ describe("editor BlockNote schema", () => {
     expect(editor.document[0].type).not.toBe("codeBlock");
   });
 });
+
+const BlockNoteView = BaseBlockNoteView<
+  typeof editorSchema.blockSchema,
+  typeof editorSchema.inlineContentSchema,
+  typeof editorSchema.styleSchema
+>;

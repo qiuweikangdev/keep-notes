@@ -269,7 +269,7 @@ export function observeEditorLongTasks(
   }
 
   const spans = options.spans ?? editorPerformanceSpans!;
-  let observer: PerformanceObserver;
+  let observer: PerformanceObserver | undefined;
   try {
     observer = new PerformanceObserver((entryList) => {
       for (const entry of entryList.getEntries()) {
@@ -384,7 +384,7 @@ export class EditorSplitPaintCoordinator {
   commitPane(paneId: string): () => void {
     const token = this.byPane.get(paneId);
     const pending = token === undefined ? null : this.pending.get(token);
-    if (!pending) return () => {};
+    if (!pending || token === undefined) return () => {};
 
     pending.commitGeneration += 1;
     const commitGeneration = pending.commitGeneration;

@@ -230,7 +230,10 @@ describe("saveImageAttachment", () => {
 
 describe("saveAsDialog", () => {
   it("uses the temporary title as the default Markdown file name", async () => {
-    vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true });
+    vi.mocked(dialog.showSaveDialog).mockResolvedValue({
+      canceled: true,
+      filePath: "",
+    });
 
     await saveAsDialog({} as Electron.BrowserWindow, "# Draft", "会议记录");
 
@@ -247,7 +250,10 @@ describe("confirmCloseUntitledDialog", () => {
     [1, "discard"],
     [2, "cancel"],
   ] as const)("maps response %s to %s", async (response, action) => {
-    vi.mocked(dialog.showMessageBox).mockResolvedValue({ response });
+    vi.mocked(dialog.showMessageBox).mockResolvedValue({
+      response,
+      checkboxChecked: false,
+    });
 
     await expect(
       confirmCloseUntitledDialog({} as Electron.BrowserWindow, "会议记录"),

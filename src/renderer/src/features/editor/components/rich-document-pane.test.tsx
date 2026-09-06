@@ -829,7 +829,11 @@ function createRuntime(runtimePath: string) {
     editor: { replaceBlocks: vi.fn() },
     previewCache: {},
     focusAt: vi.fn(),
-    readViewState: vi.fn(() => ({ scrollTop: 18, selection: null })),
+    readViewState: vi.fn(() => ({
+      scrollTop: 18,
+      selection:
+        null as import("../lib/rich-pane-view-state").RichPaneViewState["selection"],
+    })),
     restoreViewState: vi.fn(),
     scrollToBlock: vi.fn(() => false),
   };
