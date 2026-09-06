@@ -401,6 +401,7 @@ describe("quick editor content detection", () => {
   });
 
   it("uses stable container scrolling for a selected outline heading", async () => {
+    vi.spyOn(window, "scrollBy").mockImplementation(() => {});
     const scrollIntoView = vi.fn();
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
       configurable: true,
@@ -460,14 +461,58 @@ describe("quick editor content detection", () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "更多操作" }));
     await user.click(screen.getByRole("menuitem", { name: "显示大纲" }));
+    const pendingFrames: FrameRequestCallback[] = [];
     const requestFrame = vi
       .spyOn(window, "requestAnimationFrame")
-      .mockImplementation(() => 1);
+      .mockImplementation((callback) => {
+        pendingFrames.push(callback);
+        return pendingFrames.length;
+      });
+    const detailsBlock = screen
+      .getByRole("heading", { name: "Details" })
+      .closest<HTMLElement>('[data-node-type="blockOuter"]')!;
+    vi.spyOn(detailsBlock, "getBoundingClientRect").mockReturnValue({
+      top: 300,
+      bottom: 330,
+      left: 0,
+      right: 500,
+      width: 500,
+      height: 30,
+      x: 0,
+      y: 300,
+      toJSON: () => ({}),
+    });
     await user.click(screen.getByRole("button", { name: "Details" }));
 
     expect(scrollIntoView).not.toHaveBeenCalled();
     expect(requestFrame).toHaveBeenCalled();
     expect(screen.getByRole("navigation", { name: "文档大纲" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Details" })).toHaveAttribute(
+      "aria-current",
+      "location",
+    );
+    const scrollContainer = detailsBlock.closest<HTMLElement>(
+      ".quick-editor-window__scroll",
+    )!;
+    // 模拟文末无法顶对齐，以及程序定位之后延迟到达的滚动帧。
+    for (let frame = 0; frame < 8; frame += 1) {
+      fireEvent.scroll(scrollContainer);
+      act(() => {
+        const callbacks = pendingFrames.splice(0);
+        callbacks.forEach((callback) => callback(frame * 16));
+      });
+    }
+    expect(screen.getByRole("button", { name: "Details" })).toHaveAttribute(
+      "aria-current",
+      "location",
+    );
+    fireEvent.wheel(scrollContainer);
+    fireEvent.scroll(scrollContainer);
+    act(() => pendingFrames.splice(0).forEach((callback) => callback(160)));
+    expect(screen.getByRole("button", { name: "Overview" })).toHaveAttribute(
+      "aria-current",
+      "location",
+    );
   });
 
   it("refreshes the active heading on open and cancels coalesced scroll work on close", async () => {

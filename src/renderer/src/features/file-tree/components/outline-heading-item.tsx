@@ -25,18 +25,17 @@ const OutlineHeadingItemBase = forwardRef<
       type="button"
       aria-current={isActive ? "location" : undefined}
       data-selected={isActive ? "true" : undefined}
+      data-selection-surface="true"
+      data-selection-context="secondary"
       className={cn(
         "flex w-full items-center py-1.5 text-left text-[13px] transition-colors duration-200",
         isActive
-          ? "bg-[var(--file-tree-row-selected)] text-[var(--accent-color)] font-medium"
+          ? "bg-[var(--file-tree-row-selected)] text-[var(--text-primary)] font-medium"
           : "bg-transparent text-[var(--text-secondary)] hover:bg-[var(--file-tree-row-hover)] hover:text-[var(--text-primary)]",
       )}
       style={{
         paddingLeft: `${12 + indent}px`,
         paddingRight: "12px",
-        borderRight: isActive
-          ? "2px solid var(--accent-color)"
-          : "2px solid transparent",
       }}
       onClick={handleClick}
     >

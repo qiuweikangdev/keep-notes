@@ -245,6 +245,7 @@ export function QuickEditorWindow() {
   const selectionDragAnchorRef = useRef<number | null>(null);
   const activeHeadingFrameRef = useRef<number | null>(null);
   const outlineScrollTokenRef = useRef(0);
+  const programmaticOutlineScrollRef = useRef(false);
   const isFindOpenRef = useRef(false);
   const isOutlineOpenRef = useRef(false);
   const outlineDirtyRef = useRef(true);
@@ -362,13 +363,18 @@ export function QuickEditorWindow() {
   }, []);
 
   const scheduleActiveHeadingUpdate = useCallback(() => {
-    if (!isOutlineOpenRef.current || activeHeadingFrameRef.current !== null) {
+    if (
+      !isOutlineOpenRef.current ||
+      programmaticOutlineScrollRef.current ||
+      activeHeadingFrameRef.current !== null
+    ) {
       return;
     }
 
     // 打开、内容刷新与滚动共用同一帧调度，避免重复读取布局。
     activeHeadingFrameRef.current = window.requestAnimationFrame(() => {
       activeHeadingFrameRef.current = null;
+      if (programmaticOutlineScrollRef.current) return;
       const container = scrollContainerRef.current;
       const headings = outlineHeadingsRef.current;
       if (!container || headings.length === 0) return;
@@ -419,6 +425,7 @@ export function QuickEditorWindow() {
 
   const setOutlineVisibility = useCallback(
     (isOpen: boolean) => {
+      programmaticOutlineScrollRef.current = false;
       isOutlineOpenRef.current = isOpen;
       setIsOutlineOpen(isOpen);
       if (!isOpen) {
@@ -751,6 +758,13 @@ export function QuickEditorWindow() {
     scheduleActiveHeadingUpdate();
   }, [scheduleActiveHeadingUpdate]);
 
+  const handleOutlineScrollIntent = useCallback(() => {
+    // 用户主动滚动后才恢复视口跟随；文末无法顶对齐时也保留刚点击的标题。
+    outlineScrollTokenRef.current += 1;
+    programmaticOutlineScrollRef.current = false;
+    scheduleActiveHeadingUpdate();
+  }, [scheduleActiveHeadingUpdate]);
+
   useEffect(
     () => () => cancelActiveHeadingUpdate(),
     [cancelActiveHeadingUpdate],
@@ -859,12 +873,14 @@ export function QuickEditorWindow() {
       // 导致 CodeMirror 在跨帧测量期间出现闪烁或虚拟行错绘。
       const scrollToken = outlineScrollTokenRef.current + 1;
       outlineScrollTokenRef.current = scrollToken;
+      cancelActiveHeadingUpdate();
       if (!focusEditorOutlineBlock(editor, blockId)) return;
 
       const getTarget = () =>
         findQuickEditorBlockElement(editor.domElement ?? null, blockId);
       if (!getTarget()) return;
 
+      programmaticOutlineScrollRef.current = true;
       scheduleStableEditorBlockScroll({
         container: scrollContainer,
         getTarget,
@@ -872,7 +888,7 @@ export function QuickEditorWindow() {
       });
       updateActiveHeading(blockId);
     },
-    [editor, updateActiveHeading],
+    [cancelActiveHeadingUpdate, editor, updateActiveHeading],
   );
 
   const stepMatch = useCallback(
@@ -1453,6 +1469,22 @@ export function QuickEditorWindow() {
             onPasteCapture={handleRichEditorPasteCapture}
             onPointerDownCapture={handleRichEditorPointerDownCapture}
             onScroll={handleEditorScroll}
+            onWheelCapture={handleOutlineScrollIntent}
+            onTouchStartCapture={handleOutlineScrollIntent}
+            onKeyDownCapture={(event) => {
+              if (
+                [
+                  "ArrowUp",
+                  "ArrowDown",
+                  "PageUp",
+                  "PageDown",
+                  "Home",
+                  "End",
+                  " ",
+                ].includes(event.key)
+              )
+                handleOutlineScrollIntent();
+            }}
           >
             <BlockNoteView
               {...richEditorDefaultUIProps}
