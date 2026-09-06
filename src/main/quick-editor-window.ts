@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import process from "node:process";
-import { BrowserWindow, globalShortcut, screen } from "electron";
+import { app, BrowserWindow, globalShortcut, screen } from "electron";
 import { is } from "@electron-toolkit/utils";
 import icon from "../../resources/icon.png?asset";
 import { IPC_CHANNELS } from "../shared/constants";
@@ -38,6 +38,8 @@ let quickEditorWindow: BrowserWindow | null = null;
 const quickEditorWindows = new Set<BrowserWindow>();
 let registeredShortcutKeys: string[] = [];
 const closingQuickEditorWindows = new Set<BrowserWindow>();
+const closeWithoutReturningWindows = new Set<BrowserWindow>();
+const returningToMainWindows = new Set<BrowserWindow>();
 const pendingQuickEditorContents: Array<{
   mainWindow: BrowserWindow;
   content: QuickEditorWindowContent;
@@ -551,6 +553,8 @@ export function createQuickEditorWindow(
     if (win.isDestroyed()) return;
 
     event.preventDefault();
+    // 关闭浮窗只结束浮窗生命周期，不应自动把主窗口带回前台。
+    closeWithoutReturningWindows.add(win);
     if (closingQuickEditorWindows.has(win)) return;
 
     const source = quickEditorWindowSources.get(win);
@@ -618,14 +622,21 @@ export function createQuickEditorWindow(
   });
 
   win.once("closed", () => {
+    const shouldKeepMainWindowHidden =
+      closeWithoutReturningWindows.has(win) && !returningToMainWindows.has(win);
     quickEditorWindows.delete(win);
     quickEditorWindowOwners.delete(win);
     quickEditorWindowSources.delete(win);
     closingQuickEditorWindows.delete(win);
+    closeWithoutReturningWindows.delete(win);
+    returningToMainWindows.delete(win);
     clearQuickEditorCollapseState(win);
     if (quickEditorWindow === win) {
       quickEditorWindow =
         [...quickEditorWindows].find((window) => !window.isDestroyed()) ?? null;
+    }
+    if (shouldKeepMainWindowHidden && process.platform === "darwin") {
+      app.hide();
     }
   });
 
@@ -820,6 +831,7 @@ export function returnToMainWindowFromQuickEditor(
   // 回传内容绑定到创建浮窗的主窗口，避免其他主窗口获得焦点时误消费。
   pendingQuickEditorContents.push({ mainWindow, content });
   mainWindow.webContents.send(IPC_CHANNELS.QUICK_EDITOR.IMPORT_CONTENT);
+  returningToMainWindows.add(win);
   win.destroy();
   focusMainWindow(mainWindow);
 }
@@ -932,6 +944,8 @@ export function destroyQuickEditorWindow(): void {
   quickEditorWindowOwners.clear();
   quickEditorWindowSources.clear();
   closingQuickEditorWindows.clear();
+  closeWithoutReturningWindows.clear();
+  returningToMainWindows.clear();
   quickEditorWindow = null;
   windows.forEach((win) => {
     if (!win.isDestroyed()) win.destroy();

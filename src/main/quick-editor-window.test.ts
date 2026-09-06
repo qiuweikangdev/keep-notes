@@ -113,6 +113,9 @@ vi.mock("./window", () => windowMocks);
 vi.mock("./file", () => fileMocks);
 
 vi.mock("electron", () => ({
+  app: {
+    hide: vi.fn(),
+  },
   BrowserWindow: class extends electronMocks.MockBrowserWindow {
     constructor(options: Electron.BrowserWindowConstructorOptions) {
       super(options);
