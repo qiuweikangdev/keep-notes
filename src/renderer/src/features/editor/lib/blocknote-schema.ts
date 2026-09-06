@@ -570,6 +570,21 @@ function getInlineCodeFromPointerEvent(view: EditorView, event: MouseEvent) {
   );
 }
 
+function isPointerAfterInlineCode(inlineCode: Element, event: MouseEvent) {
+  const marker = getInlineCodeEditingMarkerFromPointerEvent(event);
+  if (marker?.classList.contains(`${INLINE_CODE_EDITING_MARKER_CLASS}--end`))
+    return true;
+  const bounds = inlineCode.getBoundingClientRect();
+  return (
+    bounds.width > 0 &&
+    bounds.height > 0 &&
+    event.clientY >= bounds.top &&
+    event.clientY <= bounds.bottom &&
+    event.clientX > bounds.right &&
+    event.clientX - bounds.right <= INLINE_CODE_TRAILING_CLICK_SLOP
+  );
+}
+
 function getInlineCodeEditingMarkerFromPointerEvent(event: MouseEvent) {
   const eventTarget =
     event.target instanceof Element
@@ -709,16 +724,12 @@ function activateInlineCodeEditingFromSelection(view: EditorView) {
     editingState.suppressedSelectionPosition === selection.from ||
     editingState.activeRange
   ) {
-    if (
-      editingState.activeRange &&
-      (editingState.isBlurred || editingState.closingBoundaryPosition !== null)
-    ) {
-      // 失焦或位于关闭反引号右侧虚拟边界时收到输入，先恢复到代码内容末尾的编辑位置。
+    if (editingState.activeRange && editingState.isBlurred) {
+      // 恢复焦点只更新失焦状态，必须保留光标在右反引号内外的区别。
       view.dispatch(
         view.state.tr.setMeta(inlineCodeEditingPluginKey, {
           ...editingState,
           isBlurred: false,
-          closingBoundaryPosition: null,
         }),
       );
     }
@@ -1145,6 +1156,34 @@ function insertInlineCodeBoundaryText(view: EditorView, text: string) {
     EMPTY_INLINE_CODE_EDITING_STATE;
   const activeRange = editingState.activeRange;
   const selection = view.state.selection;
+  if (
+    activeRange &&
+    editingState.closingBoundaryPosition === activeRange.to &&
+    selection.empty &&
+    selection.from === activeRange.to &&
+    !editingState.isComposing &&
+    text &&
+    !text.includes("\n")
+  ) {
+    // 右侧虚拟光标与代码末尾共享文档坐标，但输入必须落在 code mark 外。
+    const marks = (view.state.storedMarks ?? selection.$from.marks()).filter(
+      (mark) => mark.type !== view.state.schema.marks.code,
+    );
+    const position = activeRange.to + text.length;
+    const tr = view.state.tr.insert(
+      activeRange.to,
+      view.state.schema.text(text, marks),
+    );
+    tr.setSelection(TextSelection.create(tr.doc, position))
+      .setStoredMarks(marks)
+      .setMeta(inlineCodeEditingPluginKey, {
+        ...EMPTY_INLINE_CODE_EDITING_STATE,
+        suppressedSelectionPosition: position,
+      });
+    view.dispatch(tr);
+    view.focus();
+    return true;
+  }
   const selectionAtVirtualBoundary =
     selection.from === activeRange?.from ||
     (activeRange !== null && selection.from === activeRange.from + 1);
@@ -1554,6 +1593,7 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
           inlineCode: Element;
           range: { from: number; to: number };
           openingBoundary: boolean;
+          closingBoundary: boolean;
           startX: number;
           startY: number;
         } | null = null;
@@ -1591,6 +1631,29 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
             compositionEndTimer = null;
           }
 
+          const state = inlineCodeEditingPluginKey.getState(editorView.state);
+          if (
+            state?.activeRange &&
+            state.closingBoundaryPosition === state.activeRange.to &&
+            editorView.state.selection.empty &&
+            editorView.state.selection.from === state.activeRange.to
+          ) {
+            // 输入法会直接写 DOM；交接前移除 code 样式，避免共享坐标再次继承代码末尾的 mark。
+            const marks = (
+              editorView.state.storedMarks ??
+              editorView.state.selection.$from.marks()
+            ).filter(
+              (mark) => mark.type !== editorView.state.schema.marks.code,
+            );
+            editorView.dispatch(
+              editorView.state.tr
+                .setStoredMarks(marks)
+                .setMeta(inlineCodeEditingPluginKey, {
+                  ...EMPTY_INLINE_CODE_EDITING_STATE,
+                  suppressedSelectionPosition: editorView.state.selection.from,
+                }),
+            );
+          }
           // 输入法接管光标前移除 contenteditable=false 的自定义节点，避免 code mark 被拆开。
           updateInlineCodeCompositionState(true);
         };
@@ -1630,6 +1693,8 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
             clickedOpeningMarker ||
             (inlineCode !== null &&
               isPointerBeforeInlineCode(inlineCode, event));
+          const clickedClosingBoundary =
+            inlineCode !== null && isPointerAfterInlineCode(inlineCode, event);
           const domRange = inlineCode
             ? findInlineCodeRangeFromElement(editorView, inlineCode)
             : null;
@@ -1674,6 +1739,7 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
             inlineCode,
             range,
             openingBoundary: clickedOpeningBoundary,
+            closingBoundary: clickedClosingBoundary,
             startX: event.clientX,
             startY: event.clientY,
           };
@@ -1771,10 +1837,12 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
               })?.pos;
             const cursorPosition = clickedOpeningMarker
               ? drag.range.from
-              : Math.min(
-                  drag.range.to,
-                  Math.max(drag.range.from, pointerPosition ?? drag.anchor),
-                );
+              : drag.closingBoundary
+                ? drag.range.to
+                : Math.min(
+                    drag.range.to,
+                    Math.max(drag.range.from, pointerPosition ?? drag.anchor),
+                  );
 
             // 普通点击由编辑器主动落光标；mousedown 已阻止原生选区，不能再依赖浏览器更新。
             editorView.dispatch(
@@ -1787,7 +1855,9 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
                   openingBoundaryPosition: clickedOpeningMarker
                     ? drag.range.from
                     : null,
-                  closingBoundaryPosition: null,
+                  closingBoundaryPosition: drag.closingBoundary
+                    ? drag.range.to
+                    : null,
                   isBlurred: false,
                   suppressedSelectionPosition: null,
                 }),
@@ -2090,7 +2160,10 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
                         isPointerBeforeInlineCode(inlineCode, event))
                         ? activeRange.from
                         : null,
-                    closingBoundaryPosition: null,
+                    closingBoundaryPosition:
+                      inlineCode && isPointerAfterInlineCode(inlineCode, event)
+                        ? activeRange.to
+                        : null,
                     isBlurred: false,
                     suppressedSelectionPosition: null,
                   }

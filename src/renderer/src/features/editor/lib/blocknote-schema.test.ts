@@ -2449,7 +2449,7 @@ describe("editor BlockNote schema", () => {
     ).not.toBe(null);
   });
 
-  it("inserts into inline code from the virtual closing boundary", () => {
+  it("inserts plain text after the virtual closing boundary", () => {
     const { container, editor, inlineCodePosition, view } =
       renderInlineCodeTestEditor(" trailing");
     const codeEnd = inlineCodePosition + 4;
@@ -2480,15 +2480,15 @@ describe("editor BlockNote schema", () => {
     simulateTextInput(editor, "2");
 
     expect(editor.document[0].content).toEqual([
-      { type: "text", text: "test2", styles: { code: true } },
-      { type: "text", text: " trailing", styles: {} },
+      { type: "text", text: "test", styles: { code: true } },
+      { type: "text", text: "2 trailing", styles: {} },
     ]);
     expect(
       container.querySelectorAll(".editor-inline-code__editing-marker"),
-    ).toHaveLength(2);
+    ).toHaveLength(0);
     expect(
       container.querySelector(".editor-inline-code__editing-content"),
-    ).not.toBe(null);
+    ).toBe(null);
   });
 
   it("keeps the closing boundary after clicking and moving through inline code", () => {
@@ -2595,6 +2595,139 @@ describe("editor BlockNote schema", () => {
       container.querySelector(".editor-inline-code__editing-closing-boundary"),
     ).not.toBe(null);
   });
+
+  it.each(["paragraph", "bulletListItem"] as const)(
+    "types outside code when the visible caret is after its closing marker in a %s",
+    (type) => {
+      const { container, editor, inlineCodePosition, view } =
+        renderInlineCodeTestEditor(" trailing");
+      editor.updateBlock(editor.document[0], { type });
+      view.dispatch(
+        view.state.tr.setSelection(
+          TextSelection.create(view.state.doc, inlineCodePosition + 3),
+        ),
+      );
+      const click = new MouseEvent("click", { bubbles: true, button: 0 });
+      Object.defineProperty(click, "target", {
+        value: container.querySelector("code"),
+      });
+      view.someProp("handleClick", (handler) =>
+        handler(view, inlineCodePosition + 3, click),
+      );
+      editor.focus();
+      pressKey(editor, "ArrowRight");
+      expect(
+        container.querySelector(
+          ".editor-inline-code__editing-closing-boundary",
+        ),
+      ).not.toBeNull();
+      typeString(editor, "12");
+      expect(editor.document[0].content).toEqual([
+        { type: "text", text: "test", styles: { code: true } },
+        { type: "text", text: "12 trailing", styles: {} },
+      ]);
+      expect(view.state.selection.from).toBe(inlineCodePosition + 6);
+    },
+  );
+
+  it.each(["", " trailing"])(
+    "keeps a click on the closing marker outside code with suffix %j",
+    (suffix) => {
+      const { container, editor, inlineCodePosition, view } =
+        renderInlineCodeTestEditor(suffix);
+      view.dispatch(
+        view.state.tr
+          .setSelection(
+            TextSelection.create(view.state.doc, inlineCodePosition + 2),
+          )
+          .setMeta("editor-inline-code-editing$", {
+            activeRange: {
+              from: inlineCodePosition,
+              to: inlineCodePosition + 4,
+            },
+            openingBoundaryPosition: null,
+            closingBoundaryPosition: null,
+            isBlurred: false,
+          }),
+      );
+      editor.focus();
+      const marker = container.querySelector<HTMLElement>(
+        ".editor-inline-code__editing-marker--end",
+      )!;
+      expect(marker).not.toBeNull();
+      vi.spyOn(view, "posAtCoords").mockReturnValue({
+        pos: inlineCodePosition + 4,
+        inside: -1,
+      });
+      fireEvent.mouseDown(marker, { button: 0 });
+      fireEvent.mouseUp(marker, { button: 0 });
+      expect(view.state.selection.from).toBe(inlineCodePosition + 4);
+      expect(
+        container.querySelector(
+          ".editor-inline-code__editing-closing-boundary",
+        ),
+      ).not.toBeNull();
+      view.dom.dispatchEvent(new FocusEvent("blur"));
+      view.dom.dispatchEvent(
+        new InputEvent("beforeinput", {
+          bubbles: true,
+          cancelable: true,
+          inputType: "insertText",
+          data: "外",
+        }),
+      );
+      expect(editor.document[0].content).toEqual([
+        { type: "text", text: "test", styles: { code: true } },
+        { type: "text", text: `外${suffix}`, styles: {} },
+      ]);
+    },
+  );
+
+  it.each(["ArrowLeft", "compositionstart"])(
+    "respects the closing caret side when handling %s",
+    (action) => {
+      const { editor, inlineCodePosition, view } =
+        renderInlineCodeTestEditor(" trailing");
+      const end = inlineCodePosition + 4;
+      view.dispatch(
+        view.state.tr
+          .setSelection(TextSelection.create(view.state.doc, end))
+          .setMeta("editor-inline-code-editing$", {
+            activeRange: { from: inlineCodePosition, to: end },
+            openingBoundaryPosition: null,
+            closingBoundaryPosition: end,
+            isBlurred: false,
+            isComposing: false,
+          }),
+      );
+      editor.focus();
+      if (action === "ArrowLeft") {
+        pressKey(editor, action);
+        simulateTextInput(editor, "X");
+        expect(editor.document[0].content).toEqual([
+          { type: "text", text: "testX", styles: { code: true } },
+          { type: "text", text: " trailing", styles: {} },
+        ]);
+      } else {
+        view.dom.dispatchEvent(
+          new CompositionEvent("compositionstart", { bubbles: true }),
+        );
+        expect(
+          view.state.storedMarks?.some(
+            (mark) => mark.type === view.state.schema.marks.code,
+          ),
+        ).toBe(false);
+        view.dispatch(view.state.tr.insertText("中文"));
+        view.dom.dispatchEvent(
+          new CompositionEvent("compositionend", { bubbles: true }),
+        );
+        expect(editor.document[0].content).toEqual([
+          { type: "text", text: "test", styles: { code: true } },
+          { type: "text", text: "中文 trailing", styles: {} },
+        ]);
+      }
+    },
+  );
 
   it("keeps inline code editing when End reaches the closing marker after blur", () => {
     const { container, editor, inlineCodePosition, view } =
