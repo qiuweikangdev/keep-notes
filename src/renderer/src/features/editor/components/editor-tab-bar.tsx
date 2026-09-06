@@ -250,7 +250,10 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
     // 重命名前先写入待保存内容，避免自动保存任务重新创建旧文件。
     try {
       await flushEditorChange(groupId, renamingTabId);
-      await editorSaveCoordinator.flush(filePath);
+      if (!(await editorSaveCoordinator.flush(filePath))) {
+        showAppToast("保存失败，文件尚未重命名。请重试保存后再重命名。");
+        return;
+      }
 
       const result = await renameItem(
         filePath,
@@ -265,6 +268,10 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
       } else if (result.message) {
         showAppToast(result.message);
       }
+    } catch (error) {
+      showAppToast(
+        error instanceof Error ? error.message : "重命名失败，请重试",
+      );
     } finally {
       isRenameSubmittingRef.current = false;
       setRenamingTabId(null);

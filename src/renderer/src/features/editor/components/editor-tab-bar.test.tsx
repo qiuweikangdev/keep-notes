@@ -1,11 +1,22 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useEditorStore, type EditorTab } from "@/store/editor.store";
 import { closeEditorTab } from "../lib/editor-tab-closing";
 import { EditorTabBar } from "./editor-tab-bar";
+import { editorSaveCoordinator } from "../lib/editor-runtime";
+import { showAppToast } from "@/lib/app-toast";
+
+const tabMocks = vi.hoisted(() => ({ renameItem: vi.fn() }));
+vi.mock("@/lib/app-toast", () => ({ showAppToast: vi.fn() }));
 
 vi.mock("@/hooks/use-electron", () => ({
-  useElectron: () => ({ renameItem: vi.fn() }),
+  useElectron: () => ({ renameItem: tabMocks.renameItem }),
 }));
 vi.mock("./editor-toolbar", () => ({ EditorToolbar: () => null }));
 vi.mock("../lib/editor-tab-closing", () => ({
@@ -13,7 +24,10 @@ vi.mock("../lib/editor-tab-closing", () => ({
 }));
 
 describe("editor tab keyboard interaction", () => {
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     const tab: EditorTab = {
@@ -61,6 +75,26 @@ describe("editor tab keyboard interaction", () => {
     fireEvent.keyDown(two, { key: "Home" });
     expect(one).toHaveFocus();
     expect(useEditorStore.getState().panelGroups[0].activeTabId).toBe("one");
+  });
+
+  it("keeps the original file path when saving before a rename fails", async () => {
+    vi.spyOn(editorSaveCoordinator, "flush").mockResolvedValueOnce(false);
+    useEditorStore.getState().setTabDirty("group", "one", true);
+    render(<EditorTabBar groupId="group" />);
+    fireEvent.contextMenu(screen.getAllByRole("tab")[0]);
+    fireEvent.click(screen.getByRole("menuitem", { name: "重命名" }));
+    const input = screen.getByRole("textbox", { name: "重命名文件" });
+    fireEvent.change(input, { target: { value: "renamed" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() =>
+      expect(showAppToast).toHaveBeenCalledWith(
+        expect.stringContaining("文件尚未重命名"),
+      ),
+    );
+    expect(tabMocks.renameItem).not.toHaveBeenCalled();
+    const tab = useEditorStore.getState().panelGroups[0].tabs[0];
+    expect(tab.filePath).toBe("/notes/one.md");
+    expect(tab.isDirty).toBe(true);
   });
 
   it("exposes named close controls and a direct new tab action", () => {
