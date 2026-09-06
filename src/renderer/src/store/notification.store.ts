@@ -34,6 +34,7 @@ export const useNotificationStore = create<NotificationState>()((set, get) => ({
     const updated: NotificationConfig = {
       desktop: { ...current.desktop, ...partial.desktop },
       email: { ...current.email, ...partial.email },
+      feishu: { ...current.feishu, ...partial.feishu },
     };
     await window.electronAPI.setNotificationConfig(updated);
     set({ config: updated });

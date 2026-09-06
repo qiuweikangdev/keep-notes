@@ -58,4 +58,35 @@ describe("NotificationPushSettings", () => {
       });
     });
   });
+  it("saves the current Feishu form without sending a test message", async () => {
+    render(<NotificationPushSettings />);
+    fireEvent.click(await screen.findByLabelText("飞书推送"));
+    await waitFor(() => {
+      expect(screen.queryByText("飞书配置已保存")).not.toBeInTheDocument();
+    });
+    const input = await screen.findByLabelText("Webhook 地址");
+    fireEvent.change(input, {
+      target: {
+        value: "https://open.feishu.cn/open-apis/bot/v2/hook/test-bot",
+      },
+    });
+    fireEvent.change(screen.getByLabelText("签名密钥（可选）"), {
+      target: { value: "test-secret" },
+    });
+    expect(
+      screen.queryByRole("button", { name: "保存并发送测试消息" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "保存配置" }));
+    await waitFor(() => {
+      expect(electronAPI.setNotificationConfig).toHaveBeenLastCalledWith({
+        ...DEFAULT_NOTIFICATION_CONFIG,
+        feishu: {
+          enabled: true,
+          webhookUrl: "https://open.feishu.cn/open-apis/bot/v2/hook/test-bot",
+          secret: "test-secret",
+        },
+      });
+    });
+    expect(electronAPI.testNotificationChannel).not.toHaveBeenCalled();
+  });
 });

@@ -378,9 +378,16 @@ export interface EmailChannelConfig {
   receiverEmail: string;
 }
 
+export interface FeishuChannelConfig {
+  enabled: boolean;
+  webhookUrl: string;
+  secret: string;
+}
+
 export interface NotificationConfig {
   desktop: DesktopChannelConfig;
   email: EmailChannelConfig;
+  feishu: FeishuChannelConfig;
 }
 
 export type DesktopNotificationAppearance = Pick<
@@ -422,6 +429,7 @@ export function getDefaultDesktopNotificationAppearance(
 }
 
 export const DEFAULT_NOTIFICATION_CONFIG: NotificationConfig = {
+  feishu: { enabled: false, webhookUrl: "", secret: "" },
   desktop: {
     enabled: true,
     requireInteraction: false,

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type {
   DesktopChannelConfig,
   EmailChannelConfig,
+  FeishuChannelConfig,
   NotificationConfig,
   NotificationChannelType,
   Reminder,
@@ -13,17 +14,22 @@ import type { NotificationChannel } from "./channel.interface";
 import { DesktopChannel } from "./desktop.channel";
 import { EmailChannel } from "./email.channel";
 
+import { FeishuChannel } from "./feishu.channel";
+
 export class NotificationChannelManager {
   private channels: Map<NotificationChannelType, NotificationChannel> =
     new Map();
   private config: NotificationConfig = DEFAULT_NOTIFICATION_CONFIG;
   private desktopChannel: DesktopChannel;
   private emailChannel: EmailChannel;
+  private feishuChannel: FeishuChannel;
 
   constructor() {
     this.config = this.normalizeConfig(DEFAULT_NOTIFICATION_CONFIG);
     this.desktopChannel = new DesktopChannel(this.config.desktop);
     this.emailChannel = new EmailChannel(this.config.email);
+    this.feishuChannel = new FeishuChannel(this.config.feishu);
+    this.channels.set("feishu", this.feishuChannel);
     this.channels.set("desktop", this.desktopChannel);
     this.channels.set("email", this.emailChannel);
     this.syncChannelConfig();
@@ -34,10 +40,11 @@ export class NotificationChannelManager {
     return {
       desktop: { ...this.config.desktop },
       email: { ...this.config.email },
+      feishu: { ...this.config.feishu },
     };
   }
 
-  /** 更新通知配置并同步到邮件渠道 */
+  /** 更新通知配置并同步到各渠道 */
   updateConfig(config: NotificationConfig): void {
     this.config = this.normalizeConfig(config);
     this.syncChannelConfig();
@@ -85,6 +92,14 @@ export class NotificationChannelManager {
       );
     }
 
+    if (this.config.feishu.enabled) {
+      promises.push(
+        this.feishuChannel.send(reminder).catch((error) => {
+          console.error("Failed to send Feishu notification:", error);
+        }),
+      );
+    }
+
     await Promise.allSettled(promises);
   }
 
@@ -108,6 +123,7 @@ export class NotificationChannelManager {
   private syncChannelConfig(): void {
     this.desktopChannel.updateConfig(this.config.desktop);
     this.emailChannel.updateConfig(this.config.email);
+    this.feishuChannel.updateConfig(this.config.feishu);
   }
 
   /** 合并默认配置，兼容旧版本缺少的新字段。 */
@@ -115,9 +131,11 @@ export class NotificationChannelManager {
     config: Partial<{
       desktop: Partial<DesktopChannelConfig>;
       email: Partial<EmailChannelConfig>;
+      feishu: Partial<FeishuChannelConfig>;
     }>,
   ): NotificationConfig {
     return {
+      feishu: { ...DEFAULT_NOTIFICATION_CONFIG.feishu, ...config.feishu },
       desktop: {
         ...DEFAULT_NOTIFICATION_CONFIG.desktop,
         ...config.desktop,

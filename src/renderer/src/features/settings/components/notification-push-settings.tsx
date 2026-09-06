@@ -1,25 +1,20 @@
 import { useEffect, useState } from "react";
+import { FeishuPushSettings } from "./feishu-push-settings";
 import { useNotificationStore } from "@/store/notification.store";
 import { SettingRow } from "@/components/ui/setting-row";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 
 /** QQ 邮箱 SMTP 固定配置 */
 const QQ_MAIL_SMTP_HOST = "smtp.qq.com";
 const QQ_MAIL_SMTP_PORT = 465;
 
 export function NotificationPushSettings() {
-  const { config, loadConfig, updateConfig, testChannel, subscribeToChanges } =
+  const { config, loadConfig, updateConfig, subscribeToChanges } =
     useNotificationStore();
 
   const [email, setEmail] = useState(config.email.senderEmail);
   const [code, setCode] = useState(config.email.authorizationCode);
-  const [isTesting, setIsTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{
-    success: boolean;
-    error?: string;
-  } | null>(null);
 
   useEffect(() => {
     void loadConfig();
@@ -49,19 +44,6 @@ export function NotificationPushSettings() {
     } else {
       await updateConfig({ email: { ...config.email, enabled: false } });
     }
-    setTestResult(null);
-  };
-
-  /** 测试 SMTP 连接，用于确认当前邮箱授权码可用。 */
-  const handleTestConnection = async () => {
-    setIsTesting(true);
-    setTestResult(null);
-    try {
-      const result = await testChannel("email");
-      setTestResult(result);
-    } finally {
-      setIsTesting(false);
-    }
   };
 
   /** 保存邮箱推送配置，收件人默认使用同一个 QQ 邮箱。 */
@@ -76,7 +58,6 @@ export function NotificationPushSettings() {
         receiverEmail: email,
       },
     });
-    setTestResult(null);
   };
 
   const isValid = email && code;
@@ -150,67 +131,20 @@ export function NotificationPushSettings() {
             />
           </div>
 
-          {testResult && (
-            <div
-              className="flex items-center gap-2 rounded-md px-3 py-2 text-xs"
-              style={{
-                backgroundColor: testResult.success
-                  ? "rgba(34, 197, 94, 0.1)"
-                  : "rgba(239, 68, 68, 0.1)",
-                border: `1px solid ${testResult.success ? "rgba(34, 197, 94, 0.3)" : "rgba(239, 68, 68, 0.3)"}`,
-              }}
-            >
-              {testResult.success ? (
-                <>
-                  <CheckCircle2
-                    className="h-3.5 w-3.5 flex-shrink-0"
-                    style={{ color: "var(--success-color, #22c55e)" }}
-                  />
-                  <span style={{ color: "var(--success-color, #22c55e)" }}>
-                    连接成功
-                  </span>
-                </>
-              ) : (
-                <>
-                  <XCircle
-                    className="h-3.5 w-3.5 flex-shrink-0"
-                    style={{ color: "var(--error-color, #ef4444)" }}
-                  />
-                  <span style={{ color: "var(--error-color, #ef4444)" }}>
-                    {testResult.error || "连接失败"}
-                  </span>
-                </>
-              )}
-            </div>
-          )}
-
-          <div className="flex items-center gap-2 pt-1">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleTestConnection}
-              disabled={isTesting || !isValid}
-              className="h-7 gap-1.5 px-2.5 text-xs"
-            >
-              {isTesting ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                "测试连接"
-              )}
-            </Button>
+          <div className="flex justify-end pt-2">
             <Button
               type="button"
               size="sm"
               onClick={handleSave}
               disabled={!isValid}
-              className="h-7 px-2.5 text-xs"
+              className="h-8 px-3 text-xs"
             >
               保存配置
             </Button>
           </div>
         </div>
       )}
+      <FeishuPushSettings />
     </div>
   );
 }
