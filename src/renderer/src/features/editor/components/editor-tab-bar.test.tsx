@@ -97,7 +97,7 @@ describe("editor tab keyboard interaction", () => {
     expect(tab.isDirty).toBe(true);
   });
 
-  it("exposes named close controls and a direct new tab action", () => {
+  it("exposes named close controls without a standalone new tab action", () => {
     render(<EditorTabBar groupId="group" />);
     expect(screen.getByRole("button", { name: "关闭 one.md" })).toHaveAttribute(
       "tabindex",
@@ -105,8 +105,9 @@ describe("editor tab keyboard interaction", () => {
     );
     fireEvent.keyDown(screen.getAllByRole("tab")[0], { key: "Delete" });
     expect(closeEditorTab).toHaveBeenCalledWith("group", "one");
-    fireEvent.click(screen.getByRole("button", { name: "新建标签页" }));
-    expect(screen.getAllByRole("tab")).toHaveLength(3);
+    expect(
+      screen.queryByRole("button", { name: "新建标签页" }),
+    ).not.toBeInTheDocument();
   });
 
   it("opens, navigates and dismisses the context menu without a mouse", () => {

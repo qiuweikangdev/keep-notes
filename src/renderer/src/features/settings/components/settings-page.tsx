@@ -776,7 +776,12 @@ export function SettingsPage() {
           style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
           onDoubleClick={() => window.electronAPI.maximizeWindow()}
         >
-          <span className="text-sm font-medium">{activeLabel}</span>
+          <span
+            data-testid="settings-page-title"
+            className="text-sm font-medium"
+          >
+            {activeLabel}
+          </span>
           {!isMac && (
             <div
               className="flex h-full"
@@ -816,10 +821,7 @@ export function SettingsPage() {
           className="min-h-0 min-w-0 flex-1 overflow-y-auto px-6 py-8 lg:px-10"
           style={{ backgroundColor: "var(--bg-primary)" }}
         >
-          <div className="mx-auto max-w-5xl">
-            <h1 className="mb-6 text-2xl font-semibold">{activeLabel}</h1>
-            {renderContent()}
-          </div>
+          <div className="mx-auto max-w-5xl">{renderContent()}</div>
         </main>
       </section>
       <div ref={setExportDropdownPortalContainer} className="contents" />

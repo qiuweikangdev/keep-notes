@@ -3,7 +3,6 @@ import {
   AlertCircle,
   FileText,
   Pencil,
-  Plus,
   X,
   SplitSquareVertical,
   SplitSquareHorizontal,
@@ -483,15 +482,6 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
         className="flex h-full flex-shrink-0 items-center gap-1 px-1"
         style={{ borderLeft: "1px solid var(--border-color)" }}
       >
-        <button
-          type="button"
-          aria-label="新建标签页"
-          title="新建标签页"
-          onClick={handleNewTab}
-          className="flex h-7 w-7 items-center justify-center rounded text-[var(--text-muted)] hover:bg-[var(--hover-bg)] focus-visible:outline focus-visible:outline-2"
-        >
-          <Plus aria-hidden="true" className="h-3.5 w-3.5" />
-        </button>
         <EditorToolbar
           groupId={groupId}
           onNewTab={handleNewTab}

@@ -93,10 +93,13 @@ describe("SettingsPage about tab", () => {
     document.body.style.pointerEvents = "";
   });
 
-  it("renders a full settings page with a back entry instead of a dialog", () => {
+  it("renders a full settings page with one title and a back entry", () => {
     render(<SettingsPage />);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "外观" })).toBeInTheDocument();
+    expect(screen.getByTestId("settings-page-title")).toHaveTextContent("外观");
+    expect(
+      screen.queryByRole("heading", { name: "外观" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByTestId("settings-content")).toHaveClass(
       "overflow-y-auto",
     );
