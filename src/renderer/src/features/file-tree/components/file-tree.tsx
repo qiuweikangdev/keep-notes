@@ -4,6 +4,7 @@
   useMemo,
   useRef,
   useEffect,
+  useLayoutEffect,
   memo,
   startTransition,
   type KeyboardEvent,
@@ -39,6 +40,7 @@ import { useTreeStore } from "@/store/tree.store";
 import { useElectron } from "@/hooks/use-electron";
 import { useOverlayScrollbar } from "@/hooks/use-overlay-scrollbar";
 import { getTreePathDirectories } from "@/features/file-tree/tree-data";
+import { createFileTreeScrollOptions } from "../file-tree-scroll";
 import { useReminderStore } from "@/store/reminder.store";
 import { useDiffStore } from "@/store/diff.store";
 import { showNoDiffContentToast } from "@/features/diff/lib/diff-toast";
@@ -164,6 +166,7 @@ export function FileTree() {
   const previousSidebarViewRef = useRef(sidebarView);
   const lastSelectedRevealKeyRef = useRef<string | null>(null);
   const revealRequestIdRef = useRef(0);
+  const revealGenerationRef = useRef(0);
   const [fileTreeRevealRequest, setFileTreeRevealRequest] =
     useState<FileTreeRevealRequest | null>(null);
   const isRootCreating = creatingInfo?.parentKey === treeRoot?.key;
@@ -222,6 +225,8 @@ export function FileTree() {
 
   const revealCreatedNode = useCallback(
     (parentKey: string, newKey: string) => {
+      revealGenerationRef.current += 1;
+      lastSelectedRevealKeyRef.current = newKey;
       const currentExpandedKeys = useTreeStore.getState().expandedKeys;
       if (!currentExpandedKeys.has(parentKey)) {
         const nextExpandedKeys = new Set(currentExpandedKeys);
@@ -241,6 +246,10 @@ export function FileTree() {
 
   const revealTreeNode = useCallback(
     async (revealKey: string, align: "auto" | "center" = "center") => {
+      const generation = ++revealGenerationRef.current;
+      const isCurrentRequest = () =>
+        generation === revealGenerationRef.current &&
+        useTreeStore.getState().treeRoot?.key === treeRootKey;
       if (!treeRootKey || revealKey === treeRootKey) {
         return false;
       }
@@ -257,10 +266,12 @@ export function FileTree() {
         if (!directoryNode?.children) return false;
         if (directoryNode.isLoaded === false) {
           const didLoad = await loadDirectory(directoryPath);
-          if (!didLoad) return false;
+          // 旧搜索的目录加载可能晚于新搜索完成，不允许旧请求再次展开并滚回旧文件。
+          if (!didLoad || !isCurrentRequest()) return false;
         }
       }
 
+      if (!isCurrentRequest()) return false;
       const latestTreeData = useTreeStore.getState().treeData;
       const targetNode = findNodeByKey(latestTreeData, revealKey);
       if (!targetNode) {
@@ -285,6 +296,7 @@ export function FileTree() {
         setExpandedKeys(nextExpandedKeys);
       }
 
+      lastSelectedRevealKeyRef.current = revealKey;
       setFileTreeRevealRequest({
         key: revealKey,
         id: ++revealRequestIdRef.current,
@@ -372,9 +384,7 @@ export function FileTree() {
       return;
     }
 
-    void revealTreeNode(selectedKey, "center").then((didReveal) => {
-      if (didReveal) lastSelectedRevealKeyRef.current = selectedKey;
-    });
+    void revealTreeNode(selectedKey, "center");
   }, [revealTreeNode, selectedKey, sidebarView, treeRootKey]);
 
   const doRootCreate = useCallback(async () => {
@@ -544,6 +554,7 @@ export function FileTree() {
   // 处理节点点击
   const handleNodeClick = useCallback(
     (flatNode: FlatNode) => {
+      revealGenerationRef.current += 1;
       // 文件树内的直接点击不触发选中项自动定位，保留用户当前的滚动位置。
       lastSelectedRevealKeyRef.current = flatNode.key;
       setSelectedKey(flatNode.key);
@@ -803,6 +814,7 @@ export function FileTree() {
                             : "none",
                         }}
                         onClick={() => {
+                          revealGenerationRef.current += 1;
                           setSelectedKey(treeRoot!.key);
                           toggleExpandedKey(treeRoot!.key);
                         }}
@@ -816,6 +828,7 @@ export function FileTree() {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
+                              revealGenerationRef.current += 1;
                               toggleExpandedKey(treeRoot!.key);
                             }}
                             className="flex h-[16px] w-[16px] items-center justify-center rounded-sm hover:bg-[var(--hover-bg)]"
@@ -1069,7 +1082,9 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
   );
 
   // 虚拟滚动状态隔离在列表组件内，避免滚动时带动整个侧边栏重渲。
+  const scrollOptions = useMemo(createFileTreeScrollOptions, []);
   const virtualizer = useVirtualizer({
+    ...scrollOptions,
     count: rows.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => ROW_HEIGHT,
@@ -1092,16 +1107,12 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
     );
   }, [creatingInfo, rows]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!revealRequest || revealIndex < 0) return;
-
-    const frame = requestAnimationFrame(() => {
-      virtualizer.scrollToIndex(revealIndex, {
-        align: revealRequest.align ?? "center",
-      });
+    // 展开后的行布局与滚动在绘制前一起完成，避免先显示旧位置或空白视口。
+    virtualizer.scrollToIndex(revealIndex, {
+      align: revealRequest.align ?? "center",
     });
-
-    return () => cancelAnimationFrame(frame);
   }, [revealIndex, revealRequest, virtualizer]);
 
   useEffect(() => {

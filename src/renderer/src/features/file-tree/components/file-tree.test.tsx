@@ -720,4 +720,51 @@ describe("FileTree context menu", () => {
       expect(virtualizerScrollToIndex).toHaveBeenCalled();
     });
   });
+
+  it("does not let a delayed search reveal override a newer target", async () => {
+    let finishLoading!: (loaded: boolean) => void;
+    electronMocks.loadDirectory.mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        finishLoading = resolve;
+      }),
+    );
+    useTreeStore.setState({
+      treeData: [
+        { title: "docs", key: "/notes/docs", children: [], isLoaded: false },
+        { title: "latest.md", key: "/notes/latest.md" },
+      ],
+    });
+    render(<FileTree />);
+    fireEvent(
+      window,
+      new CustomEvent(REVEAL_FILE_TREE_NODE_EVENT, {
+        detail: { key: "/notes/docs/old.md" },
+      }),
+    );
+    fireEvent(
+      window,
+      new CustomEvent(REVEAL_FILE_TREE_NODE_EVENT, {
+        detail: { key: "/notes/latest.md" },
+      }),
+    );
+    await waitFor(() =>
+      expect(virtualizerScrollToIndex).toHaveBeenLastCalledWith(1, {
+        align: "center",
+      }),
+    );
+    virtualizerScrollToIndex.mockClear();
+    await act(async () => {
+      useTreeStore
+        .getState()
+        .replaceDirectoryChildren("/notes/docs", [
+          { title: "old.md", key: "/notes/docs/old.md" },
+        ]);
+      finishLoading(true);
+    });
+    expect(useTreeStore.getState().expandedKeys.has("/notes/docs")).toBe(false);
+    expect(screen.queryByText("old.md")).not.toBeInTheDocument();
+    expect(
+      virtualizerScrollToIndex.mock.calls.every(([index]) => index === 1),
+    ).toBe(true);
+  });
 });
