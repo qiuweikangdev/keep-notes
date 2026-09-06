@@ -2,16 +2,12 @@ import { useEffect, useState } from "react";
 import { useUIStore } from "@/store/ui.store";
 import { useEditorStore } from "@/store/editor.store";
 import { useTheme } from "@/hooks/use-theme";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { DialogResizeHandles } from "@/components/ui/dialog-resize-handles";
-import { useResizableDialog } from "@/hooks/use-resizable-dialog";
 import { ThemeModeSelector } from "@/components/ui/theme-mode-selector";
 import { SettingRow } from "@/components/ui/setting-row";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import {
   Palette,
-  ChevronRight,
   ChevronDown,
   Keyboard,
   Bell,
@@ -23,7 +19,9 @@ import {
   XCircle,
   Download,
   Loader2,
-  Settings as SettingsIcon,
+  ArrowLeft,
+  Minus,
+  Square,
   X,
 } from "lucide-react";
 import { ShortcutsSettings } from "./shortcuts-settings";
@@ -102,26 +100,7 @@ function getRepositoryLabel(repositoryUrl: string): string {
     .replace(/\.git$/, "");
 }
 
-function isExportSettingsDropdownTarget(target: EventTarget | null): boolean {
-  return (
-    target instanceof HTMLElement &&
-    Boolean(target.closest("[data-export-settings-dropdown]"))
-  );
-}
-
-function isExportSettingsDropdownEvent(event: Event): boolean {
-  const originalEvent = (event as CustomEvent<{ originalEvent?: Event }>).detail
-    ?.originalEvent;
-  const path = originalEvent?.composedPath?.() ?? event.composedPath?.() ?? [];
-
-  return (
-    isExportSettingsDropdownTarget(event.target) ||
-    isExportSettingsDropdownTarget(originalEvent?.target ?? null) ||
-    path.some(isExportSettingsDropdownTarget)
-  );
-}
-
-export function SettingsModal() {
+export function SettingsPage() {
   const isSettingsOpen = useUIStore((state) => state.isSettingsOpen);
   const setSettingsOpen = useUIStore((state) => state.setSettingsOpen);
   const appearance = useEditorStore((s) => s.appearance);
@@ -138,13 +117,6 @@ export function SettingsModal() {
   );
   const [zoomFactor, setZoomFactor] = useState(1);
   const [isZoomLoading, setIsZoomLoading] = useState(true);
-  const { contentRef, dragHandleProps, resizeHandleProps } = useResizableDialog(
-    {
-      isOpen: isSettingsOpen,
-      minWidth: 480,
-      minHeight: 360,
-    },
-  );
   const editorPaddingProgress =
     ((Math.max(appearance.padding, EDITOR_PADDING_MIN) - EDITOR_PADDING_MIN) /
       (EDITOR_PADDING_MAX - EDITOR_PADDING_MIN)) *
@@ -205,17 +177,6 @@ export function SettingsModal() {
     if (activeTab !== "about") return;
     void handleCheckForUpdates();
   }, [activeTab]);
-
-  const handleOpenChange = (open: boolean) => {
-    if (
-      !open &&
-      (updateState.status === "checking" ||
-        updateState.status === "downloading")
-    ) {
-      void window.electronAPI.cancelUpdate();
-    }
-    setSettingsOpen(open);
-  };
 
   const handleCheckForUpdates = async () => {
     const state = await window.electronAPI.checkForUpdates();
@@ -741,135 +702,127 @@ export function SettingsModal() {
     }
   };
 
+  if (!isSettingsOpen) return null;
+
+  const activeLabel = settingsMenuItems.find(
+    (item) => item.id === activeTab,
+  )?.label;
+  const isMac = window.electronAPI?.getPlatform() === "darwin";
+
   return (
-    <Dialog.Root
-      modal={false}
-      open={isSettingsOpen}
-      onOpenChange={handleOpenChange}
+    <div
+      data-testid="settings-layout"
+      className="flex min-h-0 flex-1"
+      style={{ color: "var(--text-primary)" }}
     >
-      <DialogContent
-        ref={contentRef}
-        showCloseButton={false}
-        overlayStyle={{ backgroundColor: "rgba(0, 0, 0, 0.5)" }}
-        className="flex h-[min(540px,calc(100vh-64px))] max-h-none w-[min(780px,calc(100vw-32px))] max-w-none flex-col gap-0 overflow-visible rounded-xl p-0 shadow-2xl"
-        style={{
-          backgroundColor: "var(--bg-secondary)",
-          border: "none",
-          color: "var(--text-primary)",
-        }}
-        onInteractOutside={(event) => {
-          // 导出设置的下拉内容使用 Portal，避免被弹窗滚动区域裁切。
-          if (isExportSettingsDropdownEvent(event)) {
-            event.preventDefault();
-          }
-        }}
-        onFocusOutside={(event) => {
-          // 菜单关闭时焦点会从 Portal 回到触发器，不能因此关闭设置弹窗。
-          if (isExportSettingsDropdownEvent(event)) {
-            event.preventDefault();
-          }
-        }}
-      >
+      <aside className="flex w-[180px] shrink-0 flex-col border-r border-[var(--border-color)] bg-[var(--bg-secondary)] sm:w-[240px]">
         <div
-          data-dialog-drag-handle
-          {...dragHandleProps}
-          className="flex h-14 shrink-0 select-none items-center justify-between px-5"
-          style={{
-            backgroundColor: "var(--bg-primary)",
-            borderBottom: "1px solid var(--border-color)",
-          }}
-        >
-          <div className="flex items-center gap-2.5">
-            <SettingsIcon
-              data-testid="settings-dialog-icon"
-              className="h-[18px] w-[18px]"
-              style={{ color: "var(--text-muted)" }}
-              aria-hidden="true"
-            />
-            <Dialog.Title asChild>
-              <span
-                className="text-sm font-semibold"
-                style={{ color: "var(--text-primary)" }}
-              >
-                设置
-              </span>
-            </Dialog.Title>
-          </div>
-          <Dialog.Close asChild>
-            <button
-              type="button"
-              onPointerDown={(event) => event.stopPropagation()}
-              data-theme-control="true"
-              className="flex h-8 w-8 items-center justify-center rounded-md outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-color)]"
-              style={{ color: "var(--text-muted)" }}
-              aria-label="关闭设置"
-            >
-              <X className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </Dialog.Close>
-          <Dialog.Description className="sr-only">
-            配置应用外观、快捷键、应用通知、导出选项和关于信息。
-          </Dialog.Description>
+          className="h-11 shrink-0"
+          style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+        />
+        <div className="px-3 pb-7 pt-3">
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(false)}
+            className="flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent-color)]"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            返回
+          </button>
         </div>
-
-        <div
-          data-testid="settings-layout"
-          className="flex min-h-0 flex-1 gap-0 overflow-hidden"
+        <div className="px-6 pb-3 text-xs font-medium text-[var(--text-secondary)]">
+          设置
+        </div>
+        <nav
+          data-testid="settings-navigation"
+          aria-label="设置分类"
+          className="min-h-0 flex-1 overflow-y-auto px-3 pb-4"
         >
-          {/* 左侧导航 */}
-          <nav
-            data-testid="settings-navigation"
-            aria-label="设置分类"
-            className="min-h-0 w-[180px] flex-shrink-0 overflow-y-auto p-2 sm:w-[220px]"
-            style={{ borderRight: "1px solid var(--border-color)" }}
-          >
-            {settingsMenuItems.map((item) => {
-              const isActive = activeTab === item.id;
-              const Icon = item.icon;
-              return (
-                <button
-                  type="button"
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id)}
-                  aria-current={isActive ? "page" : undefined}
-                  data-selection-surface="true"
-                  data-selection-context="secondary"
-                  data-selected={isActive ? "true" : undefined}
-                  className="mb-1 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-[var(--file-tree-row-hover)]"
-                  style={{
-                    backgroundColor: isActive
-                      ? "var(--file-tree-row-selected)"
-                      : "transparent",
-                    color: isActive
-                      ? "var(--accent-color)"
-                      : "var(--text-primary)",
-                  }}
-                >
-                  <Icon className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-                  <span className="text-sm font-medium">{item.label}</span>
-                  {isActive && (
-                    <ChevronRight
-                      className="ml-auto h-3 w-3 flex-shrink-0"
-                      aria-hidden="true"
-                    />
-                  )}
-                </button>
-              );
-            })}
-          </nav>
-
-          {/* 右侧内容 */}
-          <div
-            data-testid="settings-content"
-            className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6"
-            style={{ backgroundColor: "var(--bg-primary)" }}
-          >
+          {settingsMenuItems.map((item) => {
+            const isActive = activeTab === item.id;
+            const Icon = item.icon;
+            return (
+              <button
+                type="button"
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                aria-current={isActive ? "page" : undefined}
+                data-selection-surface="true"
+                data-selection-context="secondary"
+                data-selected={isActive ? "true" : undefined}
+                className="mb-1 flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-[var(--file-tree-row-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent-color)]"
+                style={{
+                  backgroundColor: isActive
+                    ? "var(--file-tree-row-selected)"
+                    : "transparent",
+                  color: isActive
+                    ? "var(--accent-color)"
+                    : "var(--text-primary)",
+                }}
+              >
+                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="text-sm font-medium">{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </aside>
+      <section
+        className="flex min-w-0 flex-1 flex-col bg-[var(--bg-primary)]"
+        aria-label="设置"
+      >
+        <header
+          className="flex h-11 shrink-0 items-center justify-between border-b border-[var(--border-color)] pl-6"
+          style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+          onDoubleClick={() => window.electronAPI.maximizeWindow()}
+        >
+          <span className="text-sm font-medium">{activeLabel}</span>
+          {!isMac && (
+            <div
+              className="flex h-full"
+              style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+              onDoubleClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                aria-label="最小化"
+                onClick={() => window.electronAPI.minimizeWindow()}
+                className="px-4 hover:bg-[var(--hover-bg)]"
+              >
+                <Minus className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                aria-label="最大化"
+                onClick={() => window.electronAPI.maximizeWindow()}
+                className="px-4 hover:bg-[var(--hover-bg)]"
+              >
+                <Square className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                aria-label="关闭窗口"
+                onClick={() => window.electronAPI.closeWindow()}
+                className="px-4 hover:bg-red-600 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+        </header>
+        <main
+          key={activeTab}
+          data-testid="settings-content"
+          className="min-h-0 min-w-0 flex-1 overflow-y-auto px-6 py-8 lg:px-10"
+          style={{ backgroundColor: "var(--bg-primary)" }}
+        >
+          <div className="mx-auto max-w-5xl">
+            <h1 className="mb-6 text-2xl font-semibold">{activeLabel}</h1>
             {renderContent()}
           </div>
-        </div>
-        <div ref={setExportDropdownPortalContainer} className="contents" />
-        <DialogResizeHandles resizeHandleProps={resizeHandleProps} />
-      </DialogContent>
-    </Dialog.Root>
+        </main>
+      </section>
+      <div ref={setExportDropdownPortalContainer} className="contents" />
+    </div>
   );
 }

@@ -20,6 +20,7 @@ import {
 import { areDiffContentsEqual } from "@/features/diff/lib/diff-content";
 import { useDiffStore } from "@/store/diff.store";
 import { useDiffPanelStore } from "@/features/diff/store/diff-panel.store";
+import { useEditorStore } from "@/store/editor.store";
 import { useTreeStore } from "@/store/tree.store";
 import { discardFileChanges } from "@/features/editor/lib/discard-file-changes";
 import {
@@ -44,6 +45,7 @@ export function HomePage() {
 }
 
 function HomePageContent() {
+  const workspaceOpacity = useEditorStore((state) => state.appearance.opacity);
   const {
     panelSize,
     panelRef,
@@ -226,7 +228,11 @@ function HomePageContent() {
 
       <TitleBar collapsed={collapsed} onToggleCollapse={toggleCollapse} />
 
-      <div className="flex-1 overflow-hidden">
+      <div
+        className="flex-1 overflow-hidden"
+        // 文件树和正文统一应用透明度，设置页与标题栏保持不透明。
+        style={{ opacity: workspaceOpacity / 100 }}
+      >
         <PanelGroup direction="horizontal" onLayout={handleLayout}>
           <Panel
             ref={panelRef}
@@ -262,7 +268,9 @@ function HomePageContent() {
           <Panel minSize={30}>
             <div
               className="h-full overflow-hidden"
-              style={{ backgroundColor: "var(--bg-primary)" }}
+              style={{
+                backgroundColor: "var(--bg-primary)",
+              }}
             >
               <Editor />
             </div>

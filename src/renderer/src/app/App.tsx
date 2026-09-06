@@ -2,7 +2,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { DragResizeProvider } from "@/components/drag-resize-provider";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { useEditorStore } from "@/store/editor.store";
-import { SettingsModal } from "@/features/settings";
+import { SettingsPage } from "@/features/settings";
 import { SearchModal } from "@/features/search";
 import {
   ReminderEditorDialog,
@@ -162,7 +162,6 @@ export function App() {
 
 function MainApplication() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const appearance = useEditorStore((s) => s.appearance);
   const theme = useUIStore((state) => state.theme);
   const isSettingsOpen = useUIStore((state) => state.isSettingsOpen);
   const shortcuts = useShortcutsStore((s) => s.shortcuts);
@@ -187,6 +186,17 @@ function MainApplication() {
         ?.keys ?? [],
     [shortcuts],
   );
+
+  useEffect(() => {
+    // 哈希路由兼容打包后的 file:// 页面，也支持浏览器前进和后退。
+    const syncRoute = () =>
+      useUIStore.setState({
+        isSettingsOpen: window.location.hash === "#/settings",
+      });
+    syncRoute();
+    window.addEventListener("hashchange", syncRoute);
+    return () => window.removeEventListener("hashchange", syncRoute);
+  }, []);
 
   // 初始化键盘快捷键
   useKeyboardShortcuts();
@@ -420,13 +430,11 @@ function MainApplication() {
     };
   }, []);
 
-  // 应用透明度到整个窗口
   // macOS 原生窗口自带圆角，不需要设置 borderRadius
   // Windows/Linux 无边框窗口需要 borderRadius 来实现圆角效果
   const windowStyle = {
     backgroundColor: "var(--bg-primary)",
     color: "var(--text-primary)",
-    opacity: appearance.opacity / 100,
     height: "100vh",
     display: "flex",
     flexDirection: "column" as const,
@@ -438,8 +446,18 @@ function MainApplication() {
     <Tooltip.Provider delayDuration={300}>
       <DragResizeProvider>
         <div style={windowStyle}>
-          <HomePage />
-          <SettingsModal />
+          {/* 保留编辑器实例和滚动位置，路由切换时隐藏工作区。 */}
+          <div
+            hidden={isSettingsOpen}
+            className="min-h-0 flex-1"
+            style={{
+              display: isSettingsOpen ? "none" : "flex",
+              flexDirection: "column",
+            }}
+          >
+            <HomePage />
+          </div>
+          <SettingsPage />
           <SearchModal
             isOpen={isSearchOpen}
             onClose={() => setIsSearchOpen(false)}

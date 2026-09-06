@@ -172,7 +172,7 @@ vi.mock("@/features/settings", async () => {
   >("@/components/drag-resize-provider");
 
   return {
-    SettingsModal: () => {
+    SettingsPage: () => {
       const { isIdle } = useDragResize();
       return (
         <div data-testid="application-dialog-provider-state">
@@ -233,6 +233,7 @@ vi.mock("@/store/ui.store", () => ({
       return selector ? selector(state) : state;
     },
     {
+      setState: vi.fn(),
       getState: () => ({
         theme: "light" as const,
         isSettingsOpen: false,

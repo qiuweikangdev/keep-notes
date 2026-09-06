@@ -24,7 +24,11 @@ export const useUIStore = create<UIState>()(
 
       setTheme: (theme) => set({ theme }),
       setPanelSize: (size) => set({ panelSize: size }),
-      setSettingsOpen: (open) => set({ isSettingsOpen: open }),
+      setSettingsOpen: (open) => {
+        const hash = open ? "#/settings" : "#/";
+        if (window.location.hash !== hash) window.location.hash = hash;
+        set({ isSettingsOpen: open });
+      },
       setActiveTab: (tab) => set({ activeTab: tab }),
     }),
     {

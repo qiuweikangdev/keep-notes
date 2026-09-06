@@ -1,1 +1,1 @@
-export { SettingsModal } from "./components/settings-modal";
+export { SettingsPage } from "./components/settings-page";

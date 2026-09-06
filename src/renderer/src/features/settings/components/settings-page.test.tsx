@@ -8,7 +8,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DragResizeProvider } from "@/components/drag-resize-provider";
-import { SettingsModal } from "./settings-modal";
+import { SettingsPage } from "./settings-page";
 import { useEditorStore } from "@/store/editor.store";
 import { useUIStore } from "@/store/ui.store";
 import { useExportStore } from "@/store/export.store";
@@ -26,7 +26,7 @@ function render(
   });
 }
 
-describe("SettingsModal about tab", () => {
+describe("SettingsPage about tab", () => {
   const electronAPI = {
     getPlatform: () => "darwin",
     getAppInfo: vi.fn(async () => ({
@@ -93,73 +93,30 @@ describe("SettingsModal about tab", () => {
     document.body.style.pointerEvents = "";
   });
 
-  it("keeps the dialog compact inside small application windows", () => {
-    render(<SettingsModal />);
-
-    expect(screen.getByRole("dialog")).toHaveClass(
-      "flex",
-      "h-[min(540px,calc(100vh-64px))]",
-      "max-h-none",
-      "w-[min(780px,calc(100vw-32px))]",
-      "max-w-none",
-      "flex-col",
-    );
-    expect(screen.getByTestId("settings-layout")).toHaveClass(
-      "min-h-0",
-      "flex-1",
-    );
-    expect(screen.getByTestId("settings-navigation")).toHaveClass(
-      "w-[180px]",
-      "sm:w-[220px]",
-      "overflow-y-auto",
-    );
+  it("renders a full settings page with a back entry instead of a dialog", () => {
+    render(<SettingsPage />);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "外观" })).toBeInTheDocument();
     expect(screen.getByTestId("settings-content")).toHaveClass(
-      "min-w-0",
       "overflow-y-auto",
     );
+    expect(screen.getByRole("button", { name: "返回" })).toBeInTheDocument();
   });
 
-  it("uses the Git dialog visual language for its frame and title bar", () => {
-    render(<SettingsModal />);
-
-    const dialog = screen.getByRole("dialog");
-    const dragHandle = dialog.querySelector<HTMLElement>(
-      "[data-dialog-drag-handle]",
-    );
-
-    expect(dialog).toHaveClass("rounded-xl", "shadow-2xl");
-    expect(dialog).toHaveStyle({
-      backgroundColor: "var(--bg-secondary)",
-      border: "none",
-    });
-    expect(dragHandle?.style.borderBottom).toBe(
-      "1px solid var(--border-color)",
-    );
-    expect(dragHandle).toHaveStyle({
-      backgroundColor: "var(--bg-primary)",
-    });
-    expect(dragHandle).toHaveClass(
-      "h-14",
-      "shrink-0",
-      "items-center",
-      "justify-between",
-      "px-5",
-    );
-    expect(screen.getByTestId("settings-dialog-icon")).toHaveClass(
-      "h-[18px]",
-      "w-[18px]",
-    );
-    expect(screen.getByText("设置")).toHaveClass("text-sm", "font-semibold");
-    expect(screen.getByTestId("settings-dialog-icon")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "关闭设置" })).toHaveClass(
-      "h-8",
-      "w-8",
-      "rounded-md",
-    );
+  it("navigates to settings and returns to the workspace", () => {
+    act(() => useUIStore.getState().setSettingsOpen(true));
+    render(<SettingsPage />);
+    expect(window.location.hash).toBe("#/settings");
+    fireEvent.click(screen.getByRole("button", { name: "返回" }));
+    expect(window.location.hash).toBe("#/");
+    expect(useUIStore.getState().isSettingsOpen).toBe(false);
+    expect(
+      screen.queryByRole("navigation", { name: "设置分类" }),
+    ).not.toBeInTheDocument();
   });
 
   it("uses semantic selected navigation and a primary content surface", () => {
-    render(<SettingsModal />);
+    render(<SettingsPage />);
 
     const appearanceButton = screen.getByRole("button", { name: /外观/ });
     const aboutButton = screen.getByRole("button", { name: /关于/ });
@@ -187,7 +144,7 @@ describe("SettingsModal about tab", () => {
   });
 
   it("uses the shared setting-row typography for appearance labels", () => {
-    render(<SettingsModal />);
+    render(<SettingsPage />);
 
     const themeLabel = screen.getByText("主题");
     const defaultOpenTargetLabel = screen.getByText("默认打开目标");
@@ -200,40 +157,8 @@ describe("SettingsModal about tab", () => {
     });
   });
 
-  it("uses the shared drag handle and all resize handles", () => {
-    render(<SettingsModal />);
-
-    expect(document.querySelector("[data-dialog-drag-handle]")).not.toBeNull();
-    expect(
-      document.querySelectorAll("[data-dialog-resize-handle]"),
-    ).toHaveLength(8);
-  });
-
-  it("restores default geometry after closing and reopening", async () => {
-    render(<SettingsModal />);
-
-    const dialog = screen.getByRole("dialog");
-    dialog.style.width = "600px";
-    dialog.style.height = "420px";
-    dialog.style.left = "24px";
-    dialog.style.top = "30px";
-    dialog.style.transform = "none";
-
-    act(() => useUIStore.getState().setSettingsOpen(false));
-    act(() => useUIStore.getState().setSettingsOpen(true));
-
-    await waitFor(() => {
-      const reopenedDialog = screen.getByRole("dialog");
-      expect(reopenedDialog.style.width).toBe("");
-      expect(reopenedDialog.style.height).toBe("");
-      expect(reopenedDialog.style.left).toBe("");
-      expect(reopenedDialog.style.top).toBe("");
-      expect(reopenedDialog.style.transform).toBe("");
-    });
-  });
-
   it("shows app metadata and triggers update checks from the about tab", async () => {
-    render(<SettingsModal />);
+    render(<SettingsPage />);
 
     fireEvent.click(screen.getByRole("button", { name: /关于/ }));
 
@@ -274,7 +199,7 @@ describe("SettingsModal about tab", () => {
   });
 
   it("keeps the current version visible beside the update action", async () => {
-    render(<SettingsModal />);
+    render(<SettingsPage />);
 
     fireEvent.click(screen.getByRole("button", { name: /关于/ }));
 
@@ -295,7 +220,7 @@ describe("SettingsModal about tab", () => {
       version: "2.1.0",
     });
 
-    render(<SettingsModal />);
+    render(<SettingsPage />);
 
     fireEvent.click(screen.getByRole("button", { name: /关于/ }));
 
@@ -309,7 +234,7 @@ describe("SettingsModal about tab", () => {
   });
 
   it("renames the notification settings menu item to app notification config", () => {
-    render(<SettingsModal />);
+    render(<SettingsPage />);
 
     expect(
       screen.getByRole("button", { name: /应用通知配置/ }),
@@ -331,7 +256,7 @@ describe("SettingsModal about tab", () => {
         bytesPerSecond: 10,
       },
     });
-    render(<SettingsModal />);
+    render(<SettingsPage />);
 
     fireEvent.click(screen.getByRole("button", { name: /关于/ }));
     const cancelButton = await screen.findByRole("button", {
@@ -355,7 +280,7 @@ describe("SettingsModal about tab", () => {
       setAppearance,
     });
 
-    render(<SettingsModal />);
+    render(<SettingsPage />);
 
     const [uiFontSizeInput] = screen.getAllByRole("spinbutton");
     fireEvent.change(uiFontSizeInput, { target: { value: "18" } });
@@ -367,7 +292,7 @@ describe("SettingsModal about tab", () => {
   });
 
   it("updates the window zoom factor from the appearance slider", async () => {
-    render(<SettingsModal />);
+    render(<SettingsPage />);
 
     const zoomSlider = screen.getByRole("slider", { name: "界面缩放" });
     await waitFor(() => {
@@ -384,7 +309,7 @@ describe("SettingsModal about tab", () => {
   });
 
   it("uses one divider for each appearance setting row", () => {
-    render(<SettingsModal />);
+    render(<SettingsPage />);
 
     const settingRow = screen
       .getByText("应用打开器入口")
@@ -401,7 +326,7 @@ describe("SettingsModal about tab", () => {
   });
 
   it("configures export formats from the export tab", async () => {
-    render(<SettingsModal />);
+    render(<SettingsPage />);
 
     fireEvent.click(screen.getByRole("button", { name: /导出/ }));
 
@@ -438,7 +363,7 @@ describe("SettingsModal about tab", () => {
   });
 
   it("configures export folder and post-export behavior from the export tab", async () => {
-    render(<SettingsModal />);
+    render(<SettingsPage />);
 
     fireEvent.click(screen.getByRole("button", { name: /导出/ }));
     expect(await screen.findByText("导出格式")).toBeInTheDocument();
