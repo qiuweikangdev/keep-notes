@@ -998,6 +998,13 @@ export function QuickEditorWindow() {
   useEffect(() => {
     if (!isCollapseStateReady || isCollapsed) return;
     const frame = window.requestAnimationFrame(() => {
+      // 初始加载、模式切换与展开的延迟聚焦不能抢走用户刚打开的菜单或对话框。
+      if (
+        document.querySelector(
+          '[role="menu"], [role="dialog"], [role="listbox"]',
+        )
+      )
+        return;
       if (editorMode === "source") sourceEditorRef.current?.focus();
       else editor.focus();
     });

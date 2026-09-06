@@ -35,6 +35,48 @@ afterEach(() => {
 });
 
 describe("quick editor content detection", () => {
+  it("keeps an opened actions menu focused when initial focus is delayed", async () => {
+    const frames = new Map<number, FrameRequestCallback>();
+    let frameId = 0;
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      frames.set(++frameId, callback);
+      return frameId;
+    });
+    vi.spyOn(window, "cancelAnimationFrame").mockImplementation((id) => {
+      frames.delete(id);
+    });
+    vi.stubGlobal("matchMedia", (media: string) => ({
+      media,
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    vi.stubGlobal("electronAPI", {
+      getQuickEditorCollapsed: async () => false,
+      onQuickEditorInitialContent: (
+        callback: (value: { content: string; source: null }) => void,
+      ) => {
+        callback({ content: "Menu focus draft", source: null });
+        return () => {};
+      },
+      onQuickEditorContentUpdated: () => () => {},
+      syncQuickEditorContent: vi.fn(),
+      updateDirtyState: vi.fn(),
+    });
+    render(createElement(QuickEditorWindow));
+    await screen.findByText("Menu focus draft");
+    await userEvent.click(screen.getByRole("button", { name: "更多操作" }));
+    const menu = screen.getByRole("menu");
+    act(() => {
+      const pending = [...frames.values()];
+      frames.clear();
+      for (const callback of pending) callback(0);
+    });
+    expect(menu).toBeVisible();
+    expect(menu.contains(document.activeElement)).toBe(true);
+    await userEvent.click(screen.getByRole("menuitem", { name: "显示大纲" }));
+    expect(screen.getByRole("navigation", { name: "文档大纲" })).toBeVisible();
+  });
   it("treats the initial empty paragraph as clean", () => {
     expect(
       hasMeaningfulQuickEditorContent([
