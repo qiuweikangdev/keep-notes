@@ -67,6 +67,7 @@ import {
   REVEAL_FILE_TREE_NODE_EVENT,
   shouldRevealFileTreeOnViewChange,
   shouldSyncSelectionToActiveFile,
+  type FileTreeRow,
   type FlatNode,
   type RevealFileTreeNodeEventDetail,
 } from "../utils";
@@ -81,6 +82,7 @@ const EMPTY_OUTLINE_HEADINGS: import("@/store/editor.store").OutlineHeading[] =
 const TOOL_BUTTON_CLASS =
   "flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md transition-colors";
 const ROW_HEIGHT = 28; // 7 * 4 = 28px (h-7)
+const TREE_LAYOUT_TRANSITION = "transform 220ms cubic-bezier(0.22, 1, 0.36, 1)";
 const DROP_TARGET_INSET_SHADOW =
   "inset 0 0 0 1px color-mix(in srgb, var(--accent-color) 40%, transparent)";
 interface CreatingInfo {
@@ -835,7 +837,7 @@ export function FileTree() {
                           >
                             <ChevronRight
                               className={cn(
-                                "h-3 w-3 transition-transform duration-100",
+                                "h-3 w-3 transition-transform duration-200 ease-out",
                                 isRootExpanded && "rotate-90",
                               )}
                               style={{
@@ -916,30 +918,22 @@ export function FileTree() {
                 </ContextMenu.Root>
 
                 {/* 虚拟化子节点列表 */}
-                {isRootExpanded && flatNodes.length > 0 ? (
-                  <VirtualizedTreeList
-                    flatNodes={flatNodes}
-                    selectedKey={selectedKey}
-                    revealRequest={fileTreeRevealRequest}
-                    creatingInfo={creatingInfo}
-                    onClick={handleNodeClick}
-                    onCreateInFolder={handleCreateInFolder}
-                    onNodeCreated={revealCreatedNode}
-                    onDeleteNode={handleDeleteNode}
-                    openFile={openFile}
-                    openInExplorer={openInExplorer}
-                    copyPath={copyPath}
-                    openInNewWindow={openInNewWindow}
-                    openCreateReminder={openCreateReminder}
-                  />
-                ) : isRootExpanded ? (
-                  <div
-                    className="flex h-28 items-center justify-center text-[12px]"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    文件夹为空
-                  </div>
-                ) : null}
+                <VirtualizedTreeList
+                  flatNodes={flatNodes}
+                  isExpanded={isRootExpanded}
+                  selectedKey={selectedKey}
+                  revealRequest={fileTreeRevealRequest}
+                  creatingInfo={creatingInfo}
+                  onClick={handleNodeClick}
+                  onCreateInFolder={handleCreateInFolder}
+                  onNodeCreated={revealCreatedNode}
+                  onDeleteNode={handleDeleteNode}
+                  openFile={openFile}
+                  openInExplorer={openInExplorer}
+                  copyPath={copyPath}
+                  openInNewWindow={openInNewWindow}
+                  openCreateReminder={openCreateReminder}
+                />
               </>
             ) : (
               <OutlinePanel
@@ -1028,6 +1022,7 @@ export function FileTree() {
 
 interface VirtualizedTreeListProps {
   flatNodes: FlatNode[];
+  isExpanded: boolean;
   selectedKey: string | null;
   revealRequest: FileTreeRevealRequest | null;
   creatingInfo: CreatingInfo | null;
@@ -1048,6 +1043,7 @@ interface VirtualizedTreeListProps {
 
 const VirtualizedTreeList = memo(function VirtualizedTreeList({
   flatNodes,
+  isExpanded,
   selectedKey,
   revealRequest,
   creatingInfo,
@@ -1065,6 +1061,23 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
     () => buildFileTreeRows(flatNodes, creatingInfo?.parentKey),
     [creatingInfo?.parentKey, flatNodes],
   );
+  const previousRowsRef = useRef<FileTreeRow[]>([]);
+  const hasRenderedRowsRef = useRef(false);
+  const animationIdRef = useRef(0);
+  const [layoutAnimation, setLayoutAnimation] = useState<{
+    id: number;
+    phase: "from" | "to";
+    offsets: Map<string, number>;
+    enteringKeys: Set<string>;
+  } | null>(null);
+  const [collapseRevision, setCollapseRevision] = useState(0);
+  const isCollapsing =
+    !isExpanded && rows.length === 0 && previousRowsRef.current.length > 0;
+  const displayedRows = useMemo(() => {
+    // 根目录收起时保留上一帧的行，让整个子列表完成淡出后再清空虚拟列表。
+    if (isCollapsing) return previousRowsRef.current;
+    return rows;
+  }, [collapseRevision, isCollapsing, rows]);
   const {
     scrollContainerRef: parentRef,
     scrollbarTrackRef,
@@ -1074,56 +1087,135 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
     handleScrollbarThumbPointerDown,
     handleScrollbarThumbPointerMove,
     handleScrollbarThumbPointerEnd,
-  } = useOverlayScrollbar(rows.length);
+  } = useOverlayScrollbar(displayedRows.length);
 
   const getItemKey = useCallback(
-    (index: number) => rows[index]?.key ?? index,
-    [rows],
+    (index: number) => displayedRows[index]?.key ?? index,
+    [displayedRows],
   );
 
   // 虚拟滚动状态隔离在列表组件内，避免滚动时带动整个侧边栏重渲。
   const scrollOptions = useMemo(createFileTreeScrollOptions, []);
   const virtualizer = useVirtualizer({
     ...scrollOptions,
-    count: rows.length,
+    count: displayedRows.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => ROW_HEIGHT,
     getItemKey,
     overscan: 6,
   });
 
+  useLayoutEffect(() => {
+    if (!isCollapsing) return;
+
+    const timeout = window.setTimeout(() => {
+      setCollapseRevision((revision) => revision + 1);
+    }, 220);
+
+    return () => window.clearTimeout(timeout);
+  }, [isCollapsing]);
+
+  useLayoutEffect(() => {
+    const previousRows = previousRowsRef.current;
+    const hadPreviousRows = hasRenderedRowsRef.current;
+    previousRowsRef.current = rows;
+    hasRenderedRowsRef.current = true;
+
+    if (!hadPreviousRows) return;
+
+    const prefersReducedMotion =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const previousIndexByKey = new Map(
+      previousRows.map((row, index) => [row.key, index]),
+    );
+    const offsets = new Map<string, number>();
+    const enteringKeys = new Set<string>();
+
+    for (const [index, row] of rows.entries()) {
+      const previousIndex = previousIndexByKey.get(row.key);
+      if (previousIndex === undefined) {
+        enteringKeys.add(row.key);
+      } else if (previousIndex !== index) {
+        // 记录节点在变更前的位置，下一帧回到新位置时即可触发 FLIP 平移动画。
+        offsets.set(row.key, (previousIndex - index) * ROW_HEIGHT);
+      }
+    }
+
+    if (
+      prefersReducedMotion ||
+      (offsets.size === 0 && enteringKeys.size === 0)
+    ) {
+      setLayoutAnimation(null);
+      return;
+    }
+
+    const animationId = ++animationIdRef.current;
+    setLayoutAnimation({
+      id: animationId,
+      phase: "from",
+      offsets,
+      enteringKeys,
+    });
+
+    // 使用双 RAF 留出一帧绘制起始位置，避免起点和终点在同一次渲染中被合并。
+    let followUpFrame: number | null = null;
+    const frame = window.requestAnimationFrame(() => {
+      followUpFrame = window.requestAnimationFrame(() => {
+        setLayoutAnimation((current) =>
+          current?.id === animationId ? { ...current, phase: "to" } : current,
+        );
+      });
+    });
+    const timeout = window.setTimeout(() => {
+      setLayoutAnimation((current) =>
+        current?.id === animationId ? null : current,
+      );
+    }, 240);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (followUpFrame !== null) {
+        window.cancelAnimationFrame(followUpFrame);
+      }
+      window.clearTimeout(timeout);
+    };
+  }, [rows]);
+
   const revealIndex = useMemo(() => {
     if (!revealRequest) return -1;
-    return rows.findIndex(
+    return displayedRows.findIndex(
       (row) => row.type === "node" && row.key === revealRequest.key,
     );
-  }, [revealRequest, rows]);
+  }, [displayedRows, revealRequest]);
 
   const creatingRowIndex = useMemo(() => {
     if (!creatingInfo) return -1;
-    return rows.findIndex(
+    return displayedRows.findIndex(
       (row) =>
         row.type === "create" && row.parentKey === creatingInfo.parentKey,
     );
-  }, [creatingInfo, rows]);
+  }, [creatingInfo, displayedRows]);
 
   useLayoutEffect(() => {
-    if (!revealRequest || revealIndex < 0) return;
+    if (!isExpanded || isCollapsing || !revealRequest || revealIndex < 0) {
+      return;
+    }
     // 展开后的行布局与滚动在绘制前一起完成，避免先显示旧位置或空白视口。
     virtualizer.scrollToIndex(revealIndex, {
       align: revealRequest.align ?? "center",
     });
-  }, [revealIndex, revealRequest, virtualizer]);
+  }, [isCollapsing, isExpanded, revealIndex, revealRequest, virtualizer]);
 
   useEffect(() => {
-    if (creatingRowIndex < 0) return;
+    if (!isExpanded || isCollapsing || creatingRowIndex < 0) return;
 
     const frame = requestAnimationFrame(() => {
       virtualizer.scrollToIndex(creatingRowIndex, { align: "auto" });
     });
 
     return () => cancelAnimationFrame(frame);
-  }, [creatingRowIndex, virtualizer]);
+  }, [creatingRowIndex, isCollapsing, isExpanded, virtualizer]);
 
   return (
     <div
@@ -1133,13 +1225,24 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
     >
       <div
         ref={parentRef}
-        className="file-tree-scroll-container h-full overflow-auto"
+        className={cn(
+          "file-tree-scroll-container h-full overflow-auto",
+          isCollapsing && "file-tree-scroll-container--collapsing",
+        )}
         style={{
           contain: "layout paint style",
           overflowAnchor: "none",
         }}
         onScroll={syncScrollbarThumb}
       >
+        {isExpanded && displayedRows.length === 0 ? (
+          <div
+            className="flex h-28 items-center justify-center text-[12px]"
+            style={{ color: "var(--text-muted)" }}
+          >
+            文件夹为空
+          </div>
+        ) : null}
         <div
           style={{
             height: `${virtualizer.getTotalSize()}px`,
@@ -1148,7 +1251,7 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
           }}
         >
           {virtualizer.getVirtualItems().map((virtualItem) => {
-            const row = rows[virtualItem.index];
+            const row = displayedRows[virtualItem.index];
             if (!row) return null;
 
             if (row.type === "create") {
@@ -1169,6 +1272,10 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
             }
 
             const flatNode = row.node;
+            const layoutOffset =
+              layoutAnimation?.phase === "from"
+                ? (layoutAnimation.offsets.get(flatNode.key) ?? 0)
+                : 0;
 
             return (
               <VirtualTreeNode
@@ -1176,6 +1283,9 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
                 flatNode={flatNode}
                 size={virtualItem.size}
                 start={virtualItem.start}
+                layoutOffset={layoutOffset}
+                isLayoutAnimating={layoutAnimation !== null}
+                isEntering={layoutAnimation?.enteringKeys.has(flatNode.key)}
                 isSelected={selectedKey === flatNode.key}
                 onClick={onClick}
                 onCreateInFolder={onCreateInFolder}
@@ -1214,6 +1324,9 @@ interface VirtualTreeNodeProps {
   flatNode: FlatNode;
   size: number;
   start: number;
+  layoutOffset: number;
+  isLayoutAnimating: boolean;
+  isEntering?: boolean;
   isSelected: boolean;
   onClick: (flatNode: FlatNode) => void;
   onCreateInFolder: (
@@ -1233,6 +1346,9 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
   flatNode,
   size,
   start,
+  layoutOffset,
+  isLayoutAnimating,
+  isEntering,
   isSelected,
   onClick,
   onCreateInFolder,
@@ -1548,13 +1664,19 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
 
   return (
     <div
+      className={cn(
+        "file-tree-node-virtual",
+        isLayoutAnimating && "file-tree-node-virtual--animating",
+      )}
       style={{
         position: "absolute",
         top: 0,
         left: 0,
         width: "100%",
         height: `${size}px`,
-        transform: `translateY(${start}px)`,
+        transform: `translateY(${start + layoutOffset}px)`,
+        // 将过渡写入节点本身，避免虚拟列表重排时仅依赖外部样式导致动画被跳过。
+        transition: isLayoutAnimating ? TREE_LAYOUT_TRANSITION : undefined,
         willChange: "transform",
       }}
     >
@@ -1562,7 +1684,10 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
         <ContextMenu.Trigger asChild>
           <div className="px-2">
             <div
-              className="tree-node-row relative flex h-7 cursor-pointer select-none items-center rounded-[10px] outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-color)]"
+              className={cn(
+                "tree-node-row relative flex h-7 cursor-pointer select-none items-center rounded-[10px] outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-color)]",
+                isEntering && "tree-node-row--entering",
+              )}
               data-selected={isSelected}
               role="treeitem"
               aria-selected={isSelected}
@@ -1610,7 +1735,7 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
                     ) : (
                       <ChevronRight
                         className={cn(
-                          "h-3 w-3 transition-transform duration-100",
+                          "h-3 w-3 transition-transform duration-200 ease-out",
                           isExpanded && "rotate-90",
                         )}
                         style={{

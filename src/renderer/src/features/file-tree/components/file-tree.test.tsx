@@ -135,6 +135,30 @@ describe("FileTree context menu", () => {
     expect(electronMocks.loadDirectory).toHaveBeenCalledWith("/notes/docs");
   });
 
+  it("animates rows when expanding a directory", () => {
+    useTreeStore.setState({
+      treeData: [
+        {
+          title: "docs",
+          key: "/notes/docs",
+          children: [{ title: "daily.md", key: "/notes/docs/daily.md" }],
+        },
+        { title: "todo.md", key: "/notes/todo.md" },
+      ],
+    });
+
+    render(<FileTree />);
+
+    fireEvent.click(screen.getByText("docs"));
+
+    expect(screen.getByText("daily.md").closest(".tree-node-row")).toHaveClass(
+      "tree-node-row--entering",
+    );
+    expect(
+      screen.getByText("todo.md").closest(".file-tree-node-virtual"),
+    ).toHaveClass("file-tree-node-virtual--animating");
+  });
+
   it("shows only a local directory loading indicator", () => {
     useTreeStore.setState({
       treeData: [

@@ -1364,6 +1364,150 @@ select {
   transform: rotate(90deg);
 }
 
+/* 文件树展开/收起时，虚拟列表中的已有节点使用 FLIP 平滑重排。 */
+.file-tree-node-virtual--animating {
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.file-tree-scroll-container--collapsing {
+  opacity: 0;
+  transition: opacity 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes file-tree-row-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(-6px, 0, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.tree-node-row--entering {
+  animation: file-tree-row-enter 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 设置页侧栏完整收起到 0，按钮固定在左上角，收起后仍可展开。 */
+.settings-sidebar {
+  width: 240px;
+  min-width: 0;
+  overflow: hidden;
+  transition:
+    width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 160ms ease,
+    border-right-color 160ms ease;
+}
+
+.settings-sidebar__drag-region,
+.settings-sidebar__back-container,
+.settings-sidebar__navigation,
+.settings-sidebar__nav-item,
+.settings-sidebar__back {
+  transition:
+    padding 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    gap 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 120ms ease;
+}
+
+.settings-sidebar__toggle {
+  z-index: 10000;
+  pointer-events: auto;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease,
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.settings-content-header {
+  transition: padding-left 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.settings-sidebar__back-label,
+.settings-sidebar__section-label,
+.settings-sidebar__nav-label {
+  max-width: 180px;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 1;
+  transform: translateX(0);
+  transition:
+    max-width 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 120ms ease,
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.settings-sidebar--collapsed {
+  width: 0;
+  border-right-color: transparent;
+}
+
+.settings-sidebar--collapsed .settings-sidebar__drag-region {
+  padding-inline: 0;
+}
+
+.settings-sidebar--collapsed .settings-sidebar__back-container {
+  padding-inline: 0;
+}
+
+.settings-sidebar--collapsed .settings-sidebar__back {
+  gap: 0;
+  padding-inline: 0;
+}
+
+.settings-sidebar--collapsed .settings-sidebar__navigation {
+  padding-inline: 0;
+}
+
+.settings-sidebar--collapsed .settings-sidebar__nav-item {
+  gap: 0;
+  padding-inline: 0;
+}
+
+.settings-sidebar--collapsed .settings-sidebar__back-label,
+.settings-sidebar--collapsed .settings-sidebar__section-label,
+.settings-sidebar--collapsed .settings-sidebar__nav-label {
+  max-width: 0;
+  opacity: 0;
+  transform: translateX(-8px);
+}
+
+@media (max-width: 639px) {
+  .settings-sidebar:not(.settings-sidebar--collapsed) {
+    width: 180px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .file-tree-node-virtual--animating {
+    transition: none;
+  }
+
+  .file-tree-scroll-container--collapsing {
+    transition: none;
+  }
+
+  .tree-node-row--entering {
+    animation: none;
+  }
+
+  .settings-sidebar,
+  .settings-sidebar__drag-region,
+  .settings-sidebar__back-container,
+  .settings-sidebar__navigation,
+  .settings-sidebar__nav-item,
+  .settings-sidebar__back,
+  .settings-sidebar__toggle,
+  .settings-content-header,
+  .settings-sidebar__back-label,
+  .settings-sidebar__section-label,
+  .settings-sidebar__nav-label {
+    transition: none;
+  }
+}
+
 /* Git 操作面板图标提示 */
 .git-panel-tooltip {
   position: relative;

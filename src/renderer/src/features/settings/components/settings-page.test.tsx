@@ -106,6 +106,28 @@ describe("SettingsPage about tab", () => {
     expect(screen.getByRole("button", { name: "返回" })).toBeInTheDocument();
   });
 
+  it("toggles the settings navigation from the top-left button", () => {
+    render(<SettingsPage />);
+
+    const sidebar = screen.getByTestId("settings-sidebar");
+    const toggleButton = screen.getByRole("button", { name: "收起设置侧栏" });
+
+    expect(toggleButton).toHaveClass("top-1.5");
+    expect(sidebar).toHaveAttribute("data-collapsed", "false");
+    expect(toggleButton).toHaveAccessibleName("收起设置侧栏");
+
+    fireEvent.click(toggleButton);
+
+    expect(sidebar).toHaveAttribute("data-collapsed", "true");
+    expect(sidebar).toHaveClass("settings-sidebar--collapsed");
+    expect(toggleButton).toHaveAccessibleName("展开设置侧栏");
+
+    fireEvent.click(toggleButton);
+
+    expect(sidebar).toHaveAttribute("data-collapsed", "false");
+    expect(toggleButton).toHaveAccessibleName("收起设置侧栏");
+  });
+
   it("navigates to settings and returns to the workspace", () => {
     act(() => useUIStore.getState().setSettingsOpen(true));
     render(<SettingsPage />);

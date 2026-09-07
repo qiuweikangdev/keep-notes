@@ -27,6 +27,7 @@ import {
   resolveExternalOpenTargetPath,
 } from "@/features/external-open/external-open-options";
 import { ExternalOpenAppIcon } from "@/features/external-open/external-open-icons";
+import { SidebarToggleButton } from "./sidebar-toggle-button";
 import {
   MAC_TITLE_BAR_HEIGHT,
   MAC_TRAFFIC_LIGHT_PLACEHOLDER_WIDTH,
@@ -280,82 +281,10 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
 
         {/* 左侧：侧边栏切换 + 导航箭头 */}
         <div className="flex h-full items-center gap-1 pl-3">
-          <button
+          <SidebarToggleButton
+            collapsed={collapsed}
             onClick={onToggleCollapse}
-            className="flex items-center justify-center w-8 h-8 rounded-md transition-all"
-            style={{ color: "var(--text-muted)" }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-              e.currentTarget.style.color = "var(--text-primary)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
-              e.currentTarget.style.color = "var(--text-muted)";
-            }}
-            title={collapsed ? "展开侧边栏" : "收起侧边栏"}
-          >
-            {collapsed ? (
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <rect
-                  x="2"
-                  y="3"
-                  width="12"
-                  height="10"
-                  rx="2"
-                  stroke="currentColor"
-                  strokeWidth="1.2"
-                />
-                <line
-                  x1="5"
-                  y1="6"
-                  x2="5"
-                  y2="10"
-                  stroke="currentColor"
-                  strokeWidth="1.2"
-                />
-              </svg>
-            ) : (
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <rect
-                  x="2"
-                  y="3"
-                  width="12"
-                  height="10"
-                  rx="2"
-                  stroke="currentColor"
-                  strokeWidth="1.2"
-                />
-                <line
-                  x1="5"
-                  y1="6"
-                  x2="5"
-                  y2="10"
-                  stroke="currentColor"
-                  strokeWidth="1.2"
-                />
-                <line
-                  x1="8"
-                  y1="6"
-                  x2="8"
-                  y2="10"
-                  stroke="currentColor"
-                  strokeWidth="1.2"
-                />
-              </svg>
-            )}
-          </button>
+          />
           {appearance.showFileHistoryNavigation && (
             <>
               <button

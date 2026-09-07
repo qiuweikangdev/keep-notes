@@ -6,6 +6,8 @@ import { ThemeModeSelector } from "@/components/ui/theme-mode-selector";
 import { SettingRow } from "@/components/ui/setting-row";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/cn";
+import { SidebarToggleButton } from "@/components/layout/sidebar-toggle-button";
 import {
   Palette,
   ChevronDown,
@@ -107,6 +109,7 @@ export function SettingsPage() {
   const setAppearance = useEditorStore((s) => s.setAppearance);
   const { theme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<SettingsTab>("appearance");
+  const [isNavigationCollapsed, setIsNavigationCollapsed] = useState(false);
   const [appInfo, setAppInfo] = useState<AppInfo>(defaultAppInfo);
   const [updateState, setUpdateState] =
     useState<AppUpdateState>(defaultUpdateState);
@@ -712,31 +715,38 @@ export function SettingsPage() {
   return (
     <div
       data-testid="settings-layout"
-      className="flex min-h-0 flex-1"
+      className="relative flex min-h-0 flex-1"
       style={{ color: "var(--text-primary)" }}
     >
-      <aside className="flex w-[180px] shrink-0 flex-col border-r border-[var(--border-color)] bg-[var(--bg-secondary)] sm:w-[240px]">
+      <aside
+        data-testid="settings-sidebar"
+        data-collapsed={isNavigationCollapsed}
+        className={cn(
+          "settings-sidebar flex shrink-0 flex-col border-r border-[var(--border-color)] bg-[var(--bg-secondary)]",
+          isNavigationCollapsed && "settings-sidebar--collapsed",
+        )}
+      >
         <div
-          className="h-11 shrink-0"
+          className="settings-sidebar__drag-region flex h-11 shrink-0 items-center px-2"
           style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
         />
-        <div className="px-3 pb-7 pt-3">
+        <div className="settings-sidebar__back-container px-3 pb-7 pt-3">
           <button
             type="button"
             onClick={() => setSettingsOpen(false)}
-            className="flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent-color)]"
+            className="settings-sidebar__back flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent-color)]"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            返回
+            <span className="settings-sidebar__back-label">返回</span>
           </button>
         </div>
-        <div className="px-6 pb-3 text-xs font-medium text-[var(--text-secondary)]">
+        <div className="settings-sidebar__section-label px-6 pb-3 text-xs font-medium text-[var(--text-secondary)]">
           设置
         </div>
         <nav
           data-testid="settings-navigation"
           aria-label="设置分类"
-          className="min-h-0 flex-1 overflow-y-auto px-3 pb-4"
+          className="settings-sidebar__navigation min-h-0 flex-1 overflow-y-auto px-3 pb-4"
         >
           {settingsMenuItems.map((item) => {
             const isActive = activeTab === item.id;
@@ -747,10 +757,11 @@ export function SettingsPage() {
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
                 aria-current={isActive ? "page" : undefined}
+                title={isNavigationCollapsed ? item.label : undefined}
                 data-selection-surface="true"
                 data-selection-context="secondary"
                 data-selected={isActive ? "true" : undefined}
-                className="mb-1 flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-[var(--file-tree-row-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent-color)]"
+                className="settings-sidebar__nav-item mb-1 flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-[var(--file-tree-row-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent-color)]"
                 style={{
                   backgroundColor: isActive
                     ? "var(--file-tree-row-selected)"
@@ -761,7 +772,9 @@ export function SettingsPage() {
                 }}
               >
                 <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                <span className="text-sm font-medium">{item.label}</span>
+                <span className="settings-sidebar__nav-label text-sm font-medium">
+                  {item.label}
+                </span>
               </button>
             );
           })}
@@ -772,8 +785,13 @@ export function SettingsPage() {
         aria-label="设置"
       >
         <header
-          className="flex h-11 shrink-0 items-center justify-between border-b border-[var(--border-color)] pl-6"
-          style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+          className="settings-content-header flex h-11 shrink-0 items-center justify-between border-b border-[var(--border-color)]"
+          style={
+            {
+              WebkitAppRegion: "drag",
+              paddingLeft: isNavigationCollapsed ? "56px" : "24px",
+            } as React.CSSProperties
+          }
           onDoubleClick={() => window.electronAPI.maximizeWindow()}
         >
           <span
@@ -824,6 +842,18 @@ export function SettingsPage() {
           <div className="mx-auto max-w-5xl">{renderContent()}</div>
         </main>
       </section>
+      <SidebarToggleButton
+        collapsed={isNavigationCollapsed}
+        label={isNavigationCollapsed ? "展开设置侧栏" : "收起设置侧栏"}
+        onClick={() => setIsNavigationCollapsed((collapsed) => !collapsed)}
+        className="settings-sidebar__toggle absolute left-3 top-1.5 z-[10000]"
+        style={
+          {
+            WebkitAppRegion: "no-drag",
+            pointerEvents: "auto",
+          } as React.CSSProperties
+        }
+      />
       <div ref={setExportDropdownPortalContainer} className="contents" />
     </div>
   );
