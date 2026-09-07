@@ -730,11 +730,11 @@ export function SettingsPage() {
           className="settings-sidebar__drag-region flex h-11 shrink-0 items-center px-2"
           style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
         />
-        <div className="settings-sidebar__back-container px-3 pb-7 pt-3">
+        <div className="settings-sidebar__back-container px-3 pb-4 pt-0">
           <button
             type="button"
             onClick={() => setSettingsOpen(false)}
-            className="settings-sidebar__back flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent-color)]"
+            className="settings-sidebar__back flex h-10 w-full items-center gap-3 rounded-lg px-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent-color)]"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             <span className="settings-sidebar__back-label">返回</span>
