@@ -13,6 +13,7 @@ import { useEditorStore } from "@/store/editor.store";
 import { useUIStore } from "@/store/ui.store";
 import { useExportStore } from "@/store/export.store";
 import { DEFAULT_EXPORT_CONFIG } from "@/types";
+import { MAC_TRAFFIC_LIGHT_PLACEHOLDER_WIDTH } from "@shared/title-bar";
 
 function render(
   ui: Parameters<typeof baseRender>[0],
@@ -111,8 +112,13 @@ describe("SettingsPage about tab", () => {
 
     const sidebar = screen.getByTestId("settings-sidebar");
     const toggleButton = screen.getByRole("button", { name: "收起设置侧栏" });
+    const contentHeader = screen.getByTestId("settings-content-header");
 
     expect(toggleButton).toHaveClass("top-1.5");
+    expect(toggleButton).toHaveStyle({
+      left: `${MAC_TRAFFIC_LIGHT_PLACEHOLDER_WIDTH + 12}px`,
+    });
+    expect(contentHeader).toHaveStyle({ paddingLeft: "24px" });
     expect(sidebar).toHaveAttribute("data-collapsed", "false");
     expect(toggleButton).toHaveAccessibleName("收起设置侧栏");
 
@@ -120,6 +126,9 @@ describe("SettingsPage about tab", () => {
 
     expect(sidebar).toHaveAttribute("data-collapsed", "true");
     expect(sidebar).toHaveClass("settings-sidebar--collapsed");
+    expect(contentHeader).toHaveStyle({
+      paddingLeft: `${MAC_TRAFFIC_LIGHT_PLACEHOLDER_WIDTH + 12 + 32 + 12}px`,
+    });
     expect(toggleButton).toHaveAccessibleName("展开设置侧栏");
 
     fireEvent.click(toggleButton);

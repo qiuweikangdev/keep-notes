@@ -38,6 +38,7 @@ import type {
   ExternalOpenApp,
   ExternalOpenAppId,
 } from "@shared/types";
+import { MAC_TRAFFIC_LIGHT_PLACEHOLDER_WIDTH } from "@shared/title-bar";
 
 type SettingsTab =
   | "appearance"
@@ -60,6 +61,9 @@ const EDITOR_PADDING_MIN = 72;
 const EDITOR_PADDING_MAX = 120;
 const ZOOM_FACTOR_MIN = 0.5;
 const ZOOM_FACTOR_MAX = 1.5;
+const SETTINGS_SIDEBAR_TOGGLE_OFFSET = 12;
+const SETTINGS_SIDEBAR_TOGGLE_SIZE = 32;
+const SETTINGS_CONTENT_HEADER_GAP = 12;
 
 const defaultAppInfo: AppInfo = {
   version: "",
@@ -711,6 +715,15 @@ export function SettingsPage() {
     (item) => item.id === activeTab,
   )?.label;
   const isMac = window.electronAPI?.getPlatform() === "darwin";
+  const macSidebarToggleLeft =
+    MAC_TRAFFIC_LIGHT_PLACEHOLDER_WIDTH + SETTINGS_SIDEBAR_TOGGLE_OFFSET;
+  const settingsContentHeaderPaddingLeft = isNavigationCollapsed
+    ? isMac
+      ? macSidebarToggleLeft +
+        SETTINGS_SIDEBAR_TOGGLE_SIZE +
+        SETTINGS_CONTENT_HEADER_GAP
+      : 56
+    : 24;
 
   return (
     <div
@@ -785,11 +798,12 @@ export function SettingsPage() {
         aria-label="设置"
       >
         <header
+          data-testid="settings-content-header"
           className="settings-content-header flex h-11 shrink-0 items-center justify-between border-b border-[var(--border-color)]"
           style={
             {
               WebkitAppRegion: "drag",
-              paddingLeft: isNavigationCollapsed ? "56px" : "24px",
+              paddingLeft: `${settingsContentHeaderPaddingLeft}px`,
             } as React.CSSProperties
           }
           onDoubleClick={() => window.electronAPI.maximizeWindow()}
@@ -849,6 +863,8 @@ export function SettingsPage() {
         className="settings-sidebar__toggle absolute left-3 top-1.5 z-[10000]"
         style={
           {
+            // macOS 左上角由原生红绿灯占用，按钮与主标题栏保持相同的安全间距。
+            left: isMac ? `${macSidebarToggleLeft}px` : undefined,
             WebkitAppRegion: "no-drag",
             pointerEvents: "auto",
           } as React.CSSProperties
