@@ -7,6 +7,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_NOTIFICATION_CONFIG } from "@/types";
+import type { NotificationConfig } from "@/types";
 import { useNotificationStore } from "@/store/notification.store";
 import { NotificationPushSettings } from "./notification-push-settings";
 
@@ -39,6 +40,20 @@ describe("NotificationPushSettings", () => {
 
     expect(await screen.findByText("QQ 邮箱推送")).toBeInTheDocument();
     expect(screen.queryByText("桌面通知")).not.toBeInTheDocument();
+  });
+
+  it("fills missing Feishu settings from a legacy notification config", async () => {
+    electronAPI.getNotificationConfig.mockResolvedValueOnce({
+      desktop: DEFAULT_NOTIFICATION_CONFIG.desktop,
+      email: DEFAULT_NOTIFICATION_CONFIG.email,
+    } as unknown as NotificationConfig);
+
+    render(<NotificationPushSettings />);
+
+    expect(await screen.findByLabelText("飞书推送")).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("飞书推送"));
+
+    expect(await screen.findByLabelText("Webhook 地址")).toBeInTheDocument();
   });
 
   it("updates the QQ mail push switch", async () => {

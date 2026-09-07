@@ -2,6 +2,23 @@ import { create } from "zustand";
 import type { NotificationChannelType, NotificationConfig } from "@/types";
 import { DEFAULT_NOTIFICATION_CONFIG } from "@/types";
 
+type NotificationConfigInput = Partial<{
+  desktop: Partial<NotificationConfig["desktop"]>;
+  email: Partial<NotificationConfig["email"]>;
+  feishu: Partial<NotificationConfig["feishu"]>;
+}>;
+
+/** 补全旧版本配置，避免新增通知渠道字段缺失导致渲染层崩溃。 */
+function normalizeConfig(
+  config: NotificationConfigInput | null | undefined,
+): NotificationConfig {
+  return {
+    desktop: { ...DEFAULT_NOTIFICATION_CONFIG.desktop, ...config?.desktop },
+    email: { ...DEFAULT_NOTIFICATION_CONFIG.email, ...config?.email },
+    feishu: { ...DEFAULT_NOTIFICATION_CONFIG.feishu, ...config?.feishu },
+  };
+}
+
 interface NotificationState {
   config: NotificationConfig;
   isLoading: boolean;
@@ -22,7 +39,7 @@ export const useNotificationStore = create<NotificationState>()((set, get) => ({
     set({ isLoading: true });
     try {
       const config = await window.electronAPI.getNotificationConfig();
-      set({ config });
+      set({ config: normalizeConfig(config) });
     } finally {
       set({ isLoading: false });
     }
@@ -48,7 +65,7 @@ export const useNotificationStore = create<NotificationState>()((set, get) => ({
   /** 订阅通知配置变更事件，返回取消订阅函数 */
   subscribeToChanges: () => {
     return window.electronAPI.onNotificationConfigChanged((config) => {
-      set({ config });
+      set({ config: normalizeConfig(config) });
     });
   },
 }));
