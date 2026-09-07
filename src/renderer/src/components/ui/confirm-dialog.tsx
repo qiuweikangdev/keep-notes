@@ -21,12 +21,10 @@ interface ConfirmDialogProps {
   title: string;
   description?: string;
   confirmText?: string;
-  secondaryText?: string;
   cancelText?: string;
   variant?: ConfirmDialogVariant;
   icon?: LucideIcon;
   onConfirm: () => void | Promise<void>;
-  onSecondary?: () => void | Promise<void>;
 }
 
 export function ConfirmDialog({
@@ -35,12 +33,10 @@ export function ConfirmDialog({
   title,
   description,
   confirmText = "确认",
-  secondaryText,
   cancelText = "取消",
   variant = "default",
   icon,
   onConfirm,
-  onSecondary,
 }: ConfirmDialogProps) {
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const isDanger = variant === "danger";
@@ -56,11 +52,6 @@ export function ConfirmDialog({
 
   const handleConfirm = async () => {
     await onConfirm();
-    onOpenChange(false);
-  };
-
-  const handleSecondary = async () => {
-    await onSecondary?.();
     onOpenChange(false);
   };
 
@@ -125,16 +116,6 @@ export function ConfirmDialog({
                 {cancelText}
               </Button>
             </Dialog.Close>
-            {secondaryText && onSecondary ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => void handleSecondary()}
-              >
-                {secondaryText}
-              </Button>
-            ) : null}
             <Button
               type="button"
               size="sm"
