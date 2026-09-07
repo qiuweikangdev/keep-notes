@@ -7,6 +7,10 @@ import {
   registerEditorChangeFlusher,
 } from "./editor-runtime";
 import { closeEditorTab } from "./editor-tab-closing";
+import {
+  completeUntitledCloseConfirmation,
+  subscribeUntitledCloseConfirmation,
+} from "./editor-close-confirmation";
 
 function seedTab(filePath: string | null, content: string): void {
   const group = useEditorStore.getState().panelGroups[0];
@@ -124,6 +128,33 @@ describe("closeEditorTab", () => {
 
     expect(saveAs).not.toHaveBeenCalled();
     expect(useEditorStore.getState().panelGroups[0]?.tabs).toHaveLength(0);
+  });
+
+  it("uses the renderer confirmation on Windows to avoid native dialog issues", async () => {
+    seedTab(null, "# Draft");
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: {
+        ...window.electronAPI,
+        getPlatform: () => "win32",
+        confirmCloseUntitled,
+        saveAs,
+        writeFile,
+      },
+    });
+    const unregister = subscribeUntitledCloseConfirmation((request) => {
+      expect(request?.temporaryTitle).toBe("关闭测试");
+      completeUntitledCloseConfirmation("discard");
+    });
+
+    await expect(
+      closeEditorTab(useEditorStore.getState().activeGroupId, "tab-close"),
+    ).resolves.toBe(true);
+
+    expect(confirmCloseUntitled).not.toHaveBeenCalled();
+    expect(saveAs).not.toHaveBeenCalled();
+    expect(useEditorStore.getState().panelGroups[0]?.tabs).toHaveLength(0);
+    unregister();
   });
 
   it("saves an untitled dirty tab before removing it", async () => {

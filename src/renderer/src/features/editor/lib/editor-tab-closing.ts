@@ -1,6 +1,10 @@
 import { useEditorStore } from "@/store/editor.store";
 import { CodeResult } from "@/types";
 import { editorSaveCoordinator, flushEditorChange } from "./editor-runtime";
+import {
+  hasUntitledCloseConfirmationListener,
+  requestUntitledCloseConfirmation,
+} from "./editor-close-confirmation";
 
 const closeTasks = new Map<string, Promise<boolean>>();
 
@@ -27,9 +31,15 @@ async function performCloseEditorTab(
       }
       if (!(await editorSaveCoordinator.flush(tab.filePath))) return false;
     } else if (tab.isDirty) {
-      const closeAction = await window.electronAPI.confirmCloseUntitled(
-        tab.temporaryTitle ?? undefined,
-      );
+      const closeAction =
+        window.electronAPI.getPlatform?.() === "win32" &&
+        hasUntitledCloseConfirmationListener()
+          ? await requestUntitledCloseConfirmation(
+              tab.temporaryTitle ?? undefined,
+            )
+          : await window.electronAPI.confirmCloseUntitled(
+              tab.temporaryTitle ?? undefined,
+            );
       if (closeAction === "cancel") return false;
 
       if (closeAction === "discard") {

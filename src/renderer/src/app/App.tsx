@@ -18,6 +18,7 @@ import { useReminderStore } from "@/store/reminder.store";
 import { APP_BEHAVIOR_CONFIG } from "@/config/app-behavior";
 import { useTheme } from "@/hooks/use-theme";
 import { QuickEditorWindow } from "@/features/editor/components/quick-editor-window";
+import { UntitledCloseConfirmationDialog } from "@/features/editor/components/untitled-close-confirmation-dialog";
 import { editorFindController } from "@/features/editor/lib/editor-find-controller";
 import { requestEditorViewportPreservation } from "@/features/editor/lib/editor-viewport";
 import type {
@@ -207,9 +208,9 @@ function MainApplication() {
   }, [theme]);
 
   // 平台判断
-  const isMac = useMemo(() => {
-    return window.electronAPI?.getPlatform() === "darwin";
-  }, []);
+  const platform = useMemo(() => window.electronAPI?.getPlatform() ?? "", []);
+  const isMac = platform === "darwin";
+  const isWindows = platform === "win32";
 
   // 构建搜索快捷键集合
   const searchKeyStrings = useMemo(() => {
@@ -469,6 +470,7 @@ function MainApplication() {
           ) : null}
           <ExportController />
           <ExportSuccessToast />
+          {isWindows ? <UntitledCloseConfirmationDialog /> : null}
         </div>
       </DragResizeProvider>
     </Tooltip.Provider>
