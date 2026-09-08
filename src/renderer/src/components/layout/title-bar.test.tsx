@@ -94,8 +94,10 @@ describe("TitleBar", () => {
       configurable: true,
       value: {
         getPlatform: () => "darwin",
-        getWindowPosition: vi.fn().mockResolvedValue([0, 0]),
-        setWindowPosition: vi.fn(),
+        getWindowBounds: vi
+          .fn()
+          .mockResolvedValue({ x: 0, y: 0, width: 900, height: 670 }),
+        moveWindow: vi.fn(),
         maximizeWindow: vi.fn(),
         listExternalOpenApps: vi.fn().mockResolvedValue([]),
         openWithExternalApp: testState.openWithExternalApp,
@@ -119,6 +121,35 @@ describe("TitleBar", () => {
     expect(screen.getByTestId("mac-traffic-light-spacer")).toHaveClass(
       "h-full",
     );
+  });
+
+  it("拖动标题栏时保持拖动开始时的窗口尺寸", async () => {
+    const getWindowBounds = vi.fn().mockResolvedValue({
+      x: 100,
+      y: 200,
+      width: 900,
+      height: 670,
+    });
+    const moveWindow = vi.fn();
+    Object.assign(window.electronAPI, { getWindowBounds, moveWindow });
+
+    render(<TitleBar collapsed={false} onToggleCollapse={vi.fn()} />);
+
+    const titleBar = screen.getByTestId("title-bar");
+    fireEvent.mouseDown(titleBar, {
+      button: 0,
+      screenX: 300,
+      screenY: 400,
+    });
+    await waitFor(() => expect(getWindowBounds).toHaveBeenCalledOnce());
+    fireEvent.mouseMove(window, { screenX: 320, screenY: 430 });
+
+    expect(moveWindow).toHaveBeenCalledWith({
+      x: 120,
+      y: 230,
+      width: 900,
+      height: 670,
+    });
   });
 
   it("标题栏应用打开器始终使用当前目录打开外部应用", async () => {

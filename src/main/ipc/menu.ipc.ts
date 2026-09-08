@@ -1,5 +1,6 @@
 import { ipcMain } from "electron";
 import { IPC_CHANNELS } from "../../shared/constants";
+import type { WindowBounds } from "../../shared/types";
 import { getBrowserWindow } from "../utils";
 
 const MIN_ZOOM_FACTOR = 0.5;
@@ -27,20 +28,25 @@ export function registerMenuIpc(): void {
     win?.close();
   });
 
-  // 获取窗口位置（用于 JS 拖拽）
-  ipcMain.handle(IPC_CHANNELS.WINDOW.GET_POSITION, (event) => {
+  // 获取拖动开始时的完整边界，避免后续读取已经发生 DPI 漂移的尺寸。
+  ipcMain.handle(IPC_CHANNELS.WINDOW.GET_BOUNDS, (event) => {
     const win = getBrowserWindow(event);
-    return win?.getPosition() ?? [0, 0];
+    return win?.getBounds() ?? { x: 0, y: 0, width: 0, height: 0 };
   });
 
-  // 设置窗口位置（用于 JS 拖拽）
-  ipcMain.on(
-    IPC_CHANNELS.WINDOW.SET_POSITION,
-    (event, x: number, y: number) => {
-      const win = getBrowserWindow(event);
-      win?.setPosition(x, y);
-    },
-  );
+  // Windows 非 100% 缩放下 setPosition 可能让无边框窗口宽高逐次漂移；
+  // 每次都重用拖动开始时的宽高，可阻断高频移动中的误差累积。
+  ipcMain.on(IPC_CHANNELS.WINDOW.MOVE, (event, bounds: WindowBounds) => {
+    const win = getBrowserWindow(event);
+    if (!win || !isValidWindowBounds(bounds)) return;
+
+    if (process.platform === "win32") {
+      win.setBounds(bounds);
+      return;
+    }
+
+    win.setPosition(bounds.x, bounds.y);
+  });
 
   // 判断窗口是否最大化
   ipcMain.handle(IPC_CHANNELS.WINDOW.IS_MAXIMIZED, (event) => {
@@ -68,5 +74,18 @@ export function registerMenuIpc(): void {
       win.webContents.setZoomFactor(normalizedZoomFactor);
       return normalizedZoomFactor;
     },
+  );
+}
+
+function isValidWindowBounds(bounds: WindowBounds): boolean {
+  return (
+    typeof bounds === "object" &&
+    bounds !== null &&
+    Number.isFinite(bounds.x) &&
+    Number.isFinite(bounds.y) &&
+    Number.isFinite(bounds.width) &&
+    Number.isFinite(bounds.height) &&
+    bounds.width > 0 &&
+    bounds.height > 0
   );
 }

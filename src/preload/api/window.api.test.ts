@@ -55,4 +55,16 @@ describe("windowApi", () => {
       1.2,
     );
   });
+
+  it("proxies window movement with fixed drag-start bounds", async () => {
+    const { ipcRenderer } = await import("electron");
+    const { windowApi } = await import("./window.api");
+    const bounds = { x: 120, y: 230, width: 900, height: 670 };
+
+    await windowApi.getWindowBounds();
+    windowApi.moveWindow(bounds);
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith("window:get-bounds");
+    expect(ipcRenderer.send).toHaveBeenCalledWith("window:move", bounds);
+  });
 });

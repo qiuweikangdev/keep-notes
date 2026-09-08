@@ -32,7 +32,11 @@ import {
   MAC_TITLE_BAR_HEIGHT,
   MAC_TRAFFIC_LIGHT_PLACEHOLDER_WIDTH,
 } from "@shared/title-bar";
-import type { ExternalOpenApp, ExternalOpenAppId } from "@shared/types";
+import type {
+  ExternalOpenApp,
+  ExternalOpenAppId,
+  WindowBounds,
+} from "@shared/types";
 
 interface TitleBarProps {
   collapsed: boolean;
@@ -83,25 +87,29 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
     let pendingDrag = false;
     let startMouseX = 0;
     let startMouseY = 0;
-    let startWinX = 0;
-    let startWinY = 0;
+    let startBounds: WindowBounds | null = null;
+    let dragRequestId = 0;
 
     const onMouseDown = (e: MouseEvent) => {
       if (e.button !== 0) return;
       const target = e.target as HTMLElement;
       if (target.closest("button")) return;
-      pendingDrag = true;
+      const requestId = ++dragRequestId;
+      pendingDrag = false;
       dragging = false;
+      startBounds = null;
       startMouseX = e.screenX;
       startMouseY = e.screenY;
-      window.electronAPI.getWindowPosition().then(([wx, wy]) => {
-        startWinX = wx;
-        startWinY = wy;
+      void window.electronAPI.getWindowBounds().then((bounds) => {
+        // 鼠标已松开或开始了新一轮拖动时，丢弃迟到的 IPC 结果。
+        if (requestId !== dragRequestId) return;
+        startBounds = bounds;
+        pendingDrag = true;
       });
     };
 
     const onMouseMove = (e: MouseEvent) => {
-      if (!pendingDrag) return;
+      if (!pendingDrag || !startBounds) return;
       const dx = e.screenX - startMouseX;
       const dy = e.screenY - startMouseY;
       if (!dragging) {
@@ -109,12 +117,19 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
           return;
         dragging = true;
       }
-      window.electronAPI.setWindowPosition(startWinX + dx, startWinY + dy);
+      window.electronAPI.moveWindow({
+        x: startBounds.x + dx,
+        y: startBounds.y + dy,
+        width: startBounds.width,
+        height: startBounds.height,
+      });
     };
 
     const onMouseUp = () => {
+      dragRequestId += 1;
       pendingDrag = false;
       dragging = false;
+      startBounds = null;
     };
 
     el.addEventListener("mousedown", onMouseDown);

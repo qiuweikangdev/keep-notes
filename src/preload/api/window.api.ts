@@ -1,6 +1,6 @@
 import { ipcRenderer } from "electron";
 import { IPC_CHANNELS } from "../../shared/constants";
-import type { WindowOpenTarget } from "../../shared/types";
+import type { WindowBounds, WindowOpenTarget } from "../../shared/types";
 
 const windowOpenTargetListeners = new Set<(target: WindowOpenTarget) => void>();
 let pendingWindowOpenTarget: WindowOpenTarget | null = null;
@@ -26,14 +26,14 @@ export const windowApi = {
     ipcRenderer.send(IPC_CHANNELS.WINDOW.CLOSE);
   },
 
-  // 获取窗口位置
-  getWindowPosition: (): Promise<[number, number]> => {
-    return ipcRenderer.invoke(IPC_CHANNELS.WINDOW.GET_POSITION);
+  // 获取窗口边界，拖动期间以初始宽高抵消 Windows 高 DPI 下的尺寸漂移。
+  getWindowBounds: (): Promise<WindowBounds> => {
+    return ipcRenderer.invoke(IPC_CHANNELS.WINDOW.GET_BOUNDS);
   },
 
-  // 设置窗口位置
-  setWindowPosition: (x: number, y: number): void => {
-    ipcRenderer.send(IPC_CHANNELS.WINDOW.SET_POSITION, x, y);
+  // 移动窗口
+  moveWindow: (bounds: WindowBounds): void => {
+    ipcRenderer.send(IPC_CHANNELS.WINDOW.MOVE, bounds);
   },
 
   // 判断窗口是否最大化

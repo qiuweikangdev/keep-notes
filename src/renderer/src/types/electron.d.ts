@@ -32,6 +32,7 @@ import type {
   WorkspaceChangeBatch,
   ThemeName,
   UntitledCloseAction,
+  WindowBounds,
 } from "@shared/types";
 
 export interface ElectronAPI {
@@ -46,10 +47,10 @@ export interface ElectronAPI {
   minimizeWindow: () => void;
   maximizeWindow: () => void;
   closeWindow: () => void;
-  // 获取窗口位置（用于 JS 拖拽）
-  getWindowPosition: () => Promise<[number, number]>;
-  // 设置窗口位置（用于 JS 拖拽）
-  setWindowPosition: (x: number, y: number) => void;
+  // 获取窗口边界（用于 JS 拖拽）
+  getWindowBounds: () => Promise<WindowBounds>;
+  // 移动窗口
+  moveWindow: (bounds: WindowBounds) => void;
   // 判断窗口是否最大化
   isWindowMaximized: () => Promise<boolean>;
   getZoomFactor: () => Promise<number>;

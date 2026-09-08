@@ -12,6 +12,13 @@ export enum CodeResult {
   Success = 1,
 }
 
+export interface WindowBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export type UntitledCloseAction = "save" | "discard" | "cancel";
 
 export interface TreeNode {
