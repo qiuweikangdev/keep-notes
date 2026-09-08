@@ -1,3 +1,45 @@
+# [2.23.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.22.8...v2.23.0) (2026-09-08)
+
+
+### Bug Fixes
+
+* avoid macOS settings sidebar overlap ([286a3ee](https://github.com/qiuweikangdev/keep-notes/commit/286a3ee7c65c169c2d62c0415c65ca3a523a1488))
+* enforce complete TypeScript checks before building ([46bb9a1](https://github.com/qiuweikangdev/keep-notes/commit/46bb9a164263818cc505f5ff552125f874fb9c9e))
+* fix outline selection and colors ([9493eff](https://github.com/qiuweikangdev/keep-notes/commit/9493efff029a810f91aa33ee195982c9eb187bf4))
+* keep floating editor menus from losing focus ([6d1009e](https://github.com/qiuweikangdev/keep-notes/commit/6d1009e2e2ac8b3eb8b6dc4dd1126a95dce3e6ac))
+* keep main window hidden when closing floating editor ([15ca613](https://github.com/qiuweikangdev/keep-notes/commit/15ca613f2cdd5647271a58146432dfa923ee3deb))
+* keep typing outside the inline code closing caret ([4b47b35](https://github.com/qiuweikangdev/keep-notes/commit/4b47b35e77d2b32f4248794b3a1cdda246815a53))
+* make editor tabs accessible from the keyboard ([ccb2933](https://github.com/qiuweikangdev/keep-notes/commit/ccb2933add5cb363380fe99dfe4c2dd0b953d585))
+* migrate floating editor sources during file moves ([b947789](https://github.com/qiuweikangdev/keep-notes/commit/b947789f2ad25451e284c2238fa9c7391e576621))
+* normalize legacy notification config ([046bbcb](https://github.com/qiuweikangdev/keep-notes/commit/046bbcb774f726e3b57d702460bb5a711989d196))
+* persist Markdown table column alignment changes ([50d5778](https://github.com/qiuweikangdev/keep-notes/commit/50d5778c78a449d47b1191b2de6786d3711ec144))
+* preserve floating draft protection across mode switches ([7f13670](https://github.com/qiuweikangdev/keep-notes/commit/7f136702b49b568ac512ed49c83020594b35ad2d))
+* preserve paragraph structure through Markdown round trips ([fb85af6](https://github.com/qiuweikangdev/keep-notes/commit/fb85af644dbe0dc88f2e69dbda7388f7c152da9a))
+* preserve selected Markdown when indenting source ([0017098](https://github.com/qiuweikangdev/keep-notes/commit/00170983c5235e46e252b89d61ee86ec0d9c9478))
+* prevent file tree flicker during search reveal ([8cf8ab5](https://github.com/qiuweikangdev/keep-notes/commit/8cf8ab5485b57cba3896d4a7c7e9415f95053971))
+* restore sidebar collapse transitions ([27ff03f](https://github.com/qiuweikangdev/keep-notes/commit/27ff03fcdf8361a6927f8cd9d96ac66c166659d8))
+* retain and retry failed floating editor saves ([3d1cf37](https://github.com/qiuweikangdev/keep-notes/commit/3d1cf37b85165285b428818b0c73013b01beae50))
+* retain literal backticks when loading rich text ([0e1be86](https://github.com/qiuweikangdev/keep-notes/commit/0e1be869be2c5a3001e3c60b7c4e3632f9be819e))
+* retain ordered list starts and nested continuation blocks ([e88516b](https://github.com/qiuweikangdev/keep-notes/commit/e88516b404f416fc43d506122d5f3fac88623ee2))
+* smooth sidebar collapse animations ([9b2efc7](https://github.com/qiuweikangdev/keep-notes/commit/9b2efc729c7c2f7bc155f5e6a5a9db9e14664fb5))
+* stop file renames when pending editor saves fail ([a2f7f35](https://github.com/qiuweikangdev/keep-notes/commit/a2f7f3587e6e7dcd1b24453786974743fd69c9b8))
+* streamline tab and settings headers ([32b064d](https://github.com/qiuweikangdev/keep-notes/commit/32b064de11f260afb8b099bd29e0e33abcd720a3))
+* synchronize file tree rows before reveal paint ([f3f8506](https://github.com/qiuweikangdev/keep-notes/commit/f3f85062efdcee21c49063a40a1b8ff22f244ad6))
+* use native untitled close confirmation ([2ca9151](https://github.com/qiuweikangdev/keep-notes/commit/2ca91512d9ed38e01f0116a91229261a72df2bff))
+* use reliable untitled close confirmation on Windows ([46dbac3](https://github.com/qiuweikangdev/keep-notes/commit/46dbac30dcbc141184a548385015a8166092f2ad))
+
+
+### Features
+
+* add Feishu notification push settings ([00c1003](https://github.com/qiuweikangdev/keep-notes/commit/00c1003ccf5359a21206bd7c846392be2ba0b21f))
+* move settings to a route page and scope opacity to workspace ([35a14a7](https://github.com/qiuweikangdev/keep-notes/commit/35a14a724361aab3758943baab16e27fb3256a02))
+
+
+## Commit Summary
+
+- Compared with: v2.22.8
+- Total commits: 27
+
 ## [2.22.8](https://github.com/qiuweikangdev/keep-notes/compare/v2.22.7...v2.22.8) (2026-09-04)
 
 
