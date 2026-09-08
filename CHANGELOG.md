@@ -1,3 +1,16 @@
+## [2.23.1](https://github.com/qiuweikangdev/keep-notes/compare/v2.23.0...v2.23.1) (2026-09-08)
+
+
+### Bug Fixes
+
+* prevent window growth while dragging on high DPI Windows ([4e09e7c](https://github.com/qiuweikangdev/keep-notes/commit/4e09e7cd5b6a1e3037ce751af073c79ab8778b79))
+
+
+## Commit Summary
+
+- Compared with: v2.23.0
+- Total commits: 1
+
 # [2.23.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.22.8...v2.23.0) (2026-09-08)
 
 
