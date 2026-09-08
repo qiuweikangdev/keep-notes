@@ -32,16 +32,18 @@ export function SidebarToggleIcon({ collapsed }: SidebarToggleIconProps) {
         stroke="currentColor"
         strokeWidth="1.2"
       />
-      {!collapsed && (
-        <line
-          x1="8"
-          y1="6"
-          x2="8"
-          y2="10"
-          stroke="currentColor"
-          strokeWidth="1.2"
-        />
-      )}
+      <line
+        className={cn(
+          "sidebar-toggle-icon__divider",
+          collapsed && "sidebar-toggle-icon__divider--collapsed",
+        )}
+        x1="8"
+        y1="6"
+        x2="8"
+        y2="10"
+        stroke="currentColor"
+        strokeWidth="1.2"
+      />
     </svg>
   );
 }

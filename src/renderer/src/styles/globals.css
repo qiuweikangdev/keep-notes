@@ -24,6 +24,8 @@
   --file-tree-disclosure-icon: var(--text-muted);
   --file-tree-folder-icon: var(--text-secondary);
   --file-tree-file-icon: var(--text-muted);
+  --sidebar-motion-duration: 280ms;
+  --sidebar-motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --command-palette-hover-bg: var(--selection-row-hover);
   --command-palette-active-bg: var(--selection-row-selected);
   --font-ui:
@@ -1390,15 +1392,53 @@ select {
   animation: file-tree-row-enter 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* 主界面面板通过 flex-grow 过渡同步展开，避免文件树收起时内容瞬移。 */
+.workspace-panel {
+  transition: flex-grow var(--sidebar-motion-duration)
+    var(--sidebar-motion-ease);
+}
+
+.workspace-panel-group--resizing .workspace-panel {
+  transition: none;
+}
+
+.file-tree-sidebar {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.file-tree-sidebar__content {
+  min-width: 0;
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  transition:
+    opacity 160ms ease,
+    transform 240ms var(--sidebar-motion-ease);
+}
+
+.file-tree-sidebar[data-collapsed="true"] .file-tree-sidebar__content {
+  opacity: 0;
+  transform: translate3d(-12px, 0, 0);
+}
+
 /* 设置页侧栏完整收起到 0，按钮固定在左上角，收起后仍可展开。 */
 .settings-sidebar {
   width: 240px;
   min-width: 0;
   overflow: hidden;
   transition:
-    width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    width var(--sidebar-motion-duration) var(--sidebar-motion-ease),
     background-color 160ms ease,
     border-right-color 160ms ease;
+}
+
+.sidebar-toggle-icon__divider {
+  opacity: 1;
+  transition: opacity 140ms ease;
+}
+
+.sidebar-toggle-icon__divider--collapsed {
+  opacity: 0;
 }
 
 .settings-sidebar__drag-region,
@@ -1407,8 +1447,8 @@ select {
 .settings-sidebar__nav-item,
 .settings-sidebar__back {
   transition:
-    padding 220ms cubic-bezier(0.22, 1, 0.36, 1),
-    gap 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    padding-inline var(--sidebar-motion-duration) var(--sidebar-motion-ease),
+    gap var(--sidebar-motion-duration) var(--sidebar-motion-ease),
     background-color 120ms ease;
 }
 
@@ -1418,11 +1458,12 @@ select {
   transition:
     color 120ms ease,
     background-color 120ms ease,
-    transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    transform 220ms var(--sidebar-motion-ease);
 }
 
 .settings-content-header {
-  transition: padding-left 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: padding-left var(--sidebar-motion-duration)
+    var(--sidebar-motion-ease);
 }
 
 .settings-sidebar__back-label,
@@ -1434,9 +1475,10 @@ select {
   opacity: 1;
   transform: translateX(0);
   transition:
-    max-width 180ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 120ms ease,
-    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+    max-width 220ms var(--sidebar-motion-ease),
+    opacity 140ms ease,
+    transform 220ms var(--sidebar-motion-ease);
+  transition-delay: 70ms, 0ms, 0ms;
 }
 
 .settings-sidebar--collapsed {
@@ -1472,6 +1514,7 @@ select {
   max-width: 0;
   opacity: 0;
   transform: translateX(-8px);
+  transition-delay: 0ms, 0ms, 0ms;
 }
 
 @media (max-width: 639px) {
@@ -1493,6 +1536,11 @@ select {
     animation: none;
   }
 
+  .workspace-panel,
+  .file-tree-sidebar__content {
+    transition: none;
+  }
+
   .settings-sidebar,
   .settings-sidebar__drag-region,
   .settings-sidebar__back-container,
@@ -1501,6 +1549,7 @@ select {
   .settings-sidebar__back,
   .settings-sidebar__toggle,
   .settings-content-header,
+  .sidebar-toggle-icon__divider,
   .settings-sidebar__back-label,
   .settings-sidebar__section-label,
   .settings-sidebar__nav-label {

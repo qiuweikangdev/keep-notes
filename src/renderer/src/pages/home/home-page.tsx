@@ -39,6 +39,7 @@ import {
   type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
+import { cn } from "@/lib/cn";
 
 export function HomePage() {
   return <HomePageContent />;
@@ -229,13 +230,17 @@ function HomePageContent() {
       <TitleBar collapsed={collapsed} onToggleCollapse={toggleCollapse} />
 
       <div
-        className="flex-1 overflow-hidden"
+        className={cn(
+          "workspace-panel-group flex-1 overflow-hidden",
+          isSidebarResizing && "workspace-panel-group--resizing",
+        )}
         // 文件树和正文统一应用透明度，设置页与标题栏保持不透明。
         style={{ opacity: workspaceOpacity / 100 }}
       >
         <PanelGroup direction="horizontal" onLayout={handleLayout}>
           <Panel
             ref={panelRef}
+            className="workspace-panel workspace-sidebar-panel"
             id="sidebar"
             defaultSize={panelSize}
             minSize={15}
@@ -244,7 +249,7 @@ function HomePageContent() {
             onCollapse={handleCollapse}
             onExpand={handleExpand}
           >
-            <Sidebar />
+            <Sidebar collapsed={collapsed} />
           </Panel>
           <PanelResizeHandle
             className="group/resize"
@@ -265,7 +270,10 @@ function HomePageContent() {
             ) : null}
           </PanelResizeHandle>
 
-          <Panel minSize={30}>
+          <Panel
+            className="workspace-panel workspace-editor-panel"
+            minSize={30}
+          >
             <div
               className="h-full overflow-hidden"
               style={{
@@ -288,7 +296,12 @@ function HomePageContent() {
                 }}
                 hitAreaMargins={{ coarse: 30, fine: 20 }}
               />
-              <Panel defaultSize={28} minSize={18} maxSize={50}>
+              <Panel
+                className="workspace-panel workspace-diff-panel"
+                defaultSize={28}
+                minSize={18}
+                maxSize={50}
+              >
                 <DiffPanel />
               </Panel>
             </>
