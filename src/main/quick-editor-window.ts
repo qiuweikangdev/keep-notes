@@ -504,7 +504,7 @@ export function createQuickEditorWindow(
     movable: true,
     alwaysOnTop: true,
     skipTaskbar: true,
-    hasShadow: process.platform !== "darwin",
+    hasShadow: true,
     title: "快速编辑",
     ...(process.platform !== "darwin" ? { icon } : {}),
     webPreferences: {
