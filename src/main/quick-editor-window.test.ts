@@ -22,6 +22,8 @@ const windowMocks = vi.hoisted(() => ({
   getMainWindow: vi.fn(),
   mainWindow: {
     isDestroyed: vi.fn(() => false),
+    on: vi.fn(),
+    removeListener: vi.fn(),
     webContents: {
       send: vi.fn(),
     },
@@ -60,6 +62,7 @@ const electronMocks = vi.hoisted(() => {
     });
     readonly setMinimumSize = vi.fn();
     readonly setAlwaysOnTop = vi.fn();
+    readonly moveTop = vi.fn();
     readonly show = vi.fn();
     readonly focus = vi.fn();
     readonly close = vi.fn(() => {
@@ -189,6 +192,11 @@ describe("quick editor floating window", () => {
       skipTaskbar: false,
       hasShadow: true,
     });
+    expect(win.setAlwaysOnTop).toHaveBeenCalledWith(
+      true,
+      process.platform === "win32" ? "pop-up-menu" : "floating",
+    );
+    expect(win.moveTop).toHaveBeenCalledTimes(2);
     expect(win.loadFile).toHaveBeenCalledWith(
       expect.stringMatching(/renderer[\\/]index\.html$/),
       { query: { window: "quick-editor" } },
@@ -402,6 +410,8 @@ describe("quick editor floating window", () => {
   it("returns a floating editor to the main window that created it", () => {
     const otherMainWindow = {
       isDestroyed: vi.fn(() => false),
+      on: vi.fn(),
+      removeListener: vi.fn(),
       webContents: { send: vi.fn() },
     } as unknown as Electron.BrowserWindow;
     const owner = windowMocks.mainWindow as unknown as Electron.BrowserWindow;
@@ -431,6 +441,8 @@ describe("quick editor floating window", () => {
   it("keeps live updates isolated between main-window owners", () => {
     const otherMainWindow = {
       isDestroyed: vi.fn(() => false),
+      on: vi.fn(),
+      removeListener: vi.fn(),
       webContents: { send: vi.fn() },
     } as unknown as Electron.BrowserWindow;
     const owner = windowMocks.mainWindow as unknown as Electron.BrowserWindow;

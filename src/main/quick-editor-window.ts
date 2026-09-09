@@ -24,6 +24,8 @@ const QUICK_EDITOR_EXPAND_RESIZE_THRESHOLD = 100;
 const QUICK_EDITOR_COLLAPSE_DURATION = 160;
 const QUICK_EDITOR_COLLAPSE_FRAME_INTERVAL = 16;
 const MAX_GLOBAL_SHORTCUTS = 4;
+const QUICK_EDITOR_ALWAYS_ON_TOP_LEVEL =
+  process.platform === "win32" ? "pop-up-menu" : "floating";
 
 interface QuickEditorCollapseState {
   cancelAnimation: (() => void) | null;
@@ -370,9 +372,17 @@ function getQuickEditorWindowBounds(
 function revealQuickEditorWindow(win: BrowserWindow): void {
   if (win.isDestroyed()) return;
 
-  win.setAlwaysOnTop(true, "floating");
   win.show();
   win.focus();
+  restoreQuickEditorWindowZOrder(win);
+}
+
+function restoreQuickEditorWindowZOrder(win: BrowserWindow): void {
+  if (win.isDestroyed()) return;
+
+  // 截图工具等系统窗口结束后可能重新排列应用内窗口；只调整层级，不抢回焦点。
+  win.setAlwaysOnTop(true, QUICK_EDITOR_ALWAYS_ON_TOP_LEVEL);
+  win.moveTop();
 }
 
 function loadQuickEditorWindow(win: BrowserWindow): void {
@@ -516,7 +526,11 @@ export function createQuickEditorWindow(
   });
 
   quickEditorWindows.add(win);
-  if (mainWindow) quickEditorWindowOwners.set(win, mainWindow);
+  const restoreOnMainWindowFocus = () => restoreQuickEditorWindowZOrder(win);
+  if (mainWindow) {
+    quickEditorWindowOwners.set(win, mainWindow);
+    mainWindow.on("focus", restoreOnMainWindowFocus);
+  }
   const collapseState = createQuickEditorCollapseState(bounds.height);
   quickEditorCollapseStates.set(win, collapseState);
   if (initialContent?.source) {
@@ -622,6 +636,9 @@ export function createQuickEditorWindow(
   });
 
   win.once("closed", () => {
+    if (mainWindow) {
+      mainWindow.removeListener("focus", restoreOnMainWindowFocus);
+    }
     const shouldKeepMainWindowHidden =
       closeWithoutReturningWindows.has(win) && !returningToMainWindows.has(win);
     quickEditorWindows.delete(win);
