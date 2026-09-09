@@ -186,7 +186,7 @@ describe("quick editor floating window", () => {
       frame: false,
       transparent: true,
       alwaysOnTop: true,
-      skipTaskbar: true,
+      skipTaskbar: false,
       hasShadow: true,
     });
     expect(win.loadFile).toHaveBeenCalledWith(

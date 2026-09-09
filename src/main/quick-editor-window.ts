@@ -503,7 +503,7 @@ export function createQuickEditorWindow(
     resizable: true,
     movable: true,
     alwaysOnTop: true,
-    skipTaskbar: true,
+    skipTaskbar: false,
     hasShadow: true,
     title: "快速编辑",
     ...(process.platform !== "darwin" ? { icon } : {}),
