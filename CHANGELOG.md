@@ -1,3 +1,19 @@
+## [2.23.2](https://github.com/qiuweikangdev/keep-notes/compare/v2.23.1...v2.23.2) (2026-09-09)
+
+
+### Bug Fixes
+
+* add shadow to floating editor window ([31ee139](https://github.com/qiuweikangdev/keep-notes/commit/31ee139ba899a325e25079bbc1924bf9111cef34))
+* keep main window open when closing floating editor ([05cf133](https://github.com/qiuweikangdev/keep-notes/commit/05cf133581d78693d6458eba08e8970fac0590bc))
+* preserve floating editor z-order ([060ca95](https://github.com/qiuweikangdev/keep-notes/commit/060ca9534655e02e37dc52764a522f314546f21e))
+* show floating editor in taskbar ([9b372bd](https://github.com/qiuweikangdev/keep-notes/commit/9b372bd46632bac183a5e7bd817eeb1985214b5a))
+
+
+## Commit Summary
+
+- Compared with: v2.23.1
+- Total commits: 4
+
 ## [2.23.1](https://github.com/qiuweikangdev/keep-notes/compare/v2.23.0...v2.23.1) (2026-09-08)
 
 
