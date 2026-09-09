@@ -42,6 +42,7 @@ let registeredShortcutKeys: string[] = [];
 const closingQuickEditorWindows = new Set<BrowserWindow>();
 const closeWithoutReturningWindows = new Set<BrowserWindow>();
 const returningToMainWindows = new Set<BrowserWindow>();
+const quickEditorMainWindowWasHidden = new Map<BrowserWindow, boolean>();
 const pendingQuickEditorContents: Array<{
   mainWindow: BrowserWindow;
   content: QuickEditorWindowContent;
@@ -529,6 +530,8 @@ export function createQuickEditorWindow(
   const restoreOnMainWindowFocus = () => restoreQuickEditorWindowZOrder(win);
   if (mainWindow) {
     quickEditorWindowOwners.set(win, mainWindow);
+    // 只有浮窗打开前主窗口本来就隐藏时，关闭浮窗才继续保持应用隐藏。
+    quickEditorMainWindowWasHidden.set(win, !mainWindow.isVisible());
     mainWindow.on("focus", restoreOnMainWindowFocus);
   }
   const collapseState = createQuickEditorCollapseState(bounds.height);
@@ -640,10 +643,13 @@ export function createQuickEditorWindow(
       mainWindow.removeListener("focus", restoreOnMainWindowFocus);
     }
     const shouldKeepMainWindowHidden =
-      closeWithoutReturningWindows.has(win) && !returningToMainWindows.has(win);
+      closeWithoutReturningWindows.has(win) &&
+      !returningToMainWindows.has(win) &&
+      quickEditorMainWindowWasHidden.get(win) === true;
     quickEditorWindows.delete(win);
     quickEditorWindowOwners.delete(win);
     quickEditorWindowSources.delete(win);
+    quickEditorMainWindowWasHidden.delete(win);
     closingQuickEditorWindows.delete(win);
     closeWithoutReturningWindows.delete(win);
     returningToMainWindows.delete(win);
@@ -960,6 +966,7 @@ export function destroyQuickEditorWindow(): void {
   quickEditorWindows.clear();
   quickEditorWindowOwners.clear();
   quickEditorWindowSources.clear();
+  quickEditorMainWindowWasHidden.clear();
   closingQuickEditorWindows.clear();
   closeWithoutReturningWindows.clear();
   returningToMainWindows.clear();

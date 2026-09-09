@@ -1,3 +1,4 @@
+import { app } from "electron";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { moveFilePath } from "./file-path-move";
 import { IPC_CHANNELS } from "../shared/constants";
@@ -22,6 +23,7 @@ const windowMocks = vi.hoisted(() => ({
   getMainWindow: vi.fn(),
   mainWindow: {
     isDestroyed: vi.fn(() => false),
+    isVisible: vi.fn(() => true),
     on: vi.fn(),
     removeListener: vi.fn(),
     webContents: {
@@ -410,6 +412,7 @@ describe("quick editor floating window", () => {
   it("returns a floating editor to the main window that created it", () => {
     const otherMainWindow = {
       isDestroyed: vi.fn(() => false),
+      isVisible: vi.fn(() => true),
       on: vi.fn(),
       removeListener: vi.fn(),
       webContents: { send: vi.fn() },
@@ -441,6 +444,7 @@ describe("quick editor floating window", () => {
   it("keeps live updates isolated between main-window owners", () => {
     const otherMainWindow = {
       isDestroyed: vi.fn(() => false),
+      isVisible: vi.fn(() => true),
       on: vi.fn(),
       removeListener: vi.fn(),
       webContents: { send: vi.fn() },
@@ -576,6 +580,25 @@ describe("quick editor floating window", () => {
         expect.any(Function),
       );
     });
+  });
+
+  it("does not hide the main application when closing a visible floating editor", async () => {
+    const win = showQuickEditorWindow();
+
+    win.close();
+
+    await vi.waitFor(() => expect(win.destroy).toHaveBeenCalledOnce());
+    expect(app.hide).not.toHaveBeenCalled();
+  });
+
+  it("keeps the application hidden when the main window was hidden first", async () => {
+    windowMocks.mainWindow.isVisible.mockReturnValue(false);
+    const win = showQuickEditorWindow();
+
+    win.close();
+
+    await vi.waitFor(() => expect(win.destroy).toHaveBeenCalledOnce());
+    expect(app.hide).toHaveBeenCalledOnce();
   });
 
   it("closes a source-linked editor without showing the unsaved-content prompt", () => {
