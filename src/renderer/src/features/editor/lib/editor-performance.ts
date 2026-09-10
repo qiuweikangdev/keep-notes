@@ -2,6 +2,13 @@ export const EDITOR_PERFORMANCE_OPERATIONS = [
   "editor:split-to-paint",
   "editor:pane-activate",
   "editor:transaction",
+  "editor:preview-transaction",
+  "editor:parse",
+  "editor:replace-blocks",
+  "editor:outline",
+  "editor:serialize",
+  "editor:open-to-paint",
+  "editor:tab-to-paint",
   "editor:preview-frame",
   "editor:resize-frame",
 ] as const;
@@ -162,6 +169,34 @@ function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
   );
 }
 
+export class EditorPerformanceSamples {
+  private readonly samples = new Map<EditorPerformanceOperation, number[]>();
+  record(operation: EditorPerformanceOperation, duration: number): void {
+    if (!Number.isFinite(duration) || duration < 0) return;
+    const values = this.samples.get(operation) ?? [];
+    values.push(duration);
+    if (values.length > 128) values.shift();
+    this.samples.set(operation, values);
+  }
+  read() {
+    return [...this.samples].map(([operation, values]) => {
+      const sorted = values.toSorted((a, b) => a - b);
+      return {
+        operation,
+        count: sorted.length,
+        p50: sorted[Math.ceil(sorted.length * 0.5) - 1],
+        p95: sorted[Math.ceil(sorted.length * 0.95) - 1],
+        max: sorted[sorted.length - 1],
+      };
+    });
+  }
+  clear(): void {
+    this.samples.clear();
+  }
+}
+
+export const editorPerformanceSamples = new EditorPerformanceSamples();
+
 const editorPerformanceSpans = import.meta.env.DEV
   ? new EditorPerformanceSpanRegistry()
   : null;
@@ -194,10 +229,8 @@ export function measureEditorOperation<T>(
     return callback();
   }
 
-  const spanToken = editorPerformanceSpans!.begin(
-    operation,
-    performanceApi.now(),
-  );
+  const startedAt = performanceApi.now();
+  const spanToken = editorPerformanceSpans!.begin(operation, startedAt);
   let finished = false;
   const finish = (record: boolean) => {
     if (finished) return;
@@ -219,7 +252,12 @@ export function measureEditorOperation<T>(
       // 诊断 API 不可用时不得影响编辑器交互。
     } finally {
       editorPerformanceSpans!.finish(spanToken, performanceApi.now());
+      editorPerformanceSamples.record(
+        operation,
+        performanceApi.now() - startedAt,
+      );
       try {
+        performanceApi.clearMeasures?.(operation);
         performanceApi.clearMarks?.(startMark);
         performanceApi.clearMarks?.(endMark);
       } catch {
@@ -281,7 +319,10 @@ export function observeEditorLongTasks(
             ...contextProvider(),
             operation,
           });
-          console.debug("[editor-performance] longtask", context);
+          console.debug("[editor-performance] longtask", {
+            ...context,
+            duration: entry.duration,
+          });
         } catch {
           // Context 提供器只服务于诊断，不允许破坏主线程。
         }
@@ -314,7 +355,7 @@ interface EditorFrameCoordinatorOptions {
 
 interface PendingSplitPaint {
   commitGeneration: number;
-  finish: () => void;
+  finish: (record?: boolean) => void;
   frameHandle: number | null;
   paneId: string | null;
   token: EditorSplitPaintToken;
@@ -350,12 +391,19 @@ export class EditorSplitPaintCoordinator {
     return this.pending.size;
   }
 
-  begin(): EditorSplitPaintToken {
+  begin(
+    operation: EditorPerformanceOperation = "editor:split-to-paint",
+  ): EditorSplitPaintToken {
+    if (this.pending.size >= 64) this.cancel(this.pending.keys().next().value!);
     this.nextToken += 1;
     const token = this.nextToken;
-    let finish!: () => void;
+    let finish!: (record?: boolean) => void;
+    let canceled = false;
     const completion = new Promise<void>((resolve) => {
-      finish = resolve;
+      finish = (record = true) => {
+        canceled ||= !record;
+        resolve();
+      };
     });
     this.pending.set(token, {
       commitGeneration: 0,
@@ -364,7 +412,11 @@ export class EditorSplitPaintCoordinator {
       paneId: null,
       token,
     });
-    void this.measure("editor:split-to-paint", () => completion);
+    void this.measure(
+      operation,
+      () => completion,
+      () => !canceled,
+    );
     return token;
   }
 
@@ -413,6 +465,7 @@ export class EditorSplitPaintCoordinator {
     if (pending.frameHandle !== null) {
       this.cancelFrame(pending.frameHandle);
     }
+    pending.finish(false);
     this.release(pending);
   }
 
@@ -476,4 +529,8 @@ export const editorSplitPaintCoordinator = import.meta.env.DEV
   : undefined;
 export const editorResizeFrameCoordinator = import.meta.env.DEV
   ? new EditorResizeFrameCoordinator()
+  : undefined;
+
+export const editorNavigationPaintCoordinator = import.meta.env.DEV
+  ? new EditorSplitPaintCoordinator()
   : undefined;

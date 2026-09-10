@@ -18,7 +18,11 @@ import {
   flushEditorChange,
   richDocumentSessionManager,
 } from "@/features/editor/lib/editor-runtime";
-import { isLargeEditorDocument } from "@/features/editor/lib/editor-large-document";
+import { editorNavigationPaintCoordinator } from "@/features/editor/lib/editor-performance";
+import {
+  isLargeEditorDocument,
+  scheduleAfterEditorPaint,
+} from "@/features/editor/lib/editor-large-document";
 import { selectFileOpenTabId } from "@/features/editor/lib/editor-tab-opening";
 import { normalizeRichDocumentPath } from "@/features/editor/lib/rich-document-surface-registry";
 import { findNodeByKey } from "@/features/file-tree/utils";
@@ -403,6 +407,15 @@ export function useElectron() {
 
         if (!targetGroup || !activeTab) return;
 
+        const paintToken =
+          import.meta.env.DEV && activeTab.mode === "rich"
+            ? editorNavigationPaintCoordinator!.begin("editor:open-to-paint")
+            : undefined;
+        if (paintToken !== undefined)
+          editorNavigationPaintCoordinator!.bindPane(
+            paintToken,
+            `${targetGroup.id}:${tabId}`,
+          );
         let flushPreviousInBackground: (() => void) | null = null;
 
         // 大富文本保留旧路径运行时，先完成目标切换；其他模式维持原有同步冲刷顺序。
@@ -428,12 +441,12 @@ export function useElectron() {
               release: releaseBackground,
             });
             flushPreviousInBackground = () => {
-              window.setTimeout(() => {
+              scheduleAfterEditorPaint(() => {
                 // 自动保存失败时保留旧会话与待保存身份，关闭窗口或下次重试仍可继续冲刷。
                 void backgroundEditorSaveCoordinator
                   .flush(previousPath)
                   .catch(() => undefined);
-              }, 0);
+              });
             };
           } else {
             await flushEditorChange(targetGroup.id, tabId);
@@ -457,6 +470,8 @@ export function useElectron() {
                 .completeTabLoad(targetGroup!.id, tabId, filePath, content);
             },
             onError: (error) => {
+              if (paintToken !== undefined)
+                editorNavigationPaintCoordinator!.cancel(paintToken);
               const editorState = useEditorStore.getState();
               editorState.failTabLoad(
                 targetGroup!.id,

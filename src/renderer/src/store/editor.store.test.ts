@@ -49,7 +49,7 @@ describe("editor store", () => {
 
     useEditorStore.getState().setFileDragTargetGroupId("group-1");
     const writeCountAfterTargetChange = setItem.mock.calls.length;
-    expect(writeCountAfterTargetChange).toBeGreaterThan(0);
+    expect(writeCountAfterTargetChange).toBe(0);
 
     useEditorStore.getState().setFileDragTargetGroupId("group-1");
     useEditorStore.getState().clearFileDragTargetGroupId("group-2");

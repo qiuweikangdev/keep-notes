@@ -50,7 +50,7 @@ describe("collectChangedTopLevelBlocks", () => {
 
     expect(collectChangedTopLevelBlocks(transaction)).toMatchObject({
       structureChanged: false,
-      order: ["block-a", "block-b"],
+      order: null,
     });
     expect(collectChangedTopLevelBlocks(transaction).changedIds).toEqual(
       new Set(["block-a"]),
@@ -72,7 +72,7 @@ describe("collectChangedTopLevelBlocks", () => {
     expect(collectChangedTopLevelBlocks(addMarkTransaction)).toEqual({
       changedIds: new Set(["block-a", "block-b"]),
       structureChanged: false,
-      order: ["block-a", "block-b"],
+      order: null,
     });
 
     const removeMarkTransaction = captureTransaction(editor, () => {
@@ -88,7 +88,7 @@ describe("collectChangedTopLevelBlocks", () => {
     expect(collectChangedTopLevelBlocks(removeMarkTransaction)).toEqual({
       changedIds: new Set(["block-a", "block-b"]),
       structureChanged: false,
-      order: ["block-a", "block-b"],
+      order: null,
     });
   });
 

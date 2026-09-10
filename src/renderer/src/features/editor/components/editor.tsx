@@ -23,10 +23,12 @@ import {
   isSupportedEditorFilePath,
 } from "../lib/editor-drag-session";
 import { EditorPanelSurfaceRegistry } from "../lib/editor-panel-surface-registry";
-import { richDocumentSessionManager } from "../lib/editor-runtime";
+import { richDocumentSessionManager, editorCache } from "../lib/editor-runtime";
+import type { RichBlockNoteRuntime } from "./blocknote-editor";
 import { RichDocumentSessionHost } from "./rich-document-session-host";
 import {
   editorResizeFrameCoordinator,
+  editorPerformanceSamples,
   observeEditorLongTasks,
 } from "../lib/editor-performance";
 import { normalizeRichDocumentPath } from "../lib/rich-document-surface-registry";
@@ -97,9 +99,51 @@ function EditorDevelopmentDiagnostics() {
     const disconnectLongTasks = observeEditorLongTasks(
       readEditorPerformanceContext,
     );
+    const report = () => {
+      const runtimes = richDocumentSessionManager
+        .getSnapshot()
+        .map(
+          (path) =>
+            richDocumentSessionManager.getRuntime(
+              path,
+            ) as RichBlockNoteRuntime | null,
+        )
+        .filter((runtime) => runtime !== null);
+      const memory = (
+        performance as Performance & {
+          memory?: { usedJSHeapSize: number; totalJSHeapSize: number };
+        }
+      ).memory;
+      // 按需输出计数和耗时，不能把文档路径、正文或 HTML 放入诊断报告。
+      return {
+        timings: editorPerformanceSamples.read(),
+        cache: editorCache.getDiagnostics(),
+        runtimeCount: runtimes.length,
+        dirtyRuntimeCount: runtimes.filter((runtime) => runtime.isDirty())
+          .length,
+        preview: runtimes.map((runtime) =>
+          runtime.previewCache.getDiagnostics(),
+        ),
+        editorDomNodes: document.querySelectorAll(
+          "[data-rich-document-surface] *",
+        ).length,
+        heapUsedBytes: memory?.usedJSHeapSize ?? null,
+        heapTotalBytes: memory?.totalJSHeapSize ?? null,
+      };
+    };
+    const diagnostics = {
+      read: report,
+      reset: () => editorPerformanceSamples.clear(),
+    };
+    const diagnosticWindow = window as Window & {
+      keepNotesEditorPerformance?: typeof diagnostics;
+    };
+    diagnosticWindow.keepNotesEditorPerformance = diagnostics;
     return () => {
       disconnectLongTasks();
       editorResizeFrameCoordinator!.cancel();
+      if (diagnosticWindow.keepNotesEditorPerformance === diagnostics)
+        delete diagnosticWindow.keepNotesEditorPerformance;
     };
   }, []);
   return null;

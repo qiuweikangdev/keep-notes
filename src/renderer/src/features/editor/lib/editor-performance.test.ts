@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   EDITOR_PERFORMANCE_OPERATIONS,
   EditorPerformanceSpanRegistry,
+  EditorPerformanceSamples,
   EditorResizeFrameCoordinator,
   EditorSplitPaintCoordinator,
   createEditorPerformanceContext,
@@ -153,6 +154,13 @@ describe("editor performance diagnostics", () => {
       "editor:split-to-paint",
       "editor:pane-activate",
       "editor:transaction",
+      "editor:preview-transaction",
+      "editor:parse",
+      "editor:replace-blocks",
+      "editor:outline",
+      "editor:serialize",
+      "editor:open-to-paint",
+      "editor:tab-to-paint",
       "editor:preview-frame",
       "editor:resize-frame",
     ]);
@@ -304,6 +312,7 @@ describe("editor performance diagnostics", () => {
       visiblePaneCount: 6,
       mountedPreviewBlockCount: 40,
       operation: "editor:resize-frame",
+      duration: 51,
     });
     expect(JSON.stringify(debug.mock.calls)).not.toMatch(
       /large\.md|private content|<p>|Secret note/,
@@ -417,4 +426,21 @@ describe("editor performance diagnostics", () => {
     expect(instances).toHaveLength(0);
     expect(debug).not.toHaveBeenCalled();
   });
+});
+
+it("bounds diagnostic samples and reports percentiles without document content", () => {
+  const samples = new EditorPerformanceSamples();
+  for (let duration = 1; duration <= 200; duration++)
+    samples.record("editor:tab-to-paint", duration);
+  expect(samples.read()).toEqual([
+    {
+      operation: "editor:tab-to-paint",
+      count: 128,
+      p50: 136,
+      p95: 194,
+      max: 200,
+    },
+  ]);
+  samples.clear();
+  expect(samples.read()).toEqual([]);
 });

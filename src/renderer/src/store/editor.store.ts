@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
+import { createDeduplicatedStorage } from "@/lib/deduplicated-storage";
 import type { ExternalOpenAppId } from "@shared/types";
 
 import {
@@ -1089,41 +1090,38 @@ export const useEditorStore = create<EditorState>()(
         activeHeadingIdByPane: {},
 
         // 大纲操作
-        setOutlineHeadings: (headings) =>
-          set((state) => {
-            // 大文档输入时会频繁重新提取大纲；内容未变时保持状态引用，避免侧栏整列表重渲染。
-            if (areOutlineHeadingsEqual(state.outlineHeadings, headings)) {
-              return state;
-            }
-            return { outlineHeadings: headings };
-          }),
-        setActiveHeadingId: (id) => set({ activeHeadingId: id }),
-        setOutlineHeadingsForPath: (path, headings) =>
-          set((state) => {
-            const normalizedPath = normalizeRichDocumentPath(path);
-            const current = state.outlineHeadingsByPath[normalizedPath] ?? [];
-            if (areOutlineHeadingsEqual(current, headings)) return state;
-            return {
-              outlineHeadingsByPath: {
-                ...state.outlineHeadingsByPath,
-                [normalizedPath]: headings,
-              },
-            };
-          }),
-        setActiveHeadingIdForPane: (paneKey, id) =>
-          set((state) => {
-            if (state.activeHeadingIdByPane[paneKey] === id) return state;
-            return {
-              activeHeadingIdByPane: {
-                ...state.activeHeadingIdByPane,
-                [paneKey]: id,
-              },
-            };
-          }),
+        setOutlineHeadings: (headings) => {
+          if (areOutlineHeadingsEqual(get().outlineHeadings, headings)) return;
+          set({ outlineHeadings: headings });
+        },
+        setActiveHeadingId: (id) => {
+          if (get().activeHeadingId !== id) set({ activeHeadingId: id });
+        },
+        setOutlineHeadingsForPath: (path, headings) => {
+          const normalizedPath = normalizeRichDocumentPath(path);
+          const current = get().outlineHeadingsByPath[normalizedPath] ?? [];
+          if (areOutlineHeadingsEqual(current, headings)) return;
+          set((state) => ({
+            outlineHeadingsByPath: {
+              ...state.outlineHeadingsByPath,
+              [normalizedPath]: headings,
+            },
+          }));
+        },
+        setActiveHeadingIdForPane: (paneKey, id) => {
+          if (get().activeHeadingIdByPane[paneKey] === id) return;
+          set((state) => ({
+            activeHeadingIdByPane: {
+              ...state.activeHeadingIdByPane,
+              [paneKey]: id,
+            },
+          }));
+        },
       };
     },
     {
       name: "editor-storage",
+      storage: createJSONStorage(() => createDeduplicatedStorage(localStorage)),
       partialize: (state) => ({
         appearance: state.appearance,
         recentOpenedFilePaths: state.recentOpenedFilePaths,

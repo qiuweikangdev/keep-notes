@@ -135,6 +135,9 @@ export function EditorToolbar({
         if (!currentTab) return;
       }
       if (mode === "rich") {
+        // 解析错误的显式重试绕过块缓存，普通文件打开仍可复用相同源码。
+        if (currentTab.parseErrorMessage)
+          editorCache.invalidateBlocks(getEditorDocumentPath(currentTab));
         setTabParseError(groupId, currentTab.id, null);
       }
       const canReuseRichDocument =

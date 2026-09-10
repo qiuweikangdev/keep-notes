@@ -41,6 +41,7 @@ import { parseMarkdown } from "../lib/markdown";
 import { RichPreviewCache } from "../lib/rich-preview-cache";
 import {
   BlockNoteEditor,
+  getMarkdownParserCacheVersion,
   createRichEditorSelectionDragGuardPlugin,
   copyMarkupSelectionAsPlainText,
   EditorFormattingToolbar,
@@ -4266,6 +4267,104 @@ describe("BlockNoteEditor persistent session runtime", () => {
     }
   });
 
+  it.each(["resolve", "reject"] as const)(
+    "publishes the latest outline before a large serialization completes (%s)",
+    async (outcome) => {
+      setupMatchMedia();
+      setupDomMeasurements();
+      const path = "C:/notes/outline-save-overlap.md";
+      const source = `# Initial\n\n${"x".repeat(50_000)}`;
+      setupSessionTab(path, { content: source });
+      const session = renderRealSession(path, false, source);
+      try {
+        await waitFor(() => expect(session.runtime.current).not.toBeNull());
+        await waitFor(() =>
+          expect(markdownMocks.serializeMarkdown).toHaveBeenCalled(),
+        );
+        await act(async () => {
+          await markdownMocks.serializeMarkdown.mock.results[0]?.value;
+        });
+        const pending = createDeferred<string>();
+        markdownMocks.serializeMarkdown.mockImplementationOnce(
+          () => pending.promise,
+        );
+        vi.useFakeTimers();
+        const runtime = session.runtime.current!;
+        const listener = vi.fn();
+        const unsubscribe = runtime.subscribeDocument!(listener);
+        const root = session.view.container.querySelector<HTMLElement>(
+          ".editor-rich-scroll",
+        )!;
+        fireEvent.keyDown(root, { key: "a" });
+        act(() => {
+          runtime.editor.updateBlock(runtime.editor.document[0], {
+            content: "Changed",
+          });
+        });
+        const saving = runtime
+          .serializePendingChange()
+          .catch((error: unknown) => error);
+        act(() => {
+          runtime.editor.updateBlock(runtime.editor.document[0], {
+            content: "Latest 中文",
+          });
+        });
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(32);
+        });
+        expect(
+          useEditorStore.getState().outlineHeadingsByPath[path]?.[0].text,
+        ).toBe("Latest 中文");
+        expect(listener).toHaveBeenCalledOnce();
+        expect(session.callbacks.onMarkdownChange).not.toHaveBeenCalled();
+        if (outcome === "resolve") pending.resolve("# Latest 中文\n");
+        else pending.reject(new Error("Save failed"));
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(10);
+          await saving;
+        });
+        unsubscribe();
+      } finally {
+        vi.useRealTimers();
+        session.view.unmount();
+      }
+    },
+  );
+
+  it("reuses parsed blocks across reload generations and does not eagerly export preview HTML", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/reopen-cache.md";
+    setupSessionTab(path);
+    const session = renderRealSession(path);
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      expect(getMarkdownParserCacheVersion(1)).toBe(
+        getMarkdownParserCacheVersion(9),
+      );
+      const runtime = session.runtime.current!;
+      expect(
+        runtime.previewCache.getBlockSnapshot(runtime.editor.document[0].id),
+      ).toBeNull();
+      const parse = vi.spyOn(runtime.editor, "tryParseMarkdownToBlocks");
+      session.view.rerender(
+        createElement(BlockNoteEditor, {
+          content: "# Initial",
+          controller: session.controller,
+          surface: session.surface,
+          reloadKey: 9,
+        }),
+      );
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(parse).not.toHaveBeenCalled();
+      expect(runtime.editor.document[0].type).toBe("heading");
+    } finally {
+      session.view.unmount();
+    }
+  });
+
   it("serializes a large document as soon as its quiet period ends", async () => {
     setupMatchMedia();
     setupDomMeasurements();
@@ -4831,7 +4930,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
     });
     expect(handleTransaction).toHaveBeenCalledTimes(transactionCount + 1);
     expect(editorPerformanceMocks.measure).toHaveBeenCalledWith(
-      "editor:transaction",
+      "editor:preview-transaction",
       expect.any(Function),
     );
 
@@ -6143,10 +6242,12 @@ function surfaceAsAnotherPane(surface: HTMLElement): void {
 
 function createDeferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((nextResolve) => {
+  let reject!: (error: Error) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
     resolve = nextResolve;
+    reject = nextReject;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
 
 const BlockNoteView = BaseBlockNoteView<

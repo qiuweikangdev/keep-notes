@@ -61,3 +61,33 @@ describe("EditorCache", () => {
     expect(cache.hasParsedSource("a.md", "changed")).toBe(false);
   });
 });
+
+it("keeps an explicit reparse pending when an old runtime writes its cached snapshot", () => {
+  const cache = new EditorCache<string>({ maxEntries: 2 });
+  cache.setBlocks("a.md", "source", "old", "v1");
+  cache.invalidateBlocks("a.md");
+  cache.setBlocks("a.md", "source", "old cleanup", "v1");
+  expect(cache.hasParsedSource("a.md", "source")).toBe(false);
+  expect(cache.getBlocks("a.md", "source", "v1")).toBeNull();
+  cache.finishReparse("a.md");
+  cache.setBlocks("a.md", "source", "reparsed", "v1");
+  expect(cache.getBlocks("a.md", "source", "v1")?.blocks).toBe("reparsed");
+});
+
+it("shares cached blocks and explicit invalidation across Windows path separators", () => {
+  const cache = new EditorCache<string>({ maxEntries: 2 });
+  const windowsPath = String.raw`C:\notes\a.md`;
+  const runtimePath = "C:/notes/a.md";
+  cache.setContent(windowsPath, "source");
+  cache.setBlocks(runtimePath, "source", "blocks", "v1");
+  expect(cache.getContent(runtimePath)).toBe("source");
+  expect(cache.getBlocks(windowsPath, "source", "v1")?.blocks).toBe("blocks");
+  expect(cache.getDiagnostics().entries).toBe(1);
+  cache.invalidateBlocks(windowsPath);
+  expect(cache.hasParsedSource(runtimePath, "source")).toBe(false);
+  cache.finishReparse(runtimePath);
+  cache.setBlocks(windowsPath, "source", "reparsed", "v1");
+  expect(cache.getBlocks(runtimePath, "source", "v1")?.blocks).toBe("reparsed");
+  cache.delete(windowsPath);
+  expect(cache.getContent(runtimePath)).toBeNull();
+});

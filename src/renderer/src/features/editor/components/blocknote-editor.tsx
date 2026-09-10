@@ -75,6 +75,10 @@ import type { RichPreviewAnchor } from "../lib/rich-preview-anchor";
 import { RichPreviewCache } from "../lib/rich-preview-cache";
 import { measureEditorOperation } from "../lib/editor-performance";
 import {
+  EditorDocumentIndex,
+  type EditorOutlineSnapshot,
+} from "../lib/editor-document-index";
+import {
   richEditorOwnerRegistry,
   type RichEditorOwnerEntry,
 } from "../lib/rich-editor-owner-registry";
@@ -1503,13 +1507,20 @@ function normalizeNativeSelectionText(value: string): string {
   return value.replace(/\s+/gu, " ").trim();
 }
 
-function getCurrentEditorTextLength(editor: CoreBlockNoteEditor): number {
-  try {
-    // 读取当前 ProseMirror 文档而不是旧 Markdown 快照，确保“空标签页粘贴长文档”也进入大文档降频策略。
-    return editor.prosemirrorView.state.doc.textContent.length;
-  } catch {
-    return 0;
+const documentIndices = new WeakMap<CoreBlockNoteEditor, EditorDocumentIndex>();
+
+function getDocumentIndex(editor: CoreBlockNoteEditor): EditorDocumentIndex {
+  let index = documentIndices.get(editor);
+  if (!index) {
+    index = new EditorDocumentIndex();
+    documentIndices.set(editor, index);
   }
+  index.read(editor.prosemirrorView.state.doc);
+  return index;
+}
+
+function getCurrentEditorTextLength(editor: CoreBlockNoteEditor): number {
+  return getDocumentIndex(editor).textLength;
 }
 
 export function copyMarkupSelectionAsPlainText(
@@ -1633,11 +1644,6 @@ interface OutlineNavigationCursorEditor {
   getBlock: (blockId: string) => unknown;
   focus: () => void;
   setTextCursorPosition: (blockId: string, placement: "start") => void;
-}
-
-interface EditorOutlineSnapshot {
-  headings: Array<{ id: string; text: string; level: number }>;
-  activeHeadingIdByBlockId: ReadonlyMap<string, string | null>;
 }
 
 interface PendingOutlineScrollActivation {
@@ -1784,8 +1790,8 @@ function persistRichPaneScroll(
 
 const MARKDOWN_PARSER_VERSION = "blocknote-v15";
 
-export function getMarkdownParserCacheVersion(reloadKey: number) {
-  return `${MARKDOWN_PARSER_VERSION}:${reloadKey}`;
+export function getMarkdownParserCacheVersion(_reloadKey?: number) {
+  return MARKDOWN_PARSER_VERSION;
 }
 
 export function resolveSerializedMarkdownChange(
@@ -2288,36 +2294,6 @@ function isRichEditorDocumentEndDrag(
   return Boolean(bounds && bounds.height > 0 && event.clientY >= bounds.bottom);
 }
 
-function createEditorOutlineSnapshot(blocks: Block[]): EditorOutlineSnapshot {
-  const headings: EditorOutlineSnapshot["headings"] = [];
-  const activeHeadingIdByBlockId = new Map<string, string | null>();
-  let activeHeadingId: string | null = null;
-
-  const walk = (children: Block[]) => {
-    for (const block of children) {
-      if (block.type === "heading") {
-        activeHeadingId = block.id;
-        const text =
-          (block.content as InlineContent[])
-            ?.map((content) => (content.type === "text" ? content.text : ""))
-            .join("") ?? "";
-        headings.push({
-          id: block.id,
-          text,
-          level: block.props.level ?? 1,
-        });
-      }
-
-      // 滚动时只需按定位块 ID 做 O(1) 查询，不再遍历标题或读取额外布局。
-      activeHeadingIdByBlockId.set(block.id, activeHeadingId);
-      if (block.children?.length) walk(block.children);
-    }
-  };
-
-  walk(blocks);
-  return { activeHeadingIdByBlockId, headings };
-}
-
 function updateActiveEditorOutline(
   editor: CoreBlockNoteEditor,
   controller: RichEditorSessionController,
@@ -2325,7 +2301,9 @@ function updateActiveEditorOutline(
   if (!controller.getActiveBinding()) return;
 
   // 粘贴会同步替换编辑器文档；在粘贴处理器返回前写入大纲，避免等待空闲任务或切换标签页才刷新。
-  const { headings } = createEditorOutlineSnapshot(editor.document);
+  const { headings } = getDocumentIndex(editor).read(
+    editor.prosemirrorView.state.doc,
+  );
   useEditorStore
     .getState()
     .setOutlineHeadingsForPath(controller.path, headings);
@@ -2405,8 +2383,6 @@ function readLiveEditorOutlineBlockId(
   container: HTMLElement,
   root: HTMLElement | null,
 ) {
-  const blocks =
-    root?.querySelectorAll<HTMLElement>(LIVE_EDITOR_BLOCK_SELECTOR) ?? [];
   const ownerDocument = container.ownerDocument;
   if (root && typeof ownerDocument.elementFromPoint === "function") {
     const containerBounds = container.getBoundingClientRect();
@@ -2450,7 +2426,7 @@ function readLiveEditorOutlineBlockId(
 
   return readEditorViewportAnchor(
     container,
-    blocks,
+    root?.querySelectorAll<HTMLElement>(LIVE_EDITOR_BLOCK_SELECTOR) ?? [],
     (block) => block.dataset.id ?? null,
   ).topBlockId;
 }
@@ -3035,6 +3011,7 @@ function MountedBlockNoteEditor({
   const outlineUpdateCancelRef = useRef<(() => void) | null>(null);
   const outlineScrollTokenRef = useRef(0);
   const outlineSnapshotRef = useRef(EMPTY_EDITOR_OUTLINE_SNAPSHOT);
+  const documentListenersRef = useRef(new Set<() => void>());
   const outlineScrollFrameRef = useRef<number | null>(null);
   const pendingOutlineScrollActivationRef =
     useRef<PendingOutlineScrollActivation | null>(null);
@@ -3066,6 +3043,23 @@ function MountedBlockNoteEditor({
   }, [appearance.opacity, surface]);
 
   editorRef.current = editor;
+
+  useLayoutEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const view = editor.prosemirrorView;
+    const originalDispatch = view.dispatch;
+    const measuredDispatch = (transaction: Transaction) =>
+      import.meta.env.DEV
+        ? measureEditorOperation("editor:transaction", () =>
+            originalDispatch.call(view, transaction),
+          )
+        : originalDispatch.call(view, transaction);
+    // 覆盖完整同步事务，而非只计预览的变更分析；卸载时按身份恢复。
+    view.dispatch = measuredDispatch;
+    return () => {
+      if (view.dispatch === measuredDispatch) view.dispatch = originalDispatch;
+    };
+  }, [editor]);
 
   useLayoutEffect(() => {
     // BlockNote 挂载后替换默认的 100 步历史栈，避免长时间编辑时丢弃早期撤销记录。
@@ -3101,7 +3095,9 @@ function MountedBlockNoteEditor({
 
   // 更新大纲标题列表到 store
   const updateOutlineHeadings = useCallback(() => {
-    const snapshot = createEditorOutlineSnapshot(editor.document);
+    const snapshot = measureEditorOperation("editor:outline", () =>
+      getDocumentIndex(editor).read(editor.prosemirrorView.state.doc),
+    );
     outlineSnapshotRef.current = snapshot;
     if (isActiveEditorRef.current) {
       setOutlineHeadingsForPath(controller.path, snapshot.headings);
@@ -3335,11 +3331,12 @@ function MountedBlockNoteEditor({
         previewCacheRef.current = previewCache;
         previewTransactionCleanupRef.current = editor.onBeforeChange(
           ({ tr }) => {
+            getDocumentIndex(editor).apply(tr);
             if (!import.meta.env.DEV) {
               previewCache?.handleTransaction(tr);
               return;
             }
-            measureEditorOperation("editor:transaction", () =>
+            measureEditorOperation("editor:preview-transaction", () =>
               previewCache?.handleTransaction(tr),
             );
           },
@@ -3359,6 +3356,13 @@ function MountedBlockNoteEditor({
         surface,
         editor,
         previewCache,
+        subscribeDocument: (listener) => {
+          documentListenersRef.current.add(listener);
+          return () => {
+            documentListenersRef.current.delete(listener);
+          };
+        },
+        getDocumentRevision: () => getDocumentIndex(editor).revision,
         captureVisualSnapshot: () => {
           if (
             pendingViewportRestoreRef.current &&
@@ -3394,6 +3398,7 @@ function MountedBlockNoteEditor({
           previewTransactionCleanupRef.current?.();
           previewTransactionCleanupRef.current = null;
           previewCache.destroy();
+          documentListenersRef.current.clear();
           if (previewCacheRef.current === previewCache) {
             previewCacheRef.current = null;
           }
@@ -3549,7 +3554,10 @@ function MountedBlockNoteEditor({
         }
         // 同一次序列化和缓存必须使用同一棵不可变块快照；输入可能在异步导出期间继续更新。
         const serializedBlocks = editor.document;
-        const serialized = await serializeMarkdown(editor, serializedBlocks);
+        const serialized = await measureEditorOperation(
+          "editor:serialize",
+          () => serializeMarkdown(editor, serializedBlocks),
+        );
         if (!isCurrentLifecycle()) return;
         const baseline = serializedBaselineRef.current;
         if (baseline === null) {
@@ -3662,6 +3670,22 @@ function MountedBlockNoteEditor({
   serializeChangeRef.current = serializeChange;
 
   useEditorChange(() => {
+    // 大纲与查找按帧消费实时文档，不能被保存锁或连续输入的防抖饿死。
+    getDocumentIndex(editor);
+    if (!outlineUpdateCancelRef.current) {
+      const generation = lifecycleGenerationRef.current;
+      const frame = requestAnimationFrame(() => {
+        outlineUpdateCancelRef.current = null;
+        if (
+          !lifecycleActiveRef.current ||
+          generation !== lifecycleGenerationRef.current
+        )
+          return;
+        updateOutlineHeadings();
+        for (const listener of documentListenersRef.current) listener();
+      });
+      outlineUpdateCancelRef.current = () => cancelAnimationFrame(frame);
+    }
     if (changeGateRef.current.capturePendingRevision() === null) return;
     // 文档事务发生时立即登记脏状态，关闭保护不能等待 Markdown 序列化完成。
     controllerRef.current.onDocumentChange();
@@ -3684,24 +3708,6 @@ function MountedBlockNoteEditor({
         void serializeChange().catch(() => undefined);
       },
       idleTimeout,
-      getEditorSerializationQuietPeriodForLength(docLength),
-    );
-
-    // 大纲提取同样会遍历整棵文档树，大文档下延后执行，避免抢占点击反馈。
-    if (outlineUpdateCancelRef.current) {
-      outlineUpdateCancelRef.current();
-    }
-    const outlineIdleTimeout =
-      docLength > 20000 ? 12000 : docLength > 12000 ? 7000 : 1500;
-    outlineUpdateCancelRef.current = scheduleEditorIdleTask(
-      () => {
-        outlineUpdateCancelRef.current = null;
-        if (!isActiveEditorRef.current) return;
-        if (serializationInFlightRef.current) return;
-
-        updateOutlineHeadings();
-      },
-      outlineIdleTimeout,
       getEditorSerializationQuietPeriodForLength(docLength),
     );
   }, editor);
@@ -3735,7 +3741,10 @@ function MountedBlockNoteEditor({
           ? editorCache.getBlocks(path, source, parserCacheVersion)
           : null;
         const parsedBlocks =
-          cached?.blocks ?? (await parseMarkdown(editor, source || ""));
+          cached?.blocks ??
+          (await measureEditorOperation("editor:parse", () =>
+            parseMarkdown(editor, source || ""),
+          ));
         const blocks = ensureEditableBlocks<PartialBlock>(parsedBlocks, () => {
           return { type: "paragraph", content: [] };
         });
@@ -3748,10 +3757,14 @@ function MountedBlockNoteEditor({
         window.getSelection()?.removeAllRanges();
         if (currentPath === null) {
           runWithoutRichTextUndoHistory(editor, () =>
-            editor.replaceBlocks(editor.document, blocks),
+            measureEditorOperation("editor:replace-blocks", () =>
+              editor.replaceBlocks(editor.document, blocks),
+            ),
           );
         } else {
-          editor.replaceBlocks(editor.document, blocks);
+          measureEditorOperation("editor:replace-blocks", () =>
+            editor.replaceBlocks(editor.document, blocks),
+          );
         }
         normalizeInlineCodeMarkers(editor);
         // 整篇加载后清掉上一文件映射过来的编辑范围，并抑制新文件初始选区自动展开反引号。
@@ -3769,6 +3782,7 @@ function MountedBlockNoteEditor({
         });
         serializedBaselineRef.current = cached?.serializedBaseline ?? null;
         if (path) {
+          editorCache.finishReparse(path);
           editorCache.setContent(path, source);
           editorCache.setBlocks(
             path,

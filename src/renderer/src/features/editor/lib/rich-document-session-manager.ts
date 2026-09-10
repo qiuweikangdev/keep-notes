@@ -12,6 +12,8 @@ export interface RichDocumentRuntime {
   path: string;
   surface: HTMLElement;
   captureVisualSnapshot?: () => void;
+  subscribeDocument?: (listener: () => void) => () => void;
+  getDocumentRevision?: () => number;
   serializePendingChange: (options?: {
     reconcileSource?: boolean;
   }) => Promise<void>;

@@ -58,6 +58,8 @@ export function EditorWorkspace({
   tabId: string;
 }) {
   const editorRootRef = useRef<HTMLDivElement>(null);
+  const lastFindQueryRef = useRef<string | null>(null);
+  const findScrollTargetRef = useRef<string | null>(null);
   const sourceEditorRef = useRef<HTMLTextAreaElement>(null);
   const replacementUndoStacksRef = useRef(new Map<string, string[]>());
   const [isFindOpen, setIsFindOpen] = useState(false);
@@ -74,7 +76,15 @@ export function EditorWorkspace({
     ?.tabs.find((item) => item.id === tabId);
   const tabFilePath = tab?.filePath ?? null;
   const tabMode = tab?.mode ?? "rich";
-  const tabContent = tab?.content ?? "";
+  // 仅查找打开时订阅保存快照；编辑器本体仍不随正文快照重渲染。
+  const findContent = useEditorStore((state) =>
+    isFindOpen
+      ? state.panelGroups
+          .find((group) => group.id === groupId)
+          ?.tabs.find((item) => item.id === tabId)?.content
+      : undefined,
+  );
+  const tabContent = findContent ?? tab?.content ?? "";
   const tabParseErrorMessage = tab?.parseErrorMessage ?? null;
   const tabScrollTop = tab?.scrollTop ?? 0;
   const tabResetKey = tab
@@ -98,11 +108,40 @@ export function EditorWorkspace({
   const appearance = useEditorStore((state) => state.appearance);
   const { openFile } = useElectron();
 
+  const [liveDocumentRevision, setLiveDocumentRevision] = useState(0);
+  const [richMatchCount, setRichMatchCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (!isFindOpen || tabMode !== "rich" || !tabDocumentPath) return;
+    let unsubscribeDocument: (() => void) | undefined;
+    const bindRuntime = () => {
+      unsubscribeDocument?.();
+      const runtime = richDocumentSessionManager.getRuntime(tabDocumentPath);
+      unsubscribeDocument = runtime?.subscribeDocument?.(() => {
+        setLiveDocumentRevision((revision) => revision + 1);
+      });
+      setLiveDocumentRevision((revision) => revision + 1);
+    };
+    const unsubscribeRuntime = richDocumentSessionManager.subscribeRuntime(
+      tabDocumentPath,
+      bindRuntime,
+    );
+    bindRuntime();
+    return () => {
+      unsubscribeRuntime();
+      unsubscribeDocument?.();
+    };
+  }, [isFindOpen, tabDocumentPath, tabMode]);
+
   const rawMatches = useMemo(
     () =>
       findQuery ? findTextMatches(tabContent, findQuery, findOptions) : [],
     [findOptions, findQuery, tabContent],
   );
+
+  const matchCount =
+    tabMode === "rich"
+      ? (richMatchCount ?? rawMatches.length)
+      : rawMatches.length;
 
   useEffect(() => {
     if (!tabFilePath || tabMode !== "source") return;
@@ -147,39 +186,49 @@ export function EditorWorkspace({
   }, [groupId, tabFilePath, tabId, tabMode]);
 
   useEffect(() => {
-    setActiveFindIndex(findQuery && rawMatches.length > 0 ? 0 : -1);
+    const queryKey = JSON.stringify([
+      findOptions.matchCase,
+      findOptions.useRegex,
+      findOptions.wholeWord,
+      findQuery,
+      tabId,
+      tabDocumentPath,
+    ]);
+    const queryChanged = lastFindQueryRef.current !== queryKey;
+    lastFindQueryRef.current = queryKey;
+    setActiveFindIndex((currentIndex) => {
+      if (!findQuery || matchCount === 0) return -1;
+      if (queryChanged || currentIndex < 0) return 0;
+      return Math.min(currentIndex, matchCount - 1);
+    });
   }, [
     findOptions.matchCase,
     findOptions.useRegex,
     findOptions.wholeWord,
     findQuery,
-    rawMatches.length,
+    matchCount,
     tabId,
+    tabDocumentPath,
   ]);
-
-  useEffect(() => {
-    setActiveFindIndex((currentIndex) => {
-      if (rawMatches.length === 0) return -1;
-      if (currentIndex < 0) return 0;
-      return Math.min(currentIndex, rawMatches.length - 1);
-    });
-  }, [rawMatches.length]);
 
   useEffect(() => {
     if (!isFindOpen || !findQuery || tabMode !== "rich") {
       clearEditorFindHighlights();
+      findScrollTargetRef.current = null;
+      setRichMatchCount(null);
       return;
     }
 
     let clearFallbackHighlights: () => void = () => undefined;
     const frame = requestAnimationFrame(() => {
       // 完整富文本表面常驻 body，并通过 transform 移动到当前 pane；搜索必须读取真实表面而非 pane 内的预览副本。
-      const root =
-        (tabDocumentPath
-          ? richDocumentSessionManager.getRuntime(tabDocumentPath)?.surface
-          : null) ?? editorRootRef.current;
+      const surface = tabDocumentPath
+        ? richDocumentSessionManager.getRuntime(tabDocumentPath)?.surface
+        : null;
+      const root = surface ?? editorRootRef.current;
       if (!root) return;
       const ranges = collectEditorFindRanges(root, findQuery, findOptions);
+      setRichMatchCount(surface ? ranges.length : null);
       // Electron 在可移动的富文本表面中可能暴露 Highlight API 却不实际绘制，
       // 覆盖层是唯一渲染来源，确保每个匹配项都能稳定显示。
       clearEditorFindHighlights();
@@ -188,7 +237,19 @@ export function EditorWorkspace({
         ranges,
         activeFindIndex,
       );
-      scrollRangeIntoView(ranges[activeFindIndex]);
+      // 正文更新只刷新高亮；用户修改查询或切换匹配项时才移动视口。
+      const scrollTarget = JSON.stringify([
+        tabDocumentPath,
+        findQuery,
+        findOptions.matchCase,
+        findOptions.useRegex,
+        findOptions.wholeWord,
+        activeFindIndex,
+      ]);
+      if (findScrollTargetRef.current !== scrollTarget) {
+        findScrollTargetRef.current = scrollTarget;
+        scrollRangeIntoView(ranges[activeFindIndex]);
+      }
     });
 
     return () => {
@@ -200,6 +261,7 @@ export function EditorWorkspace({
     findOptions,
     findQuery,
     isFindOpen,
+    liveDocumentRevision,
     tabContent,
     tabDocumentPath,
     tabMode,
@@ -290,10 +352,10 @@ export function EditorWorkspace({
   const stepMatch = useCallback(
     (direction: 1 | -1) => {
       setActiveFindIndex((currentIndex) =>
-        getSteppedMatchIndex(currentIndex, rawMatches.length, direction),
+        getSteppedMatchIndex(currentIndex, matchCount, direction),
       );
     },
-    [rawMatches.length],
+    [matchCount],
   );
 
   const applyFindReplacement = useCallback(
@@ -397,7 +459,7 @@ export function EditorWorkspace({
   }, [applyFindReplacement, getCurrentTab, groupId, tabId]);
 
   const selectAllMatches = useCallback(() => {
-    if (!findQuery || rawMatches.length === 0) return;
+    if (!findQuery || matchCount === 0) return;
     if (tabMode === "source") {
       const textarea = sourceEditorRef.current;
       const firstMatch = rawMatches[0];
@@ -414,7 +476,14 @@ export function EditorWorkspace({
     if (!root) return;
     const ranges = collectEditorFindRanges(root, findQuery, findOptions);
     selectEditorFindRanges(ranges);
-  }, [findOptions, findQuery, rawMatches, tabDocumentPath, tabMode]);
+  }, [
+    findOptions,
+    findQuery,
+    matchCount,
+    rawMatches,
+    tabDocumentPath,
+    tabMode,
+  ]);
 
   if (!tab) {
     return <EditorStateView status="empty" />;
@@ -445,7 +514,7 @@ export function EditorWorkspace({
         query={findQuery}
         replacement={replacement}
         activeIndex={activeFindIndex}
-        matchCount={rawMatches.length}
+        matchCount={matchCount}
         options={findOptions}
         portalAnchor={editorRootRef.current}
         onQueryChange={setFindQuery}

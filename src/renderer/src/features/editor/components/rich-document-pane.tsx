@@ -17,6 +17,7 @@ import type { RichPreviewAnchor } from "../lib/rich-preview-anchor";
 import { toRichPaneKey, type RichPaneKey } from "../lib/rich-pane-view-state";
 import {
   editorSplitPaintCoordinator,
+  editorNavigationPaintCoordinator,
   measureEditorOperation,
 } from "../lib/editor-performance";
 import type { RichBlockNoteRuntime } from "./blocknote-editor";
@@ -222,6 +223,8 @@ export function RichDocumentPane({
         releaseRegistration(registeredPath, false);
       }
     }
+    if (isLive && import.meta.env.DEV)
+      return editorNavigationPaintCoordinator?.commitPane(paneKey);
   }, [isLive, normalizedPath, paneKey, releaseRegistration, runtime]);
 
   const handleActivate = useCallback(

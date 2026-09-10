@@ -75,3 +75,27 @@ export function scheduleEditorIdleTask(
 export function shouldFlushRichEditorBeforeAction(content: string): boolean {
   return !isLargeEditorDocument(content);
 }
+
+/** 目标文档先绘制，再冲刷旧文档；隐藏窗口仍由超时兜底，不能无限延后保存。 */
+export function scheduleAfterEditorPaint(callback: () => void): () => void {
+  let finished = false;
+  let frame: number | null = null;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    window.clearTimeout(timeout);
+    if (frame !== null) window.cancelAnimationFrame(frame);
+    callback();
+  };
+  const timeout = window.setTimeout(finish, 100);
+  if (typeof window.requestAnimationFrame === "function") {
+    frame = window.requestAnimationFrame(() => {
+      frame = window.requestAnimationFrame(finish);
+    });
+  }
+  return () => {
+    finished = true;
+    window.clearTimeout(timeout);
+    if (frame !== null) window.cancelAnimationFrame(frame);
+  };
+}

@@ -5,6 +5,7 @@ import {
   getEditorSerializationQuietPeriod,
   getEditorSerializationQuietPeriodForLength,
   scheduleEditorIdleTask,
+  scheduleAfterEditorPaint,
   type EditorIdleSchedulerEnvironment,
 } from "./editor-large-document";
 
@@ -105,4 +106,35 @@ describe("large document idle scheduling", () => {
       LARGE_DOCUMENT_SERIALIZATION_QUIET_PERIOD_MS,
     );
   });
+});
+
+it("starts background serialization after paint and has a hidden-window timeout", () => {
+  vi.useFakeTimers();
+  const frames: FrameRequestCallback[] = [];
+  const request = vi
+    .spyOn(window, "requestAnimationFrame")
+    .mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+  const cancel = vi
+    .spyOn(window, "cancelAnimationFrame")
+    .mockImplementation(() => {});
+  const callback = vi.fn();
+  scheduleAfterEditorPaint(callback);
+  frames[0](0);
+  expect(callback).not.toHaveBeenCalled();
+  frames[1](16);
+  expect(callback).toHaveBeenCalledOnce();
+  vi.advanceTimersByTime(100);
+  expect(callback).toHaveBeenCalledOnce();
+  scheduleAfterEditorPaint(callback);
+  vi.advanceTimersByTime(100);
+  expect(callback).toHaveBeenCalledTimes(2);
+  const release = scheduleAfterEditorPaint(callback);
+  release();
+  vi.advanceTimersByTime(100);
+  expect(callback).toHaveBeenCalledTimes(2);
+  request.mockRestore();
+  cancel.mockRestore();
 });

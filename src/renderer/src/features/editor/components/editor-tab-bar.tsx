@@ -19,7 +19,10 @@ import { useElectron } from "@/hooks/use-electron";
 import { showAppToast } from "@/lib/app-toast";
 import { useTreeStore } from "@/store/tree.store";
 import { CodeResult } from "@/types";
-import { editorSplitPaintCoordinator } from "../lib/editor-performance";
+import {
+  editorSplitPaintCoordinator,
+  editorNavigationPaintCoordinator,
+} from "../lib/editor-performance";
 import { closeEditorTab } from "../lib/editor-tab-closing";
 import { selectTabBarSignature } from "../lib/editor-view-selectors";
 import {
@@ -144,6 +147,16 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
   }, [renamingTabId]);
 
   const handleTabClick = (tabId: string) => {
+    if (
+      import.meta.env.DEV &&
+      group?.activeTabId !== tabId &&
+      group?.tabs.find((tab) => tab.id === tabId)?.mode === "rich"
+    ) {
+      const token = editorNavigationPaintCoordinator!.begin(
+        "editor:tab-to-paint",
+      );
+      editorNavigationPaintCoordinator!.bindPane(token, `${groupId}:${tabId}`);
+    }
     setActiveTab(groupId, tabId);
   };
 

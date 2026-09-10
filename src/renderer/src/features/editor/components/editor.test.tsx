@@ -87,6 +87,8 @@ const editorPerformanceMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../lib/editor-performance", () => ({
+  editorNavigationPaintCoordinator: { commitPane: vi.fn(() => () => {}) },
+  editorPerformanceSamples: { read: vi.fn(() => []), clear: vi.fn() },
   editorResizeFrameCoordinator: {
     cancel: editorPerformanceMocks.cancelResize,
     handleLayout: editorPerformanceMocks.resizeLayout,

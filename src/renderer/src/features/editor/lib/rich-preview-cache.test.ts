@@ -12,7 +12,7 @@ vi.mock("./editor-performance", () => ({
   measureEditorOperation: editorPerformanceMocks.measure,
 }));
 
-function createHarness() {
+function createHarness(requestAll = true) {
   const source = BlockNoteEditor.create({
     initialContent: [
       { id: "block-a", type: "paragraph", content: "alpha" },
@@ -33,6 +33,7 @@ function createHarness() {
       return exportBlocks(blocks);
     });
   const cache = new RichPreviewCache(source, {
+    frameBudgetMs: Number.POSITIVE_INFINITY,
     schedule: (callback) => {
       const cancel = vi.fn();
       scheduled.push(callback);
@@ -41,6 +42,13 @@ function createHarness() {
     },
   });
   cache.seed(source.document);
+  if (requestAll) {
+    cache.requestBlocks(["block-a", "block-b"]);
+    scheduled[0]();
+    scheduled.length = 0;
+    cancellations.length = 0;
+  }
+  editorPerformanceMocks.measure.mockClear();
   exportedIds.length = 0;
   getBlock.mockClear();
   blocksToFullHTML.mockClear();
@@ -67,6 +75,63 @@ describe("RichPreviewCache", () => {
     vi.unstubAllEnvs();
   });
 
+  it("does not export unrequested blocks at load or while editing", () => {
+    const { source, cache, scheduled, blocksToFullHTML } = createHarness(false);
+    expect(cache.getBlockSnapshot("block-a")).toBeNull();
+    expect(blocksToFullHTML).not.toHaveBeenCalled();
+    source.updateBlock("block-b", { content: "offscreen" });
+    scheduled[0]();
+    expect(blocksToFullHTML).not.toHaveBeenCalled();
+    const release = cache.requestBlocks(["block-b"]);
+    scheduled[1]();
+    expect(cache.getBlockSnapshot("block-b")?.html).toContain("offscreen");
+    expect(blocksToFullHTML).toHaveBeenCalledOnce();
+    release();
+    source.updateBlock("block-b", { content: "newest" });
+    scheduled[2]();
+    expect(blocksToFullHTML).toHaveBeenCalledOnce();
+    cache.requestBlocks(["block-b"]);
+    scheduled[3]();
+    expect(cache.getBlockSnapshot("block-b")?.html).toContain("newest");
+    cache.destroy();
+  });
+
+  it("bounds export work per frame and cancels released requests", () => {
+    const source = BlockNoteEditor.create({
+      initialContent: [
+        { id: "a", content: "a" },
+        { id: "b", content: "b" },
+        { id: "c", content: "c" },
+      ],
+    });
+    let now = 0;
+    const scheduled: Array<() => void> = [];
+    const exportBlocks = source.blocksToFullHTML.bind(source);
+    const exported = vi
+      .spyOn(source, "blocksToFullHTML")
+      .mockImplementation((blocks) => {
+        now += 5;
+        return exportBlocks(blocks);
+      });
+    const cache = new RichPreviewCache(source, {
+      now: () => now,
+      frameBudgetMs: 4,
+      schedule: (callback) => {
+        scheduled.push(callback);
+        return () => {};
+      },
+    });
+    cache.seed(source.document);
+    const release = cache.requestBlocks(["a", "b", "c"]);
+    scheduled[0]();
+    expect(exported).toHaveBeenCalledTimes(1);
+    expect(scheduled).toHaveLength(2);
+    release();
+    scheduled[1]();
+    expect(exported).toHaveBeenCalledTimes(1);
+    cache.destroy();
+  });
+
   it("preserves literal punctuation in exported preview text", () => {
     const source = BlockNoteEditor.create({
       initialContent: [
@@ -82,8 +147,15 @@ describe("RichPreviewCache", () => {
         },
       ],
     });
-    const cache = new RichPreviewCache(source);
+    const cache = new RichPreviewCache(source, {
+      schedule: (callback) => {
+        callback();
+        return () => {};
+      },
+      frameBudgetMs: Infinity,
+    });
     cache.seed(source.document);
+    cache.requestBlocks(["heading-symbols", "list-symbols"]);
     const readText = (blockId: string) => {
       const template = document.createElement("template");
       template.innerHTML = cache.getBlockSnapshot(blockId)?.html ?? "";
@@ -282,6 +354,7 @@ describe("RichPreviewCache", () => {
       "after",
     );
     source.removeBlocks(["block-b"]);
+    cache.requestBlocks(["block-c"]);
 
     expect(scheduled).toHaveLength(1);
     scheduled[0]();

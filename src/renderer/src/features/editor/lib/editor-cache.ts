@@ -14,15 +14,20 @@ interface CachedEditorEntry<TBlocks> {
 
 export class EditorCache<TBlocks> {
   private readonly entries = new Map<string, CachedEditorEntry<TBlocks>>();
+  private parsedHits = 0;
+  private parsedMisses = 0;
+  private readonly invalidatedPaths = new Set<string>();
 
   constructor(private readonly options: EditorCacheOptions) {}
 
   getContent(path: string): string | null {
+    path = path.replaceAll("\\", "/");
     const entry = this.touch(path);
     return entry?.content ?? null;
   }
 
   setContent(path: string, content: string): void {
+    path = path.replaceAll("\\", "/");
     const entry = this.entries.get(path);
     this.write(path, {
       content,
@@ -32,8 +37,21 @@ export class EditorCache<TBlocks> {
   }
 
   hasParsedSource(path: string, source: string): boolean {
+    path = path.replaceAll("\\", "/");
     const entry = this.touch(path);
-    return entry?.parsed?.source === source;
+    return !this.invalidatedPaths.has(path) && entry?.parsed?.source === source;
+  }
+
+  invalidateBlocks(path: string): void {
+    path = path.replaceAll("\\", "/");
+    this.invalidatedPaths.add(path);
+    const entry = this.entries.get(path);
+    if (entry) this.entries.set(path, { ...entry, parsed: null });
+  }
+
+  finishReparse(path: string): void {
+    path = path.replaceAll("\\", "/");
+    this.invalidatedPaths.delete(path);
   }
 
   getBlocks(
@@ -41,15 +59,19 @@ export class EditorCache<TBlocks> {
     source: string,
     parserVersion?: string,
   ): { blocks: TBlocks; serializedBaseline?: string } | null {
+    path = path.replaceAll("\\", "/");
     const entry = this.touch(path);
     if (
+      this.invalidatedPaths.has(path) ||
       !entry?.parsed ||
       entry.parsed.source !== source ||
       entry.parsed.parserVersion !== parserVersion
     ) {
+      this.parsedMisses += 1;
       return null;
     }
 
+    this.parsedHits += 1;
     const result: { blocks: TBlocks; serializedBaseline?: string } = {
       blocks: entry.parsed.blocks,
     };
@@ -66,6 +88,7 @@ export class EditorCache<TBlocks> {
     parserVersion?: string,
     serializedBaseline?: string,
   ): void {
+    path = path.replaceAll("\\", "/");
     const entry = this.entries.get(path);
     this.write(path, {
       content: entry?.content ?? source,
@@ -78,11 +101,28 @@ export class EditorCache<TBlocks> {
   }
 
   delete(path: string): void {
+    path = path.replaceAll("\\", "/");
     this.entries.delete(path);
+    this.invalidatedPaths.delete(path);
   }
 
   clear(): void {
     this.entries.clear();
+    this.invalidatedPaths.clear();
+    this.parsedHits = 0;
+    this.parsedMisses = 0;
+  }
+
+  getDiagnostics() {
+    return {
+      entries: this.entries.size,
+      parsedHits: this.parsedHits,
+      parsedMisses: this.parsedMisses,
+      sourceCharacters: [...this.entries.values()].reduce(
+        (count, entry) => count + (entry.content?.length ?? 0),
+        0,
+      ),
+    };
   }
 
   private touch(path: string): CachedEditorEntry<TBlocks> | null {
@@ -108,6 +148,7 @@ export class EditorCache<TBlocks> {
         break;
       }
       this.entries.delete(oldestPath);
+      this.invalidatedPaths.delete(oldestPath);
     }
   }
 }

@@ -14,6 +14,10 @@ import {
   richDocumentSessionManager,
   subscribeToEditorFile,
 } from "../lib/editor-runtime";
+import {
+  collectEditorFindRanges,
+  scrollRangeIntoView,
+} from "../lib/editor-find-highlights";
 import { editorFindController } from "../lib/editor-find-controller";
 import { EditorWorkspace } from "./editor-workspace";
 
@@ -36,6 +40,7 @@ vi.mock("../lib/editor-runtime", () => ({
   richDocumentSessionManager: {
     discardPendingChange: vi.fn(),
     getRuntime: vi.fn(() => null),
+    subscribeRuntime: vi.fn(() => () => {}),
     serializePendingChange: vi.fn(async () => undefined),
   },
   subscribeToEditorFile: vi.fn(() => () => {}),
@@ -465,6 +470,53 @@ describe("EditorWorkspace split rich editor mount", () => {
         richDocumentSessionManager.discardPendingChange,
       ).toHaveBeenCalledWith("large.md");
     });
+  });
+
+  it("refreshes live matches without waiting for the Markdown snapshot and unsubscribes on close", async () => {
+    const surface = document.createElement("div");
+    surface.textContent = "needle";
+    document.body.append(surface);
+    const range = document.createRange();
+    range.selectNodeContents(surface);
+    let onChange: (() => void) | undefined;
+    const unsubscribe = vi.fn();
+    const runtime = {
+      surface,
+      subscribeDocument: (listener: () => void) => {
+        onChange = listener;
+        return unsubscribe;
+      },
+    } as unknown as NonNullable<
+      ReturnType<typeof richDocumentSessionManager.getRuntime>
+    >;
+    vi.mocked(richDocumentSessionManager.getRuntime).mockReturnValue(runtime);
+    vi.mocked(collectEditorFindRanges).mockReturnValue([range]);
+    const view = render(<EditorWorkspace groupId="group-1" tabId="tab-1" />);
+    try {
+      act(() => editorFindController.open("group-1", "tab-1"));
+      fireEvent.change(screen.getByPlaceholderText("查找"), {
+        target: { value: "needle" },
+      });
+      await screen.findByText("1/1");
+      await waitFor(() =>
+        expect(scrollRangeIntoView).toHaveBeenCalledWith(range),
+      );
+      vi.mocked(scrollRangeIntoView).mockClear();
+      vi.mocked(collectEditorFindRanges).mockReturnValue([range, range]);
+      act(() => onChange?.());
+      await screen.findByText("1/2");
+      expect(scrollRangeIntoView).not.toHaveBeenCalled();
+      expect(useEditorStore.getState().panelGroups[0].tabs[0].content).toBe(
+        "# Large\n",
+      );
+      view.unmount();
+      expect(unsubscribe).toHaveBeenCalledOnce();
+    } finally {
+      view.unmount();
+      surface.remove();
+      vi.mocked(richDocumentSessionManager.getRuntime).mockReturnValue(null);
+      vi.mocked(collectEditorFindRanges).mockReturnValue([]);
+    }
   });
 
   it("serializes live rich content before applying find replacement", async () => {

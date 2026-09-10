@@ -40,6 +40,7 @@ interface VirtualRichPreviewProps {
 
 interface VirtualRichPreviewBlockProps {
   cache: RichPreviewCache;
+  isLive: boolean;
   id: string;
   index: number;
   measureElement: (element: HTMLDivElement | null) => void;
@@ -122,10 +123,11 @@ function getLightColorSchemeSnapshot(): false {
   return false;
 }
 
-function usePreviewBlock(cache: RichPreviewCache, id: string) {
+function usePreviewBlock(cache: RichPreviewCache, id: string, isLive: boolean) {
   const subscribe = useCallback(
-    (listener: () => void) => cache.subscribeBlock(id, listener),
-    [cache, id],
+    (listener: () => void) =>
+      isLive ? () => {} : cache.subscribeBlock(id, listener),
+    [cache, id, isLive],
   );
   const getSnapshot = useCallback(
     () => cache.getBlockSnapshot(id),
@@ -137,13 +139,13 @@ function usePreviewBlock(cache: RichPreviewCache, id: string) {
 
 const VirtualRichPreviewBlock = memo(function VirtualRichPreviewBlock({
   cache,
+  isLive,
   id,
   index,
   measureElement,
   start,
 }: VirtualRichPreviewBlockProps) {
-  const block = usePreviewBlock(cache, id);
-  if (!block) return null;
+  const block = usePreviewBlock(cache, id, isLive);
 
   return (
     <div
@@ -156,10 +158,11 @@ const VirtualRichPreviewBlock = memo(function VirtualRichPreviewBlock({
         left: 0,
         position: "absolute",
         top: 0,
+        minHeight: block ? undefined : 64,
         transform: `translateY(${start}px)`,
       }}
       // HTML 来自路径级 BlockNote 实例的 blocksToFullHTML，预览层只消费可信缓存。
-      dangerouslySetInnerHTML={{ __html: block.html }}
+      dangerouslySetInnerHTML={{ __html: block?.html ?? "" }}
     />
   );
 });
@@ -521,6 +524,7 @@ export function VirtualRichPreview({
             return id ? (
               <VirtualRichPreviewBlock
                 cache={cache}
+                isLive={isLive}
                 id={id}
                 index={virtualItem.index}
                 key={virtualItem.key}

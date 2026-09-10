@@ -4,7 +4,7 @@ import type { Transaction } from "@tiptap/pm/state";
 export interface ChangedTopLevelBlocks {
   changedIds: Set<string>;
   structureChanged: boolean;
-  order: string[];
+  order: string[] | null;
 }
 
 function topLevelBlockIds(doc: ProseMirrorNode): string[] {
@@ -137,6 +137,6 @@ export function collectChangedTopLevelBlocks(
   return {
     changedIds,
     structureChanged,
-    order: topLevelBlockIds(transaction.doc),
+    order: structureChanged ? topLevelBlockIds(transaction.doc) : null,
   };
 }

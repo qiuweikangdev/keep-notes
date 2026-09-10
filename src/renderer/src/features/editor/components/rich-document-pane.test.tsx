@@ -40,6 +40,7 @@ const editorPerformanceMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../lib/editor-performance", () => ({
+  editorNavigationPaintCoordinator: { commitPane: vi.fn(() => () => {}) },
   editorSplitPaintCoordinator: {
     commitPane: editorPerformanceMocks.commitPane,
   },

@@ -121,7 +121,13 @@ function createCache() {
     },
   );
   const source = BlockNoteEditor.create({ initialContent });
-  const cache = new RichPreviewCache(source);
+  const cache = new RichPreviewCache(source, {
+    schedule: (callback) => {
+      callback();
+      return () => {};
+    },
+    frameBudgetMs: Infinity,
+  });
   cache.seed(source.document);
 
   return { cache, source };

@@ -51,6 +51,7 @@ interface SurfaceEntry {
   activePaneKey: RichPaneKey | null;
   focusTarget: HTMLElement | null;
   measurementGeneration: number;
+  measurementFrame: number | null;
   resizeObserver: ResizeObserver | null;
 }
 
@@ -171,6 +172,7 @@ export class RichDocumentSurfaceRegistry {
       activePaneKey: null,
       focusTarget: null,
       measurementGeneration: 0,
+      measurementFrame: null,
       resizeObserver: null,
     };
     this.entries.set(normalizedPath, entry);
@@ -294,12 +296,10 @@ export class RichDocumentSurfaceRegistry {
     surface: HTMLElement,
   ): void {
     if (typeof requestAnimationFrame !== "function") return;
-    const generation = entry.measurementGeneration;
-    requestAnimationFrame(() => {
-      if (
-        entry.surface !== surface ||
-        entry.measurementGeneration !== generation
-      ) {
+    if (entry.measurementFrame !== null) return;
+    entry.measurementFrame = requestAnimationFrame(() => {
+      entry.measurementFrame = null;
+      if (entry.surface !== surface || entry.activePaneKey === null) {
         return;
       }
       requestVisibleCodeMirrorMeasurements(surface);
@@ -311,7 +311,8 @@ export class RichDocumentSurfaceRegistry {
     host: HTMLElement,
     paneKey: RichPaneKey,
   ): void {
-    this.stopObservingHost(entry);
+    entry.resizeObserver?.disconnect();
+    entry.resizeObserver = null;
     if (typeof ResizeObserver === "undefined") return;
 
     entry.resizeObserver = new ResizeObserver(() => {
@@ -322,8 +323,9 @@ export class RichDocumentSurfaceRegistry {
       ) {
         return;
       }
-      this.positionSurface(entry.surface, host);
-      this.scheduleSettledMeasurement(entry, entry.surface);
+      if (this.positionSurface(entry.surface, host)) {
+        this.scheduleSettledMeasurement(entry, entry.surface);
+      }
     });
     entry.resizeObserver.observe(host);
   }
@@ -345,6 +347,9 @@ export class RichDocumentSurfaceRegistry {
   }
 
   private stopObservingHost(entry: SurfaceEntry): void {
+    if (entry.measurementFrame !== null)
+      cancelAnimationFrame(entry.measurementFrame);
+    entry.measurementFrame = null;
     entry.resizeObserver?.disconnect();
     entry.resizeObserver = null;
   }
