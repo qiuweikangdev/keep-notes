@@ -1,3 +1,23 @@
+# [2.24.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.23.2...v2.24.0) (2026-09-11)
+
+
+### Features
+
+* add multi-language code highlighting ([a9e3c25](https://github.com/qiuweikangdev/keep-notes/commit/a9e3c257139591ce0b6639ceb64a6299e5fab5b1))
+* open files in new tabs from tree ([6102d05](https://github.com/qiuweikangdev/keep-notes/commit/6102d0556eade50d07c793e3b76d5156baca759e))
+
+
+### Performance Improvements
+
+* optimize large document editor switching ([44969a3](https://github.com/qiuweikangdev/keep-notes/commit/44969a3185c3391df327de437613155653ad9577))
+* reduce renderer syntax assets ([934d2a4](https://github.com/qiuweikangdev/keep-notes/commit/934d2a4b3116470b28df6cfe6e82c840562890a5))
+
+
+## Commit Summary
+
+- Compared with: v2.23.2
+- Total commits: 4
+
 ## [2.23.2](https://github.com/qiuweikangdev/keep-notes/compare/v2.23.1...v2.23.2) (2026-09-09)
 
 
