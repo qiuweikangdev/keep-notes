@@ -6,12 +6,6 @@ import {
   isolateHistory,
   undoDepth,
 } from "@codemirror/commands";
-import { css } from "@codemirror/lang-css";
-import { html } from "@codemirror/lang-html";
-import { javascript } from "@codemirror/lang-javascript";
-import { json } from "@codemirror/lang-json";
-import { markdown } from "@codemirror/lang-markdown";
-import { python } from "@codemirror/lang-python";
 import {
   bracketMatching,
   codeFolding,
@@ -58,6 +52,10 @@ import {
   getSupportedCodeBlockLanguageId,
   searchCodeBlockLanguages,
 } from "./editor-code-block-languages";
+import {
+  getImmediateCodeBlockLanguageExtension,
+  loadCodeBlockLanguageExtension,
+} from "./editor-code-block-language-support";
 import { getCodeBlockFoldRanges } from "./editor-code-folding";
 
 interface CodeBlockNodeViewProps {
@@ -105,32 +103,7 @@ function getCodeMirrorLanguageExtension(language: string): Extension {
   if (getCodeBlockHighlightMode(language) === "plain") {
     return Prec.high(editorPlainCodeMirrorTheme);
   }
-
-  switch (language) {
-    case "javascript":
-      return javascript();
-    case "typescript":
-      return javascript({ typescript: true });
-    case "jsx":
-      return javascript({ jsx: true });
-    case "tsx":
-      return javascript({ jsx: true, typescript: true });
-    case "json":
-      return json();
-    case "html":
-    case "xml":
-    case "vue":
-      return html();
-    case "css":
-    case "scss":
-      return css();
-    case "markdown":
-      return markdown();
-    case "python":
-      return python();
-    default:
-      return [];
-  }
+  return getImmediateCodeBlockLanguageExtension(language) ?? [];
 }
 
 const editorCodeMirrorTheme = CodeMirrorView.theme({
@@ -529,6 +502,7 @@ class EditorCodeBlockNodeView {
   private isUpdatingFromProseMirror = false;
 
   private language: string;
+  private languageLoadGeneration = 0;
 
   private languageButton!: HTMLButtonElement;
 
@@ -656,6 +630,7 @@ class EditorCodeBlockNodeView {
       this.handleNativeKeyDown,
       true,
     );
+    this.loadDeferredLanguage(this.language);
     this.dom.addEventListener("mousedown", this.focusCodeMirrorFromShell);
     this.dom.addEventListener(
       "mouseleave",
@@ -682,6 +657,7 @@ class EditorCodeBlockNodeView {
   };
 
   public destroy = () => {
+    this.languageLoadGeneration += 1;
     this.closeLanguagePicker();
     if (this.copyResetTimer !== null) {
       window.clearTimeout(this.copyResetTimer);
@@ -993,6 +969,7 @@ class EditorCodeBlockNodeView {
         getCodeMirrorLanguageExtension(normalizedLanguage),
       ),
     });
+    this.loadDeferredLanguage(normalizedLanguage);
 
     if (!shouldDispatch) return;
 
@@ -1007,6 +984,30 @@ class EditorCodeBlockNodeView {
 
     this.editor.updateBlock(this.block, {
       props: { language: normalizedLanguage },
+    });
+  }
+
+  private loadDeferredLanguage(language: string) {
+    this.languageLoadGeneration += 1;
+    const generation = this.languageLoadGeneration;
+    if (
+      getCodeBlockHighlightMode(language) === "plain" ||
+      getImmediateCodeBlockLanguageExtension(language)
+    ) {
+      return;
+    }
+
+    void loadCodeBlockLanguageExtension(language).then((extension) => {
+      if (
+        !extension ||
+        generation !== this.languageLoadGeneration ||
+        language !== this.language
+      ) {
+        return;
+      }
+      this.codeMirror.dispatch({
+        effects: this.codeMirrorLanguage.reconfigure(extension),
+      });
     });
   }
 

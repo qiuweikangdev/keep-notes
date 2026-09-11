@@ -61,12 +61,14 @@ describe("editor code block languages", () => {
     expect(getCodeBlockLanguageShortLabel("unknownlang")).toBe("unknownlang");
   });
 
-  it("uses regular typography for every language without syntax highlighting", () => {
+  it("highlights every configured code language and keeps unknown text plain", () => {
     expect(getCodeBlockHighlightMode("text")).toBe("plain");
-    expect(getCodeBlockHighlightMode("bash")).toBe("plain");
     expect(getCodeBlockHighlightMode("env")).toBe("plain");
     expect(getCodeBlockHighlightMode("dotenv")).toBe("plain");
-    expect(getCodeBlockHighlightMode("yaml")).toBe("plain");
+    expect(getCodeBlockHighlightMode("bash")).toBe("syntax");
+    expect(getCodeBlockHighlightMode("yaml")).toBe("syntax");
+    expect(getCodeBlockHighlightMode("sql")).toBe("syntax");
+    expect(getCodeBlockHighlightMode("go")).toBe("syntax");
     expect(getCodeBlockHighlightMode("javascript")).toBe("syntax");
     expect(getCodeBlockHighlightMode("python")).toBe("syntax");
   });

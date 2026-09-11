@@ -73,20 +73,11 @@ export const CODE_BLOCK_LANGUAGE_OPTIONS: CodeBlockLanguageOption[] = [
   { id: "diff", label: "Diff", shortLabel: "diff", aliases: ["patch"] },
 ];
 
-const syntaxHighlightedCodeBlockLanguages = new Set([
-  "javascript",
-  "typescript",
-  "jsx",
-  "tsx",
-  "vue",
-  "html",
-  "css",
-  "scss",
-  "json",
-  "markdown",
-  "python",
-  "xml",
-]);
+const syntaxHighlightedCodeBlockLanguages = new Set(
+  CODE_BLOCK_LANGUAGE_OPTIONS.filter((language) => language.id !== "text").map(
+    (language) => language.id,
+  ),
+);
 
 const normalizedLanguageEntries = CODE_BLOCK_LANGUAGE_OPTIONS.flatMap(
   (language) =>
@@ -120,7 +111,7 @@ export function getCodeBlockHighlightMode(
 ): "plain" | "syntax" {
   const normalizedLanguage = getSupportedCodeBlockLanguageId(language);
 
-  // 仅解析器实际支持的语言使用多色高亮，其余单色代码块统一采用正文常规字重。
+  // 语言列表中的代码语言均有解析器；纯文本和未知自定义语言保留常规排版。
   return syntaxHighlightedCodeBlockLanguages.has(normalizedLanguage)
     ? "syntax"
     : "plain";

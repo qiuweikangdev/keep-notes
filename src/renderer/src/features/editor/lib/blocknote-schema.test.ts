@@ -491,9 +491,17 @@ describe("editor BlockNote schema", () => {
     output.destroy?.();
   });
 
-  it.each(["bash", "text", "env", "dotenv", "yaml"])(
+  it.each([
+    ["bash", "syntax"],
+    ["text", "plain"],
+    ["env", "plain"],
+    ["dotenv", "plain"],
+    ["yaml", "syntax"],
+    ["sql", "syntax"],
+    ["go", "syntax"],
+  ])(
     "exposes the normalized %s language on the code block shell",
-    async (language) => {
+    async (language, highlightMode) => {
       setupMatchMedia();
       const editor = CoreEditorFactory.create({
         schema: editorSchema,
@@ -512,7 +520,28 @@ describe("editor BlockNote schema", () => {
           ".editor-code-block-shell",
         );
         expect(shell?.dataset.language).toBe(language);
-        expect(shell?.dataset.highlightMode).toBe("plain");
+        expect(shell?.dataset.highlightMode).toBe(highlightMode);
+      });
+    },
+  );
+
+  it.each([
+    ["sql", "SELECT id FROM users WHERE active = true;", "Statement"],
+    ["go", 'package main\nfunc main() { println("ok") }', "FunctionDecl"],
+  ])(
+    "loads %s syntax highlighting in the mounted code editor",
+    async (language, content, expectedNode) => {
+      setupMatchMedia();
+      const editor = CoreEditorFactory.create({
+        schema: editorSchema,
+        initialContent: [{ type: "codeBlock", props: { language }, content }],
+      });
+      const { container } = render(createElement(BlockNoteView, { editor }));
+
+      await waitFor(() => {
+        const codeMirror = getCodeMirrorView(container);
+        expect(syntaxTree(codeMirror.state).toString()).toContain(expectedNode);
+        expect(codeMirror.contentDOM.querySelector("span")).not.toBeNull();
       });
     },
   );
@@ -547,9 +576,9 @@ describe("editor BlockNote schema", () => {
     editor.updateBlock(editor.document[0], { props: { language: "bash" } });
     await waitFor(() => {
       expect(getShell()?.dataset.language).toBe("bash");
-      expect(getShell()?.dataset.highlightMode).toBe("plain");
-      expect(getContentFontWeight()).toBe("400");
-      expect(getScrollerFontFamily()).toContain('"PingFang SC"');
+      expect(getShell()?.dataset.highlightMode).toBe("syntax");
+      expect(getContentFontWeight()).toBe("600");
+      expect(getScrollerFontFamily()).toContain('"SF Mono"');
     });
 
     editor.updateBlock(editor.document[0], { props: { language: "env" } });

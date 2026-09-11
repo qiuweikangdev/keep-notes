@@ -425,10 +425,12 @@ describe("EditorCodeBlock", () => {
 
   it.each([
     ["text", "400"],
-    ["bash", "400"],
     ["env", "400"],
     ["dotenv", "400"],
-    ["yaml", "400"],
+    ["bash", "600"],
+    ["yaml", "600"],
+    ["sql", "600"],
+    ["go", "600"],
     ["javascript", "600"],
     ["python", "600"],
   ])("renders %s code content with font weight %s", (language, fontWeight) => {
@@ -454,7 +456,7 @@ describe("EditorCodeBlock", () => {
     );
   });
 
-  it.each(["text", "bash", "env", "dotenv", "yaml"])(
+  it.each(["text", "env", "dotenv"])(
     "uses one mixed-script font family for %s content",
     (language) => {
       renderCodeBlock(language);

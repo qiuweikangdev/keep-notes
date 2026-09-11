@@ -14,12 +14,6 @@ import {
   historyKeymap,
   indentWithTab,
 } from "@codemirror/commands";
-import { css } from "@codemirror/lang-css";
-import { html } from "@codemirror/lang-html";
-import { javascript } from "@codemirror/lang-javascript";
-import { json } from "@codemirror/lang-json";
-import { markdown } from "@codemirror/lang-markdown";
-import { python } from "@codemirror/lang-python";
 import {
   bracketMatching,
   codeFolding,
@@ -64,6 +58,10 @@ import {
   getSupportedCodeBlockLanguageId,
   searchCodeBlockLanguages,
 } from "../lib/editor-code-block-languages";
+import {
+  getImmediateCodeBlockLanguageExtension,
+  loadCodeBlockLanguageExtension,
+} from "../lib/editor-code-block-language-support";
 import { getCodeBlockFoldRanges } from "../lib/editor-code-folding";
 export type {
   CodeBlockFoldRange,
@@ -203,32 +201,7 @@ function getCodeMirrorLanguageExtension(language: string): Extension {
   if (getCodeBlockHighlightMode(language) === "plain") {
     return Prec.high(editorPlainCodeMirrorTheme);
   }
-
-  switch (language) {
-    case "javascript":
-      return javascript();
-    case "typescript":
-      return javascript({ typescript: true });
-    case "jsx":
-      return javascript({ jsx: true });
-    case "tsx":
-      return javascript({ jsx: true, typescript: true });
-    case "json":
-      return json();
-    case "html":
-    case "xml":
-    case "vue":
-      return html();
-    case "css":
-    case "scss":
-      return css();
-    case "markdown":
-      return markdown();
-    case "python":
-      return python();
-    default:
-      return [];
-  }
+  return getImmediateCodeBlockLanguageExtension(language) ?? [];
 }
 
 const editorCodeMirrorTheme = EditorView.theme({
@@ -846,13 +819,29 @@ export function EditorCodeBlock({
   useEffect(() => {
     const view = codeMirrorViewRef.current;
     if (!view) return;
+    let active = true;
 
     view.dispatch({
       effects: codeMirrorLanguageRef.current.reconfigure(
         getCodeMirrorLanguageExtension(language),
       ),
     });
-  }, [language]);
+    if (
+      getCodeBlockHighlightMode(language) === "syntax" &&
+      !getImmediateCodeBlockLanguageExtension(language)
+    ) {
+      void loadCodeBlockLanguageExtension(language).then((extension) => {
+        if (!active || !extension || codeMirrorViewRef.current !== view) return;
+        view.dispatch({
+          effects: codeMirrorLanguageRef.current.reconfigure(extension),
+        });
+      });
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [codeMirrorHost, language]);
 
   useEffect(() => {
     if (!isLanguagePickerOpen) return;
