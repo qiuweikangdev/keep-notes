@@ -80,6 +80,13 @@ describe("DiffViewer", () => {
       expect(fileDiffSpy).toHaveBeenCalledTimes(1);
     });
 
+    expect(parseDiffFromFileSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ lang: "markdown" }),
+      expect.objectContaining({ lang: "markdown" }),
+      undefined,
+      true,
+    );
+
     const props = fileDiffSpy.mock.calls[0]?.[0] as {
       disableWorkerPool?: boolean;
       options?: { unsafeCSS?: string };

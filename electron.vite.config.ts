@@ -21,10 +21,21 @@ export default defineConfig({
   },
   renderer: {
     resolve: {
-      alias: {
-        "@": resolve(__dirname, "src/renderer/src"),
-        "@shared": resolve(__dirname, "src/shared"),
-      },
+      alias: [
+        {
+          find: "@",
+          replacement: resolve(__dirname, "src/renderer/src"),
+        },
+        { find: "@shared", replacement: resolve(__dirname, "src/shared") },
+        // Pierre Diffs 默认引用 Shiki 全量语言与主题；替换为应用实际支持的精简入口。
+        {
+          find: /^shiki$/,
+          replacement: resolve(
+            __dirname,
+            "src/renderer/src/lib/shiki-bundle.ts",
+          ),
+        },
+      ],
     },
     plugins: [react()],
   },

@@ -9,6 +9,7 @@ import {
   type FileDiffMetadata,
 } from "@pierre/diffs";
 import { useTheme } from "@/hooks/use-theme";
+import { getBundledShikiLanguage } from "@/lib/shiki-bundle";
 import { normalizeDiffContent } from "../lib/diff-content";
 
 interface DiffViewerProps {
@@ -174,6 +175,7 @@ function createDiffInput(
   const normalizedNewContent = normalizeDiffContent(newContent);
   const oldCacheKey = createCacheKey(fileName, normalizedOldContent, "old");
   const newCacheKey = createCacheKey(fileName, normalizedNewContent, "new");
+  const language = getBundledShikiLanguage(fileName);
 
   return {
     cacheKey: `${oldCacheKey}:${newCacheKey}`,
@@ -185,12 +187,14 @@ function createDiffInput(
     oldFile: {
       name: fileName,
       contents: normalizedOldContent,
+      lang: language,
       header: "磁盘",
       cacheKey: oldCacheKey,
     },
     newFile: {
       name: fileName,
       contents: normalizedNewContent,
+      lang: language,
       header: "编辑器",
       cacheKey: newCacheKey,
     },
