@@ -262,6 +262,23 @@ describe("FileTree context menu", () => {
     ).toBeInTheDocument();
   });
 
+  it("opens a Markdown file in a new tab from the virtualized node menu", async () => {
+    render(<FileTree />);
+
+    fireEvent.contextMenu(await screen.findByText("daily.md"));
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: /在新标签页中打开/ }),
+    );
+
+    await waitFor(() => {
+      expect(electronMocks.openFile).toHaveBeenCalledWith(
+        "/notes/daily.md",
+        undefined,
+        { openInNewTab: true },
+      );
+    });
+  });
+
   it("keeps the file tree scroll position when switching files from the tree", async () => {
     render(<FileTree />);
 

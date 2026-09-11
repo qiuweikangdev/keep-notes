@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TreeNode } from "./tree-node";
 import { useTreeStore } from "@/store/tree.store";
 
@@ -19,6 +19,10 @@ vi.mock("@/hooks/use-electron", () => ({
 }));
 
 describe("TreeNode context menu", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     window.matchMedia = vi.fn().mockReturnValue({
       addEventListener: vi.fn(),
@@ -66,6 +70,21 @@ describe("TreeNode context menu", () => {
 
     expect(
       await screen.findByRole("menuitem", { name: /^打开$/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows an action for opening Markdown files in a new tab", async () => {
+    render(
+      <TreeNode
+        node={{ title: "daily.md", key: "/notes/daily.md" }}
+        level={0}
+      />,
+    );
+
+    fireEvent.contextMenu(screen.getByText("daily.md"));
+
+    expect(
+      await screen.findByRole("menuitem", { name: /在新标签页中打开/ }),
     ).toBeInTheDocument();
   });
 });

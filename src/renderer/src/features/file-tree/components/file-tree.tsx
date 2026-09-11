@@ -20,6 +20,7 @@ import {
   List,
   ListTree,
   Plus,
+  FilePlus2,
   FolderPlus,
   ExternalLink,
   Copy,
@@ -1335,7 +1336,11 @@ interface VirtualTreeNodeProps {
     level: number,
   ) => void;
   onDeleteNode: (key: string, title: string) => void;
-  openFile: (filePath: string) => Promise<void>;
+  openFile: (
+    filePath: string,
+    targetGroupId?: string,
+    options?: { openInNewTab?: boolean },
+  ) => Promise<void>;
   openInExplorer: (targetPath: string) => Promise<boolean>;
   copyPath: (targetPath: string) => Promise<boolean>;
   openInNewWindow: (targetPath: string) => Promise<boolean>;
@@ -1638,6 +1643,12 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
     );
   }, [flatNode.key]);
 
+  const handleOpenInNewTab = useCallback(() => {
+    if (isMarkdownFileName(flatNode.title)) {
+      void openFile(flatNode.key, undefined, { openInNewTab: true });
+    }
+  }, [flatNode.key, flatNode.title, openFile]);
+
   const handleMoveConfirm = useCallback(async () => {
     if (!moveConfirm.sourcePath || !moveConfirm.targetPath) return;
 
@@ -1814,6 +1825,15 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
                 }}
               >
                 <File className="h-4 w-4" /> 打开
+              </ContextMenu.Item>
+            ) : null}
+
+            {isMarkdownFileName(flatNode.title) ? (
+              <ContextMenu.Item
+                className={MENU_ITEM_CLASS}
+                onClick={handleOpenInNewTab}
+              >
+                <FilePlus2 className="h-4 w-4" /> 在新标签页中打开
               </ContextMenu.Item>
             ) : null}
 

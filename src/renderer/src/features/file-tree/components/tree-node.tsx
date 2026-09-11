@@ -9,6 +9,7 @@ import {
 import {
   ChevronRight,
   File,
+  FilePlus2,
   Folder,
   FolderInput,
   FolderOpen,
@@ -175,6 +176,13 @@ export const TreeNode = memo(function TreeNode({
   const handleOpen = useCallback(() => {
     if (isMarkdown) {
       void openFile(node.key);
+      setSelectedKey(node.key);
+    }
+  }, [isMarkdown, node.key, openFile, setSelectedKey]);
+
+  const handleOpenInNewTab = useCallback(() => {
+    if (isMarkdown) {
+      void openFile(node.key, undefined, { openInNewTab: true });
       setSelectedKey(node.key);
     }
   }, [isMarkdown, node.key, openFile, setSelectedKey]);
@@ -690,6 +698,15 @@ export const TreeNode = memo(function TreeNode({
                 onClick={handleOpen}
               >
                 <File className="h-4 w-4" /> 打开
+              </ContextMenu.Item>
+            ) : null}
+
+            {isMarkdown ? (
+              <ContextMenu.Item
+                className={MENU_ITEM_CLASS}
+                onClick={handleOpenInNewTab}
+              >
+                <FilePlus2 className="h-4 w-4" /> 在新标签页中打开
               </ContextMenu.Item>
             ) : null}
 
