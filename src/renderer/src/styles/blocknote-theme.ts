@@ -1,5 +1,4 @@
-import type { ThemeName } from "@/config/themes";
-import { themes } from "@/config/themes";
+import { getThemeConfig, resolveTheme, type ThemeName } from "@/config/themes";
 
 /**
  * BlockNote 主题颜色配置
@@ -68,8 +67,8 @@ const darkHighlights = {
  * 将现有主题转换为 BlockNote 主题格式
  */
 function convertThemeToBlockNote(themeName: ThemeName): BlockNoteTheme {
-  const themeConfig = themes[themeName] ?? themes.light;
-  const isDark = themeName !== "light";
+  const themeConfig = getThemeConfig(resolveTheme(themeName));
+  const isDark = themeConfig.colorScheme === "dark";
 
   return {
     colors: {
@@ -115,7 +114,7 @@ export function getBlockNoteTheme(themeName: ThemeName): {
   light: BlockNoteTheme;
   dark: BlockNoteTheme;
 } {
-  const isDark = themeName !== "light";
+  const isDark = getThemeConfig(resolveTheme(themeName)).colorScheme === "dark";
 
   // 根据当前主题选择亮色和暗色版本
   if (isDark) {
@@ -135,5 +134,5 @@ export function getBlockNoteTheme(themeName: ThemeName): {
  * 强制主题模式
  */
 export function getBlockNoteThemeMode(themeName: ThemeName): "light" | "dark" {
-  return themeName === "light" ? "light" : "dark";
+  return getThemeConfig(resolveTheme(themeName)).colorScheme;
 }

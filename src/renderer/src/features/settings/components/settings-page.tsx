@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useUIStore } from "@/store/ui.store";
 import { useEditorStore } from "@/store/editor.store";
 import { useTheme } from "@/hooks/use-theme";
-import { ThemeModeSelector } from "@/components/ui/theme-mode-selector";
+import { ThemeSelector } from "@/components/ui/theme-selector";
+import { LayoutSelector } from "@/components/ui/layout-selector";
 import { SettingRow } from "@/components/ui/setting-row";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
@@ -111,7 +112,7 @@ export function SettingsPage() {
   const setSettingsOpen = useUIStore((state) => state.setSettingsOpen);
   const appearance = useEditorStore((s) => s.appearance);
   const setAppearance = useEditorStore((s) => s.setAppearance);
-  const { theme, setTheme } = useTheme();
+  const { theme, layout, setTheme, setLayout } = useTheme();
   const [activeTab, setActiveTab] = useState<SettingsTab>("appearance");
   const [isNavigationCollapsed, setIsNavigationCollapsed] = useState(false);
   const [appInfo, setAppInfo] = useState<AppInfo>(defaultAppInfo);
@@ -214,11 +215,16 @@ export function SettingsPage() {
         return (
           <div className="space-y-0">
             {/* 主题选择 */}
+            <SettingRow label="主题" description="切换应用配色和组件状态">
+              <ThemeSelector value={theme} onChange={setTheme} />
+            </SettingRow>
+
             <SettingRow
-              label="主题"
-              description="使用浅色、深色，或匹配系统设置"
+              label="布局"
+              description="选择侧栏与内容区的组合方式"
+              className="items-start"
             >
-              <ThemeModeSelector value={theme} onChange={setTheme} />
+              <LayoutSelector value={layout} onChange={setLayout} />
             </SettingRow>
 
             {/* 默认打开目标 */}

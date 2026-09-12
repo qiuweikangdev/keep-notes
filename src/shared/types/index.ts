@@ -345,6 +345,7 @@ export interface OutlineNode {
 export type ThemeName =
   | "light"
   | "dark"
+  | "minimal"
   | "nord"
   | "dracula"
   | "solarized"

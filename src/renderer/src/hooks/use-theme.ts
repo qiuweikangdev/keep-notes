@@ -1,11 +1,20 @@
 import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { getThemeConfig, resolveTheme, type ThemeName } from "@/config/themes";
+import { getLayoutConfig } from "@/config/layouts";
 import { useUIStore } from "@/store/ui.store";
 
-const THEME_CLASSES = ["light", "dark", "nord", "dracula", "solarized"];
+const THEME_CLASSES = [
+  "light",
+  "dark",
+  "minimal",
+  "nord",
+  "dracula",
+  "solarized",
+];
 const THEME_NAMES: readonly ThemeName[] = [
   "light",
   "dark",
+  "minimal",
   "nord",
   "dracula",
   "solarized",
@@ -38,7 +47,9 @@ export function useTheme({
   themeOverride,
 }: UseThemeOptions = {}) {
   const theme = useUIStore((state) => state.theme);
+  const layout = useUIStore((state) => state.layout);
   const setTheme = useUIStore((state) => state.setTheme);
+  const setLayout = useUIStore((state) => state.setLayout);
   const [, refreshSystemTheme] = useState(0);
   const effectiveTheme = themeOverride ?? theme;
 
@@ -99,9 +110,121 @@ export function useTheme({
     root.style.setProperty("--text-secondary", config.colors.textSecondary);
     root.style.setProperty("--text-muted", config.colors.textMuted);
     root.style.setProperty("--border-color", config.colors.borderColor);
-    root.style.setProperty("--hover-bg", config.colors.hoverBg);
-    root.style.setProperty("--active-bg", config.colors.activeBg);
     root.style.setProperty("--accent-color", config.colors.accentColor);
+    root.style.setProperty("--hover-bg", config.components.selection.hover);
+    root.style.setProperty("--active-bg", config.components.selection.selected);
+    root.style.setProperty(
+      "--selection-row-hover",
+      config.components.selection.hover,
+    );
+    root.style.setProperty(
+      "--selection-row-selected",
+      config.components.selection.selected,
+    );
+    root.style.setProperty(
+      "--file-tree-row-hover",
+      config.components.selection.hover,
+    );
+    root.style.setProperty(
+      "--file-tree-row-selected",
+      config.components.selection.selected,
+    );
+
+    const { input, dropdown, codeBlock } = config.components;
+    root.style.setProperty("--input-background", input.background);
+    root.style.setProperty("--input-hover-background", input.hoverBackground);
+    root.style.setProperty("--input-border", input.border);
+    root.style.setProperty("--input-hover-border", input.hoverBorder);
+    root.style.setProperty("--input-focus-border", input.focusBorder);
+    root.style.setProperty("--input-focus-ring", input.focusRing);
+    root.style.setProperty("--input-placeholder", input.placeholder);
+    root.style.setProperty("--dropdown-background", dropdown.background);
+    root.style.setProperty("--dropdown-border", dropdown.border);
+    root.style.setProperty("--dropdown-shadow", dropdown.shadow);
+    root.style.setProperty("--dropdown-item-hover", dropdown.hover);
+    root.style.setProperty("--dropdown-item-selected", dropdown.selected);
+    root.style.setProperty("--editor-code-block-bg", codeBlock.background);
+    root.style.setProperty("--editor-code-block-text", codeBlock.text);
+    root.style.setProperty("--editor-code-block-cursor", codeBlock.cursor);
+    root.style.setProperty("--editor-code-block-muted", codeBlock.muted);
+    root.style.setProperty("--editor-code-block-border", codeBlock.border);
+    root.style.setProperty(
+      "--editor-code-block-control-bg",
+      codeBlock.controlBackground,
+    );
+    root.style.setProperty(
+      "--editor-code-block-control-border",
+      codeBlock.controlBorder,
+    );
+    root.style.setProperty(
+      "--editor-code-block-control-hover-bg",
+      codeBlock.controlHoverBackground,
+    );
+    root.style.setProperty(
+      "--editor-code-block-control-hover-text",
+      codeBlock.controlHoverText,
+    );
+    root.style.setProperty(
+      "--editor-code-block-popover-bg",
+      codeBlock.popoverBackground,
+    );
+    root.style.setProperty(
+      "--editor-code-block-popover-hover",
+      codeBlock.popoverHover,
+    );
+    root.style.setProperty(
+      "--editor-code-block-popover-shadow",
+      codeBlock.popoverShadow,
+    );
+    root.style.setProperty(
+      "--editor-code-block-fold-bg",
+      codeBlock.foldBackground,
+    );
+    root.style.setProperty("--editor-code-block-fold-text", codeBlock.foldText);
+
+    const layoutConfig = getLayoutConfig(layout);
+    root.style.setProperty(
+      "--workspace-background",
+      layoutConfig.workspaceBackground,
+    );
+    root.style.setProperty(
+      "--title-bar-background",
+      layoutConfig.titleBarBackground,
+    );
+    root.style.setProperty("--title-bar-border", layoutConfig.titleBarBorder);
+    root.style.setProperty(
+      "--sidebar-background",
+      layoutConfig.sidebarBackground,
+    );
+    root.style.setProperty("--sidebar-border", layoutConfig.sidebarBorder);
+    root.style.setProperty(
+      "--sidebar-header-background",
+      layoutConfig.sidebarHeaderBackground,
+    );
+    root.style.setProperty(
+      "--sidebar-header-border",
+      layoutConfig.sidebarHeaderBorder,
+    );
+    root.style.setProperty(
+      "--workspace-panel-group-padding",
+      layoutConfig.panelGroupPadding,
+    );
+    root.style.setProperty(
+      "--workspace-editor-panel-padding",
+      layoutConfig.editorPanelPadding,
+    );
+    root.style.setProperty(
+      "--workspace-content-border",
+      layoutConfig.contentBorder,
+    );
+    root.style.setProperty(
+      "--workspace-content-radius",
+      layoutConfig.contentRadius,
+    );
+    root.style.setProperty(
+      "--workspace-material-opacity",
+      layoutConfig.materialOpacity,
+    );
 
     body.style.backgroundColor = transparentBackground
       ? "transparent"
@@ -116,13 +239,22 @@ export function useTheme({
       "data-theme",
       effectiveTheme === "system" ? "system" : resolvedTheme,
     );
-  }, [effectiveTheme, resolvedTheme, transparentBackground]);
+    root.dataset.layout = layoutConfig.name;
+    body.dataset.layout = layoutConfig.name;
+  }, [effectiveTheme, layout, resolvedTheme, transparentBackground]);
 
   const changeTheme = useCallback(
     (newTheme: ThemeName) => {
       setTheme(newTheme);
     },
     [setTheme],
+  );
+
+  const changeLayout = useCallback(
+    (newLayout: typeof layout) => {
+      setLayout(newLayout);
+    },
+    [setLayout],
   );
 
   const toggleTheme = useCallback(() => {
@@ -136,9 +268,11 @@ export function useTheme({
 
   return {
     theme,
+    layout,
     setTheme: changeTheme,
+    setLayout: changeLayout,
     toggleTheme,
-    isDark: resolvedTheme === "dark",
+    isDark: getThemeConfig(resolvedTheme).colorScheme === "dark",
     config: getThemeConfig(resolvedTheme),
   };
 }

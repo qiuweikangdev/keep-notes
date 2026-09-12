@@ -43,7 +43,7 @@ function installColorSchemeMedia(initialMatches = false) {
 describe("useTheme", () => {
   beforeEach(() => {
     installColorSchemeMedia();
-    useUIStore.setState({ theme: "light" });
+    useUIStore.setState({ theme: "light", layout: "classic" });
     localStorage.clear();
   });
 
@@ -62,6 +62,40 @@ describe("useTheme", () => {
     expect(
       document.documentElement.style.getPropertyValue("--bg-primary"),
     ).toBe("#23272e");
+  });
+
+  it("applies theme and layout as independent visual configurations", () => {
+    useUIStore.setState({ theme: "minimal", layout: "minimal" });
+
+    const { result } = renderHook(() => useTheme());
+
+    expect(result.current.isDark).toBe(true);
+    expect(document.documentElement.classList.contains("minimal")).toBe(true);
+    expect(document.documentElement.dataset.layout).toBe("minimal");
+    expect(
+      document.documentElement.style.getPropertyValue(
+        "--workspace-content-radius",
+      ),
+    ).toBe("10px");
+    expect(
+      document.documentElement.style.getPropertyValue("--input-hover-border"),
+    ).toBe("#55555a");
+    expect(
+      document.documentElement.style.getPropertyValue("--editor-code-block-bg"),
+    ).toBe("#151517");
+  });
+
+  it("keeps the classic layout when only the theme changes", () => {
+    useUIStore.setState({ theme: "minimal", layout: "classic" });
+
+    renderHook(() => useTheme());
+
+    expect(document.documentElement.dataset.layout).toBe("classic");
+    expect(
+      document.documentElement.style.getPropertyValue(
+        "--workspace-content-radius",
+      ),
+    ).toBe("0");
   });
 
   it("updates the resolved theme when the system color scheme changes", () => {

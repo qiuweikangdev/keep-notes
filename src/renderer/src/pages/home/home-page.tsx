@@ -209,9 +209,9 @@ function HomePageContent() {
 
   return (
     <div
-      className="flex flex-col h-screen overflow-hidden relative"
+      className="workspace-shell flex flex-col h-screen overflow-hidden relative"
+      data-native-material={isMac}
       style={{
-        backgroundColor: "var(--bg-primary)",
         color: "var(--text-primary)",
         borderRadius: isMac ? "0" : isMaximized ? "0" : "8px",
       }}
@@ -274,12 +274,7 @@ function HomePageContent() {
             className="workspace-panel workspace-editor-panel"
             minSize={30}
           >
-            <div
-              className="h-full overflow-hidden"
-              style={{
-                backgroundColor: "var(--bg-primary)",
-              }}
-            >
+            <div className="workspace-content-surface h-full overflow-hidden">
               <Editor />
             </div>
           </Panel>

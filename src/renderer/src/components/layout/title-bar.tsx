@@ -273,7 +273,7 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
       <div
         ref={titleBarRef}
         data-testid="title-bar"
-        className="flex items-center select-none"
+        className="workspace-title-bar flex flex-shrink-0 items-center select-none"
         onDoubleClick={(e) => {
           if ((e.target as HTMLElement).closest("button")) return;
           window.electronAPI.maximizeWindow();
@@ -281,8 +281,9 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
         style={{
           // macOS 与原生红绿灯共享同一高度基准，避免左上角操作区视觉偏移。
           height: isMac ? `${MAC_TITLE_BAR_HEIGHT}px` : "44px",
-          backgroundColor: "var(--bg-primary)",
-          borderBottom: "1px solid var(--border-color)",
+          backgroundColor: "var(--title-bar-background, var(--bg-primary))",
+          borderBottom:
+            "var(--title-bar-border, 1px solid var(--border-color))",
         }}
       >
         {/* macOS: 红绿灯按钮区域预留空间（78px），Windows: 无 */}
@@ -362,9 +363,9 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
         <div className="flex h-full flex-1 items-center justify-center px-4">
           <button
             onClick={() => window.dispatchEvent(new Event("open-search"))}
-            className="flex items-center gap-2 h-[30px] w-[320px] max-w-[50%] px-3 rounded-lg text-xs transition-all"
+            className="flex items-center gap-2 h-[28px] w-[280px] max-w-[50%] px-3 rounded-md text-xs transition-all"
             style={{
-              backgroundColor: "var(--bg-secondary)",
+              backgroundColor: "var(--title-bar-control-bg)",
               color: "var(--text-muted)",
               border: "1px solid transparent",
             }}
@@ -374,7 +375,8 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
               e.currentTarget.style.borderColor = "var(--border-color)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--bg-secondary)";
+              e.currentTarget.style.backgroundColor =
+                "var(--title-bar-control-bg)";
               e.currentTarget.style.borderColor = "transparent";
             }}
           >
@@ -383,7 +385,7 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
             <kbd
               className="ml-auto text-[10px] px-1.5 py-0.5 rounded"
               style={{
-                backgroundColor: "var(--bg-tertiary)",
+                backgroundColor: "var(--title-bar-key-bg)",
                 color: "var(--text-muted)",
               }}
             >

@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FileTree } from "./file-tree";
 import { useEditorStore } from "@/store/editor.store";
 import { useTreeStore } from "@/store/tree.store";
+import { useUIStore } from "@/store/ui.store";
 import { CodeResult } from "@/types";
 import { DIFF_TOAST_EVENT } from "@/features/diff/lib/diff-toast";
 import { APP_TOAST_EVENT } from "@/lib/app-toast";
@@ -97,6 +98,7 @@ describe("FileTree context menu", () => {
         sidebarView: "file",
       },
     });
+    useUIStore.setState({ layout: "minimal" });
     useTreeStore.setState({
       treeData: [{ title: "daily.md", key: "/notes/daily.md" }],
       treeRoot: { title: "notes", key: "/notes" },
@@ -113,6 +115,32 @@ describe("FileTree context menu", () => {
     expect(
       screen.queryByRole("button", { name: "搜索文件" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("guides an empty workspace to open a folder", () => {
+    useTreeStore.setState({ treeRoot: null, treeData: [], recentFolders: [] });
+
+    render(<FileTree />);
+
+    expect(screen.getByText("尚未打开文件夹")).toBeInTheDocument();
+    expect(screen.getByText("文件")).toBeInTheDocument();
+    expect(screen.queryByText("没有打开的文件夹")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "打开文件夹…" }));
+    expect(electronMocks.openFolder).toHaveBeenCalledOnce();
+  });
+
+  it("uses the centered empty state and bottom action in the classic layout", () => {
+    useUIStore.setState({ layout: "classic" });
+    useTreeStore.setState({ treeRoot: null, treeData: [], recentFolders: [] });
+
+    render(<FileTree />);
+
+    expect(screen.getByText("没有打开的文件夹")).toBeInTheDocument();
+    expect(screen.queryByText("尚未打开文件夹")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "打开文件夹..." }));
+    expect(electronMocks.openFolder).toHaveBeenCalledOnce();
   });
 
   it("expands an unloaded directory immediately and loads its children in the background", () => {

@@ -79,10 +79,7 @@ export function QuickActionsPanel({
   // 无文件夹时的初始状态
   if (!treeRoot) {
     return (
-      <div
-        className="relative flex-shrink-0"
-        style={{ backgroundColor: "var(--bg-secondary)" }}
-      >
+      <div className="relative flex-shrink-0">
         {/* 打开文件夹按钮 + 更多选项 - 菜单关闭时显示 */}
         {!isMenuOpen && (
           <div
@@ -146,10 +143,7 @@ export function QuickActionsPanel({
 
   // 已打开文件夹的状态
   return (
-    <div
-      className="relative flex-shrink-0"
-      style={{ backgroundColor: "var(--bg-secondary)" }}
-    >
+    <div className="relative flex-shrink-0">
       {/* 当前目录名 + 更多选项 - 菜单关闭时显示 */}
       {!isMenuOpen && (
         <div

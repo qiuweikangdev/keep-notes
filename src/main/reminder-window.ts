@@ -24,6 +24,7 @@ export const DEFAULT_REMINDER_SHORTCUT = "CmdOrCtrl+Alt+R";
 const THEME_NAMES: readonly ThemeName[] = [
   "light",
   "dark",
+  "minimal",
   "nord",
   "dracula",
   "solarized",

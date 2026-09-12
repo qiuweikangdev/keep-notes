@@ -24,6 +24,44 @@
   --file-tree-disclosure-icon: var(--text-muted);
   --file-tree-folder-icon: var(--text-secondary);
   --file-tree-file-icon: var(--text-muted);
+  --input-background: var(--bg-primary);
+  --input-hover-background: var(--bg-tertiary);
+  --input-border: var(--border-color);
+  --input-hover-border: var(--text-muted);
+  --input-focus-border: var(--accent-color);
+  --input-focus-ring: color-mix(in srgb, var(--accent-color) 20%, transparent);
+  --input-placeholder: var(--text-muted);
+  --dropdown-background: var(--bg-primary);
+  --dropdown-border: var(--border-color);
+  --dropdown-shadow: 0 4px 8px rgba(0, 0, 0, 0.14);
+  --dropdown-item-hover: var(--hover-bg);
+  --dropdown-item-selected: var(--active-bg);
+  --editor-code-block-bg: #f5f8ff;
+  --editor-code-block-text: #0f172a;
+  --editor-code-block-cursor: #0969da;
+  --editor-code-block-muted: #475569;
+  --editor-code-block-border: rgba(148, 163, 184, 0.9);
+  --editor-code-block-control-bg: rgba(255, 255, 255, 0.92);
+  --editor-code-block-control-border: rgba(100, 116, 139, 0.42);
+  --editor-code-block-control-hover-bg: #dbeafe;
+  --editor-code-block-control-hover-text: #1e3a8a;
+  --editor-code-block-popover-bg: #ffffff;
+  --editor-code-block-popover-hover: #eef4ff;
+  --editor-code-block-popover-shadow: 0 18px 44px rgba(148, 163, 184, 0.2);
+  --editor-code-block-fold-bg: rgba(37, 99, 235, 0.11);
+  --editor-code-block-fold-text: #1d4ed8;
+  --workspace-background: var(--bg-primary);
+  --title-bar-background: var(--bg-primary);
+  --title-bar-border: 1px solid var(--border-color);
+  --sidebar-background: var(--bg-secondary);
+  --sidebar-border: 1px solid var(--border-color);
+  --sidebar-header-background: var(--bg-secondary);
+  --sidebar-header-border: 1px solid var(--border-color);
+  --workspace-panel-group-padding: 0;
+  --workspace-editor-panel-padding: 0;
+  --workspace-content-border: 0 solid transparent;
+  --workspace-content-radius: 0;
+  --workspace-material-opacity: 100%;
   --sidebar-motion-duration: 280ms;
   --sidebar-motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --command-palette-hover-bg: var(--selection-row-hover);
@@ -39,6 +77,130 @@
     "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
     "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC",
     Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.theme-input,
+.theme-select,
+.theme-dropdown-trigger {
+  border: 1px solid var(--input-border);
+  background-color: var(--input-background);
+  color: var(--text-primary);
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.theme-input::placeholder {
+  color: var(--input-placeholder);
+}
+
+.theme-input:not(:disabled):hover,
+.theme-select:not(:disabled):hover,
+.theme-dropdown-trigger:not(:disabled):hover,
+.theme-dropdown-trigger[data-state="open"] {
+  border-color: var(--input-hover-border);
+  background-color: var(--input-hover-background);
+}
+
+.theme-input:focus-visible,
+.theme-select:focus-visible,
+.theme-dropdown-trigger:focus-visible {
+  border-color: var(--input-focus-border);
+  box-shadow: 0 0 0 3px var(--input-focus-ring);
+  outline: none;
+}
+
+.theme-dropdown-content {
+  border: 1px solid var(--dropdown-border);
+  background-color: var(--dropdown-background);
+  box-shadow: var(--dropdown-shadow);
+  color: var(--text-primary);
+}
+
+.theme-dropdown-item[data-highlighted] {
+  background-color: var(--dropdown-item-hover);
+}
+
+.theme-dropdown-item[data-selected="true"] {
+  background-color: var(--dropdown-item-selected);
+}
+
+.layout-option {
+  border: 1px solid var(--border-color);
+  background-color: color-mix(in srgb, var(--bg-secondary) 64%, transparent);
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.layout-option:hover {
+  border-color: var(--input-hover-border);
+  background-color: var(--hover-bg);
+}
+
+.layout-option:focus-visible {
+  border-color: var(--input-focus-border);
+  box-shadow: 0 0 0 3px var(--input-focus-ring);
+}
+
+.layout-option[data-selected="true"] {
+  border-color: var(--accent-color);
+  box-shadow: inset 0 0 0 1px var(--accent-color);
+}
+
+.layout-option__check {
+  background-color: var(--accent-color);
+  color: var(--bg-primary);
+}
+
+.layout-preview {
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-primary);
+}
+
+.layout-preview__titlebar {
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-primary);
+}
+
+.layout-preview__sidebar {
+  background-color: var(--bg-secondary);
+}
+
+.layout-preview__editor {
+  border-color: var(--border-color);
+  background-color: var(--bg-primary);
+}
+
+.layout-preview--minimal {
+  background-color: var(--bg-secondary);
+}
+
+.layout-preview--minimal .layout-preview__titlebar,
+.layout-preview--minimal .layout-preview__sidebar {
+  background-color: transparent;
+}
+
+.layout-preview--minimal .layout-preview__editor {
+  border: 1px solid var(--border-color);
+}
+
+/* 简约主题统一 Radix 菜单的表面与状态，覆盖各业务菜单的历史内联配色。 */
+.minimal [role="menu"] {
+  border-color: var(--dropdown-border) !important;
+  background-color: var(--dropdown-background) !important;
+  box-shadow: var(--dropdown-shadow) !important;
+}
+
+.minimal :is([role="menuitem"], [role="menuitemcheckbox"])[data-highlighted] {
+  background-color: var(--dropdown-item-hover) !important;
+}
+
+.minimal
+  :is([role="menuitem"], [role="menuitemcheckbox"])[data-state="checked"] {
+  background-color: var(--dropdown-item-selected) !important;
 }
 
 /* 浅色侧栏底色较深，文件树使用更深的中性灰以匹配白色弹窗中的感知对比。 */
@@ -259,6 +421,7 @@ button[data-ui-button="true"][data-variant="default"][aria-disabled="true"] {
 }
 
 .dark button[data-ui-button="true"][data-variant="default"],
+.minimal button[data-ui-button="true"][data-variant="default"],
 .nord button[data-ui-button="true"][data-variant="default"],
 .dracula button[data-ui-button="true"][data-variant="default"],
 .solarized button[data-ui-button="true"][data-variant="default"] {
@@ -272,6 +435,10 @@ button[data-ui-button="true"][data-variant="default"][aria-disabled="true"] {
 }
 
 .dark
+  button[data-ui-button="true"][data-variant="default"]:not(:disabled):not(
+    [aria-disabled="true"]
+  ):hover,
+.minimal
   button[data-ui-button="true"][data-variant="default"]:not(:disabled):not(
     [aria-disabled="true"]
   ):hover,
@@ -300,6 +467,10 @@ button[data-ui-button="true"][data-variant="default"][aria-disabled="true"] {
   button[data-ui-button="true"][data-variant="default"]:not(:disabled):not(
     [aria-disabled="true"]
   ):active,
+.minimal
+  button[data-ui-button="true"][data-variant="default"]:not(:disabled):not(
+    [aria-disabled="true"]
+  ):active,
 .nord
   button[data-ui-button="true"][data-variant="default"]:not(:disabled):not(
     [aria-disabled="true"]
@@ -323,6 +494,9 @@ button[data-ui-button="true"][data-variant="default"][aria-disabled="true"] {
 
 .dark button[data-ui-button="true"][data-variant="default"]:disabled,
 .dark
+  button[data-ui-button="true"][data-variant="default"][aria-disabled="true"],
+.minimal button[data-ui-button="true"][data-variant="default"]:disabled,
+.minimal
   button[data-ui-button="true"][data-variant="default"][aria-disabled="true"],
 .nord button[data-ui-button="true"][data-variant="default"]:disabled,
 .nord
@@ -593,6 +767,11 @@ button:focus-visible {
   --button-active-bg: #383c44;
 }
 
+.minimal {
+  --button-hover-bg: var(--hover-bg);
+  --button-active-bg: var(--active-bg);
+}
+
 .nord {
   --button-hover-bg: #4c566a;
   --button-active-bg: #5e81ac;
@@ -737,6 +916,7 @@ button:focus-visible {
 }
 
 .dark .file-tree-scrollbar-thumb,
+.minimal .file-tree-scrollbar-thumb,
 .nord .file-tree-scrollbar-thumb,
 .dracula .file-tree-scrollbar-thumb,
 .solarized .file-tree-scrollbar-thumb {
@@ -762,6 +942,7 @@ button:focus-visible {
 }
 
 .dark ::-webkit-scrollbar-thumb,
+.minimal ::-webkit-scrollbar-thumb,
 .nord ::-webkit-scrollbar-thumb,
 .dracula ::-webkit-scrollbar-thumb,
 .solarized ::-webkit-scrollbar-thumb {
@@ -769,6 +950,7 @@ button:focus-visible {
 }
 
 .dark ::-webkit-scrollbar-thumb:hover,
+.minimal ::-webkit-scrollbar-thumb:hover,
 .nord ::-webkit-scrollbar-thumb:hover,
 .dracula ::-webkit-scrollbar-thumb:hover,
 .solarized ::-webkit-scrollbar-thumb:hover {
@@ -889,23 +1071,25 @@ button:focus-visible {
 .milkdown .editor pre,
 .milkdown .editor .code-block,
 .milkdown .editor [data-language] {
-  background-color: var(--bg-secondary) !important;
-  color: var(--text-primary) !important;
+  background-color: var(--editor-code-block-bg) !important;
+  color: var(--editor-code-block-text) !important;
 }
 
 /* 鏆楄壊妯″紡涓嬩唬鐮佸潡鏍峰紡瑕嗙洊 */
 .dark .milkdown .editor pre,
+.minimal .milkdown .editor pre,
 .nord .milkdown .editor pre,
 .dracula .milkdown .editor pre,
 .solarized .milkdown .editor pre {
-  background-color: var(--bg-tertiary) !important;
+  background-color: var(--editor-code-block-bg) !important;
 }
 
 .dark .milkdown .editor pre code,
+.minimal .milkdown .editor pre code,
 .nord .milkdown .editor pre code,
 .dracula .milkdown .editor pre code,
 .solarized .milkdown .editor pre code {
-  color: var(--text-primary) !important;
+  color: var(--editor-code-block-text) !important;
 }
 /* Keep syntax tokens from the active Milkdown theme (handled in milkdown-overrides.css). */
 /* 寮曠敤鍧?*/
@@ -1019,6 +1203,7 @@ button:focus-visible {
 }
 
 .dark .milkdown .editor ::selection,
+.minimal .milkdown .editor ::selection,
 .nord .milkdown .editor ::selection,
 .dracula .milkdown .editor ::selection,
 .solarized .milkdown .editor ::selection {
@@ -1249,6 +1434,7 @@ button:focus-visible {
 }
 
 .dark .diff-viewer__stat--added,
+.minimal .diff-viewer__stat--added,
 .nord .diff-viewer__stat--added,
 .dracula .diff-viewer__stat--added,
 .solarized .diff-viewer__stat--added {
@@ -1257,6 +1443,7 @@ button:focus-visible {
 }
 
 .dark .diff-viewer__stat--removed,
+.minimal .diff-viewer__stat--removed,
 .nord .diff-viewer__stat--removed,
 .dracula .diff-viewer__stat--removed,
 .solarized .diff-viewer__stat--removed {
@@ -1294,6 +1481,7 @@ button:focus-visible {
 }
 
 .dark .diff-viewer__pierre,
+.minimal .diff-viewer__pierre,
 .nord .diff-viewer__pierre,
 .dracula .diff-viewer__pierre,
 .solarized .diff-viewer__pierre {
@@ -1390,6 +1578,54 @@ select {
 
 .tree-node-row--entering {
   animation: file-tree-row-enter 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 工作区布局完全由主题令牌控制，新增布局无需改动页面组件。 */
+.workspace-shell {
+  --title-bar-control-bg: color-mix(
+    in srgb,
+    var(--bg-primary) 48%,
+    var(--bg-secondary)
+  );
+  --title-bar-key-bg: color-mix(
+    in srgb,
+    var(--bg-primary) 24%,
+    var(--bg-secondary)
+  );
+  background-color: var(--workspace-background);
+}
+
+/* 只让主窗口透出 macOS 原生材质，设置页与独立浮窗仍使用各自的背景。 */
+body[data-layout="minimal"]:has(.workspace-shell[data-native-material="true"]) {
+  background-color: transparent !important;
+}
+
+.workspace-shell[data-native-material="true"] {
+  background-color: color-mix(
+    in srgb,
+    var(--workspace-background) var(--workspace-material-opacity),
+    transparent
+  );
+}
+
+.workspace-shell > .workspace-panel-group {
+  padding: var(--workspace-panel-group-padding);
+}
+
+.workspace-editor-panel {
+  padding: var(--workspace-editor-panel-padding);
+}
+
+.workspace-content-surface {
+  border: var(--workspace-content-border);
+  border-radius: var(--workspace-content-radius);
+  background-color: var(--bg-primary);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .workspace-shell[data-native-material="true"] {
+    background-color: var(--workspace-background);
+  }
 }
 
 /* 主界面面板通过 flex-grow 过渡同步展开，避免文件树收起时内容瞬移。 */

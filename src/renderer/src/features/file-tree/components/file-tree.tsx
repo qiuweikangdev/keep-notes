@@ -32,6 +32,7 @@ import {
   LoaderCircle,
 } from "lucide-react";
 import { useEditorStore } from "@/store/editor.store";
+import { useUIStore } from "@/store/ui.store";
 import { OutlinePanel } from "./outline-panel";
 import { scrollEditorOutlineBlock } from "@/features/editor/lib/editor-outline-navigation";
 import { getEditorDocumentPath } from "@/features/editor/lib/editor-document-path";
@@ -111,6 +112,7 @@ const toGitRelativePath = (rootPath: string, filePath: string) => {
 export function FileTree() {
   const treeData = useTreeStore((state) => state.treeData);
   const treeRoot = useTreeStore((state) => state.treeRoot);
+  const recentFolders = useTreeStore((state) => state.recentFolders);
   const setTreeData = useTreeStore((state) => state.setTreeData);
   const expandedKeys = useTreeStore((state) => state.expandedKeys);
   const selectedKey = useTreeStore((state) => state.selectedKey);
@@ -119,6 +121,7 @@ export function FileTree() {
   const setExpandedKeys = useTreeStore((state) => state.setExpandedKeys);
   const {
     openFolder,
+    loadTree,
     openInExplorer,
     openFile,
     createFile,
@@ -131,6 +134,7 @@ export function FileTree() {
   } = useElectron();
 
   const appearance = useEditorStore((s) => s.appearance);
+  const layout = useUIStore((state) => state.layout);
   const setSidebarView = useEditorStore((s) => s.setSidebarView);
   const sidebarView = appearance.sidebarView;
   const activeFilePath = useEditorStore((state) => {
@@ -630,34 +634,114 @@ export function FileTree() {
   }, [confirmState, deleteItem, setTreeData]);
 
   if (!treeRoot) {
-    return (
-      <div
-        className="relative h-full flex-col"
-        onMouseEnter={() => setIsSidebarHovered(true)}
-        onMouseLeave={() => setIsSidebarHovered(false)}
-      >
-        <div className="absolute inset-0 flex items-center justify-center p-4">
-          <p className="text-[13px]" style={{ color: "var(--text-muted)" }}>
-            没有打开的文件夹
-          </p>
-        </div>
-
+    if (layout === "classic") {
+      return (
         <div
-          className="absolute bottom-0 left-0 right-0 z-10 transition-opacity duration-200"
+          className="relative h-full"
+          data-testid="file-tree-empty-state"
+          onMouseEnter={() => setIsSidebarHovered(true)}
+          onMouseLeave={() => setIsSidebarHovered(false)}
+        >
+          <div className="absolute inset-0 flex items-center justify-center p-4 pb-16">
+            <p className="text-[13px]" style={{ color: "var(--text-muted)" }}>
+              没有打开的文件夹
+            </p>
+          </div>
+
+          <div
+            className="absolute inset-x-0 bottom-0 z-10 transition-opacity duration-200"
+            style={{
+              opacity: appearance.showBottomBarOnHover
+                ? isSidebarHovered
+                  ? 1
+                  : 0
+                : 1,
+              pointerEvents: appearance.showBottomBarOnHover
+                ? isSidebarHovered
+                  ? "auto"
+                  : "none"
+                : "auto",
+            }}
+          >
+            <QuickActionsPanel />
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex h-full flex-col" data-testid="file-tree-empty-state">
+        <div
+          className="flex h-[35px] flex-shrink-0 items-center gap-2 px-3"
           style={{
-            opacity: appearance.showBottomBarOnHover
-              ? isSidebarHovered
-                ? 1
-                : 0
-              : 1,
-            pointerEvents: appearance.showBottomBarOnHover
-              ? isSidebarHovered
-                ? "auto"
-                : "none"
-              : "auto",
+            backgroundColor: "var(--sidebar-header-background)",
+            borderBottom: "var(--sidebar-header-border)",
           }}
         >
-          <QuickActionsPanel />
+          <List
+            className="h-3.5 w-3.5"
+            style={{ color: "var(--text-muted)" }}
+          />
+          <span
+            className="text-xs font-medium"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            文件
+          </span>
+        </div>
+
+        <div className="min-h-0 flex-1 px-3 pt-5">
+          <div className="w-full">
+            <p
+              className="px-2 text-[11px]"
+              style={{ color: "var(--text-muted)" }}
+            >
+              尚未打开文件夹
+            </p>
+            <button
+              type="button"
+              data-selection-surface="true"
+              data-selection-context="secondary"
+              className="mt-2 flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-xs font-medium"
+              style={{
+                backgroundColor:
+                  "color-mix(in srgb, var(--bg-primary) 28%, transparent)",
+                color: "var(--text-primary)",
+              }}
+              onClick={handleSelectDir}
+            >
+              <FolderOpen className="h-3.5 w-3.5" />
+              打开文件夹…
+            </button>
+
+            {recentFolders.length > 0 ? (
+              <div className="mt-5 w-full">
+                <p
+                  className="mb-1.5 px-2 text-[11px]"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  最近打开
+                </p>
+                <div className="flex flex-col gap-0.5">
+                  {recentFolders.slice(0, 4).map((folder) => (
+                    <button
+                      key={folder.path}
+                      type="button"
+                      data-selection-surface="true"
+                      data-selection-context="secondary"
+                      className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-xs"
+                      style={{ color: "var(--text-secondary)" }}
+                      title={folder.path}
+                      onClick={() => void loadTree(folder.path)}
+                    >
+                      <Folder className="h-3.5 w-3.5 flex-shrink-0" />
+                      <span className="truncate">{folder.title}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
     );
@@ -672,10 +756,10 @@ export function FileTree() {
           onMouseLeave={() => setIsSidebarHovered(false)}
         >
           <div
-            className="flex h-[42px] flex-shrink-0 items-center gap-1 px-2"
+            className="flex h-[35px] flex-shrink-0 items-center gap-1 px-2"
             style={{
-              borderBottom: "1px solid var(--border-color)",
-              backgroundColor: "var(--bg-secondary)",
+              backgroundColor: "var(--sidebar-header-background)",
+              borderBottom: "var(--sidebar-header-border)",
             }}
           >
             <Tooltip.Provider>
@@ -720,10 +804,10 @@ export function FileTree() {
                 </Tooltip.Portal>
               </Tooltip.Root>
             </Tooltip.Provider>
-            <div className="flex min-w-0 flex-1 items-center justify-center">
+            <div className="flex min-w-0 flex-1 items-center pl-1">
               <span
-                className="truncate text-[13px] font-medium"
-                style={{ color: "var(--text-primary)" }}
+                className="truncate text-xs font-medium"
+                style={{ color: "var(--text-secondary)" }}
               >
                 {sidebarView === "file" ? "文件" : "大纲"}
               </span>

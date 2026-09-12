@@ -81,7 +81,11 @@ describe("SettingsPage about tab", () => {
       configurable: true,
       value: electronAPI,
     });
-    useUIStore.setState({ isSettingsOpen: true });
+    useUIStore.setState({
+      isSettingsOpen: true,
+      theme: "dark",
+      layout: "classic",
+    });
     useExportStore.setState({
       config: DEFAULT_EXPORT_CONFIG,
       isLoading: false,
@@ -189,6 +193,34 @@ describe("SettingsPage about tab", () => {
     expect(defaultOpenTargetLabel).toHaveStyle({
       color: "var(--text-primary)",
     });
+  });
+
+  it("switches the full visual preset from the appearance theme dropdown", async () => {
+    useUIStore.setState({ theme: "dark" });
+    render(<SettingsPage />);
+
+    fireEvent.keyDown(
+      screen.getByRole("button", { name: "选择主题，当前为深色" }),
+      { key: "Enter" },
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "简约深色" }));
+
+    expect(useUIStore.getState().theme).toBe("minimal");
+  });
+
+  it("shows visual layout choices and switches to the minimal layout", () => {
+    render(<SettingsPage />);
+
+    const classic = screen.getByRole("radio", { name: "经典布局" });
+    const minimal = screen.getByRole("radio", { name: "简约布局" });
+
+    expect(classic).toHaveAttribute("aria-checked", "true");
+    expect(minimal).toHaveAttribute("aria-checked", "false");
+
+    fireEvent.click(minimal);
+
+    expect(useUIStore.getState().layout).toBe("minimal");
+    expect(minimal).toHaveAttribute("aria-checked", "true");
   });
 
   it("shows app metadata and triggers update checks from the about tab", async () => {

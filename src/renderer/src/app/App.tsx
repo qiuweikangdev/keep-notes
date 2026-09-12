@@ -30,6 +30,7 @@ const CODE_BLOCK_CURSOR_VISUAL_WIDTH = 2;
 const APP_THEME_NAMES: readonly ThemeName[] = [
   "light",
   "dark",
+  "minimal",
   "nord",
   "dracula",
   "solarized",

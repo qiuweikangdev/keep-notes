@@ -14,6 +14,7 @@ import {
 
 import { useEditorStore } from "@/store/editor.store";
 import { useUIStore } from "@/store/ui.store";
+import { getThemeConfig } from "@/config/themes";
 import { richPaneViewStateRegistry } from "@/features/editor/lib/editor-runtime";
 import {
   resolveRichPreviewAnchor,
@@ -291,9 +292,7 @@ export function VirtualRichPreview({
       ? systemIsDark
         ? "dark"
         : "light"
-      : theme === "light"
-        ? "light"
-        : "dark";
+      : getThemeConfig(theme).colorScheme;
   const scrollRef = useRef<HTMLDivElement>(null);
   const isLiveRef = useRef(isLive);
   isLiveRef.current = isLive;

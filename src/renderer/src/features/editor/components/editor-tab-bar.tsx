@@ -325,8 +325,10 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
     <div
       className="flex h-[35px] flex-shrink-0 items-center relative"
       style={{
-        backgroundColor: "var(--bg-secondary)",
-        borderBottom: "1px solid var(--border-color)",
+        backgroundColor: "var(--bg-primary)",
+        borderBottom: group.tabs.length
+          ? "1px solid var(--border-color)"
+          : "1px solid transparent",
       }}
     >
       {/* 标签页列表 */}
@@ -351,7 +353,9 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
               tabIndex={isActive ? 0 : -1}
               className="group flex h-full items-center gap-1.5 px-2.5 cursor-pointer border-r relative select-none focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--accent-color)]"
               style={{
-                backgroundColor: isActive ? "var(--bg-primary)" : "transparent",
+                backgroundColor: isActive
+                  ? "color-mix(in srgb, var(--bg-secondary) 55%, var(--bg-primary))"
+                  : "transparent",
                 borderColor: "var(--border-color)",
                 minWidth: "120px",
                 maxWidth: "200px",
@@ -493,7 +497,11 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
       {/* 空面板也保留标签页操作入口，用户可随时创建未命名标签页。 */}
       <div
         className="flex h-full flex-shrink-0 items-center gap-1 px-1"
-        style={{ borderLeft: "1px solid var(--border-color)" }}
+        style={{
+          borderLeft: group.tabs.length
+            ? "1px solid var(--border-color)"
+            : "1px solid transparent",
+        }}
       >
         <EditorToolbar
           groupId={groupId}

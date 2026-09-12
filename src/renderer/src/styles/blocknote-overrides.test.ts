@@ -29,12 +29,12 @@ describe("blocknote overrides stylesheet", () => {
     );
   });
 
-  it("defines theme-aware code block colors", () => {
-    expect(getRule('.bn-root[data-color-scheme="light"]')).toMatch(
-      /--editor-code-block-bg:\s*#f5f8ff;/,
+  it("inherits theme-specific code surfaces while preserving scheme syntax colors", () => {
+    expect(getRule('.bn-root[data-color-scheme="light"]')).not.toMatch(
+      /--editor-code-block-bg:/,
     );
-    expect(getRule('.bn-root[data-color-scheme="dark"]')).toMatch(
-      /--editor-code-block-bg:\s*#0d1117;/,
+    expect(getRule('.bn-root[data-color-scheme="dark"]')).not.toMatch(
+      /--editor-code-block-bg:/,
     );
     expect(getRule('.bn-root[data-color-scheme="light"]')).toMatch(
       /--editor-code-token-keyword:\s*#a626a4;/,
@@ -47,12 +47,6 @@ describe("blocknote overrides stylesheet", () => {
     );
     expect(getRule('.bn-root[data-color-scheme="dark"]')).toMatch(
       /--editor-code-token-string:\s*#98c379;/,
-    );
-    expect(getRule('.bn-root[data-color-scheme="light"]')).toMatch(
-      /--editor-code-block-cursor:\s*#0969da;/,
-    );
-    expect(getRule('.bn-root[data-color-scheme="dark"]')).toMatch(
-      /--editor-code-block-cursor:\s*#79c0ff;/,
     );
   });
 

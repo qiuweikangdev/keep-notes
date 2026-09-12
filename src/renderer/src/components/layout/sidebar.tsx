@@ -10,8 +10,8 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
       data-collapsed={collapsed}
       className="file-tree-sidebar flex h-full flex-col overflow-hidden"
       style={{
-        backgroundColor: "var(--bg-secondary)",
-        borderRight: "1px solid var(--border-color)",
+        backgroundColor: "var(--sidebar-background, var(--bg-secondary))",
+        borderRight: "var(--sidebar-border, 1px solid var(--border-color))",
       }}
     >
       <div className="file-tree-sidebar__content h-full">
