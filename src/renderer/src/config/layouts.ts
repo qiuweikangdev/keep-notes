@@ -51,7 +51,7 @@ export const layouts: Record<LayoutName, LayoutConfig> = {
     editorPanelPadding: "0 0 0 6px",
     contentBorder:
       "1px solid color-mix(in srgb, var(--border-color) 80%, transparent)",
-    contentRadius: "10px",
+    contentRadius: "12px",
     materialOpacity: "90%",
   },
 };

@@ -1626,19 +1626,31 @@ body[data-layout="minimal"]:has(.workspace-shell[data-native-material="true"]) {
   min-height: 0;
 }
 
-/* 内容面板自身也负责裁切子编辑器，避免底部圆角被 h-full 子节点覆盖。 */
-[data-layout="minimal"] .workspace-editor-panel {
-  overflow: hidden;
-  border-radius: var(--workspace-content-radius);
-}
-
 .workspace-content-surface {
+  position: relative;
+  isolation: isolate;
   min-width: 0;
   min-height: 0;
   border: var(--workspace-content-border);
   border-radius: var(--workspace-content-radius);
   background-color: var(--bg-primary);
   overflow: hidden;
+}
+
+/* Electron 合成层中的编辑器会覆盖边缘抗锯齿，显式裁切并在最上层重绘轮廓。 */
+[data-layout="minimal"] .workspace-content-surface {
+  border: 0;
+  clip-path: inset(0 round var(--workspace-content-radius));
+}
+
+[data-layout="minimal"] .workspace-content-surface::after {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  border: var(--workspace-content-border);
+  border-radius: inherit;
+  pointer-events: none;
+  content: "";
 }
 
 @media (prefers-reduced-transparency: reduce) {

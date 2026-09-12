@@ -122,9 +122,12 @@ describe("workspace layout surface styles", () => {
     );
   });
 
-  it("clips the minimal editor panel so both bottom corners stay rounded", () => {
+  it("clips and redraws the minimal content surface above editor layers", () => {
     expect(stylesheet).toMatch(
-      /\[data-layout="minimal"\]\s+\.workspace-editor-panel\s*\{[\s\S]*overflow:\s*hidden;[\s\S]*border-radius:\s*var\(--workspace-content-radius\);/,
+      /\[data-layout="minimal"\]\s+\.workspace-content-surface\s*\{[\s\S]*clip-path:\s*inset\(0 round var\(--workspace-content-radius\)\);/,
+    );
+    expect(stylesheet).toMatch(
+      /\[data-layout="minimal"\]\s+\.workspace-content-surface::after\s*\{[\s\S]*border:\s*var\(--workspace-content-border\);[\s\S]*border-radius:\s*inherit;[\s\S]*pointer-events:\s*none;/,
     );
   });
 });
