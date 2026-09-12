@@ -122,12 +122,12 @@ describe("workspace layout surface styles", () => {
     );
   });
 
-  it("clips and redraws the minimal content surface above editor layers", () => {
+  it("lets the minimal panel group fit inside the padded workspace", () => {
     expect(stylesheet).toMatch(
-      /\[data-layout="minimal"\]\s+\.workspace-content-surface\s*\{[\s\S]*clip-path:\s*inset\(0 round var\(--workspace-content-radius\)\);/,
+      /\[data-layout="minimal"\]\s+\.workspace-shell\s*>\s*\.workspace-panel-group\s*\{[\s\S]*display:\s*grid;[\s\S]*grid-template-rows:\s*minmax\(0,\s*1fr\);[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\);/,
     );
     expect(stylesheet).toMatch(
-      /\[data-layout="minimal"\]\s+\.workspace-content-surface::after\s*\{[\s\S]*border:\s*var\(--workspace-content-border\);[\s\S]*border-radius:\s*inherit;[\s\S]*pointer-events:\s*none;/,
+      /\[data-layout="minimal"\]\s+\.workspace-panel-group__inner\s*\{[\s\S]*width:\s*auto\s*!important;[\s\S]*height:\s*auto\s*!important;/,
     );
   });
 });
