@@ -1609,17 +1609,36 @@ body[data-layout="minimal"]:has(.workspace-shell[data-native-material="true"]) {
 }
 
 .workspace-shell > .workspace-panel-group {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
   padding: var(--workspace-panel-group-padding);
+}
+
+.workspace-panel-group__inner {
+  min-width: 0;
+  min-height: 0;
 }
 
 .workspace-editor-panel {
   padding: var(--workspace-editor-panel-padding);
+  min-width: 0;
+  min-height: 0;
+}
+
+/* 内容面板自身也负责裁切子编辑器，避免底部圆角被 h-full 子节点覆盖。 */
+[data-layout="minimal"] .workspace-editor-panel {
+  overflow: hidden;
+  border-radius: var(--workspace-content-radius);
 }
 
 .workspace-content-surface {
+  min-width: 0;
+  min-height: 0;
   border: var(--workspace-content-border);
   border-radius: var(--workspace-content-radius);
   background-color: var(--bg-primary);
+  overflow: hidden;
 }
 
 @media (prefers-reduced-transparency: reduce) {

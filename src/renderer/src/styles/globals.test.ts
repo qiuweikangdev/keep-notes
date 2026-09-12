@@ -108,3 +108,23 @@ describe("markdown source editor surface styles", () => {
     );
   });
 });
+
+describe("workspace layout surface styles", () => {
+  it("keeps the padded panel group and editor surface inside the viewport", () => {
+    expect(stylesheet).toMatch(
+      /\.workspace-shell\s*>\s*\.workspace-panel-group\s*\{[\s\S]*min-width:\s*0;[\s\S]*min-height:\s*0;[\s\S]*padding:\s*var\(--workspace-panel-group-padding\);/,
+    );
+    expect(stylesheet).toMatch(
+      /\.workspace-panel-group__inner\s*\{[\s\S]*min-width:\s*0;[\s\S]*min-height:\s*0;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.workspace-content-surface\s*\{[\s\S]*min-width:\s*0;[\s\S]*min-height:\s*0;[\s\S]*border-radius:\s*var\(--workspace-content-radius\);[\s\S]*overflow:\s*hidden;/,
+    );
+  });
+
+  it("clips the minimal editor panel so both bottom corners stay rounded", () => {
+    expect(stylesheet).toMatch(
+      /\[data-layout="minimal"\]\s+\.workspace-editor-panel\s*\{[\s\S]*overflow:\s*hidden;[\s\S]*border-radius:\s*var\(--workspace-content-radius\);/,
+    );
+  });
+});

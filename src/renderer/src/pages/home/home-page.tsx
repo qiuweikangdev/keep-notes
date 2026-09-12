@@ -231,13 +231,17 @@ function HomePageContent() {
 
       <div
         className={cn(
-          "workspace-panel-group flex-1 overflow-hidden",
+          "workspace-panel-group flex-1 min-h-0 overflow-hidden",
           isSidebarResizing && "workspace-panel-group--resizing",
         )}
         // 文件树和正文统一应用透明度，设置页与标题栏保持不透明。
         style={{ opacity: workspaceOpacity / 100 }}
       >
-        <PanelGroup direction="horizontal" onLayout={handleLayout}>
+        <PanelGroup
+          className="workspace-panel-group__inner"
+          direction="horizontal"
+          onLayout={handleLayout}
+        >
           <Panel
             ref={panelRef}
             className="workspace-panel workspace-sidebar-panel"
