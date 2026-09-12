@@ -1647,6 +1647,20 @@ body[data-layout="minimal"]:has(.workspace-shell[data-native-material="true"]) {
   overflow: hidden;
 }
 
+/* 标签焦点框内缩绘制，避免矩形 outline 在工作区左上圆角处被截断。 */
+.workspace-content-surface [role="tab"]:focus-visible {
+  outline: none;
+}
+
+.workspace-content-surface [role="tab"]:focus-visible::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 2px solid var(--accent-color);
+  border-radius: 6px;
+  pointer-events: none;
+}
+
 @media (prefers-reduced-transparency: reduce) {
   .workspace-shell[data-native-material="true"] {
     background-color: var(--workspace-background);
