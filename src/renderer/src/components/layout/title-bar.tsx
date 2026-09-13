@@ -347,7 +347,8 @@ export function TitleBar({
             isMinimal
               ? {
                   width: collapsed ? "auto" : "var(--workspace-sidebar-width)",
-                  minWidth: collapsed ? (isMac ? "190px" : "112px") : 0,
+                  minWidth: 0,
+                  paddingRight: collapsed ? "8px" : 0,
                 }
               : undefined
           }

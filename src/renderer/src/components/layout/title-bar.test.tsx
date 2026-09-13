@@ -153,6 +153,27 @@ describe("TitleBar", () => {
     expect(screen.getByTitle("没有历史记录")).toBeInTheDocument();
     expect(screen.getByTitle("没有更多记录")).toBeInTheDocument();
   });
+
+  it("removes the collapsed compact navigation spacer after hiding history controls", () => {
+    render(
+      <TitleBar
+        collapsed
+        onToggleCollapse={vi.fn()}
+        compactTabs={<div role="tablist" aria-label="编辑器标签页" />}
+      />,
+    );
+
+    const navigation = screen
+      .getByTestId("title-bar")
+      .querySelector(".workspace-title-navigation");
+
+    expect(navigation).toBeInTheDocument();
+    expect(navigation).toHaveStyle({ width: "auto" });
+    expect(navigation).toHaveStyle({ paddingRight: "8px" });
+    expect(navigation?.getAttribute("style")).not.toMatch(
+      /min-width:\s*(190px|112px)/,
+    );
+  });
   afterEach(cleanup);
   beforeEach(() => {
     testState.appearance = {
