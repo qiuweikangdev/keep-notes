@@ -1982,15 +1982,44 @@ body[data-layout="minimal"]:has(.workspace-shell[data-native-material="true"]) {
   transform: translate3d(-12px, 0, 0);
 }
 
+/* 设置页沿用主窗口的透明底，避免父级实色背景遮住侧栏的原生材质。 */
+body:has(.settings-sidebar),
+.app-window-surface:has(.settings-sidebar) {
+  background-color: transparent !important;
+}
+
 /* 设置页侧栏完整收起到 0，按钮固定在左上角，收起后仍可展开。 */
 .settings-sidebar {
+  position: relative;
   width: 240px;
   min-width: 0;
   overflow: hidden;
+  isolation: isolate;
+  background-color: color-mix(
+    in srgb,
+    var(--sidebar-material-tint, var(--bg-secondary))
+      var(--sidebar-material-tint-opacity, 82%),
+    transparent
+  ) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(1.08);
+  backdrop-filter: blur(32px) saturate(1.08);
   transition:
     width var(--sidebar-motion-duration) var(--sidebar-motion-ease),
     background-color 160ms ease,
     border-right-color 160ms ease;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  body:has(.settings-sidebar),
+  .app-window-surface:has(.settings-sidebar) {
+    background-color: var(--bg-primary) !important;
+  }
+
+  .settings-sidebar {
+    background-color: var(--bg-secondary) !important;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 
 .sidebar-toggle-icon__divider {

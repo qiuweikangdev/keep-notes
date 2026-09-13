@@ -148,4 +148,13 @@ describe("workspace layout surface styles", () => {
       /\.workspace-shell::before\s*\{[^}]*width:\s*var\(--workspace-sidebar-width,\s*0px\);/,
     );
   });
+
+  it("applies the shared material to the settings sidebar", () => {
+    expect(stylesheet).toMatch(
+      /body:has\(\.settings-sidebar\),\s*\.app-window-surface:has\(\.settings-sidebar\)\s*\{[^}]*background-color:\s*transparent !important;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.settings-sidebar\s*\{[\s\S]*background-color:\s*color-mix\([\s\S]*var\(--sidebar-material-tint,\s*var\(--bg-secondary\)\)[\s\S]*var\(--sidebar-material-tint-opacity,\s*82%\)[\s\S]*backdrop-filter:\s*blur\(32px\) saturate\(1\.08\);/,
+    );
+  });
 });
