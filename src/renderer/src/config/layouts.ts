@@ -51,7 +51,8 @@ export const layouts: Record<LayoutName, LayoutConfig> = {
     sidebarHeaderBackground: "transparent",
     sidebarHeaderBorder: "1px solid transparent",
     panelGroupPadding: "2px 8px 8px",
-    editorPanelPadding: "0 0 0 6px",
+    // 编辑区紧贴侧栏，分隔线由面板句柄统一绘制。
+    editorPanelPadding: "0",
     contentBorder:
       "1px solid color-mix(in srgb, var(--border-color) 80%, transparent)",
     contentRadius: "0",

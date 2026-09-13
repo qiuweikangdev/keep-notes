@@ -217,10 +217,11 @@ describe("HomePage", () => {
     cleanup();
   });
 
-  it("shows the 3px sidebar divider only while resizing", () => {
+  it("keeps the sidebar and editor adjacent while retaining the resize hit area", () => {
     render(<HomePage />);
 
     const handle = screen.getByTestId("sidebar-panel-resize-handle");
+    expect(handle).toHaveStyle({ width: "0px", minWidth: "0px" });
     expect(
       screen.queryByTestId("sidebar-panel-resize-divider"),
     ).not.toBeInTheDocument();

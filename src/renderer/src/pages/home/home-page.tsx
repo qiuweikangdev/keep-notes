@@ -288,8 +288,8 @@ function HomePageContent() {
           <PanelResizeHandle
             className="group/resize"
             style={{
-              width: "1px",
-              minWidth: "1px",
+              width: "0px",
+              minWidth: "0px",
               position: "relative",
               cursor: "col-resize",
             }}
