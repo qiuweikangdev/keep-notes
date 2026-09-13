@@ -131,7 +131,7 @@ describe("TitleBar", () => {
     });
   });
 
-  it("hides compact-layout file history navigation until it can navigate", () => {
+  it("shows compact-layout file history navigation after a file is opened", () => {
     const { rerender } = render(
       <TitleBar
         collapsed
@@ -157,7 +157,10 @@ describe("TitleBar", () => {
     act(() => {
       window.__addFileToHistory?.("first.md");
     });
-    expect(screen.queryByTitle("没有历史记录")).not.toBeInTheDocument();
+    expect(screen.getByTitle("没有历史记录")).toBeInTheDocument();
+    expect(screen.getByTitle("没有更多记录")).toBeInTheDocument();
+    expect(screen.getByTitle("没有历史记录")).toBeDisabled();
+    expect(screen.getByTitle("没有更多记录")).toBeDisabled();
 
     act(() => {
       window.__addFileToHistory?.("second.md");

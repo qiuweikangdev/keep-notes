@@ -11,35 +11,57 @@ interface LayoutSelectorProps {
 function LayoutPreview({ layout }: { layout: LayoutName }) {
   const isMinimal = layout === "minimal";
 
-  return (
-    <span
-      aria-hidden="true"
-      className={cn("layout-preview", isMinimal && "layout-preview--minimal")}
-    >
-      <span className="layout-preview__titlebar">
-        {isMinimal ? (
-          <>
-            <span className="layout-preview__window-control" />
+  if (isMinimal) {
+    return (
+      <span
+        aria-hidden="true"
+        className="layout-preview layout-preview--minimal"
+      >
+        <span className="layout-preview__minimal-sidebar-panel">
+          <span className="layout-preview__sidebar layout-preview__sidebar--minimal">
+            <span className="layout-preview__sidebar-heading" />
+            <span className="layout-preview__sidebar-row layout-preview__sidebar-row--active" />
+            <span className="layout-preview__sidebar-row" />
+          </span>
+        </span>
+        <span className="layout-preview__minimal-editor-panel">
+          <span className="layout-preview__titlebar layout-preview__titlebar--minimal">
             <span className="layout-preview__minimal-tab">
-              <span className="layout-preview__file-icon" />
               <span className="layout-preview__tab-line" />
             </span>
-          </>
-        ) : (
-          <span className="layout-preview__titlebar-line" />
-        )}
+            <span className="layout-preview__titlebar-actions">
+              <span />
+              <span />
+              <span />
+            </span>
+          </span>
+          <span className="layout-preview__editor-content">
+            <span className="layout-preview__editor-heading" />
+            <span className="layout-preview__editor-line" />
+            <span className="layout-preview__editor-line layout-preview__editor-line--short" />
+            <span className="layout-preview__editor-line" />
+          </span>
+        </span>
+      </span>
+    );
+  }
+
+  return (
+    <span aria-hidden="true" className="layout-preview">
+      <span className="layout-preview__titlebar">
+        <span className="layout-preview__search-bar">
+          <span className="layout-preview__search-icon" />
+          <span className="layout-preview__search-line" />
+        </span>
+        <span className="layout-preview__titlebar-actions">
+          <span />
+          <span />
+          <span />
+        </span>
       </span>
       <span className="layout-preview__workspace">
         <span className="layout-preview__sidebar">
-          {isMinimal ? (
-            <>
-              <span className="layout-preview__sidebar-heading" />
-              <span className="layout-preview__sidebar-row layout-preview__sidebar-row--active" />
-              <span className="layout-preview__sidebar-row" />
-            </>
-          ) : (
-            <span className="layout-preview__sidebar-empty-state" />
-          )}
+          <span className="layout-preview__sidebar-empty-state" />
         </span>
         <span className="layout-preview__editor">
           <span className="layout-preview__editor-tabbar">

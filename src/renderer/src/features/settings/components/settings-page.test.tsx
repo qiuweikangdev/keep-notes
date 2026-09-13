@@ -250,10 +250,22 @@ describe("SettingsPage about tab", () => {
       classic.querySelector(".layout-preview__editor-tabbar"),
     ).toBeInTheDocument();
     expect(
+      classic.querySelector(".layout-preview__search-bar"),
+    ).toBeInTheDocument();
+    expect(
+      classic.querySelector(".layout-preview__titlebar-actions"),
+    ).toBeInTheDocument();
+    expect(
       classic.querySelector(".layout-preview__minimal-tab"),
     ).not.toBeInTheDocument();
     expect(
       minimal.querySelector(".layout-preview--minimal"),
+    ).toBeInTheDocument();
+    expect(
+      minimal.querySelector(".layout-preview__minimal-sidebar-panel"),
+    ).toBeInTheDocument();
+    expect(
+      minimal.querySelector(".layout-preview__minimal-editor-panel"),
     ).toBeInTheDocument();
     expect(
       minimal.querySelector(".layout-preview__sidebar-row--active"),
@@ -263,10 +275,19 @@ describe("SettingsPage about tab", () => {
     ).toBeInTheDocument();
     expect(
       minimal.querySelector(".layout-preview__editor-tabbar"),
-    ).toBeInTheDocument();
+    ).not.toBeInTheDocument();
     expect(
       minimal.querySelector(".layout-preview__minimal-tab"),
     ).toBeInTheDocument();
+    expect(
+      minimal.querySelector(".layout-preview__search-bar"),
+    ).not.toBeInTheDocument();
+    expect(
+      minimal.querySelector(".layout-preview__window-dots"),
+    ).not.toBeInTheDocument();
+    expect(
+      minimal.querySelector(".layout-preview__file-icon"),
+    ).not.toBeInTheDocument();
     expect(
       minimal.querySelector(".layout-preview__history-navigation"),
     ).not.toBeInTheDocument();
@@ -275,7 +296,7 @@ describe("SettingsPage about tab", () => {
     ).not.toBeInTheDocument();
     expect(
       minimal.querySelector(".layout-preview__titlebar-actions"),
-    ).not.toBeInTheDocument();
+    ).toBeInTheDocument();
 
     fireEvent.click(minimal);
 

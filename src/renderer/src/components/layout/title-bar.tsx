@@ -119,13 +119,10 @@ export function TitleBar({
   });
   const [, forceUpdate] = useState(0);
   const isNavigatingRef = useRef(false);
-  const canNavigateFileHistory =
-    historyRef.current.index > 0 ||
-    historyRef.current.index < historyRef.current.files.length - 1;
-  // 简约布局在没有可回退或前进的历史时隐藏箭头，避免初始化状态占用标题栏空间。
+  const hasFileHistory = historyRef.current.files.length > 0;
+  // 简约布局只在打开过文件后显示箭头，初始化状态不占用标题栏空间。
   const showFileHistoryNavigation =
-    appearance.showFileHistoryNavigation &&
-    (!isMinimal || canNavigateFileHistory);
+    appearance.showFileHistoryNavigation && (!isMinimal || hasFileHistory);
 
   // 平台判断
   const isMac = useMemo(() => {

@@ -158,15 +158,15 @@ describe("workspace layout surface styles", () => {
     );
   });
 
-  it("gives the minimal layout preview an inset editor surface", () => {
+  it("renders the minimal layout preview as two connected panels", () => {
     expect(stylesheet).toMatch(
-      /\.layout-preview--minimal\s+\.layout-preview__editor\s*\{[\s\S]*margin:\s*3px 3px 3px 0;[\s\S]*border-radius:\s*5px;[\s\S]*overflow:\s*hidden;/,
+      /\.layout-preview--minimal\s*\{[^}]*flex-direction:\s*row;[^}]*gap:\s*0;[^}]*border:\s*0;/,
     );
-  });
-
-  it("separates the minimal layout preview columns", () => {
     expect(stylesheet).toMatch(
-      /\.layout-preview--minimal\s+\.layout-preview__sidebar\s*\{[\s\S]*border-right:\s*1px solid\s+color-mix\(/,
+      /\.layout-preview__minimal-sidebar-panel,\s*\.layout-preview__minimal-editor-panel\s*\{[^}]*overflow:\s*hidden;[^}]*border:\s*1px solid color-mix\([^}]*border-radius:\s*5px;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.layout-preview--minimal\s+\.layout-preview__sidebar-row--active\s*\{[^}]*background-color:\s*var\(--text-muted\);/,
     );
   });
 });
