@@ -102,11 +102,11 @@ export function useTheme({
     const root = document.documentElement;
     const body = document.body;
     const config = getThemeConfig(resolvedTheme);
-    // 蓝绿色深色使用同色系染色，避免原生灰色材质削弱主题辨识度。
+    // 蓝绿色深色使用提亮的蓝灰染色与更轻的透明度，避免侧栏材质显得发沉。
     root.style.setProperty(
       "--sidebar-material-tint",
       resolvedTheme === "dark"
-        ? "#292f38"
+        ? "#303742"
         : config.colorScheme === "light"
           ? "#fafafa"
           : config.colors.bgSecondary,
@@ -117,7 +117,11 @@ export function useTheme({
     // 染色稳定主题明度，同时保留少量窗后颜色，避免壁纸把侧栏染绿或压暗。
     root.style.setProperty(
       "--sidebar-material-tint-opacity",
-      config.colorScheme === "light" ? "96%" : "78%",
+      config.colorScheme === "light"
+        ? "96%"
+        : resolvedTheme === "dark"
+          ? "70%"
+          : "78%",
     );
     root.style.setProperty("--bg-tertiary", config.colors.bgTertiary);
     root.style.setProperty("--text-primary", config.colors.textPrimary);

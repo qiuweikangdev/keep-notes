@@ -125,11 +125,17 @@ describe("useTheme", () => {
     act(() => useUIStore.getState().setLayout("minimal"));
     expect(root.style.getPropertyValue("--bg-primary")).toBe("#23272f");
     expect(root.style.getPropertyValue("--sidebar-material-tint")).toBe(
-      "#292f38",
+      "#303742",
+    );
+    expect(root.style.getPropertyValue("--sidebar-material-tint-opacity")).toBe(
+      "70%",
     );
 
     act(() => useUIStore.setState({ theme: "nord", layout: "minimal" }));
     expect(root.style.getPropertyValue("--bg-primary")).toBe("#2e3440");
+    expect(root.style.getPropertyValue("--sidebar-material-tint-opacity")).toBe(
+      "78%",
+    );
   });
 
   it("updates the resolved theme when the system color scheme changes", () => {
