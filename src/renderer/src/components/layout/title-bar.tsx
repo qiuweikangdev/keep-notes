@@ -100,8 +100,7 @@ export function TitleBar({
     const onMouseDown = (e: MouseEvent) => {
       if (e.button !== 0) return;
       const target = e.target as HTMLElement;
-      if (target.closest("button, [role=tab], input, [data-compact-tabs]"))
-        return;
+      if (target.closest("button, [role=tab], input")) return;
       const requestId = ++dragRequestId;
       pendingDrag = false;
       dragging = false;
@@ -283,11 +282,7 @@ export function TitleBar({
         data-testid="title-bar"
         className="workspace-title-bar flex flex-shrink-0 items-center select-none"
         onDoubleClick={(e) => {
-          if (
-            (e.target as HTMLElement).closest(
-              "button, [role=tab], input, [data-compact-tabs]",
-            )
-          )
+          if ((e.target as HTMLElement).closest("button, [role=tab], input"))
             return;
           window.electronAPI.maximizeWindow();
         }}

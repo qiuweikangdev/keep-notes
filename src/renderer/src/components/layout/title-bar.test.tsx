@@ -78,6 +78,36 @@ vi.mock("@/store/tree.store", () => ({
 }));
 
 describe("TitleBar", () => {
+  it("drags from compact header whitespace without dragging interactive tabs", async () => {
+    render(
+      <TitleBar
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+        compactTabs={
+          <div data-testid="header-space">
+            <div role="tab">note</div>
+          </div>
+        }
+      />,
+    );
+    fireEvent.mouseDown(screen.getByRole("tab"), { button: 0 });
+    expect(window.electronAPI.getWindowBounds).not.toHaveBeenCalled();
+    const space = screen.getByTestId("header-space");
+    fireEvent.mouseDown(space, { button: 0, screenX: 100, screenY: 100 });
+    await waitFor(() =>
+      expect(window.electronAPI.getWindowBounds).toHaveBeenCalledOnce(),
+    );
+    fireEvent.mouseMove(window, { screenX: 140, screenY: 125 });
+    expect(window.electronAPI.moveWindow).toHaveBeenCalledWith({
+      x: 40,
+      y: 25,
+      width: 900,
+      height: 670,
+    });
+    fireEvent.mouseUp(window);
+    fireEvent.doubleClick(space);
+    expect(window.electronAPI.maximizeWindow).toHaveBeenCalledOnce();
+  });
   it("merges compact tabs into the title row without search or theme toggle", () => {
     render(
       <TitleBar
