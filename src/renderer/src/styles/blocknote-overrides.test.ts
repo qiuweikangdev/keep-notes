@@ -363,7 +363,9 @@ describe("blocknote overrides stylesheet", () => {
       /color:\s*var\(--accent-color\) !important;/,
     );
     expect(inlineCodeRule).toMatch(/padding:\s*0\.15em 4px !important;/);
+    expect(inlineCodeRule).toMatch(/border-radius:\s*4px !important;/);
     expect(inlineCodeRule).toMatch(/font-family:[\s\S]*monospace !important;/);
+    expect(inlineCodeRule).not.toMatch(/font-size:\s*0\.9em !important;/);
     expect(inlineCodeRule).toMatch(/font-weight:\s*400 !important;/);
     expect(inlineCodeRule).toMatch(/cursor:\s*text;/);
     expect(
@@ -376,6 +378,31 @@ describe("blocknote overrides stylesheet", () => {
         ":is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content, :is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content code",
       ),
     ).toMatch(/font-weight:\s*500 !important;/);
+  });
+
+  it("scopes the neutral inline code treatment to the minimal theme", () => {
+    const minimalInlineCodeRule = getRule(
+      ".minimal :is(.bn-editor, .bn-editor-preview) code:not(.editor-code-block__content)",
+    );
+    const minimalLatinRule = getRule(
+      ".minimal :is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content, .minimal :is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content code",
+    );
+
+    expect(minimalInlineCodeRule).toBeDefined();
+    expect(minimalInlineCodeRule).toMatch(
+      /background-color:\s*var\(--bg-secondary\) !important;/,
+    );
+    expect(minimalInlineCodeRule).toMatch(
+      /color:\s*var\(--text-primary\) !important;/,
+    );
+    expect(minimalInlineCodeRule).toMatch(
+      /padding:\s*0\.2em 0\.4em !important;/,
+    );
+    expect(minimalInlineCodeRule).toMatch(/border-radius:\s*5px !important;/);
+    expect(minimalInlineCodeRule).toMatch(/font-size:\s*0\.9em !important;/);
+    expect(minimalLatinRule).toMatch(
+      /color:\s*var\(--text-primary\) !important;/,
+    );
   });
 
   it("uses Vditor-style visual markers with stable selection carets", () => {

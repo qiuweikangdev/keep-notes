@@ -732,6 +732,26 @@ html.rich-editor-selection-drag-locked * {
   font-weight: 500 !important;
 }
 
+/* 深黑色主题使用更接近参考图的中性灰底与正文色，其他主题保留各自的行内代码表现。 */
+.minimal
+  :is(.bn-editor, .bn-editor-preview)
+  code:not(.editor-code-block__content) {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+  padding: 0.2em 0.4em !important;
+  border-radius: 5px !important;
+  font-size: 0.9em !important;
+}
+
+.minimal :is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content,
+.minimal
+  :is(.bn-editor, .bn-editor-preview)
+  .editor-inline-code__latin-content
+  code {
+  color: var(--text-primary) !important;
+  -webkit-text-fill-color: var(--text-primary) !important;
+}
+
 .bn-editor
   code:not(.editor-code-block__content):has(
     .editor-inline-code__editing-content
