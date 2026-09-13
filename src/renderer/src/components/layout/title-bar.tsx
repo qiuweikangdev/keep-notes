@@ -62,8 +62,6 @@ export function TitleBar({
   const setSettingsOpen = useUIStore((state) => state.setSettingsOpen);
   const appearance = useEditorStore((state) => state.appearance);
   const setAppearance = useEditorStore((state) => state.setAppearance);
-  const showFileHistoryNavigation =
-    appearance.showFileHistoryNavigation && (!isMinimal || !collapsed);
   const { isDark, toggleTheme } = useTheme();
   const [isGitOpen, setIsGitOpen] = useState(false);
   const [isGitRepo, setIsGitRepo] = useState(false);
@@ -121,6 +119,13 @@ export function TitleBar({
   });
   const [, forceUpdate] = useState(0);
   const isNavigatingRef = useRef(false);
+  const canNavigateFileHistory =
+    historyRef.current.index > 0 ||
+    historyRef.current.index < historyRef.current.files.length - 1;
+  // 简约布局在没有可回退或前进的历史时隐藏箭头，避免初始化状态占用标题栏空间。
+  const showFileHistoryNavigation =
+    appearance.showFileHistoryNavigation &&
+    (!isMinimal || canNavigateFileHistory);
 
   // 平台判断
   const isMac = useMemo(() => {

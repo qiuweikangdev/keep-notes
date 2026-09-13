@@ -244,16 +244,37 @@ describe("SettingsPage about tab", () => {
     expect(classic).toHaveAttribute("aria-checked", "true");
     expect(minimal).toHaveAttribute("aria-checked", "false");
     expect(
-      minimal.querySelector(".layout-preview--minimal"),
+      classic.querySelector(".layout-preview__sidebar-empty-state"),
     ).toBeInTheDocument();
     expect(
-      minimal.querySelector(".layout-preview__traffic-lights"),
+      classic.querySelector(".layout-preview__editor-tabbar"),
+    ).toBeInTheDocument();
+    expect(
+      classic.querySelector(".layout-preview__minimal-tab"),
+    ).not.toBeInTheDocument();
+    expect(
+      minimal.querySelector(".layout-preview--minimal"),
     ).toBeInTheDocument();
     expect(
       minimal.querySelector(".layout-preview__sidebar-row--active"),
     ).toBeInTheDocument();
     expect(
       minimal.querySelector(".layout-preview__editor-heading"),
+    ).toBeInTheDocument();
+    expect(
+      minimal.querySelector(".layout-preview__editor-tabbar"),
+    ).not.toBeInTheDocument();
+    expect(
+      minimal.querySelector(".layout-preview__minimal-tab"),
+    ).toBeInTheDocument();
+    expect(
+      minimal.querySelector(".layout-preview__history-navigation"),
+    ).not.toBeInTheDocument();
+    expect(
+      minimal.querySelector(".layout-preview__tab-close"),
+    ).not.toBeInTheDocument();
+    expect(
+      minimal.querySelector(".layout-preview__titlebar-actions"),
     ).toBeInTheDocument();
 
     fireEvent.click(minimal);

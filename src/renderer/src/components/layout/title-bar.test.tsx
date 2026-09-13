@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -130,7 +131,7 @@ describe("TitleBar", () => {
     });
   });
 
-  it("hides compact-layout file history navigation while the sidebar is collapsed", () => {
+  it("hides compact-layout file history navigation until it can navigate", () => {
     const { rerender } = render(
       <TitleBar
         collapsed
@@ -150,7 +151,18 @@ describe("TitleBar", () => {
       />,
     );
 
-    expect(screen.getByTitle("没有历史记录")).toBeInTheDocument();
+    expect(screen.queryByTitle("没有历史记录")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("没有更多记录")).not.toBeInTheDocument();
+
+    act(() => {
+      window.__addFileToHistory?.("first.md");
+    });
+    expect(screen.queryByTitle("没有历史记录")).not.toBeInTheDocument();
+
+    act(() => {
+      window.__addFileToHistory?.("second.md");
+    });
+    expect(screen.getByTitle("返回上一个文件")).toBeInTheDocument();
     expect(screen.getByTitle("没有更多记录")).toBeInTheDocument();
   });
 

@@ -156,59 +156,115 @@
 }
 
 .layout-preview {
+  display: flex;
+  width: 112px;
+  height: 54px;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 6px;
   border: 1px solid var(--border-color);
   background-color: var(--bg-primary);
 }
 
 .layout-preview__titlebar {
+  display: flex;
+  height: 9px;
+  flex-shrink: 0;
+  align-items: center;
   border-bottom: 1px solid var(--border-color);
   background-color: var(--bg-primary);
   gap: 3px;
   padding: 0 4px;
 }
 
-.layout-preview__traffic-lights {
-  display: none;
-  gap: 2px;
-}
-
-.layout-preview__traffic-light {
-  width: 3px;
-  height: 3px;
+.layout-preview__titlebar-line {
+  width: 24px;
+  height: 2px;
+  margin-left: auto;
   border-radius: 999px;
-}
-
-.layout-preview__traffic-light--close {
-  background-color: #ff5f57;
-}
-
-.layout-preview__traffic-light--minimize {
-  background-color: #febc2e;
-}
-
-.layout-preview__traffic-light--maximize {
-  background-color: #28c840;
+  background-color: var(--text-muted);
+  opacity: 0.45;
 }
 
 .layout-preview__window-control {
   display: none;
   width: 7px;
   height: 5px;
+  flex-shrink: 0;
   border: 1px solid var(--text-muted);
   border-radius: 1px;
   opacity: 0.8;
 }
 
-.layout-preview__titlebar-line {
-  width: 16px;
+.layout-preview__minimal-tab {
+  display: none;
+  height: 100%;
+  flex: 0 0 37px;
+  align-items: center;
+  gap: 3px;
+  margin-left: 1px;
+  border-right: 1px solid var(--border-color);
+  border-left: 1px solid var(--border-color);
+  padding: 0 3px;
+}
+
+.layout-preview__file-icon {
+  position: relative;
+  display: block;
+  width: 5px;
+  height: 6px;
+  flex-shrink: 0;
+  border: 1px solid var(--text-muted);
+  border-radius: 1px;
+  opacity: 0.75;
+}
+
+.layout-preview__file-icon::after {
+  position: absolute;
+  right: 0;
+  bottom: 1px;
+  left: 1px;
+  height: 1px;
+  background-color: var(--text-muted);
+  content: "";
+  opacity: 0.7;
+}
+
+.layout-preview__tab-line {
+  display: block;
+  width: 14px;
   height: 2px;
   border-radius: 999px;
   background-color: var(--text-muted);
-  opacity: 0.45;
+  opacity: 0.7;
+}
+
+.layout-preview__titlebar-actions {
+  display: none;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.layout-preview__titlebar-actions span {
+  width: 3px;
+  height: 3px;
+  border: 1px solid var(--text-muted);
+  border-radius: 999px;
+  opacity: 0.6;
+}
+
+.layout-preview__workspace {
+  display: flex;
+  min-height: 0;
+  flex: 1;
 }
 
 .layout-preview__sidebar {
   display: flex;
+  width: 34px;
+  flex-shrink: 0;
   flex-direction: column;
   gap: 3px;
   padding: 5px 4px;
@@ -228,6 +284,7 @@
 
 .layout-preview__sidebar-heading {
   width: 17px;
+  height: 2px;
   margin-bottom: 1px;
   opacity: 0.65;
 }
@@ -241,14 +298,44 @@
   opacity: 0.78;
 }
 
-.layout-preview__sidebar-row--short {
-  width: 15px;
+.layout-preview__sidebar-empty-state {
+  width: 19px;
+  height: 2px;
+  margin: auto;
+  border-radius: 999px;
+  background-color: var(--text-muted);
+  opacity: 0.42;
 }
 
 .layout-preview__editor {
-  border-color: var(--border-color);
-  background-color: var(--bg-primary);
   display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  border-left: 1px solid var(--border-color);
+  background-color: var(--bg-primary);
+}
+
+.layout-preview__editor-tabbar {
+  display: flex;
+  height: 9px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.layout-preview__editor-tab {
+  width: 36px;
+  height: 2px;
+  margin: auto 0 auto 4px;
+  border-radius: 999px;
+  background-color: var(--text-muted);
+  opacity: 0.65;
+}
+
+.layout-preview__editor-content {
+  display: flex;
+  min-height: 0;
+  flex: 1;
   flex-direction: column;
   gap: 4px;
   padding: 7px 8px;
@@ -283,19 +370,14 @@
   border-bottom-color: transparent;
 }
 
-.layout-preview--minimal .layout-preview__traffic-lights,
-.layout-preview--minimal .layout-preview__window-control {
+.layout-preview--minimal .layout-preview__window-control,
+.layout-preview--minimal .layout-preview__minimal-tab,
+.layout-preview--minimal .layout-preview__titlebar-actions {
   display: flex;
 }
 
-.layout-preview--minimal .layout-preview__titlebar-line {
-  flex: 1;
-}
-
 .layout-preview--minimal .layout-preview__editor {
-  border: 1px solid var(--border-color);
-  border-radius: 1px;
-  padding: 6px 7px;
+  border-left-color: color-mix(in srgb, var(--border-color) 80%, transparent);
 }
 
 /* 简约主题统一 Radix 菜单的表面与状态，覆盖各业务菜单的历史内联配色。 */
@@ -1916,13 +1998,6 @@ body[data-layout="minimal"]:has(.workspace-shell[data-native-material="true"]) {
 
 [data-layout="minimal"]
   .file-tree-empty-state--minimal
-  .file-tree-empty-state__header {
-  background-color: transparent !important;
-  border-bottom: 0 !important;
-}
-
-[data-layout="minimal"]
-  .file-tree-empty-state--minimal
   .file-tree-empty-state__body {
   max-width: 360px;
 }
@@ -1946,6 +2021,48 @@ body[data-layout="minimal"]:has(.workspace-shell[data-native-material="true"]) {
     var(--bg-primary) 38%,
     transparent
   ) !important;
+}
+
+/* 浅色和深色主题提高按钮与通透侧栏之间的对比，避免空状态入口融入背景。 */
+html.light[data-layout="minimal"]
+  .file-tree-empty-state--minimal
+  .file-tree-empty-state__action {
+  background-color: color-mix(
+    in srgb,
+    var(--bg-secondary) 55%,
+    var(--border-color)
+  ) !important;
+}
+
+html.light[data-layout="minimal"]
+  .file-tree-empty-state--minimal
+  .file-tree-empty-state__action:hover {
+  background-color: var(--border-color) !important;
+}
+
+html.dark[data-layout="minimal"]
+  .file-tree-empty-state--minimal
+  .file-tree-empty-state__action {
+  background-color: var(--bg-tertiary) !important;
+}
+
+html.dark[data-layout="minimal"]
+  .file-tree-empty-state--minimal
+  .file-tree-empty-state__action:hover {
+  background-color: var(--active-bg) !important;
+}
+
+/* 深黑色主题的打开文件夹按钮使用更沉稳的黑灰表面，保持与图标和正文的层次。 */
+html.minimal[data-layout="minimal"]
+  .file-tree-empty-state--minimal
+  .file-tree-empty-state__action {
+  background-color: var(--input-background) !important;
+}
+
+html.minimal[data-layout="minimal"]
+  .file-tree-empty-state--minimal
+  .file-tree-empty-state__action:hover {
+  background-color: var(--input-hover-background) !important;
 }
 
 @media (prefers-reduced-transparency: reduce) {

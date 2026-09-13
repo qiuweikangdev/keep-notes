@@ -707,34 +707,12 @@ export function FileTree() {
         className="file-tree-empty-state--minimal flex h-full flex-col"
         data-testid="file-tree-empty-state"
       >
-        <div
-          className="file-tree-empty-state__header flex h-[52px] flex-shrink-0 items-center gap-2 px-5"
-          style={{
-            backgroundColor: "var(--sidebar-header-background)",
-            borderBottom: "var(--sidebar-header-border)",
-          }}
-        >
-          <List
-            className="h-3.5 w-3.5"
-            style={{ color: "var(--text-muted)" }}
-          />
-          <span
-            className="text-xs font-medium"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            文件
-          </span>
-        </div>
-
         <div className="file-tree-empty-state__body min-h-0 flex-1 px-5 pt-10">
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            尚未打开文件夹
-          </p>
           <button
             type="button"
             data-selection-surface="true"
             data-selection-context="secondary"
-            className="file-tree-empty-state__action mt-3 flex h-10 w-full items-center gap-2 rounded-lg px-3 text-left text-xs font-medium"
+            className="file-tree-empty-state__action flex h-10 w-full items-center gap-2 rounded-lg px-3 text-left text-xs font-medium"
             style={{
               backgroundColor:
                 "color-mix(in srgb, var(--bg-primary) 28%, transparent)",

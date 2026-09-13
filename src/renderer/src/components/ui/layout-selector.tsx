@@ -14,37 +14,50 @@ function LayoutPreview({ layout }: { layout: LayoutName }) {
   return (
     <span
       aria-hidden="true"
-      className={cn(
-        "layout-preview flex h-[54px] w-[112px] flex-col overflow-hidden rounded-md",
-        isMinimal && "layout-preview--minimal",
-      )}
+      className={cn("layout-preview", isMinimal && "layout-preview--minimal")}
     >
-      <span className="layout-preview__titlebar flex h-[9px] shrink-0 items-center">
-        <span className="layout-preview__traffic-lights flex items-center">
-          <span className="layout-preview__traffic-light layout-preview__traffic-light--close" />
-          <span className="layout-preview__traffic-light layout-preview__traffic-light--minimize" />
-          <span className="layout-preview__traffic-light layout-preview__traffic-light--maximize" />
-        </span>
-        <span className="layout-preview__window-control" />
-        <span className="layout-preview__titlebar-line" />
+      <span className="layout-preview__titlebar">
+        {isMinimal ? (
+          <>
+            <span className="layout-preview__window-control" />
+            <span className="layout-preview__minimal-tab">
+              <span className="layout-preview__file-icon" />
+              <span className="layout-preview__tab-line" />
+            </span>
+            <span className="layout-preview__titlebar-actions">
+              <span />
+              <span />
+              <span />
+            </span>
+          </>
+        ) : (
+          <span className="layout-preview__titlebar-line" />
+        )}
       </span>
-      <span className="flex min-h-0 flex-1">
-        <span className="layout-preview__sidebar w-[34px] shrink-0">
-          <span className="layout-preview__sidebar-heading" />
-          <span className="layout-preview__sidebar-row layout-preview__sidebar-row--active" />
-          <span className="layout-preview__sidebar-row" />
-          <span className="layout-preview__sidebar-row layout-preview__sidebar-row--short" />
-        </span>
-        <span
-          className={cn(
-            "layout-preview__editor flex-1",
-            isMinimal ? "mx-0.5 my-1" : "border-l",
+      <span className="layout-preview__workspace">
+        <span className="layout-preview__sidebar">
+          {isMinimal ? (
+            <>
+              <span className="layout-preview__sidebar-heading" />
+              <span className="layout-preview__sidebar-row layout-preview__sidebar-row--active" />
+              <span className="layout-preview__sidebar-row" />
+            </>
+          ) : (
+            <span className="layout-preview__sidebar-empty-state" />
           )}
-        >
-          <span className="layout-preview__editor-heading" />
-          <span className="layout-preview__editor-line" />
-          <span className="layout-preview__editor-line layout-preview__editor-line--short" />
-          <span className="layout-preview__editor-line" />
+        </span>
+        <span className="layout-preview__editor">
+          {!isMinimal && (
+            <span className="layout-preview__editor-tabbar">
+              <span className="layout-preview__editor-tab" />
+            </span>
+          )}
+          <span className="layout-preview__editor-content">
+            <span className="layout-preview__editor-heading" />
+            <span className="layout-preview__editor-line" />
+            <span className="layout-preview__editor-line layout-preview__editor-line--short" />
+            <span className="layout-preview__editor-line" />
+          </span>
         </span>
       </span>
     </span>
