@@ -137,6 +137,15 @@ describe("workspace layout surface styles", () => {
     );
   });
 
+  it("removes the minimal layout tab bar surfaces", () => {
+    expect(stylesheet).toMatch(
+      /\[data-layout="minimal"\]\s+\.editor-tab-bar\s*\{[\s\S]*background-color:\s*transparent !important;/,
+    );
+    expect(stylesheet).toMatch(
+      /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tab"\]\s*\{[\s\S]*background-color:\s*transparent !important;/,
+    );
+  });
+
   it("exposes the native material behind the minimal sidebar", () => {
     expect(stylesheet).toMatch(
       /\[data-layout="minimal"\]\s+\.workspace-shell\s*\{[\s\S]*background-color:\s*transparent;/,

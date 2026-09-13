@@ -1958,6 +1958,10 @@ body[data-layout="minimal"]:has(.workspace-shell[data-native-material="true"]) {
 [data-layout="minimal"] .editor-tab-bar {
   height: var(--workspace-title-height, 40px);
   min-width: 0;
+  background-color: transparent !important;
+}
+[data-layout="minimal"] .editor-tab-bar [role="tab"] {
+  background-color: transparent !important;
 }
 [data-layout="minimal"] .editor-tab-bar :is([role="tab"], button, input) {
   -webkit-app-region: no-drag;
