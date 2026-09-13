@@ -1686,10 +1686,10 @@ body[data-layout="minimal"]:has(.workspace-shell[data-native-material="true"]) {
   background-color: var(--bg-primary);
   -webkit-app-region: no-drag;
 }
-/* 各叶面板自行绘制标题行，与左侧原生导航对齐，不再单独提升首面板标签。 */
+/* 各叶面板自行绘制标题行，与左侧原生导航对齐；简约布局不保留面板组外间距。 */
 [data-layout="minimal"] .workspace-shell > .workspace-panel-group {
   margin-top: calc(-1 * var(--workspace-title-height, 44px));
-  padding-top: 0;
+  padding: 0;
 }
 [data-layout="minimal"] .workspace-sidebar-panel {
   padding-top: var(--workspace-title-height, 44px);

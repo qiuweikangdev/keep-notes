@@ -122,7 +122,13 @@ describe("workspace layout surface styles", () => {
     );
   });
 
-  it("lets the minimal panel group fit inside the padded workspace", () => {
+  it("removes panel group padding in the minimal workspace", () => {
+    expect(stylesheet).toMatch(
+      /\[data-layout="minimal"\]\s+\.workspace-shell\s*>\s*\.workspace-panel-group\s*\{[^}]*padding:\s*0;/,
+    );
+  });
+
+  it("lets the minimal panel group fit inside the workspace", () => {
     expect(stylesheet).toMatch(
       /\[data-layout="minimal"\]\s+\.workspace-shell\s*>\s*\.workspace-panel-group\s*\{[\s\S]*display:\s*grid;[\s\S]*grid-template-rows:\s*minmax\(0,\s*1fr\);[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\);/,
     );
