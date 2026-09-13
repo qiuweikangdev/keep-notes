@@ -6,7 +6,6 @@ import {
   useRef,
   useState,
   type ClipboardEvent as ReactClipboardEvent,
-  type CSSProperties,
   type KeyboardEvent,
 } from "react";
 import { BlockNoteView } from "@blocknote/mantine";
@@ -1438,7 +1437,6 @@ export function QuickEditorWindow() {
         aria-hidden={editorIsHidden || undefined}
         aria-label="快速编辑器"
         className="quick-editor-window__editor"
-        style={{ opacity: appearance.opacity / 100 } as CSSProperties}
       >
         {editorMode === "rich" ? (
           <FindWidget
@@ -1495,6 +1493,8 @@ export function QuickEditorWindow() {
               style={{
                 fontSize: `${appearance.fontSize}px`,
                 lineHeight: appearance.lineHeight,
+                // 透明度只作用于快速编辑器的富文本内容，不影响窗口操作区和大纲。
+                opacity: appearance.opacity / 100,
               }}
             >
               <EditorFormattingToolbar />

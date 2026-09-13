@@ -21,7 +21,6 @@ import {
 import { areDiffContentsEqual } from "@/features/diff/lib/diff-content";
 import { useDiffStore } from "@/store/diff.store";
 import { useDiffPanelStore } from "@/features/diff/store/diff-panel.store";
-import { useEditorStore } from "@/store/editor.store";
 import { useTreeStore } from "@/store/tree.store";
 import { discardFileChanges } from "@/features/editor/lib/discard-file-changes";
 import {
@@ -70,7 +69,6 @@ function HomePageContent() {
     observer.observe(workspace);
     return () => observer.disconnect();
   }, []);
-  const workspaceOpacity = useEditorStore((state) => state.appearance.opacity);
   const {
     panelSize,
     panelRef,
@@ -264,8 +262,6 @@ function HomePageContent() {
           "workspace-panel-group flex-1 min-h-0 overflow-hidden",
           isSidebarResizing && "workspace-panel-group--resizing",
         )}
-        // 文件树和正文统一应用透明度，设置页与标题栏保持不透明。
-        style={{ opacity: workspaceOpacity / 100 }}
       >
         <PanelGroup
           className="workspace-panel-group__inner"

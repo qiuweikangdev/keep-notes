@@ -254,11 +254,11 @@ describe("RichDocumentSurfaceRegistry", () => {
     expect(registry.activate("surface-only.md", "g1:t1")).toBe(false);
   });
 
-  it("restores the surface to its configured appearance opacity", () => {
+  it("keeps the document surface opaque when rich content is translucent", () => {
     const registry = new RichDocumentSurfaceRegistry();
     const surface = document.createElement("div");
     const host = document.createElement("div");
-    surface.dataset.richSurfaceOpacity = "0.6";
+    surface.style.opacity = "0.6";
     vi.spyOn(host, "getBoundingClientRect").mockReturnValue(
       rect(0, 0, 300, 200),
     );
@@ -267,7 +267,7 @@ describe("RichDocumentSurfaceRegistry", () => {
     registry.registerHost("note.md", "g1:t1", host);
 
     expect(registry.activate("note.md", "g1:t1")).toBe(true);
-    expect(surface.style.opacity).toBe("0.6");
+    expect(surface.style.opacity).toBe("1");
   });
 
   it("tracks the active host size while keeping the surface in body", () => {

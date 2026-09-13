@@ -10,6 +10,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DragResizeProvider } from "@/components/drag-resize-provider";
+import { useEditorStore } from "@/store/editor.store";
 import { useTreeStore } from "@/store/tree.store";
 import { DIFF_TOAST_EVENT } from "@/features/diff/lib/diff-toast";
 import { APP_TOAST_EVENT } from "@/lib/app-toast";
@@ -238,6 +239,24 @@ describe("HomePage", () => {
     expect(
       screen.queryByTestId("sidebar-panel-resize-divider"),
     ).not.toBeInTheDocument();
+  });
+
+  it("does not apply editor opacity to the sidebar workspace container", () => {
+    const appearance = useEditorStore.getState().appearance;
+    useEditorStore.setState({
+      appearance: { ...appearance, opacity: 60 },
+    });
+
+    try {
+      render(<HomePage />);
+
+      const workspaceGroup = document.querySelector<HTMLElement>(
+        ".workspace-panel-group",
+      );
+      expect(workspaceGroup?.style.opacity).toBe("");
+    } finally {
+      useEditorStore.setState({ appearance });
+    }
   });
 
   it("renders the diff popup through the Radix dialog root", () => {
