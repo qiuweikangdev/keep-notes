@@ -128,6 +128,7 @@ describe("FileTree context menu", () => {
     expect(screen.queryByText("尚未打开文件夹")).not.toBeInTheDocument();
     expect(screen.queryByText("文件")).not.toBeInTheDocument();
     expect(screen.queryByText("没有打开的文件夹")).not.toBeInTheDocument();
+    expect(screen.getByText("打开文件夹开始记录")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "打开文件夹…" }),
     ).toBeInTheDocument();
@@ -147,6 +148,27 @@ describe("FileTree context menu", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "打开文件夹..." }));
     expect(electronMocks.openFolder).toHaveBeenCalledOnce();
+  });
+
+  it("removes a recent folder from the minimal empty state", () => {
+    useTreeStore.setState({
+      treeRoot: null,
+      treeData: [],
+      recentFolders: [{ title: "my-notes3", path: "/my-notes3" }],
+    });
+
+    render(<FileTree />);
+
+    expect(screen.getByText("my-notes3")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "移除最近打开的文件夹 my-notes3",
+      }),
+    );
+
+    expect(useTreeStore.getState().recentFolders).toEqual([]);
+    expect(screen.queryByText("my-notes3")).not.toBeInTheDocument();
+    expect(electronMocks.loadDirectory).not.toHaveBeenCalled();
   });
 
   it("expands an unloaded directory immediately and loads its children in the background", () => {

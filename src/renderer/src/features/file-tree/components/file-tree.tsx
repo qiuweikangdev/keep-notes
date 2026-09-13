@@ -24,6 +24,7 @@ import {
   FolderPlus,
   ExternalLink,
   Copy,
+  X,
   Pencil,
   Trash2,
   GitCompare,
@@ -113,6 +114,7 @@ export function FileTree() {
   const treeData = useTreeStore((state) => state.treeData);
   const treeRoot = useTreeStore((state) => state.treeRoot);
   const recentFolders = useTreeStore((state) => state.recentFolders);
+  const removeRecentFolder = useTreeStore((state) => state.removeRecentFolder);
   const setTreeData = useTreeStore((state) => state.setTreeData);
   const expandedKeys = useTreeStore((state) => state.expandedKeys);
   const selectedKey = useTreeStore((state) => state.selectedKey);
@@ -707,22 +709,37 @@ export function FileTree() {
         className="file-tree-empty-state--minimal flex h-full flex-col"
         data-testid="file-tree-empty-state"
       >
-        <div className="file-tree-empty-state__body min-h-0 flex-1 px-5 pt-10">
-          <button
-            type="button"
-            data-selection-surface="true"
-            data-selection-context="secondary"
-            className="file-tree-empty-state__action flex h-10 w-full items-center gap-2 rounded-lg px-3 text-left text-xs font-medium"
-            style={{
-              backgroundColor:
-                "color-mix(in srgb, var(--bg-primary) 28%, transparent)",
-              color: "var(--text-primary)",
-            }}
-            onClick={handleSelectDir}
-          >
-            <FolderOpen className="h-3.5 w-3.5" />
-            打开文件夹…
-          </button>
+        <div className="file-tree-empty-state__body flex min-h-0 flex-1 flex-col px-5 pt-10">
+          <div className="file-tree-empty-state__intro flex flex-shrink-0 flex-col items-center justify-center">
+            <div className="flex w-full max-w-[300px] flex-col items-center text-center">
+              <FolderOpen
+                aria-hidden="true"
+                className="mb-3 h-7 w-7 opacity-60"
+                style={{ color: "var(--text-muted)" }}
+              />
+              <p
+                className="mt-1 text-xs"
+                style={{ color: "var(--text-muted)" }}
+              >
+                打开文件夹开始记录
+              </p>
+              <button
+                type="button"
+                data-selection-surface="true"
+                data-selection-context="secondary"
+                className="file-tree-empty-state__action mt-5 flex h-10 w-full items-center gap-2 rounded-lg px-3 text-left text-xs font-medium"
+                style={{
+                  backgroundColor:
+                    "color-mix(in srgb, var(--bg-primary) 28%, transparent)",
+                  color: "var(--text-primary)",
+                }}
+                onClick={handleSelectDir}
+              >
+                <FolderOpen className="h-3.5 w-3.5" />
+                打开文件夹…
+              </button>
+            </div>
+          </div>
 
           {recentFolders.length > 0 ? (
             <div className="mt-8">
@@ -734,19 +751,42 @@ export function FileTree() {
               </p>
               <div className="flex flex-col gap-0.5">
                 {recentFolders.slice(0, 4).map((folder) => (
-                  <button
+                  <div
                     key={folder.path}
-                    type="button"
-                    data-selection-surface="true"
-                    data-selection-context="secondary"
-                    className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-xs"
-                    style={{ color: "var(--text-secondary)" }}
-                    title={folder.path}
-                    onClick={() => void loadTree(folder.path)}
+                    className="file-tree-empty-state__recent-folder group flex h-8 w-full items-center rounded-md"
                   >
-                    <Folder className="h-3.5 w-3.5 flex-shrink-0" />
-                    <span className="truncate">{folder.title}</span>
-                  </button>
+                    <button
+                      type="button"
+                      data-selection-surface="true"
+                      data-selection-context="secondary"
+                      className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-xs"
+                      style={{ color: "var(--text-secondary)" }}
+                      title={folder.path}
+                      onClick={() => void loadTree(folder.path)}
+                    >
+                      <Folder className="h-3.5 w-3.5 flex-shrink-0" />
+                      <span className="truncate">{folder.title}</span>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`移除最近打开的文件夹 ${folder.title}`}
+                      className="mr-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                      style={{ color: "var(--text-muted)" }}
+                      title="移除最近打开的文件夹"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        removeRecentFolder(folder.path);
+                      }}
+                      onMouseEnter={(event) => {
+                        event.currentTarget.style.color = "var(--text-primary)";
+                      }}
+                      onMouseLeave={(event) => {
+                        event.currentTarget.style.color = "var(--text-muted)";
+                      }}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>

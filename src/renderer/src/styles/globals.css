@@ -1996,6 +1996,19 @@ body[data-layout="minimal"]:has(.workspace-shell[data-native-material="true"]) {
   background-color: transparent;
 }
 
+[data-layout="minimal"] .file-tree-empty-state__intro {
+  height: clamp(240px, 34vh, 320px);
+}
+
+[data-layout="minimal"] .file-tree-empty-state__recent-folder {
+  transition: background-color 140ms ease;
+}
+
+[data-layout="minimal"]
+  .file-tree-empty-state__recent-folder:is(:hover, :focus-within) {
+  background-color: var(--file-tree-row-hover);
+}
+
 [data-layout="minimal"]
   .file-tree-empty-state--minimal
   .file-tree-empty-state__body {
