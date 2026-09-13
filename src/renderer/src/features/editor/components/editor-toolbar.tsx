@@ -1,4 +1,3 @@
-import { useCallback, useEffect, useState } from "react";
 import {
   ArrowLeftRight,
   FolderSearch,
@@ -13,30 +12,7 @@ import {
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
-import { useElectron } from "@/hooks/use-electron";
-import { useDiffStore } from "@/store/diff.store";
-import {
-  useEditorStore,
-  type EditorMode,
-  type EditorTab,
-} from "@/store/editor.store";
-import { useTreeStore } from "@/store/tree.store";
-import { CodeResult } from "@/types";
-import { getRevealInFileManagerLabel } from "@/features/file-tree/utils";
-import {
-  showNoDiffChangesToast,
-  showNoDiffContentToast,
-} from "@/features/diff/lib/diff-toast";
-import { areDiffContentsEqual } from "@/features/diff/lib/diff-content";
-import { hasNoHeadVersion, toGitRelativePath } from "../lib/editor-git-actions";
-import { getEditorDocumentPath } from "../lib/editor-document-path";
-import {
-  editorCache,
-  flushEditorChange,
-  richDocumentSessionManager,
-} from "../lib/editor-runtime";
-import { discardFileChanges } from "../lib/discard-file-changes";
-import { selectEditorToolbarSignature } from "../lib/editor-view-selectors";
+import { useEditorTabActions } from "../lib/use-editor-tab-actions";
 
 interface EditorToolbarProps {
   groupId: string;
@@ -51,208 +27,23 @@ export function EditorToolbar({
   onSplitRight,
   onSplitDown,
 }: EditorToolbarProps) {
-  useEditorStore(selectEditorToolbarSignature(groupId));
-  const group = useEditorStore
-    .getState()
-    .panelGroups.find((item) => item.id === groupId);
-  const tab = group?.tabs.find((item) => item.id === group.activeTabId);
-  const getActiveTab = useCallback(() => {
-    const state = useEditorStore.getState();
-    const activeGroup = state.panelGroups.find((item) => item.id === groupId);
-    return activeGroup?.tabs.find(
-      (item) => item.id === activeGroup.activeTabId,
-    );
-  }, [groupId]);
-  const repositoryRoot = useTreeStore((state) => state.treeRoot?.key ?? null);
-  const setTabMode = useEditorStore((state) => state.setTabMode);
-  const setTabParseError = useEditorStore((state) => state.setTabParseError);
-  const openDiff = useDiffStore((state) => state.openDiff);
-  const closeDiff = useDiffStore((state) => state.closeDiff);
-  const updateContent = useDiffStore((state) => state.updateContent);
   const {
-    detectGitRepo,
-    discardChanges,
-    getFileHeadContent,
-    getGitStatus,
-    loadTree,
-    openInExplorer,
-  } = useElectron();
-  const [isGitRepo, setIsGitRepo] = useState(false);
-  const [confirmDiscard, setConfirmDiscard] = useState(false);
-  const revealInFileManagerLabel = getRevealInFileManagerLabel(
-    window.electronAPI?.getPlatform?.(),
-  );
-
-  useEffect(() => {
-    let active = true;
-    if (!repositoryRoot) {
-      setIsGitRepo(false);
-      return;
-    }
-
-    void detectGitRepo(repositoryRoot).then((result) => {
-      if (active) {
-        setIsGitRepo(
-          result.code === CodeResult.Success && result.data?.isGitRepo === true,
-        );
-      }
-    });
-    return () => {
-      active = false;
-    };
-  }, [detectGitRepo, repositoryRoot]);
-
-  const flushRichSnapshot = useCallback(
-    async (
-      targetTab: EditorTab,
-      reconcileSource = false,
-    ): Promise<EditorTab | null> => {
-      if (targetTab.mode === "rich") {
-        const documentPath = getEditorDocumentPath(targetTab);
-        if (richDocumentSessionManager.getRuntime(documentPath)) {
-          await richDocumentSessionManager.serializePendingChange(
-            documentPath,
-            { reconcileSource },
-          );
-        } else {
-          await flushEditorChange(groupId, targetTab.id, { reconcileSource });
-        }
-      }
-
-      const latestTab = getActiveTab();
-      return latestTab?.id === targetTab.id ? latestTab : null;
-    },
-    [getActiveTab, groupId],
-  );
-
-  const handleModeChange = useCallback(
-    async (mode: EditorMode) => {
-      let currentTab: EditorTab | null | undefined = getActiveTab();
-      if (!currentTab || currentTab.mode === mode) return;
-
-      if (currentTab.mode === "rich" && mode === "source") {
-        currentTab = await flushRichSnapshot(currentTab, true);
-        if (!currentTab) return;
-      }
-      if (mode === "rich") {
-        // 解析错误的显式重试绕过块缓存，普通文件打开仍可复用相同源码。
-        if (currentTab.parseErrorMessage)
-          editorCache.invalidateBlocks(getEditorDocumentPath(currentTab));
-        setTabParseError(groupId, currentTab.id, null);
-      }
-      const canReuseRichDocument =
-        mode === "rich" &&
-        currentTab.filePath !== null &&
-        editorCache.hasParsedSource(currentTab.filePath, currentTab.content);
-      setTabMode(groupId, currentTab.id, mode, {
-        reloadRichDocument: !canReuseRichDocument,
-      });
-    },
-    [flushRichSnapshot, getActiveTab, groupId, setTabMode, setTabParseError],
-  );
-
-  const handleDiff = useCallback(async () => {
-    let currentTab: EditorTab | null | undefined = getActiveTab();
-    if (!currentTab?.filePath || !repositoryRoot) return;
-    currentTab = await flushRichSnapshot(currentTab);
-    if (!currentTab?.filePath) return;
-    const filePath = currentTab.filePath;
-    const editorContent = currentTab.content;
-
-    const relativePath = toGitRelativePath(repositoryRoot, filePath);
-    const result = await getFileHeadContent(repositoryRoot, relativePath);
-    let headContent = result.data ?? "";
-
-    if (result.code !== CodeResult.Success) {
-      const statusResult = await getGitStatus(repositoryRoot);
-      if (
-        statusResult.code !== CodeResult.Success ||
-        !statusResult.data ||
-        !hasNoHeadVersion(statusResult.data, relativePath)
-      ) {
-        closeDiff();
-        return;
-      }
-      // 未跟踪或首次新增的文件在 HEAD 中没有内容，以空文件作为差异基线。
-      headContent = "";
-    }
-
-    if (areDiffContentsEqual(headContent, editorContent)) {
-      showNoDiffContentToast();
-      return;
-    }
-
-    openDiff(filePath, headContent, editorContent);
-    updateContent(headContent, editorContent);
-  }, [
-    closeDiff,
-    flushRichSnapshot,
-    getActiveTab,
-    getFileHeadContent,
-    getGitStatus,
-    openDiff,
-    repositoryRoot,
-    updateContent,
-  ]);
-
-  const handleRevealInFileManager = useCallback(() => {
-    const currentTab = getActiveTab();
-    if (!currentTab?.filePath || currentTab.pendingFilePath) return;
-    void openInExplorer(currentTab.filePath);
-  }, [getActiveTab, openInExplorer]);
-
-  const handleModeToggle = useCallback(() => {
-    const currentTab = getActiveTab();
-    if (!currentTab) return;
-    void handleModeChange(currentTab.mode === "rich" ? "source" : "rich");
-  }, [getActiveTab, handleModeChange]);
-
-  const handleOpenFloatingWindow = useCallback(async () => {
-    let currentTab: EditorTab | null | undefined = getActiveTab();
-    if (!currentTab) return;
-
-    currentTab = await flushRichSnapshot(currentTab);
-    if (!currentTab) return;
-    window.electronAPI.createQuickEditorWindow({
-      content: currentTab.content,
-      source: {
-        groupId,
-        tabId: currentTab.id,
-        filePath: currentTab.filePath,
-        temporaryTitle: currentTab.temporaryTitle ?? null,
-        repositoryRoot,
-      },
-    });
-  }, [flushRichSnapshot, getActiveTab, groupId, repositoryRoot]);
-
-  const handleDiscard = useCallback(async () => {
-    const currentTab = getActiveTab();
-    if (!currentTab?.filePath || !repositoryRoot) return;
-    const result = await discardFileChanges(
-      repositoryRoot,
-      currentTab.filePath,
-      {
-        discardChanges,
-        getFileHeadContent,
-        getGitStatus,
-        loadTree,
-      },
-    );
-    if (result.noChanges) {
-      showNoDiffChangesToast();
-    }
-  }, [
-    detectGitRepo,
-    discardChanges,
-    getFileHeadContent,
-    getGitStatus,
-    getActiveTab,
-    loadTree,
-    repositoryRoot,
-  ]);
-
-  const showGitActions =
-    isGitRepo && Boolean(tab?.filePath && !tab.pendingFilePath);
+    confirmDiscard,
+    handleDiff,
+    handleDiscard,
+    handleModeToggle,
+    handleOpenFloatingWindow,
+    handleRevealInFileManager,
+    revealInFileManagerLabel,
+    setConfirmDiscard,
+    showGitActions,
+    tab,
+  } = useEditorTabActions({
+    groupId,
+    onNewTab,
+    onSplitRight,
+    onSplitDown,
+  });
 
   return (
     <>

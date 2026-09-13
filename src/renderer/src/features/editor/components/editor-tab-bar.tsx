@@ -1,11 +1,17 @@
 import { useEditorStore } from "@/store/editor.store";
 import {
+  ArrowLeftRight,
   AlertCircle,
   FileText,
+  FolderSearch,
+  GitCompare,
   Pencil,
+  PictureInPicture2,
+  Plus,
   X,
   SplitSquareVertical,
   SplitSquareHorizontal,
+  Undo2,
 } from "lucide-react";
 import {
   useState,
@@ -15,9 +21,12 @@ import {
   type KeyboardEvent,
 } from "react";
 import { createPortal } from "react-dom";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useElectron } from "@/hooks/use-electron";
 import { showAppToast } from "@/lib/app-toast";
+import { getLayoutConfig } from "@/config/layouts";
 import { useTreeStore } from "@/store/tree.store";
+import { useUIStore } from "@/store/ui.store";
 import { CodeResult } from "@/types";
 import {
   editorSplitPaintCoordinator,
@@ -29,6 +38,7 @@ import {
   flushEditorChange,
   editorSaveCoordinator,
 } from "../lib/editor-runtime";
+import { useEditorTabActions } from "../lib/use-editor-tab-actions";
 import { EditorToolbar } from "./editor-toolbar";
 
 interface EditorTabBarProps {
@@ -93,6 +103,7 @@ export function EditorTabBar({
   reserveWindowNavigation = false,
 }: EditorTabBarProps) {
   useEditorStore(selectTabBarSignature(groupId));
+  const layout = useUIStore((state) => state.layout);
   const setActiveTab = useEditorStore((state) => state.setActiveTab);
   const addTab = useEditorStore((state) => state.addTab);
   const addPanelGroup = useEditorStore((state) => state.addPanelGroup);
@@ -110,9 +121,10 @@ export function EditorTabBar({
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
-    tabId: string;
+    tabId: string | null;
     tabWidth: number | null;
   } | null>(null);
+  const [discardTabId, setDiscardTabId] = useState<string | null>(null);
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
   const [renamingTabWidth, setRenamingTabWidth] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -196,8 +208,31 @@ export function EditorTabBar({
     addPanelGroup("vertical", groupId);
   };
 
+  const {
+    confirmDiscard,
+    handleDiff,
+    handleDiscard,
+    handleModeToggle,
+    handleOpenFloatingWindow,
+    handleRevealInFileManager,
+    onNewTab,
+    onSplitDown,
+    onSplitRight,
+    revealInFileManagerLabel,
+    setConfirmDiscard,
+    showGitActions,
+    tab: contextTab,
+  } = useEditorTabActions({
+    groupId,
+    // 确认弹窗关闭右键菜单后仍需锁定原标签，避免误操作当前激活标签。
+    tabId: discardTabId ?? contextMenu?.tabId,
+    onNewTab: handleNewTab,
+    onSplitRight: handleSplitRight,
+    onSplitDown: handleSplitDown,
+  });
+
   // 右键菜单
-  const handleContextMenu = (e: React.MouseEvent, tabId: string) => {
+  const handleContextMenu = (e: React.MouseEvent, tabId: string | null) => {
     e.preventDefault();
     e.stopPropagation();
     const tabWidth = e.currentTarget.getBoundingClientRect().width;
@@ -210,10 +245,9 @@ export function EditorTabBar({
   };
 
   const handleCloseTabFromMenu = () => {
-    if (contextMenu) {
-      void closeTab(contextMenu.tabId);
-      setContextMenu(null);
-    }
+    if (!contextMenu?.tabId) return;
+    void closeTab(contextMenu.tabId);
+    setContextMenu(null);
   };
 
   const handleStartRename = () => {
@@ -327,6 +361,9 @@ export function EditorTabBar({
 
   if (!group) return null;
 
+  const showToolbarActions =
+    getLayoutConfig(layout).tabBarActionPlacement === "toolbar";
+
   return (
     <div
       className="editor-tab-bar flex h-[35px] flex-shrink-0 items-center relative"
@@ -344,6 +381,9 @@ export function EditorTabBar({
         role="tablist"
         aria-label="编辑器标签页"
         className="flex flex-1 overflow-x-auto scrollbar-none h-full"
+        onContextMenu={(event) => {
+          if (!group.tabs.length) handleContextMenu(event, null);
+        }}
       >
         {group.tabs.map((tab) => {
           const displayPath = tab.pendingFilePath ?? tab.filePath;
@@ -502,22 +542,23 @@ export function EditorTabBar({
         })}
       </div>
 
-      {/* 空面板也保留标签页操作入口，用户可随时创建未命名标签页。 */}
-      <div
-        className="flex h-full flex-shrink-0 items-center gap-1 px-1"
-        style={{
-          borderLeft: group.tabs.length
-            ? "1px solid var(--border-color)"
-            : "1px solid transparent",
-        }}
-      >
-        <EditorToolbar
-          groupId={groupId}
-          onNewTab={handleNewTab}
-          onSplitRight={handleSplitRight}
-          onSplitDown={handleSplitDown}
-        />
-      </div>
+      {showToolbarActions ? (
+        <div
+          className="flex h-full flex-shrink-0 items-center gap-1 px-1"
+          style={{
+            borderLeft: group.tabs.length
+              ? "1px solid var(--border-color)"
+              : "1px solid transparent",
+          }}
+        >
+          <EditorToolbar
+            groupId={groupId}
+            onNewTab={handleNewTab}
+            onSplitRight={handleSplitRight}
+            onSplitDown={handleSplitDown}
+          />
+        </div>
+      ) : null}
 
       {/* 右键菜单 */}
       {contextMenu
@@ -561,28 +602,74 @@ export function EditorTabBar({
                 boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
               }}
             >
+              {contextTab ? (
+                <>
+                  <MenuButton
+                    icon={<X className="h-3.5 w-3.5" />}
+                    onClick={handleCloseTabFromMenu}
+                  >
+                    关闭
+                  </MenuButton>
+                  <MenuButton
+                    icon={<Pencil className="h-3.5 w-3.5" />}
+                    onClick={handleStartRename}
+                  >
+                    重命名
+                  </MenuButton>
+                  <MenuDivider />
+                </>
+              ) : null}
               <MenuButton
-                icon={<X className="h-3.5 w-3.5" />}
-                onClick={handleCloseTabFromMenu}
+                icon={<Plus className="h-3.5 w-3.5" />}
+                onClick={() => {
+                  setContextMenu(null);
+                  onNewTab();
+                }}
               >
-                关闭
+                新建标签页
               </MenuButton>
-              <MenuButton
-                icon={<Pencil className="h-3.5 w-3.5" />}
-                onClick={handleStartRename}
-              >
-                重命名
-              </MenuButton>
+              {contextTab ? (
+                <MenuButton
+                  icon={<PictureInPicture2 className="h-3.5 w-3.5" />}
+                  onClick={() => {
+                    setContextMenu(null);
+                    void handleOpenFloatingWindow();
+                  }}
+                >
+                  浮动窗口
+                </MenuButton>
+              ) : null}
+              {contextTab?.filePath && !contextTab.pendingFilePath ? (
+                <MenuButton
+                  icon={<FolderSearch className="h-3.5 w-3.5" />}
+                  onClick={() => {
+                    setContextMenu(null);
+                    handleRevealInFileManager();
+                  }}
+                >
+                  {revealInFileManagerLabel}
+                </MenuButton>
+              ) : null}
+              {contextTab ? (
+                <>
+                  <MenuDivider />
+                  <MenuButton
+                    icon={<ArrowLeftRight className="h-3.5 w-3.5" />}
+                    onClick={() => {
+                      setContextMenu(null);
+                      handleModeToggle();
+                    }}
+                  >
+                    编辑模式切换
+                  </MenuButton>
+                </>
+              ) : null}
               <MenuDivider />
               <MenuButton
                 icon={<SplitSquareHorizontal className="h-3.5 w-3.5" />}
                 onClick={() => {
                   setContextMenu(null);
-                  if (import.meta.env.DEV) {
-                    splitEditorPanel("horizontal", groupId, addPanelGroup);
-                    return;
-                  }
-                  addPanelGroup("horizontal", groupId);
+                  onSplitRight();
                 }}
               >
                 向右拆分
@@ -591,19 +678,52 @@ export function EditorTabBar({
                 icon={<SplitSquareVertical className="h-3.5 w-3.5" />}
                 onClick={() => {
                   setContextMenu(null);
-                  if (import.meta.env.DEV) {
-                    splitEditorPanel("vertical", groupId, addPanelGroup);
-                    return;
-                  }
-                  addPanelGroup("vertical", groupId);
+                  onSplitDown();
                 }}
               >
                 向下拆分
               </MenuButton>
+              {showGitActions ? (
+                <>
+                  <MenuDivider />
+                  <MenuButton
+                    icon={<GitCompare className="h-3.5 w-3.5" />}
+                    onClick={() => {
+                      setContextMenu(null);
+                      void handleDiff();
+                    }}
+                  >
+                    比较差异
+                  </MenuButton>
+                  <MenuButton
+                    icon={<Undo2 className="h-3.5 w-3.5" />}
+                    onClick={() => {
+                      if (!contextMenu) return;
+                      setDiscardTabId(contextMenu.tabId);
+                      setContextMenu(null);
+                      setConfirmDiscard(true);
+                    }}
+                  >
+                    放弃更改
+                  </MenuButton>
+                </>
+              ) : null}
             </div>,
             document.body,
           )
         : null}
+      <ConfirmDialog
+        open={confirmDiscard}
+        onOpenChange={(open) => {
+          setConfirmDiscard(open);
+          if (!open) setDiscardTabId(null);
+        }}
+        title="确认放弃更改"
+        description={`确定要放弃 "${contextTab?.filePath?.split(/[\\/]/).pop() ?? "当前文件"}" 的更改吗？`}
+        variant="warning"
+        confirmText="确定"
+        onConfirm={handleDiscard}
+      />
     </div>
   );
 }

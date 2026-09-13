@@ -1,4 +1,5 @@
 export type LayoutName = "classic" | "minimal";
+export type TabBarActionPlacement = "toolbar" | "context-menu";
 
 export interface LayoutConfig {
   name: LayoutName;
@@ -16,6 +17,7 @@ export interface LayoutConfig {
   contentBorder: string;
   contentRadius: string;
   materialOpacity: string;
+  tabBarActionPlacement: TabBarActionPlacement;
 }
 
 export const layouts: Record<LayoutName, LayoutConfig> = {
@@ -35,6 +37,7 @@ export const layouts: Record<LayoutName, LayoutConfig> = {
     contentBorder: "0 solid transparent",
     contentRadius: "0",
     materialOpacity: "100%",
+    tabBarActionPlacement: "toolbar",
   },
   minimal: {
     name: "minimal",
@@ -53,6 +56,7 @@ export const layouts: Record<LayoutName, LayoutConfig> = {
       "1px solid color-mix(in srgb, var(--border-color) 80%, transparent)",
     contentRadius: "0",
     materialOpacity: "90%",
+    tabBarActionPlacement: "context-menu",
   },
 };
 
