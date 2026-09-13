@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { ThemeName } from "@/config/themes";
+import { isThemeName, type ThemeName } from "@/config/themes";
 import type { LayoutName } from "@/config/layouts";
 
 interface UIState {
@@ -43,6 +43,20 @@ export const useUIStore = create<UIState>()(
         layout: state.layout,
         panelSize: state.panelSize,
       }),
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<
+          Pick<UIState, "theme" | "layout" | "panelSize">
+        >;
+
+        // 主题选项减少后，旧版本本地存储中的已移除主题统一回退到当前默认深色主题。
+        return {
+          ...currentState,
+          ...persisted,
+          theme: isThemeName(persisted.theme)
+            ? persisted.theme
+            : currentState.theme,
+        };
+      },
     },
   ),
 );

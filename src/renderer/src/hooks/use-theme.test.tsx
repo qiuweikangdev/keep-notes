@@ -131,8 +131,8 @@ describe("useTheme", () => {
       "70%",
     );
 
-    act(() => useUIStore.setState({ theme: "nord", layout: "minimal" }));
-    expect(root.style.getPropertyValue("--bg-primary")).toBe("#2e3440");
+    act(() => useUIStore.setState({ theme: "minimal", layout: "minimal" }));
+    expect(root.style.getPropertyValue("--bg-primary")).toBe("#181818");
     expect(root.style.getPropertyValue("--sidebar-material-tint-opacity")).toBe(
       "78%",
     );

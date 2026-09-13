@@ -31,9 +31,6 @@ const APP_THEME_NAMES: readonly ThemeName[] = [
   "light",
   "dark",
   "minimal",
-  "nord",
-  "dracula",
-  "solarized",
   "system",
 ];
 

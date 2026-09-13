@@ -203,9 +203,36 @@ describe("SettingsPage about tab", () => {
       screen.getByRole("button", { name: "选择主题，当前为深色" }),
       { key: "Enter" },
     );
-    fireEvent.click(await screen.findByRole("menuitem", { name: "简约深色" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "深黑色" }));
 
     expect(useUIStore.getState().theme).toBe("minimal");
+  });
+
+  it("only exposes the supported appearance themes", async () => {
+    render(<SettingsPage />);
+
+    fireEvent.keyDown(
+      screen.getByRole("button", { name: "选择主题，当前为深色" }),
+      { key: "Enter" },
+    );
+
+    expect(
+      await screen.findByRole("menuitem", { name: "跟随系统" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "浅色" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "深色" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: "深黑色" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Nord" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Dracula" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Solarized" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows visual layout choices and switches to the minimal layout", () => {

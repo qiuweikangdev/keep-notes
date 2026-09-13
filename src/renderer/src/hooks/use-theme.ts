@@ -1,25 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useState } from "react";
-import { getThemeConfig, resolveTheme, type ThemeName } from "@/config/themes";
+import {
+  getThemeConfig,
+  isThemeName,
+  resolveTheme,
+  type ThemeName,
+} from "@/config/themes";
 import { getLayoutConfig } from "@/config/layouts";
 import { useUIStore } from "@/store/ui.store";
 
-const THEME_CLASSES = [
-  "light",
-  "dark",
-  "minimal",
-  "nord",
-  "dracula",
-  "solarized",
-];
-const THEME_NAMES: readonly ThemeName[] = [
-  "light",
-  "dark",
-  "minimal",
-  "nord",
-  "dracula",
-  "solarized",
-  "system",
-];
+const THEME_CLASSES = ["light", "dark", "minimal"];
 const UI_STORAGE_KEY = "ui-storage";
 
 function getPersistedAppTheme(value: string | null): ThemeName | null {
@@ -29,9 +18,7 @@ function getPersistedAppTheme(value: string | null): ThemeName | null {
     const persisted = JSON.parse(value) as {
       state?: { theme?: unknown };
     };
-    return THEME_NAMES.includes(persisted.state?.theme as ThemeName)
-      ? (persisted.state?.theme as ThemeName)
-      : null;
+    return isThemeName(persisted.state?.theme) ? persisted.state.theme : null;
   } catch {
     return null;
   }
@@ -52,12 +39,13 @@ export function useTheme({
   const setLayout = useUIStore((state) => state.setLayout);
   const [, refreshSystemTheme] = useState(0);
   const effectiveTheme = themeOverride ?? theme;
+  const activeTheme = isThemeName(effectiveTheme) ? effectiveTheme : "dark";
 
   // 每次渲染都同步解析主题，避免主题变量和 BlockNote 的色彩方案出现短暂错位。
-  const resolvedTheme = resolveTheme(effectiveTheme);
+  const resolvedTheme = resolveTheme(activeTheme);
 
   useEffect(() => {
-    if (effectiveTheme !== "system") return;
+    if (activeTheme !== "system") return;
 
     // 仅在跟随系统时订阅系统配色变化，通过刷新触发一次同步重新解析。
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -68,10 +56,16 @@ export function useTheme({
     mediaQuery.addEventListener("change", handleChange);
 
     return () => mediaQuery.removeEventListener("change", handleChange);
-  }, [effectiveTheme]);
+  }, [activeTheme]);
 
   useLayoutEffect(() => {
     if (themeOverride) return;
+
+    const currentTheme = useUIStore.getState().theme;
+    if (!isThemeName(currentTheme)) {
+      setTheme("dark");
+      return;
+    }
 
     const persistedTheme = getPersistedAppTheme(
       localStorage.getItem(UI_STORAGE_KEY),
@@ -79,7 +73,7 @@ export function useTheme({
     if (persistedTheme && persistedTheme !== useUIStore.getState().theme) {
       setTheme(persistedTheme);
     }
-  }, [setTheme, themeOverride]);
+  }, [setTheme, theme, themeOverride]);
 
   useEffect(() => {
     if (themeOverride) return;
@@ -102,7 +96,7 @@ export function useTheme({
     const root = document.documentElement;
     const body = document.body;
     const config = getThemeConfig(resolvedTheme);
-    // 蓝绿色深色使用提亮的蓝灰染色与更轻的透明度，避免侧栏材质显得发沉。
+    // 深色主题使用提亮的蓝灰染色与更轻的透明度，避免侧栏材质显得发沉。
     root.style.setProperty(
       "--sidebar-material-tint",
       resolvedTheme === "dark"
@@ -255,11 +249,11 @@ export function useTheme({
     body.classList.add(resolvedTheme);
     root.setAttribute(
       "data-theme",
-      effectiveTheme === "system" ? "system" : resolvedTheme,
+      activeTheme === "system" ? "system" : resolvedTheme,
     );
     root.dataset.layout = layoutConfig.name;
     body.dataset.layout = layoutConfig.name;
-  }, [effectiveTheme, layout, resolvedTheme, transparentBackground]);
+  }, [activeTheme, layout, resolvedTheme, transparentBackground]);
 
   const changeTheme = useCallback(
     (newTheme: ThemeName) => {
@@ -276,16 +270,16 @@ export function useTheme({
   );
 
   const toggleTheme = useCallback(() => {
-    if (theme === "system") {
+    if (activeTheme === "system") {
       setTheme(resolvedTheme === "light" ? "dark" : "light");
       return;
     }
 
-    setTheme(theme === "light" ? "dark" : "light");
-  }, [resolvedTheme, setTheme, theme]);
+    setTheme(activeTheme === "light" ? "dark" : "light");
+  }, [activeTheme, resolvedTheme, setTheme]);
 
   return {
-    theme,
+    theme: activeTheme,
     layout,
     setTheme: changeTheme,
     setLayout: changeLayout,

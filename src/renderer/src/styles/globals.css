@@ -421,10 +421,7 @@ button[data-ui-button="true"][data-variant="default"][aria-disabled="true"] {
 }
 
 .dark button[data-ui-button="true"][data-variant="default"],
-.minimal button[data-ui-button="true"][data-variant="default"],
-.nord button[data-ui-button="true"][data-variant="default"],
-.dracula button[data-ui-button="true"][data-variant="default"],
-.solarized button[data-ui-button="true"][data-variant="default"] {
+.minimal button[data-ui-button="true"][data-variant="default"] {
   background-color: color-mix(
     in srgb,
     var(--bg-secondary) 76%,
@@ -439,18 +436,6 @@ button[data-ui-button="true"][data-variant="default"][aria-disabled="true"] {
     [aria-disabled="true"]
   ):hover,
 .minimal
-  button[data-ui-button="true"][data-variant="default"]:not(:disabled):not(
-    [aria-disabled="true"]
-  ):hover,
-.nord
-  button[data-ui-button="true"][data-variant="default"]:not(:disabled):not(
-    [aria-disabled="true"]
-  ):hover,
-.dracula
-  button[data-ui-button="true"][data-variant="default"]:not(:disabled):not(
-    [aria-disabled="true"]
-  ):hover,
-.solarized
   button[data-ui-button="true"][data-variant="default"]:not(:disabled):not(
     [aria-disabled="true"]
   ):hover {
@@ -470,18 +455,6 @@ button[data-ui-button="true"][data-variant="default"][aria-disabled="true"] {
 .minimal
   button[data-ui-button="true"][data-variant="default"]:not(:disabled):not(
     [aria-disabled="true"]
-  ):active,
-.nord
-  button[data-ui-button="true"][data-variant="default"]:not(:disabled):not(
-    [aria-disabled="true"]
-  ):active,
-.dracula
-  button[data-ui-button="true"][data-variant="default"]:not(:disabled):not(
-    [aria-disabled="true"]
-  ):active,
-.solarized
-  button[data-ui-button="true"][data-variant="default"]:not(:disabled):not(
-    [aria-disabled="true"]
   ):active {
   background-color: color-mix(
     in srgb,
@@ -497,15 +470,6 @@ button[data-ui-button="true"][data-variant="default"][aria-disabled="true"] {
   button[data-ui-button="true"][data-variant="default"][aria-disabled="true"],
 .minimal button[data-ui-button="true"][data-variant="default"]:disabled,
 .minimal
-  button[data-ui-button="true"][data-variant="default"][aria-disabled="true"],
-.nord button[data-ui-button="true"][data-variant="default"]:disabled,
-.nord
-  button[data-ui-button="true"][data-variant="default"][aria-disabled="true"],
-.dracula button[data-ui-button="true"][data-variant="default"]:disabled,
-.dracula
-  button[data-ui-button="true"][data-variant="default"][aria-disabled="true"],
-.solarized button[data-ui-button="true"][data-variant="default"]:disabled,
-.solarized
   button[data-ui-button="true"][data-variant="default"][aria-disabled="true"] {
   background-color: color-mix(in srgb, var(--bg-secondary) 80%, transparent);
   border-color: color-mix(in srgb, var(--border-color) 54%, transparent);
@@ -772,21 +736,6 @@ button:focus-visible {
   --button-active-bg: var(--active-bg);
 }
 
-.nord {
-  --button-hover-bg: #4c566a;
-  --button-active-bg: #5e81ac;
-}
-
-.dracula {
-  --button-hover-bg: #515468;
-  --button-active-bg: #6272a4;
-}
-
-.solarized {
-  --button-hover-bg: #657b83;
-  --button-active-bg: #2aa198;
-}
-
 /* 窗口边缘拖拽调整大小 - Electron frameless window */
 .resize-handle {
   position: fixed;
@@ -916,10 +865,7 @@ button:focus-visible {
 }
 
 .dark .file-tree-scrollbar-thumb,
-.minimal .file-tree-scrollbar-thumb,
-.nord .file-tree-scrollbar-thumb,
-.dracula .file-tree-scrollbar-thumb,
-.solarized .file-tree-scrollbar-thumb {
+.minimal .file-tree-scrollbar-thumb {
   background-color: rgba(255, 255, 255, 0.14);
 }
 
@@ -942,18 +888,12 @@ button:focus-visible {
 }
 
 .dark ::-webkit-scrollbar-thumb,
-.minimal ::-webkit-scrollbar-thumb,
-.nord ::-webkit-scrollbar-thumb,
-.dracula ::-webkit-scrollbar-thumb,
-.solarized ::-webkit-scrollbar-thumb {
+.minimal ::-webkit-scrollbar-thumb {
   background-color: rgba(255, 255, 255, 0.14);
 }
 
 .dark ::-webkit-scrollbar-thumb:hover,
-.minimal ::-webkit-scrollbar-thumb:hover,
-.nord ::-webkit-scrollbar-thumb:hover,
-.dracula ::-webkit-scrollbar-thumb:hover,
-.solarized ::-webkit-scrollbar-thumb:hover {
+.minimal ::-webkit-scrollbar-thumb:hover {
   background-color: rgba(255, 255, 255, 0.26);
 }
 
@@ -1077,18 +1017,12 @@ button:focus-visible {
 
 /* 鏆楄壊妯″紡涓嬩唬鐮佸潡鏍峰紡瑕嗙洊 */
 .dark .milkdown .editor pre,
-.minimal .milkdown .editor pre,
-.nord .milkdown .editor pre,
-.dracula .milkdown .editor pre,
-.solarized .milkdown .editor pre {
+.minimal .milkdown .editor pre {
   background-color: var(--editor-code-block-bg) !important;
 }
 
 .dark .milkdown .editor pre code,
-.minimal .milkdown .editor pre code,
-.nord .milkdown .editor pre code,
-.dracula .milkdown .editor pre code,
-.solarized .milkdown .editor pre code {
+.minimal .milkdown .editor pre code {
   color: var(--editor-code-block-text) !important;
 }
 /* Keep syntax tokens from the active Milkdown theme (handled in milkdown-overrides.css). */
@@ -1203,10 +1137,7 @@ button:focus-visible {
 }
 
 .dark .milkdown .editor ::selection,
-.minimal .milkdown .editor ::selection,
-.nord .milkdown .editor ::selection,
-.dracula .milkdown .editor ::selection,
-.solarized .milkdown .editor ::selection {
+.minimal .milkdown .editor ::selection {
   background-color: rgba(77, 159, 255, 0.3);
 }
 
@@ -1434,19 +1365,13 @@ button:focus-visible {
 }
 
 .dark .diff-viewer__stat--added,
-.minimal .diff-viewer__stat--added,
-.nord .diff-viewer__stat--added,
-.dracula .diff-viewer__stat--added,
-.solarized .diff-viewer__stat--added {
+.minimal .diff-viewer__stat--added {
   background: color-mix(in srgb, #4ade80 16%, var(--bg-secondary));
   color: #4ade80;
 }
 
 .dark .diff-viewer__stat--removed,
-.minimal .diff-viewer__stat--removed,
-.nord .diff-viewer__stat--removed,
-.dracula .diff-viewer__stat--removed,
-.solarized .diff-viewer__stat--removed {
+.minimal .diff-viewer__stat--removed {
   background: color-mix(in srgb, #f87171 16%, var(--bg-secondary));
   color: #f87171;
 }
@@ -1481,10 +1406,7 @@ button:focus-visible {
 }
 
 .dark .diff-viewer__pierre,
-.minimal .diff-viewer__pierre,
-.nord .diff-viewer__pierre,
-.dracula .diff-viewer__pierre,
-.solarized .diff-viewer__pierre {
+.minimal .diff-viewer__pierre {
   --diffs-fg-number-addition-override: #4ade80;
   --diffs-fg-number-deletion-override: #f87171;
 }

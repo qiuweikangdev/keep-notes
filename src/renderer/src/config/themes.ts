@@ -1,11 +1,4 @@
-export type ThemeName =
-  | "light"
-  | "dark"
-  | "minimal"
-  | "nord"
-  | "dracula"
-  | "solarized"
-  | "system";
+export type ThemeName = "light" | "dark" | "minimal" | "system";
 
 export type ResolvedThemeName = Exclude<ThemeName, "system">;
 
@@ -170,7 +163,7 @@ export function defineTheme(definition: ThemeDefinition): ThemeConfig {
 
 const minimalTheme = defineTheme({
   name: "minimal",
-  label: "简约深色",
+  label: "深黑色",
   colorScheme: "dark",
   preview: {
     bg: "#181818",
@@ -278,75 +271,6 @@ export const themes: Record<ResolvedThemeName, ThemeConfig> = {
     },
   }),
   minimal: minimalTheme,
-  nord: defineTheme({
-    name: "nord",
-    label: "Nord",
-    colorScheme: "dark",
-    preview: {
-      bg: "#2e3440",
-      sidebar: "#3b4252",
-      accent: "#88c0d0",
-      text: "#eceff4",
-    },
-    colors: {
-      bgPrimary: "#2e3440",
-      bgSecondary: "#3b4252",
-      bgTertiary: "#434c5e",
-      textPrimary: "#eceff4",
-      textSecondary: "#d8dee9",
-      textMuted: "#7b88a1",
-      borderColor: "#4c566a",
-      hoverBg: "#434c5e",
-      activeBg: "#5e81ac",
-      accentColor: "#88c0d0",
-    },
-  }),
-  dracula: defineTheme({
-    name: "dracula",
-    label: "Dracula",
-    colorScheme: "dark",
-    preview: {
-      bg: "#282a36",
-      sidebar: "#343746",
-      accent: "#bd93f9",
-      text: "#f8f8f2",
-    },
-    colors: {
-      bgPrimary: "#282a36",
-      bgSecondary: "#343746",
-      bgTertiary: "#44475a",
-      textPrimary: "#f8f8f2",
-      textSecondary: "#bfbfbf",
-      textMuted: "#6272a4",
-      borderColor: "#44475a",
-      hoverBg: "#44475a",
-      activeBg: "#6272a4",
-      accentColor: "#bd93f9",
-    },
-  }),
-  solarized: defineTheme({
-    name: "solarized",
-    label: "Solarized",
-    colorScheme: "dark",
-    preview: {
-      bg: "#002b36",
-      sidebar: "#073642",
-      accent: "#2aa198",
-      text: "#839496",
-    },
-    colors: {
-      bgPrimary: "#002b36",
-      bgSecondary: "#073642",
-      bgTertiary: "#586e75",
-      textPrimary: "#839496",
-      textSecondary: "#93a1a1",
-      textMuted: "#657b83",
-      borderColor: "#073642",
-      hoverBg: "#073642",
-      activeBg: "#2aa198",
-      accentColor: "#2aa198",
-    },
-  }),
 };
 
 export const themeOptions: ReadonlyArray<{ value: ThemeName; label: string }> =
@@ -357,6 +281,15 @@ export const themeOptions: ReadonlyArray<{ value: ThemeName; label: string }> =
       label: theme.label,
     })),
   ];
+
+export function isThemeName(value: unknown): value is ThemeName {
+  return (
+    value === "light" ||
+    value === "dark" ||
+    value === "minimal" ||
+    value === "system"
+  );
+}
 
 export function getThemeConfig(theme: ThemeName): ThemeConfig {
   return themes[theme as ResolvedThemeName] ?? themes.light;

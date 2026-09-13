@@ -25,9 +25,6 @@ const THEME_NAMES: readonly ThemeName[] = [
   "light",
   "dark",
   "minimal",
-  "nord",
-  "dracula",
-  "solarized",
   "system",
 ];
 

@@ -45,9 +45,6 @@ interface DiffComputationState {
 const DIFF_THEME_MAP: Record<string, DiffsThemeNames> = {
   light: "pierre-light",
   dark: "pierre-dark",
-  nord: "nord",
-  dracula: "dracula",
-  solarized: "solarized-dark",
   system: "pierre-dark",
 };
 
