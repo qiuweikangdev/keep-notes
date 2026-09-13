@@ -39,7 +39,7 @@ export const layouts: Record<LayoutName, LayoutConfig> = {
   minimal: {
     name: "minimal",
     label: "简约布局",
-    description: "通透侧栏与圆角内容区",
+    description: "通透侧栏与直角内容区",
     workspaceBackground: "var(--bg-secondary)",
     titleBarBackground: "transparent",
     titleBarBorder: "0 solid transparent",
@@ -51,7 +51,7 @@ export const layouts: Record<LayoutName, LayoutConfig> = {
     editorPanelPadding: "0 0 0 6px",
     contentBorder:
       "1px solid color-mix(in srgb, var(--border-color) 80%, transparent)",
-    contentRadius: "12px",
+    contentRadius: "0",
     materialOpacity: "90%",
   },
 };

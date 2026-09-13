@@ -76,7 +76,7 @@ describe("useTheme", () => {
       document.documentElement.style.getPropertyValue(
         "--workspace-content-radius",
       ),
-    ).toBe("12px");
+    ).toBe("0");
     expect(
       document.documentElement.style.getPropertyValue("--input-hover-border"),
     ).toBe("#55555a");
