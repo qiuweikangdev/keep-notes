@@ -113,7 +113,7 @@ describe("useTheme", () => {
     act(() => useUIStore.getState().setTheme("light"));
     expect(root.style.getPropertyValue("--bg-primary")).toBe("#ffffff");
     expect(root.style.getPropertyValue("--sidebar-material-tint-opacity")).toBe(
-      "88%",
+      "96%",
     );
 
     act(() => useUIStore.setState({ theme: "dark", layout: "classic" }));

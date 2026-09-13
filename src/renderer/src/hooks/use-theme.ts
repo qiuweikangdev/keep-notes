@@ -105,7 +105,11 @@ export function useTheme({
     // 蓝绿色深色使用同色系染色，避免原生灰色材质削弱主题辨识度。
     root.style.setProperty(
       "--sidebar-material-tint",
-      resolvedTheme === "dark" ? "#292f38" : config.colors.bgSecondary,
+      resolvedTheme === "dark"
+        ? "#292f38"
+        : config.colorScheme === "light"
+          ? "#fafafa"
+          : config.colors.bgSecondary,
     );
 
     root.style.setProperty("--bg-primary", config.colors.bgPrimary);
@@ -113,7 +117,7 @@ export function useTheme({
     // 染色稳定主题明度，同时保留少量窗后颜色，避免壁纸把侧栏染绿或压暗。
     root.style.setProperty(
       "--sidebar-material-tint-opacity",
-      config.colorScheme === "light" ? "88%" : "78%",
+      config.colorScheme === "light" ? "96%" : "78%",
     );
     root.style.setProperty("--bg-tertiary", config.colors.bgTertiary);
     root.style.setProperty("--text-primary", config.colors.textPrimary);
