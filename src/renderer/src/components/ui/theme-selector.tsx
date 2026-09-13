@@ -1,4 +1,4 @@
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, Monitor } from "lucide-react";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import {
   getThemeConfig,
@@ -15,11 +15,29 @@ interface ThemeSelectorProps {
 }
 
 function ThemePreview({ theme }: { theme: ThemeName }) {
+  if (theme === "system") {
+    return (
+      <span
+        aria-hidden="true"
+        data-theme-preview={theme}
+        className="flex h-4 w-5 shrink-0 items-center justify-center rounded-[4px] border"
+        style={{
+          backgroundColor: "var(--bg-tertiary)",
+          borderColor: "var(--border-color)",
+          color: "var(--text-secondary)",
+        }}
+      >
+        <Monitor className="h-3 w-3" strokeWidth={1.75} />
+      </span>
+    );
+  }
+
   const config = getThemeConfig(resolveTheme(theme));
 
   return (
     <span
       aria-hidden="true"
+      data-theme-preview={theme}
       className="relative h-4 w-5 shrink-0 overflow-hidden rounded-[4px] border"
       style={{
         backgroundColor: config.preview.bg,
