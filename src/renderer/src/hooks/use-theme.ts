@@ -100,7 +100,7 @@ export function useTheme({
     root.style.setProperty(
       "--sidebar-material-tint",
       resolvedTheme === "dark"
-        ? "#292f38"
+        ? "#23272f"
         : config.colorScheme === "light"
           ? "#ffffff"
           : config.colors.bgSecondary,
@@ -114,8 +114,10 @@ export function useTheme({
       config.colorScheme === "light"
         ? "94%"
         : resolvedTheme === "dark"
-          ? "74%"
-          : "78%",
+          ? "92%"
+          : resolvedTheme === "minimal"
+            ? "84%"
+            : "78%",
     );
     root.style.setProperty("--bg-tertiary", config.colors.bgTertiary);
     root.style.setProperty("--text-primary", config.colors.textPrimary);

@@ -128,16 +128,16 @@ describe("useTheme", () => {
     act(() => useUIStore.getState().setLayout("minimal"));
     expect(root.style.getPropertyValue("--bg-primary")).toBe("#23272f");
     expect(root.style.getPropertyValue("--sidebar-material-tint")).toBe(
-      "#292f38",
+      "#23272f",
     );
     expect(root.style.getPropertyValue("--sidebar-material-tint-opacity")).toBe(
-      "74%",
+      "92%",
     );
 
     act(() => useUIStore.setState({ theme: "minimal", layout: "minimal" }));
     expect(root.style.getPropertyValue("--bg-primary")).toBe("#181818");
     expect(root.style.getPropertyValue("--sidebar-material-tint-opacity")).toBe(
-      "78%",
+      "84%",
     );
   });
 
