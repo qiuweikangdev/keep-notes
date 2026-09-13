@@ -1,5 +1,7 @@
 import {
   useCallback,
+  createContext,
+  useContext,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -11,7 +13,6 @@ import { createPortal } from "react-dom";
 import { EditorTabBar } from "./editor-tab-bar";
 import { EditorWorkspace } from "./editor-workspace";
 import { useEditorStore } from "@/store/editor.store";
-import { useUIStore } from "@/store/ui.store";
 import { useElectron } from "@/hooks/use-electron";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import {
@@ -56,6 +57,16 @@ type PanelLayoutNode =
       first: PanelLayoutNode;
       second: PanelLayoutNode;
     };
+
+const WindowActionsGroupContext = createContext<string | null>(null);
+
+// 操作入口固定在窗口右上角，只为该位置的叶面板预留空间。
+function getTopRightGroupId(node: PanelLayoutNode): string {
+  if (node.type === "leaf") return node.id;
+  return getTopRightGroupId(
+    node.direction === "horizontal" ? node.second : node.first,
+  );
+}
 
 function readEditorPerformanceContext() {
   const state = useEditorStore.getState();
@@ -301,11 +312,11 @@ function buildPanelLayout(
 
 // 单个面板组：标签栏 + 编辑器
 function EditorPanelGroup({ groupId }: { groupId: string }) {
-  const isMinimal = useUIStore((state) => state.layout === "minimal");
-  const isFirstGroup = useEditorStore(
+  const reserveWindowActions =
+    useContext(WindowActionsGroupContext) === groupId;
+  const reserveWindowNavigation = useEditorStore(
     (state) => state.panelGroups[0]?.id === groupId,
   );
-  const showTabBar = !isMinimal || !isFirstGroup;
   useEditorStore(selectPanelGroupSignature(groupId));
   const { openFile } = useElectron();
   const group = useEditorStore
@@ -398,7 +409,11 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
         onDragLeaveCapture={handleDragLeave}
         onDropCapture={handleDrop}
       >
-        {showTabBar && <EditorTabBar groupId={groupId} />}
+        <EditorTabBar
+          groupId={groupId}
+          reserveWindowActions={reserveWindowActions}
+          reserveWindowNavigation={reserveWindowNavigation}
+        />
         <div
           className="flex-1 flex items-center justify-center relative"
           style={{ backgroundColor: "var(--bg-primary)" }}
@@ -431,7 +446,11 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
       onDragLeaveCapture={handleDragLeave}
       onDropCapture={handleDrop}
     >
-      {showTabBar && <EditorTabBar groupId={groupId} />}
+      <EditorTabBar
+        groupId={groupId}
+        reserveWindowActions={reserveWindowActions}
+        reserveWindowNavigation={reserveWindowNavigation}
+      />
       <div className="flex-1 overflow-hidden relative">
         {/* 渲染编辑器 */}
         <EditorWorkspace groupId={groupId} tabId={group.activeTabId} />
@@ -477,21 +496,23 @@ export function Editor() {
   if (!panelLayout) return null;
 
   return (
-    <div
-      className="h-full overflow-hidden"
-      style={{ backgroundColor: "var(--bg-primary)" }}
-    >
-      <RootPanelLayout node={panelLayout} surfaceRegistry={surfaceRegistry} />
-      {import.meta.env.DEV ? <EditorDevelopmentDiagnostics /> : null}
-      <RichDocumentSessionLayer />
-      {panelGroups.map(({ id }) => (
-        <PersistentEditorPanel
-          key={id}
-          groupId={id}
-          surfaceRegistry={surfaceRegistry}
-        />
-      ))}
-    </div>
+    <WindowActionsGroupContext.Provider value={getTopRightGroupId(panelLayout)}>
+      <div
+        className="h-full overflow-hidden"
+        style={{ backgroundColor: "var(--bg-primary)" }}
+      >
+        <RootPanelLayout node={panelLayout} surfaceRegistry={surfaceRegistry} />
+        {import.meta.env.DEV ? <EditorDevelopmentDiagnostics /> : null}
+        <RichDocumentSessionLayer />
+        {panelGroups.map(({ id }) => (
+          <PersistentEditorPanel
+            key={id}
+            groupId={id}
+            surfaceRegistry={surfaceRegistry}
+          />
+        ))}
+      </div>
+    </WindowActionsGroupContext.Provider>
   );
 }
 

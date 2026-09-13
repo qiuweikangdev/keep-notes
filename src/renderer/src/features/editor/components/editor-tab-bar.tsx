@@ -33,6 +33,8 @@ import { EditorToolbar } from "./editor-toolbar";
 
 interface EditorTabBarProps {
   groupId: string;
+  reserveWindowActions?: boolean;
+  reserveWindowNavigation?: boolean;
 }
 
 function getFileNameWithoutExtension(filePath: string): string {
@@ -85,7 +87,11 @@ export function splitEditorPanel(
   }
 }
 
-export function EditorTabBar({ groupId }: EditorTabBarProps) {
+export function EditorTabBar({
+  groupId,
+  reserveWindowActions = false,
+  reserveWindowNavigation = false,
+}: EditorTabBarProps) {
   useEditorStore(selectTabBarSignature(groupId));
   const setActiveTab = useEditorStore((state) => state.setActiveTab);
   const addTab = useEditorStore((state) => state.addTab);
@@ -323,7 +329,9 @@ export function EditorTabBar({ groupId }: EditorTabBarProps) {
 
   return (
     <div
-      className="flex h-[35px] flex-shrink-0 items-center relative"
+      className="editor-tab-bar flex h-[35px] flex-shrink-0 items-center relative"
+      data-window-actions={reserveWindowActions}
+      data-window-navigation={reserveWindowNavigation}
       style={{
         backgroundColor: "var(--bg-primary)",
         borderBottom: group.tabs.length

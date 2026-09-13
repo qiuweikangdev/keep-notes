@@ -7,7 +7,6 @@ import { Editor } from "@/features/editor";
 import { EditorBridge } from "@/features/editor/components/editor-bridge";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TitleBar } from "@/components/layout/title-bar";
-import { EditorTabBar } from "@/features/editor/components/editor-tab-bar";
 import { useUIStore } from "@/store/ui.store";
 import { usePanel } from "@/hooks/use-panel";
 import { useElectron } from "@/hooks/use-electron";
@@ -49,7 +48,6 @@ export function HomePage() {
 
 function HomePageContent() {
   const isMinimal = useUIStore((state) => state.layout === "minimal");
-  const firstGroupId = useEditorStore((state) => state.panelGroups[0]?.id);
   const workspaceRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const workspace = workspaceRef.current;
@@ -238,6 +236,7 @@ function HomePageContent() {
       ref={workspaceRef}
       className="workspace-shell flex flex-col h-screen overflow-hidden relative"
       data-native-material={isMac}
+      data-sidebar-collapsed={collapsed}
       style={{
         color: "var(--text-primary)",
         borderRadius: isMac ? "0" : isMaximized ? "0" : "8px",
@@ -257,13 +256,7 @@ function HomePageContent() {
       <TitleBar
         collapsed={collapsed}
         onToggleCollapse={toggleCollapse}
-        compactTabs={
-          isMinimal ? (
-            firstGroupId ? (
-              <EditorTabBar groupId={firstGroupId} />
-            ) : null
-          ) : undefined
-        }
+        compactTabs={isMinimal ? null : undefined}
       />
 
       <div

@@ -15,7 +15,14 @@ import {
 import { useUIStore } from "@/store/ui.store";
 import { useEditorStore } from "@/store/editor.store";
 import { useTheme } from "@/hooks/use-theme";
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
 import type { ReactNode } from "react";
 import { GitPanel } from "@/features/git";
 import { useElectron } from "@/hooks/use-electron";
@@ -61,6 +68,39 @@ export function TitleBar({
     [],
   );
   const titleBarRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const bar = titleBarRef.current;
+    const workspace = bar?.closest<HTMLElement>(".workspace-shell");
+    if (!bar || !workspace || !isMinimal) return;
+    const controls = Array.from(
+      bar.querySelectorAll<HTMLElement>(
+        ".workspace-title-launcher, .workspace-title-actions",
+      ),
+    );
+    const navigation = bar.querySelector<HTMLElement>(
+      ".workspace-title-navigation",
+    );
+    const sync = () => {
+      workspace.style.setProperty(
+        "--workspace-actions-width",
+        `${controls.reduce((width, control) => width + control.getBoundingClientRect().width, 0)}px`,
+      );
+      workspace.style.setProperty(
+        "--workspace-title-height",
+        `${bar.getBoundingClientRect().height}px`,
+      );
+      workspace.style.setProperty(
+        "--workspace-navigation-width",
+        `${navigation?.getBoundingClientRect().width ?? 190}px`,
+      );
+    };
+    sync();
+    const observer = new ResizeObserver(sync);
+    controls.forEach((control) => observer.observe(control));
+    observer.observe(bar);
+    if (navigation) observer.observe(navigation);
+    return () => observer.disconnect();
+  }, [isMinimal]);
   const { detectGitRepo, openFile } = useElectron();
 
   const treeRoot = useTreeStore((state) => state.treeRoot);
@@ -391,7 +431,7 @@ export function TitleBar({
         <div
           className={
             isMinimal
-              ? "flex h-full shrink-0 items-center px-1"
+              ? "workspace-title-launcher flex h-full shrink-0 items-center px-1"
               : "flex h-full flex-1 items-center justify-center px-4"
           }
         >
@@ -518,7 +558,7 @@ export function TitleBar({
         </div>
 
         {/* 右侧：Git 图标 + 主题切换 + 窗口控制 */}
-        <div className="flex h-full items-center gap-1 pr-2">
+        <div className="workspace-title-actions flex h-full items-center gap-1 pr-2">
           <button
             onClick={openReminderList}
             className="flex h-8 w-8 items-center justify-center rounded-lg transition-all"

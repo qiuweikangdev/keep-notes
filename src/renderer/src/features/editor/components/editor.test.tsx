@@ -49,9 +49,16 @@ vi.mock("react-resizable-panels", () => ({
 }));
 
 vi.mock("./editor-tab-bar", () => ({
-  EditorTabBar: ({ groupId }: { groupId: string }) => (
+  EditorTabBar: ({
+    groupId,
+    reserveWindowActions,
+  }: {
+    groupId: string;
+    reserveWindowActions?: boolean;
+  }) => (
     <div
       data-testid={`tab-bar-${groupId}`}
+      data-window-actions={reserveWindowActions}
       onDragOver={(event) => event.stopPropagation()}
       onDrop={(event) => event.stopPropagation()}
     >
@@ -252,19 +259,59 @@ afterEach(() => {
 });
 
 describe("Editor split panels", () => {
-  it("moves only the primary tab bar to the compact title row", () => {
+  it("keeps window actions on the upper-right pane after a nested downward split", () => {
     useUIStore.setState({ layout: "minimal" });
     useEditorStore.setState({
       panelGroups: [
         { id: "group-1", activeTabId: "", direction: "horizontal", tabs: [] },
-        { id: "group-2", activeTabId: "", direction: "horizontal", tabs: [] },
+        {
+          id: "group-2",
+          activeTabId: "",
+          direction: "horizontal",
+          splitParentGroupId: "group-1",
+          tabs: [],
+        },
+        {
+          id: "group-3",
+          activeTabId: "",
+          direction: "vertical",
+          splitParentGroupId: "group-2",
+          tabs: [],
+        },
       ],
-      activeGroupId: "group-1",
+      activeGroupId: "group-3",
     });
     render(<Editor />);
-    expect(screen.queryByTestId("tab-bar-group-1")).not.toBeInTheDocument();
-    expect(screen.getByTestId("tab-bar-group-2")).toBeInTheDocument();
+    expect(screen.getByTestId("tab-bar-group-2")).toHaveAttribute(
+      "data-window-actions",
+      "true",
+    );
+    expect(screen.getByTestId("tab-bar-group-3")).toHaveAttribute(
+      "data-window-actions",
+      "false",
+    );
   });
+  it.each(["horizontal", "vertical"] as const)(
+    "keeps each %s split header in its pane and reserves the top-right controls",
+    (direction) => {
+      useUIStore.setState({ layout: "minimal" });
+      useEditorStore.setState({
+        panelGroups: [
+          { id: "group-1", activeTabId: "", direction: "horizontal", tabs: [] },
+          { id: "group-2", activeTabId: "", direction, tabs: [] },
+        ],
+        activeGroupId: "group-1",
+      });
+      render(<Editor />);
+      expect(screen.getByTestId("tab-bar-group-1")).toBeInTheDocument();
+      expect(screen.getByTestId("tab-bar-group-2")).toBeInTheDocument();
+      expect(
+        screen.getByTestId(
+          direction === "horizontal" ? "tab-bar-group-2" : "tab-bar-group-1",
+        ),
+      ).toHaveAttribute("data-window-actions", "true");
+    },
+  );
   it("keeps the tab action bar visible when the last tab is closed", () => {
     useEditorStore.setState({
       panelGroups: [
