@@ -8,7 +8,10 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TitleBar } from "./title-bar";
-import { MAC_TITLE_BAR_HEIGHT } from "@shared/title-bar";
+import {
+  MAC_TITLE_BAR_HEIGHT,
+  MINIMAL_TITLE_BAR_HEIGHT,
+} from "@shared/title-bar";
 
 const testState = vi.hoisted(() => ({
   appearance: {
@@ -122,6 +125,33 @@ describe("TitleBar", () => {
     expect(screen.queryByText("搜索文件...")).not.toBeInTheDocument();
     expect(screen.queryByTitle("切换亮色主题")).not.toBeInTheDocument();
     expect(screen.getByTitle("设置")).toBeInTheDocument();
+    expect(screen.getByTestId("title-bar")).toHaveStyle({
+      height: `${MINIMAL_TITLE_BAR_HEIGHT}px`,
+    });
+  });
+
+  it("hides compact-layout file history navigation while the sidebar is collapsed", () => {
+    const { rerender } = render(
+      <TitleBar
+        collapsed
+        onToggleCollapse={vi.fn()}
+        compactTabs={<div role="tablist" aria-label="编辑器标签页" />}
+      />,
+    );
+
+    expect(screen.queryByTitle("没有历史记录")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("没有更多记录")).not.toBeInTheDocument();
+
+    rerender(
+      <TitleBar
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+        compactTabs={<div role="tablist" aria-label="编辑器标签页" />}
+      />,
+    );
+
+    expect(screen.getByTitle("没有历史记录")).toBeInTheDocument();
+    expect(screen.getByTitle("没有更多记录")).toBeInTheDocument();
   });
   afterEach(cleanup);
   beforeEach(() => {

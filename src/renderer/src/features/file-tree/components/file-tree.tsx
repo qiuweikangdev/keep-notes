@@ -160,6 +160,8 @@ export function FileTree() {
   const [creatingInfo, setCreatingInfo] = useState<CreatingInfo | null>(null);
   const [createValue, setCreateValue] = useState("");
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
+  const [isBottomMenuOpen, setIsBottomMenuOpen] = useState(false);
+  const sidebarHoverResetFrameRef = useRef<number | null>(null);
   const [confirmState, setConfirmState] = useState<{
     open: boolean;
     key: string;
@@ -184,6 +186,42 @@ export function FileTree() {
   const isRootSelected = selectedKey === treeRoot?.key;
   const isRootExpanded = treeRoot ? expandedKeys.has(treeRoot.key) : false;
   const treeRootKey = treeRoot?.key ?? null;
+  const isBottomBarVisible =
+    !appearance.showBottomBarOnHover || isSidebarHovered || isBottomMenuOpen;
+  const bottomBarMotionClassName = cn(
+    "file-tree-bottom-actions z-10 transition-[opacity,transform] motion-reduce:transition-none motion-reduce:transform-none",
+    isBottomBarVisible
+      ? "translate-y-0 duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
+      : "translate-y-1 duration-150 ease-in",
+  );
+
+  const handleSidebarMouseEnter = useCallback(() => {
+    if (sidebarHoverResetFrameRef.current !== null) {
+      cancelAnimationFrame(sidebarHoverResetFrameRef.current);
+      sidebarHoverResetFrameRef.current = null;
+    }
+    setIsSidebarHovered(true);
+  }, []);
+
+  const handleSidebarMouseLeave = useCallback(() => {
+    if (sidebarHoverResetFrameRef.current !== null) {
+      cancelAnimationFrame(sidebarHoverResetFrameRef.current);
+    }
+    // 在同一帧内完成 hover 状态收敛，避免底部栏重排时触发离开/进入抖动。
+    sidebarHoverResetFrameRef.current = requestAnimationFrame(() => {
+      sidebarHoverResetFrameRef.current = null;
+      setIsSidebarHovered(false);
+    });
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (sidebarHoverResetFrameRef.current !== null) {
+        cancelAnimationFrame(sidebarHoverResetFrameRef.current);
+      }
+    },
+    [],
+  );
 
   const activeOutlinePaneKey = useEditorStore((state) => {
     const group = state.panelGroups.find(
@@ -639,8 +677,8 @@ export function FileTree() {
         <div
           className="relative h-full"
           data-testid="file-tree-empty-state"
-          onMouseEnter={() => setIsSidebarHovered(true)}
-          onMouseLeave={() => setIsSidebarHovered(false)}
+          onMouseEnter={handleSidebarMouseEnter}
+          onMouseLeave={handleSidebarMouseLeave}
         >
           <div className="absolute inset-0 flex items-center justify-center p-4 pb-16">
             <p className="text-[13px]" style={{ color: "var(--text-muted)" }}>
@@ -649,21 +687,16 @@ export function FileTree() {
           </div>
 
           <div
-            className="absolute inset-x-0 bottom-0 z-10 transition-opacity duration-200"
+            className={cn(
+              "absolute inset-x-0 bottom-0",
+              bottomBarMotionClassName,
+            )}
             style={{
-              opacity: appearance.showBottomBarOnHover
-                ? isSidebarHovered
-                  ? 1
-                  : 0
-                : 1,
-              pointerEvents: appearance.showBottomBarOnHover
-                ? isSidebarHovered
-                  ? "auto"
-                  : "none"
-                : "auto",
+              opacity: isBottomBarVisible ? 1 : 0,
+              pointerEvents: isBottomBarVisible ? "auto" : "none",
             }}
           >
-            <QuickActionsPanel />
+            <QuickActionsPanel onMenuOpenChange={setIsBottomMenuOpen} />
           </div>
         </div>
       );
@@ -750,8 +783,8 @@ export function FileTree() {
       <ContextMenu.Trigger asChild>
         <div
           className="relative flex h-full flex-col"
-          onMouseEnter={() => setIsSidebarHovered(true)}
-          onMouseLeave={() => setIsSidebarHovered(false)}
+          onMouseEnter={handleSidebarMouseEnter}
+          onMouseLeave={handleSidebarMouseLeave}
         >
           <div
             className="flex h-[35px] flex-shrink-0 items-center gap-1 px-2"
@@ -814,7 +847,7 @@ export function FileTree() {
 
           <div
             className={cn(
-              "flex-1 py-2 pb-12",
+              "flex-1 py-2",
               sidebarView === "file"
                 ? "flex min-h-0 flex-col overflow-hidden"
                 : "overflow-auto",
@@ -1029,21 +1062,16 @@ export function FileTree() {
           </div>
 
           <div
-            className="absolute bottom-0 left-0 right-0 z-10 transition-opacity duration-200"
+            className={cn(
+              "absolute bottom-0 left-0 right-0",
+              bottomBarMotionClassName,
+            )}
             style={{
-              opacity: appearance.showBottomBarOnHover
-                ? isSidebarHovered
-                  ? 1
-                  : 0
-                : 1,
-              pointerEvents: appearance.showBottomBarOnHover
-                ? isSidebarHovered
-                  ? "auto"
-                  : "none"
-                : "auto",
+              opacity: isBottomBarVisible ? 1 : 0,
+              pointerEvents: isBottomBarVisible ? "auto" : "none",
             }}
           >
-            <QuickActionsPanel />
+            <QuickActionsPanel onMenuOpenChange={setIsBottomMenuOpen} />
           </div>
         </div>
       </ContextMenu.Trigger>
@@ -1328,7 +1356,8 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
         ) : null}
         <div
           style={{
-            height: `${virtualizer.getTotalSize()}px`,
+            // 安全空间属于滚动内容，不随悬停变化，末行可滚到浮层上方。
+            height: `${virtualizer.getTotalSize() + 36}px`,
             width: "100%",
             position: "relative",
           }}

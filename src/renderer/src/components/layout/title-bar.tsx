@@ -39,6 +39,7 @@ import { SidebarToggleButton } from "./sidebar-toggle-button";
 import {
   MAC_TITLE_BAR_HEIGHT,
   MAC_TRAFFIC_LIGHT_PLACEHOLDER_WIDTH,
+  MINIMAL_TITLE_BAR_HEIGHT,
 } from "@shared/title-bar";
 import type {
   ExternalOpenApp,
@@ -61,6 +62,8 @@ export function TitleBar({
   const setSettingsOpen = useUIStore((state) => state.setSettingsOpen);
   const appearance = useEditorStore((state) => state.appearance);
   const setAppearance = useEditorStore((state) => state.setAppearance);
+  const showFileHistoryNavigation =
+    appearance.showFileHistoryNavigation && (!isMinimal || !collapsed);
   const { isDark, toggleTheme } = useTheme();
   const [isGitOpen, setIsGitOpen] = useState(false);
   const [isGitRepo, setIsGitRepo] = useState(false);
@@ -328,7 +331,11 @@ export function TitleBar({
         }}
         style={{
           // macOS 与原生红绿灯共享同一高度基准，避免左上角操作区视觉偏移。
-          height: isMac ? `${MAC_TITLE_BAR_HEIGHT}px` : "44px",
+          height: isMinimal
+            ? `${MINIMAL_TITLE_BAR_HEIGHT}px`
+            : isMac
+              ? `${MAC_TITLE_BAR_HEIGHT}px`
+              : "44px",
           backgroundColor: "var(--title-bar-background, var(--bg-primary))",
           borderBottom:
             "var(--title-bar-border, 1px solid var(--border-color))",
@@ -360,7 +367,7 @@ export function TitleBar({
               collapsed={collapsed}
               onClick={onToggleCollapse}
             />
-            {appearance.showFileHistoryNavigation && (
+            {showFileHistoryNavigation && (
               <>
                 <button
                   disabled={historyRef.current.index <= 0}

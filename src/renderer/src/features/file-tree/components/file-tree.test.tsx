@@ -247,6 +247,61 @@ describe("FileTree context menu", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows bottom actions without changing the file tree geometry", async () => {
+    const { container } = render(<FileTree />);
+    const tree = container.querySelector('[role="tree"]');
+    const content = tree?.parentElement;
+    const sidebar = content?.parentElement;
+    const bottomBar = container.querySelector('[style*="opacity"]');
+    const scrollContainer = container.querySelector(
+      ".file-tree-scroll-container",
+    ) as HTMLDivElement;
+    let scrollTop = 900;
+
+    Object.defineProperties(scrollContainer, {
+      clientHeight: { configurable: true, value: 100 },
+      scrollHeight: { configurable: true, value: 1000 },
+      scrollTop: {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value: number) => {
+          scrollTop = value;
+        },
+      },
+    });
+
+    expect(content).toHaveClass("flex-1", "py-2");
+    expect(content).not.toHaveClass("pb-12");
+    expect(bottomBar).toHaveClass(
+      "transition-[opacity,transform]",
+      "duration-150",
+      "ease-in",
+      "translate-y-1",
+    );
+    expect(bottomBar).toHaveStyle({ opacity: 0, pointerEvents: "none" });
+
+    fireEvent.scroll(scrollContainer);
+
+    fireEvent.mouseEnter(sidebar!);
+
+    expect(content).not.toHaveClass("pb-12");
+    expect(bottomBar).toHaveClass(
+      "translate-y-0",
+      "duration-200",
+      "ease-[cubic-bezier(0.22,1,0.36,1)]",
+    );
+    expect(bottomBar).toHaveStyle({ opacity: 1, pointerEvents: "auto" });
+    expect(scrollTop).toBe(900);
+
+    fireEvent.mouseLeave(sidebar!);
+
+    await waitFor(() =>
+      expect(bottomBar).toHaveStyle({ opacity: 0, pointerEvents: "none" }),
+    );
+    expect(content).not.toHaveClass("pb-12");
+    expect(scrollTop).toBe(900);
+  });
+
   it("scrolls the file tree when clicking the custom scrollbar track", () => {
     const { container } = render(<FileTree />);
     const scrollContainer = container.querySelector(

@@ -243,6 +243,18 @@ describe("SettingsPage about tab", () => {
 
     expect(classic).toHaveAttribute("aria-checked", "true");
     expect(minimal).toHaveAttribute("aria-checked", "false");
+    expect(
+      minimal.querySelector(".layout-preview--minimal"),
+    ).toBeInTheDocument();
+    expect(
+      minimal.querySelector(".layout-preview__traffic-lights"),
+    ).toBeInTheDocument();
+    expect(
+      minimal.querySelector(".layout-preview__sidebar-row--active"),
+    ).toBeInTheDocument();
+    expect(
+      minimal.querySelector(".layout-preview__editor-heading"),
+    ).toBeInTheDocument();
 
     fireEvent.click(minimal);
 

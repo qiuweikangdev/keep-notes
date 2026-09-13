@@ -13,16 +13,21 @@ import { getRevealInFileManagerLabel } from "../utils";
 
 interface QuickActionsPanelProps {
   onClose?: () => void;
+  onMenuOpenChange?: (open: boolean) => void;
 }
 
 export function QuickActionsPanel({
   onClose: _onClose,
+  onMenuOpenChange,
 }: QuickActionsPanelProps) {
   const treeRoot = useTreeStore((state) => state.treeRoot);
   const recentFolders = useTreeStore((state) => state.recentFolders);
   const removeRecentFolder = useTreeStore((state) => state.removeRecentFolder);
   const { openFolder, loadTree, openInExplorer } = useElectron();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  useEffect(() => {
+    onMenuOpenChange?.(isMenuOpen);
+  }, [isMenuOpen, onMenuOpenChange]);
   const menuRef = useRef<HTMLDivElement>(null);
   const revealInFileManagerLabel = getRevealInFileManagerLabel(
     window.electronAPI?.getPlatform(),
@@ -81,7 +86,7 @@ export function QuickActionsPanel({
     return (
       <div className="relative flex-shrink-0">
         {/* 打开文件夹按钮 + 更多选项 - 菜单关闭时显示 */}
-        {!isMenuOpen && (
+        <div style={{ visibility: isMenuOpen ? "hidden" : "visible" }}>
           <div
             className="sidebar-bottom-bar flex items-center"
             style={{ borderTop: "1px solid var(--border-color)" }}
@@ -110,7 +115,7 @@ export function QuickActionsPanel({
               <MoreVertical className="h-4 w-4" />
             </button>
           </div>
-        )}
+        </div>
 
         {/* 弹出菜单 */}
         {isMenuOpen && (
@@ -145,7 +150,7 @@ export function QuickActionsPanel({
   return (
     <div className="relative flex-shrink-0">
       {/* 当前目录名 + 更多选项 - 菜单关闭时显示 */}
-      {!isMenuOpen && (
+      <div style={{ visibility: isMenuOpen ? "hidden" : "visible" }}>
         <div
           className="sidebar-bottom-bar flex cursor-pointer items-center"
           style={{ borderTop: "1px solid var(--border-color)" }}
@@ -190,7 +195,7 @@ export function QuickActionsPanel({
             <MoreVertical className="h-4 w-4" />
           </button>
         </div>
-      )}
+      </div>
 
       {/* 弹出菜单 */}
       {isMenuOpen && (

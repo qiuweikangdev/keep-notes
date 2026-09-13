@@ -163,15 +163,111 @@
 .layout-preview__titlebar {
   border-bottom: 1px solid var(--border-color);
   background-color: var(--bg-primary);
+  gap: 3px;
+  padding: 0 4px;
+}
+
+.layout-preview__traffic-lights {
+  display: none;
+  gap: 2px;
+}
+
+.layout-preview__traffic-light {
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+}
+
+.layout-preview__traffic-light--close {
+  background-color: #ff5f57;
+}
+
+.layout-preview__traffic-light--minimize {
+  background-color: #febc2e;
+}
+
+.layout-preview__traffic-light--maximize {
+  background-color: #28c840;
+}
+
+.layout-preview__window-control {
+  display: none;
+  width: 7px;
+  height: 5px;
+  border: 1px solid var(--text-muted);
+  border-radius: 1px;
+  opacity: 0.8;
+}
+
+.layout-preview__titlebar-line {
+  width: 16px;
+  height: 2px;
+  border-radius: 999px;
+  background-color: var(--text-muted);
+  opacity: 0.45;
 }
 
 .layout-preview__sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 5px 4px;
   background-color: var(--bg-secondary);
+}
+
+.layout-preview__sidebar-heading,
+.layout-preview__sidebar-row,
+.layout-preview__editor-heading,
+.layout-preview__editor-line {
+  display: block;
+  height: 2px;
+  border-radius: 999px;
+  background-color: var(--text-muted);
+  opacity: 0.42;
+}
+
+.layout-preview__sidebar-heading {
+  width: 17px;
+  margin-bottom: 1px;
+  opacity: 0.65;
+}
+
+.layout-preview__sidebar-row {
+  width: 23px;
+}
+
+.layout-preview__sidebar-row--active {
+  background-color: var(--accent-color);
+  opacity: 0.78;
+}
+
+.layout-preview__sidebar-row--short {
+  width: 15px;
 }
 
 .layout-preview__editor {
   border-color: var(--border-color);
   background-color: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px 8px;
+}
+
+.layout-preview__editor-heading {
+  width: 30px;
+  height: 3px;
+  margin-bottom: 2px;
+  background-color: var(--text-primary);
+  opacity: 0.72;
+}
+
+.layout-preview__editor-line {
+  width: 80%;
+}
+
+.layout-preview__editor-line--short {
+  width: 54%;
 }
 
 .layout-preview--minimal {
@@ -183,8 +279,23 @@
   background-color: transparent;
 }
 
+.layout-preview--minimal .layout-preview__titlebar {
+  border-bottom-color: transparent;
+}
+
+.layout-preview--minimal .layout-preview__traffic-lights,
+.layout-preview--minimal .layout-preview__window-control {
+  display: flex;
+}
+
+.layout-preview--minimal .layout-preview__titlebar-line {
+  flex: 1;
+}
+
 .layout-preview--minimal .layout-preview__editor {
   border: 1px solid var(--border-color);
+  border-radius: 1px;
+  padding: 6px 7px;
 }
 
 /* 简约主题统一 Radix 菜单的表面与状态，覆盖各业务菜单的历史内联配色。 */
@@ -713,6 +824,14 @@ button[data-theme-control="true"][data-selected="true"]:hover {
 }
 
 /* 底部操作栏按钮悬停效果 */
+.file-tree-bottom-actions {
+  background-color: var(--bg-secondary);
+}
+
+.file-tree-scroll-container {
+  scroll-padding-bottom: 36px;
+}
+
 .sidebar-bottom-bar:hover {
   background-color: transparent !important;
   color: var(--text-primary) !important;
@@ -1610,14 +1729,14 @@ body[data-layout="minimal"]:has(.workspace-shell[data-native-material="true"]) {
 }
 /* 各叶面板自行绘制标题行，与左侧原生导航对齐；简约布局不保留面板组外间距。 */
 [data-layout="minimal"] .workspace-shell > .workspace-panel-group {
-  margin-top: calc(-1 * var(--workspace-title-height, 44px));
+  margin-top: calc(-1 * var(--workspace-title-height, 40px));
   padding: 0;
 }
 [data-layout="minimal"] .workspace-sidebar-panel {
-  padding-top: var(--workspace-title-height, 44px);
+  padding-top: var(--workspace-title-height, 40px);
 }
 [data-layout="minimal"] .editor-tab-bar {
-  height: var(--workspace-title-height, 44px);
+  height: var(--workspace-title-height, 40px);
   min-width: 0;
 }
 [data-layout="minimal"] .editor-tab-bar :is([role="tab"], button, input) {
