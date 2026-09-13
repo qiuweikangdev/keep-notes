@@ -779,6 +779,73 @@ button[data-theme-control="true"][data-selected="true"]:hover {
   );
 }
 
+/* 确认弹窗使用三层近似色阶，让深色主题保留表面层次。 */
+[data-dialog-surface="confirm"] {
+  --confirm-surface: color-mix(
+    in srgb,
+    var(--bg-secondary) 76%,
+    var(--bg-primary)
+  );
+  --confirm-header: color-mix(
+    in srgb,
+    var(--bg-secondary) 92%,
+    var(--bg-primary)
+  );
+  --confirm-footer: color-mix(
+    in srgb,
+    var(--bg-secondary) 58%,
+    var(--bg-primary)
+  );
+  background-color: var(--confirm-surface) !important;
+  border: 1px solid
+    color-mix(in srgb, var(--border-color) 92%, var(--text-muted)) !important;
+  box-shadow: 0 6px 8px color-mix(in srgb, #000 30%, transparent);
+}
+
+.dark [data-dialog-surface="confirm"],
+.minimal [data-dialog-surface="confirm"] {
+  --confirm-surface: color-mix(
+    in srgb,
+    var(--bg-secondary) 84%,
+    var(--bg-primary)
+  );
+  --confirm-header: color-mix(
+    in srgb,
+    var(--bg-secondary) 96%,
+    var(--bg-primary)
+  );
+  --confirm-footer: color-mix(
+    in srgb,
+    var(--bg-secondary) 68%,
+    var(--bg-primary)
+  );
+}
+
+[data-dialog-surface="confirm"] .confirm-dialog-header {
+  background-color: var(--confirm-header);
+  border-color: color-mix(in srgb, var(--border-color) 82%, transparent);
+}
+
+[data-dialog-surface="confirm"] .confirm-dialog-description {
+  background-color: var(--confirm-surface);
+  color: var(--text-secondary);
+}
+
+[data-dialog-surface="confirm"] .confirm-dialog-footer {
+  background-color: var(--confirm-footer);
+  border-color: color-mix(in srgb, var(--border-color) 82%, transparent);
+}
+
+[data-dialog-surface="confirm"] [data-dialog-footer="true"] button {
+  min-width: 72px;
+  border-radius: 7px;
+}
+
+[data-dialog-surface="confirm"][data-dialog-variant="warning"]
+  .lucide-triangle-alert {
+  color: var(--warning-color, #d6a449) !important;
+}
+
 [data-git-dialog] .git-branch-row {
   transition: background-color 120ms ease;
 }

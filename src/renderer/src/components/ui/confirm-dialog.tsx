@@ -47,8 +47,11 @@ export function ConfirmDialog({
       ? TriangleAlert
       : CircleAlert;
   const TitleIcon = icon ?? defaultIcon;
-  const titleIconColor =
-    isDanger || isWarning ? "var(--danger-color)" : "var(--text-muted)";
+  const titleIconColor = isDanger
+    ? "var(--danger-color)"
+    : isWarning
+      ? "var(--warning-color, #d6a449)"
+      : "var(--text-muted)";
 
   const handleConfirm = async () => {
     await onConfirm();
@@ -65,11 +68,9 @@ export function ConfirmDialog({
         />
         <Dialog.Content
           data-dialog-surface="confirm"
+          data-dialog-variant={variant}
           className="fixed left-1/2 top-1/2 z-50 w-[calc(100vw-32px)] max-w-[360px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-xl p-0 outline-none"
           style={{
-            backgroundColor: "var(--bg-primary)",
-            border: "1px solid var(--border-color)",
-            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.16)",
             color: "var(--text-primary)",
           }}
           onOpenAutoFocus={(event) => {
@@ -79,7 +80,7 @@ export function ConfirmDialog({
           }}
           onClick={stopPortalClick}
         >
-          <div className="flex h-14 items-center justify-between border-b border-[var(--border-color)] px-5">
+          <div className="confirm-dialog-header flex h-16 items-center justify-between border-b px-5">
             <Dialog.Title className="flex items-center gap-2.5 text-base font-semibold leading-6">
               <TitleIcon
                 aria-hidden="true"
@@ -96,7 +97,11 @@ export function ConfirmDialog({
             </Dialog.Close>
           </div>
           <Dialog.Description
-            className={description ? "px-5 py-6 text-sm leading-6" : "sr-only"}
+            className={
+              description
+                ? "confirm-dialog-description px-5 py-6 text-sm leading-6"
+                : "sr-only"
+            }
             style={{ color: "var(--text-secondary)" }}
           >
             {description ?? "请确认是否继续此操作。"}
@@ -104,7 +109,7 @@ export function ConfirmDialog({
 
           <div
             data-dialog-footer="true"
-            className="dialog-footer-surface flex items-center justify-end gap-2 border-t border-[var(--border-color)] px-5 py-4"
+            className="confirm-dialog-footer dialog-footer-surface flex items-center justify-end gap-2 border-t px-5 py-4"
           >
             <Dialog.Close asChild>
               <Button
