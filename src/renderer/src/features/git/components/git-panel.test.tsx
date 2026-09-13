@@ -118,7 +118,7 @@ describe("GitPanel", () => {
         current: "main",
         tracking: "origin/main",
         files: [],
-        ahead: 0,
+        ahead: 1,
         behind: 0,
         created: [],
         not_added: ["new.md"],
@@ -454,6 +454,34 @@ describe("GitPanel", () => {
       ).not.toBeInTheDocument();
     },
   );
+
+  it("disables push when there is no local commit to push", async () => {
+    electronMocks.getGitStatus.mockResolvedValueOnce({
+      code: CodeResult.Success,
+      data: {
+        current: "main",
+        tracking: "origin/main",
+        files: [],
+        ahead: 0,
+        behind: 0,
+        created: [],
+        not_added: [],
+        modified: [],
+        deleted: [],
+        renamed: [],
+        staged: [],
+        conflicted: [],
+      },
+    });
+
+    render(<GitPanel isOpen onClose={vi.fn()} />);
+
+    await screen.findByText("无更改");
+    const pushButton = screen.getByRole("button", { name: "推送" });
+
+    expect(pushButton).toBeDisabled();
+    expect(pushButton).toHaveAttribute("title", "没有可推送的提交");
+  });
 
   it("uses optically balanced icons for commit footer actions", async () => {
     render(<GitPanel isOpen onClose={vi.fn()} />);
