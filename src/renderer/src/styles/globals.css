@@ -1678,11 +1678,13 @@ body[data-layout="minimal"]:has(.workspace-shell[data-native-material="true"]) {
 [data-layout="minimal"] .workspace-title-navigation {
   overflow: hidden;
   pointer-events: auto;
+  -webkit-app-region: no-drag;
 }
 [data-layout="minimal"]
   :is(.workspace-title-launcher, .workspace-title-actions) {
   pointer-events: auto;
   background-color: var(--bg-primary);
+  -webkit-app-region: no-drag;
 }
 /* 各叶面板自行绘制标题行，与左侧原生导航对齐，不再单独提升首面板标签。 */
 [data-layout="minimal"] .workspace-shell > .workspace-panel-group {
@@ -1695,13 +1697,14 @@ body[data-layout="minimal"]:has(.workspace-shell[data-native-material="true"]) {
 [data-layout="minimal"] .editor-tab-bar {
   height: var(--workspace-title-height, 44px);
   min-width: 0;
-  -webkit-app-region: drag;
 }
 [data-layout="minimal"] .editor-tab-bar :is([role="tab"], button, input) {
   -webkit-app-region: no-drag;
 }
 [data-layout="minimal"] .editor-tab-bar [role="tablist"] {
   min-width: 0;
+  /* 原生拖动区域仅覆盖标签列表，不能包含叠放在按钮下方的预留空间。 */
+  -webkit-app-region: drag;
 }
 [data-layout="minimal"] .editor-tab-bar[data-window-actions="true"] {
   padding-right: var(--workspace-actions-width, 160px);
