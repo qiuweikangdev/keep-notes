@@ -131,7 +131,7 @@ describe("TitleBar", () => {
     });
   });
 
-  it("shows compact-layout file history navigation after a file is opened", () => {
+  it("shows compact-layout navigation when expanded and hides it when collapsed", () => {
     const { rerender } = render(
       <TitleBar
         collapsed
@@ -151,8 +151,10 @@ describe("TitleBar", () => {
       />,
     );
 
-    expect(screen.queryByTitle("没有历史记录")).not.toBeInTheDocument();
-    expect(screen.queryByTitle("没有更多记录")).not.toBeInTheDocument();
+    expect(screen.getByTitle("没有历史记录")).toBeInTheDocument();
+    expect(screen.getByTitle("没有更多记录")).toBeInTheDocument();
+    expect(screen.getByTitle("没有历史记录")).toBeDisabled();
+    expect(screen.getByTitle("没有更多记录")).toBeDisabled();
 
     act(() => {
       window.__addFileToHistory?.("first.md");
@@ -167,6 +169,16 @@ describe("TitleBar", () => {
     });
     expect(screen.getByTitle("返回上一个文件")).toBeInTheDocument();
     expect(screen.getByTitle("没有更多记录")).toBeInTheDocument();
+
+    rerender(
+      <TitleBar
+        collapsed
+        onToggleCollapse={vi.fn()}
+        compactTabs={<div role="tablist" aria-label="编辑器标签页" />}
+      />,
+    );
+    expect(screen.queryByTitle("返回上一个文件")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("没有更多记录")).not.toBeInTheDocument();
   });
 
   it("removes the collapsed compact navigation spacer after hiding history controls", () => {

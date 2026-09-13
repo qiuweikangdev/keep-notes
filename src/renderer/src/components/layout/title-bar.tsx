@@ -119,10 +119,9 @@ export function TitleBar({
   });
   const [, forceUpdate] = useState(0);
   const isNavigatingRef = useRef(false);
-  const hasFileHistory = historyRef.current.files.length > 0;
-  // 简约布局只在打开过文件后显示箭头，初始化状态不占用标题栏空间。
+  // 展开状态保留固定的导航占位，收起状态隐藏箭头以减少顶部空白。
   const showFileHistoryNavigation =
-    appearance.showFileHistoryNavigation && (!isMinimal || hasFileHistory);
+    appearance.showFileHistoryNavigation && !collapsed;
 
   // 平台判断
   const isMac = useMemo(() => {
