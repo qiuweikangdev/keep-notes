@@ -7,6 +7,7 @@ import {
   screen,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useUIStore } from "@/store/ui.store";
 import { useEditorStore } from "@/store/editor.store";
 import { Editor } from "./editor";
 
@@ -228,6 +229,7 @@ function createTab(id: string, filePath: string) {
 }
 
 beforeEach(() => {
+  useUIStore.setState({ layout: "classic" });
   useEditorStore.getState().clearFileDragTargetGroupId();
   workspaceLifecycle.renderRichPanes = false;
   workspaceLifecycle.nextInstanceId = 0;
@@ -250,6 +252,19 @@ afterEach(() => {
 });
 
 describe("Editor split panels", () => {
+  it("moves only the primary tab bar to the compact title row", () => {
+    useUIStore.setState({ layout: "minimal" });
+    useEditorStore.setState({
+      panelGroups: [
+        { id: "group-1", activeTabId: "", direction: "horizontal", tabs: [] },
+        { id: "group-2", activeTabId: "", direction: "horizontal", tabs: [] },
+      ],
+      activeGroupId: "group-1",
+    });
+    render(<Editor />);
+    expect(screen.queryByTestId("tab-bar-group-1")).not.toBeInTheDocument();
+    expect(screen.getByTestId("tab-bar-group-2")).toBeInTheDocument();
+  });
   it("keeps the tab action bar visible when the last tab is closed", () => {
     useEditorStore.setState({
       panelGroups: [

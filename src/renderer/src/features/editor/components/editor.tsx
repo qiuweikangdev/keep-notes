@@ -11,6 +11,7 @@ import { createPortal } from "react-dom";
 import { EditorTabBar } from "./editor-tab-bar";
 import { EditorWorkspace } from "./editor-workspace";
 import { useEditorStore } from "@/store/editor.store";
+import { useUIStore } from "@/store/ui.store";
 import { useElectron } from "@/hooks/use-electron";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import {
@@ -300,6 +301,11 @@ function buildPanelLayout(
 
 // 单个面板组：标签栏 + 编辑器
 function EditorPanelGroup({ groupId }: { groupId: string }) {
+  const isMinimal = useUIStore((state) => state.layout === "minimal");
+  const isFirstGroup = useEditorStore(
+    (state) => state.panelGroups[0]?.id === groupId,
+  );
+  const showTabBar = !isMinimal || !isFirstGroup;
   useEditorStore(selectPanelGroupSignature(groupId));
   const { openFile } = useElectron();
   const group = useEditorStore
@@ -392,7 +398,7 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
         onDragLeaveCapture={handleDragLeave}
         onDropCapture={handleDrop}
       >
-        <EditorTabBar groupId={groupId} />
+        {showTabBar && <EditorTabBar groupId={groupId} />}
         <div
           className="flex-1 flex items-center justify-center relative"
           style={{ backgroundColor: "var(--bg-primary)" }}
@@ -425,7 +431,7 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
       onDragLeaveCapture={handleDragLeave}
       onDropCapture={handleDrop}
     >
-      <EditorTabBar groupId={groupId} />
+      {showTabBar && <EditorTabBar groupId={groupId} />}
       <div className="flex-1 overflow-hidden relative">
         {/* 渲染编辑器 */}
         <EditorWorkspace groupId={groupId} tabId={group.activeTabId} />

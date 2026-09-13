@@ -1608,11 +1608,88 @@ body[data-layout="minimal"]:has(.workspace-shell[data-native-material="true"]) {
   );
 }
 
+/* 简约布局必须让出整窗底色，否则会遮住 Electron 的原生磨砂材质。 */
+[data-layout="minimal"] .workspace-shell {
+  background-color: transparent;
+  isolation: isolate;
+}
+
+/* 最外层也必须透明，才能露出窗口原生材质；设置页自行绘制背景。 */
+[data-layout="minimal"] .app-window-surface {
+  background-color: transparent !important;
+}
+
+/* 两列背景从窗口顶端贯穿到底端，红绿灯与文件树共享同一块材质。 */
+[data-layout="minimal"] .workspace-shell::before,
+[data-layout="minimal"] .workspace-shell::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+[data-layout="minimal"] .workspace-shell::before {
+  left: 0;
+  width: var(--workspace-sidebar-width, 0px);
+  background: color-mix(
+    in srgb,
+    var(--sidebar-material-tint, var(--bg-secondary))
+      var(--sidebar-material-tint-opacity, 82%),
+    transparent
+  );
+  backdrop-filter: blur(36px);
+  box-shadow: inset -1px 0
+    color-mix(in srgb, var(--text-primary) 8%, transparent);
+}
+
+[data-layout="minimal"] .workspace-shell[data-native-material="true"]::before {
+  backdrop-filter: none;
+}
+
+[data-layout="minimal"] .workspace-shell::after {
+  left: var(--workspace-sidebar-width, 0px);
+  right: 0;
+  background: var(--bg-primary);
+}
+
 .workspace-shell > .workspace-panel-group {
   box-sizing: border-box;
   min-width: 0;
   min-height: 0;
   padding: var(--workspace-panel-group-padding);
+}
+
+/* 顶部标签与操作区共享一行；正文不再重复绘制第二层标签边框。 */
+.workspace-compact-tabs > div {
+  height: 100%;
+  border-bottom: 0 !important;
+}
+.workspace-compact-tabs [role="tablist"] {
+  min-width: 0;
+}
+[data-layout="minimal"] .workspace-title-bar {
+  position: relative;
+  border-bottom: 0 !important;
+}
+[data-layout="minimal"] .workspace-title-navigation {
+  overflow: hidden;
+}
+[data-layout="minimal"] .workspace-title-bar::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: var(--workspace-sidebar-width, 0px);
+  right: 0;
+  height: 1px;
+  background: var(--border-color);
+  pointer-events: none;
+}
+[data-layout="minimal"] .workspace-content-surface {
+  border-top: 0;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
 }
 
 .workspace-panel-group__inner {
@@ -1680,6 +1757,69 @@ body[data-layout="minimal"]:has(.workspace-shell[data-native-material="true"]) {
 .file-tree-sidebar {
   min-width: 0;
   overflow: hidden;
+}
+
+/* 材质由整列背景统一绘制，文件树不再形成一块独立矩形。 */
+[data-layout="minimal"] .file-tree-sidebar {
+  --sidebar-surface-background: transparent;
+}
+
+[data-layout="minimal"] .file-tree-empty-state--minimal {
+  background-color: transparent;
+}
+
+[data-layout="minimal"]
+  .file-tree-empty-state--minimal
+  .file-tree-empty-state__header {
+  background-color: transparent !important;
+  border-bottom: 0 !important;
+}
+
+[data-layout="minimal"]
+  .file-tree-empty-state--minimal
+  .file-tree-empty-state__body {
+  max-width: 360px;
+}
+
+[data-layout="minimal"]
+  .file-tree-empty-state--minimal
+  .file-tree-empty-state__action {
+  background-color: color-mix(
+    in srgb,
+    var(--bg-primary) 24%,
+    transparent
+  ) !important;
+  transition: background-color 140ms ease;
+}
+
+[data-layout="minimal"]
+  .file-tree-empty-state--minimal
+  .file-tree-empty-state__action:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--bg-primary) 38%,
+    transparent
+  ) !important;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  [data-layout="minimal"] .workspace-shell {
+    background-color: var(--workspace-background);
+  }
+
+  [data-layout="minimal"] .workspace-shell::before,
+  [data-layout="minimal"]
+    .workspace-shell[data-native-material="true"]::before {
+    background: var(--bg-secondary);
+    backdrop-filter: none;
+  }
+
+  [data-layout="minimal"] .file-tree-sidebar {
+    --sidebar-surface-background: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: none;
+  }
 }
 
 .file-tree-sidebar__content {

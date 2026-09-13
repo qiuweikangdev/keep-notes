@@ -16,6 +16,7 @@ import { useUIStore } from "@/store/ui.store";
 import { useEditorStore } from "@/store/editor.store";
 import { useTheme } from "@/hooks/use-theme";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import type { ReactNode } from "react";
 import { GitPanel } from "@/features/git";
 import { useElectron } from "@/hooks/use-electron";
 import { useTreeStore } from "@/store/tree.store";
@@ -41,9 +42,15 @@ import type {
 interface TitleBarProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
+  compactTabs?: ReactNode;
 }
 
-export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
+export function TitleBar({
+  collapsed,
+  onToggleCollapse,
+  compactTabs,
+}: TitleBarProps) {
+  const isMinimal = compactTabs !== undefined;
   const setSettingsOpen = useUIStore((state) => state.setSettingsOpen);
   const appearance = useEditorStore((state) => state.appearance);
   const setAppearance = useEditorStore((state) => state.setAppearance);
@@ -93,7 +100,8 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
     const onMouseDown = (e: MouseEvent) => {
       if (e.button !== 0) return;
       const target = e.target as HTMLElement;
-      if (target.closest("button")) return;
+      if (target.closest("button, [role=tab], input, [data-compact-tabs]"))
+        return;
       const requestId = ++dragRequestId;
       pendingDrag = false;
       dragging = false;
@@ -275,7 +283,12 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
         data-testid="title-bar"
         className="workspace-title-bar flex flex-shrink-0 items-center select-none"
         onDoubleClick={(e) => {
-          if ((e.target as HTMLElement).closest("button")) return;
+          if (
+            (e.target as HTMLElement).closest(
+              "button, [role=tab], input, [data-compact-tabs]",
+            )
+          )
+            return;
           window.electronAPI.maximizeWindow();
         }}
         style={{
@@ -286,112 +299,140 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
             "var(--title-bar-border, 1px solid var(--border-color))",
         }}
       >
-        {/* macOS: 红绿灯按钮区域预留空间（78px），Windows: 无 */}
-        {isMac && (
-          <div
-            data-testid="mac-traffic-light-spacer"
-            className="h-full flex-shrink-0"
-            style={{ width: `${MAC_TRAFFIC_LIGHT_PLACEHOLDER_WIDTH}px` }}
-          />
-        )}
+        <div
+          className="workspace-title-navigation flex h-full shrink-0 items-center"
+          style={
+            isMinimal
+              ? {
+                  width: collapsed ? "auto" : "var(--workspace-sidebar-width)",
+                  minWidth: collapsed ? (isMac ? "190px" : "112px") : 0,
+                }
+              : undefined
+          }
+        >
+          {/* macOS: 红绿灯按钮区域预留空间（78px），Windows: 无 */}
+          {isMac && (
+            <div
+              data-testid="mac-traffic-light-spacer"
+              className="h-full flex-shrink-0"
+              style={{ width: `${MAC_TRAFFIC_LIGHT_PLACEHOLDER_WIDTH}px` }}
+            />
+          )}
 
-        {/* 左侧：侧边栏切换 + 导航箭头 */}
-        <div className="flex h-full items-center gap-1 pl-3">
-          <SidebarToggleButton
-            collapsed={collapsed}
-            onClick={onToggleCollapse}
-          />
-          {appearance.showFileHistoryNavigation && (
-            <>
-              <button
-                disabled={historyRef.current.index <= 0}
-                onClick={handleGoBack}
-                className="flex items-center justify-center w-8 h-8 rounded-md transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                style={{ color: "var(--text-muted)" }}
-                onMouseEnter={(e) => {
-                  if (historyRef.current.index > 0) {
-                    e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                    e.currentTarget.style.color = "var(--text-primary)";
+          {/* 左侧：侧边栏切换 + 导航箭头 */}
+          <div className="flex h-full shrink-0 items-center gap-1 pl-3">
+            <SidebarToggleButton
+              collapsed={collapsed}
+              onClick={onToggleCollapse}
+            />
+            {appearance.showFileHistoryNavigation && (
+              <>
+                <button
+                  disabled={historyRef.current.index <= 0}
+                  onClick={handleGoBack}
+                  className="flex items-center justify-center w-8 h-8 rounded-md transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                  style={{ color: "var(--text-muted)" }}
+                  onMouseEnter={(e) => {
+                    if (historyRef.current.index > 0) {
+                      e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                      e.currentTarget.style.color = "var(--text-primary)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                    e.currentTarget.style.color = "var(--text-muted)";
+                  }}
+                  title={
+                    historyRef.current.index > 0
+                      ? "返回上一个文件"
+                      : "没有历史记录"
                   }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "transparent";
-                  e.currentTarget.style.color = "var(--text-muted)";
-                }}
-                title={
-                  historyRef.current.index > 0
-                    ? "返回上一个文件"
-                    : "没有历史记录"
-                }
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </button>
-              <button
-                disabled={
-                  historyRef.current.index >=
-                  historyRef.current.files.length - 1
-                }
-                onClick={handleGoForward}
-                className="flex items-center justify-center w-8 h-8 rounded-md transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                style={{ color: "var(--text-muted)" }}
-                onMouseEnter={(e) => {
-                  if (
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+                <button
+                  disabled={
+                    historyRef.current.index >=
+                    historyRef.current.files.length - 1
+                  }
+                  onClick={handleGoForward}
+                  className="flex items-center justify-center w-8 h-8 rounded-md transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                  style={{ color: "var(--text-muted)" }}
+                  onMouseEnter={(e) => {
+                    if (
+                      historyRef.current.index <
+                      historyRef.current.files.length - 1
+                    ) {
+                      e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                      e.currentTarget.style.color = "var(--text-primary)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                    e.currentTarget.style.color = "var(--text-muted)";
+                  }}
+                  title={
                     historyRef.current.index <
                     historyRef.current.files.length - 1
-                  ) {
-                    e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                    e.currentTarget.style.color = "var(--text-primary)";
+                      ? "前进下一个文件"
+                      : "没有更多记录"
                   }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "transparent";
-                  e.currentTarget.style.color = "var(--text-muted)";
-                }}
-                title={
-                  historyRef.current.index < historyRef.current.files.length - 1
-                    ? "前进下一个文件"
-                    : "没有更多记录"
-                }
-              >
-                <ArrowRight className="h-4 w-4" />
-              </button>
-            </>
-          )}
+                >
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              </>
+            )}
+          </div>
         </div>
-
-        {/* 中间：搜索栏 */}
-        <div className="flex h-full flex-1 items-center justify-center px-4">
-          <button
-            onClick={() => window.dispatchEvent(new Event("open-search"))}
-            className="flex items-center gap-2 h-[28px] w-[280px] max-w-[50%] px-3 rounded-md text-xs transition-all"
-            style={{
-              backgroundColor: "var(--title-bar-control-bg)",
-              color: "var(--text-muted)",
-              border: "1px solid transparent",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor =
-                "var(--selection-row-hover)";
-              e.currentTarget.style.borderColor = "var(--border-color)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor =
-                "var(--title-bar-control-bg)";
-              e.currentTarget.style.borderColor = "transparent";
-            }}
+        {/* 简约布局将标签页与操作入口合并，搜索仍可通过快捷键打开。 */}
+        {isMinimal && (
+          <div
+            data-compact-tabs
+            className="workspace-compact-tabs min-w-0 flex-1 h-full"
           >
-            <Search className="h-3.5 w-3.5" />
-            <span>搜索文件...</span>
-            <kbd
-              className="ml-auto text-[10px] px-1.5 py-0.5 rounded"
+            {compactTabs}
+          </div>
+        )}
+        <div
+          className={
+            isMinimal
+              ? "flex h-full shrink-0 items-center px-1"
+              : "flex h-full flex-1 items-center justify-center px-4"
+          }
+        >
+          {!isMinimal && (
+            <button
+              onClick={() => window.dispatchEvent(new Event("open-search"))}
+              className="flex items-center gap-2 h-[28px] w-[280px] max-w-[50%] px-3 rounded-md text-xs transition-all"
               style={{
-                backgroundColor: "var(--title-bar-key-bg)",
+                backgroundColor: "var(--title-bar-control-bg)",
                 color: "var(--text-muted)",
+                border: "1px solid transparent",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor =
+                  "var(--selection-row-hover)";
+                e.currentTarget.style.borderColor = "var(--border-color)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor =
+                  "var(--title-bar-control-bg)";
+                e.currentTarget.style.borderColor = "transparent";
               }}
             >
-              ⌘P
-            </kbd>
-          </button>
+              <Search className="h-3.5 w-3.5" />
+              <span>搜索文件...</span>
+              <kbd
+                className="ml-auto text-[10px] px-1.5 py-0.5 rounded"
+                style={{
+                  backgroundColor: "var(--title-bar-key-bg)",
+                  color: "var(--text-muted)",
+                }}
+              >
+                ⌘P
+              </kbd>
+            </button>
+          )}
 
           {appearance.showTitleBarQuickLauncher && effectiveExternalOpenApp ? (
             <div
@@ -520,26 +561,28 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
             </button>
           )}
 
-          <button
-            onClick={toggleTheme}
-            className="flex items-center justify-center w-8 h-8 rounded-lg transition-all"
-            style={{ color: "var(--text-muted)" }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-              e.currentTarget.style.color = "var(--text-primary)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
-              e.currentTarget.style.color = "var(--text-muted)";
-            }}
-            title={isDark ? "切换亮色主题" : "切换暗色主题"}
-          >
-            {isDark ? (
-              <Sun className="h-4 w-4" />
-            ) : (
-              <Moon className="h-4 w-4" />
-            )}
-          </button>
+          {!isMinimal && (
+            <button
+              onClick={toggleTheme}
+              className="flex items-center justify-center w-8 h-8 rounded-lg transition-all"
+              style={{ color: "var(--text-muted)" }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                e.currentTarget.style.color = "var(--text-primary)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.color = "var(--text-muted)";
+              }}
+              title={isDark ? "切换亮色主题" : "切换暗色主题"}
+            >
+              {isDark ? (
+                <Sun className="h-4 w-4" />
+              ) : (
+                <Moon className="h-4 w-4" />
+              )}
+            </button>
+          )}
           <button
             onClick={() => setSettingsOpen(true)}
             className="flex items-center justify-center w-8 h-8 rounded-lg transition-all"

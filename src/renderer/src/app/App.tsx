@@ -446,7 +446,7 @@ function MainApplication() {
   return (
     <Tooltip.Provider delayDuration={300}>
       <DragResizeProvider>
-        <div style={windowStyle}>
+        <div className="app-window-surface" style={windowStyle}>
           {/* 保留编辑器实例和滚动位置，路由切换时隐藏工作区。 */}
           <div
             hidden={isSettingsOpen}

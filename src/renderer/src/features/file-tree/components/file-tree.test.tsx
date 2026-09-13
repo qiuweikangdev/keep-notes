@@ -122,6 +122,9 @@ describe("FileTree context menu", () => {
 
     render(<FileTree />);
 
+    expect(screen.getByTestId("file-tree-empty-state")).toHaveClass(
+      "file-tree-empty-state--minimal",
+    );
     expect(screen.getByText("尚未打开文件夹")).toBeInTheDocument();
     expect(screen.getByText("文件")).toBeInTheDocument();
     expect(screen.queryByText("没有打开的文件夹")).not.toBeInTheDocument();

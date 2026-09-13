@@ -670,9 +670,12 @@ export function FileTree() {
     }
 
     return (
-      <div className="flex h-full flex-col" data-testid="file-tree-empty-state">
+      <div
+        className="file-tree-empty-state--minimal flex h-full flex-col"
+        data-testid="file-tree-empty-state"
+      >
         <div
-          className="flex h-[35px] flex-shrink-0 items-center gap-2 px-3"
+          className="file-tree-empty-state__header flex h-[52px] flex-shrink-0 items-center gap-2 px-5"
           style={{
             backgroundColor: "var(--sidebar-header-background)",
             borderBottom: "var(--sidebar-header-border)",
@@ -690,58 +693,53 @@ export function FileTree() {
           </span>
         </div>
 
-        <div className="min-h-0 flex-1 px-3 pt-5">
-          <div className="w-full">
-            <p
-              className="px-2 text-[11px]"
-              style={{ color: "var(--text-muted)" }}
-            >
-              尚未打开文件夹
-            </p>
-            <button
-              type="button"
-              data-selection-surface="true"
-              data-selection-context="secondary"
-              className="mt-2 flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-xs font-medium"
-              style={{
-                backgroundColor:
-                  "color-mix(in srgb, var(--bg-primary) 28%, transparent)",
-                color: "var(--text-primary)",
-              }}
-              onClick={handleSelectDir}
-            >
-              <FolderOpen className="h-3.5 w-3.5" />
-              打开文件夹…
-            </button>
+        <div className="file-tree-empty-state__body min-h-0 flex-1 px-5 pt-10">
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+            尚未打开文件夹
+          </p>
+          <button
+            type="button"
+            data-selection-surface="true"
+            data-selection-context="secondary"
+            className="file-tree-empty-state__action mt-3 flex h-10 w-full items-center gap-2 rounded-lg px-3 text-left text-xs font-medium"
+            style={{
+              backgroundColor:
+                "color-mix(in srgb, var(--bg-primary) 28%, transparent)",
+              color: "var(--text-primary)",
+            }}
+            onClick={handleSelectDir}
+          >
+            <FolderOpen className="h-3.5 w-3.5" />
+            打开文件夹…
+          </button>
 
-            {recentFolders.length > 0 ? (
-              <div className="mt-5 w-full">
-                <p
-                  className="mb-1.5 px-2 text-[11px]"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  最近打开
-                </p>
-                <div className="flex flex-col gap-0.5">
-                  {recentFolders.slice(0, 4).map((folder) => (
-                    <button
-                      key={folder.path}
-                      type="button"
-                      data-selection-surface="true"
-                      data-selection-context="secondary"
-                      className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-xs"
-                      style={{ color: "var(--text-secondary)" }}
-                      title={folder.path}
-                      onClick={() => void loadTree(folder.path)}
-                    >
-                      <Folder className="h-3.5 w-3.5 flex-shrink-0" />
-                      <span className="truncate">{folder.title}</span>
-                    </button>
-                  ))}
-                </div>
+          {recentFolders.length > 0 ? (
+            <div className="mt-8">
+              <p
+                className="mb-2 text-xs"
+                style={{ color: "var(--text-muted)" }}
+              >
+                最近打开
+              </p>
+              <div className="flex flex-col gap-0.5">
+                {recentFolders.slice(0, 4).map((folder) => (
+                  <button
+                    key={folder.path}
+                    type="button"
+                    data-selection-surface="true"
+                    data-selection-context="secondary"
+                    className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-xs"
+                    style={{ color: "var(--text-secondary)" }}
+                    title={folder.path}
+                    onClick={() => void loadTree(folder.path)}
+                  >
+                    <Folder className="h-3.5 w-3.5 flex-shrink-0" />
+                    <span className="truncate">{folder.title}</span>
+                  </button>
+                ))}
               </div>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </div>
       </div>
     );

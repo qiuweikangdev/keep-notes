@@ -61,7 +61,7 @@ describe("useTheme", () => {
     expect(document.documentElement.classList.contains("dark")).toBe(true);
     expect(
       document.documentElement.style.getPropertyValue("--bg-primary"),
-    ).toBe("#23272e");
+    ).toBe("#23272f");
   });
 
   it("applies theme and layout as independent visual configurations", () => {
@@ -96,6 +96,40 @@ describe("useTheme", () => {
         "--workspace-content-radius",
       ),
     ).toBe("0");
+  });
+
+  it("keeps theme colors independent from layout and adapts the glass tint", () => {
+    useUIStore.setState({ theme: "minimal", layout: "minimal" });
+    const { result } = renderHook(() => useTheme());
+    const root = document.documentElement;
+
+    expect(root.style.getPropertyValue("--bg-primary")).toBe("#181818");
+    expect(root.style.getPropertyValue("--bg-secondary")).toBe("#292929");
+    expect(root.style.getPropertyValue("--file-tree-row-selected")).toBe(
+      "#3a3a3d",
+    );
+    expect(result.current.config.colors.bgPrimary).toBe("#181818");
+
+    act(() => useUIStore.getState().setTheme("light"));
+    expect(root.style.getPropertyValue("--bg-primary")).toBe("#ffffff");
+    expect(root.style.getPropertyValue("--sidebar-material-tint-opacity")).toBe(
+      "88%",
+    );
+
+    act(() => useUIStore.setState({ theme: "dark", layout: "classic" }));
+    expect(root.style.getPropertyValue("--bg-primary")).toBe("#23272f");
+    expect(root.style.getPropertyValue("--file-tree-row-selected")).toBe(
+      "#383c44",
+    );
+
+    act(() => useUIStore.getState().setLayout("minimal"));
+    expect(root.style.getPropertyValue("--bg-primary")).toBe("#23272f");
+    expect(root.style.getPropertyValue("--sidebar-material-tint")).toBe(
+      "#292f38",
+    );
+
+    act(() => useUIStore.setState({ theme: "nord", layout: "minimal" }));
+    expect(root.style.getPropertyValue("--bg-primary")).toBe("#2e3440");
   });
 
   it("updates the resolved theme when the system color scheme changes", () => {

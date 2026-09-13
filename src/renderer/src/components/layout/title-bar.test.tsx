@@ -78,6 +78,21 @@ vi.mock("@/store/tree.store", () => ({
 }));
 
 describe("TitleBar", () => {
+  it("merges compact tabs into the title row without search or theme toggle", () => {
+    render(
+      <TitleBar
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+        compactTabs={<div role="tablist" aria-label="编辑器标签页" />}
+      />,
+    );
+    expect(
+      within(screen.getByTestId("title-bar")).getByRole("tablist"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("搜索文件...")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("切换亮色主题")).not.toBeInTheDocument();
+    expect(screen.getByTitle("设置")).toBeInTheDocument();
+  });
   afterEach(cleanup);
   beforeEach(() => {
     testState.appearance = {

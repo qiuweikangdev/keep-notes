@@ -130,4 +130,16 @@ describe("workspace layout surface styles", () => {
       /\[data-layout="minimal"\]\s+\.workspace-panel-group__inner\s*\{[\s\S]*width:\s*auto\s*!important;[\s\S]*height:\s*auto\s*!important;/,
     );
   });
+
+  it("exposes the native material behind the minimal sidebar", () => {
+    expect(stylesheet).toMatch(
+      /\[data-layout="minimal"\]\s+\.workspace-shell\s*\{[\s\S]*background-color:\s*transparent;/,
+    );
+    expect(stylesheet).toMatch(
+      /\[data-layout="minimal"\]\s+\.app-window-surface\s*\{[^}]*background-color:\s*transparent !important;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.workspace-shell::before\s*\{[^}]*width:\s*var\(--workspace-sidebar-width,\s*0px\);/,
+    );
+  });
 });

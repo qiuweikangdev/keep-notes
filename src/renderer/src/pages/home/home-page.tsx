@@ -7,6 +7,8 @@ import { Editor } from "@/features/editor";
 import { EditorBridge } from "@/features/editor/components/editor-bridge";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TitleBar } from "@/components/layout/title-bar";
+import { EditorTabBar } from "@/features/editor/components/editor-tab-bar";
+import { useUIStore } from "@/store/ui.store";
 import { usePanel } from "@/hooks/use-panel";
 import { useElectron } from "@/hooks/use-electron";
 import { useResizableDialog } from "@/hooks/use-resizable-dialog";
@@ -46,6 +48,30 @@ export function HomePage() {
 }
 
 function HomePageContent() {
+  const isMinimal = useUIStore((state) => state.layout === "minimal");
+  const firstGroupId = useEditorStore((state) => state.panelGroups[0]?.id);
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const workspace = workspaceRef.current;
+    const sidebar = workspace?.querySelector<HTMLElement>(
+      ".workspace-sidebar-panel",
+    );
+    if (!workspace || !sidebar) return;
+    // 跟随面板的真实边界更新整列材质，覆盖拖拽、收起动画和窗口缩放。
+    const syncMaterialWidth = () => {
+      const bounds = sidebar.getBoundingClientRect();
+      const width =
+        bounds.width > 0
+          ? bounds.right - workspace.getBoundingClientRect().left
+          : 0;
+      workspace.style.setProperty("--workspace-sidebar-width", `${width}px`);
+    };
+    syncMaterialWidth();
+    const observer = new ResizeObserver(syncMaterialWidth);
+    observer.observe(sidebar);
+    observer.observe(workspace);
+    return () => observer.disconnect();
+  }, []);
   const workspaceOpacity = useEditorStore((state) => state.appearance.opacity);
   const {
     panelSize,
@@ -209,6 +235,7 @@ function HomePageContent() {
 
   return (
     <div
+      ref={workspaceRef}
       className="workspace-shell flex flex-col h-screen overflow-hidden relative"
       data-native-material={isMac}
       style={{
@@ -227,7 +254,17 @@ function HomePageContent() {
       <div className="resize-handle resize-handle-bottom-left" />
       <div className="resize-handle resize-handle-bottom-right" />
 
-      <TitleBar collapsed={collapsed} onToggleCollapse={toggleCollapse} />
+      <TitleBar
+        collapsed={collapsed}
+        onToggleCollapse={toggleCollapse}
+        compactTabs={
+          isMinimal ? (
+            firstGroupId ? (
+              <EditorTabBar groupId={firstGroupId} />
+            ) : null
+          ) : undefined
+        }
+      />
 
       <div
         className={cn(

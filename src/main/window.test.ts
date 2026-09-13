@@ -173,6 +173,23 @@ describe("createWindow", () => {
     );
   });
 
+  it("keeps the macOS sidebar material active", () => {
+    createWindow();
+
+    const [options] = BrowserWindowMock.mock.calls[0];
+
+    if (process.platform === "darwin") {
+      expect(options).toEqual(
+        expect.objectContaining({
+          backgroundColor: "#00000000",
+          transparent: true,
+          vibrancy: "sidebar",
+          visualEffectState: "active",
+        }),
+      );
+    }
+  });
+
   it("activates and raises the latest main application window", () => {
     const win = createWindow();
     vi.mocked(win.isMinimized).mockReturnValue(true);
