@@ -24,11 +24,6 @@ function LayoutPreview({ layout }: { layout: LayoutName }) {
               <span className="layout-preview__file-icon" />
               <span className="layout-preview__tab-line" />
             </span>
-            <span className="layout-preview__titlebar-actions">
-              <span />
-              <span />
-              <span />
-            </span>
           </>
         ) : (
           <span className="layout-preview__titlebar-line" />
@@ -47,11 +42,9 @@ function LayoutPreview({ layout }: { layout: LayoutName }) {
           )}
         </span>
         <span className="layout-preview__editor">
-          {!isMinimal && (
-            <span className="layout-preview__editor-tabbar">
-              <span className="layout-preview__editor-tab" />
-            </span>
-          )}
+          <span className="layout-preview__editor-tabbar">
+            <span className="layout-preview__editor-tab" />
+          </span>
           <span className="layout-preview__editor-content">
             <span className="layout-preview__editor-heading" />
             <span className="layout-preview__editor-line" />

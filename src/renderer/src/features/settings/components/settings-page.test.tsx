@@ -263,7 +263,7 @@ describe("SettingsPage about tab", () => {
     ).toBeInTheDocument();
     expect(
       minimal.querySelector(".layout-preview__editor-tabbar"),
-    ).not.toBeInTheDocument();
+    ).toBeInTheDocument();
     expect(
       minimal.querySelector(".layout-preview__minimal-tab"),
     ).toBeInTheDocument();
@@ -275,7 +275,7 @@ describe("SettingsPage about tab", () => {
     ).not.toBeInTheDocument();
     expect(
       minimal.querySelector(".layout-preview__titlebar-actions"),
-    ).toBeInTheDocument();
+    ).not.toBeInTheDocument();
 
     fireEvent.click(minimal);
 

@@ -239,22 +239,6 @@
   opacity: 0.7;
 }
 
-.layout-preview__titlebar-actions {
-  display: none;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 2px;
-  margin-left: auto;
-}
-
-.layout-preview__titlebar-actions span {
-  width: 3px;
-  height: 3px;
-  border: 1px solid var(--text-muted);
-  border-radius: 999px;
-  opacity: 0.6;
-}
-
 .layout-preview__workspace {
   display: flex;
   min-height: 0;
@@ -358,26 +342,62 @@
 }
 
 .layout-preview--minimal {
-  background-color: var(--bg-secondary);
+  border-color: color-mix(in srgb, var(--border-color) 76%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--bg-secondary) 86%,
+    var(--bg-primary)
+  );
 }
 
-.layout-preview--minimal .layout-preview__titlebar,
-.layout-preview--minimal .layout-preview__sidebar {
+.layout-preview--minimal .layout-preview__titlebar {
   background-color: transparent;
 }
 
 .layout-preview--minimal .layout-preview__titlebar {
-  border-bottom-color: transparent;
+  border-bottom-color: color-mix(in srgb, var(--border-color) 72%, transparent);
 }
 
 .layout-preview--minimal .layout-preview__window-control,
-.layout-preview--minimal .layout-preview__minimal-tab,
-.layout-preview--minimal .layout-preview__titlebar-actions {
+.layout-preview--minimal .layout-preview__minimal-tab {
   display: flex;
 }
 
+.layout-preview--minimal .layout-preview__sidebar {
+  border-right: 1px solid
+    color-mix(in srgb, var(--border-color) 70%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--bg-secondary) 58%,
+    var(--bg-primary)
+  );
+}
+
 .layout-preview--minimal .layout-preview__editor {
-  border-left-color: color-mix(in srgb, var(--border-color) 80%, transparent);
+  margin: 3px 3px 3px 0;
+  border: 1px solid color-mix(in srgb, var(--border-color) 88%, transparent);
+  border-left: 0;
+  border-radius: 5px;
+  background-color: var(--bg-primary);
+  overflow: hidden;
+}
+
+.layout-preview--minimal .layout-preview__editor-tabbar {
+  background-color: color-mix(
+    in srgb,
+    var(--bg-secondary) 72%,
+    var(--bg-primary)
+  );
+}
+
+.layout-preview--minimal .layout-preview__editor-content {
+  gap: 3px;
+  padding: 5px 6px;
+}
+
+.layout-preview--minimal .layout-preview__editor-heading {
+  margin-bottom: 1px;
+  opacity: 0.82;
 }
 
 /* 简约主题统一 Radix 菜单的表面与状态，覆盖各业务菜单的历史内联配色。 */

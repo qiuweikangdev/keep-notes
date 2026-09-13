@@ -157,4 +157,16 @@ describe("workspace layout surface styles", () => {
       /\.settings-sidebar\s*\{[\s\S]*background-color:\s*color-mix\([\s\S]*var\(--sidebar-material-tint,\s*var\(--bg-secondary\)\)[\s\S]*var\(--sidebar-material-tint-opacity,\s*82%\)[\s\S]*backdrop-filter:\s*blur\(32px\) saturate\(1\.08\);/,
     );
   });
+
+  it("gives the minimal layout preview an inset editor surface", () => {
+    expect(stylesheet).toMatch(
+      /\.layout-preview--minimal\s+\.layout-preview__editor\s*\{[\s\S]*margin:\s*3px 3px 3px 0;[\s\S]*border-radius:\s*5px;[\s\S]*overflow:\s*hidden;/,
+    );
+  });
+
+  it("separates the minimal layout preview columns", () => {
+    expect(stylesheet).toMatch(
+      /\.layout-preview--minimal\s+\.layout-preview__sidebar\s*\{[\s\S]*border-right:\s*1px solid\s+color-mix\(/,
+    );
+  });
 });
