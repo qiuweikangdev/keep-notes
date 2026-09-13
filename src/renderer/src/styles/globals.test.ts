@@ -158,6 +158,12 @@ describe("workspace layout surface styles", () => {
     );
   });
 
+  it("keeps the minimal layout bottom actions on the sidebar material", () => {
+    expect(stylesheet).toMatch(
+      /\[data-layout="minimal"\]\s+\.file-tree-bottom-actions\s*\{[\s\S]*background:\s*color-mix\([\s\S]*var\(--sidebar-material-tint,\s*var\(--bg-secondary\)\)[\s\S]*var\(--sidebar-material-tint-opacity,\s*82%\)/,
+    );
+  });
+
   it("renders the minimal layout preview as two connected panels", () => {
     expect(stylesheet).toMatch(
       /\.layout-preview--minimal\s*\{[^}]*flex-direction:\s*row;[^}]*gap:\s*0;[^}]*border:\s*0;/,

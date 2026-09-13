@@ -1038,6 +1038,16 @@ button[data-theme-control="true"][data-selected="true"]:hover {
   background-color: var(--bg-secondary);
 }
 
+/* 简约布局的侧栏由窗口材质统一绘制，底部操作栏沿用同一层混合，避免出现突兀的色块。 */
+[data-layout="minimal"] .file-tree-bottom-actions {
+  background: color-mix(
+    in srgb,
+    var(--sidebar-material-tint, var(--bg-secondary))
+      var(--sidebar-material-tint-opacity, 82%),
+    transparent
+  );
+}
+
 .file-tree-scroll-container {
   scroll-padding-bottom: 36px;
 }
