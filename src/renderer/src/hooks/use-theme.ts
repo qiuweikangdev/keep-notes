@@ -96,25 +96,25 @@ export function useTheme({
     const root = document.documentElement;
     const body = document.body;
     const config = getThemeConfig(resolvedTheme);
-    // 深色主题使用提亮的蓝灰染色与更轻的透明度，避免侧栏材质显得发沉。
+    // 各主题使用相邻色阶染色，让原生材质可见，同时避免侧栏与正文产生明显色块断层。
     root.style.setProperty(
       "--sidebar-material-tint",
       resolvedTheme === "dark"
-        ? "#303742"
+        ? "#292f38"
         : config.colorScheme === "light"
-          ? "#fafafa"
+          ? "#ffffff"
           : config.colors.bgSecondary,
     );
 
     root.style.setProperty("--bg-primary", config.colors.bgPrimary);
     root.style.setProperty("--bg-secondary", config.colors.bgSecondary);
-    // 染色稳定主题明度，同时保留少量窗后颜色，避免壁纸把侧栏染绿或压暗。
+    // 浅色需要留出足够透明度呈现玻璃层次；深色提高染色占比以稳定蓝绿色主题基调。
     root.style.setProperty(
       "--sidebar-material-tint-opacity",
       config.colorScheme === "light"
-        ? "96%"
+        ? "94%"
         : resolvedTheme === "dark"
-          ? "70%"
+          ? "74%"
           : "78%",
     );
     root.style.setProperty("--bg-tertiary", config.colors.bgTertiary);

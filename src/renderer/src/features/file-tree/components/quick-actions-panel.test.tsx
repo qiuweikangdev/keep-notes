@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useTreeStore } from "@/store/tree.store";
 import { QuickActionsPanel } from "./quick-actions-panel";
 
@@ -28,6 +28,8 @@ describe("QuickActionsPanel", () => {
     });
   });
 
+  afterEach(() => cleanup());
+
   it("uses the file tree hover color for menu rows", () => {
     render(<QuickActionsPanel />);
     fireEvent.click(screen.getByText("notes"));
@@ -44,5 +46,18 @@ describe("QuickActionsPanel", () => {
     expect(recentFolderRow).toHaveStyle({
       backgroundColor: "var(--file-tree-row-hover)",
     });
+  });
+
+  it("keeps the bottom action visible while its menu is open", () => {
+    render(<QuickActionsPanel />);
+
+    const trigger = screen.getByText("notes");
+    fireEvent.click(trigger);
+
+    expect(screen.getByText("操作")).toBeVisible();
+    expect(trigger).toBeVisible();
+    expect(trigger.closest('[aria-expanded="true"]')).not.toBeNull();
+    expect(screen.getByTestId("quick-actions-menu")).toHaveClass("bottom-full");
+    expect(screen.getByTestId("quick-actions-menu")).not.toHaveClass("mb-1");
   });
 });
