@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ThemeSelector } from "./theme-selector";
 
 describe("ThemeSelector", () => {
-  it("uses a system icon instead of duplicating a color preview", async () => {
+  it("uses a system icon and structural color previews", async () => {
     render(<ThemeSelector value="dark" onChange={vi.fn()} />);
 
     fireEvent.keyDown(
@@ -14,11 +14,21 @@ describe("ThemeSelector", () => {
     const systemPreview = (
       await screen.findByRole("menuitem", { name: "跟随系统" })
     ).querySelector('[data-theme-preview="system"]');
-    const darkPreview = screen
-      .getByRole("menuitem", { name: "深色" })
-      .querySelector('[data-theme-preview="dark"]');
-
     expect(systemPreview?.querySelector("svg")).toHaveClass("lucide-monitor");
-    expect(darkPreview?.querySelector("svg")).not.toBeInTheDocument();
+
+    for (const theme of ["light", "dark", "minimal"]) {
+      const preview = screen
+        .getByRole("menuitem", {
+          name:
+            theme === "light" ? "浅色" : theme === "dark" ? "深色" : "深黑色",
+        })
+        .querySelector(`[data-theme-preview="${theme}"]`);
+
+      expect(preview?.querySelector("svg")).not.toBeInTheDocument();
+      expect(
+        preview?.querySelector('[data-theme-preview-accent="true"]'),
+      ).toBeInTheDocument();
+      expect(preview?.querySelector(".rounded-full.h-1.w-1")).toBeNull();
+    }
   });
 });

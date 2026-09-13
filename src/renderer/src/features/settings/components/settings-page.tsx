@@ -215,7 +215,7 @@ export function SettingsPage() {
         return (
           <div className="space-y-0">
             {/* 主题选择 */}
-            <SettingRow label="主题" description="切换应用配色和组件状态">
+            <SettingRow label="主题" description="切换应用配色">
               <ThemeSelector value={theme} onChange={setTheme} />
             </SettingRow>
 

@@ -185,6 +185,8 @@ describe("SettingsPage about tab", () => {
     render(<SettingsPage />);
 
     const themeLabel = screen.getByText("主题");
+    expect(screen.getByText("切换应用配色")).toBeInTheDocument();
+    expect(screen.queryByText("组件状态")).not.toBeInTheDocument();
     const defaultOpenTargetLabel = screen.getByText("默认打开目标");
 
     expect(themeLabel).toHaveClass("text-sm");

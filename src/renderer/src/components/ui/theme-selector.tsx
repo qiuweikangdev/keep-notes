@@ -49,8 +49,26 @@ function ThemePreview({ theme }: { theme: ThemeName }) {
         style={{ backgroundColor: config.preview.sidebar }}
       />
       <span
-        className="absolute bottom-[3px] right-[3px] h-1 w-1 rounded-full"
+        aria-hidden="true"
+        data-theme-preview-accent="true"
+        className="absolute left-[10px] top-[4px] h-px w-[6px] rounded-full"
         style={{ backgroundColor: config.preview.accent }}
+      />
+      <span
+        aria-hidden="true"
+        className="absolute left-[10px] top-[7px] h-px w-[7px] rounded-full"
+        style={{
+          backgroundColor: config.preview.text,
+          opacity: 0.55,
+        }}
+      />
+      <span
+        aria-hidden="true"
+        className="absolute left-[10px] top-[10px] h-px w-[5px] rounded-full"
+        style={{
+          backgroundColor: config.preview.text,
+          opacity: 0.35,
+        }}
       />
     </span>
   );
