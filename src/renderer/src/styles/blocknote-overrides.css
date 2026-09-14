@@ -58,6 +58,8 @@
   --editor-code-token-comment: #5c6370;
   --editor-code-token-heading: #e06c75;
   --editor-code-token-link: #61afef;
+  --editor-rich-link: #79c0ff;
+  --editor-rich-link-hover: #a5d6ff;
 }
 
 /* 编辑器背景色覆盖 */
@@ -310,6 +312,17 @@
   text-decoration-line: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
+}
+
+/* 暗色主题使用独立的高对比链接色，避免深黑色主题的中性强调色削弱可点击性。 */
+.bn-root[data-color-scheme="dark"] :is(.bn-editor, .bn-editor-preview) a {
+  color: var(--editor-rich-link) !important;
+  text-decoration-color: currentColor;
+  text-decoration-thickness: 1.5px;
+}
+
+.bn-root[data-color-scheme="dark"] :is(.bn-editor, .bn-editor-preview) a:hover {
+  color: var(--editor-rich-link-hover) !important;
 }
 
 :is(.bn-editor, .bn-editor-preview) strong {
@@ -718,18 +731,12 @@ html.rich-editor-selection-drag-locked * {
   color: var(--accent-color) !important;
   padding: 0.15em 4px !important;
   border-radius: 4px !important;
-  font-family:
-    "SF Mono", "Fira Code", Consolas, "Courier New", monospace !important;
+  /* 中英文和数字统一继承正文的字体与字号，避免不同字库回退造成视觉尺寸差异。 */
+  font-family: inherit !important;
+  font-size: inherit !important;
   font-weight: 400 !important;
   position: relative;
   cursor: text;
-}
-
-:is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content,
-:is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content code {
-  color: var(--accent-color) !important;
-  -webkit-text-fill-color: var(--accent-color) !important;
-  font-weight: 500 !important;
 }
 
 /* 深黑色主题使用更接近参考图的中性灰底与正文色，其他主题保留各自的行内代码表现。 */
@@ -741,15 +748,6 @@ html.rich-editor-selection-drag-locked * {
   padding: 0.2em 0.4em !important;
   border-radius: 5px !important;
   font-size: 0.9em !important;
-}
-
-.minimal :is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content,
-.minimal
-  :is(.bn-editor, .bn-editor-preview)
-  .editor-inline-code__latin-content
-  code {
-  color: var(--text-primary) !important;
-  -webkit-text-fill-color: var(--text-primary) !important;
 }
 
 .bn-editor
@@ -911,17 +909,6 @@ html.rich-editor-selection-drag-locked * {
   .editor-inline-code__composing-content {
   /* 中文输入法组合期间使用浏览器原生光标，避免不可编辑光标节点切断 code mark。 */
   caret-color: var(--accent-color) !important;
-}
-
-.bn-editor
-  code:not(.editor-code-block__content):has(
-    .editor-inline-code__editing-content
-  )
-  .editor-inline-code__latin-content {
-  color: inherit !important;
-  -webkit-text-fill-color: currentColor !important;
-  font-weight: inherit !important;
-  caret-color: transparent !important;
 }
 
 /* 行内代码光标使用真实宽度的 widget，直接锚定 ProseMirror 选区，避免字符包装层重排造成错位。 */

@@ -1481,7 +1481,7 @@ describe("editor BlockNote schema", () => {
     });
   });
 
-  it("marks only ASCII content for inline code font-weight compensation", () => {
+  it("keeps mixed CJK and ASCII inline code in one visual style", () => {
     setupMatchMedia();
     const editor = CoreEditorFactory.create({
       schema: editorSchema,
@@ -1491,14 +1491,7 @@ describe("editor BlockNote schema", () => {
           content: [
             {
               type: "text",
-              text: "aa22",
-              styles: {
-                code: true,
-              },
-            },
-            {
-              type: "text",
-              text: "测试",
+              text: "测试aa22",
               styles: {
                 code: true,
               },
@@ -1509,17 +1502,14 @@ describe("editor BlockNote schema", () => {
     });
     const { container } = render(createElement(BlockNoteView, { editor }));
 
-    const latinContent = Array.from(
-      container.querySelectorAll(".editor-inline-code__latin-content"),
-    )
-      .map((element) => element.textContent)
-      .join("");
-    expect(latinContent).toBe("aa22");
     expect(
-      container
-        .querySelector(".editor-inline-code__latin-content")
-        ?.textContent?.includes("测试"),
-    ).toBe(false);
+      container.querySelector(
+        ".bn-editor code:not(.editor-code-block__content)",
+      )?.textContent,
+    ).toBe("测试aa22");
+    expect(container.querySelector(".editor-inline-code__latin-content")).toBe(
+      null,
+    );
   });
 
   it("normalizes inline code markers inserted outside input rules", () => {
@@ -1977,9 +1967,6 @@ describe("editor BlockNote schema", () => {
     expect(
       container.querySelectorAll(".editor-inline-code__editing-marker"),
     ).toHaveLength(2);
-    expect(
-      container.querySelector(".editor-inline-code__latin-content"),
-    ).not.toBe(null);
     expect(
       container.querySelectorAll(".editor-inline-code__editing-start"),
     ).toHaveLength(1);
@@ -2830,9 +2817,6 @@ describe("editor BlockNote schema", () => {
     expect(container.querySelector(".editor-inline-code__editing-marker")).toBe(
       null,
     );
-    expect(
-      container.querySelector(".editor-inline-code__latin-content"),
-    ).not.toBe(null);
 
     inlineCode?.dispatchEvent(
       new CompositionEvent("compositionend", { bubbles: true }),
@@ -2848,9 +2832,6 @@ describe("editor BlockNote schema", () => {
     expect(
       container.querySelectorAll(".editor-inline-code__editing-marker"),
     ).toHaveLength(2);
-    expect(
-      container.querySelector(".editor-inline-code__latin-content"),
-    ).not.toBe(null);
     expect(
       container.querySelectorAll(".editor-inline-code__editing-start"),
     ).toHaveLength(1);

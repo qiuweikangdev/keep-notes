@@ -147,10 +147,8 @@ const INLINE_CODE_EDITING_START_CLASS = "editor-inline-code__editing-start";
 const INLINE_CODE_EDITING_END_CLASS = "editor-inline-code__editing-end";
 const INLINE_CODE_COMPOSING_CONTENT_CLASS =
   "editor-inline-code__composing-content";
-const INLINE_CODE_LATIN_CONTENT_CLASS = "editor-inline-code__latin-content";
 const INLINE_CODE_LEADING_CLICK_SLOP = 16;
 const INLINE_CODE_TRAILING_CLICK_SLOP = 16;
-const inlineCodeLatinContentPattern = /[\u0020-\u007e]+/g;
 
 type InlineCodeEditingState = {
   activeRange: { from: number; to: number } | null;
@@ -174,9 +172,6 @@ const EMPTY_INLINE_CODE_EDITING_STATE: InlineCodeEditingState = {
 let activeInlineCodeEditorView: EditorView | null = null;
 const inlineCodeEditingPluginKey = new PluginKey<InlineCodeEditingState>(
   "editor-inline-code-editing",
-);
-const inlineCodeLatinContentPluginKey = new PluginKey<DecorationSet>(
-  "editor-inline-code-latin-content",
 );
 
 type InlineCodeMarkerReplacement = {
@@ -332,41 +327,6 @@ const inlineCodeNormalizerExtension = createExtension({
     }),
   ],
 });
-
-function getInlineCodeLatinContentDecorations(state: EditorState) {
-  const codeMark = state.schema.marks.code;
-  if (!codeMark) return DecorationSet.empty;
-
-  const decorations: Decoration[] = [];
-  state.doc.descendants((node, position) => {
-    if (
-      !node.isText ||
-      !node.text ||
-      !node.marks.some((mark) => mark.type === codeMark)
-    ) {
-      return true;
-    }
-
-    for (const match of node.text.matchAll(inlineCodeLatinContentPattern)) {
-      if (match.index === undefined) continue;
-
-      // 仅补偿 ASCII 字符的等宽字体字重，避免同步加深中文回退字体。
-      decorations.push(
-        Decoration.inline(
-          position + match.index,
-          position + match.index + match[0].length,
-          { class: INLINE_CODE_LATIN_CONTENT_CLASS },
-        ),
-      );
-    }
-
-    return true;
-  });
-
-  return decorations.length === 0
-    ? DecorationSet.empty
-    : DecorationSet.create(state.doc, decorations);
-}
 
 function findInlineCodeRange(
   state: EditorState,
@@ -2228,28 +2188,6 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
   ],
 }));
 
-const inlineCodeLatinContentExtension = createExtension({
-  key: "editor-inline-code-latin-content",
-  prosemirrorPlugins: [
-    new Plugin<DecorationSet>({
-      key: inlineCodeLatinContentPluginKey,
-      state: {
-        init: (_config, state) => getInlineCodeLatinContentDecorations(state),
-        apply: (transaction, decorations, _oldState, newState) =>
-          transaction.docChanged
-            ? getInlineCodeLatinContentDecorations(newState)
-            : decorations,
-      },
-      props: {
-        // 输入法组合期间同样保留 ASCII 字重补偿，避免中英文数字视觉颜色突然分叉。
-        decorations: (state) =>
-          inlineCodeLatinContentPluginKey.getState(state) ??
-          DecorationSet.empty,
-      },
-    }),
-  ],
-});
-
 const inlineCodeBackspaceExtension = createExtension({
   key: "editor-inline-code-backspace",
   runsBefore: ["default"],
@@ -2861,7 +2799,6 @@ const editorParagraphSpec = {
     fullDocumentClearExtension,
     inlineCodeBackspaceExtension,
     inlineCodeEditingExtension(),
-    inlineCodeLatinContentExtension,
     inlineCodeNormalizerExtension,
   ],
 };

@@ -105,6 +105,29 @@ describe("blocknote overrides stylesheet", () => {
     expect(inlineContentRule).toMatch(/overflow-wrap:\s*anywhere;/);
   });
 
+  it("uses high-contrast rich-text links only in dark color schemes", () => {
+    const darkSchemeRule = getRule('.bn-root[data-color-scheme="dark"]');
+    const lightSchemeRule = getRule('.bn-root[data-color-scheme="light"]');
+    const darkLinkRule = getRule(
+      '.bn-root[data-color-scheme="dark"] :is(.bn-editor, .bn-editor-preview) a',
+    );
+    const darkLinkHoverRule = getRule(
+      '.bn-root[data-color-scheme="dark"] :is(.bn-editor, .bn-editor-preview) a:hover',
+    );
+
+    expect(darkSchemeRule).toMatch(/--editor-rich-link:\s*#79c0ff;/);
+    expect(darkSchemeRule).toMatch(/--editor-rich-link-hover:\s*#a5d6ff;/);
+    expect(lightSchemeRule).not.toMatch(/--editor-rich-link:/);
+    expect(darkLinkRule).toMatch(
+      /color:\s*var\(--editor-rich-link\) !important;/,
+    );
+    expect(darkLinkRule).toMatch(/text-decoration-color:\s*currentColor;/);
+    expect(darkLinkRule).toMatch(/text-decoration-thickness:\s*1\.5px;/);
+    expect(darkLinkHoverRule).toMatch(
+      /color:\s*var\(--editor-rich-link-hover\) !important;/,
+    );
+  });
+
   it("keeps live rich blocks fully laid out for editable caret hit testing", () => {
     expect(
       getRule(
@@ -364,30 +387,17 @@ describe("blocknote overrides stylesheet", () => {
     );
     expect(inlineCodeRule).toMatch(/padding:\s*0\.15em 4px !important;/);
     expect(inlineCodeRule).toMatch(/border-radius:\s*4px !important;/);
-    expect(inlineCodeRule).toMatch(/font-family:[\s\S]*monospace !important;/);
-    expect(inlineCodeRule).not.toMatch(/font-size:\s*0\.9em !important;/);
+    expect(inlineCodeRule).toMatch(/font-family:\s*inherit !important;/);
+    expect(inlineCodeRule).toMatch(/font-size:\s*inherit !important;/);
     expect(inlineCodeRule).toMatch(/font-weight:\s*400 !important;/);
     expect(inlineCodeRule).toMatch(/cursor:\s*text;/);
-    expect(
-      getRule(
-        ":is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content, :is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content code",
-      ),
-    ).toMatch(/color:\s*var\(--accent-color\) !important;/);
-    expect(
-      getRule(
-        ":is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content, :is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content code",
-      ),
-    ).toMatch(/font-weight:\s*500 !important;/);
+    expect(stylesheet).not.toMatch(/editor-inline-code__latin-content/);
   });
 
   it("scopes the neutral inline code treatment to the minimal theme", () => {
     const minimalInlineCodeRule = getRule(
       ".minimal :is(.bn-editor, .bn-editor-preview) code:not(.editor-code-block__content)",
     );
-    const minimalLatinRule = getRule(
-      ".minimal :is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content, .minimal :is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content code",
-    );
-
     expect(minimalInlineCodeRule).toBeDefined();
     expect(minimalInlineCodeRule).toMatch(
       /background-color:\s*var\(--bg-secondary\) !important;/,
@@ -400,9 +410,6 @@ describe("blocknote overrides stylesheet", () => {
     );
     expect(minimalInlineCodeRule).toMatch(/border-radius:\s*5px !important;/);
     expect(minimalInlineCodeRule).toMatch(/font-size:\s*0\.9em !important;/);
-    expect(minimalLatinRule).toMatch(
-      /color:\s*var\(--text-primary\) !important;/,
-    );
   });
 
   it("uses Vditor-style visual markers with stable selection carets", () => {
