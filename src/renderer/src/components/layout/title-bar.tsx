@@ -622,15 +622,7 @@ export function TitleBar({
                       <DropdownMenu.Separator className="my-1 h-px bg-[var(--border-color)]" />
                       <DropdownMenu.Sub>
                         <DropdownMenu.SubTrigger className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]">
-                          {effectiveExternalOpenApp ? (
-                            <ExternalOpenAppIcon
-                              appId={effectiveExternalOpenApp.id}
-                              iconDataUrl={effectiveExternalOpenApp.iconDataUrl}
-                              className="h-4 w-4"
-                            />
-                          ) : (
-                            <ExternalLink className="h-4 w-4" />
-                          )}
+                          <ExternalLink className="h-4 w-4" />
                           <span>打开方式</span>
                           <ChevronRight className="ml-auto h-3.5 w-3.5" />
                         </DropdownMenu.SubTrigger>
