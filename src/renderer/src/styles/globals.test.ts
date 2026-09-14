@@ -146,6 +146,21 @@ describe("workspace layout surface styles", () => {
     );
   });
 
+  it("uses a restrained minimal tab divider and compacts the single-tab state", () => {
+    expect(stylesheet).toMatch(
+      /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tablist"\]\s*\{[\s\S]*position:\s*relative;/,
+    );
+    expect(stylesheet).toMatch(
+      /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tablist"\]::before\s*\{[\s\S]*top:\s*8px;[\s\S]*bottom:\s*8px;[\s\S]*width:\s*1px;[\s\S]*color-mix\(/,
+    );
+    expect(stylesheet).toMatch(
+      /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tablist"\]:empty::before,[\s\S]*\.workspace-shell\[data-sidebar-collapsed="false"\][\s\S]*\.editor-tab-bar[\s\S]*\[role="tablist"\]::before\s*\{[\s\S]*display:\s*none;/,
+    );
+    expect(stylesheet).toMatch(
+      /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tab"\]:only-child\s*\{[\s\S]*min-width:\s*0;[\s\S]*width:\s*max-content;[\s\S]*border-right:\s*0;/,
+    );
+  });
+
   it("exposes the native material behind the minimal sidebar", () => {
     expect(stylesheet).toMatch(
       /\[data-layout="minimal"\]\s+\.workspace-shell\s*\{[\s\S]*background-color:\s*transparent;/,

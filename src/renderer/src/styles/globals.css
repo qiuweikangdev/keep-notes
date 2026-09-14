@@ -1978,8 +1978,39 @@ html[data-layout="minimal"]:has(
 }
 [data-layout="minimal"] .editor-tab-bar [role="tablist"] {
   min-width: 0;
+  position: relative;
   /* 原生拖动区域仅覆盖标签列表，不能包含叠放在按钮下方的预留空间。 */
   -webkit-app-region: drag;
+}
+[data-layout="minimal"] .editor-tab-bar [role="tablist"]::before {
+  content: "";
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 0;
+  width: 1px;
+  border-radius: 1px;
+  background-color: color-mix(
+    in srgb,
+    var(--border-color) 68%,
+    transparent
+  );
+  pointer-events: none;
+}
+[data-layout="minimal"] .editor-tab-bar [role="tablist"]:empty::before,
+[data-layout="minimal"]
+  .workspace-shell[data-sidebar-collapsed="false"]
+  .editor-tab-bar
+  [role="tablist"]::before {
+  /* 空标签栏或菜单栏展开时，不保留没有内容承接的分隔线。 */
+  display: none;
+}
+[data-layout="minimal"] .editor-tab-bar [role="tab"]:only-child {
+  /* 单个标签按内容收紧，避免标题与关闭按钮之间留下过宽空槽。 */
+  min-width: 0;
+  width: max-content;
+  /* 单个标签不需要在右侧制造额外的视觉边界。 */
+  border-right: 0;
 }
 [data-layout="minimal"] .editor-tab-bar[data-window-actions="true"] {
   padding-right: var(--workspace-actions-width, 160px);
