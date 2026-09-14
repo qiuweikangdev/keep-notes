@@ -158,18 +158,30 @@ describe("workspace layout surface styles", () => {
     );
   });
 
-  it("applies the shared material to the settings sidebar", () => {
+  it("matches the file tree material by layout", () => {
     expect(stylesheet).toMatch(
-      /body:has\(\.settings-sidebar\),\s*\.app-window-surface:has\(\.settings-sidebar\)\s*\{[^}]*background-color:\s*transparent !important;/,
+      /html\[data-layout="minimal"\]\s+body:has\(\.settings-sidebar\),\s*html\[data-layout="minimal"\]\s+\.app-window-surface:has\(\.settings-sidebar\)\s*\{[^}]*background-color:\s*transparent !important;/,
     );
     expect(stylesheet).toMatch(
-      /\.settings-sidebar\s*\{[\s\S]*background-color:\s*color-mix\([\s\S]*var\(--sidebar-material-tint,\s*var\(--bg-secondary\)\)[\s\S]*var\(--sidebar-material-tint-opacity,\s*82%\)[\s\S]*backdrop-filter:\s*blur\(32px\) saturate\(1\.08\);/,
+      /\.settings-sidebar\s*\{[\s\S]*border-right:\s*var\(--sidebar-border,\s*1px solid var\(--border-color\)\) !important;[\s\S]*background-color:\s*var\(--sidebar-background,\s*var\(--bg-secondary\)\) !important;/,
+    );
+    expect(stylesheet).toMatch(
+      /html\[data-layout="minimal"\]\s+\.settings-sidebar\s*\{[^}]*background-color:\s*transparent !important;/,
+    );
+    expect(stylesheet).toMatch(
+      /\[data-layout="minimal"\]\s+\.workspace-shell::before,\s*html\[data-layout="minimal"\]\s+\.settings-sidebar::before\s*\{[\s\S]*var\(--sidebar-material-tint,\s*var\(--bg-secondary\)\)[\s\S]*var\(--sidebar-material-tint-opacity,\s*98%\)[\s\S]*-webkit-backdrop-filter:\s*blur\(36px\);[\s\S]*box-shadow:\s*inset -1px 0/,
+    );
+    expect(stylesheet).toMatch(
+      /html\[data-layout="minimal"\]\s+\.settings-sidebar::before\s*\{[^}]*content:\s*"";[^}]*inset:\s*0;[^}]*z-index:\s*-1;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.workspace-shell\[data-native-material="true"\]::before,\s*html\[data-layout="minimal"\]:has\([\s\S]*\.workspace-shell\[data-native-material="true"\][\s\S]*\)\s+\.settings-sidebar::before\s*\{[\s\S]*backdrop-filter:\s*none;/,
     );
   });
 
-  it("keeps the minimal layout bottom actions on the sidebar material", () => {
+  it("keeps the minimal layout bottom actions aligned with the sidebar material", () => {
     expect(stylesheet).toMatch(
-      /\[data-layout="minimal"\]\s+\.file-tree-bottom-actions\s*\{[\s\S]*background:\s*color-mix\([\s\S]*var\(--sidebar-material-tint,\s*var\(--bg-secondary\)\)[\s\S]*var\(--sidebar-material-tint-opacity,\s*82%\)/,
+      /\[data-layout="minimal"\]\s+\.file-tree-bottom-actions\s*\{[\s\S]*background-color:\s*var\(--sidebar-material-tint,\s*var\(--bg-secondary\)\);/,
     );
   });
 

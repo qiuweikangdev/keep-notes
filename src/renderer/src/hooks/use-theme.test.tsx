@@ -116,7 +116,7 @@ describe("useTheme", () => {
       "#ffffff",
     );
     expect(root.style.getPropertyValue("--sidebar-material-tint-opacity")).toBe(
-      "94%",
+      "98%",
     );
 
     act(() => useUIStore.setState({ theme: "dark", layout: "classic" }));
@@ -131,13 +131,13 @@ describe("useTheme", () => {
       "#23272f",
     );
     expect(root.style.getPropertyValue("--sidebar-material-tint-opacity")).toBe(
-      "92%",
+      "98%",
     );
 
     act(() => useUIStore.setState({ theme: "minimal", layout: "minimal" }));
     expect(root.style.getPropertyValue("--bg-primary")).toBe("#181818");
     expect(root.style.getPropertyValue("--sidebar-material-tint-opacity")).toBe(
-      "84%",
+      "98%",
     );
   });
 
