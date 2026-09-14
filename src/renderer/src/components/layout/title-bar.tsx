@@ -15,6 +15,10 @@ import {
   Check,
   MoreHorizontal,
   ExternalLink,
+  PictureInPicture2,
+  Plus,
+  SplitSquareHorizontal,
+  SplitSquareVertical,
 } from "lucide-react";
 import { useUIStore } from "@/store/ui.store";
 import { useEditorStore } from "@/store/editor.store";
@@ -55,12 +59,20 @@ interface TitleBarProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
   compactTabs?: ReactNode;
+  editorActions?: {
+    canOpenFloatingWindow: boolean;
+    onOpenFloatingWindow: () => void;
+    onNewTab: () => void;
+    onSplitRight: () => void;
+    onSplitDown: () => void;
+  };
 }
 
 export function TitleBar({
   collapsed,
   onToggleCollapse,
   compactTabs,
+  editorActions,
 }: TitleBarProps) {
   const isMinimal = compactTabs !== undefined;
   const setSettingsOpen = useUIStore((state) => state.setSettingsOpen);
@@ -609,17 +621,30 @@ export function TitleBar({
                     borderColor: "var(--border-color)",
                   }}
                 >
-                  <DropdownMenu.Item
-                    className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"
-                    style={{ color: "var(--text-primary)" }}
-                    onSelect={openReminderList}
-                  >
-                    <Bell className="h-4 w-4" />
-                    <span>提醒事项</span>
-                  </DropdownMenu.Item>
+                  {editorActions ? (
+                    <DropdownMenu.Item
+                      className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"
+                      style={{ color: "var(--text-primary)" }}
+                      onSelect={editorActions.onNewTab}
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>新建标签页</span>
+                    </DropdownMenu.Item>
+                  ) : (
+                    <DropdownMenu.Item
+                      className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"
+                      style={{ color: "var(--text-primary)" }}
+                      onSelect={openReminderList}
+                    >
+                      <Bell className="h-4 w-4" />
+                      <span>提醒事项</span>
+                    </DropdownMenu.Item>
+                  )}
                   {appearance.showTitleBarQuickLauncher && (
                     <>
-                      <DropdownMenu.Separator className="my-1 h-px bg-[var(--border-color)]" />
+                      {!editorActions && (
+                        <DropdownMenu.Separator className="my-1 h-px bg-[var(--border-color)]" />
+                      )}
                       <DropdownMenu.Sub>
                         <DropdownMenu.SubTrigger className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]">
                           <ExternalLink className="h-4 w-4" />
@@ -671,7 +696,56 @@ export function TitleBar({
                       </DropdownMenu.Sub>
                     </>
                   )}
-                  {isGitRepo && (
+                  {editorActions && (
+                    <>
+                      <DropdownMenu.Separator className="my-1 h-px bg-[var(--border-color)]" />
+                      <DropdownMenu.Item
+                        className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"
+                        style={{ color: "var(--text-primary)" }}
+                        onSelect={editorActions.onSplitRight}
+                      >
+                        <SplitSquareHorizontal className="h-4 w-4" />
+                        <span>向右拆分</span>
+                      </DropdownMenu.Item>
+                      <DropdownMenu.Item
+                        className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"
+                        style={{ color: "var(--text-primary)" }}
+                        onSelect={editorActions.onSplitDown}
+                      >
+                        <SplitSquareVertical className="h-4 w-4" />
+                        <span>向下拆分</span>
+                      </DropdownMenu.Item>
+                      <DropdownMenu.Separator className="my-1 h-px bg-[var(--border-color)]" />
+                      {isGitRepo && (
+                        <DropdownMenu.Item
+                          className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"
+                          style={{ color: "var(--text-primary)" }}
+                          onSelect={() => setIsGitOpen(true)}
+                        >
+                          <GitBranch className="h-4 w-4" />
+                          <span>Git 操作</span>
+                        </DropdownMenu.Item>
+                      )}
+                      <DropdownMenu.Item
+                        className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"
+                        style={{ color: "var(--text-primary)" }}
+                        onSelect={openReminderList}
+                      >
+                        <Bell className="h-4 w-4" />
+                        <span>提醒事项</span>
+                      </DropdownMenu.Item>
+                      <DropdownMenu.Item
+                        disabled={!editorActions.canOpenFloatingWindow}
+                        className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)] disabled:pointer-events-none disabled:opacity-40"
+                        style={{ color: "var(--text-primary)" }}
+                        onSelect={editorActions.onOpenFloatingWindow}
+                      >
+                        <PictureInPicture2 className="h-4 w-4" />
+                        <span>浮动窗口</span>
+                      </DropdownMenu.Item>
+                    </>
+                  )}
+                  {!editorActions && isGitRepo && (
                     <DropdownMenu.Item
                       className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"
                       style={{ color: "var(--text-primary)" }}
@@ -680,6 +754,9 @@ export function TitleBar({
                       <GitBranch className="h-4 w-4" />
                       <span>Git 操作</span>
                     </DropdownMenu.Item>
+                  )}
+                  {editorActions && (
+                    <DropdownMenu.Separator className="my-1 h-px bg-[var(--border-color)]" />
                   )}
                   <DropdownMenu.Item
                     className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"

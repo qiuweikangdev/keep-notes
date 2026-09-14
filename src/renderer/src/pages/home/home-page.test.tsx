@@ -26,6 +26,13 @@ const diffStateMock = vi.hoisted(() => ({
   oldContent: "# old",
   newContent: "# new",
 }));
+const editorTabActionsMock = vi.hoisted(() => ({
+  handleOpenFloatingWindow: vi.fn(),
+  onNewTab: vi.fn(),
+  onSplitRight: vi.fn(),
+  onSplitDown: vi.fn(),
+  tab: null,
+}));
 
 vi.mock("react-resizable-panels", () => ({
   Panel: ({ children }: PropsWithChildren) => <div>{children}</div>,
@@ -93,6 +100,10 @@ vi.mock("@/features/editor/components/editor-bridge", () => ({
 
 vi.mock("@/features/editor/lib/discard-file-changes", () => ({
   discardFileChanges: discardFileChangesMock,
+}));
+
+vi.mock("@/features/editor/lib/use-editor-tab-actions", () => ({
+  useEditorTabActions: () => editorTabActionsMock,
 }));
 
 vi.mock("@/components/layout/sidebar", () => ({

@@ -14,6 +14,7 @@ import {
   MAC_TITLE_BAR_HEIGHT,
   MINIMAL_TITLE_BAR_HEIGHT,
 } from "@shared/title-bar";
+import { CodeResult } from "@shared/types";
 
 const testState = vi.hoisted(() => ({
   appearance: {
@@ -23,8 +24,13 @@ const testState = vi.hoisted(() => ({
   },
   treeRoot: null as { key: string; title: string } | null,
   selectedKey: null as string | null,
+  detectGitRepo: vi.fn(),
   openWithExternalApp: vi.fn(),
   setAppearance: vi.fn(),
+  onOpenFloatingWindow: vi.fn(),
+  onNewTab: vi.fn(),
+  onSplitRight: vi.fn(),
+  onSplitDown: vi.fn(),
 }));
 
 vi.mock("@/store/ui.store", () => ({
@@ -62,10 +68,7 @@ vi.mock("@/features/git", () => ({
 
 vi.mock("@/hooks/use-electron", () => ({
   useElectron: () => ({
-    detectGitRepo: vi.fn().mockResolvedValue({
-      code: "success",
-      data: { isGitRepo: false },
-    }),
+    detectGitRepo: testState.detectGitRepo,
     openFile: vi.fn(),
   }),
 }));
@@ -175,6 +178,74 @@ describe("TitleBar", () => {
     });
   });
 
+  it("exposes editor actions in the minimal-layout more menu", async () => {
+    const user = userEvent.setup();
+    testState.appearance = {
+      ...testState.appearance,
+      showTitleBarQuickLauncher: true,
+    };
+    testState.treeRoot = { key: "D:\\notes\\work", title: "work" };
+    testState.detectGitRepo.mockResolvedValue({
+      code: CodeResult.Success,
+      data: { isGitRepo: true },
+    });
+    window.electronAPI.listExternalOpenApps = vi
+      .fn()
+      .mockResolvedValue([
+        { id: "vscode", label: "VS Code", kind: "editor", available: true },
+      ]);
+
+    render(
+      <TitleBar
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+        compactTabs={<div role="tablist" aria-label="编辑器标签页" />}
+        editorActions={{
+          canOpenFloatingWindow: true,
+          onOpenFloatingWindow: testState.onOpenFloatingWindow,
+          onNewTab: testState.onNewTab,
+          onSplitRight: testState.onSplitRight,
+          onSplitDown: testState.onSplitDown,
+        }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(testState.detectGitRepo).toHaveBeenCalledWith("D:\\notes\\work"),
+    );
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    const menu = screen.getByRole("menu");
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map((item) => item.textContent),
+    ).toEqual([
+      "新建标签页",
+      "打开方式",
+      "向右拆分",
+      "向下拆分",
+      "Git 操作",
+      "提醒事项",
+      "浮动窗口",
+      "设置",
+    ]);
+
+    await user.click(within(menu).getByRole("menuitem", { name: "浮动窗口" }));
+    expect(testState.onOpenFloatingWindow).toHaveBeenCalledOnce();
+
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    await user.click(screen.getByRole("menuitem", { name: "新建标签页" }));
+    expect(testState.onNewTab).toHaveBeenCalledOnce();
+
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    await user.click(screen.getByRole("menuitem", { name: "向右拆分" }));
+    expect(testState.onSplitRight).toHaveBeenCalledOnce();
+
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    await user.click(screen.getByRole("menuitem", { name: "向下拆分" }));
+    expect(testState.onSplitDown).toHaveBeenCalledOnce();
+  });
+
   it("shows compact-layout navigation when expanded and hides it when collapsed", () => {
     const { rerender } = render(
       <TitleBar
@@ -254,8 +325,17 @@ describe("TitleBar", () => {
     };
     testState.treeRoot = null;
     testState.selectedKey = null;
+    testState.detectGitRepo.mockReset();
+    testState.detectGitRepo.mockResolvedValue({
+      code: CodeResult.Success,
+      data: { isGitRepo: false },
+    });
     testState.openWithExternalApp.mockReset();
     testState.setAppearance.mockReset();
+    testState.onOpenFloatingWindow.mockReset();
+    testState.onNewTab.mockReset();
+    testState.onSplitRight.mockReset();
+    testState.onSplitDown.mockReset();
 
     Object.defineProperty(window, "electronAPI", {
       configurable: true,

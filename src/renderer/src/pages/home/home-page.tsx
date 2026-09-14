@@ -5,8 +5,10 @@ import { DialogResizeHandles } from "@/components/ui/dialog-resize-handles";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Editor } from "@/features/editor";
 import { EditorBridge } from "@/features/editor/components/editor-bridge";
+import { useEditorTabActions } from "@/features/editor/lib/use-editor-tab-actions";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TitleBar } from "@/components/layout/title-bar";
+import { useEditorStore } from "@/store/editor.store";
 import { useUIStore } from "@/store/ui.store";
 import { usePanel } from "@/hooks/use-panel";
 import { useElectron } from "@/hooks/use-electron";
@@ -95,6 +97,22 @@ function HomePageContent() {
 
   const electron = useElectron();
   const { loadTree, openFile } = electron;
+  const activeGroupId = useEditorStore((state) => state.activeGroupId);
+  const editorActions = useEditorTabActions({
+    groupId: activeGroupId,
+    onNewTab: () => {
+      const state = useEditorStore.getState();
+      state.addTab(state.activeGroupId);
+    },
+    onSplitRight: () => {
+      const state = useEditorStore.getState();
+      state.addPanelGroup("horizontal", state.activeGroupId);
+    },
+    onSplitDown: () => {
+      const state = useEditorStore.getState();
+      state.addPanelGroup("vertical", state.activeGroupId);
+    },
+  });
   const repositoryRoot = useTreeStore((state) => state.treeRoot?.key ?? null);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
   const confirmDiscardOpenRef = useRef(false);
@@ -255,6 +273,15 @@ function HomePageContent() {
         collapsed={collapsed}
         onToggleCollapse={toggleCollapse}
         compactTabs={isMinimal ? null : undefined}
+        editorActions={{
+          canOpenFloatingWindow: Boolean(editorActions.tab),
+          onOpenFloatingWindow: () => {
+            void editorActions.handleOpenFloatingWindow();
+          },
+          onNewTab: editorActions.onNewTab,
+          onSplitRight: editorActions.onSplitRight,
+          onSplitDown: editorActions.onSplitDown,
+        }}
       />
 
       <div
