@@ -107,6 +107,8 @@ export function QuickActionsPanel({
               type="button"
               className="sidebar-bottom-bar flex h-8 w-8 flex-shrink-0 items-center justify-center transition-colors"
               style={{ color: "var(--text-muted)" }}
+              aria-label="更多操作"
+              title="更多操作"
               onClick={() => setIsMenuOpen(true)}
               aria-expanded={isMenuOpen}
               onMouseEnter={(e) => {
@@ -192,6 +194,8 @@ export function QuickActionsPanel({
             className="sidebar-bottom-bar flex h-8 w-8 flex-shrink-0 items-center justify-center transition-colors"
             data-hover-muted
             style={{ color: "var(--text-muted)" }}
+            aria-label="更多操作"
+            title="更多操作"
             onClick={(e) => {
               e.stopPropagation();
               setIsMenuOpen((open) => !open);
@@ -359,6 +363,7 @@ function MenuContent({
                     type="button"
                     className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100"
                     style={{ color: "var(--text-muted)" }}
+                    aria-label={`移除最近打开的文件夹 ${folder.title}`}
                     onClick={(e) => onRemoveRecentFolder(e, folder.path)}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.color = "var(--text-primary)";

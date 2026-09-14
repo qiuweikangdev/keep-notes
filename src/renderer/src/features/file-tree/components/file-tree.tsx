@@ -24,7 +24,6 @@ import {
   FolderPlus,
   ExternalLink,
   Copy,
-  X,
   Pencil,
   Trash2,
   GitCompare,
@@ -113,8 +112,6 @@ const toGitRelativePath = (rootPath: string, filePath: string) => {
 export function FileTree() {
   const treeData = useTreeStore((state) => state.treeData);
   const treeRoot = useTreeStore((state) => state.treeRoot);
-  const recentFolders = useTreeStore((state) => state.recentFolders);
-  const removeRecentFolder = useTreeStore((state) => state.removeRecentFolder);
   const setTreeData = useTreeStore((state) => state.setTreeData);
   const expandedKeys = useTreeStore((state) => state.expandedKeys);
   const selectedKey = useTreeStore((state) => state.selectedKey);
@@ -123,7 +120,6 @@ export function FileTree() {
   const setExpandedKeys = useTreeStore((state) => state.setExpandedKeys);
   const {
     openFolder,
-    loadTree,
     openInExplorer,
     openFile,
     createFile,
@@ -190,11 +186,10 @@ export function FileTree() {
   const treeRootKey = treeRoot?.key ?? null;
   const isBottomBarVisible =
     !appearance.showBottomBarOnHover || isSidebarHovered || isBottomMenuOpen;
+  // 底栏只做透明度过渡，避免位移动画让小尺寸图标在悬浮时重新栅格化而闪动。
   const bottomBarMotionClassName = cn(
-    "file-tree-bottom-actions z-10 transition-[opacity,transform] motion-reduce:transition-none motion-reduce:transform-none",
-    isBottomBarVisible
-      ? "translate-y-0 duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
-      : "translate-y-1 duration-150 ease-in",
+    "file-tree-bottom-actions z-10 transition-opacity motion-reduce:transition-none",
+    isBottomBarVisible ? "duration-150 ease-out" : "duration-100 ease-in",
   );
 
   const handleSidebarMouseEnter = useCallback(() => {
@@ -674,123 +669,33 @@ export function FileTree() {
   }, [confirmState, deleteItem, setTreeData]);
 
   if (!treeRoot) {
-    if (layout === "classic") {
-      return (
-        <div
-          className="relative h-full"
-          data-testid="file-tree-empty-state"
-          onMouseEnter={handleSidebarMouseEnter}
-          onMouseLeave={handleSidebarMouseLeave}
-        >
-          <div className="absolute inset-0 flex items-center justify-center p-4 pb-16">
-            <p className="text-[13px]" style={{ color: "var(--text-muted)" }}>
-              没有打开的文件夹
-            </p>
-          </div>
-
-          <div
-            className={cn(
-              "absolute inset-x-0 bottom-0",
-              bottomBarMotionClassName,
-            )}
-            style={{
-              opacity: isBottomBarVisible ? 1 : 0,
-              pointerEvents: isBottomBarVisible ? "auto" : "none",
-            }}
-          >
-            <QuickActionsPanel onMenuOpenChange={setIsBottomMenuOpen} />
-          </div>
-        </div>
-      );
-    }
-
     return (
       <div
-        className="file-tree-empty-state--minimal flex h-full flex-col"
+        className={cn(
+          "relative h-full",
+          layout === "minimal" && "file-tree-empty-state--minimal",
+        )}
         data-testid="file-tree-empty-state"
+        onMouseEnter={handleSidebarMouseEnter}
+        onMouseLeave={handleSidebarMouseLeave}
       >
-        <div className="file-tree-empty-state__body flex min-h-0 flex-1 flex-col px-5 pt-10">
-          <div className="file-tree-empty-state__intro flex flex-shrink-0 flex-col items-center justify-center">
-            <div className="flex w-full max-w-[300px] flex-col items-center text-center">
-              <FolderOpen
-                aria-hidden="true"
-                className="mb-3 h-7 w-7 opacity-60"
-                style={{ color: "var(--text-muted)" }}
-              />
-              <p
-                className="mt-1 text-xs"
-                style={{ color: "var(--text-muted)" }}
-              >
-                打开文件夹开始记录
-              </p>
-              <button
-                type="button"
-                data-selection-surface="true"
-                data-selection-context="secondary"
-                className="file-tree-empty-state__action mt-5 flex h-10 w-full items-center gap-2 rounded-lg px-3 text-left text-xs font-medium"
-                style={{
-                  backgroundColor:
-                    "color-mix(in srgb, var(--bg-primary) 28%, transparent)",
-                  color: "var(--text-primary)",
-                }}
-                onClick={handleSelectDir}
-              >
-                <FolderOpen className="h-3.5 w-3.5" />
-                打开文件夹…
-              </button>
-            </div>
-          </div>
+        <div className="absolute inset-0 flex items-center justify-center p-4 pb-16">
+          <p className="text-[13px]" style={{ color: "var(--text-muted)" }}>
+            没有打开的文件夹
+          </p>
+        </div>
 
-          {recentFolders.length > 0 ? (
-            <div className="mt-8">
-              <p
-                className="mb-2 text-xs"
-                style={{ color: "var(--text-muted)" }}
-              >
-                最近打开
-              </p>
-              <div className="flex flex-col gap-0.5">
-                {recentFolders.slice(0, 4).map((folder) => (
-                  <div
-                    key={folder.path}
-                    className="file-tree-empty-state__recent-folder group flex h-8 w-full items-center rounded-md"
-                  >
-                    <button
-                      type="button"
-                      data-selection-surface="true"
-                      data-selection-context="secondary"
-                      className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-xs"
-                      style={{ color: "var(--text-secondary)" }}
-                      title={folder.path}
-                      onClick={() => void loadTree(folder.path)}
-                    >
-                      <Folder className="h-3.5 w-3.5 flex-shrink-0" />
-                      <span className="truncate">{folder.title}</span>
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={`移除最近打开的文件夹 ${folder.title}`}
-                      className="mr-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                      style={{ color: "var(--text-muted)" }}
-                      title="移除最近打开的文件夹"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        removeRecentFolder(folder.path);
-                      }}
-                      onMouseEnter={(event) => {
-                        event.currentTarget.style.color = "var(--text-primary)";
-                      }}
-                      onMouseLeave={(event) => {
-                        event.currentTarget.style.color = "var(--text-muted)";
-                      }}
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
+        <div
+          className={cn(
+            "absolute inset-x-0 bottom-0",
+            bottomBarMotionClassName,
+          )}
+          style={{
+            opacity: isBottomBarVisible ? 1 : 0,
+            pointerEvents: isBottomBarVisible ? "auto" : "none",
+          }}
+        >
+          <QuickActionsPanel onMenuOpenChange={setIsBottomMenuOpen} />
         </div>
       </div>
     );
