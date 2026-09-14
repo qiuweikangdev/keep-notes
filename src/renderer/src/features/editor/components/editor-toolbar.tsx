@@ -74,14 +74,12 @@ export function EditorToolbar({
             >
               新建标签页
             </EditorActionMenuItem>
-            {tab ? (
-              <EditorActionMenuItem
-                icon={<PictureInPicture2 className="h-3.5 w-3.5" />}
-                onSelect={() => void handleOpenFloatingWindow()}
-              >
-                浮动窗口
-              </EditorActionMenuItem>
-            ) : null}
+            <EditorActionMenuItem
+              icon={<PictureInPicture2 className="h-3.5 w-3.5" />}
+              onSelect={() => void handleOpenFloatingWindow()}
+            >
+              浮动窗口
+            </EditorActionMenuItem>
             {tab?.filePath && !tab.pendingFilePath ? (
               <EditorActionMenuItem
                 icon={<FolderSearch className="h-3.5 w-3.5" />}

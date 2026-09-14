@@ -295,6 +295,28 @@ describe("EditorToolbar diff action", () => {
     });
   });
 
+  it("keeps the floating window action available without an active tab", async () => {
+    useEditorStore.setState({
+      activeGroupId: "group-1",
+      panelGroups: [
+        {
+          id: "group-1",
+          activeTabId: "",
+          direction: "horizontal",
+          tabs: [],
+        },
+      ],
+    });
+
+    renderToolbar();
+
+    await screen.findByRole("button", { name: "标签页操作" });
+    openActionMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "浮动窗口" }));
+
+    expect(window.electronAPI.createQuickEditorWindow).toHaveBeenCalledWith();
+  });
+
   it("opens a large document floating window with the latest rich snapshot", async () => {
     const path = "/notes/readme.md";
     const latestContent = `${"latest ".repeat(1600)}content`;
