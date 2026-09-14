@@ -11,6 +11,10 @@ import {
   ArrowRight,
   Bell,
   ChevronDown,
+  ChevronRight,
+  Check,
+  MoreHorizontal,
+  ExternalLink,
 } from "lucide-react";
 import { useUIStore } from "@/store/ui.store";
 import { useEditorStore } from "@/store/editor.store";
@@ -110,6 +114,9 @@ export function TitleBar({
   const effectiveExternalOpenApp = resolveEffectiveExternalOpenApp(
     externalOpenApps,
     appearance.defaultExternalOpenApp,
+  );
+  const availableExternalOpenApps = externalOpenApps.filter(
+    (app) => app.available,
   );
 
   // 文件导航历史状态
@@ -478,7 +485,9 @@ export function TitleBar({
             </button>
           )}
 
-          {appearance.showTitleBarQuickLauncher && effectiveExternalOpenApp ? (
+          {!isMinimal &&
+          appearance.showTitleBarQuickLauncher &&
+          effectiveExternalOpenApp ? (
             <div
               className="ml-1.5 flex h-[26px] flex-shrink-0 items-center overflow-hidden rounded-md"
               style={{
@@ -568,7 +577,132 @@ export function TitleBar({
 
         {/* 右侧：Git 图标 + 主题切换 + 窗口控制 */}
         <div className="workspace-title-actions flex h-full items-center gap-1 pr-2">
+          {isMinimal && (
+            <DropdownMenu.Root modal={false}>
+              <DropdownMenu.Trigger asChild>
+                <button
+                  type="button"
+                  data-testid="minimal-more-menu-trigger"
+                  aria-label="更多操作"
+                  title="更多操作"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
+                  style={{ color: "var(--text-muted)" }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                    e.currentTarget.style.color = "var(--text-primary)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                    e.currentTarget.style.color = "var(--text-muted)";
+                  }}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content
+                  align="end"
+                  sideOffset={6}
+                  className="z-[9999] min-w-[160px] rounded-lg border p-1 shadow-lg"
+                  style={{
+                    backgroundColor: "var(--bg-primary)",
+                    borderColor: "var(--border-color)",
+                  }}
+                >
+                  <DropdownMenu.Item
+                    className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"
+                    style={{ color: "var(--text-primary)" }}
+                    onSelect={openReminderList}
+                  >
+                    <Bell className="h-4 w-4" />
+                    <span>提醒事项</span>
+                  </DropdownMenu.Item>
+                  {appearance.showTitleBarQuickLauncher && (
+                    <>
+                      <DropdownMenu.Separator className="my-1 h-px bg-[var(--border-color)]" />
+                      <DropdownMenu.Sub>
+                        <DropdownMenu.SubTrigger className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]">
+                          {effectiveExternalOpenApp ? (
+                            <ExternalOpenAppIcon
+                              appId={effectiveExternalOpenApp.id}
+                              iconDataUrl={effectiveExternalOpenApp.iconDataUrl}
+                              className="h-4 w-4"
+                            />
+                          ) : (
+                            <ExternalLink className="h-4 w-4" />
+                          )}
+                          <span>打开方式</span>
+                          <ChevronRight className="ml-auto h-3.5 w-3.5" />
+                        </DropdownMenu.SubTrigger>
+                        <DropdownMenu.Portal>
+                          <DropdownMenu.SubContent
+                            sideOffset={4}
+                            alignOffset={-4}
+                            className="z-[9999] min-w-[168px] rounded-lg border p-1 shadow-lg"
+                            style={{
+                              backgroundColor: "var(--bg-primary)",
+                              borderColor: "var(--border-color)",
+                            }}
+                          >
+                            {availableExternalOpenApps.length > 0 ? (
+                              availableExternalOpenApps.map((app) => (
+                                <DropdownMenu.Item
+                                  key={app.id}
+                                  className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"
+                                  style={{ color: "var(--text-primary)" }}
+                                  onClick={() =>
+                                    handleSelectExternalOpenApp(app.id)
+                                  }
+                                >
+                                  <ExternalOpenAppIcon
+                                    appId={app.id}
+                                    iconDataUrl={app.iconDataUrl}
+                                    className="h-4 w-4"
+                                  />
+                                  <span className="flex-1">{app.label}</span>
+                                  {effectiveExternalOpenApp?.id === app.id && (
+                                    <Check className="h-3.5 w-3.5 text-[var(--accent-color)]" />
+                                  )}
+                                </DropdownMenu.Item>
+                              ))
+                            ) : (
+                              <DropdownMenu.Item
+                                disabled
+                                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs opacity-60"
+                                style={{ color: "var(--text-muted)" }}
+                              >
+                                暂无可用应用
+                              </DropdownMenu.Item>
+                            )}
+                          </DropdownMenu.SubContent>
+                        </DropdownMenu.Portal>
+                      </DropdownMenu.Sub>
+                    </>
+                  )}
+                  {isGitRepo && (
+                    <DropdownMenu.Item
+                      className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"
+                      style={{ color: "var(--text-primary)" }}
+                      onSelect={() => setIsGitOpen(true)}
+                    >
+                      <GitBranch className="h-4 w-4" />
+                      <span>Git 操作</span>
+                    </DropdownMenu.Item>
+                  )}
+                  <DropdownMenu.Item
+                    className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"
+                    style={{ color: "var(--text-primary)" }}
+                    onSelect={() => setSettingsOpen(true)}
+                  >
+                    <Settings className="h-4 w-4" />
+                    <span>设置</span>
+                  </DropdownMenu.Item>
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
+          )}
           <button
+            data-titlebar-secondary-action="true"
             onClick={openReminderList}
             className="flex h-8 w-8 items-center justify-center rounded-lg transition-all"
             style={{ color: "var(--text-muted)" }}
@@ -588,6 +722,7 @@ export function TitleBar({
           {/* Git 图标 - 仅在 Git 仓库中显示 */}
           {isGitRepo && (
             <button
+              data-titlebar-secondary-action="true"
               onClick={() => setIsGitOpen(true)}
               className="flex items-center justify-center w-8 h-8 rounded-lg transition-all"
               style={{ color: "var(--text-muted)" }}
@@ -628,6 +763,7 @@ export function TitleBar({
             </button>
           )}
           <button
+            data-titlebar-secondary-action="true"
             onClick={() => setSettingsOpen(true)}
             className="flex items-center justify-center w-8 h-8 rounded-lg transition-all"
             style={{ color: "var(--text-muted)" }}

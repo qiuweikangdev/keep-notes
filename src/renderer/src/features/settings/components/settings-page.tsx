@@ -316,7 +316,7 @@ export function SettingsPage() {
             <div>
               <SettingRow
                 label="应用打开器入口"
-                description="在标题栏显示默认应用与快捷下拉入口"
+                description="在更多菜单显示默认应用与打开方式选项"
               >
                 <Switch
                   checked={appearance.showTitleBarQuickLauncher}

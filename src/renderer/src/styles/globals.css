@@ -1950,8 +1950,12 @@ html[data-layout="minimal"]:has(
 [data-layout="minimal"]
   :is(.workspace-title-launcher, .workspace-title-actions) {
   pointer-events: auto;
-  background-color: var(--bg-primary);
+  background-color: transparent;
   -webkit-app-region: no-drag;
+}
+
+[data-layout="minimal"] [data-titlebar-secondary-action="true"] {
+  display: none;
 }
 /* 各叶面板自行绘制标题行，与左侧原生导航对齐；简约布局不保留面板组外间距。 */
 [data-layout="minimal"] .workspace-shell > .workspace-panel-group {
@@ -1986,14 +1990,7 @@ html[data-layout="minimal"]:has(
   padding-left: var(--workspace-navigation-width, 190px);
 }
 [data-layout="minimal"] .workspace-title-bar::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  left: var(--workspace-sidebar-width, 0px);
-  right: 0;
-  height: 1px;
-  background: var(--border-color);
-  pointer-events: none;
+  display: none;
 }
 [data-layout="minimal"] .workspace-content-surface {
   border-top: 0;
