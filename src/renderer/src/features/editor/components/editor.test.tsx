@@ -9,6 +9,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useUIStore } from "@/store/ui.store";
 import { useEditorStore } from "@/store/editor.store";
+import { useTreeStore } from "@/store/tree.store";
 import { Editor } from "./editor";
 
 vi.mock("react-resizable-panels", () => ({
@@ -237,6 +238,7 @@ function createTab(id: string, filePath: string) {
 
 beforeEach(() => {
   useUIStore.setState({ layout: "classic" });
+  useTreeStore.setState({ treeRoot: null });
   useEditorStore.getState().clearFileDragTargetGroupId();
   workspaceLifecycle.renderRichPanes = false;
   workspaceLifecycle.nextInstanceId = 0;
@@ -329,6 +331,53 @@ describe("Editor split panels", () => {
 
     expect(screen.getByText("tab-bar-group-1")).toBeInTheDocument();
     expect(screen.getByText("没有打开的文件")).toBeInTheDocument();
+  });
+
+  it("creates and activates an untitled tab from the empty state", () => {
+    useEditorStore.setState({
+      panelGroups: [
+        {
+          id: "group-1",
+          activeTabId: "",
+          direction: "horizontal",
+          tabs: [],
+        },
+      ],
+      activeGroupId: "group-1",
+    });
+
+    render(<Editor />);
+    fireEvent.click(screen.getByRole("button", { name: "新建标签页" }));
+
+    const group = useEditorStore.getState().panelGroups[0];
+    expect(group.tabs).toHaveLength(1);
+    expect(group.tabs[0]?.filePath).toBeNull();
+    expect(group.activeTabId).toBe(group.tabs[0]?.id);
+  });
+
+  it("only shows file tree guidance when a folder is open", () => {
+    useEditorStore.setState({
+      panelGroups: [
+        {
+          id: "group-1",
+          activeTabId: "",
+          direction: "horizontal",
+          tabs: [],
+        },
+      ],
+      activeGroupId: "group-1",
+    });
+
+    const { rerender } = render(<Editor />);
+    expect(
+      screen.queryByText("从文件树点击或拖拽文件到此处打开"),
+    ).not.toBeInTheDocument();
+
+    useTreeStore.setState({ treeRoot: { key: "/notes", title: "notes" } });
+    rerender(<Editor />);
+    expect(
+      screen.getByText("从文件树点击或拖拽文件到此处打开"),
+    ).toBeInTheDocument();
   });
 
   it.each([2, 3, 6])(

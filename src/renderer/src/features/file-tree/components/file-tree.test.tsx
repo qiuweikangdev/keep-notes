@@ -127,7 +127,7 @@ describe("FileTree context menu", () => {
     );
     expect(screen.queryByText("尚未打开文件夹")).not.toBeInTheDocument();
     expect(screen.queryByText("文件")).not.toBeInTheDocument();
-    expect(screen.getByText("没有打开的文件夹")).toBeInTheDocument();
+    expect(screen.getByText("没有打开的文件夹")).toHaveClass("text-[13px]");
     expect(screen.queryByText("打开文件夹开始记录")).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "打开文件夹..." }),
@@ -143,7 +143,7 @@ describe("FileTree context menu", () => {
 
     render(<FileTree />);
 
-    expect(screen.getByText("没有打开的文件夹")).toBeInTheDocument();
+    expect(screen.getByText("没有打开的文件夹")).toHaveClass("text-[13px]");
     expect(screen.queryByText("尚未打开文件夹")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "打开文件夹..." }));

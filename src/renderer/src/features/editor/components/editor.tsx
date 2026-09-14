@@ -10,9 +10,12 @@ import {
   type CSSProperties,
 } from "react";
 import { createPortal } from "react-dom";
+import { Plus } from "lucide-react";
 import { EditorTabBar } from "./editor-tab-bar";
 import { EditorWorkspace } from "./editor-workspace";
+import { Button } from "@/components/ui/button";
 import { useEditorStore } from "@/store/editor.store";
+import { useTreeStore } from "@/store/tree.store";
 import { useElectron } from "@/hooks/use-electron";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import {
@@ -322,6 +325,10 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
   const group = useEditorStore
     .getState()
     .panelGroups.find((item) => item.id === groupId);
+  const hasOpenFolder = useTreeStore((state) => state.treeRoot !== null);
+  const handleCreateTab = useCallback(() => {
+    useEditorStore.getState().addTab(groupId);
+  }, [groupId]);
   const isDragOver = useEditorStore(
     (state) => state.fileDragTargetGroupId === groupId,
   );
@@ -400,7 +407,7 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
 
   if (!group) return null;
 
-  // 没有标签页时显示空白状态
+  // 没有标签页时显示空状态
   if (!group.activeTabId || group.tabs.length === 0) {
     return (
       <div
@@ -418,9 +425,23 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
           className="flex-1 flex items-center justify-center relative"
           style={{ backgroundColor: "var(--bg-primary)" }}
         >
-          <div className="text-center" style={{ color: "var(--text-muted)" }}>
-            <p className="text-sm">没有打开的文件</p>
-            <p className="text-xs mt-1">从文件树点击或拖拽文件到此处打开</p>
+          <div
+            className="flex max-w-sm flex-col items-center text-center"
+            style={{ color: "var(--text-muted)" }}
+          >
+            <p className="text-[13px]">没有打开的文件</p>
+            {hasOpenFolder ? (
+              <p className="text-xs mt-1">从文件树点击或拖拽文件到此处打开</p>
+            ) : null}
+            <Button
+              type="button"
+              size="sm"
+              className="mt-4 gap-1.5"
+              onClick={handleCreateTab}
+            >
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+              新建标签页
+            </Button>
           </div>
         </div>
         {/* 面板统一接管拖拽，确保标签栏、工具按钮和编辑器内容拥有一致的落点。 */}
