@@ -106,13 +106,13 @@ export function EditorToolbar({
               icon={<SplitSquareHorizontal className="h-3.5 w-3.5" />}
               onSelect={onSplitRight}
             >
-              向右拆分面板
+              向右拆分
             </EditorActionMenuItem>
             <EditorActionMenuItem
               icon={<SplitSquareVertical className="h-3.5 w-3.5" />}
               onSelect={onSplitDown}
             >
-              向下拆分面板
+              向下拆分
             </EditorActionMenuItem>
             {showGitActions ? (
               <>

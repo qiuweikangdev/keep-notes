@@ -201,6 +201,7 @@ describe("TitleBar", () => {
         onToggleCollapse={vi.fn()}
         compactTabs={<div role="tablist" aria-label="编辑器标签页" />}
         editorActions={{
+          hasActiveTab: true,
           canOpenFloatingWindow: true,
           onOpenFloatingWindow: testState.onOpenFloatingWindow,
           onNewTab: testState.onNewTab,
@@ -244,6 +245,44 @@ describe("TitleBar", () => {
     await user.click(screen.getByRole("button", { name: "更多操作" }));
     await user.click(screen.getByRole("menuitem", { name: "向下拆分" }));
     expect(testState.onSplitDown).toHaveBeenCalledOnce();
+  });
+
+  it("hides split actions without an active tab and opens a floating window", async () => {
+    const user = userEvent.setup();
+    const onOpenFloatingWindow = vi.fn();
+
+    render(
+      <TitleBar
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+        compactTabs={<div role="tablist" aria-label="编辑器标签页" />}
+        editorActions={{
+          hasActiveTab: false,
+          canOpenFloatingWindow: true,
+          onOpenFloatingWindow,
+          onNewTab: vi.fn(),
+          onSplitRight: vi.fn(),
+          onSplitDown: vi.fn(),
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    const menu = screen.getByRole("menu");
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map((item) => item.textContent),
+    ).toEqual(["新建标签页", "提醒事项", "浮动窗口", "设置"]);
+    expect(
+      within(menu).queryByRole("menuitem", { name: "向右拆分" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(menu).queryByRole("menuitem", { name: "向下拆分" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(within(menu).getByRole("menuitem", { name: "浮动窗口" }));
+    expect(onOpenFloatingWindow).toHaveBeenCalledOnce();
   });
 
   it("shows compact-layout navigation when expanded and hides it when collapsed", () => {

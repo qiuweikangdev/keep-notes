@@ -60,6 +60,7 @@ interface TitleBarProps {
   onToggleCollapse: () => void;
   compactTabs?: ReactNode;
   editorActions?: {
+    hasActiveTab: boolean;
     canOpenFloatingWindow: boolean;
     onOpenFloatingWindow: () => void;
     onNewTab: () => void;
@@ -698,24 +699,28 @@ export function TitleBar({
                   )}
                   {editorActions && (
                     <>
-                      <DropdownMenu.Separator className="my-1 h-px bg-[var(--border-color)]" />
-                      <DropdownMenu.Item
-                        className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"
-                        style={{ color: "var(--text-primary)" }}
-                        onSelect={editorActions.onSplitRight}
-                      >
-                        <SplitSquareHorizontal className="h-4 w-4" />
-                        <span>向右拆分</span>
-                      </DropdownMenu.Item>
-                      <DropdownMenu.Item
-                        className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"
-                        style={{ color: "var(--text-primary)" }}
-                        onSelect={editorActions.onSplitDown}
-                      >
-                        <SplitSquareVertical className="h-4 w-4" />
-                        <span>向下拆分</span>
-                      </DropdownMenu.Item>
-                      <DropdownMenu.Separator className="my-1 h-px bg-[var(--border-color)]" />
+                      {editorActions.hasActiveTab && (
+                        <>
+                          <DropdownMenu.Separator className="my-1 h-px bg-[var(--border-color)]" />
+                          <DropdownMenu.Item
+                            className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"
+                            style={{ color: "var(--text-primary)" }}
+                            onSelect={editorActions.onSplitRight}
+                          >
+                            <SplitSquareHorizontal className="h-4 w-4" />
+                            <span>向右拆分</span>
+                          </DropdownMenu.Item>
+                          <DropdownMenu.Item
+                            className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"
+                            style={{ color: "var(--text-primary)" }}
+                            onSelect={editorActions.onSplitDown}
+                          >
+                            <SplitSquareVertical className="h-4 w-4" />
+                            <span>向下拆分</span>
+                          </DropdownMenu.Item>
+                          <DropdownMenu.Separator className="my-1 h-px bg-[var(--border-color)]" />
+                        </>
+                      )}
                       {isGitRepo && (
                         <DropdownMenu.Item
                           className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"

@@ -274,7 +274,8 @@ function HomePageContent() {
         onToggleCollapse={toggleCollapse}
         compactTabs={isMinimal ? null : undefined}
         editorActions={{
-          canOpenFloatingWindow: Boolean(editorActions.tab),
+          hasActiveTab: Boolean(editorActions.tab),
+          canOpenFloatingWindow: true,
           onOpenFloatingWindow: () => {
             void editorActions.handleOpenFloatingWindow();
           },

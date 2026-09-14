@@ -260,12 +260,12 @@ describe("EditorToolbar diff action", () => {
     await screen.findByRole("button", { name: "标签页操作" });
     openActionMenu();
 
-    fireEvent.click(screen.getByRole("menuitem", { name: "向右拆分面板" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "向右拆分" }));
     expect(onSplitRight).toHaveBeenCalledTimes(1);
 
     await screen.findByRole("button", { name: "标签页操作" });
     openActionMenu();
-    fireEvent.click(screen.getByRole("menuitem", { name: "向下拆分面板" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "向下拆分" }));
     expect(onSplitDown).toHaveBeenCalledTimes(1);
 
     await screen.findByRole("button", { name: "标签页操作" });
@@ -509,8 +509,8 @@ describe("EditorToolbar diff action", () => {
       "浮动窗口",
       "在资源管理器中显示",
       "编辑模式切换",
-      "向右拆分面板",
-      "向下拆分面板",
+      "向右拆分",
+      "向下拆分",
       "比较差异",
       "放弃更改",
     ]);
@@ -543,8 +543,8 @@ describe("EditorToolbar diff action", () => {
       "浮动窗口",
       "在资源管理器中显示",
       "编辑模式切换",
-      "向右拆分面板",
-      "向下拆分面板",
+      "向右拆分",
+      "向下拆分",
     ]);
   });
 });

@@ -198,7 +198,10 @@ export function useEditorTabActions({
 
   const handleOpenFloatingWindow = useCallback(async () => {
     let currentTab: EditorTab | null | undefined = getTargetTab();
-    if (!currentTab) return;
+    if (!currentTab) {
+      window.electronAPI.createQuickEditorWindow();
+      return;
+    }
 
     currentTab = await flushRichSnapshot(currentTab);
     if (!currentTab) return;
