@@ -218,6 +218,14 @@ describe("HomePage", () => {
     cleanup();
   });
 
+  it("keeps the main workspace aligned with the rounded window surface", () => {
+    render(<HomePage />);
+
+    const workspace = document.querySelector<HTMLElement>(".workspace-shell");
+    expect(workspace).toHaveClass("h-full", "min-h-0", "w-full");
+    expect(workspace).toHaveStyle({ borderRadius: "10px" });
+  });
+
   it("keeps the sidebar and editor adjacent while retaining the resize hit area", () => {
     render(<HomePage />);
 

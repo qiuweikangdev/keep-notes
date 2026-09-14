@@ -173,7 +173,7 @@ describe("createWindow", () => {
     );
   });
 
-  it("keeps the macOS sidebar material active", () => {
+  it("configures the window surface for native material and rounded corners", () => {
     createWindow();
 
     const [options] = BrowserWindowMock.mock.calls[0];
@@ -187,7 +187,16 @@ describe("createWindow", () => {
           visualEffectState: "active",
         }),
       );
+      return;
     }
+
+    expect(options).toEqual(
+      expect.objectContaining({
+        backgroundColor: "#00000000",
+        frame: false,
+        transparent: true,
+      }),
+    );
   });
 
   it("activates and raises the latest main application window", () => {

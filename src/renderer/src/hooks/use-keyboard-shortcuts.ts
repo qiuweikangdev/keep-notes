@@ -111,7 +111,7 @@ function markSaveAsSuccess(filePath: string) {
 export function useKeyboardShortcuts() {
   const { openFolder } = useElectron();
   const { toggleCollapse } = usePanel();
-  const { toggleTheme } = useTheme();
+  const { toggleTheme } = useTheme({ transparentBackground: true });
   const treeRoot = useTreeStore((state) => state.treeRoot);
   const treeData = useTreeStore((state) => state.treeData);
   const setFilePath = useEditorStore((state) => state.setFilePath);

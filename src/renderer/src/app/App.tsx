@@ -172,6 +172,9 @@ function MainApplication() {
   );
   const receivedQuickEditorContentsRef = useRef(new Map<string, string>());
 
+  // 主窗口使用透明底色，让窗口外层的圆角裁切在所有布局下都能生效。
+  useTheme({ transparentBackground: true });
+
   const reminderShortcutKeys = useMemo(
     () =>
       shortcuts.find((shortcut) => shortcut.id === "openReminderWindow")
@@ -437,7 +440,7 @@ function MainApplication() {
     display: "flex",
     flexDirection: "column" as const,
     overflow: "hidden",
-    borderRadius: isMac ? "0" : "8px",
+    borderRadius: isMac ? "0" : "10px",
   };
 
   return (

@@ -112,7 +112,9 @@ export function SettingsPage() {
   const setSettingsOpen = useUIStore((state) => state.setSettingsOpen);
   const appearance = useEditorStore((s) => s.appearance);
   const setAppearance = useEditorStore((s) => s.setAppearance);
-  const { theme, layout, setTheme, setLayout } = useTheme();
+  const { theme, layout, setTheme, setLayout } = useTheme({
+    transparentBackground: true,
+  });
   const [activeTab, setActiveTab] = useState<SettingsTab>("appearance");
   const [isNavigationCollapsed, setIsNavigationCollapsed] = useState(false);
   const [appInfo, setAppInfo] = useState<AppInfo>(defaultAppInfo);

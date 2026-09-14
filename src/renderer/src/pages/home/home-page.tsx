@@ -232,12 +232,12 @@ function HomePageContent() {
   return (
     <div
       ref={workspaceRef}
-      className="workspace-shell flex flex-col h-screen overflow-hidden relative"
+      className="workspace-shell flex h-full min-h-0 w-full flex-col overflow-hidden relative"
       data-native-material={isMac}
       data-sidebar-collapsed={collapsed}
       style={{
         color: "var(--text-primary)",
-        borderRadius: isMac ? "0" : isMaximized ? "0" : "8px",
+        borderRadius: isMac ? "0" : isMaximized ? "0" : "10px",
       }}
     >
       <EditorBridge />

@@ -62,7 +62,7 @@ export function TitleBar({
   const setSettingsOpen = useUIStore((state) => state.setSettingsOpen);
   const appearance = useEditorStore((state) => state.appearance);
   const setAppearance = useEditorStore((state) => state.setAppearance);
-  const { isDark, toggleTheme } = useTheme();
+  const { isDark, toggleTheme } = useTheme({ transparentBackground: true });
   const [isGitOpen, setIsGitOpen] = useState(false);
   const [isGitRepo, setIsGitRepo] = useState(false);
   const [externalOpenApps, setExternalOpenApps] = useState<ExternalOpenApp[]>(
