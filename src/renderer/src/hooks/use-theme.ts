@@ -108,17 +108,8 @@ export function useTheme({
 
     root.style.setProperty("--bg-primary", config.colors.bgPrimary);
     root.style.setProperty("--bg-secondary", config.colors.bgSecondary);
-    // 浅色需要留出足够透明度呈现玻璃层次；深色提高染色占比以稳定蓝绿色主题基调。
-    root.style.setProperty(
-      "--sidebar-material-tint-opacity",
-      config.colorScheme === "light"
-        ? "94%"
-        : resolvedTheme === "dark"
-          ? "92%"
-          : resolvedTheme === "minimal"
-            ? "84%"
-            : "78%",
-    );
+    // 所有主题统一使用同一遮罩强度，避免高对比窗口背景造成侧栏观感漂移。
+    root.style.setProperty("--sidebar-material-tint-opacity", "98%");
     root.style.setProperty("--bg-tertiary", config.colors.bgTertiary);
     root.style.setProperty("--text-primary", config.colors.textPrimary);
     root.style.setProperty("--text-secondary", config.colors.textSecondary);
