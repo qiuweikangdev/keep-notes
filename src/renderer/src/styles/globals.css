@@ -1038,14 +1038,9 @@ button[data-theme-control="true"][data-selected="true"]:hover {
   background-color: var(--bg-secondary);
 }
 
-/* 简约布局的侧栏由窗口材质统一绘制，底部操作栏沿用同一层混合，避免出现突兀的色块。 */
+/* 简约布局的侧栏由窗口材质统一绘制；底部操作栏复用同一材质色并保持不透明，避免文件列表透出。 */
 [data-layout="minimal"] .file-tree-bottom-actions {
-  background: color-mix(
-    in srgb,
-    var(--sidebar-material-tint, var(--bg-secondary))
-      var(--sidebar-material-tint-opacity, 82%),
-    transparent
-  );
+  background-color: var(--sidebar-material-tint, var(--bg-secondary));
 }
 
 .file-tree-scroll-container {

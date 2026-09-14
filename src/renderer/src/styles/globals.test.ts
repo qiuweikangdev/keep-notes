@@ -167,9 +167,9 @@ describe("workspace layout surface styles", () => {
     );
   });
 
-  it("keeps the minimal layout bottom actions on the sidebar material", () => {
+  it("keeps the minimal layout bottom actions aligned with the sidebar material", () => {
     expect(stylesheet).toMatch(
-      /\[data-layout="minimal"\]\s+\.file-tree-bottom-actions\s*\{[\s\S]*background:\s*color-mix\([\s\S]*var\(--sidebar-material-tint,\s*var\(--bg-secondary\)\)[\s\S]*var\(--sidebar-material-tint-opacity,\s*82%\)/,
+      /\[data-layout="minimal"\]\s+\.file-tree-bottom-actions\s*\{[\s\S]*background-color:\s*var\(--sidebar-material-tint,\s*var\(--bg-secondary\)\);/,
     );
   });
 
