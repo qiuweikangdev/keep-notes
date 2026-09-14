@@ -2980,7 +2980,7 @@ function MountedBlockNoteEditor({
       activeGroup?.activeTabId === binding.tabId
     );
   });
-  const { isDark } = useTheme();
+  const { isDark } = useTheme({ transparentBackground: true });
   const suppressChangeRef = useRef(false);
   const changeGateRef = useRef(new EditorChangeGate());
   const contentRef = useRef(content);

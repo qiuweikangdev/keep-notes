@@ -112,7 +112,9 @@ export function SettingsPage() {
   const setSettingsOpen = useUIStore((state) => state.setSettingsOpen);
   const appearance = useEditorStore((s) => s.appearance);
   const setAppearance = useEditorStore((s) => s.setAppearance);
-  const { theme, layout, setTheme, setLayout } = useTheme();
+  const { theme, layout, setTheme, setLayout } = useTheme({
+    transparentBackground: true,
+  });
   const [activeTab, setActiveTab] = useState<SettingsTab>("appearance");
   const [isNavigationCollapsed, setIsNavigationCollapsed] = useState(false);
   const [appInfo, setAppInfo] = useState<AppInfo>(defaultAppInfo);
@@ -314,7 +316,7 @@ export function SettingsPage() {
             <div>
               <SettingRow
                 label="应用打开器入口"
-                description="在标题栏显示默认应用与快捷下拉入口"
+                description="在更多菜单显示默认应用与打开方式选项"
               >
                 <Switch
                   checked={appearance.showTitleBarQuickLauncher}

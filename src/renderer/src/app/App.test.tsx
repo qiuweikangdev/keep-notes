@@ -415,9 +415,28 @@ describe("App shortcuts", () => {
   it("provides drag and resize state to application-level dialogs", () => {
     render(<App />);
 
+    expect(appMocks.useTheme).toHaveBeenCalledWith({
+      transparentBackground: true,
+    });
     expect(
       screen.getByTestId("application-dialog-provider-state"),
     ).toHaveTextContent("true");
+  });
+
+  it("uses rounded corners for the non-macOS application surface", () => {
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: {
+        ...window.electronAPI,
+        getPlatform: () => "win32",
+      },
+    });
+
+    render(<App />);
+
+    expect(document.querySelector(".app-window-surface")).toHaveStyle({
+      borderRadius: "10px",
+    });
   });
 
   it("applies live main application theme updates to the reminder window", () => {

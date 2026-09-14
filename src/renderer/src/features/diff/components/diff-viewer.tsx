@@ -219,7 +219,7 @@ export function DiffViewer({
   className = "",
   reserveDialogResizeHandleSpace = false,
 }: DiffViewerProps) {
-  const { theme, isDark } = useTheme();
+  const { theme, isDark } = useTheme({ transparentBackground: true });
   const diffInput = useMemo(
     () => createDiffInput(oldContent, newContent, fileName),
     [fileName, newContent, oldContent],

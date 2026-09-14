@@ -7,6 +7,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TitleBar } from "./title-bar";
 import {
@@ -128,6 +129,49 @@ describe("TitleBar", () => {
     expect(screen.getByTitle("设置")).toBeInTheDocument();
     expect(screen.getByTestId("title-bar")).toHaveStyle({
       height: `${MINIMAL_TITLE_BAR_HEIGHT}px`,
+    });
+  });
+
+  it("moves the minimal-layout app opener into the more menu", async () => {
+    const user = userEvent.setup();
+    testState.appearance = {
+      ...testState.appearance,
+      showTitleBarQuickLauncher: true,
+    };
+    testState.treeRoot = { key: "D:\\notes\\work", title: "work" };
+    window.electronAPI.listExternalOpenApps = vi
+      .fn()
+      .mockResolvedValue([
+        { id: "vscode", label: "VS Code", kind: "editor", available: true },
+      ]);
+
+    render(
+      <TitleBar
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+        compactTabs={<div role="tablist" aria-label="编辑器标签页" />}
+      />,
+    );
+
+    expect(
+      screen.queryByLabelText("使用 VS Code 打开"),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    const openWithItem = await screen.findByRole("menuitem", {
+      name: "打开方式",
+    });
+    expect(openWithItem).toBeInTheDocument();
+
+    await user.hover(openWithItem);
+    const appItem = await screen.findByRole("menuitem", { name: "VS Code" });
+    fireEvent.click(appItem);
+
+    await waitFor(() => {
+      expect(testState.openWithExternalApp).toHaveBeenCalledWith(
+        "D:\\notes\\work",
+        "vscode",
+      );
     });
   });
 

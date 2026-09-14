@@ -117,7 +117,7 @@ describe("FileTree context menu", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("guides an empty workspace to open a folder", () => {
+  it("uses the same restrained empty state in the minimal layout", () => {
     useTreeStore.setState({ treeRoot: null, treeData: [], recentFolders: [] });
 
     render(<FileTree />);
@@ -127,13 +127,13 @@ describe("FileTree context menu", () => {
     );
     expect(screen.queryByText("尚未打开文件夹")).not.toBeInTheDocument();
     expect(screen.queryByText("文件")).not.toBeInTheDocument();
-    expect(screen.queryByText("没有打开的文件夹")).not.toBeInTheDocument();
-    expect(screen.getByText("打开文件夹开始记录")).toBeInTheDocument();
+    expect(screen.getByText("没有打开的文件夹")).toBeInTheDocument();
+    expect(screen.queryByText("打开文件夹开始记录")).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "打开文件夹…" }),
+      screen.getByRole("button", { name: "打开文件夹..." }),
     ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "打开文件夹…" }));
+    fireEvent.click(screen.getByRole("button", { name: "打开文件夹..." }));
     expect(electronMocks.openFolder).toHaveBeenCalledOnce();
   });
 
@@ -150,7 +150,7 @@ describe("FileTree context menu", () => {
     expect(electronMocks.openFolder).toHaveBeenCalledOnce();
   });
 
-  it("removes a recent folder from the minimal empty state", () => {
+  it("keeps recent folders available from the minimal empty-state menu", () => {
     useTreeStore.setState({
       treeRoot: null,
       treeData: [],
@@ -159,6 +159,8 @@ describe("FileTree context menu", () => {
 
     render(<FileTree />);
 
+    expect(screen.queryByText("my-notes3")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "更多操作" }));
     expect(screen.getByText("my-notes3")).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", {
@@ -272,7 +274,7 @@ describe("FileTree context menu", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows bottom actions without changing the file tree geometry", async () => {
+  it("shows bottom actions without moving the file tree or its icons", async () => {
     const { container } = render(<FileTree />);
     const tree = container.querySelector('[role="tree"]');
     const content = tree?.parentElement;
@@ -298,11 +300,11 @@ describe("FileTree context menu", () => {
     expect(content).toHaveClass("flex-1", "py-2");
     expect(content).not.toHaveClass("pb-12");
     expect(bottomBar).toHaveClass(
-      "transition-[opacity,transform]",
-      "duration-150",
+      "transition-opacity",
+      "duration-100",
       "ease-in",
-      "translate-y-1",
     );
+    expect(bottomBar).not.toHaveClass("translate-y-1");
     expect(bottomBar).toHaveStyle({ opacity: 0, pointerEvents: "none" });
 
     fireEvent.scroll(scrollContainer);
@@ -311,10 +313,11 @@ describe("FileTree context menu", () => {
 
     expect(content).not.toHaveClass("pb-12");
     expect(bottomBar).toHaveClass(
-      "translate-y-0",
-      "duration-200",
-      "ease-[cubic-bezier(0.22,1,0.36,1)]",
+      "transition-opacity",
+      "duration-150",
+      "ease-out",
     );
+    expect(bottomBar).not.toHaveClass("translate-y-0");
     expect(bottomBar).toHaveStyle({ opacity: 1, pointerEvents: "auto" });
     expect(scrollTop).toBe(900);
 

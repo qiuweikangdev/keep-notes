@@ -50,6 +50,7 @@ const windowConfig: Electron.BrowserWindowConstructorOptions = {
         // Windows/Linux: 无边框透明窗口
         frame: false,
         transparent: true,
+        backgroundColor: "#00000000",
       }),
   ...(!isMac ? { icon } : {}),
   webPreferences: {
