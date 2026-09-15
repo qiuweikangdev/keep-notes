@@ -147,6 +147,7 @@ const INLINE_CODE_EDITING_START_CLASS = "editor-inline-code__editing-start";
 const INLINE_CODE_EDITING_END_CLASS = "editor-inline-code__editing-end";
 const INLINE_CODE_COMPOSING_CONTENT_CLASS =
   "editor-inline-code__composing-content";
+const INLINE_CODE_COMPOSING_EDITOR_CLASS = "editor-inline-code--composing";
 const INLINE_CODE_LEADING_CLICK_SLOP = 16;
 const INLINE_CODE_TRAILING_CLICK_SLOP = 16;
 
@@ -1267,11 +1268,18 @@ function getInlineCodeEditingDecorations(state: EditorState) {
           : null;
   if (!range) return DecorationSet.empty;
 
+  if (editingState.isComposing) {
+    // 输入法可能把组合文本拆成多个临时 DOM 片段；组合态只保留原生光标，避免每个片段重复生成反引号。
+    return DecorationSet.create(state.doc, [
+      Decoration.inline(range.from, range.to, {
+        class: INLINE_CODE_COMPOSING_CONTENT_CLASS,
+      }),
+    ]);
+  }
+
   const decorations: Decoration[] = [
     Decoration.inline(range.from, range.to, {
-      class: editingState.isComposing
-        ? `${INLINE_CODE_EDITING_CONTENT_CLASS} ${INLINE_CODE_COMPOSING_CONTENT_CLASS}`
-        : INLINE_CODE_EDITING_CONTENT_CLASS,
+      class: INLINE_CODE_EDITING_CONTENT_CLASS,
     }),
     Decoration.inline(range.from, Math.min(range.from + 1, range.to), {
       class: INLINE_CODE_EDITING_START_CLASS,
@@ -1280,29 +1288,26 @@ function getInlineCodeEditingDecorations(state: EditorState) {
       class: INLINE_CODE_EDITING_END_CLASS,
     }),
   ];
-  if (!editingState.isComposing) {
-    const createMarker = (boundary: "start" | "end") => {
-      const marker = document.createElement("span");
-      marker.className = `${INLINE_CODE_EDITING_MARKER_CLASS} ${INLINE_CODE_EDITING_MARKER_CLASS}--${boundary}`;
-      marker.contentEditable = "false";
-      marker.setAttribute("aria-hidden", "true");
-      marker.textContent = "`";
-      return marker;
-    };
-    decorations.push(
-      Decoration.widget(range.from, () => createMarker("start"), {
-        key: `inline-code-editing-marker-start-${range.from}`,
-        side: -2,
-      }),
-      Decoration.widget(range.to, () => createMarker("end"), {
-        key: `inline-code-editing-marker-end-${range.to}`,
-        side: 2,
-      }),
-    );
-  }
+  const createMarker = (boundary: "start" | "end") => {
+    const marker = document.createElement("span");
+    marker.className = `${INLINE_CODE_EDITING_MARKER_CLASS} ${INLINE_CODE_EDITING_MARKER_CLASS}--${boundary}`;
+    marker.contentEditable = "false";
+    marker.setAttribute("aria-hidden", "true");
+    marker.textContent = "`";
+    return marker;
+  };
+  decorations.push(
+    Decoration.widget(range.from, () => createMarker("start"), {
+      key: `inline-code-editing-marker-start-${range.from}`,
+      side: -2,
+    }),
+    Decoration.widget(range.to, () => createMarker("end"), {
+      key: `inline-code-editing-marker-end-${range.to}`,
+      side: 2,
+    }),
+  );
   if (
     selection.empty &&
-    !editingState.isComposing &&
     selection.from >= range.from &&
     selection.from <= range.to
   ) {
@@ -1592,6 +1597,17 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
           }
 
           const state = inlineCodeEditingPluginKey.getState(editorView.state);
+          const compositionRange =
+            state?.activeRange ??
+            findInlineCodeRange(
+              editorView.state,
+              editorView.state.selection.from,
+              true,
+            );
+          if (compositionRange) {
+            // macOS 输入法会暂时保留 ProseMirror 旧 DOM；根节点状态用于立即屏蔽残留的反引号和自定义光标。
+            editorView.dom.classList.add(INLINE_CODE_COMPOSING_EDITOR_CLASS);
+          }
           if (
             state?.activeRange &&
             state.closingBoundaryPosition === state.activeRange.to &&
@@ -1626,6 +1642,7 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
           compositionEndTimer = window.setTimeout(() => {
             compositionEndTimer = null;
             updateInlineCodeCompositionState(false);
+            editorView.dom.classList.remove(INLINE_CODE_COMPOSING_EDITOR_CLASS);
           }, 30);
         };
         const handleInlineCodeMouseDown = (event: MouseEvent) => {
@@ -1999,6 +2016,7 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
         window.addEventListener("blur", resetInlineCodeSelectionDrag);
         return {
           destroy() {
+            editorView.dom.classList.remove(INLINE_CODE_COMPOSING_EDITOR_CLASS);
             document.removeEventListener(
               "mousedown",
               handleInlineCodeMouseDown,

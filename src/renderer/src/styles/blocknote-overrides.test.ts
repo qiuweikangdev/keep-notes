@@ -412,23 +412,7 @@ describe("blocknote overrides stylesheet", () => {
     expect(minimalInlineCodeRule).toMatch(/font-size:\s*0\.9em !important;/);
   });
 
-  it("uses Vditor-style visual markers with stable selection carets", () => {
-    const markerRule = stylesheet.match(
-      /\.bn-editor\s+code:not\(\.editor-code-block__content\):has\(\s+\.editor-inline-code__editing-content\s+\)::before,[\s\S]*?\.editor-inline-code__editing-end\s*\)\s*::after\s*\{([\s\S]*?)\n\}/,
-    )?.[1];
-    expect(markerRule).toBeDefined();
-    expect(markerRule).toMatch(/position:\s*absolute;/);
-    expect(markerRule).toMatch(/content:\s*"`";/);
-    expect(markerRule).toMatch(/color:\s*var\(--text-primary\);/);
-    expect(markerRule).toMatch(/pointer-events:\s*none;/);
-    expect(markerRule).toMatch(/transform:\s*translateY\(-50%\);/);
-    expect(stylesheet).toMatch(
-      /\.editor-inline-code__editing-content\s*\)\s*::before,[\s\S]*\.editor-inline-code__editing-end\s*\)\s*::before\s*\{[\s\S]*left:\s*-0\.65em;/,
-    );
-    expect(stylesheet).toMatch(
-      /\.bn-editor:has\(\.editor-inline-code__editing-marker\)[\s\S]*content:\s*none;/,
-    );
-
+  it("uses widget-only Vditor-style markers with stable selection carets", () => {
     const markerWidgetRule = getRule(
       ".bn-editor .editor-inline-code__editing-marker",
     );
@@ -438,6 +422,12 @@ describe("blocknote overrides stylesheet", () => {
     );
     expect(markerWidgetRule).toMatch(/background:\s*transparent !important;/);
     expect(markerWidgetRule).toMatch(/pointer-events:\s*auto;/);
+    expect(stylesheet).not.toMatch(/content:\s*"`";/);
+
+    const composingMarkerRule = getRule(
+      ".bn-editor.editor-inline-code--composing :is( .editor-inline-code__editing-marker, .editor-inline-code__editing-caret, .editor-inline-code__editing-trailing-caret )",
+    );
+    expect(composingMarkerRule).toMatch(/display:\s*none !important;/);
 
     const editingCodeRule = getRule(
       ".bn-editor code:not(.editor-code-block__content):has( .editor-inline-code__editing-content )",

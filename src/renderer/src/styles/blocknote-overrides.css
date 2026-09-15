@@ -838,61 +838,21 @@ html.rich-editor-selection-drag-locked * {
   margin-right: 0.5em;
 }
 
-.bn-editor
-  code:not(.editor-code-block__content):has(
-    .editor-inline-code__editing-content
-  )::before,
-.bn-editor
-  code:not(.editor-code-block__content):has(
-    .editor-inline-code__editing-end
-  )::before,
-.bn-editor
-  code:not(.editor-code-block__content):has(
-    .editor-inline-code__editing-end
-  )::after {
-  position: absolute;
-  top: 50%;
-  color: var(--text-primary);
-  -webkit-text-fill-color: var(--text-primary);
-  font-family: "SF Mono", "Fira Code", Consolas, "Courier New", monospace;
-  font-size: 1em;
-  line-height: inherit;
-  content: "`";
-  pointer-events: none;
-  transform: translateY(-50%);
-  white-space: pre;
+/* 输入法组合期间可能保留旧装饰 DOM；从编辑器根节点统一隐藏残留标记，避免每个临时片段重复显示反引号。 */
+.bn-editor.editor-inline-code--composing
+  :is(
+    .editor-inline-code__editing-marker,
+    .editor-inline-code__editing-caret,
+    .editor-inline-code__editing-trailing-caret
+  ) {
+  display: none !important;
 }
 
-.bn-editor
-  code:not(.editor-code-block__content):has(
-    .editor-inline-code__editing-content
-  )::before,
-.bn-editor
-  code:not(.editor-code-block__content):has(
-    .editor-inline-code__editing-end
-  )::before {
-  /* 开头反引号必须落在 code 外侧，否则会和首个字符重叠而看起来像没有渲染。 */
-  left: -0.65em;
-  z-index: 1;
-}
-
-/* 有真实反引号 widget 时关闭伪元素，避免失焦后同一侧出现两个反引号。 */
-.bn-editor:has(.editor-inline-code__editing-marker)
-  code:not(.editor-code-block__content):has(
-    .editor-inline-code__editing-start
-  )::before,
-.bn-editor:has(.editor-inline-code__editing-marker)
-  code:not(.editor-code-block__content):has(
-    .editor-inline-code__editing-end
-  )::after {
-  content: none;
-}
-
-.bn-editor
-  code:not(.editor-code-block__content):has(
-    .editor-inline-code__editing-end
-  )::after {
-  left: calc(100% + 1px);
+.bn-editor.editor-inline-code--composing code:not(.editor-code-block__content),
+.bn-editor.editor-inline-code--composing
+  code:not(.editor-code-block__content)
+  :where(*) {
+  caret-color: var(--accent-color) !important;
 }
 
 .bn-editor

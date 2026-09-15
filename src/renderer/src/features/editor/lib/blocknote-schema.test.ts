@@ -2808,9 +2808,19 @@ describe("editor BlockNote schema", () => {
     inlineCode?.dispatchEvent(
       new CompositionEvent("compositionstart", { bubbles: true }),
     );
+    expect(view.dom).toHaveClass("editor-inline-code--composing");
     expect(
       container.querySelector(".editor-inline-code__composing-content"),
     ).not.toBe(null);
+    expect(
+      container.querySelector(".editor-inline-code__editing-content"),
+    ).toBe(null);
+    expect(container.querySelector(".editor-inline-code__editing-start")).toBe(
+      null,
+    );
+    expect(container.querySelector(".editor-inline-code__editing-end")).toBe(
+      null,
+    );
     expect(container.querySelector(".editor-inline-code__editing-caret")).toBe(
       null,
     );
@@ -2826,6 +2836,7 @@ describe("editor BlockNote schema", () => {
     expect(
       container.querySelector(".editor-inline-code__composing-content"),
     ).toBe(null);
+    expect(view.dom).not.toHaveClass("editor-inline-code--composing");
     expect(
       container.querySelector(".editor-inline-code__editing-caret"),
     ).not.toBe(null);
