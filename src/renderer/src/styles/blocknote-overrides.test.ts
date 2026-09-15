@@ -425,7 +425,7 @@ describe("blocknote overrides stylesheet", () => {
     expect(stylesheet).not.toMatch(/content:\s*"`";/);
 
     const composingMarkerRule = getRule(
-      ".bn-editor.editor-inline-code--composing :is( .editor-inline-code__editing-marker, .editor-inline-code__editing-caret, .editor-inline-code__editing-trailing-caret )",
+      ".bn-editor.editor-inline-code--composing :is( .editor-inline-code__editing-caret, .editor-inline-code__editing-trailing-caret )",
     );
     expect(composingMarkerRule).toMatch(/display:\s*none !important;/);
 

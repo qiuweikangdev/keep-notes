@@ -1161,6 +1161,25 @@ function insertInlineCodeBoundaryText(view: EditorView, text: string) {
     return false;
   }
 
+  // 边界输入也必须经过 Markdown 规则（例如行首的“- ”），否则直接插入会阻断列表转换。
+  // 仅调用输入规则插件，避免再次进入当前 handleTextInput 造成递归。
+  const position = activeRange.from;
+  for (const plugin of view.state.plugins) {
+    if (
+      plugin.spec.isInputRules &&
+      plugin.props.handleTextInput?.call(
+        plugin,
+        view,
+        position,
+        position,
+        text,
+        () => view.state.tr.insertText(text, position, position),
+      )
+    ) {
+      return true;
+    }
+  }
+
   // 浏览器同步 contenteditable 选区时，虚拟边界偶尔会短暂落到首字符后一个位置；仍按边界处理，避免连续输入逐字进入 code mark。
   const insertedLength = text.length;
   const nextCodeRange = {
@@ -1268,18 +1287,11 @@ function getInlineCodeEditingDecorations(state: EditorState) {
           : null;
   if (!range) return DecorationSet.empty;
 
-  if (editingState.isComposing) {
-    // 输入法可能把组合文本拆成多个临时 DOM 片段；组合态只保留原生光标，避免每个片段重复生成反引号。
-    return DecorationSet.create(state.doc, [
-      Decoration.inline(range.from, range.to, {
-        class: INLINE_CODE_COMPOSING_CONTENT_CLASS,
-      }),
-    ]);
-  }
-
   const decorations: Decoration[] = [
     Decoration.inline(range.from, range.to, {
-      class: INLINE_CODE_EDITING_CONTENT_CLASS,
+      class: editingState.isComposing
+        ? `${INLINE_CODE_EDITING_CONTENT_CLASS} ${INLINE_CODE_COMPOSING_CONTENT_CLASS}`
+        : INLINE_CODE_EDITING_CONTENT_CLASS,
     }),
     Decoration.inline(range.from, Math.min(range.from + 1, range.to), {
       class: INLINE_CODE_EDITING_START_CLASS,
@@ -1298,16 +1310,20 @@ function getInlineCodeEditingDecorations(state: EditorState) {
   };
   decorations.push(
     Decoration.widget(range.from, () => createMarker("start"), {
-      key: `inline-code-editing-marker-start-${range.from}`,
+      // 稳定 key 和空 marks 让标记始终位于 code 外侧，候选文本更新时无需重建。
+      key: "inline-code-editing-marker-start",
+      marks: [],
       side: -2,
     }),
     Decoration.widget(range.to, () => createMarker("end"), {
-      key: `inline-code-editing-marker-end-${range.to}`,
+      key: "inline-code-editing-marker-end",
+      marks: [],
       side: 2,
     }),
   );
   if (
     selection.empty &&
+    !editingState.isComposing &&
     selection.from >= range.from &&
     selection.from <= range.to
   ) {
@@ -1453,8 +1469,13 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
                       editingState.suppressedSelectionPosition,
                     ),
                   }
-                : EMPTY_INLINE_CODE_EDITING_STATE;
+                : {
+                    ...EMPTY_INLINE_CODE_EDITING_STATE,
+                    isComposing: editingState.isComposing,
+                  };
           }
+          // 候选词更新会改变文档和选区；组合输入结束前不能恢复自定义光标或切换虚拟边界。
+          if (mappedState.isComposing) return mappedState;
           if (transaction.docChanged && mappedState.activeRange) {
             const currentRange = newState.selection.empty
               ? findInlineCodeRange(newState, newState.selection.from, true)
@@ -1605,16 +1626,23 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
               true,
             );
           if (compositionRange) {
-            // macOS 输入法会暂时保留 ProseMirror 旧 DOM；根节点状态用于立即屏蔽残留的反引号和自定义光标。
+            // macOS 输入法会暂时保留 ProseMirror 旧 DOM；根节点状态用于立即屏蔽残留的自定义光标。
             editorView.dom.classList.add(INLINE_CODE_COMPOSING_EDITOR_CLASS);
           }
           if (
             state?.activeRange &&
-            state.closingBoundaryPosition === state.activeRange.to &&
             editorView.state.selection.empty &&
-            editorView.state.selection.from === state.activeRange.to
+            ((state.closingBoundaryPosition === state.activeRange.to &&
+              editorView.state.selection.from === state.activeRange.to) ||
+              (state.openingBoundaryPosition === state.activeRange.from &&
+                editorView.state.selection.from >= state.activeRange.from &&
+                editorView.state.selection.from <= state.activeRange.from + 1))
           ) {
-            // 输入法会直接写 DOM；交接前移除 code 样式，避免共享坐标再次继承代码末尾的 mark。
+            // 左右虚拟边界都属于普通文本；先还原真实选区，再交给输入法，避免首字进入 code。
+            const position =
+              state.openingBoundaryPosition === state.activeRange.from
+                ? state.activeRange.from
+                : state.activeRange.to;
             const marks = (
               editorView.state.storedMarks ??
               editorView.state.selection.$from.marks()
@@ -1623,14 +1651,17 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
             );
             editorView.dispatch(
               editorView.state.tr
+                .setSelection(
+                  TextSelection.create(editorView.state.doc, position),
+                )
                 .setStoredMarks(marks)
                 .setMeta(inlineCodeEditingPluginKey, {
                   ...EMPTY_INLINE_CODE_EDITING_STATE,
-                  suppressedSelectionPosition: editorView.state.selection.from,
+                  suppressedSelectionPosition: position,
                 }),
             );
           }
-          // 输入法接管光标前移除 contenteditable=false 的自定义节点，避免 code mark 被拆开。
+          // 组合态保留稳定的边界反引号，只移除自定义光标。
           updateInlineCodeCompositionState(true);
         };
         const handleInlineCodeCompositionEnd = () => {
@@ -1863,6 +1894,12 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
           event.preventDefault();
         };
         const handleVerticalKeyDown = (event: KeyboardEvent) => {
+          if (
+            event.isComposing ||
+            editorView.composing ||
+            inlineCodeEditingPluginKey.getState(editorView.state)?.isComposing
+          )
+            return;
           const direction =
             event.key === "ArrowUp" || event.key === "Up"
               ? -1
@@ -1944,6 +1981,12 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
           event.stopImmediatePropagation();
         };
         const handleHorizontalKeyDown = (event: KeyboardEvent) => {
+          if (
+            event.isComposing ||
+            editorView.composing ||
+            inlineCodeEditingPluginKey.getState(editorView.state)?.isComposing
+          )
+            return;
           const eventTarget = event.target;
           const eventIsInsideEditor =
             eventTarget instanceof Node && editorView.dom.contains(eventTarget);
@@ -2094,6 +2137,12 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
       props: {
         decorations: getInlineCodeEditingDecorations,
         handleKeyDown(view, event) {
+          if (
+            event.isComposing ||
+            view.composing ||
+            inlineCodeEditingPluginKey.getState(view.state)?.isComposing
+          )
+            return false;
           const navigation = getInlineCodeHorizontalNavigation(event);
           if (!navigation) return false;
 

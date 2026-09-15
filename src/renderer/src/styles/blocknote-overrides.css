@@ -838,10 +838,9 @@ html.rich-editor-selection-drag-locked * {
   margin-right: 0.5em;
 }
 
-/* 输入法组合期间可能保留旧装饰 DOM；从编辑器根节点统一隐藏残留标记，避免每个临时片段重复显示反引号。 */
+/* 组合态保留一对边界反引号，光标交由输入法管理。 */
 .bn-editor.editor-inline-code--composing
   :is(
-    .editor-inline-code__editing-marker,
     .editor-inline-code__editing-caret,
     .editor-inline-code__editing-trailing-caret
   ) {

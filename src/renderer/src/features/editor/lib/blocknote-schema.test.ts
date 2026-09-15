@@ -2787,6 +2787,81 @@ describe("editor BlockNote schema", () => {
     ).not.toBe(null);
   });
 
+  it.each(["textInput", "beforeinput"])(
+    "converts a bullet prefix before inline code through %s",
+    (inputMode) => {
+      const { editor, inlineCodePosition, view } = renderInlineCodeTestEditor();
+      view.dispatch(
+        view.state.tr
+          .setSelection(
+            TextSelection.create(view.state.doc, inlineCodePosition),
+          )
+          .setMeta("editor-inline-code-editing$", {
+            activeRange: {
+              from: inlineCodePosition,
+              to: inlineCodePosition + 4,
+            },
+            openingBoundaryPosition: inlineCodePosition,
+            closingBoundaryPosition: null,
+            isComposing: false,
+            isBlurred: false,
+            suppressedSelectionPosition: null,
+          }),
+      );
+      for (const text of ["-", " "]) {
+        if (inputMode === "beforeinput") {
+          view.dom.dispatchEvent(
+            new InputEvent("beforeinput", {
+              inputType: "insertText",
+              data: text,
+              bubbles: true,
+              cancelable: true,
+            }),
+          );
+        } else {
+          simulateTextInput(editor, text);
+        }
+      }
+      expect(editor.document[0].type).toBe("bulletListItem");
+      expect(editor.document[0].content).toEqual([
+        { type: "text", text: "test", styles: { code: true } },
+      ]);
+    },
+  );
+
+  it.each([0, 1])(
+    "composes plain text before the opening marker with native offset %s",
+    (offset) => {
+      const { editor, inlineCodePosition, view } = renderInlineCodeTestEditor();
+      view.dispatch(
+        view.state.tr
+          .setSelection(
+            TextSelection.create(view.state.doc, inlineCodePosition + offset),
+          )
+          .setMeta("editor-inline-code-editing$", {
+            activeRange: {
+              from: inlineCodePosition,
+              to: inlineCodePosition + 4,
+            },
+            openingBoundaryPosition: inlineCodePosition,
+            closingBoundaryPosition: null,
+            isComposing: false,
+            isBlurred: false,
+            suppressedSelectionPosition: null,
+          }),
+      );
+      view.dom.dispatchEvent(
+        new CompositionEvent("compositionstart", { bubbles: true }),
+      );
+      expect(view.state.selection.from).toBe(inlineCodePosition);
+      view.dispatch(view.state.tr.insertText("中文"));
+      expect(editor.document[0].content).toEqual([
+        { type: "text", text: "中文", styles: {} },
+        { type: "text", text: "test", styles: { code: true } },
+      ]);
+    },
+  );
+
   it("uses the native caret while composing text inside inline code", async () => {
     const { container, inlineCodePosition, view } =
       renderInlineCodeTestEditor();
@@ -2814,21 +2889,52 @@ describe("editor BlockNote schema", () => {
     ).not.toBe(null);
     expect(
       container.querySelector(".editor-inline-code__editing-content"),
-    ).toBe(null);
-    expect(container.querySelector(".editor-inline-code__editing-start")).toBe(
-      null,
-    );
-    expect(container.querySelector(".editor-inline-code__editing-end")).toBe(
-      null,
-    );
+    ).not.toBe(null);
+    expect(
+      container.querySelectorAll(".editor-inline-code__editing-start"),
+    ).toHaveLength(1);
+    expect(
+      container.querySelectorAll(".editor-inline-code__editing-end"),
+    ).toHaveLength(1);
     expect(container.querySelector(".editor-inline-code__editing-caret")).toBe(
       null,
     );
-    expect(container.querySelector(".editor-inline-code__editing-marker")).toBe(
-      null,
+    const markers = Array.from(
+      container.querySelectorAll(".editor-inline-code__editing-marker"),
     );
+    expect(markers).toHaveLength(2);
 
-    inlineCode?.dispatchEvent(
+    // 真实输入法会在候选词确认前连续更新文档，不能只测试开始和结束事件。
+    for (const text of ["c", "cc", "测试"]) {
+      const from = inlineCodePosition + 2;
+      const to = view.state.selection.from;
+      view.dispatch(view.state.tr.insertText(text, from, to));
+      expect(
+        Array.from(
+          container.querySelectorAll(".editor-inline-code__editing-marker"),
+        ),
+      ).toEqual(markers);
+      expect(
+        container.querySelector("code .editor-inline-code__editing-marker"),
+      ).toBeNull();
+      expect(
+        container.querySelector(".editor-inline-code__composing-content"),
+      ).not.toBeNull();
+      for (const key of ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"]) {
+        const selection = view.state.selection;
+        const event = new KeyboardEvent("keydown", {
+          key,
+          bubbles: true,
+          cancelable: true,
+          isComposing: true,
+        });
+        view.dom.dispatchEvent(event);
+        expect(event.defaultPrevented).toBe(false);
+        expect(view.state.selection.eq(selection)).toBe(true);
+      }
+    }
+
+    view.dom.dispatchEvent(
       new CompositionEvent("compositionend", { bubbles: true }),
     );
     await new Promise((resolve) => window.setTimeout(resolve, 35));
