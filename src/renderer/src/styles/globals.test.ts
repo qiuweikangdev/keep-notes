@@ -160,12 +160,12 @@ describe("workspace layout surface styles", () => {
     );
   });
 
-  it("uses a restrained minimal tab divider and compacts the single-tab state", () => {
+  it("aligns minimal tab dividers and compacts the single-tab state", () => {
     expect(stylesheet).toMatch(
       /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tablist"\]\s*\{[\s\S]*position:\s*relative;/,
     );
     expect(stylesheet).toMatch(
-      /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tablist"\]::before\s*\{[\s\S]*top:\s*8px;[\s\S]*bottom:\s*8px;[\s\S]*width:\s*1px;[\s\S]*color-mix\(/,
+      /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tablist"\]::before\s*\{[\s\S]*top:\s*0;[\s\S]*bottom:\s*0;[\s\S]*width:\s*1px;[\s\S]*background-color:\s*var\(--border-color\);/,
     );
     expect(stylesheet).toMatch(
       /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tablist"\]:empty::before,[\s\S]*\.workspace-shell\[data-sidebar-collapsed="false"\][\s\S]*\.editor-tab-bar[\s\S]*\[role="tablist"\]::before\s*\{[\s\S]*display:\s*none;/,

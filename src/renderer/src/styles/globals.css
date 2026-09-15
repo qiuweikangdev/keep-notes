@@ -2004,16 +2004,12 @@ html[data-layout="minimal"]:has(
 [data-layout="minimal"] .editor-tab-bar [role="tablist"]::before {
   content: "";
   position: absolute;
-  top: 8px;
-  bottom: 8px;
+  top: 0;
+  bottom: 0;
   left: 0;
   width: 1px;
   border-radius: 1px;
-  background-color: color-mix(
-    in srgb,
-    var(--border-color) 68%,
-    transparent
-  );
+  background-color: var(--border-color);
   pointer-events: none;
 }
 [data-layout="minimal"] .editor-tab-bar [role="tablist"]:empty::before,
