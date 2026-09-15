@@ -69,6 +69,22 @@ describe("quick editor window stylesheet", () => {
     expect(scrollRule).toMatch(/overflow:\s*auto;/);
   });
 
+  it("shows a scrollbar only after editor content exceeds the surface", () => {
+    const scrollRule = stylesheet.match(
+      /\.quick-editor-window__scroll\s*\{([\s\S]*?)\n\}/,
+    )?.[1];
+    const editorRule = stylesheet.match(
+      /\.quick-editor-window__editor \.bn-editor\s*\{([\s\S]*?)\n\}/,
+    )?.[1];
+
+    expect(scrollRule).toMatch(/overflow:\s*auto;/);
+    expect(editorRule).toMatch(/min-height:\s*100%;/);
+    expect(scrollRule).not.toMatch(/scrollbar-width:\s*none;/);
+    expect(stylesheet).not.toMatch(
+      /\.quick-editor-window__scroll::-webkit-scrollbar/,
+    );
+  });
+
   it("shows menu trigger focus without a border ring", () => {
     const menuFocusRule = stylesheet.match(
       /\.quick-editor-window__action--menu:focus-visible\s*\{([\s\S]*?)\n\}/,

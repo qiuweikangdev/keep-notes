@@ -159,6 +159,7 @@ describe("reminder window global shortcut", () => {
       transparent: true,
       alwaysOnTop: true,
       skipTaskbar: true,
+      hasShadow: process.platform === "win32",
     });
     expect(win.loadFile).toHaveBeenCalledWith(
       expect.stringMatching(/renderer[\\/]index\.html$/),

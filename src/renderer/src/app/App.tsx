@@ -12,6 +12,7 @@ import {
 import { ExportController, ExportSuccessToast } from "@/features/export";
 import { HomePage } from "@/pages/home";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import type { ReactNode } from "react";
 import { useUIStore } from "@/store/ui.store";
 import { useShortcutsStore } from "@/store/shortcuts.store";
 import { useReminderStore } from "@/store/reminder.store";
@@ -33,6 +34,23 @@ const APP_THEME_NAMES: readonly ThemeName[] = [
   "minimal",
   "system",
 ];
+
+type WindowSurfaceProps = {
+  children: ReactNode;
+};
+
+function WindowSurface({ children }: WindowSurfaceProps) {
+  const isWindows = window.electronAPI?.getPlatform?.() === "win32";
+
+  return (
+    <div
+      className="window-surface-host"
+      data-window-platform={isWindows ? "windows" : undefined}
+    >
+      {children}
+    </div>
+  );
+}
 
 function getInitialReminderWindowTheme(): ThemeName {
   const theme = new URLSearchParams(window.location.search).get("theme");
@@ -436,7 +454,8 @@ function MainApplication() {
   const windowStyle = {
     backgroundColor: "var(--bg-primary)",
     color: "var(--text-primary)",
-    height: "100vh",
+    width: "100%",
+    height: "100%",
     display: "flex",
     flexDirection: "column" as const,
     overflow: "hidden",
@@ -446,31 +465,33 @@ function MainApplication() {
   return (
     <Tooltip.Provider delayDuration={300}>
       <DragResizeProvider>
-        <div className="app-window-surface" style={windowStyle}>
-          {/* 保留编辑器实例和滚动位置，路由切换时隐藏工作区。 */}
-          <div
-            hidden={isSettingsOpen}
-            className="min-h-0 flex-1"
-            style={{
-              display: isSettingsOpen ? "none" : "flex",
-              flexDirection: "column",
-            }}
-          >
-            <HomePage />
+        <WindowSurface>
+          <div className="app-window-surface" style={windowStyle}>
+            {/* 保留编辑器实例和滚动位置，路由切换时隐藏工作区。 */}
+            <div
+              hidden={isSettingsOpen}
+              className="min-h-0 flex-1"
+              style={{
+                display: isSettingsOpen ? "none" : "flex",
+                flexDirection: "column",
+              }}
+            >
+              <HomePage />
+            </div>
+            <SettingsPage />
+            <SearchModal
+              isOpen={isSearchOpen}
+              onClose={() => setIsSearchOpen(false)}
+            />
+            <ReminderEditorDialog />
+            <ReminderListDialog />
+            {APP_BEHAVIOR_CONFIG.notifications.showInAppReminderNotification ? (
+              <ReminderNotificationToast />
+            ) : null}
+            <ExportController />
+            <ExportSuccessToast />
           </div>
-          <SettingsPage />
-          <SearchModal
-            isOpen={isSearchOpen}
-            onClose={() => setIsSearchOpen(false)}
-          />
-          <ReminderEditorDialog />
-          <ReminderListDialog />
-          {APP_BEHAVIOR_CONFIG.notifications.showInAppReminderNotification ? (
-            <ReminderNotificationToast />
-          ) : null}
-          <ExportController />
-          <ExportSuccessToast />
-        </div>
+        </WindowSurface>
       </DragResizeProvider>
     </Tooltip.Provider>
   );
@@ -507,13 +528,13 @@ function ReminderWindowApplication() {
   return (
     <Tooltip.Provider delayDuration={300}>
       <DragResizeProvider>
-        <div className="h-screen w-screen overflow-hidden bg-transparent">
+        <WindowSurface>
           <ReminderListDialog
             key={viewKey}
             presentation="floating-window"
             onRequestClose={() => window.electronAPI.hideReminderWindow?.()}
           />
-        </div>
+        </WindowSurface>
       </DragResizeProvider>
     </Tooltip.Provider>
   );
@@ -588,12 +609,12 @@ function ReminderEditorWindowApplication() {
   return (
     <Tooltip.Provider delayDuration={300}>
       <DragResizeProvider>
-        <div className="h-screen w-screen overflow-hidden bg-transparent">
+        <WindowSurface>
           <ReminderEditorDialog
             key={activeRequest?.requestId ?? "prewarm"}
             presentation="floating-window"
           />
-        </div>
+        </WindowSurface>
       </DragResizeProvider>
     </Tooltip.Provider>
   );
@@ -607,9 +628,9 @@ function QuickEditorWindowApplication() {
   return (
     <Tooltip.Provider delayDuration={300}>
       <DragResizeProvider>
-        <div className="h-screen w-screen overflow-hidden bg-transparent">
+        <WindowSurface>
           <QuickEditorWindow />
-        </div>
+        </WindowSurface>
       </DragResizeProvider>
     </Tooltip.Provider>
   );

@@ -437,6 +437,10 @@ describe("App shortcuts", () => {
     expect(document.querySelector(".app-window-surface")).toHaveStyle({
       borderRadius: "10px",
     });
+    expect(document.querySelector(".window-surface-host")).toHaveAttribute(
+      "data-window-platform",
+      "windows",
+    );
   });
 
   it("applies live main application theme updates to the reminder window", () => {

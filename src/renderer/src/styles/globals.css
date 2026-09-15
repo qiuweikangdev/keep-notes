@@ -594,6 +594,25 @@ body.light {
   -moz-osx-font-smoothing: auto;
 }
 
+/* Windows 透明无边框窗口需要在内容外围留出空间，渲染层阴影才不会被窗口边界裁掉。 */
+.window-surface-host {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+}
+
+.window-surface-host[data-window-platform="windows"] {
+  padding: 6px;
+}
+
+.window-surface-host[data-window-platform="windows"] > .app-window-surface,
+.window-surface-host[data-window-platform="windows"] > .quick-editor-window {
+  box-shadow:
+    0 3px 10px rgb(0 0 0 / 28%),
+    0 1px 3px rgb(0 0 0 / 18%);
+}
+
 button {
   transition: none !important;
 }

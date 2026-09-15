@@ -60,6 +60,20 @@ describe("global scrollbar styles", () => {
   });
 });
 
+describe("Windows window surface styles", () => {
+  it("leaves a transparent perimeter for shadows around app and floating editor windows", () => {
+    expect(stylesheet).toMatch(
+      /\.window-surface-host\s*\{[\s\S]*width:\s*100%;[\s\S]*height:\s*100%;[\s\S]*overflow:\s*hidden;[\s\S]*background:\s*transparent;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.window-surface-host\[data-window-platform="windows"\]\s*\{[\s\S]*padding:\s*6px;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.window-surface-host\[data-window-platform="windows"\]\s*>\s*\.app-window-surface,[\s\S]*\.window-surface-host\[data-window-platform="windows"\]\s*>\s*\.quick-editor-window\s*\{[\s\S]*box-shadow:/,
+    );
+  });
+});
+
 describe("shared selection interaction styles", () => {
   it("balances perceived contrast across the sidebar and command palette", () => {
     expect(stylesheet).toMatch(

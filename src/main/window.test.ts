@@ -195,6 +195,7 @@ describe("createWindow", () => {
         backgroundColor: "#00000000",
         frame: false,
         transparent: true,
+        hasShadow: true,
       }),
     );
   });

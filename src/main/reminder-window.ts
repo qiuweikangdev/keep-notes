@@ -21,6 +21,8 @@ const REMINDER_EDITOR_WINDOW_MAX_HEIGHT = 700;
 const REMINDER_EDITOR_LAYER_OFFSET_Y = 40;
 const MAX_GLOBAL_SHORTCUTS = 4;
 export const DEFAULT_REMINDER_SHORTCUT = "CmdOrCtrl+Alt+R";
+// 透明无边框提醒浮窗在 Windows 上显式开启原生阴影，其他平台保留现有材质策略。
+const IS_WINDOWS = process.platform === "win32";
 const THEME_NAMES: readonly ThemeName[] = [
   "light",
   "dark",
@@ -260,7 +262,7 @@ function createReminderEditorWindow(): BrowserWindow {
     skipTaskbar: true,
     alwaysOnTop: true,
     backgroundColor: "#00000000",
-    hasShadow: false,
+    hasShadow: IS_WINDOWS,
     ...(!process.platform.startsWith("darwin") ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, "../preload/index.mjs"),
@@ -474,7 +476,7 @@ export function showReminderWindow(): BrowserWindow {
     skipTaskbar: true,
     alwaysOnTop: true,
     backgroundColor: "#00000000",
-    hasShadow: false,
+    hasShadow: IS_WINDOWS,
     ...(!process.platform.startsWith("darwin") ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, "../preload/index.mjs"),
