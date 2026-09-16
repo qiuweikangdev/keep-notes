@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import {
-  ArrowLeftRight,
+  CodeXml,
+  FileText,
   FolderSearch,
   GitCompare,
   ListTree,
@@ -19,6 +20,7 @@ const itemClassName =
 interface QuickEditorActionsMenuProps {
   isOutlineOpen: boolean;
   isOutlineDisabled: boolean;
+  isSourceMode: boolean;
   onCompare?: () => void;
   onDiscard?: () => void;
   onRevealInFileManager?: () => void;
@@ -75,10 +77,16 @@ export function QuickEditorActionsMenu(props: QuickEditorActionsMenuProps) {
             {props.isOutlineOpen ? "隐藏大纲" : "显示大纲"}
           </ActionItem>
           <ActionItem
-            icon={<ArrowLeftRight aria-hidden="true" size={14} />}
+            icon={
+              props.isSourceMode ? (
+                <FileText aria-hidden="true" size={14} />
+              ) : (
+                <CodeXml aria-hidden="true" size={14} />
+              )
+            }
             onSelect={props.onToggleEditorMode}
           >
-            编辑模式切换
+            {props.isSourceMode ? "切换到富文本模式" : "切换到源码模式"}
           </ActionItem>
           {props.onSave ? (
             <ActionItem

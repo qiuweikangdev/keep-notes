@@ -1391,6 +1391,7 @@ export function QuickEditorWindow() {
             <QuickEditorActionsMenu
               isOutlineOpen={isOutlineOpen}
               isOutlineDisabled={editorIsHidden || editorMode === "source"}
+              isSourceMode={editorMode === "source"}
               onToggleEditorMode={() => void handleToggleEditorMode()}
               onToggleOutline={() =>
                 setOutlineVisibility(!isOutlineOpenRef.current)

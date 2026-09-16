@@ -530,7 +530,7 @@ export function EditorWorkspace({
       />
       <div className="min-h-0 flex-1 overflow-hidden">
         {tabMode === "source" ? (
-          <div className="flex h-full min-h-0 flex-col">
+          <div className="editor-source-pane flex h-full min-h-0 flex-col">
             {tabParseErrorMessage ? (
               <div
                 role="status"

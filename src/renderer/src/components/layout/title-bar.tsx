@@ -9,11 +9,12 @@ import {
   GitBranch,
   ArrowLeft,
   ArrowRight,
-  ArrowLeftRight,
   Bell,
   ChevronDown,
   ChevronRight,
   Check,
+  CodeXml,
+  FileText,
   MoreHorizontal,
   ExternalLink,
   PictureInPicture2,
@@ -62,6 +63,7 @@ interface TitleBarProps {
   compactTabs?: ReactNode;
   editorActions?: {
     hasActiveTab: boolean;
+    isSourceMode: boolean;
     canOpenFloatingWindow: boolean;
     onOpenFloatingWindow: () => void;
     onNewTab: () => void;
@@ -709,8 +711,17 @@ export function TitleBar({
                             style={{ color: "var(--text-primary)" }}
                             onSelect={editorActions.onModeToggle}
                           >
-                            <ArrowLeftRight className="h-4 w-4" />
-                            <span>编辑模式切换</span>
+                            {editorActions.isSourceMode ? (
+                              <>
+                                <FileText className="h-4 w-4" />
+                                <span>切换到富文本模式</span>
+                              </>
+                            ) : (
+                              <>
+                                <CodeXml className="h-4 w-4" />
+                                <span>切换到源码模式</span>
+                              </>
+                            )}
                           </DropdownMenu.Item>
                           <DropdownMenu.Separator className="my-1 h-px bg-[var(--border-color)]" />
                           <DropdownMenu.Item

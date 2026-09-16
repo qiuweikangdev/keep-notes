@@ -150,7 +150,7 @@ describe("editor tab keyboard interaction", () => {
       "新建标签页",
       "浮动窗口",
       "在资源管理器中显示",
-      "编辑模式切换",
+      "切换到源码模式",
       "向右拆分",
       "向下拆分",
     ]);
@@ -161,7 +161,7 @@ describe("editor tab keyboard interaction", () => {
     render(<EditorTabBar groupId="group" />);
 
     fireEvent.contextMenu(screen.getAllByRole("tab")[1]);
-    fireEvent.click(screen.getByRole("menuitem", { name: "编辑模式切换" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "切换到源码模式" }));
 
     await waitFor(() => {
       expect(useEditorStore.getState().panelGroups[0].tabs[1].mode).toBe(

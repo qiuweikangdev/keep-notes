@@ -257,13 +257,15 @@ describe("quick editor content detection", () => {
     expect(screen.getByRole("textbox")).toHaveFocus();
 
     await user.click(screen.getByRole("button", { name: "更多操作" }));
-    await user.click(screen.getByRole("menuitem", { name: "编辑模式切换" }));
+    await user.click(screen.getByRole("menuitem", { name: "切换到源码模式" }));
     expect(
       await screen.findByRole("textbox", { name: "Markdown 源码" }),
     ).toHaveValue("### 222");
 
     await user.click(screen.getByRole("button", { name: "更多操作" }));
-    await user.click(screen.getByRole("menuitem", { name: "编辑模式切换" }));
+    await user.click(
+      screen.getByRole("menuitem", { name: "切换到富文本模式" }),
+    );
     expect(await screen.findByText("222")).toBeInTheDocument();
 
     const markup = `<section class="card">\n  <strong>浮窗源码</strong>\n</section>`;

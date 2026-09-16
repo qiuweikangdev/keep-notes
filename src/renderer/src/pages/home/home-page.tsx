@@ -275,6 +275,7 @@ function HomePageContent() {
         compactTabs={isMinimal ? null : undefined}
         editorActions={{
           hasActiveTab: Boolean(editorActions.tab),
+          isSourceMode: editorActions.tab?.mode === "source",
           canOpenFloatingWindow: true,
           onOpenFloatingWindow: () => {
             void editorActions.handleOpenFloatingWindow();

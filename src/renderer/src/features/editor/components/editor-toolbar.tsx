@@ -1,5 +1,6 @@
 import {
-  ArrowLeftRight,
+  CodeXml,
+  FileText,
   FolderSearch,
   GitCompare,
   MoreHorizontal,
@@ -92,10 +93,18 @@ export function EditorToolbar({
               <>
                 <DropdownMenu.Separator className="my-1 h-px bg-[var(--border-color)]" />
                 <EditorActionMenuItem
-                  icon={<ArrowLeftRight className="h-3.5 w-3.5" />}
+                  icon={
+                    tab.mode === "source" ? (
+                      <FileText className="h-3.5 w-3.5" />
+                    ) : (
+                      <CodeXml className="h-3.5 w-3.5" />
+                    )
+                  }
                   onSelect={handleModeToggle}
                 >
-                  编辑模式切换
+                  {tab.mode === "source"
+                    ? "切换到富文本模式"
+                    : "切换到源码模式"}
                 </EditorActionMenuItem>
               </>
             ) : null}

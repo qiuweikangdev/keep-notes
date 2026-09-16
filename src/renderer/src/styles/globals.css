@@ -520,6 +520,15 @@ textarea[aria-label="Markdown 源码"] {
   outline: none !important;
 }
 
+/* 源码模式用完整细边框标记编辑面板，保持背景统一且不干扰正文。 */
+.editor-source-pane {
+  border: 1px solid color-mix(
+    in srgb,
+    var(--border-color) 70%,
+    var(--text-secondary)
+  );
+}
+
 ::highlight(keep-notes-find-match) {
   background-color: color-mix(in srgb, var(--accent-color) 38%, transparent);
   color: inherit;

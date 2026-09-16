@@ -121,6 +121,12 @@ describe("markdown source editor surface styles", () => {
       /textarea\[aria-label="Markdown 源码"\]\s*\{[\s\S]*border:\s*0 !important;[\s\S]*border-radius:\s*0;[\s\S]*box-shadow:\s*none !important;[\s\S]*outline:\s*none !important;/,
     );
   });
+
+  it("marks source mode with a restrained outer border", () => {
+    expect(stylesheet).toMatch(
+      /\.editor-source-pane\s*\{[\s\S]*border:\s*1px solid color-mix\(\s*in srgb,\s*var\(--border-color\) 70%,\s*var\(--text-secondary\)\s*\);/,
+    );
+  });
 });
 
 describe("workspace layout surface styles", () => {

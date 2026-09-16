@@ -1,7 +1,7 @@
 import { useEditorStore } from "@/store/editor.store";
 import {
-  ArrowLeftRight,
   AlertCircle,
+  CodeXml,
   FileText,
   FolderSearch,
   GitCompare,
@@ -654,13 +654,21 @@ export function EditorTabBar({
                 <>
                   <MenuDivider />
                   <MenuButton
-                    icon={<ArrowLeftRight className="h-3.5 w-3.5" />}
+                    icon={
+                      contextTab.mode === "source" ? (
+                        <FileText className="h-3.5 w-3.5" />
+                      ) : (
+                        <CodeXml className="h-3.5 w-3.5" />
+                      )
+                    }
                     onClick={() => {
                       setContextMenu(null);
                       handleModeToggle();
                     }}
                   >
-                    编辑模式切换
+                    {contextTab.mode === "source"
+                      ? "切换到富文本模式"
+                      : "切换到源码模式"}
                   </MenuButton>
                 </>
               ) : null}

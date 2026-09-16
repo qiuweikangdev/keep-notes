@@ -203,6 +203,7 @@ describe("TitleBar", () => {
         compactTabs={<div role="tablist" aria-label="编辑器标签页" />}
         editorActions={{
           hasActiveTab: true,
+          isSourceMode: false,
           canOpenFloatingWindow: true,
           onOpenFloatingWindow: testState.onOpenFloatingWindow,
           onNewTab: testState.onNewTab,
@@ -225,7 +226,7 @@ describe("TitleBar", () => {
     ).toEqual([
       "新建标签页",
       "打开方式",
-      "编辑模式切换",
+      "切换到源码模式",
       "向右拆分",
       "向下拆分",
       "Git 操作",
@@ -235,7 +236,7 @@ describe("TitleBar", () => {
     ]);
 
     await user.click(
-      within(menu).getByRole("menuitem", { name: "编辑模式切换" }),
+      within(menu).getByRole("menuitem", { name: "切换到源码模式" }),
     );
     expect(testState.onModeToggle).toHaveBeenCalledOnce();
 
@@ -267,6 +268,7 @@ describe("TitleBar", () => {
         compactTabs={<div role="tablist" aria-label="编辑器标签页" />}
         editorActions={{
           hasActiveTab: false,
+          isSourceMode: false,
           canOpenFloatingWindow: true,
           onOpenFloatingWindow,
           onNewTab: vi.fn(),
@@ -293,6 +295,33 @@ describe("TitleBar", () => {
 
     await user.click(within(menu).getByRole("menuitem", { name: "浮动窗口" }));
     expect(onOpenFloatingWindow).toHaveBeenCalledOnce();
+  });
+
+  it("shows rich text as the target while the active tab is in source mode", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <TitleBar
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+        compactTabs={<div role="tablist" aria-label="编辑器标签页" />}
+        editorActions={{
+          hasActiveTab: true,
+          isSourceMode: true,
+          canOpenFloatingWindow: true,
+          onOpenFloatingWindow: vi.fn(),
+          onNewTab: vi.fn(),
+          onModeToggle: vi.fn(),
+          onSplitRight: vi.fn(),
+          onSplitDown: vi.fn(),
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    expect(
+      screen.getByRole("menuitem", { name: "切换到富文本模式" }),
+    ).toBeInTheDocument();
   });
 
   it("shows compact-layout navigation when expanded and hides it when collapsed", () => {
