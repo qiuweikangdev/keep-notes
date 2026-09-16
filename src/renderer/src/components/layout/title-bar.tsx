@@ -11,11 +11,29 @@ import {
   ArrowRight,
   Bell,
   ChevronDown,
+  ChevronRight,
+  Check,
+  CodeXml,
+  FileText,
+  MoreHorizontal,
+  ExternalLink,
+  PictureInPicture2,
+  Plus,
+  SplitSquareHorizontal,
+  SplitSquareVertical,
 } from "lucide-react";
 import { useUIStore } from "@/store/ui.store";
 import { useEditorStore } from "@/store/editor.store";
 import { useTheme } from "@/hooks/use-theme";
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
+import type { ReactNode } from "react";
 import { GitPanel } from "@/features/git";
 import { useElectron } from "@/hooks/use-electron";
 import { useTreeStore } from "@/store/tree.store";
@@ -31,6 +49,7 @@ import { SidebarToggleButton } from "./sidebar-toggle-button";
 import {
   MAC_TITLE_BAR_HEIGHT,
   MAC_TRAFFIC_LIGHT_PLACEHOLDER_WIDTH,
+  MINIMAL_TITLE_BAR_HEIGHT,
 } from "@shared/title-bar";
 import type {
   ExternalOpenApp,
@@ -41,19 +60,69 @@ import type {
 interface TitleBarProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
+  compactTabs?: ReactNode;
+  editorActions?: {
+    hasActiveTab: boolean;
+    isSourceMode: boolean;
+    canOpenFloatingWindow: boolean;
+    onOpenFloatingWindow: () => void;
+    onNewTab: () => void;
+    onModeToggle: () => void;
+    onSplitRight: () => void;
+    onSplitDown: () => void;
+  };
 }
 
-export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
+export function TitleBar({
+  collapsed,
+  onToggleCollapse,
+  compactTabs,
+  editorActions,
+}: TitleBarProps) {
+  const isMinimal = compactTabs !== undefined;
   const setSettingsOpen = useUIStore((state) => state.setSettingsOpen);
   const appearance = useEditorStore((state) => state.appearance);
   const setAppearance = useEditorStore((state) => state.setAppearance);
-  const { isDark, toggleTheme } = useTheme();
+  const { isDark, toggleTheme } = useTheme({ transparentBackground: true });
   const [isGitOpen, setIsGitOpen] = useState(false);
   const [isGitRepo, setIsGitRepo] = useState(false);
   const [externalOpenApps, setExternalOpenApps] = useState<ExternalOpenApp[]>(
     [],
   );
   const titleBarRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const bar = titleBarRef.current;
+    const workspace = bar?.closest<HTMLElement>(".workspace-shell");
+    if (!bar || !workspace || !isMinimal) return;
+    const controls = Array.from(
+      bar.querySelectorAll<HTMLElement>(
+        ".workspace-title-launcher, .workspace-title-actions",
+      ),
+    );
+    const navigation = bar.querySelector<HTMLElement>(
+      ".workspace-title-navigation",
+    );
+    const sync = () => {
+      workspace.style.setProperty(
+        "--workspace-actions-width",
+        `${controls.reduce((width, control) => width + control.getBoundingClientRect().width, 0)}px`,
+      );
+      workspace.style.setProperty(
+        "--workspace-title-height",
+        `${bar.getBoundingClientRect().height}px`,
+      );
+      workspace.style.setProperty(
+        "--workspace-navigation-width",
+        `${navigation?.getBoundingClientRect().width ?? 190}px`,
+      );
+    };
+    sync();
+    const observer = new ResizeObserver(sync);
+    controls.forEach((control) => observer.observe(control));
+    observer.observe(bar);
+    if (navigation) observer.observe(navigation);
+    return () => observer.disconnect();
+  }, [isMinimal]);
   const { detectGitRepo, openFile } = useElectron();
 
   const treeRoot = useTreeStore((state) => state.treeRoot);
@@ -63,6 +132,9 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
     externalOpenApps,
     appearance.defaultExternalOpenApp,
   );
+  const availableExternalOpenApps = externalOpenApps.filter(
+    (app) => app.available,
+  );
 
   // 文件导航历史状态
   const historyRef = useRef<{ files: string[]; index: number }>({
@@ -71,6 +143,9 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
   });
   const [, forceUpdate] = useState(0);
   const isNavigatingRef = useRef(false);
+  // 展开状态保留固定的导航占位，收起状态隐藏箭头以减少顶部空白。
+  const showFileHistoryNavigation =
+    appearance.showFileHistoryNavigation && !collapsed;
 
   // 平台判断
   const isMac = useMemo(() => {
@@ -93,7 +168,7 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
     const onMouseDown = (e: MouseEvent) => {
       if (e.button !== 0) return;
       const target = e.target as HTMLElement;
-      if (target.closest("button")) return;
+      if (target.closest("button, [role=tab], input")) return;
       const requestId = ++dragRequestId;
       pendingDrag = false;
       dragging = false;
@@ -273,125 +348,163 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
       <div
         ref={titleBarRef}
         data-testid="title-bar"
-        className="flex items-center select-none"
+        className="workspace-title-bar flex flex-shrink-0 items-center select-none"
         onDoubleClick={(e) => {
-          if ((e.target as HTMLElement).closest("button")) return;
+          if ((e.target as HTMLElement).closest("button, [role=tab], input"))
+            return;
           window.electronAPI.maximizeWindow();
         }}
         style={{
           // macOS 与原生红绿灯共享同一高度基准，避免左上角操作区视觉偏移。
-          height: isMac ? `${MAC_TITLE_BAR_HEIGHT}px` : "44px",
-          backgroundColor: "var(--bg-primary)",
-          borderBottom: "1px solid var(--border-color)",
+          height: isMinimal
+            ? `${MINIMAL_TITLE_BAR_HEIGHT}px`
+            : isMac
+              ? `${MAC_TITLE_BAR_HEIGHT}px`
+              : "44px",
+          backgroundColor: "var(--title-bar-background, var(--bg-primary))",
+          borderBottom:
+            "var(--title-bar-border, 1px solid var(--border-color))",
         }}
       >
-        {/* macOS: 红绿灯按钮区域预留空间（78px），Windows: 无 */}
-        {isMac && (
-          <div
-            data-testid="mac-traffic-light-spacer"
-            className="h-full flex-shrink-0"
-            style={{ width: `${MAC_TRAFFIC_LIGHT_PLACEHOLDER_WIDTH}px` }}
-          />
-        )}
+        <div
+          className="workspace-title-navigation flex h-full shrink-0 items-center"
+          style={
+            isMinimal
+              ? {
+                  width: collapsed ? "auto" : "var(--workspace-sidebar-width)",
+                  minWidth: 0,
+                  paddingRight: collapsed ? "8px" : 0,
+                }
+              : undefined
+          }
+        >
+          {/* macOS: 红绿灯按钮区域预留空间（78px），Windows: 无 */}
+          {isMac && (
+            <div
+              data-testid="mac-traffic-light-spacer"
+              className="h-full flex-shrink-0"
+              style={{ width: `${MAC_TRAFFIC_LIGHT_PLACEHOLDER_WIDTH}px` }}
+            />
+          )}
 
-        {/* 左侧：侧边栏切换 + 导航箭头 */}
-        <div className="flex h-full items-center gap-1 pl-3">
-          <SidebarToggleButton
-            collapsed={collapsed}
-            onClick={onToggleCollapse}
-          />
-          {appearance.showFileHistoryNavigation && (
-            <>
-              <button
-                disabled={historyRef.current.index <= 0}
-                onClick={handleGoBack}
-                className="flex items-center justify-center w-8 h-8 rounded-md transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                style={{ color: "var(--text-muted)" }}
-                onMouseEnter={(e) => {
-                  if (historyRef.current.index > 0) {
-                    e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                    e.currentTarget.style.color = "var(--text-primary)";
+          {/* 左侧：侧边栏切换 + 导航箭头 */}
+          <div className="flex h-full shrink-0 items-center gap-1 pl-3">
+            <SidebarToggleButton
+              collapsed={collapsed}
+              onClick={onToggleCollapse}
+            />
+            {showFileHistoryNavigation && (
+              <>
+                <button
+                  disabled={historyRef.current.index <= 0}
+                  onClick={handleGoBack}
+                  className="flex items-center justify-center w-8 h-8 rounded-md transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                  style={{ color: "var(--text-muted)" }}
+                  onMouseEnter={(e) => {
+                    if (historyRef.current.index > 0) {
+                      e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                      e.currentTarget.style.color = "var(--text-primary)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                    e.currentTarget.style.color = "var(--text-muted)";
+                  }}
+                  title={
+                    historyRef.current.index > 0
+                      ? "返回上一个文件"
+                      : "没有历史记录"
                   }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "transparent";
-                  e.currentTarget.style.color = "var(--text-muted)";
-                }}
-                title={
-                  historyRef.current.index > 0
-                    ? "返回上一个文件"
-                    : "没有历史记录"
-                }
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </button>
-              <button
-                disabled={
-                  historyRef.current.index >=
-                  historyRef.current.files.length - 1
-                }
-                onClick={handleGoForward}
-                className="flex items-center justify-center w-8 h-8 rounded-md transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                style={{ color: "var(--text-muted)" }}
-                onMouseEnter={(e) => {
-                  if (
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+                <button
+                  disabled={
+                    historyRef.current.index >=
+                    historyRef.current.files.length - 1
+                  }
+                  onClick={handleGoForward}
+                  className="flex items-center justify-center w-8 h-8 rounded-md transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                  style={{ color: "var(--text-muted)" }}
+                  onMouseEnter={(e) => {
+                    if (
+                      historyRef.current.index <
+                      historyRef.current.files.length - 1
+                    ) {
+                      e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                      e.currentTarget.style.color = "var(--text-primary)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                    e.currentTarget.style.color = "var(--text-muted)";
+                  }}
+                  title={
                     historyRef.current.index <
                     historyRef.current.files.length - 1
-                  ) {
-                    e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                    e.currentTarget.style.color = "var(--text-primary)";
+                      ? "前进下一个文件"
+                      : "没有更多记录"
                   }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "transparent";
-                  e.currentTarget.style.color = "var(--text-muted)";
-                }}
-                title={
-                  historyRef.current.index < historyRef.current.files.length - 1
-                    ? "前进下一个文件"
-                    : "没有更多记录"
-                }
-              >
-                <ArrowRight className="h-4 w-4" />
-              </button>
-            </>
-          )}
+                >
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              </>
+            )}
+          </div>
         </div>
-
-        {/* 中间：搜索栏 */}
-        <div className="flex h-full flex-1 items-center justify-center px-4">
-          <button
-            onClick={() => window.dispatchEvent(new Event("open-search"))}
-            className="flex items-center gap-2 h-[30px] w-[320px] max-w-[50%] px-3 rounded-lg text-xs transition-all"
-            style={{
-              backgroundColor: "var(--bg-secondary)",
-              color: "var(--text-muted)",
-              border: "1px solid transparent",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor =
-                "var(--selection-row-hover)";
-              e.currentTarget.style.borderColor = "var(--border-color)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--bg-secondary)";
-              e.currentTarget.style.borderColor = "transparent";
-            }}
+        {/* 简约布局将标签页与操作入口合并，搜索仍可通过快捷键打开。 */}
+        {isMinimal && (
+          <div
+            data-compact-tabs
+            className="workspace-compact-tabs min-w-0 flex-1 h-full"
           >
-            <Search className="h-3.5 w-3.5" />
-            <span>搜索文件...</span>
-            <kbd
-              className="ml-auto text-[10px] px-1.5 py-0.5 rounded"
+            {compactTabs}
+          </div>
+        )}
+        <div
+          className={
+            isMinimal
+              ? "workspace-title-launcher flex h-full shrink-0 items-center px-1"
+              : "flex h-full flex-1 items-center justify-center px-4"
+          }
+        >
+          {!isMinimal && (
+            <button
+              onClick={() => window.dispatchEvent(new Event("open-search"))}
+              className="flex items-center gap-2 h-[28px] w-[280px] max-w-[50%] px-3 rounded-md text-xs transition-all"
               style={{
-                backgroundColor: "var(--bg-tertiary)",
+                backgroundColor: "var(--title-bar-control-bg)",
                 color: "var(--text-muted)",
+                border: "1px solid transparent",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor =
+                  "var(--selection-row-hover)";
+                e.currentTarget.style.borderColor = "var(--border-color)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor =
+                  "var(--title-bar-control-bg)";
+                e.currentTarget.style.borderColor = "transparent";
               }}
             >
-              ⌘P
-            </kbd>
-          </button>
+              <Search className="h-3.5 w-3.5" />
+              <span>搜索文件...</span>
+              <kbd
+                className="ml-auto text-[10px] px-1.5 py-0.5 rounded"
+                style={{
+                  backgroundColor: "var(--title-bar-key-bg)",
+                  color: "var(--text-muted)",
+                }}
+              >
+                ⌘P
+              </kbd>
+            </button>
+          )}
 
-          {appearance.showTitleBarQuickLauncher && effectiveExternalOpenApp ? (
+          {!isMinimal &&
+          appearance.showTitleBarQuickLauncher &&
+          effectiveExternalOpenApp ? (
             <div
               className="ml-1.5 flex h-[26px] flex-shrink-0 items-center overflow-hidden rounded-md"
               style={{
@@ -480,8 +593,212 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
         </div>
 
         {/* 右侧：Git 图标 + 主题切换 + 窗口控制 */}
-        <div className="flex h-full items-center gap-1 pr-2">
+        <div className="workspace-title-actions flex h-full items-center gap-1 pr-2">
+          {isMinimal && (
+            <DropdownMenu.Root modal={false}>
+              <DropdownMenu.Trigger asChild>
+                <button
+                  type="button"
+                  data-testid="minimal-more-menu-trigger"
+                  aria-label="更多操作"
+                  title="更多操作"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
+                  style={{ color: "var(--text-muted)" }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                    e.currentTarget.style.color = "var(--text-primary)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                    e.currentTarget.style.color = "var(--text-muted)";
+                  }}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content
+                  align="end"
+                  sideOffset={6}
+                  className="z-[9999] min-w-[160px] rounded-lg border p-1 shadow-lg"
+                  style={{
+                    backgroundColor: "var(--bg-primary)",
+                    borderColor: "var(--border-color)",
+                  }}
+                >
+                  {editorActions ? (
+                    <DropdownMenu.Item
+                      className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"
+                      style={{ color: "var(--text-primary)" }}
+                      onSelect={editorActions.onNewTab}
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>新建标签页</span>
+                    </DropdownMenu.Item>
+                  ) : (
+                    <DropdownMenu.Item
+                      className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"
+                      style={{ color: "var(--text-primary)" }}
+                      onSelect={openReminderList}
+                    >
+                      <Bell className="h-4 w-4" />
+                      <span>提醒事项</span>
+                    </DropdownMenu.Item>
+                  )}
+                  {appearance.showTitleBarQuickLauncher && (
+                    <>
+                      {!editorActions && (
+                        <DropdownMenu.Separator className="my-1 h-px bg-[var(--border-color)]" />
+                      )}
+                      <DropdownMenu.Sub>
+                        <DropdownMenu.SubTrigger className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]">
+                          <ExternalLink className="h-4 w-4" />
+                          <span>打开方式</span>
+                          <ChevronRight className="ml-auto h-3.5 w-3.5" />
+                        </DropdownMenu.SubTrigger>
+                        <DropdownMenu.Portal>
+                          <DropdownMenu.SubContent
+                            sideOffset={4}
+                            alignOffset={-4}
+                            className="z-[9999] min-w-[168px] rounded-lg border p-1 shadow-lg"
+                            style={{
+                              backgroundColor: "var(--bg-primary)",
+                              borderColor: "var(--border-color)",
+                            }}
+                          >
+                            {availableExternalOpenApps.length > 0 ? (
+                              availableExternalOpenApps.map((app) => (
+                                <DropdownMenu.Item
+                                  key={app.id}
+                                  className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"
+                                  style={{ color: "var(--text-primary)" }}
+                                  onClick={() =>
+                                    handleSelectExternalOpenApp(app.id)
+                                  }
+                                >
+                                  <ExternalOpenAppIcon
+                                    appId={app.id}
+                                    iconDataUrl={app.iconDataUrl}
+                                    className="h-4 w-4"
+                                  />
+                                  <span className="flex-1">{app.label}</span>
+                                  {effectiveExternalOpenApp?.id === app.id && (
+                                    <Check className="h-3.5 w-3.5 text-[var(--accent-color)]" />
+                                  )}
+                                </DropdownMenu.Item>
+                              ))
+                            ) : (
+                              <DropdownMenu.Item
+                                disabled
+                                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs opacity-60"
+                                style={{ color: "var(--text-muted)" }}
+                              >
+                                暂无可用应用
+                              </DropdownMenu.Item>
+                            )}
+                          </DropdownMenu.SubContent>
+                        </DropdownMenu.Portal>
+                      </DropdownMenu.Sub>
+                    </>
+                  )}
+                  {editorActions && (
+                    <>
+                      {editorActions.hasActiveTab && (
+                        <>
+                          <DropdownMenu.Separator className="my-1 h-px bg-[var(--border-color)]" />
+                          <DropdownMenu.Item
+                            className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"
+                            style={{ color: "var(--text-primary)" }}
+                            onSelect={editorActions.onModeToggle}
+                          >
+                            {editorActions.isSourceMode ? (
+                              <>
+                                <FileText className="h-4 w-4" />
+                                <span>切换到富文本模式</span>
+                              </>
+                            ) : (
+                              <>
+                                <CodeXml className="h-4 w-4" />
+                                <span>切换到源码模式</span>
+                              </>
+                            )}
+                          </DropdownMenu.Item>
+                          <DropdownMenu.Separator className="my-1 h-px bg-[var(--border-color)]" />
+                          <DropdownMenu.Item
+                            className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"
+                            style={{ color: "var(--text-primary)" }}
+                            onSelect={editorActions.onSplitRight}
+                          >
+                            <SplitSquareHorizontal className="h-4 w-4" />
+                            <span>向右拆分</span>
+                          </DropdownMenu.Item>
+                          <DropdownMenu.Item
+                            className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"
+                            style={{ color: "var(--text-primary)" }}
+                            onSelect={editorActions.onSplitDown}
+                          >
+                            <SplitSquareVertical className="h-4 w-4" />
+                            <span>向下拆分</span>
+                          </DropdownMenu.Item>
+                          <DropdownMenu.Separator className="my-1 h-px bg-[var(--border-color)]" />
+                        </>
+                      )}
+                      {isGitRepo && (
+                        <DropdownMenu.Item
+                          className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"
+                          style={{ color: "var(--text-primary)" }}
+                          onSelect={() => setIsGitOpen(true)}
+                        >
+                          <GitBranch className="h-4 w-4" />
+                          <span>Git 操作</span>
+                        </DropdownMenu.Item>
+                      )}
+                      <DropdownMenu.Item
+                        className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"
+                        style={{ color: "var(--text-primary)" }}
+                        onSelect={openReminderList}
+                      >
+                        <Bell className="h-4 w-4" />
+                        <span>提醒事项</span>
+                      </DropdownMenu.Item>
+                      <DropdownMenu.Item
+                        disabled={!editorActions.canOpenFloatingWindow}
+                        className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)] disabled:pointer-events-none disabled:opacity-40"
+                        style={{ color: "var(--text-primary)" }}
+                        onSelect={editorActions.onOpenFloatingWindow}
+                      >
+                        <PictureInPicture2 className="h-4 w-4" />
+                        <span>浮动窗口</span>
+                      </DropdownMenu.Item>
+                    </>
+                  )}
+                  {!editorActions && isGitRepo && (
+                    <DropdownMenu.Item
+                      className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"
+                      style={{ color: "var(--text-primary)" }}
+                      onSelect={() => setIsGitOpen(true)}
+                    >
+                      <GitBranch className="h-4 w-4" />
+                      <span>Git 操作</span>
+                    </DropdownMenu.Item>
+                  )}
+                  {editorActions && (
+                    <DropdownMenu.Separator className="my-1 h-px bg-[var(--border-color)]" />
+                  )}
+                  <DropdownMenu.Item
+                    className="flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none data-[highlighted]:bg-[var(--selection-row-hover)]"
+                    style={{ color: "var(--text-primary)" }}
+                    onSelect={() => setSettingsOpen(true)}
+                  >
+                    <Settings className="h-4 w-4" />
+                    <span>设置</span>
+                  </DropdownMenu.Item>
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
+          )}
           <button
+            data-titlebar-secondary-action="true"
             onClick={openReminderList}
             className="flex h-8 w-8 items-center justify-center rounded-lg transition-all"
             style={{ color: "var(--text-muted)" }}
@@ -501,6 +818,7 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
           {/* Git 图标 - 仅在 Git 仓库中显示 */}
           {isGitRepo && (
             <button
+              data-titlebar-secondary-action="true"
               onClick={() => setIsGitOpen(true)}
               className="flex items-center justify-center w-8 h-8 rounded-lg transition-all"
               style={{ color: "var(--text-muted)" }}
@@ -518,27 +836,30 @@ export function TitleBar({ collapsed, onToggleCollapse }: TitleBarProps) {
             </button>
           )}
 
+          {!isMinimal && (
+            <button
+              onClick={toggleTheme}
+              className="flex items-center justify-center w-8 h-8 rounded-lg transition-all"
+              style={{ color: "var(--text-muted)" }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                e.currentTarget.style.color = "var(--text-primary)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.color = "var(--text-muted)";
+              }}
+              title={isDark ? "切换亮色主题" : "切换暗色主题"}
+            >
+              {isDark ? (
+                <Sun className="h-4 w-4" />
+              ) : (
+                <Moon className="h-4 w-4" />
+              )}
+            </button>
+          )}
           <button
-            onClick={toggleTheme}
-            className="flex items-center justify-center w-8 h-8 rounded-lg transition-all"
-            style={{ color: "var(--text-muted)" }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-              e.currentTarget.style.color = "var(--text-primary)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
-              e.currentTarget.style.color = "var(--text-muted)";
-            }}
-            title={isDark ? "切换亮色主题" : "切换暗色主题"}
-          >
-            {isDark ? (
-              <Sun className="h-4 w-4" />
-            ) : (
-              <Moon className="h-4 w-4" />
-            )}
-          </button>
-          <button
+            data-titlebar-secondary-action="true"
             onClick={() => setSettingsOpen(true)}
             className="flex items-center justify-center w-8 h-8 rounded-lg transition-all"
             style={{ color: "var(--text-muted)" }}

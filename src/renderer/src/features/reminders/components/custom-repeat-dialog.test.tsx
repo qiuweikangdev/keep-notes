@@ -32,6 +32,13 @@ describe("CustomRepeatDialog", () => {
     const footer = cancelButton.parentElement;
 
     expect(dialog).toHaveClass("max-w-[336px]", "rounded-xl");
+    expect(dialog.style.backgroundColor).toBe(
+      "color-mix(in srgb, var(--bg-tertiary) 56%, var(--bg-primary))",
+    );
+    expect(dialog.style.border).toBe(
+      "1px solid color-mix(in srgb, var(--border-color) 84%, var(--text-muted))",
+    );
+    expect(dialog.style.boxShadow).toBe("0 6px 8px rgb(0 0 0 / 38%)");
     expect(screen.getByText("重复规则")).toBeVisible();
     expect(heading).toHaveClass("flex", "items-center", "gap-2");
     expect(header).toHaveClass(

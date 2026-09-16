@@ -81,7 +81,11 @@ describe("SettingsPage about tab", () => {
       configurable: true,
       value: electronAPI,
     });
-    useUIStore.setState({ isSettingsOpen: true });
+    useUIStore.setState({
+      isSettingsOpen: true,
+      theme: "dark",
+      layout: "classic",
+    });
     useExportStore.setState({
       config: DEFAULT_EXPORT_CONFIG,
       isLoading: false,
@@ -181,6 +185,8 @@ describe("SettingsPage about tab", () => {
     render(<SettingsPage />);
 
     const themeLabel = screen.getByText("主题");
+    expect(screen.getByText("切换应用配色")).toBeInTheDocument();
+    expect(screen.queryByText("组件状态")).not.toBeInTheDocument();
     const defaultOpenTargetLabel = screen.getByText("默认打开目标");
 
     expect(themeLabel).toHaveClass("text-sm");
@@ -189,6 +195,115 @@ describe("SettingsPage about tab", () => {
     expect(defaultOpenTargetLabel).toHaveStyle({
       color: "var(--text-primary)",
     });
+  });
+
+  it("switches the full visual preset from the appearance theme dropdown", async () => {
+    useUIStore.setState({ theme: "dark" });
+    render(<SettingsPage />);
+
+    fireEvent.keyDown(
+      screen.getByRole("button", { name: "选择主题，当前为深色" }),
+      { key: "Enter" },
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "深黑色" }));
+
+    expect(useUIStore.getState().theme).toBe("minimal");
+  });
+
+  it("only exposes the supported appearance themes", async () => {
+    render(<SettingsPage />);
+
+    fireEvent.keyDown(
+      screen.getByRole("button", { name: "选择主题，当前为深色" }),
+      { key: "Enter" },
+    );
+
+    expect(
+      await screen.findByRole("menuitem", { name: "跟随系统" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "浅色" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "深色" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: "深黑色" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Nord" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Dracula" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Solarized" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows visual layout choices and switches to the minimal layout", () => {
+    render(<SettingsPage />);
+
+    const classic = screen.getByRole("radio", { name: "经典布局" });
+    const minimal = screen.getByRole("radio", { name: "简约布局" });
+
+    expect(classic).toHaveAttribute("aria-checked", "true");
+    expect(minimal).toHaveAttribute("aria-checked", "false");
+    expect(
+      classic.querySelector(".layout-preview__sidebar-empty-state"),
+    ).toBeInTheDocument();
+    expect(
+      classic.querySelector(".layout-preview__editor-tabbar"),
+    ).toBeInTheDocument();
+    expect(
+      classic.querySelector(".layout-preview__search-bar"),
+    ).toBeInTheDocument();
+    expect(
+      classic.querySelector(".layout-preview__titlebar-actions"),
+    ).toBeInTheDocument();
+    expect(
+      classic.querySelector(".layout-preview__minimal-tab"),
+    ).not.toBeInTheDocument();
+    expect(
+      minimal.querySelector(".layout-preview--minimal"),
+    ).toBeInTheDocument();
+    expect(
+      minimal.querySelector(".layout-preview__minimal-sidebar-panel"),
+    ).toBeInTheDocument();
+    expect(
+      minimal.querySelector(".layout-preview__minimal-editor-panel"),
+    ).toBeInTheDocument();
+    expect(
+      minimal.querySelector(".layout-preview__sidebar-row--active"),
+    ).toBeInTheDocument();
+    expect(
+      minimal.querySelector(".layout-preview__editor-heading"),
+    ).toBeInTheDocument();
+    expect(
+      minimal.querySelector(".layout-preview__editor-tabbar"),
+    ).not.toBeInTheDocument();
+    expect(
+      minimal.querySelector(".layout-preview__minimal-tab"),
+    ).toBeInTheDocument();
+    expect(
+      minimal.querySelector(".layout-preview__search-bar"),
+    ).not.toBeInTheDocument();
+    expect(
+      minimal.querySelector(".layout-preview__window-dots"),
+    ).not.toBeInTheDocument();
+    expect(
+      minimal.querySelector(".layout-preview__file-icon"),
+    ).not.toBeInTheDocument();
+    expect(
+      minimal.querySelector(".layout-preview__history-navigation"),
+    ).not.toBeInTheDocument();
+    expect(
+      minimal.querySelector(".layout-preview__tab-close"),
+    ).not.toBeInTheDocument();
+    expect(
+      minimal.querySelector(".layout-preview__titlebar-actions"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(minimal);
+
+    expect(useUIStore.getState().layout).toBe("minimal");
+    expect(minimal).toHaveAttribute("aria-checked", "true");
   });
 
   it("shows app metadata and triggers update checks from the about tab", async () => {

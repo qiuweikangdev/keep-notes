@@ -509,7 +509,7 @@ describe("markdownEquals", () => {
 });
 
 describe("repairMarkdownSourceBeforeParse", () => {
-  it("removes a terminal orphan marker left by an empty nested list item", () => {
+  it("preserves a terminal empty nested list item", () => {
     const source = [
       "* 列表1",
       "* 列表2",
@@ -520,16 +520,7 @@ describe("repairMarkdownSourceBeforeParse", () => {
       "",
     ].join("\n");
 
-    expect(repairMarkdownSourceBeforeParse(source)).toBe(
-      [
-        "* 列表1",
-        "* 列表2",
-        "* 列表3",
-        "  * 列表3-1",
-        "    * 列表3-1-1",
-        "",
-      ].join("\n"),
-    );
+    expect(repairMarkdownSourceBeforeParse(source)).toBe(source);
   });
 
   it("keeps a standalone literal star outside a list", () => {
@@ -542,7 +533,7 @@ describe("repairMarkdownSourceBeforeParse", () => {
     expect(repairMarkdownSourceBeforeParse(source)).toBe(source);
   });
 
-  it("recovers Chinese first-line content joined to a bash fence", () => {
+  it("does not reinterpret a fence info string as code content", () => {
     const source = [
       "核心步骤",
       "",
@@ -552,25 +543,15 @@ describe("repairMarkdownSourceBeforeParse", () => {
       "",
     ].join("\n");
 
-    expect(repairMarkdownSourceBeforeParse(source)).toBe(
-      [
-        "核心步骤",
-        "",
-        "```bash",
-        "写一个 while True 无限循环",
-        "不断从数据库查任务",
-        "```",
-        "",
-      ].join("\n"),
-    );
+    expect(repairMarkdownSourceBeforeParse(source)).toBe(source);
   });
 
-  it("canonicalizes a bash alias when recovering joined content", () => {
+  it("preserves language aliases and fence metadata", () => {
     expect(
       repairMarkdownSourceBeforeParse(
         "~~~sh echo ready\r\necho next\r\n~~~\r\n",
       ),
-    ).toBe("~~~bash\r\necho ready\r\necho next\r\n~~~\r\n");
+    ).toBe("~~~sh echo ready\r\necho next\r\n~~~\r\n");
   });
 
   it("leaves valid and unsupported fenced-code openings unchanged", () => {

@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FileTree } from "./file-tree";
 import { useEditorStore } from "@/store/editor.store";
 import { useTreeStore } from "@/store/tree.store";
+import { useUIStore } from "@/store/ui.store";
 import { CodeResult } from "@/types";
 import { DIFF_TOAST_EVENT } from "@/features/diff/lib/diff-toast";
 import { APP_TOAST_EVENT } from "@/lib/app-toast";
@@ -97,6 +98,7 @@ describe("FileTree context menu", () => {
         sidebarView: "file",
       },
     });
+    useUIStore.setState({ layout: "minimal" });
     useTreeStore.setState({
       treeData: [{ title: "daily.md", key: "/notes/daily.md" }],
       treeRoot: { title: "notes", key: "/notes" },
@@ -113,6 +115,62 @@ describe("FileTree context menu", () => {
     expect(
       screen.queryByRole("button", { name: "搜索文件" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("uses the same restrained empty state in the minimal layout", () => {
+    useTreeStore.setState({ treeRoot: null, treeData: [], recentFolders: [] });
+
+    render(<FileTree />);
+
+    expect(screen.getByTestId("file-tree-empty-state")).toHaveClass(
+      "file-tree-empty-state--minimal",
+    );
+    expect(screen.queryByText("尚未打开文件夹")).not.toBeInTheDocument();
+    expect(screen.queryByText("文件")).not.toBeInTheDocument();
+    expect(screen.getByText("没有打开的文件夹")).toHaveClass("text-[13px]");
+    expect(screen.queryByText("打开文件夹开始记录")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "打开文件夹..." }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "打开文件夹..." }));
+    expect(electronMocks.openFolder).toHaveBeenCalledOnce();
+  });
+
+  it("uses the centered empty state and bottom action in the classic layout", () => {
+    useUIStore.setState({ layout: "classic" });
+    useTreeStore.setState({ treeRoot: null, treeData: [], recentFolders: [] });
+
+    render(<FileTree />);
+
+    expect(screen.getByText("没有打开的文件夹")).toHaveClass("text-[13px]");
+    expect(screen.queryByText("尚未打开文件夹")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "打开文件夹..." }));
+    expect(electronMocks.openFolder).toHaveBeenCalledOnce();
+  });
+
+  it("keeps recent folders available from the minimal empty-state menu", () => {
+    useTreeStore.setState({
+      treeRoot: null,
+      treeData: [],
+      recentFolders: [{ title: "my-notes3", path: "/my-notes3" }],
+    });
+
+    render(<FileTree />);
+
+    expect(screen.queryByText("my-notes3")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "更多操作" }));
+    expect(screen.getByText("my-notes3")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "移除最近打开的文件夹 my-notes3",
+      }),
+    );
+
+    expect(useTreeStore.getState().recentFolders).toEqual([]);
+    expect(screen.queryByText("my-notes3")).not.toBeInTheDocument();
+    expect(electronMocks.loadDirectory).not.toHaveBeenCalled();
   });
 
   it("expands an unloaded directory immediately and loads its children in the background", () => {
@@ -214,6 +272,62 @@ describe("FileTree context menu", () => {
     expect(
       container.querySelector(".file-tree-scrollbar-thumb"),
     ).toBeInTheDocument();
+  });
+
+  it("shows bottom actions without moving the file tree or its icons", async () => {
+    const { container } = render(<FileTree />);
+    const tree = container.querySelector('[role="tree"]');
+    const content = tree?.parentElement;
+    const sidebar = content?.parentElement;
+    const bottomBar = container.querySelector('[style*="opacity"]');
+    const scrollContainer = container.querySelector(
+      ".file-tree-scroll-container",
+    ) as HTMLDivElement;
+    let scrollTop = 900;
+
+    Object.defineProperties(scrollContainer, {
+      clientHeight: { configurable: true, value: 100 },
+      scrollHeight: { configurable: true, value: 1000 },
+      scrollTop: {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value: number) => {
+          scrollTop = value;
+        },
+      },
+    });
+
+    expect(content).toHaveClass("flex-1", "py-2");
+    expect(content).not.toHaveClass("pb-12");
+    expect(bottomBar).toHaveClass(
+      "transition-opacity",
+      "duration-100",
+      "ease-in",
+    );
+    expect(bottomBar).not.toHaveClass("translate-y-1");
+    expect(bottomBar).toHaveStyle({ opacity: 0, pointerEvents: "none" });
+
+    fireEvent.scroll(scrollContainer);
+
+    fireEvent.mouseEnter(sidebar!);
+
+    expect(content).not.toHaveClass("pb-12");
+    expect(bottomBar).toHaveClass(
+      "transition-opacity",
+      "duration-150",
+      "ease-out",
+    );
+    expect(bottomBar).not.toHaveClass("translate-y-0");
+    expect(bottomBar).toHaveStyle({ opacity: 1, pointerEvents: "auto" });
+    expect(scrollTop).toBe(900);
+
+    fireEvent.mouseLeave(sidebar!);
+
+    await waitFor(() =>
+      expect(bottomBar).toHaveStyle({ opacity: 0, pointerEvents: "none" }),
+    );
+    expect(content).not.toHaveClass("pb-12");
+    expect(scrollTop).toBe(900);
   });
 
   it("scrolls the file tree when clicking the custom scrollbar track", () => {

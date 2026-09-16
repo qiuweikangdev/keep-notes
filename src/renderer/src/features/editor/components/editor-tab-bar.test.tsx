@@ -7,6 +7,8 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useEditorStore, type EditorTab } from "@/store/editor.store";
+import { useTreeStore } from "@/store/tree.store";
+import { useUIStore } from "@/store/ui.store";
 import { closeEditorTab } from "../lib/editor-tab-closing";
 import { EditorTabBar } from "./editor-tab-bar";
 import { editorSaveCoordinator } from "../lib/editor-runtime";
@@ -18,7 +20,9 @@ vi.mock("@/lib/app-toast", () => ({ showAppToast: vi.fn() }));
 vi.mock("@/hooks/use-electron", () => ({
   useElectron: () => ({ renameItem: tabMocks.renameItem }),
 }));
-vi.mock("./editor-toolbar", () => ({ EditorToolbar: () => null }));
+vi.mock("./editor-toolbar", () => ({
+  EditorToolbar: () => <button type="button" aria-label="标签页操作" />,
+}));
 vi.mock("../lib/editor-tab-closing", () => ({
   closeEditorTab: vi.fn(async () => true),
 }));
@@ -30,6 +34,8 @@ describe("editor tab keyboard interaction", () => {
   });
   beforeEach(() => {
     vi.clearAllMocks();
+    useUIStore.setState({ layout: "classic" });
+    useTreeStore.setState({ treeRoot: null });
     const tab: EditorTab = {
       id: "one",
       filePath: "/notes/one.md",
@@ -99,6 +105,9 @@ describe("editor tab keyboard interaction", () => {
 
   it("exposes named close controls without a standalone new tab action", () => {
     render(<EditorTabBar groupId="group" />);
+    expect(
+      screen.getByRole("button", { name: "标签页操作" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "关闭 one.md" })).toHaveAttribute(
       "tabindex",
       "0",
@@ -122,5 +131,63 @@ describe("editor tab keyboard interaction", () => {
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     expect(tab).toHaveFocus();
+  });
+
+  it("hides the configured toolbar actions in minimal layout", () => {
+    useUIStore.setState({ layout: "minimal" });
+    render(<EditorTabBar groupId="group" />);
+
+    expect(
+      screen.queryByRole("button", { name: "标签页操作" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.contextMenu(screen.getAllByRole("tab")[0]);
+    expect(
+      screen.getAllByRole("menuitem").map((item) => item.textContent),
+    ).toEqual([
+      "关闭",
+      "重命名",
+      "新建标签页",
+      "浮动窗口",
+      "在资源管理器中显示",
+      "切换到源码模式",
+      "向右拆分",
+      "向下拆分",
+    ]);
+  });
+
+  it("applies migrated actions to the tab that opened the context menu", async () => {
+    useUIStore.setState({ layout: "minimal" });
+    render(<EditorTabBar groupId="group" />);
+
+    fireEvent.contextMenu(screen.getAllByRole("tab")[1]);
+    fireEvent.click(screen.getByRole("menuitem", { name: "切换到源码模式" }));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().panelGroups[0].tabs[1].mode).toBe(
+        "source",
+      );
+    });
+    expect(useEditorStore.getState().panelGroups[0].tabs[0].mode).toBe("rich");
+  });
+
+  it("keeps an empty minimal pane actionable from its context menu", () => {
+    useUIStore.setState({ layout: "minimal" });
+    useEditorStore.setState({
+      panelGroups: [
+        {
+          id: "group",
+          direction: "horizontal",
+          activeTabId: "",
+          tabs: [],
+        },
+      ],
+    });
+    render(<EditorTabBar groupId="group" />);
+
+    fireEvent.contextMenu(screen.getByRole("tablist"));
+    expect(
+      screen.getAllByRole("menuitem").map((item) => item.textContent),
+    ).toEqual(["新建标签页", "向右拆分", "向下拆分"]);
   });
 });

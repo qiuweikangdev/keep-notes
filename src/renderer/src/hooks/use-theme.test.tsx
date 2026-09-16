@@ -43,7 +43,7 @@ function installColorSchemeMedia(initialMatches = false) {
 describe("useTheme", () => {
   beforeEach(() => {
     installColorSchemeMedia();
-    useUIStore.setState({ theme: "light" });
+    useUIStore.setState({ theme: "light", layout: "classic" });
     localStorage.clear();
   });
 
@@ -61,7 +61,113 @@ describe("useTheme", () => {
     expect(document.documentElement.classList.contains("dark")).toBe(true);
     expect(
       document.documentElement.style.getPropertyValue("--bg-primary"),
-    ).toBe("#23272e");
+    ).toBe("#23272f");
+  });
+
+  it("applies theme and layout as independent visual configurations", () => {
+    useUIStore.setState({ theme: "minimal", layout: "minimal" });
+
+    const { result } = renderHook(() => useTheme());
+
+    expect(result.current.isDark).toBe(true);
+    expect(document.documentElement.classList.contains("minimal")).toBe(true);
+    expect(document.documentElement.dataset.layout).toBe("minimal");
+    expect(
+      document.documentElement.style.getPropertyValue(
+        "--workspace-content-radius",
+      ),
+    ).toBe("0");
+    expect(
+      document.documentElement.style.getPropertyValue("--input-hover-border"),
+    ).toBe("#55555a");
+    expect(
+      document.documentElement.style.getPropertyValue("--editor-code-block-bg"),
+    ).toBe("#151517");
+  });
+
+  it("keeps the classic layout when only the theme changes", () => {
+    useUIStore.setState({ theme: "minimal", layout: "classic" });
+
+    renderHook(() => useTheme());
+
+    expect(document.documentElement.dataset.layout).toBe("classic");
+    expect(
+      document.documentElement.style.getPropertyValue(
+        "--workspace-content-radius",
+      ),
+    ).toBe("0");
+    expect(
+      document.documentElement.style.getPropertyValue("--sidebar-background"),
+    ).toBe("#202022");
+    expect(
+      document.documentElement.style.getPropertyValue(
+        "--sidebar-header-background",
+      ),
+    ).toBe("#202022");
+    expect(
+      document.documentElement.style.getPropertyValue("--sidebar-border"),
+    ).toBe("1px solid #303034");
+  });
+
+  it("keeps the minimal layout sidebar material unchanged", () => {
+    useUIStore.setState({ theme: "minimal", layout: "minimal" });
+
+    renderHook(() => useTheme());
+
+    expect(
+      document.documentElement.style.getPropertyValue("--sidebar-background"),
+    ).toBe("transparent");
+    expect(
+      document.documentElement.style.getPropertyValue(
+        "--sidebar-header-background",
+      ),
+    ).toBe("transparent");
+    expect(
+      document.documentElement.style.getPropertyValue("--sidebar-border"),
+    ).toBe("0 solid transparent");
+  });
+
+  it("keeps theme colors independent from layout and adapts the glass tint", () => {
+    useUIStore.setState({ theme: "minimal", layout: "minimal" });
+    const { result } = renderHook(() => useTheme());
+    const root = document.documentElement;
+
+    expect(root.style.getPropertyValue("--bg-primary")).toBe("#181818");
+    expect(root.style.getPropertyValue("--bg-secondary")).toBe("#292929");
+    expect(root.style.getPropertyValue("--file-tree-row-selected")).toBe(
+      "#3a3a3d",
+    );
+    expect(result.current.config.colors.bgPrimary).toBe("#181818");
+
+    act(() => useUIStore.getState().setTheme("light"));
+    expect(root.style.getPropertyValue("--bg-primary")).toBe("#ffffff");
+    expect(root.style.getPropertyValue("--sidebar-material-tint")).toBe(
+      "#ffffff",
+    );
+    expect(root.style.getPropertyValue("--sidebar-material-tint-opacity")).toBe(
+      "98%",
+    );
+
+    act(() => useUIStore.setState({ theme: "dark", layout: "classic" }));
+    expect(root.style.getPropertyValue("--bg-primary")).toBe("#23272f");
+    expect(root.style.getPropertyValue("--file-tree-row-selected")).toBe(
+      "#383c44",
+    );
+
+    act(() => useUIStore.getState().setLayout("minimal"));
+    expect(root.style.getPropertyValue("--bg-primary")).toBe("#23272f");
+    expect(root.style.getPropertyValue("--sidebar-material-tint")).toBe(
+      "#23272f",
+    );
+    expect(root.style.getPropertyValue("--sidebar-material-tint-opacity")).toBe(
+      "98%",
+    );
+
+    act(() => useUIStore.setState({ theme: "minimal", layout: "minimal" }));
+    expect(root.style.getPropertyValue("--bg-primary")).toBe("#181818");
+    expect(root.style.getPropertyValue("--sidebar-material-tint-opacity")).toBe(
+      "98%",
+    );
   });
 
   it("updates the resolved theme when the system color scheme changes", () => {

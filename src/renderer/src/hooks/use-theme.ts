@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useLayoutEffect, useState } from "react";
-import { getThemeConfig, resolveTheme, type ThemeName } from "@/config/themes";
+import {
+  getThemeConfig,
+  isThemeName,
+  resolveTheme,
+  type ThemeName,
+} from "@/config/themes";
+import { getLayoutConfig } from "@/config/layouts";
 import { useUIStore } from "@/store/ui.store";
 
-const THEME_CLASSES = ["light", "dark", "nord", "dracula", "solarized"];
-const THEME_NAMES: readonly ThemeName[] = [
-  "light",
-  "dark",
-  "nord",
-  "dracula",
-  "solarized",
-  "system",
-];
+const THEME_CLASSES = ["light", "dark", "minimal"];
 const UI_STORAGE_KEY = "ui-storage";
+const CLASSIC_DEEP_BLACK_SIDEBAR = {
+  background: "#202022",
+  border: "1px solid #303034",
+} as const;
 
 function getPersistedAppTheme(value: string | null): ThemeName | null {
   if (!value) return null;
@@ -20,9 +22,7 @@ function getPersistedAppTheme(value: string | null): ThemeName | null {
     const persisted = JSON.parse(value) as {
       state?: { theme?: unknown };
     };
-    return THEME_NAMES.includes(persisted.state?.theme as ThemeName)
-      ? (persisted.state?.theme as ThemeName)
-      : null;
+    return isThemeName(persisted.state?.theme) ? persisted.state.theme : null;
   } catch {
     return null;
   }
@@ -38,15 +38,18 @@ export function useTheme({
   themeOverride,
 }: UseThemeOptions = {}) {
   const theme = useUIStore((state) => state.theme);
+  const layout = useUIStore((state) => state.layout);
   const setTheme = useUIStore((state) => state.setTheme);
+  const setLayout = useUIStore((state) => state.setLayout);
   const [, refreshSystemTheme] = useState(0);
   const effectiveTheme = themeOverride ?? theme;
+  const activeTheme = isThemeName(effectiveTheme) ? effectiveTheme : "dark";
 
   // 每次渲染都同步解析主题，避免主题变量和 BlockNote 的色彩方案出现短暂错位。
-  const resolvedTheme = resolveTheme(effectiveTheme);
+  const resolvedTheme = resolveTheme(activeTheme);
 
   useEffect(() => {
-    if (effectiveTheme !== "system") return;
+    if (activeTheme !== "system") return;
 
     // 仅在跟随系统时订阅系统配色变化，通过刷新触发一次同步重新解析。
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
@@ -57,10 +60,16 @@ export function useTheme({
     mediaQuery.addEventListener("change", handleChange);
 
     return () => mediaQuery.removeEventListener("change", handleChange);
-  }, [effectiveTheme]);
+  }, [activeTheme]);
 
   useLayoutEffect(() => {
     if (themeOverride) return;
+
+    const currentTheme = useUIStore.getState().theme;
+    if (!isThemeName(currentTheme)) {
+      setTheme("dark");
+      return;
+    }
 
     const persistedTheme = getPersistedAppTheme(
       localStorage.getItem(UI_STORAGE_KEY),
@@ -68,7 +77,7 @@ export function useTheme({
     if (persistedTheme && persistedTheme !== useUIStore.getState().theme) {
       setTheme(persistedTheme);
     }
-  }, [setTheme, themeOverride]);
+  }, [setTheme, theme, themeOverride]);
 
   useEffect(() => {
     if (themeOverride) return;
@@ -91,17 +100,150 @@ export function useTheme({
     const root = document.documentElement;
     const body = document.body;
     const config = getThemeConfig(resolvedTheme);
+    // 各主题使用相邻色阶染色，让原生材质可见，同时避免侧栏与正文产生明显色块断层。
+    root.style.setProperty(
+      "--sidebar-material-tint",
+      resolvedTheme === "dark"
+        ? "#23272f"
+        : config.colorScheme === "light"
+          ? "#ffffff"
+          : config.colors.bgSecondary,
+    );
 
     root.style.setProperty("--bg-primary", config.colors.bgPrimary);
     root.style.setProperty("--bg-secondary", config.colors.bgSecondary);
+    // 所有主题统一使用同一遮罩强度，避免高对比窗口背景造成侧栏观感漂移。
+    root.style.setProperty("--sidebar-material-tint-opacity", "98%");
     root.style.setProperty("--bg-tertiary", config.colors.bgTertiary);
     root.style.setProperty("--text-primary", config.colors.textPrimary);
     root.style.setProperty("--text-secondary", config.colors.textSecondary);
     root.style.setProperty("--text-muted", config.colors.textMuted);
     root.style.setProperty("--border-color", config.colors.borderColor);
-    root.style.setProperty("--hover-bg", config.colors.hoverBg);
-    root.style.setProperty("--active-bg", config.colors.activeBg);
     root.style.setProperty("--accent-color", config.colors.accentColor);
+    root.style.setProperty("--hover-bg", config.components.selection.hover);
+    root.style.setProperty("--active-bg", config.components.selection.selected);
+    root.style.setProperty(
+      "--selection-row-hover",
+      config.components.selection.hover,
+    );
+    root.style.setProperty(
+      "--selection-row-selected",
+      config.components.selection.selected,
+    );
+    root.style.setProperty(
+      "--file-tree-row-hover",
+      config.components.selection.hover,
+    );
+    root.style.setProperty(
+      "--file-tree-row-selected",
+      config.components.selection.selected,
+    );
+
+    const { input, dropdown, codeBlock } = config.components;
+    root.style.setProperty("--input-background", input.background);
+    root.style.setProperty("--input-hover-background", input.hoverBackground);
+    root.style.setProperty("--input-border", input.border);
+    root.style.setProperty("--input-hover-border", input.hoverBorder);
+    root.style.setProperty("--input-focus-border", input.focusBorder);
+    root.style.setProperty("--input-focus-ring", input.focusRing);
+    root.style.setProperty("--input-placeholder", input.placeholder);
+    root.style.setProperty("--dropdown-background", dropdown.background);
+    root.style.setProperty("--dropdown-border", dropdown.border);
+    root.style.setProperty("--dropdown-shadow", dropdown.shadow);
+    root.style.setProperty("--dropdown-item-hover", dropdown.hover);
+    root.style.setProperty("--dropdown-item-selected", dropdown.selected);
+    root.style.setProperty("--editor-code-block-bg", codeBlock.background);
+    root.style.setProperty("--editor-code-block-text", codeBlock.text);
+    root.style.setProperty("--editor-code-block-cursor", codeBlock.cursor);
+    root.style.setProperty("--editor-code-block-muted", codeBlock.muted);
+    root.style.setProperty("--editor-code-block-border", codeBlock.border);
+    root.style.setProperty(
+      "--editor-code-block-control-bg",
+      codeBlock.controlBackground,
+    );
+    root.style.setProperty(
+      "--editor-code-block-control-border",
+      codeBlock.controlBorder,
+    );
+    root.style.setProperty(
+      "--editor-code-block-control-hover-bg",
+      codeBlock.controlHoverBackground,
+    );
+    root.style.setProperty(
+      "--editor-code-block-control-hover-text",
+      codeBlock.controlHoverText,
+    );
+    root.style.setProperty(
+      "--editor-code-block-popover-bg",
+      codeBlock.popoverBackground,
+    );
+    root.style.setProperty(
+      "--editor-code-block-popover-hover",
+      codeBlock.popoverHover,
+    );
+    root.style.setProperty(
+      "--editor-code-block-popover-shadow",
+      codeBlock.popoverShadow,
+    );
+    root.style.setProperty(
+      "--editor-code-block-fold-bg",
+      codeBlock.foldBackground,
+    );
+    root.style.setProperty("--editor-code-block-fold-text", codeBlock.foldText);
+
+    const layoutConfig = getLayoutConfig(layout);
+    // 经典布局的深黑色侧栏使用更贴近正文的色阶，保留层级但避免形成突兀的灰色块。
+    const useClassicDeepBlackSidebar =
+      layout === "classic" && resolvedTheme === "minimal";
+    const sidebarBackground = useClassicDeepBlackSidebar
+      ? CLASSIC_DEEP_BLACK_SIDEBAR.background
+      : layoutConfig.sidebarBackground;
+    const sidebarBorder = useClassicDeepBlackSidebar
+      ? CLASSIC_DEEP_BLACK_SIDEBAR.border
+      : layoutConfig.sidebarBorder;
+    root.style.setProperty(
+      "--workspace-background",
+      layoutConfig.workspaceBackground,
+    );
+    root.style.setProperty(
+      "--title-bar-background",
+      layoutConfig.titleBarBackground,
+    );
+    root.style.setProperty("--title-bar-border", layoutConfig.titleBarBorder);
+    root.style.setProperty("--sidebar-background", sidebarBackground);
+    root.style.setProperty("--sidebar-border", sidebarBorder);
+    root.style.setProperty(
+      "--sidebar-header-background",
+      useClassicDeepBlackSidebar
+        ? CLASSIC_DEEP_BLACK_SIDEBAR.background
+        : layoutConfig.sidebarHeaderBackground,
+    );
+    root.style.setProperty(
+      "--sidebar-header-border",
+      useClassicDeepBlackSidebar
+        ? CLASSIC_DEEP_BLACK_SIDEBAR.border
+        : layoutConfig.sidebarHeaderBorder,
+    );
+    root.style.setProperty(
+      "--workspace-panel-group-padding",
+      layoutConfig.panelGroupPadding,
+    );
+    root.style.setProperty(
+      "--workspace-editor-panel-padding",
+      layoutConfig.editorPanelPadding,
+    );
+    root.style.setProperty(
+      "--workspace-content-border",
+      layoutConfig.contentBorder,
+    );
+    root.style.setProperty(
+      "--workspace-content-radius",
+      layoutConfig.contentRadius,
+    );
+    root.style.setProperty(
+      "--workspace-material-opacity",
+      layoutConfig.materialOpacity,
+    );
 
     body.style.backgroundColor = transparentBackground
       ? "transparent"
@@ -114,9 +256,11 @@ export function useTheme({
     body.classList.add(resolvedTheme);
     root.setAttribute(
       "data-theme",
-      effectiveTheme === "system" ? "system" : resolvedTheme,
+      activeTheme === "system" ? "system" : resolvedTheme,
     );
-  }, [effectiveTheme, resolvedTheme, transparentBackground]);
+    root.dataset.layout = layoutConfig.name;
+    body.dataset.layout = layoutConfig.name;
+  }, [activeTheme, layout, resolvedTheme, transparentBackground]);
 
   const changeTheme = useCallback(
     (newTheme: ThemeName) => {
@@ -125,20 +269,29 @@ export function useTheme({
     [setTheme],
   );
 
+  const changeLayout = useCallback(
+    (newLayout: typeof layout) => {
+      setLayout(newLayout);
+    },
+    [setLayout],
+  );
+
   const toggleTheme = useCallback(() => {
-    if (theme === "system") {
+    if (activeTheme === "system") {
       setTheme(resolvedTheme === "light" ? "dark" : "light");
       return;
     }
 
-    setTheme(theme === "light" ? "dark" : "light");
-  }, [resolvedTheme, setTheme, theme]);
+    setTheme(activeTheme === "light" ? "dark" : "light");
+  }, [activeTheme, resolvedTheme, setTheme]);
 
   return {
-    theme,
+    theme: activeTheme,
+    layout,
     setTheme: changeTheme,
+    setLayout: changeLayout,
     toggleTheme,
-    isDark: resolvedTheme === "dark",
+    isDark: getThemeConfig(resolvedTheme).colorScheme === "dark",
     config: getThemeConfig(resolvedTheme),
   };
 }

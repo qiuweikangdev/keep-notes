@@ -18,6 +18,7 @@ describe("quick editor actions menu", () => {
       <QuickEditorActionsMenu
         isOutlineOpen={false}
         isOutlineDisabled={false}
+        isSourceMode={false}
         {...handlers}
       />,
     );
@@ -30,7 +31,7 @@ describe("quick editor actions menu", () => {
     const items = screen.getAllByRole("menuitem");
     expect(items.map((item) => item.textContent)).toEqual([
       "显示大纲",
-      "编辑模式切换",
+      "切换到源码模式",
       "新建浮动窗口",
       "返回主窗口",
       "关闭浮动窗口",
@@ -39,9 +40,9 @@ describe("quick editor actions menu", () => {
     expect(new Set(items.map((item) => item.className)).size).toBe(1);
     expect(
       screen
-        .getByRole("menuitem", { name: "编辑模式切换" })
+        .getByRole("menuitem", { name: "切换到源码模式" })
         .querySelector("svg"),
-    ).toHaveClass("lucide-arrow-left-right");
+    ).toHaveClass("lucide-code-xml");
     expect(
       document.querySelectorAll(".quick-editor-actions-menu__separator"),
     ).toHaveLength(2);
@@ -60,13 +61,14 @@ describe("quick editor actions menu", () => {
       <QuickEditorActionsMenu
         isOutlineOpen={false}
         isOutlineDisabled={false}
+        isSourceMode={false}
         {...handlers}
       />,
     );
 
     const trigger = screen.getByRole("button", { name: "更多操作" });
     for (const [name, handler] of [
-      ["编辑模式切换", handlers.onToggleEditorMode],
+      ["切换到源码模式", handlers.onToggleEditorMode],
       ["显示大纲", handlers.onToggleOutline],
       ["新建浮动窗口", handlers.onNewWindow],
       ["返回主窗口", handlers.onReturnToApplication],
@@ -81,12 +83,13 @@ describe("quick editor actions menu", () => {
       <QuickEditorActionsMenu
         isOutlineOpen
         isOutlineDisabled={false}
+        isSourceMode
         {...handlers}
       />,
     );
     await user.click(trigger);
     expect(
-      screen.getByRole("menuitem", { name: "编辑模式切换" }),
+      screen.getByRole("menuitem", { name: "切换到富文本模式" }),
     ).toBeVisible();
     expect(screen.getByRole("menuitem", { name: "隐藏大纲" })).toBeVisible();
   });
@@ -97,6 +100,7 @@ describe("quick editor actions menu", () => {
       <QuickEditorActionsMenu
         isOutlineOpen={false}
         isOutlineDisabled
+        isSourceMode={false}
         onToggleEditorMode={vi.fn()}
         onToggleOutline={onToggleOutline}
         onNewWindow={vi.fn()}
@@ -119,6 +123,7 @@ describe("quick editor actions menu", () => {
     const commonProps = {
       isOutlineOpen: false,
       isOutlineDisabled: false,
+      isSourceMode: false,
       onToggleEditorMode: vi.fn(),
       onToggleOutline: vi.fn(),
       onNewWindow: vi.fn(),
@@ -148,6 +153,7 @@ describe("quick editor actions menu", () => {
       <QuickEditorActionsMenu
         isOutlineOpen={false}
         isOutlineDisabled={false}
+        isSourceMode={false}
         onToggleEditorMode={vi.fn()}
         onToggleOutline={vi.fn()}
         onNewWindow={vi.fn()}

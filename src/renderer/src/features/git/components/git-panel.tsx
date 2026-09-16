@@ -349,6 +349,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
 
   const currentDir = treeRoot?.key || "";
   const getCurrentDir = useCallback(() => currentDir, [currentDir]);
+  const canPush = !loading && (gitStatus?.ahead ?? 0) > 0;
   const isMainDialogOpen = isOpen && isGitRepo !== false;
   const { contentRef, dragHandleProps, resizeHandleProps } = useResizableDialog(
     {
@@ -754,13 +755,14 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
 
   const handlePush = useCallback(async () => {
     const dir = getCurrentDir();
-    if (!dir) return;
+    if (!dir || !canPush) return;
 
     try {
       setLoading(true);
       setActiveFooterOperation("push");
       const result = await pushToRemote(dir);
       if (result.code === CodeResult.Success) {
+        await refreshGitStatus(dir);
         showMessage("success", "推送成功");
       } else {
         showMessage("error", result.message || "推送失败");
@@ -771,7 +773,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       setActiveFooterOperation(null);
       setLoading(false);
     }
-  }, [getCurrentDir, pushToRemote]);
+  }, [canPush, getCurrentDir, pushToRemote, refreshGitStatus]);
 
   const handlePull = useCallback(async () => {
     const dir = getCurrentDir();
@@ -2405,9 +2407,9 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
               </Button>
               <Button
                 onClick={handlePush}
-                disabled={loading}
+                disabled={!canPush}
                 className="gap-1.5"
-                title="推送到远程"
+                title={canPush ? "推送到远程" : "没有可推送的提交"}
                 aria-busy={activeFooterOperation === "push"}
               >
                 {activeFooterOperation === "push" ? (

@@ -14,6 +14,44 @@ afterEach(() => {
 });
 
 describe("RichDocumentSurfaceRegistry", () => {
+  it("clips body-mounted editors to the workspace across split panes and clears it outside the workspace", () => {
+    const registry = new RichDocumentSurfaceRegistry();
+    const surface = document.createElement("div");
+    const workspace = document.createElement("div");
+    workspace.className = "workspace-content-surface";
+    workspace.style.border = "1px solid black";
+    const leftHost = document.createElement("div");
+    const rightHost = document.createElement("div");
+    const standaloneHost = document.createElement("div");
+    workspace.append(leftHost, rightHost);
+    document.body.append(workspace, standaloneHost);
+    vi.spyOn(workspace, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(100, 40, 800, 600),
+    );
+    vi.spyOn(leftHost, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(101, 76, 399, 563),
+    );
+    vi.spyOn(rightHost, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(500, 76, 399, 563),
+    );
+    registry.registerSurface("note.md", surface);
+    registry.registerHost("note.md", "left:t1", leftHost);
+    registry.registerHost("note.md", "right:t1", rightHost);
+    registry.registerHost("note.md", "standalone:t1", standaloneHost);
+
+    registry.activate("note.md", "left:t1");
+    expect(surface.parentElement).toBe(document.body);
+    expect(surface.style.clipPath).toBe(
+      "inset(-35px -399px 0px 0px round max(0px, calc(var(--workspace-content-radius, 0px) - 1px)))",
+    );
+    registry.activate("note.md", "right:t1");
+    expect(surface.style.clipPath).toBe(
+      "inset(-35px 0px 0px -399px round max(0px, calc(var(--workspace-content-radius, 0px) - 1px)))",
+    );
+    registry.activate("note.md", "standalone:t1");
+    expect(surface.style.clipPath).toBe("");
+  });
+
   it("normalizes separators without folding path case", () => {
     expect(normalizeRichDocumentPath("C:\\Notes\\Large.md")).toBe(
       "C:/Notes/Large.md",
@@ -216,11 +254,11 @@ describe("RichDocumentSurfaceRegistry", () => {
     expect(registry.activate("surface-only.md", "g1:t1")).toBe(false);
   });
 
-  it("restores the surface to its configured appearance opacity", () => {
+  it("keeps the document surface opaque when rich content is translucent", () => {
     const registry = new RichDocumentSurfaceRegistry();
     const surface = document.createElement("div");
     const host = document.createElement("div");
-    surface.dataset.richSurfaceOpacity = "0.6";
+    surface.style.opacity = "0.6";
     vi.spyOn(host, "getBoundingClientRect").mockReturnValue(
       rect(0, 0, 300, 200),
     );
@@ -229,7 +267,7 @@ describe("RichDocumentSurfaceRegistry", () => {
     registry.registerHost("note.md", "g1:t1", host);
 
     expect(registry.activate("note.md", "g1:t1")).toBe(true);
-    expect(surface.style.opacity).toBe("0.6");
+    expect(surface.style.opacity).toBe("1");
   });
 
   it("tracks the active host size while keeping the surface in body", () => {

@@ -18,14 +18,7 @@ export function FontSelector({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-9 px-3 pr-8 text-sm rounded-lg appearance-none cursor-pointer transition-all"
-        style={{
-          backgroundColor: "var(--bg-tertiary)",
-          border: "1px solid var(--border-color)",
-          color: "var(--text-primary)",
-          outline: "none",
-          minWidth: "120px",
-        }}
+        className="theme-select h-9 min-w-[120px] cursor-pointer appearance-none rounded-lg px-3 pr-8 text-sm"
       >
         {options.map((opt) => (
           <option key={opt.value} value={opt.value}>

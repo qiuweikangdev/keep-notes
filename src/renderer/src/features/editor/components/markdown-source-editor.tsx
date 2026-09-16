@@ -233,7 +233,7 @@ export const MarkdownSourceEditor = forwardRef<
     <textarea
       key={resetKey ?? undefined}
       aria-label="Markdown 源码"
-      className="h-full w-full resize-none bg-[var(--bg-primary)] px-10 py-8 font-mono text-[14px] leading-7 text-[var(--text-primary)] outline-none"
+      className="h-full w-full resize-none bg-transparent px-10 py-8 font-mono text-[14px] leading-7 text-[var(--text-primary)] outline-none"
       style={{ ...editorStyle, ...style }}
       value={value}
       spellCheck={false}

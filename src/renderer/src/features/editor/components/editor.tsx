@@ -1,5 +1,7 @@
 import {
   useCallback,
+  createContext,
+  useContext,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -8,9 +10,12 @@ import {
   type CSSProperties,
 } from "react";
 import { createPortal } from "react-dom";
+import { Plus } from "lucide-react";
 import { EditorTabBar } from "./editor-tab-bar";
 import { EditorWorkspace } from "./editor-workspace";
+import { Button } from "@/components/ui/button";
 import { useEditorStore } from "@/store/editor.store";
+import { useTreeStore } from "@/store/tree.store";
 import { useElectron } from "@/hooks/use-electron";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import {
@@ -55,6 +60,16 @@ type PanelLayoutNode =
       first: PanelLayoutNode;
       second: PanelLayoutNode;
     };
+
+const WindowActionsGroupContext = createContext<string | null>(null);
+
+// 操作入口固定在窗口右上角，只为该位置的叶面板预留空间。
+function getTopRightGroupId(node: PanelLayoutNode): string {
+  if (node.type === "leaf") return node.id;
+  return getTopRightGroupId(
+    node.direction === "horizontal" ? node.second : node.first,
+  );
+}
 
 function readEditorPerformanceContext() {
   const state = useEditorStore.getState();
@@ -300,11 +315,20 @@ function buildPanelLayout(
 
 // 单个面板组：标签栏 + 编辑器
 function EditorPanelGroup({ groupId }: { groupId: string }) {
+  const reserveWindowActions =
+    useContext(WindowActionsGroupContext) === groupId;
+  const reserveWindowNavigation = useEditorStore(
+    (state) => state.panelGroups[0]?.id === groupId,
+  );
   useEditorStore(selectPanelGroupSignature(groupId));
   const { openFile } = useElectron();
   const group = useEditorStore
     .getState()
     .panelGroups.find((item) => item.id === groupId);
+  const hasOpenFolder = useTreeStore((state) => state.treeRoot !== null);
+  const handleCreateTab = useCallback(() => {
+    useEditorStore.getState().addTab(groupId);
+  }, [groupId]);
   const isDragOver = useEditorStore(
     (state) => state.fileDragTargetGroupId === groupId,
   );
@@ -383,7 +407,7 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
 
   if (!group) return null;
 
-  // 没有标签页时显示空白状态
+  // 没有标签页时显示空状态
   if (!group.activeTabId || group.tabs.length === 0) {
     return (
       <div
@@ -392,14 +416,32 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
         onDragLeaveCapture={handleDragLeave}
         onDropCapture={handleDrop}
       >
-        <EditorTabBar groupId={groupId} />
+        <EditorTabBar
+          groupId={groupId}
+          reserveWindowActions={reserveWindowActions}
+          reserveWindowNavigation={reserveWindowNavigation}
+        />
         <div
           className="flex-1 flex items-center justify-center relative"
           style={{ backgroundColor: "var(--bg-primary)" }}
         >
-          <div className="text-center" style={{ color: "var(--text-muted)" }}>
-            <p className="text-sm">没有打开的文件</p>
-            <p className="text-xs mt-1">从文件树点击或拖拽文件到此处打开</p>
+          <div
+            className="flex max-w-sm flex-col items-center text-center"
+            style={{ color: "var(--text-muted)" }}
+          >
+            <p className="text-[13px]">没有打开的文件</p>
+            {hasOpenFolder ? (
+              <p className="text-xs mt-1">从文件树点击或拖拽文件到此处打开</p>
+            ) : null}
+            <Button
+              type="button"
+              size="sm"
+              className="mt-4 gap-1.5"
+              onClick={handleCreateTab}
+            >
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+              新建标签页
+            </Button>
           </div>
         </div>
         {/* 面板统一接管拖拽，确保标签栏、工具按钮和编辑器内容拥有一致的落点。 */}
@@ -425,7 +467,11 @@ function EditorPanelGroup({ groupId }: { groupId: string }) {
       onDragLeaveCapture={handleDragLeave}
       onDropCapture={handleDrop}
     >
-      <EditorTabBar groupId={groupId} />
+      <EditorTabBar
+        groupId={groupId}
+        reserveWindowActions={reserveWindowActions}
+        reserveWindowNavigation={reserveWindowNavigation}
+      />
       <div className="flex-1 overflow-hidden relative">
         {/* 渲染编辑器 */}
         <EditorWorkspace groupId={groupId} tabId={group.activeTabId} />
@@ -471,21 +517,23 @@ export function Editor() {
   if (!panelLayout) return null;
 
   return (
-    <div
-      className="h-full overflow-hidden"
-      style={{ backgroundColor: "var(--bg-primary)" }}
-    >
-      <RootPanelLayout node={panelLayout} surfaceRegistry={surfaceRegistry} />
-      {import.meta.env.DEV ? <EditorDevelopmentDiagnostics /> : null}
-      <RichDocumentSessionLayer />
-      {panelGroups.map(({ id }) => (
-        <PersistentEditorPanel
-          key={id}
-          groupId={id}
-          surfaceRegistry={surfaceRegistry}
-        />
-      ))}
-    </div>
+    <WindowActionsGroupContext.Provider value={getTopRightGroupId(panelLayout)}>
+      <div
+        className="h-full overflow-hidden"
+        style={{ backgroundColor: "var(--bg-primary)" }}
+      >
+        <RootPanelLayout node={panelLayout} surfaceRegistry={surfaceRegistry} />
+        {import.meta.env.DEV ? <EditorDevelopmentDiagnostics /> : null}
+        <RichDocumentSessionLayer />
+        {panelGroups.map(({ id }) => (
+          <PersistentEditorPanel
+            key={id}
+            groupId={id}
+            surfaceRegistry={surfaceRegistry}
+          />
+        ))}
+      </div>
+    </WindowActionsGroupContext.Provider>
   );
 }
 

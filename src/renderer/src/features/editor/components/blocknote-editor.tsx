@@ -1788,7 +1788,7 @@ function persistRichPaneScroll(
   store.setTabScrollTop(owner.groupId, owner.tabId, scrollTop);
 }
 
-const MARKDOWN_PARSER_VERSION = "blocknote-v15";
+const MARKDOWN_PARSER_VERSION = "blocknote-v16";
 
 export function getMarkdownParserCacheVersion(_reloadKey?: number) {
   return MARKDOWN_PARSER_VERSION;
@@ -2980,7 +2980,7 @@ function MountedBlockNoteEditor({
       activeGroup?.activeTabId === binding.tabId
     );
   });
-  const { isDark } = useTheme();
+  const { isDark } = useTheme({ transparentBackground: true });
   const suppressChangeRef = useRef(false);
   const changeGateRef = useRef(new EditorChangeGate());
   const contentRef = useRef(content);
@@ -3033,14 +3033,6 @@ function MountedBlockNoteEditor({
   const runtimeRef = useRef<RichBlockNoteRuntime | null>(null);
   const previewCacheRef = useRef<RichPreviewCache | null>(null);
   const previewTransactionCleanupRef = useRef<(() => void) | null>(null);
-
-  useLayoutEffect(() => {
-    const opacity = `${appearance.opacity / 100}`;
-    surface.dataset.richSurfaceOpacity = opacity;
-    if (surface.style.visibility === "visible") {
-      surface.style.opacity = opacity;
-    }
-  }, [appearance.opacity, surface]);
 
   editorRef.current = editor;
 
@@ -3917,6 +3909,8 @@ function MountedBlockNoteEditor({
     backgroundColor: "var(--bg-primary)",
     contain: "layout style paint",
     isolation: "isolate",
+    // 透明度只作用于富文本内容，不影响外层标签栏和面板操作区。
+    opacity: appearance.opacity / 100,
     "--editor-font-size": `${appearance.fontSize}px`,
     "--editor-line-height": appearance.lineHeight,
     "--editor-padding": `${appearance.padding}px`,

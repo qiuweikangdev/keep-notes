@@ -13,17 +13,22 @@ import { getRevealInFileManagerLabel } from "../utils";
 
 interface QuickActionsPanelProps {
   onClose?: () => void;
+  onMenuOpenChange?: (open: boolean) => void;
 }
 
 export function QuickActionsPanel({
   onClose: _onClose,
+  onMenuOpenChange,
 }: QuickActionsPanelProps) {
   const treeRoot = useTreeStore((state) => state.treeRoot);
   const recentFolders = useTreeStore((state) => state.recentFolders);
   const removeRecentFolder = useTreeStore((state) => state.removeRecentFolder);
   const { openFolder, loadTree, openInExplorer } = useElectron();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    onMenuOpenChange?.(isMenuOpen);
+  }, [isMenuOpen, onMenuOpenChange]);
+  const panelRef = useRef<HTMLDivElement>(null);
   const revealInFileManagerLabel = getRevealInFileManagerLabel(
     window.electronAPI?.getPlatform(),
   );
@@ -33,7 +38,10 @@ export function QuickActionsPanel({
     if (!isMenuOpen) return;
 
     const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+      if (
+        panelRef.current &&
+        !panelRef.current.contains(event.target as Node)
+      ) {
         setIsMenuOpen(false);
       }
     };
@@ -79,12 +87,9 @@ export function QuickActionsPanel({
   // 无文件夹时的初始状态
   if (!treeRoot) {
     return (
-      <div
-        className="relative flex-shrink-0"
-        style={{ backgroundColor: "var(--bg-secondary)" }}
-      >
-        {/* 打开文件夹按钮 + 更多选项 - 菜单关闭时显示 */}
-        {!isMenuOpen && (
+      <div ref={panelRef} className="relative flex-shrink-0">
+        {/* 菜单展开时保留触发栏，避免弹窗下方出现一块仍占位的透明区域。 */}
+        <div>
           <div
             className="sidebar-bottom-bar flex items-center"
             style={{ borderTop: "1px solid var(--border-color)" }}
@@ -102,7 +107,10 @@ export function QuickActionsPanel({
               type="button"
               className="sidebar-bottom-bar flex h-8 w-8 flex-shrink-0 items-center justify-center transition-colors"
               style={{ color: "var(--text-muted)" }}
+              aria-label="更多操作"
+              title="更多操作"
               onClick={() => setIsMenuOpen(true)}
+              aria-expanded={isMenuOpen}
               onMouseEnter={(e) => {
                 e.currentTarget.style.color = "var(--text-primary)";
               }}
@@ -113,13 +121,13 @@ export function QuickActionsPanel({
               <MoreVertical className="h-4 w-4" />
             </button>
           </div>
-        )}
+        </div>
 
         {/* 弹出菜单 */}
         {isMenuOpen && (
           <div
-            ref={menuRef}
-            className="absolute bottom-full left-0 right-0 z-50 mb-1"
+            data-testid="quick-actions-menu"
+            className="absolute bottom-full left-0 right-0 z-50"
             style={{
               backgroundColor: "var(--bg-secondary)",
               border: "1px solid var(--border-color)",
@@ -146,16 +154,14 @@ export function QuickActionsPanel({
 
   // 已打开文件夹的状态
   return (
-    <div
-      className="relative flex-shrink-0"
-      style={{ backgroundColor: "var(--bg-secondary)" }}
-    >
-      {/* 当前目录名 + 更多选项 - 菜单关闭时显示 */}
-      {!isMenuOpen && (
+    <div ref={panelRef} className="relative flex-shrink-0">
+      {/* 当前目录作为弹窗的固定锚点，展开后仍保持可见。 */}
+      <div>
         <div
           className="sidebar-bottom-bar flex cursor-pointer items-center"
           style={{ borderTop: "1px solid var(--border-color)" }}
-          onClick={() => setIsMenuOpen(true)}
+          onClick={() => setIsMenuOpen((open) => !open)}
+          aria-expanded={isMenuOpen}
           onMouseEnter={(e) => {
             const container = e.currentTarget;
             container.querySelectorAll("[data-hover-muted]").forEach((el) => {
@@ -188,21 +194,24 @@ export function QuickActionsPanel({
             className="sidebar-bottom-bar flex h-8 w-8 flex-shrink-0 items-center justify-center transition-colors"
             data-hover-muted
             style={{ color: "var(--text-muted)" }}
+            aria-label="更多操作"
+            title="更多操作"
             onClick={(e) => {
               e.stopPropagation();
-              setIsMenuOpen(true);
+              setIsMenuOpen((open) => !open);
             }}
+            aria-expanded={isMenuOpen}
           >
             <MoreVertical className="h-4 w-4" />
           </button>
         </div>
-      )}
+      </div>
 
       {/* 弹出菜单 */}
       {isMenuOpen && (
         <div
-          ref={menuRef}
-          className="absolute bottom-full left-0 right-0 z-50 mb-1"
+          data-testid="quick-actions-menu"
+          className="absolute bottom-full left-0 right-0 z-50"
           style={{
             backgroundColor: "var(--bg-secondary)",
             border: "1px solid var(--border-color)",
@@ -354,6 +363,7 @@ function MenuContent({
                     type="button"
                     className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100"
                     style={{ color: "var(--text-muted)" }}
+                    aria-label={`移除最近打开的文件夹 ${folder.title}`}
                     onClick={(e) => onRemoveRecentFolder(e, folder.path)}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.color = "var(--text-primary)";

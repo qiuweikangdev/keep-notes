@@ -260,12 +260,12 @@ describe("EditorToolbar diff action", () => {
     await screen.findByRole("button", { name: "标签页操作" });
     openActionMenu();
 
-    fireEvent.click(screen.getByRole("menuitem", { name: "向右拆分面板" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "向右拆分" }));
     expect(onSplitRight).toHaveBeenCalledTimes(1);
 
     await screen.findByRole("button", { name: "标签页操作" });
     openActionMenu();
-    fireEvent.click(screen.getByRole("menuitem", { name: "向下拆分面板" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "向下拆分" }));
     expect(onSplitDown).toHaveBeenCalledTimes(1);
 
     await screen.findByRole("button", { name: "标签页操作" });
@@ -293,6 +293,28 @@ describe("EditorToolbar diff action", () => {
         },
       });
     });
+  });
+
+  it("keeps the floating window action available without an active tab", async () => {
+    useEditorStore.setState({
+      activeGroupId: "group-1",
+      panelGroups: [
+        {
+          id: "group-1",
+          activeTabId: "",
+          direction: "horizontal",
+          tabs: [],
+        },
+      ],
+    });
+
+    renderToolbar();
+
+    await screen.findByRole("button", { name: "标签页操作" });
+    openActionMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "浮动窗口" }));
+
+    expect(window.electronAPI.createQuickEditorWindow).toHaveBeenCalledWith();
   });
 
   it("opens a large document floating window with the latest rich snapshot", async () => {
@@ -379,7 +401,7 @@ describe("EditorToolbar diff action", () => {
 
     await screen.findByRole("button", { name: "标签页操作" });
     openActionMenu();
-    fireEvent.click(screen.getByRole("menuitem", { name: "编辑模式切换" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "切换到源码模式" }));
 
     await waitFor(() => {
       expect(useEditorStore.getState().panelGroups[0].tabs[0].mode).toBe(
@@ -428,7 +450,7 @@ describe("EditorToolbar diff action", () => {
 
     await screen.findByRole("button", { name: "标签页操作" });
     openActionMenu();
-    fireEvent.click(screen.getByRole("menuitem", { name: "编辑模式切换" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "切换到源码模式" }));
 
     await waitFor(() => expect(serializePendingChange).toHaveBeenCalledOnce());
     expect(useEditorStore.getState().panelGroups[0].tabs[0].mode).toBe("rich");
@@ -465,7 +487,7 @@ describe("EditorToolbar diff action", () => {
 
     await screen.findByRole("button", { name: "标签页操作" });
     openActionMenu();
-    fireEvent.click(screen.getByRole("menuitem", { name: "编辑模式切换" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "切换到富文本模式" }));
 
     await waitFor(() => {
       const tab = useEditorStore.getState().panelGroups[0].tabs[0];
@@ -492,7 +514,7 @@ describe("EditorToolbar diff action", () => {
       screen.queryByRole("menuitem", { name: "在资源管理器中显示" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("menuitem", { name: "编辑模式切换" }),
+      screen.getByRole("menuitem", { name: "切换到源码模式" }),
     ).toBeInTheDocument();
   });
 
@@ -508,9 +530,9 @@ describe("EditorToolbar diff action", () => {
       "新建标签页",
       "浮动窗口",
       "在资源管理器中显示",
-      "编辑模式切换",
-      "向右拆分面板",
-      "向下拆分面板",
+      "切换到源码模式",
+      "向右拆分",
+      "向下拆分",
       "比较差异",
       "放弃更改",
     ]);
@@ -542,9 +564,9 @@ describe("EditorToolbar diff action", () => {
       "新建标签页",
       "浮动窗口",
       "在资源管理器中显示",
-      "编辑模式切换",
-      "向右拆分面板",
-      "向下拆分面板",
+      "切换到源码模式",
+      "向右拆分",
+      "向下拆分",
     ]);
   });
 });

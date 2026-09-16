@@ -4839,7 +4839,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
     }
   });
 
-  it("keeps the live editor surface opaque at reduced window opacity", async () => {
+  it("applies reduced opacity to rich content without dimming the panel surface", async () => {
     setupMatchMedia();
     setupDomMeasurements();
     setupSessionTab("C:/notes/opaque-surface.md");
@@ -4854,8 +4854,9 @@ describe("BlockNoteEditor persistent session runtime", () => {
       expect(
         session.view.container.querySelector<HTMLElement>(".editor-rich-scroll")
           ?.style.opacity,
-      ).toBe("");
-      expect(session.surface.dataset.richSurfaceOpacity).toBe("0.6");
+      ).toBe("0.6");
+      expect(session.surface.style.opacity).toBe("");
+      expect(session.surface.dataset.richSurfaceOpacity).toBeUndefined();
     } finally {
       useEditorStore.setState({ appearance });
       session.view.unmount();

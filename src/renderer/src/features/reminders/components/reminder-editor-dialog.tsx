@@ -532,10 +532,12 @@ function DatePickerControl({
       </button>
       {open ? (
         <div
-          className="absolute right-0 top-[calc(100%+8px)] z-[80] w-[284px] rounded-lg border p-3 shadow-lg"
+          className="absolute right-0 top-[calc(100%+8px)] z-[80] w-[284px] rounded-xl border p-3"
+          data-reminder-date-picker="true"
           style={{
-            backgroundColor: "var(--bg-primary)",
-            borderColor: "var(--border-color)",
+            backgroundColor: "var(--dropdown-background)",
+            borderColor: "var(--dropdown-border)",
+            boxShadow: "0 6px 8px rgb(0 0 0 / 28%)",
             color: "var(--text-primary)",
           }}
         >
@@ -665,10 +667,12 @@ function TimePickerControl({
       </button>
       {open ? (
         <div
-          className="absolute right-0 top-[calc(100%+8px)] z-[80] w-[212px] rounded-lg border p-2 shadow-lg"
+          className="absolute right-0 top-[calc(100%+8px)] z-[80] w-[212px] rounded-xl border p-2"
+          data-reminder-time-picker="true"
           style={{
-            backgroundColor: "var(--bg-primary)",
-            borderColor: "var(--border-color)",
+            backgroundColor: "var(--dropdown-background)",
+            borderColor: "var(--dropdown-border)",
+            boxShadow: "0 6px 8px rgb(0 0 0 / 28%)",
             color: "var(--text-primary)",
           }}
         >
@@ -716,8 +720,12 @@ function TimePickerColumn({ options, value, onSelect }: TimePickerColumnProps) {
 
   return (
     <div
-      className="max-h-[216px] space-y-1 overflow-y-auto rounded-md p-1"
-      style={{ backgroundColor: "var(--bg-secondary)" }}
+      className="max-h-[216px] space-y-1 overflow-y-auto rounded-lg p-1"
+      data-reminder-time-picker-column="true"
+      style={{
+        backgroundColor:
+          "color-mix(in srgb, var(--dropdown-item-hover) 72%, var(--dropdown-background))",
+      }}
     >
       {options.map((option) => {
         const isSelected = option === value;
@@ -785,11 +793,12 @@ function RepeatPickerControl({
         <div
           className={`absolute ${
             opensBelow ? "top-[calc(100%+8px)]" : "bottom-[calc(100%+8px)]"
-          } right-0 z-[80] w-[184px] rounded-xl border p-2 shadow-lg`}
+          } right-0 z-[80] w-[184px] rounded-xl border p-2`}
           data-testid="reminder-repeat-menu"
           style={{
-            backgroundColor: "var(--bg-primary)",
-            borderColor: "var(--border-color)",
+            backgroundColor: "var(--dropdown-background)",
+            borderColor: "var(--dropdown-border)",
+            boxShadow: "0 6px 8px rgb(0 0 0 / 28%)",
             color: "var(--text-primary)",
           }}
         >

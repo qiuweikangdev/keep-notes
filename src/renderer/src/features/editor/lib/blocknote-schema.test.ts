@@ -876,20 +876,15 @@ describe("editor BlockNote schema", () => {
     });
   });
 
-  it("preserves the recovered first line in a malformed bash code block", async () => {
+  it("keeps fence metadata separate from code content", async () => {
     const editor = CoreEditorFactory.create({ schema: editorSchema });
-    const repaired = repairMarkdownSourceBeforeParse(
-      "```bash写一个 while True 无限循环\n不断从数据库查任务\n```",
-    );
-    const blocks = await editor.tryParseMarkdownToBlocks(repaired);
-
+    const source = '```bash title="任务轮询"\n不断从数据库查任务\n```';
+    const blocks = await parseMarkdown(editor, source);
     expect(blocks[0]).toMatchObject({
       type: "codeBlock",
-      props: { language: "bash" },
+      props: { language: 'bash title="任务轮询"' },
     });
-    expect(getInlineText(blocks[0])).toBe(
-      "写一个 while True 无限循环\n不断从数据库查任务",
-    );
+    expect(getInlineText(blocks[0])).toBe("不断从数据库查任务");
   });
 
   it("parses markdown inline code as styled text instead of source markers", async () => {
@@ -945,7 +940,48 @@ describe("editor BlockNote schema", () => {
     expect(editor.document.map(getInlineText).join("")).not.toContain("*");
   });
 
-  it("does not persist a transient empty bullet at the end of a list", async () => {
+  it("round-trips an Enter-created empty list item before code", async () => {
+    setupMatchMedia();
+    const editor = CoreEditorFactory.create({
+      schema: editorSchema,
+      initialContent: [
+        { type: "bulletListItem", content: "第一项" },
+        { type: "bulletListItem", content: "第二项" },
+        {
+          type: "codeBlock",
+          content: "var p *int = &a",
+          props: { language: "text" },
+        },
+      ],
+    });
+    render(createElement(BlockNoteView, { editor }));
+    const source = "- 第一项\n- 第二项\n\n```text\nvar p *int = &a\n```\n";
+    const baseline = await serializeMarkdown(editor, editor.document);
+    editor.setTextCursorPosition(editor.document[1].id, "end");
+    pressKey(editor, "Enter");
+    const exported = await serializeMarkdown(editor, editor.document);
+    const saved = preserveMarkdownSource(source, baseline, exported);
+    const reopened = await parseMarkdown(editor, saved);
+    expect(
+      reopened.map((block) => ({
+        type: block.type,
+        text: getInlineText(block),
+      })),
+    ).toEqual([
+      { type: "bulletListItem", text: "第一项" },
+      { type: "bulletListItem", text: "第二项" },
+      { type: "bulletListItem", text: "" },
+      { type: "codeBlock", text: "var p *int = &a" },
+    ]);
+    typeString(editor, "第三项");
+    const filled = await serializeMarkdown(editor, editor.document);
+    const filledSource = preserveMarkdownSource(saved, exported, filled);
+    expect(
+      (await parseMarkdown(editor, filledSource)).map(getInlineText),
+    ).toEqual(["第一项", "第二项", "第三项", "var p *int = &a"]);
+  });
+
+  it("persists an empty bullet at the end of a list", async () => {
     const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
@@ -962,7 +998,7 @@ describe("editor BlockNote schema", () => {
     });
 
     await expect(serializeMarkdown(editor, editor.document)).resolves.toBe(
-      ["* 列表1", "* 列表2", "* 列表3", "  * 列表3-3", "* 列表4", ""].join(
+      ["* 列表1", "* 列表2", "* 列表3", "  * 列表3-3", "* 列表4", "*", ""].join(
         "\n",
       ),
     );
@@ -1481,7 +1517,7 @@ describe("editor BlockNote schema", () => {
     });
   });
 
-  it("marks only ASCII content for inline code font-weight compensation", () => {
+  it("keeps mixed CJK and ASCII inline code in one visual style", () => {
     setupMatchMedia();
     const editor = CoreEditorFactory.create({
       schema: editorSchema,
@@ -1491,14 +1527,7 @@ describe("editor BlockNote schema", () => {
           content: [
             {
               type: "text",
-              text: "aa22",
-              styles: {
-                code: true,
-              },
-            },
-            {
-              type: "text",
-              text: "测试",
+              text: "测试aa22",
               styles: {
                 code: true,
               },
@@ -1509,17 +1538,14 @@ describe("editor BlockNote schema", () => {
     });
     const { container } = render(createElement(BlockNoteView, { editor }));
 
-    const latinContent = Array.from(
-      container.querySelectorAll(".editor-inline-code__latin-content"),
-    )
-      .map((element) => element.textContent)
-      .join("");
-    expect(latinContent).toBe("aa22");
     expect(
-      container
-        .querySelector(".editor-inline-code__latin-content")
-        ?.textContent?.includes("测试"),
-    ).toBe(false);
+      container.querySelector(
+        ".bn-editor code:not(.editor-code-block__content)",
+      )?.textContent,
+    ).toBe("测试aa22");
+    expect(container.querySelector(".editor-inline-code__latin-content")).toBe(
+      null,
+    );
   });
 
   it("normalizes inline code markers inserted outside input rules", () => {
@@ -1977,9 +2003,6 @@ describe("editor BlockNote schema", () => {
     expect(
       container.querySelectorAll(".editor-inline-code__editing-marker"),
     ).toHaveLength(2);
-    expect(
-      container.querySelector(".editor-inline-code__latin-content"),
-    ).not.toBe(null);
     expect(
       container.querySelectorAll(".editor-inline-code__editing-start"),
     ).toHaveLength(1);
@@ -2800,6 +2823,81 @@ describe("editor BlockNote schema", () => {
     ).not.toBe(null);
   });
 
+  it.each(["textInput", "beforeinput"])(
+    "converts a bullet prefix before inline code through %s",
+    (inputMode) => {
+      const { editor, inlineCodePosition, view } = renderInlineCodeTestEditor();
+      view.dispatch(
+        view.state.tr
+          .setSelection(
+            TextSelection.create(view.state.doc, inlineCodePosition),
+          )
+          .setMeta("editor-inline-code-editing$", {
+            activeRange: {
+              from: inlineCodePosition,
+              to: inlineCodePosition + 4,
+            },
+            openingBoundaryPosition: inlineCodePosition,
+            closingBoundaryPosition: null,
+            isComposing: false,
+            isBlurred: false,
+            suppressedSelectionPosition: null,
+          }),
+      );
+      for (const text of ["-", " "]) {
+        if (inputMode === "beforeinput") {
+          view.dom.dispatchEvent(
+            new InputEvent("beforeinput", {
+              inputType: "insertText",
+              data: text,
+              bubbles: true,
+              cancelable: true,
+            }),
+          );
+        } else {
+          simulateTextInput(editor, text);
+        }
+      }
+      expect(editor.document[0].type).toBe("bulletListItem");
+      expect(editor.document[0].content).toEqual([
+        { type: "text", text: "test", styles: { code: true } },
+      ]);
+    },
+  );
+
+  it.each([0, 1])(
+    "composes plain text before the opening marker with native offset %s",
+    (offset) => {
+      const { editor, inlineCodePosition, view } = renderInlineCodeTestEditor();
+      view.dispatch(
+        view.state.tr
+          .setSelection(
+            TextSelection.create(view.state.doc, inlineCodePosition + offset),
+          )
+          .setMeta("editor-inline-code-editing$", {
+            activeRange: {
+              from: inlineCodePosition,
+              to: inlineCodePosition + 4,
+            },
+            openingBoundaryPosition: inlineCodePosition,
+            closingBoundaryPosition: null,
+            isComposing: false,
+            isBlurred: false,
+            suppressedSelectionPosition: null,
+          }),
+      );
+      view.dom.dispatchEvent(
+        new CompositionEvent("compositionstart", { bubbles: true }),
+      );
+      expect(view.state.selection.from).toBe(inlineCodePosition);
+      view.dispatch(view.state.tr.insertText("中文"));
+      expect(editor.document[0].content).toEqual([
+        { type: "text", text: "中文", styles: {} },
+        { type: "text", text: "test", styles: { code: true } },
+      ]);
+    },
+  );
+
   it("uses the native caret while composing text inside inline code", async () => {
     const { container, inlineCodePosition, view } =
       renderInlineCodeTestEditor();
@@ -2821,20 +2919,58 @@ describe("editor BlockNote schema", () => {
     inlineCode?.dispatchEvent(
       new CompositionEvent("compositionstart", { bubbles: true }),
     );
+    expect(view.dom).toHaveClass("editor-inline-code--composing");
     expect(
       container.querySelector(".editor-inline-code__composing-content"),
     ).not.toBe(null);
+    expect(
+      container.querySelector(".editor-inline-code__editing-content"),
+    ).not.toBe(null);
+    expect(
+      container.querySelectorAll(".editor-inline-code__editing-start"),
+    ).toHaveLength(1);
+    expect(
+      container.querySelectorAll(".editor-inline-code__editing-end"),
+    ).toHaveLength(1);
     expect(container.querySelector(".editor-inline-code__editing-caret")).toBe(
       null,
     );
-    expect(container.querySelector(".editor-inline-code__editing-marker")).toBe(
-      null,
+    const markers = Array.from(
+      container.querySelectorAll(".editor-inline-code__editing-marker"),
     );
-    expect(
-      container.querySelector(".editor-inline-code__latin-content"),
-    ).not.toBe(null);
+    expect(markers).toHaveLength(2);
 
-    inlineCode?.dispatchEvent(
+    // 真实输入法会在候选词确认前连续更新文档，不能只测试开始和结束事件。
+    for (const text of ["c", "cc", "测试"]) {
+      const from = inlineCodePosition + 2;
+      const to = view.state.selection.from;
+      view.dispatch(view.state.tr.insertText(text, from, to));
+      expect(
+        Array.from(
+          container.querySelectorAll(".editor-inline-code__editing-marker"),
+        ),
+      ).toEqual(markers);
+      expect(
+        container.querySelector("code .editor-inline-code__editing-marker"),
+      ).toBeNull();
+      expect(
+        container.querySelector(".editor-inline-code__composing-content"),
+      ).not.toBeNull();
+      for (const key of ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"]) {
+        const selection = view.state.selection;
+        const event = new KeyboardEvent("keydown", {
+          key,
+          bubbles: true,
+          cancelable: true,
+          isComposing: true,
+        });
+        view.dom.dispatchEvent(event);
+        expect(event.defaultPrevented).toBe(false);
+        expect(view.state.selection.eq(selection)).toBe(true);
+      }
+    }
+
+    view.dom.dispatchEvent(
       new CompositionEvent("compositionend", { bubbles: true }),
     );
     await new Promise((resolve) => window.setTimeout(resolve, 35));
@@ -2842,15 +2978,13 @@ describe("editor BlockNote schema", () => {
     expect(
       container.querySelector(".editor-inline-code__composing-content"),
     ).toBe(null);
+    expect(view.dom).not.toHaveClass("editor-inline-code--composing");
     expect(
       container.querySelector(".editor-inline-code__editing-caret"),
     ).not.toBe(null);
     expect(
       container.querySelectorAll(".editor-inline-code__editing-marker"),
     ).toHaveLength(2);
-    expect(
-      container.querySelector(".editor-inline-code__latin-content"),
-    ).not.toBe(null);
     expect(
       container.querySelectorAll(".editor-inline-code__editing-start"),
     ).toHaveLength(1);

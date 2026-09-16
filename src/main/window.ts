@@ -40,11 +40,17 @@ const windowConfig: Electron.BrowserWindowConstructorOptions = {
         // macOS: 隐藏标题栏但保留原生红绿灯按钮
         titleBarStyle: "hidden",
         trafficLightPosition: MAC_TRAFFIC_LIGHT_POSITION,
+        // 由系统提供窗后磨砂材质，渲染层只在导航区域叠加半透明主题底色。
+        vibrancy: "sidebar",
+        visualEffectState: "active",
+        transparent: true,
+        backgroundColor: "#00000000",
       }
     : {
         // Windows/Linux: 无边框透明窗口
         frame: false,
         transparent: true,
+        backgroundColor: "#00000000",
       }),
   ...(!isMac ? { icon } : {}),
   webPreferences: {

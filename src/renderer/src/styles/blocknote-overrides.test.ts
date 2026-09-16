@@ -29,12 +29,12 @@ describe("blocknote overrides stylesheet", () => {
     );
   });
 
-  it("defines theme-aware code block colors", () => {
-    expect(getRule('.bn-root[data-color-scheme="light"]')).toMatch(
-      /--editor-code-block-bg:\s*#f5f8ff;/,
+  it("inherits theme-specific code surfaces while preserving scheme syntax colors", () => {
+    expect(getRule('.bn-root[data-color-scheme="light"]')).not.toMatch(
+      /--editor-code-block-bg:/,
     );
-    expect(getRule('.bn-root[data-color-scheme="dark"]')).toMatch(
-      /--editor-code-block-bg:\s*#0d1117;/,
+    expect(getRule('.bn-root[data-color-scheme="dark"]')).not.toMatch(
+      /--editor-code-block-bg:/,
     );
     expect(getRule('.bn-root[data-color-scheme="light"]')).toMatch(
       /--editor-code-token-keyword:\s*#a626a4;/,
@@ -47,12 +47,6 @@ describe("blocknote overrides stylesheet", () => {
     );
     expect(getRule('.bn-root[data-color-scheme="dark"]')).toMatch(
       /--editor-code-token-string:\s*#98c379;/,
-    );
-    expect(getRule('.bn-root[data-color-scheme="light"]')).toMatch(
-      /--editor-code-block-cursor:\s*#0969da;/,
-    );
-    expect(getRule('.bn-root[data-color-scheme="dark"]')).toMatch(
-      /--editor-code-block-cursor:\s*#79c0ff;/,
     );
   });
 
@@ -109,6 +103,29 @@ describe("blocknote overrides stylesheet", () => {
     expect(inlineContentRule).toBeDefined();
     expect(inlineContentRule).toMatch(/min-width:\s*0;/);
     expect(inlineContentRule).toMatch(/overflow-wrap:\s*anywhere;/);
+  });
+
+  it("uses high-contrast rich-text links only in dark color schemes", () => {
+    const darkSchemeRule = getRule('.bn-root[data-color-scheme="dark"]');
+    const lightSchemeRule = getRule('.bn-root[data-color-scheme="light"]');
+    const darkLinkRule = getRule(
+      '.bn-root[data-color-scheme="dark"] :is(.bn-editor, .bn-editor-preview) a',
+    );
+    const darkLinkHoverRule = getRule(
+      '.bn-root[data-color-scheme="dark"] :is(.bn-editor, .bn-editor-preview) a:hover',
+    );
+
+    expect(darkSchemeRule).toMatch(/--editor-rich-link:\s*#79c0ff;/);
+    expect(darkSchemeRule).toMatch(/--editor-rich-link-hover:\s*#a5d6ff;/);
+    expect(lightSchemeRule).not.toMatch(/--editor-rich-link:/);
+    expect(darkLinkRule).toMatch(
+      /color:\s*var\(--editor-rich-link\) !important;/,
+    );
+    expect(darkLinkRule).toMatch(/text-decoration-color:\s*currentColor;/);
+    expect(darkLinkRule).toMatch(/text-decoration-thickness:\s*1\.5px;/);
+    expect(darkLinkHoverRule).toMatch(
+      /color:\s*var\(--editor-rich-link-hover\) !important;/,
+    );
   });
 
   it("keeps live rich blocks fully laid out for editable caret hit testing", () => {
@@ -369,38 +386,33 @@ describe("blocknote overrides stylesheet", () => {
       /color:\s*var\(--accent-color\) !important;/,
     );
     expect(inlineCodeRule).toMatch(/padding:\s*0\.15em 4px !important;/);
-    expect(inlineCodeRule).toMatch(/font-family:[\s\S]*monospace !important;/);
+    expect(inlineCodeRule).toMatch(/border-radius:\s*4px !important;/);
+    expect(inlineCodeRule).toMatch(/font-family:\s*inherit !important;/);
+    expect(inlineCodeRule).toMatch(/font-size:\s*inherit !important;/);
     expect(inlineCodeRule).toMatch(/font-weight:\s*400 !important;/);
     expect(inlineCodeRule).toMatch(/cursor:\s*text;/);
-    expect(
-      getRule(
-        ":is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content, :is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content code",
-      ),
-    ).toMatch(/color:\s*var\(--accent-color\) !important;/);
-    expect(
-      getRule(
-        ":is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content, :is(.bn-editor, .bn-editor-preview) .editor-inline-code__latin-content code",
-      ),
-    ).toMatch(/font-weight:\s*500 !important;/);
+    expect(stylesheet).not.toMatch(/editor-inline-code__latin-content/);
   });
 
-  it("uses Vditor-style visual markers with stable selection carets", () => {
-    const markerRule = stylesheet.match(
-      /\.bn-editor\s+code:not\(\.editor-code-block__content\):has\(\s+\.editor-inline-code__editing-content\s+\)::before,[\s\S]*?\.editor-inline-code__editing-end\s*\)\s*::after\s*\{([\s\S]*?)\n\}/,
-    )?.[1];
-    expect(markerRule).toBeDefined();
-    expect(markerRule).toMatch(/position:\s*absolute;/);
-    expect(markerRule).toMatch(/content:\s*"`";/);
-    expect(markerRule).toMatch(/color:\s*var\(--text-primary\);/);
-    expect(markerRule).toMatch(/pointer-events:\s*none;/);
-    expect(markerRule).toMatch(/transform:\s*translateY\(-50%\);/);
-    expect(stylesheet).toMatch(
-      /\.editor-inline-code__editing-content\s*\)\s*::before,[\s\S]*\.editor-inline-code__editing-end\s*\)\s*::before\s*\{[\s\S]*left:\s*-0\.65em;/,
+  it("scopes the neutral inline code treatment to the minimal theme", () => {
+    const minimalInlineCodeRule = getRule(
+      ".minimal :is(.bn-editor, .bn-editor-preview) code:not(.editor-code-block__content)",
     );
-    expect(stylesheet).toMatch(
-      /\.bn-editor:has\(\.editor-inline-code__editing-marker\)[\s\S]*content:\s*none;/,
+    expect(minimalInlineCodeRule).toBeDefined();
+    expect(minimalInlineCodeRule).toMatch(
+      /background-color:\s*var\(--bg-secondary\) !important;/,
     );
+    expect(minimalInlineCodeRule).toMatch(
+      /color:\s*var\(--text-primary\) !important;/,
+    );
+    expect(minimalInlineCodeRule).toMatch(
+      /padding:\s*0\.2em 0\.4em !important;/,
+    );
+    expect(minimalInlineCodeRule).toMatch(/border-radius:\s*5px !important;/);
+    expect(minimalInlineCodeRule).toMatch(/font-size:\s*0\.9em !important;/);
+  });
 
+  it("uses widget-only Vditor-style markers with stable selection carets", () => {
     const markerWidgetRule = getRule(
       ".bn-editor .editor-inline-code__editing-marker",
     );
@@ -410,6 +422,12 @@ describe("blocknote overrides stylesheet", () => {
     );
     expect(markerWidgetRule).toMatch(/background:\s*transparent !important;/);
     expect(markerWidgetRule).toMatch(/pointer-events:\s*auto;/);
+    expect(stylesheet).not.toMatch(/content:\s*"`";/);
+
+    const composingMarkerRule = getRule(
+      ".bn-editor.editor-inline-code--composing :is( .editor-inline-code__editing-caret, .editor-inline-code__editing-trailing-caret )",
+    );
+    expect(composingMarkerRule).toMatch(/display:\s*none !important;/);
 
     const editingCodeRule = getRule(
       ".bn-editor code:not(.editor-code-block__content):has( .editor-inline-code__editing-content )",

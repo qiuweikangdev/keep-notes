@@ -5,8 +5,11 @@ import { DialogResizeHandles } from "@/components/ui/dialog-resize-handles";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Editor } from "@/features/editor";
 import { EditorBridge } from "@/features/editor/components/editor-bridge";
+import { useEditorTabActions } from "@/features/editor/lib/use-editor-tab-actions";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TitleBar } from "@/components/layout/title-bar";
+import { useEditorStore } from "@/store/editor.store";
+import { useUIStore } from "@/store/ui.store";
 import { usePanel } from "@/hooks/use-panel";
 import { useElectron } from "@/hooks/use-electron";
 import { useResizableDialog } from "@/hooks/use-resizable-dialog";
@@ -20,7 +23,6 @@ import {
 import { areDiffContentsEqual } from "@/features/diff/lib/diff-content";
 import { useDiffStore } from "@/store/diff.store";
 import { useDiffPanelStore } from "@/features/diff/store/diff-panel.store";
-import { useEditorStore } from "@/store/editor.store";
 import { useTreeStore } from "@/store/tree.store";
 import { discardFileChanges } from "@/features/editor/lib/discard-file-changes";
 import {
@@ -46,7 +48,29 @@ export function HomePage() {
 }
 
 function HomePageContent() {
-  const workspaceOpacity = useEditorStore((state) => state.appearance.opacity);
+  const isMinimal = useUIStore((state) => state.layout === "minimal");
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const workspace = workspaceRef.current;
+    const sidebar = workspace?.querySelector<HTMLElement>(
+      ".workspace-sidebar-panel",
+    );
+    if (!workspace || !sidebar) return;
+    // 跟随面板的真实边界更新整列材质，覆盖拖拽、收起动画和窗口缩放。
+    const syncMaterialWidth = () => {
+      const bounds = sidebar.getBoundingClientRect();
+      const width =
+        bounds.width > 0
+          ? bounds.right - workspace.getBoundingClientRect().left
+          : 0;
+      workspace.style.setProperty("--workspace-sidebar-width", `${width}px`);
+    };
+    syncMaterialWidth();
+    const observer = new ResizeObserver(syncMaterialWidth);
+    observer.observe(sidebar);
+    observer.observe(workspace);
+    return () => observer.disconnect();
+  }, []);
   const {
     panelSize,
     panelRef,
@@ -73,6 +97,22 @@ function HomePageContent() {
 
   const electron = useElectron();
   const { loadTree, openFile } = electron;
+  const activeGroupId = useEditorStore((state) => state.activeGroupId);
+  const editorActions = useEditorTabActions({
+    groupId: activeGroupId,
+    onNewTab: () => {
+      const state = useEditorStore.getState();
+      state.addTab(state.activeGroupId);
+    },
+    onSplitRight: () => {
+      const state = useEditorStore.getState();
+      state.addPanelGroup("horizontal", state.activeGroupId);
+    },
+    onSplitDown: () => {
+      const state = useEditorStore.getState();
+      state.addPanelGroup("vertical", state.activeGroupId);
+    },
+  });
   const repositoryRoot = useTreeStore((state) => state.treeRoot?.key ?? null);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
   const confirmDiscardOpenRef = useRef(false);
@@ -209,11 +249,13 @@ function HomePageContent() {
 
   return (
     <div
-      className="flex flex-col h-screen overflow-hidden relative"
+      ref={workspaceRef}
+      className="workspace-shell flex h-full min-h-0 w-full flex-col overflow-hidden relative"
+      data-native-material={isMac}
+      data-sidebar-collapsed={collapsed}
       style={{
-        backgroundColor: "var(--bg-primary)",
         color: "var(--text-primary)",
-        borderRadius: isMac ? "0" : isMaximized ? "0" : "8px",
+        borderRadius: isMac ? "0" : isMaximized ? "0" : "10px",
       }}
     >
       <EditorBridge />
@@ -227,17 +269,35 @@ function HomePageContent() {
       <div className="resize-handle resize-handle-bottom-left" />
       <div className="resize-handle resize-handle-bottom-right" />
 
-      <TitleBar collapsed={collapsed} onToggleCollapse={toggleCollapse} />
+      <TitleBar
+        collapsed={collapsed}
+        onToggleCollapse={toggleCollapse}
+        compactTabs={isMinimal ? null : undefined}
+        editorActions={{
+          hasActiveTab: Boolean(editorActions.tab),
+          isSourceMode: editorActions.tab?.mode === "source",
+          canOpenFloatingWindow: true,
+          onOpenFloatingWindow: () => {
+            void editorActions.handleOpenFloatingWindow();
+          },
+          onNewTab: editorActions.onNewTab,
+          onModeToggle: editorActions.handleModeToggle,
+          onSplitRight: editorActions.onSplitRight,
+          onSplitDown: editorActions.onSplitDown,
+        }}
+      />
 
       <div
         className={cn(
-          "workspace-panel-group flex-1 overflow-hidden",
+          "workspace-panel-group flex-1 min-h-0 overflow-hidden",
           isSidebarResizing && "workspace-panel-group--resizing",
         )}
-        // 文件树和正文统一应用透明度，设置页与标题栏保持不透明。
-        style={{ opacity: workspaceOpacity / 100 }}
       >
-        <PanelGroup direction="horizontal" onLayout={handleLayout}>
+        <PanelGroup
+          className="workspace-panel-group__inner"
+          direction="horizontal"
+          onLayout={handleLayout}
+        >
           <Panel
             ref={panelRef}
             className="workspace-panel workspace-sidebar-panel"
@@ -254,8 +314,8 @@ function HomePageContent() {
           <PanelResizeHandle
             className="group/resize"
             style={{
-              width: "1px",
-              minWidth: "1px",
+              width: "0px",
+              minWidth: "0px",
               position: "relative",
               cursor: "col-resize",
             }}
@@ -274,12 +334,7 @@ function HomePageContent() {
             className="workspace-panel workspace-editor-panel"
             minSize={30}
           >
-            <div
-              className="h-full overflow-hidden"
-              style={{
-                backgroundColor: "var(--bg-primary)",
-              }}
-            >
+            <div className="workspace-content-surface h-full overflow-hidden">
               <Editor />
             </div>
           </Panel>

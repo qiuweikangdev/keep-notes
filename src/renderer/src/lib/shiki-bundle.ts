@@ -3,6 +3,7 @@ import {
   createSingletonShorthands,
   guessEmbeddedLanguages,
 } from "shiki/core";
+import type { HighlighterGeneric } from "shiki/core";
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
 
 export * from "shiki/core";
@@ -64,11 +65,17 @@ export const bundledLanguages = {
   patch: () => import("@shikijs/langs/diff"),
 };
 
-export const bundledThemes = {
-  nord: () => import("@shikijs/themes/nord"),
-  dracula: () => import("@shikijs/themes/dracula"),
-  "solarized-dark": () => import("@shikijs/themes/solarized-dark"),
-};
+export const bundledThemes = {};
+
+type BundledLanguageName = keyof typeof bundledLanguages;
+const guessBundledEmbeddedLanguages = (
+  code: string,
+  lang: string | undefined,
+  _highlighter: HighlighterGeneric<BundledLanguageName, never>,
+) =>
+  guessEmbeddedLanguages(code, lang).filter(
+    (language): language is BundledLanguageName => language in bundledLanguages,
+  );
 
 export const createHighlighter = createBundledHighlighter({
   langs: bundledLanguages,
@@ -84,7 +91,9 @@ export const {
   codeToTokensWithThemes,
   getSingletonHighlighter,
   getLastGrammarState,
-} = createSingletonShorthands(createHighlighter, { guessEmbeddedLanguages });
+} = createSingletonShorthands(createHighlighter, {
+  guessEmbeddedLanguages: guessBundledEmbeddedLanguages,
+});
 
 const DIFF_LANGUAGE_BY_EXTENSION: Record<
   string,

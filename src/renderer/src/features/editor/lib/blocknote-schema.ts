@@ -147,10 +147,9 @@ const INLINE_CODE_EDITING_START_CLASS = "editor-inline-code__editing-start";
 const INLINE_CODE_EDITING_END_CLASS = "editor-inline-code__editing-end";
 const INLINE_CODE_COMPOSING_CONTENT_CLASS =
   "editor-inline-code__composing-content";
-const INLINE_CODE_LATIN_CONTENT_CLASS = "editor-inline-code__latin-content";
+const INLINE_CODE_COMPOSING_EDITOR_CLASS = "editor-inline-code--composing";
 const INLINE_CODE_LEADING_CLICK_SLOP = 16;
 const INLINE_CODE_TRAILING_CLICK_SLOP = 16;
-const inlineCodeLatinContentPattern = /[\u0020-\u007e]+/g;
 
 type InlineCodeEditingState = {
   activeRange: { from: number; to: number } | null;
@@ -174,9 +173,6 @@ const EMPTY_INLINE_CODE_EDITING_STATE: InlineCodeEditingState = {
 let activeInlineCodeEditorView: EditorView | null = null;
 const inlineCodeEditingPluginKey = new PluginKey<InlineCodeEditingState>(
   "editor-inline-code-editing",
-);
-const inlineCodeLatinContentPluginKey = new PluginKey<DecorationSet>(
-  "editor-inline-code-latin-content",
 );
 
 type InlineCodeMarkerReplacement = {
@@ -332,41 +328,6 @@ const inlineCodeNormalizerExtension = createExtension({
     }),
   ],
 });
-
-function getInlineCodeLatinContentDecorations(state: EditorState) {
-  const codeMark = state.schema.marks.code;
-  if (!codeMark) return DecorationSet.empty;
-
-  const decorations: Decoration[] = [];
-  state.doc.descendants((node, position) => {
-    if (
-      !node.isText ||
-      !node.text ||
-      !node.marks.some((mark) => mark.type === codeMark)
-    ) {
-      return true;
-    }
-
-    for (const match of node.text.matchAll(inlineCodeLatinContentPattern)) {
-      if (match.index === undefined) continue;
-
-      // 仅补偿 ASCII 字符的等宽字体字重，避免同步加深中文回退字体。
-      decorations.push(
-        Decoration.inline(
-          position + match.index,
-          position + match.index + match[0].length,
-          { class: INLINE_CODE_LATIN_CONTENT_CLASS },
-        ),
-      );
-    }
-
-    return true;
-  });
-
-  return decorations.length === 0
-    ? DecorationSet.empty
-    : DecorationSet.create(state.doc, decorations);
-}
 
 function findInlineCodeRange(
   state: EditorState,
@@ -1200,6 +1161,25 @@ function insertInlineCodeBoundaryText(view: EditorView, text: string) {
     return false;
   }
 
+  // 边界输入也必须经过 Markdown 规则（例如行首的“- ”），否则直接插入会阻断列表转换。
+  // 仅调用输入规则插件，避免再次进入当前 handleTextInput 造成递归。
+  const position = activeRange.from;
+  for (const plugin of view.state.plugins) {
+    if (
+      plugin.spec.isInputRules &&
+      plugin.props.handleTextInput?.call(
+        plugin,
+        view,
+        position,
+        position,
+        text,
+        () => view.state.tr.insertText(text, position, position),
+      )
+    ) {
+      return true;
+    }
+  }
+
   // 浏览器同步 contenteditable 选区时，虚拟边界偶尔会短暂落到首字符后一个位置；仍按边界处理，避免连续输入逐字进入 code mark。
   const insertedLength = text.length;
   const nextCodeRange = {
@@ -1320,26 +1300,27 @@ function getInlineCodeEditingDecorations(state: EditorState) {
       class: INLINE_CODE_EDITING_END_CLASS,
     }),
   ];
-  if (!editingState.isComposing) {
-    const createMarker = (boundary: "start" | "end") => {
-      const marker = document.createElement("span");
-      marker.className = `${INLINE_CODE_EDITING_MARKER_CLASS} ${INLINE_CODE_EDITING_MARKER_CLASS}--${boundary}`;
-      marker.contentEditable = "false";
-      marker.setAttribute("aria-hidden", "true");
-      marker.textContent = "`";
-      return marker;
-    };
-    decorations.push(
-      Decoration.widget(range.from, () => createMarker("start"), {
-        key: `inline-code-editing-marker-start-${range.from}`,
-        side: -2,
-      }),
-      Decoration.widget(range.to, () => createMarker("end"), {
-        key: `inline-code-editing-marker-end-${range.to}`,
-        side: 2,
-      }),
-    );
-  }
+  const createMarker = (boundary: "start" | "end") => {
+    const marker = document.createElement("span");
+    marker.className = `${INLINE_CODE_EDITING_MARKER_CLASS} ${INLINE_CODE_EDITING_MARKER_CLASS}--${boundary}`;
+    marker.contentEditable = "false";
+    marker.setAttribute("aria-hidden", "true");
+    marker.textContent = "`";
+    return marker;
+  };
+  decorations.push(
+    Decoration.widget(range.from, () => createMarker("start"), {
+      // 稳定 key 和空 marks 让标记始终位于 code 外侧，候选文本更新时无需重建。
+      key: "inline-code-editing-marker-start",
+      marks: [],
+      side: -2,
+    }),
+    Decoration.widget(range.to, () => createMarker("end"), {
+      key: "inline-code-editing-marker-end",
+      marks: [],
+      side: 2,
+    }),
+  );
   if (
     selection.empty &&
     !editingState.isComposing &&
@@ -1488,8 +1469,13 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
                       editingState.suppressedSelectionPosition,
                     ),
                   }
-                : EMPTY_INLINE_CODE_EDITING_STATE;
+                : {
+                    ...EMPTY_INLINE_CODE_EDITING_STATE,
+                    isComposing: editingState.isComposing,
+                  };
           }
+          // 候选词更新会改变文档和选区；组合输入结束前不能恢复自定义光标或切换虚拟边界。
+          if (mappedState.isComposing) return mappedState;
           if (transaction.docChanged && mappedState.activeRange) {
             const currentRange = newState.selection.empty
               ? findInlineCodeRange(newState, newState.selection.from, true)
@@ -1632,13 +1618,31 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
           }
 
           const state = inlineCodeEditingPluginKey.getState(editorView.state);
+          const compositionRange =
+            state?.activeRange ??
+            findInlineCodeRange(
+              editorView.state,
+              editorView.state.selection.from,
+              true,
+            );
+          if (compositionRange) {
+            // macOS 输入法会暂时保留 ProseMirror 旧 DOM；根节点状态用于立即屏蔽残留的自定义光标。
+            editorView.dom.classList.add(INLINE_CODE_COMPOSING_EDITOR_CLASS);
+          }
           if (
             state?.activeRange &&
-            state.closingBoundaryPosition === state.activeRange.to &&
             editorView.state.selection.empty &&
-            editorView.state.selection.from === state.activeRange.to
+            ((state.closingBoundaryPosition === state.activeRange.to &&
+              editorView.state.selection.from === state.activeRange.to) ||
+              (state.openingBoundaryPosition === state.activeRange.from &&
+                editorView.state.selection.from >= state.activeRange.from &&
+                editorView.state.selection.from <= state.activeRange.from + 1))
           ) {
-            // 输入法会直接写 DOM；交接前移除 code 样式，避免共享坐标再次继承代码末尾的 mark。
+            // 左右虚拟边界都属于普通文本；先还原真实选区，再交给输入法，避免首字进入 code。
+            const position =
+              state.openingBoundaryPosition === state.activeRange.from
+                ? state.activeRange.from
+                : state.activeRange.to;
             const marks = (
               editorView.state.storedMarks ??
               editorView.state.selection.$from.marks()
@@ -1647,14 +1651,17 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
             );
             editorView.dispatch(
               editorView.state.tr
+                .setSelection(
+                  TextSelection.create(editorView.state.doc, position),
+                )
                 .setStoredMarks(marks)
                 .setMeta(inlineCodeEditingPluginKey, {
                   ...EMPTY_INLINE_CODE_EDITING_STATE,
-                  suppressedSelectionPosition: editorView.state.selection.from,
+                  suppressedSelectionPosition: position,
                 }),
             );
           }
-          // 输入法接管光标前移除 contenteditable=false 的自定义节点，避免 code mark 被拆开。
+          // 组合态保留稳定的边界反引号，只移除自定义光标。
           updateInlineCodeCompositionState(true);
         };
         const handleInlineCodeCompositionEnd = () => {
@@ -1666,6 +1673,7 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
           compositionEndTimer = window.setTimeout(() => {
             compositionEndTimer = null;
             updateInlineCodeCompositionState(false);
+            editorView.dom.classList.remove(INLINE_CODE_COMPOSING_EDITOR_CLASS);
           }, 30);
         };
         const handleInlineCodeMouseDown = (event: MouseEvent) => {
@@ -1886,6 +1894,12 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
           event.preventDefault();
         };
         const handleVerticalKeyDown = (event: KeyboardEvent) => {
+          if (
+            event.isComposing ||
+            editorView.composing ||
+            inlineCodeEditingPluginKey.getState(editorView.state)?.isComposing
+          )
+            return;
           const direction =
             event.key === "ArrowUp" || event.key === "Up"
               ? -1
@@ -1967,6 +1981,12 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
           event.stopImmediatePropagation();
         };
         const handleHorizontalKeyDown = (event: KeyboardEvent) => {
+          if (
+            event.isComposing ||
+            editorView.composing ||
+            inlineCodeEditingPluginKey.getState(editorView.state)?.isComposing
+          )
+            return;
           const eventTarget = event.target;
           const eventIsInsideEditor =
             eventTarget instanceof Node && editorView.dom.contains(eventTarget);
@@ -2039,6 +2059,7 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
         window.addEventListener("blur", resetInlineCodeSelectionDrag);
         return {
           destroy() {
+            editorView.dom.classList.remove(INLINE_CODE_COMPOSING_EDITOR_CLASS);
             document.removeEventListener(
               "mousedown",
               handleInlineCodeMouseDown,
@@ -2116,6 +2137,12 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
       props: {
         decorations: getInlineCodeEditingDecorations,
         handleKeyDown(view, event) {
+          if (
+            event.isComposing ||
+            view.composing ||
+            inlineCodeEditingPluginKey.getState(view.state)?.isComposing
+          )
+            return false;
           const navigation = getInlineCodeHorizontalNavigation(event);
           if (!navigation) return false;
 
@@ -2227,28 +2254,6 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
     }),
   ],
 }));
-
-const inlineCodeLatinContentExtension = createExtension({
-  key: "editor-inline-code-latin-content",
-  prosemirrorPlugins: [
-    new Plugin<DecorationSet>({
-      key: inlineCodeLatinContentPluginKey,
-      state: {
-        init: (_config, state) => getInlineCodeLatinContentDecorations(state),
-        apply: (transaction, decorations, _oldState, newState) =>
-          transaction.docChanged
-            ? getInlineCodeLatinContentDecorations(newState)
-            : decorations,
-      },
-      props: {
-        // 输入法组合期间同样保留 ASCII 字重补偿，避免中英文数字视觉颜色突然分叉。
-        decorations: (state) =>
-          inlineCodeLatinContentPluginKey.getState(state) ??
-          DecorationSet.empty,
-      },
-    }),
-  ],
-});
 
 const inlineCodeBackspaceExtension = createExtension({
   key: "editor-inline-code-backspace",
@@ -2861,7 +2866,6 @@ const editorParagraphSpec = {
     fullDocumentClearExtension,
     inlineCodeBackspaceExtension,
     inlineCodeEditingExtension(),
-    inlineCodeLatinContentExtension,
     inlineCodeNormalizerExtension,
   ],
 };

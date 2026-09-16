@@ -51,7 +51,10 @@ describe("ConfirmDialog", () => {
       screen
         .getByRole("heading", { name: "确认删除" })
         .closest('[data-dialog-surface="confirm"]'),
-    ).toHaveStyle({ backgroundColor: "var(--bg-primary)" });
+    ).toHaveAttribute("data-dialog-variant", "danger");
+    expect(screen.getByText("确认删除").closest(".confirm-dialog-header")).toBe(
+      screen.getByRole("heading", { name: "确认删除" }).parentElement,
+    );
   });
 
   it("uses a warning icon for irreversible discard confirmations", () => {
@@ -71,6 +74,11 @@ describe("ConfirmDialog", () => {
         .getByRole("heading", { name: "确认放弃更改" })
         .querySelector("svg.lucide-triangle-alert"),
     ).toBeInTheDocument();
+    expect(
+      screen
+        .getByRole("heading", { name: "确认放弃更改" })
+        .closest('[data-dialog-surface="confirm"]'),
+    ).toHaveAttribute("data-dialog-variant", "warning");
   });
 
   it("uses a caller-supplied semantic icon", () => {

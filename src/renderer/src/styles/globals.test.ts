@@ -60,6 +60,20 @@ describe("global scrollbar styles", () => {
   });
 });
 
+describe("Windows window surface styles", () => {
+  it("leaves a transparent perimeter for shadows around app and floating editor windows", () => {
+    expect(stylesheet).toMatch(
+      /\.window-surface-host\s*\{[\s\S]*width:\s*100%;[\s\S]*height:\s*100%;[\s\S]*overflow:\s*hidden;[\s\S]*background:\s*transparent;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.window-surface-host\[data-window-platform="windows"\]\s*\{[\s\S]*padding:\s*6px;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.window-surface-host\[data-window-platform="windows"\]\s*>\s*\.app-window-surface,[\s\S]*\.window-surface-host\[data-window-platform="windows"\]\s*>\s*\.quick-editor-window\s*\{[\s\S]*box-shadow:/,
+    );
+  });
+});
+
 describe("shared selection interaction styles", () => {
   it("balances perceived contrast across the sidebar and command palette", () => {
     expect(stylesheet).toMatch(
@@ -101,10 +115,149 @@ describe("shared selection interaction styles", () => {
   });
 });
 
+describe("deep-black command palette surfaces", () => {
+  it("uses one continuous elevated surface for search and reminder content", () => {
+    expect(stylesheet).toMatch(
+      /\.minimal \.command-palette-surface\s*\{[\s\S]*border-color:\s*color-mix\([\s\S]*background-color:\s*color-mix\(/,
+    );
+    expect(stylesheet).toMatch(
+      /\.minimal \.command-palette-header\s*\{[\s\S]*border-bottom:\s*0;[\s\S]*background-color:\s*transparent;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.minimal\s+\.command-palette-surface\[data-reminder-list-dialog="true"\]\s*\{[\s\S]*border:\s*1px solid[\s\S]*!important;[\s\S]*background-color:\s*color-mix\([\s\S]*!important;/,
+    );
+  });
+
+  it("keeps result rows and reminder controls readable and softly rounded", () => {
+    expect(stylesheet).toMatch(
+      /\.minimal \.command-palette-header input::placeholder\s*\{[\s\S]*color:\s*var\(--text-secondary\);/,
+    );
+    expect(stylesheet).toMatch(
+      /\.minimal \.command-palette-surface \[role="listbox"\]\s*\{[\s\S]*padding-top:\s*4px;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.minimal \.command-palette-surface \[data-selection-surface="true"\]\s*\{[\s\S]*border-radius:\s*10px;/,
+    );
+  });
+});
+
 describe("markdown source editor surface styles", () => {
   it("keeps the editor borderless instead of using form-control focus styles", () => {
     expect(stylesheet).toMatch(
       /textarea\[aria-label="Markdown 源码"\]\s*\{[\s\S]*border:\s*0 !important;[\s\S]*border-radius:\s*0;[\s\S]*box-shadow:\s*none !important;[\s\S]*outline:\s*none !important;/,
+    );
+  });
+
+  it("marks source mode with a restrained outer border", () => {
+    expect(stylesheet).toMatch(
+      /\.editor-source-pane\s*\{[\s\S]*border:\s*1px solid color-mix\(\s*in srgb,\s*var\(--border-color\) 70%,\s*var\(--text-secondary\)\s*\);/,
+    );
+  });
+});
+
+describe("workspace layout surface styles", () => {
+  it("keeps the padded panel group and editor surface inside the viewport", () => {
+    expect(stylesheet).toMatch(
+      /\.workspace-shell\s*>\s*\.workspace-panel-group\s*\{[\s\S]*min-width:\s*0;[\s\S]*min-height:\s*0;[\s\S]*padding:\s*var\(--workspace-panel-group-padding\);/,
+    );
+    expect(stylesheet).toMatch(
+      /\.workspace-panel-group__inner\s*\{[\s\S]*min-width:\s*0;[\s\S]*min-height:\s*0;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.workspace-content-surface\s*\{[\s\S]*min-width:\s*0;[\s\S]*min-height:\s*0;[\s\S]*border-radius:\s*var\(--workspace-content-radius\);[\s\S]*overflow:\s*hidden;/,
+    );
+  });
+
+  it("removes panel group padding in the minimal workspace", () => {
+    expect(stylesheet).toMatch(
+      /\[data-layout="minimal"\]\s+\.workspace-shell\s*>\s*\.workspace-panel-group\s*\{[^}]*padding:\s*0;/,
+    );
+  });
+
+  it("lets the minimal panel group fit inside the workspace", () => {
+    expect(stylesheet).toMatch(
+      /\[data-layout="minimal"\]\s+\.workspace-shell\s*>\s*\.workspace-panel-group\s*\{[\s\S]*display:\s*grid;[\s\S]*grid-template-rows:\s*minmax\(0,\s*1fr\);[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\);/,
+    );
+    expect(stylesheet).toMatch(
+      /\[data-layout="minimal"\]\s+\.workspace-panel-group__inner\s*\{[\s\S]*width:\s*auto\s*!important;[\s\S]*height:\s*auto\s*!important;/,
+    );
+  });
+
+  it("removes the minimal layout tab bar surfaces", () => {
+    expect(stylesheet).toMatch(
+      /\[data-layout="minimal"\]\s+\.editor-tab-bar\s*\{[\s\S]*background-color:\s*transparent !important;/,
+    );
+    expect(stylesheet).toMatch(
+      /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tab"\]\s*\{[\s\S]*background-color:\s*transparent !important;/,
+    );
+  });
+
+  it("aligns minimal tab dividers and compacts the single-tab state", () => {
+    expect(stylesheet).toMatch(
+      /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tablist"\]\s*\{[\s\S]*position:\s*relative;/,
+    );
+    expect(stylesheet).toMatch(
+      /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tablist"\]::before\s*\{[\s\S]*top:\s*0;[\s\S]*bottom:\s*0;[\s\S]*width:\s*1px;[\s\S]*background-color:\s*var\(--border-color\);/,
+    );
+    expect(stylesheet).toMatch(
+      /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tablist"\]:empty::before,[\s\S]*\.workspace-shell\[data-sidebar-collapsed="false"\][\s\S]*\.editor-tab-bar[\s\S]*\[role="tablist"\]::before\s*\{[\s\S]*display:\s*none;/,
+    );
+    expect(stylesheet).toMatch(
+      /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tab"\]:only-child\s*\{[\s\S]*min-width:\s*0;[\s\S]*width:\s*max-content;[\s\S]*border-right:\s*0;/,
+    );
+  });
+
+  it("exposes the native material behind the minimal sidebar", () => {
+    expect(stylesheet).toMatch(
+      /\[data-layout="minimal"\]\s+\.workspace-shell\s*\{[\s\S]*background-color:\s*transparent;/,
+    );
+    expect(stylesheet).toMatch(
+      /\[data-layout="minimal"\]\s+\.app-window-surface\s*\{[^}]*background-color:\s*transparent !important;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.workspace-shell::before\s*\{[^}]*width:\s*var\(--workspace-sidebar-width,\s*0px\);/,
+    );
+  });
+
+  it("matches the file tree material by layout", () => {
+    expect(stylesheet).toMatch(
+      /html\[data-layout="minimal"\]\s+body:has\(\.settings-sidebar\),\s*html\[data-layout="minimal"\]\s+\.app-window-surface:has\(\.settings-sidebar\)\s*\{[^}]*background-color:\s*transparent !important;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.settings-sidebar\s*\{[\s\S]*border-right:\s*var\(--sidebar-border,\s*1px solid var\(--border-color\)\) !important;[\s\S]*background-color:\s*var\(--sidebar-background,\s*var\(--bg-secondary\)\) !important;/,
+    );
+    expect(stylesheet).toMatch(
+      /html\[data-layout="minimal"\]\s+\.settings-sidebar\s*\{[^}]*background-color:\s*transparent !important;/,
+    );
+    expect(stylesheet).toMatch(
+      /\[data-layout="minimal"\]\s+\.workspace-shell::before,\s*html\[data-layout="minimal"\]\s+\.settings-sidebar::before\s*\{[\s\S]*var\(--sidebar-material-tint,\s*var\(--bg-secondary\)\)[\s\S]*var\(--sidebar-material-tint-opacity,\s*98%\)[\s\S]*-webkit-backdrop-filter:\s*blur\(36px\);[\s\S]*box-shadow:\s*inset -1px 0/,
+    );
+    expect(stylesheet).toMatch(
+      /html\[data-layout="minimal"\]\s+\.settings-sidebar::before\s*\{[^}]*content:\s*"";[^}]*inset:\s*0;[^}]*z-index:\s*-1;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.workspace-shell\[data-native-material="true"\]::before,\s*html\[data-layout="minimal"\]:has\([\s\S]*\.workspace-shell\[data-native-material="true"\][\s\S]*\)\s+\.settings-sidebar::before\s*\{[\s\S]*backdrop-filter:\s*none;/,
+    );
+  });
+
+  it("keeps the minimal layout bottom actions aligned with the sidebar material", () => {
+    expect(stylesheet).toMatch(
+      /\.file-tree-bottom-actions\s*\{[^}]*background-color:\s*var\(--sidebar-background,\s*var\(--bg-secondary\)\);/,
+    );
+    expect(stylesheet).toMatch(
+      /\[data-layout="minimal"\]\s+\.file-tree-bottom-actions\s*\{[\s\S]*background-color:\s*var\(--sidebar-material-tint,\s*var\(--bg-secondary\)\);/,
+    );
+  });
+
+  it("renders the minimal layout preview as two connected panels", () => {
+    expect(stylesheet).toMatch(
+      /\.layout-preview--minimal\s*\{[^}]*flex-direction:\s*row;[^}]*gap:\s*0;[^}]*border:\s*0;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.layout-preview__minimal-sidebar-panel,\s*\.layout-preview__minimal-editor-panel\s*\{[^}]*overflow:\s*hidden;[^}]*border:\s*1px solid color-mix\([^}]*border-radius:\s*5px;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.layout-preview--minimal\s+\.layout-preview__sidebar-row--active\s*\{[^}]*background-color:\s*var\(--text-muted\);/,
     );
   });
 });

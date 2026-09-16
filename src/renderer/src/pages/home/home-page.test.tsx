@@ -10,6 +10,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DragResizeProvider } from "@/components/drag-resize-provider";
+import { useEditorStore } from "@/store/editor.store";
 import { useTreeStore } from "@/store/tree.store";
 import { DIFF_TOAST_EVENT } from "@/features/diff/lib/diff-toast";
 import { APP_TOAST_EVENT } from "@/lib/app-toast";
@@ -24,6 +25,13 @@ const diffStateMock = vi.hoisted(() => ({
   source: "worktree" as "worktree" | "history",
   oldContent: "# old",
   newContent: "# new",
+}));
+const editorTabActionsMock = vi.hoisted(() => ({
+  handleOpenFloatingWindow: vi.fn(),
+  onNewTab: vi.fn(),
+  onSplitRight: vi.fn(),
+  onSplitDown: vi.fn(),
+  tab: null,
 }));
 
 vi.mock("react-resizable-panels", () => ({
@@ -92,6 +100,10 @@ vi.mock("@/features/editor/components/editor-bridge", () => ({
 
 vi.mock("@/features/editor/lib/discard-file-changes", () => ({
   discardFileChanges: discardFileChangesMock,
+}));
+
+vi.mock("@/features/editor/lib/use-editor-tab-actions", () => ({
+  useEditorTabActions: () => editorTabActionsMock,
 }));
 
 vi.mock("@/components/layout/sidebar", () => ({
@@ -217,10 +229,19 @@ describe("HomePage", () => {
     cleanup();
   });
 
-  it("shows the 3px sidebar divider only while resizing", () => {
+  it("keeps the main workspace aligned with the rounded window surface", () => {
+    render(<HomePage />);
+
+    const workspace = document.querySelector<HTMLElement>(".workspace-shell");
+    expect(workspace).toHaveClass("h-full", "min-h-0", "w-full");
+    expect(workspace).toHaveStyle({ borderRadius: "10px" });
+  });
+
+  it("keeps the sidebar and editor adjacent while retaining the resize hit area", () => {
     render(<HomePage />);
 
     const handle = screen.getByTestId("sidebar-panel-resize-handle");
+    expect(handle).toHaveStyle({ width: "0px", minWidth: "0px" });
     expect(
       screen.queryByTestId("sidebar-panel-resize-divider"),
     ).not.toBeInTheDocument();
@@ -237,6 +258,24 @@ describe("HomePage", () => {
     expect(
       screen.queryByTestId("sidebar-panel-resize-divider"),
     ).not.toBeInTheDocument();
+  });
+
+  it("does not apply editor opacity to the sidebar workspace container", () => {
+    const appearance = useEditorStore.getState().appearance;
+    useEditorStore.setState({
+      appearance: { ...appearance, opacity: 60 },
+    });
+
+    try {
+      render(<HomePage />);
+
+      const workspaceGroup = document.querySelector<HTMLElement>(
+        ".workspace-panel-group",
+      );
+      expect(workspaceGroup?.style.opacity).toBe("");
+    } finally {
+      useEditorStore.setState({ appearance });
+    }
   });
 
   it("renders the diff popup through the Radix dialog root", () => {

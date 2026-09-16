@@ -7,7 +7,9 @@ import {
   screen,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useUIStore } from "@/store/ui.store";
 import { useEditorStore } from "@/store/editor.store";
+import { useTreeStore } from "@/store/tree.store";
 import { Editor } from "./editor";
 
 vi.mock("react-resizable-panels", () => ({
@@ -48,9 +50,16 @@ vi.mock("react-resizable-panels", () => ({
 }));
 
 vi.mock("./editor-tab-bar", () => ({
-  EditorTabBar: ({ groupId }: { groupId: string }) => (
+  EditorTabBar: ({
+    groupId,
+    reserveWindowActions,
+  }: {
+    groupId: string;
+    reserveWindowActions?: boolean;
+  }) => (
     <div
       data-testid={`tab-bar-${groupId}`}
+      data-window-actions={reserveWindowActions}
       onDragOver={(event) => event.stopPropagation()}
       onDrop={(event) => event.stopPropagation()}
     >
@@ -228,6 +237,8 @@ function createTab(id: string, filePath: string) {
 }
 
 beforeEach(() => {
+  useUIStore.setState({ layout: "classic" });
+  useTreeStore.setState({ treeRoot: null });
   useEditorStore.getState().clearFileDragTargetGroupId();
   workspaceLifecycle.renderRichPanes = false;
   workspaceLifecycle.nextInstanceId = 0;
@@ -250,6 +261,59 @@ afterEach(() => {
 });
 
 describe("Editor split panels", () => {
+  it("keeps window actions on the upper-right pane after a nested downward split", () => {
+    useUIStore.setState({ layout: "minimal" });
+    useEditorStore.setState({
+      panelGroups: [
+        { id: "group-1", activeTabId: "", direction: "horizontal", tabs: [] },
+        {
+          id: "group-2",
+          activeTabId: "",
+          direction: "horizontal",
+          splitParentGroupId: "group-1",
+          tabs: [],
+        },
+        {
+          id: "group-3",
+          activeTabId: "",
+          direction: "vertical",
+          splitParentGroupId: "group-2",
+          tabs: [],
+        },
+      ],
+      activeGroupId: "group-3",
+    });
+    render(<Editor />);
+    expect(screen.getByTestId("tab-bar-group-2")).toHaveAttribute(
+      "data-window-actions",
+      "true",
+    );
+    expect(screen.getByTestId("tab-bar-group-3")).toHaveAttribute(
+      "data-window-actions",
+      "false",
+    );
+  });
+  it.each(["horizontal", "vertical"] as const)(
+    "keeps each %s split header in its pane and reserves the top-right controls",
+    (direction) => {
+      useUIStore.setState({ layout: "minimal" });
+      useEditorStore.setState({
+        panelGroups: [
+          { id: "group-1", activeTabId: "", direction: "horizontal", tabs: [] },
+          { id: "group-2", activeTabId: "", direction, tabs: [] },
+        ],
+        activeGroupId: "group-1",
+      });
+      render(<Editor />);
+      expect(screen.getByTestId("tab-bar-group-1")).toBeInTheDocument();
+      expect(screen.getByTestId("tab-bar-group-2")).toBeInTheDocument();
+      expect(
+        screen.getByTestId(
+          direction === "horizontal" ? "tab-bar-group-2" : "tab-bar-group-1",
+        ),
+      ).toHaveAttribute("data-window-actions", "true");
+    },
+  );
   it("keeps the tab action bar visible when the last tab is closed", () => {
     useEditorStore.setState({
       panelGroups: [
@@ -267,6 +331,53 @@ describe("Editor split panels", () => {
 
     expect(screen.getByText("tab-bar-group-1")).toBeInTheDocument();
     expect(screen.getByText("没有打开的文件")).toBeInTheDocument();
+  });
+
+  it("creates and activates an untitled tab from the empty state", () => {
+    useEditorStore.setState({
+      panelGroups: [
+        {
+          id: "group-1",
+          activeTabId: "",
+          direction: "horizontal",
+          tabs: [],
+        },
+      ],
+      activeGroupId: "group-1",
+    });
+
+    render(<Editor />);
+    fireEvent.click(screen.getByRole("button", { name: "新建标签页" }));
+
+    const group = useEditorStore.getState().panelGroups[0];
+    expect(group.tabs).toHaveLength(1);
+    expect(group.tabs[0]?.filePath).toBeNull();
+    expect(group.activeTabId).toBe(group.tabs[0]?.id);
+  });
+
+  it("only shows file tree guidance when a folder is open", () => {
+    useEditorStore.setState({
+      panelGroups: [
+        {
+          id: "group-1",
+          activeTabId: "",
+          direction: "horizontal",
+          tabs: [],
+        },
+      ],
+      activeGroupId: "group-1",
+    });
+
+    const { rerender } = render(<Editor />);
+    expect(
+      screen.queryByText("从文件树点击或拖拽文件到此处打开"),
+    ).not.toBeInTheDocument();
+
+    useTreeStore.setState({ treeRoot: { key: "/notes", title: "notes" } });
+    rerender(<Editor />);
+    expect(
+      screen.getByText("从文件树点击或拖拽文件到此处打开"),
+    ).toBeInTheDocument();
   });
 
   it.each([2, 3, 6])(

@@ -250,7 +250,8 @@ export class RichDocumentSurfaceRegistry {
     measureImmediately: boolean,
   ): void {
     surface.style.visibility = "visible";
-    surface.style.opacity = surface.dataset.richSurfaceOpacity ?? "1";
+    // 承载层只负责切换富文档 DOM，保持不透明；透明度由内容滚动容器单独控制。
+    surface.style.opacity = "1";
     surface.style.pointerEvents = "auto";
     surface.setAttribute("aria-hidden", "false");
     surface.dataset.activePaneKey = paneKey;
@@ -332,6 +333,20 @@ export class RichDocumentSurfaceRegistry {
 
   private positionSurface(surface: HTMLElement, host: HTMLElement): boolean {
     const rect = host.getBoundingClientRect();
+    const workspace = host.closest(".workspace-content-surface");
+    let clipPath = "";
+    if (workspace) {
+      const bounds = workspace.getBoundingClientRect();
+      const style = getComputedStyle(workspace);
+      const top = parseFloat(style.borderTopWidth) || 0;
+      const right = parseFloat(style.borderRightWidth) || 0;
+      const bottom = parseFloat(style.borderBottomWidth) || 0;
+      const left = parseFloat(style.borderLeftWidth) || 0;
+      // body 中的富文本层只覆盖边框内侧，否则会盖住圆弧边框；负 inset 保留分屏内部的直角。
+      const radius = `max(0px, calc(var(--workspace-content-radius, 0px) - ${Math.max(top, right, bottom, left)}px))`;
+      clipPath = `inset(${bounds.top + top - rect.top}px ${rect.right - bounds.right + right}px ${rect.bottom - bounds.bottom + bottom}px ${bounds.left + left - rect.left}px round ${radius})`;
+    }
+    if (surface.style.clipPath !== clipPath) surface.style.clipPath = clipPath;
     const transform = `translate3d(${rect.left}px, ${rect.top}px, 0)`;
     const width = `${rect.width}px`;
     const height = `${rect.height}px`;

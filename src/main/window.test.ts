@@ -173,6 +173,33 @@ describe("createWindow", () => {
     );
   });
 
+  it("configures the window surface for native material and rounded corners", () => {
+    createWindow();
+
+    const [options] = BrowserWindowMock.mock.calls[0];
+
+    if (process.platform === "darwin") {
+      expect(options).toEqual(
+        expect.objectContaining({
+          backgroundColor: "#00000000",
+          transparent: true,
+          vibrancy: "sidebar",
+          visualEffectState: "active",
+        }),
+      );
+      return;
+    }
+
+    expect(options).toEqual(
+      expect.objectContaining({
+        backgroundColor: "#00000000",
+        frame: false,
+        transparent: true,
+        hasShadow: true,
+      }),
+    );
+  });
+
   it("activates and raises the latest main application window", () => {
     const win = createWindow();
     vi.mocked(win.isMinimized).mockReturnValue(true);

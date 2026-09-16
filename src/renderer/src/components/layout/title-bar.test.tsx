@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -6,9 +7,14 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TitleBar } from "./title-bar";
-import { MAC_TITLE_BAR_HEIGHT } from "@shared/title-bar";
+import {
+  MAC_TITLE_BAR_HEIGHT,
+  MINIMAL_TITLE_BAR_HEIGHT,
+} from "@shared/title-bar";
+import { CodeResult } from "@shared/types";
 
 const testState = vi.hoisted(() => ({
   appearance: {
@@ -18,8 +24,14 @@ const testState = vi.hoisted(() => ({
   },
   treeRoot: null as { key: string; title: string } | null,
   selectedKey: null as string | null,
+  detectGitRepo: vi.fn(),
   openWithExternalApp: vi.fn(),
   setAppearance: vi.fn(),
+  onOpenFloatingWindow: vi.fn(),
+  onNewTab: vi.fn(),
+  onModeToggle: vi.fn(),
+  onSplitRight: vi.fn(),
+  onSplitDown: vi.fn(),
 }));
 
 vi.mock("@/store/ui.store", () => ({
@@ -57,10 +69,7 @@ vi.mock("@/features/git", () => ({
 
 vi.mock("@/hooks/use-electron", () => ({
   useElectron: () => ({
-    detectGitRepo: vi.fn().mockResolvedValue({
-      code: "success",
-      data: { isGitRepo: false },
-    }),
+    detectGitRepo: testState.detectGitRepo,
     openFile: vi.fn(),
   }),
 }));
@@ -78,6 +87,313 @@ vi.mock("@/store/tree.store", () => ({
 }));
 
 describe("TitleBar", () => {
+  it("drags from compact header whitespace without dragging interactive tabs", async () => {
+    render(
+      <TitleBar
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+        compactTabs={
+          <div data-testid="header-space">
+            <div role="tab">note</div>
+          </div>
+        }
+      />,
+    );
+    fireEvent.mouseDown(screen.getByRole("tab"), { button: 0 });
+    expect(window.electronAPI.getWindowBounds).not.toHaveBeenCalled();
+    const space = screen.getByTestId("header-space");
+    fireEvent.mouseDown(space, { button: 0, screenX: 100, screenY: 100 });
+    await waitFor(() =>
+      expect(window.electronAPI.getWindowBounds).toHaveBeenCalledOnce(),
+    );
+    fireEvent.mouseMove(window, { screenX: 140, screenY: 125 });
+    expect(window.electronAPI.moveWindow).toHaveBeenCalledWith({
+      x: 40,
+      y: 25,
+      width: 900,
+      height: 670,
+    });
+    fireEvent.mouseUp(window);
+    fireEvent.doubleClick(space);
+    expect(window.electronAPI.maximizeWindow).toHaveBeenCalledOnce();
+  });
+  it("merges compact tabs into the title row without search or theme toggle", () => {
+    render(
+      <TitleBar
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+        compactTabs={<div role="tablist" aria-label="编辑器标签页" />}
+      />,
+    );
+    expect(
+      within(screen.getByTestId("title-bar")).getByRole("tablist"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("搜索文件...")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("切换亮色主题")).not.toBeInTheDocument();
+    expect(screen.getByTitle("设置")).toBeInTheDocument();
+    expect(screen.getByTestId("title-bar")).toHaveStyle({
+      height: `${MINIMAL_TITLE_BAR_HEIGHT}px`,
+    });
+  });
+
+  it("moves the minimal-layout app opener into the more menu", async () => {
+    const user = userEvent.setup();
+    testState.appearance = {
+      ...testState.appearance,
+      showTitleBarQuickLauncher: true,
+    };
+    testState.treeRoot = { key: "D:\\notes\\work", title: "work" };
+    window.electronAPI.listExternalOpenApps = vi
+      .fn()
+      .mockResolvedValue([
+        { id: "vscode", label: "VS Code", kind: "editor", available: true },
+      ]);
+
+    render(
+      <TitleBar
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+        compactTabs={<div role="tablist" aria-label="编辑器标签页" />}
+      />,
+    );
+
+    expect(
+      screen.queryByLabelText("使用 VS Code 打开"),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    const openWithItem = await screen.findByRole("menuitem", {
+      name: "打开方式",
+    });
+    expect(openWithItem).toBeInTheDocument();
+
+    await user.hover(openWithItem);
+    const appItem = await screen.findByRole("menuitem", { name: "VS Code" });
+    fireEvent.click(appItem);
+
+    await waitFor(() => {
+      expect(testState.openWithExternalApp).toHaveBeenCalledWith(
+        "D:\\notes\\work",
+        "vscode",
+      );
+    });
+  });
+
+  it("exposes editor actions in the minimal-layout more menu", async () => {
+    const user = userEvent.setup();
+    testState.appearance = {
+      ...testState.appearance,
+      showTitleBarQuickLauncher: true,
+    };
+    testState.treeRoot = { key: "D:\\notes\\work", title: "work" };
+    testState.detectGitRepo.mockResolvedValue({
+      code: CodeResult.Success,
+      data: { isGitRepo: true },
+    });
+    window.electronAPI.listExternalOpenApps = vi
+      .fn()
+      .mockResolvedValue([
+        { id: "vscode", label: "VS Code", kind: "editor", available: true },
+      ]);
+
+    render(
+      <TitleBar
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+        compactTabs={<div role="tablist" aria-label="编辑器标签页" />}
+        editorActions={{
+          hasActiveTab: true,
+          isSourceMode: false,
+          canOpenFloatingWindow: true,
+          onOpenFloatingWindow: testState.onOpenFloatingWindow,
+          onNewTab: testState.onNewTab,
+          onModeToggle: testState.onModeToggle,
+          onSplitRight: testState.onSplitRight,
+          onSplitDown: testState.onSplitDown,
+        }}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(testState.detectGitRepo).toHaveBeenCalledWith("D:\\notes\\work"),
+    );
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    const menu = screen.getByRole("menu");
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map((item) => item.textContent),
+    ).toEqual([
+      "新建标签页",
+      "打开方式",
+      "切换到源码模式",
+      "向右拆分",
+      "向下拆分",
+      "Git 操作",
+      "提醒事项",
+      "浮动窗口",
+      "设置",
+    ]);
+
+    await user.click(
+      within(menu).getByRole("menuitem", { name: "切换到源码模式" }),
+    );
+    expect(testState.onModeToggle).toHaveBeenCalledOnce();
+
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    await user.click(screen.getByRole("menuitem", { name: "浮动窗口" }));
+    expect(testState.onOpenFloatingWindow).toHaveBeenCalledOnce();
+
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    await user.click(screen.getByRole("menuitem", { name: "新建标签页" }));
+    expect(testState.onNewTab).toHaveBeenCalledOnce();
+
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    await user.click(screen.getByRole("menuitem", { name: "向右拆分" }));
+    expect(testState.onSplitRight).toHaveBeenCalledOnce();
+
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    await user.click(screen.getByRole("menuitem", { name: "向下拆分" }));
+    expect(testState.onSplitDown).toHaveBeenCalledOnce();
+  });
+
+  it("hides split actions without an active tab and opens a floating window", async () => {
+    const user = userEvent.setup();
+    const onOpenFloatingWindow = vi.fn();
+
+    render(
+      <TitleBar
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+        compactTabs={<div role="tablist" aria-label="编辑器标签页" />}
+        editorActions={{
+          hasActiveTab: false,
+          isSourceMode: false,
+          canOpenFloatingWindow: true,
+          onOpenFloatingWindow,
+          onNewTab: vi.fn(),
+          onModeToggle: vi.fn(),
+          onSplitRight: vi.fn(),
+          onSplitDown: vi.fn(),
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    const menu = screen.getByRole("menu");
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map((item) => item.textContent),
+    ).toEqual(["新建标签页", "提醒事项", "浮动窗口", "设置"]);
+    expect(
+      within(menu).queryByRole("menuitem", { name: "向右拆分" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(menu).queryByRole("menuitem", { name: "向下拆分" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(within(menu).getByRole("menuitem", { name: "浮动窗口" }));
+    expect(onOpenFloatingWindow).toHaveBeenCalledOnce();
+  });
+
+  it("shows rich text as the target while the active tab is in source mode", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <TitleBar
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+        compactTabs={<div role="tablist" aria-label="编辑器标签页" />}
+        editorActions={{
+          hasActiveTab: true,
+          isSourceMode: true,
+          canOpenFloatingWindow: true,
+          onOpenFloatingWindow: vi.fn(),
+          onNewTab: vi.fn(),
+          onModeToggle: vi.fn(),
+          onSplitRight: vi.fn(),
+          onSplitDown: vi.fn(),
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    expect(
+      screen.getByRole("menuitem", { name: "切换到富文本模式" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows compact-layout navigation when expanded and hides it when collapsed", () => {
+    const { rerender } = render(
+      <TitleBar
+        collapsed
+        onToggleCollapse={vi.fn()}
+        compactTabs={<div role="tablist" aria-label="编辑器标签页" />}
+      />,
+    );
+
+    expect(screen.queryByTitle("没有历史记录")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("没有更多记录")).not.toBeInTheDocument();
+
+    rerender(
+      <TitleBar
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+        compactTabs={<div role="tablist" aria-label="编辑器标签页" />}
+      />,
+    );
+
+    expect(screen.getByTitle("没有历史记录")).toBeInTheDocument();
+    expect(screen.getByTitle("没有更多记录")).toBeInTheDocument();
+    expect(screen.getByTitle("没有历史记录")).toBeDisabled();
+    expect(screen.getByTitle("没有更多记录")).toBeDisabled();
+
+    act(() => {
+      window.__addFileToHistory?.("first.md");
+    });
+    expect(screen.getByTitle("没有历史记录")).toBeInTheDocument();
+    expect(screen.getByTitle("没有更多记录")).toBeInTheDocument();
+    expect(screen.getByTitle("没有历史记录")).toBeDisabled();
+    expect(screen.getByTitle("没有更多记录")).toBeDisabled();
+
+    act(() => {
+      window.__addFileToHistory?.("second.md");
+    });
+    expect(screen.getByTitle("返回上一个文件")).toBeInTheDocument();
+    expect(screen.getByTitle("没有更多记录")).toBeInTheDocument();
+
+    rerender(
+      <TitleBar
+        collapsed
+        onToggleCollapse={vi.fn()}
+        compactTabs={<div role="tablist" aria-label="编辑器标签页" />}
+      />,
+    );
+    expect(screen.queryByTitle("返回上一个文件")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("没有更多记录")).not.toBeInTheDocument();
+  });
+
+  it("removes the collapsed compact navigation spacer after hiding history controls", () => {
+    render(
+      <TitleBar
+        collapsed
+        onToggleCollapse={vi.fn()}
+        compactTabs={<div role="tablist" aria-label="编辑器标签页" />}
+      />,
+    );
+
+    const navigation = screen
+      .getByTestId("title-bar")
+      .querySelector(".workspace-title-navigation");
+
+    expect(navigation).toBeInTheDocument();
+    expect(navigation).toHaveStyle({ width: "auto" });
+    expect(navigation).toHaveStyle({ paddingRight: "8px" });
+    expect(navigation?.getAttribute("style")).not.toMatch(
+      /min-width:\s*(190px|112px)/,
+    );
+  });
   afterEach(cleanup);
   beforeEach(() => {
     testState.appearance = {
@@ -87,8 +403,18 @@ describe("TitleBar", () => {
     };
     testState.treeRoot = null;
     testState.selectedKey = null;
+    testState.detectGitRepo.mockReset();
+    testState.detectGitRepo.mockResolvedValue({
+      code: CodeResult.Success,
+      data: { isGitRepo: false },
+    });
     testState.openWithExternalApp.mockReset();
     testState.setAppearance.mockReset();
+    testState.onOpenFloatingWindow.mockReset();
+    testState.onNewTab.mockReset();
+    testState.onModeToggle.mockReset();
+    testState.onSplitRight.mockReset();
+    testState.onSplitDown.mockReset();
 
     Object.defineProperty(window, "electronAPI", {
       configurable: true,

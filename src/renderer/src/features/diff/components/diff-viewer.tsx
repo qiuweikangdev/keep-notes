@@ -45,9 +45,6 @@ interface DiffComputationState {
 const DIFF_THEME_MAP: Record<string, DiffsThemeNames> = {
   light: "pierre-light",
   dark: "pierre-dark",
-  nord: "nord",
-  dracula: "dracula",
-  solarized: "solarized-dark",
   system: "pierre-dark",
 };
 
@@ -222,7 +219,7 @@ export function DiffViewer({
   className = "",
   reserveDialogResizeHandleSpace = false,
 }: DiffViewerProps) {
-  const { theme, isDark } = useTheme();
+  const { theme, isDark } = useTheme({ transparentBackground: true });
   const diffInput = useMemo(
     () => createDiffInput(oldContent, newContent, fileName),
     [fileName, newContent, oldContent],
