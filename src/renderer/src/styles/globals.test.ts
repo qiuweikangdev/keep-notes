@@ -216,6 +216,9 @@ describe("workspace layout surface styles", () => {
 
   it("keeps the minimal layout bottom actions aligned with the sidebar material", () => {
     expect(stylesheet).toMatch(
+      /\.file-tree-bottom-actions\s*\{[^}]*background-color:\s*var\(--sidebar-background,\s*var\(--bg-secondary\)\);/,
+    );
+    expect(stylesheet).toMatch(
       /\[data-layout="minimal"\]\s+\.file-tree-bottom-actions\s*\{[\s\S]*background-color:\s*var\(--sidebar-material-tint,\s*var\(--bg-secondary\)\);/,
     );
   });

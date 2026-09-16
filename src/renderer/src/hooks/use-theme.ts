@@ -10,6 +10,10 @@ import { useUIStore } from "@/store/ui.store";
 
 const THEME_CLASSES = ["light", "dark", "minimal"];
 const UI_STORAGE_KEY = "ui-storage";
+const CLASSIC_DEEP_BLACK_SIDEBAR = {
+  background: "#202022",
+  border: "1px solid #303034",
+} as const;
 
 function getPersistedAppTheme(value: string | null): ThemeName | null {
   if (!value) return null;
@@ -188,6 +192,15 @@ export function useTheme({
     root.style.setProperty("--editor-code-block-fold-text", codeBlock.foldText);
 
     const layoutConfig = getLayoutConfig(layout);
+    // 经典布局的深黑色侧栏使用更贴近正文的色阶，保留层级但避免形成突兀的灰色块。
+    const useClassicDeepBlackSidebar =
+      layout === "classic" && resolvedTheme === "minimal";
+    const sidebarBackground = useClassicDeepBlackSidebar
+      ? CLASSIC_DEEP_BLACK_SIDEBAR.background
+      : layoutConfig.sidebarBackground;
+    const sidebarBorder = useClassicDeepBlackSidebar
+      ? CLASSIC_DEEP_BLACK_SIDEBAR.border
+      : layoutConfig.sidebarBorder;
     root.style.setProperty(
       "--workspace-background",
       layoutConfig.workspaceBackground,
@@ -197,18 +210,19 @@ export function useTheme({
       layoutConfig.titleBarBackground,
     );
     root.style.setProperty("--title-bar-border", layoutConfig.titleBarBorder);
-    root.style.setProperty(
-      "--sidebar-background",
-      layoutConfig.sidebarBackground,
-    );
-    root.style.setProperty("--sidebar-border", layoutConfig.sidebarBorder);
+    root.style.setProperty("--sidebar-background", sidebarBackground);
+    root.style.setProperty("--sidebar-border", sidebarBorder);
     root.style.setProperty(
       "--sidebar-header-background",
-      layoutConfig.sidebarHeaderBackground,
+      useClassicDeepBlackSidebar
+        ? CLASSIC_DEEP_BLACK_SIDEBAR.background
+        : layoutConfig.sidebarHeaderBackground,
     );
     root.style.setProperty(
       "--sidebar-header-border",
-      layoutConfig.sidebarHeaderBorder,
+      useClassicDeepBlackSidebar
+        ? CLASSIC_DEEP_BLACK_SIDEBAR.border
+        : layoutConfig.sidebarHeaderBorder,
     );
     root.style.setProperty(
       "--workspace-panel-group-padding",

@@ -96,6 +96,35 @@ describe("useTheme", () => {
         "--workspace-content-radius",
       ),
     ).toBe("0");
+    expect(
+      document.documentElement.style.getPropertyValue("--sidebar-background"),
+    ).toBe("#202022");
+    expect(
+      document.documentElement.style.getPropertyValue(
+        "--sidebar-header-background",
+      ),
+    ).toBe("#202022");
+    expect(
+      document.documentElement.style.getPropertyValue("--sidebar-border"),
+    ).toBe("1px solid #303034");
+  });
+
+  it("keeps the minimal layout sidebar material unchanged", () => {
+    useUIStore.setState({ theme: "minimal", layout: "minimal" });
+
+    renderHook(() => useTheme());
+
+    expect(
+      document.documentElement.style.getPropertyValue("--sidebar-background"),
+    ).toBe("transparent");
+    expect(
+      document.documentElement.style.getPropertyValue(
+        "--sidebar-header-background",
+      ),
+    ).toBe("transparent");
+    expect(
+      document.documentElement.style.getPropertyValue("--sidebar-border"),
+    ).toBe("0 solid transparent");
   });
 
   it("keeps theme colors independent from layout and adapts the glass tint", () => {

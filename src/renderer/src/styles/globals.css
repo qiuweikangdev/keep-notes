@@ -1063,7 +1063,7 @@ button[data-theme-control="true"][data-selected="true"]:hover {
 
 /* 底部操作栏按钮悬停效果 */
 .file-tree-bottom-actions {
-  background-color: var(--bg-secondary);
+  background-color: var(--sidebar-background, var(--bg-secondary));
 }
 
 /* 简约布局的侧栏由窗口材质统一绘制；底部操作栏复用同一材质色并保持不透明，避免文件列表透出。 */
