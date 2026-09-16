@@ -1609,11 +1609,14 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
   const renderHistoryContent = () => (
     <div
       className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
-      style={{ backgroundColor: "var(--bg-primary)" }}
+      style={{ backgroundColor: "transparent" }}
     >
       <div
-        className="grid grid-cols-[minmax(0,1fr)_96px_88px] border-b px-4 py-2 text-xs font-medium"
+        data-git-history-header="true"
+        className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_96px_88px] border-b px-4 py-2 text-xs font-medium"
         style={{
+          backgroundColor:
+            "color-mix(in srgb, var(--bg-secondary) 54%, var(--bg-primary))",
           borderColor: "var(--border-color)",
           color: "var(--text-muted)",
         }}
@@ -1691,24 +1694,29 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             </div>
           ) : selectedCommitDetail ? (
             <div
-              className="rounded-lg border"
+              data-git-history-detail="true"
+              className="border-t"
               style={{
                 borderColor: "var(--border-color)",
-                backgroundColor: "var(--bg-secondary)",
+                backgroundColor: "transparent",
               }}
             >
               <div
-                className="border-b p-3"
-                style={{ borderColor: "var(--border-color)" }}
+                className="border-b px-3 py-3"
+                style={{
+                  backgroundColor:
+                    "color-mix(in srgb, var(--bg-secondary) 52%, var(--bg-primary))",
+                  borderColor: "var(--border-color)",
+                }}
               >
                 <div
-                  className="mb-2 truncate text-sm font-medium"
+                  className="mb-1.5 truncate text-sm font-medium"
                   style={{ color: "var(--text-primary)" }}
                 >
                   {selectedCommitDetail.subject || "(无提交信息)"}
                 </div>
                 <div
-                  className="grid gap-1 text-xs"
+                  className="flex flex-wrap gap-x-4 gap-y-1 text-xs"
                   style={{ color: "var(--text-muted)" }}
                 >
                   <span>
@@ -1729,7 +1737,12 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                   </span>
                 </div>
               </div>
-              <div>
+              <div
+                style={{
+                  backgroundColor:
+                    "color-mix(in srgb, var(--bg-secondary) 24%, var(--bg-primary))",
+                }}
+              >
                 {selectedCommitDetail.files.length > 0 ? (
                   selectedCommitDetail.files.map((file) => {
                     const statusMeta = getCommitFileStatusMeta(file.status);
@@ -1893,10 +1906,13 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       <div
         ref={contentRef}
         data-git-dialog="main"
-        className="fixed left-1/2 top-1/2 flex h-[min(82vh,calc(100vh-32px))] max-h-none w-[min(680px,calc(100vw-32px))] max-w-none -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl shadow-2xl"
+        className="fixed left-1/2 top-1/2 flex h-[min(82vh,calc(100vh-32px))] max-h-none w-[min(680px,calc(100vw-32px))] max-w-none -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border shadow-2xl"
         style={{
-          backgroundColor: "var(--bg-primary)",
-          boxShadow: "0 6px 8px rgba(0, 0, 0, 0.2)",
+          backgroundColor:
+            "color-mix(in srgb, var(--bg-tertiary) 56%, var(--bg-primary))",
+          borderColor:
+            "color-mix(in srgb, var(--border-color) 84%, var(--text-muted))",
+          boxShadow: "0 8px 8px rgb(0 0 0 / 38%)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -2182,7 +2198,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
               rows={1}
               className="git-dialog-field h-10 w-full resize-none overflow-hidden rounded-md px-3 py-2.5 text-sm outline-none"
               style={{
-                backgroundColor: "var(--bg-primary)",
+                backgroundColor: "var(--bg-secondary)",
                 border: "1px solid var(--border-color)",
                 color: "var(--text-primary)",
               }}
@@ -2199,7 +2215,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
               <label
                 htmlFor="includeUntracked"
                 className="cursor-pointer text-xs"
-                style={{ color: "var(--text-muted)" }}
+                style={{ color: "var(--text-secondary)" }}
               >
                 包含未暂存的更改
               </label>
@@ -2345,7 +2361,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           allFiles.length > 0 && (
             <div
               className="relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
-              style={{ backgroundColor: "var(--bg-primary)" }}
+              style={{ backgroundColor: "transparent" }}
             >
               {renderFileSection("已暂存的更改", stagedFilePaths, "staged")}
               {renderFileSection("更改", unstagedFilePaths, "unstaged")}
@@ -2387,7 +2403,9 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             data-dialog-footer="true"
             className="dialog-footer-surface flex shrink-0 items-center justify-between px-5 py-3"
             style={{
-              borderTop: "1px solid var(--border-color)",
+              backgroundColor: "transparent",
+              borderTop:
+                "1px solid color-mix(in srgb, var(--border-color) 82%, transparent)",
             }}
           >
             <div className="flex items-center gap-2">
