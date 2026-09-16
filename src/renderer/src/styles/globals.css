@@ -485,6 +485,50 @@
   background-color: var(--bg-primary);
 }
 
+/* 深黑主题的搜索与提醒事项面板使用连续的中深灰表面，内容共享同一层级。 */
+.minimal .command-palette-surface {
+  border-color: color-mix(
+    in srgb,
+    var(--border-color) 82%,
+    var(--text-muted)
+  );
+  background-color: color-mix(
+    in srgb,
+    var(--bg-tertiary) 88%,
+    var(--bg-secondary)
+  );
+  box-shadow: 0 6px 8px rgb(0 0 0 / 28%);
+}
+
+/* 提醒事项保留了内联材质声明，这里用主题覆盖让它与搜索面板保持一致。 */
+.minimal
+  .command-palette-surface[data-reminder-list-dialog="true"] {
+  border: 1px solid
+    color-mix(in srgb, var(--border-color) 82%, var(--text-muted)) !important;
+  background-color: color-mix(
+    in srgb,
+    var(--bg-tertiary) 88%,
+    var(--bg-secondary)
+  ) !important;
+}
+
+.minimal .command-palette-header {
+  border-bottom: 0;
+  background-color: transparent;
+}
+
+.minimal .command-palette-header input::placeholder {
+  color: var(--text-secondary);
+}
+
+.minimal .command-palette-surface [role="listbox"] {
+  padding-top: 4px;
+}
+
+.minimal .command-palette-surface [data-selection-surface="true"] {
+  border-radius: 10px;
+}
+
 /* 列表、菜单与导航统一使用语义化选中状态；灰底面板使用更深一档的对比色。 */
 button[data-selection-surface="true"]:not([data-selected="true"]):hover {
   background-color: var(--selection-row-hover) !important;

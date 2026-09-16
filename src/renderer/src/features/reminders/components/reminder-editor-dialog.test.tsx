@@ -270,10 +270,16 @@ describe("ReminderEditorDialog", () => {
     const menu = screen.getByTestId("reminder-repeat-menu");
     const options = menu.firstElementChild;
 
-    expect(menu).toHaveClass("top-[calc(100%+8px)]", "border", "shadow-lg");
+    expect(menu).toHaveClass(
+      "top-[calc(100%+8px)]",
+      "rounded-xl",
+      "border",
+      "p-2",
+    );
     expect(menu).not.toHaveClass("bottom-[calc(100%+8px)]");
-    expect(menu.style.backgroundColor).toBe("var(--bg-primary)");
-    expect(menu.style.borderColor).toBe("var(--border-color)");
+    expect(menu.style.backgroundColor).toBe("var(--dropdown-background)");
+    expect(menu.style.borderColor).toBe("var(--dropdown-border)");
+    expect(menu.style.boxShadow).toBe("0 6px 8px rgb(0 0 0 / 28%)");
     expect(options).toHaveClass("max-h-[240px]", "overflow-y-auto");
     expect(resizeReminderEditorWindow).toHaveBeenCalledWith(620);
   });
@@ -287,10 +293,16 @@ describe("ReminderEditorDialog", () => {
     const menu = screen.getByTestId("reminder-repeat-menu");
     const options = menu.firstElementChild;
 
-    expect(menu).toHaveClass("bottom-[calc(100%+8px)]", "border", "shadow-lg");
+    expect(menu).toHaveClass(
+      "bottom-[calc(100%+8px)]",
+      "rounded-xl",
+      "border",
+      "p-2",
+    );
     expect(menu).not.toHaveClass("top-[calc(100%+8px)]");
-    expect(menu.style.backgroundColor).toBe("var(--bg-primary)");
-    expect(menu.style.borderColor).toBe("var(--border-color)");
+    expect(menu.style.backgroundColor).toBe("var(--dropdown-background)");
+    expect(menu.style.borderColor).toBe("var(--dropdown-border)");
+    expect(menu.style.boxShadow).toBe("0 6px 8px rgb(0 0 0 / 28%)");
     expect(options).toHaveClass("max-h-[240px]", "overflow-y-auto");
   });
 
@@ -314,6 +326,24 @@ describe("ReminderEditorDialog", () => {
     });
   });
 
+  it("uses the shared dropdown surface for the date picker", async () => {
+    const user = userEvent.setup();
+    render(<ReminderEditorDialog />);
+
+    const controls = document.querySelectorAll<HTMLButtonElement>(
+      'button[data-reminder-setting-control="true"]',
+    );
+    await user.click(controls[0]);
+
+    const picker = document.querySelector<HTMLElement>(
+      '[data-reminder-date-picker="true"]',
+    );
+    expect(picker).toHaveClass("rounded-xl", "border", "p-3");
+    expect(picker?.style.backgroundColor).toBe("var(--dropdown-background)");
+    expect(picker?.style.borderColor).toBe("var(--dropdown-border)");
+    expect(picker?.style.boxShadow).toBe("0 6px 8px rgb(0 0 0 / 28%)");
+  });
+
   it("uses the stronger secondary-surface selection for time options", async () => {
     const originalScrollIntoView = Element.prototype.scrollIntoView;
     Element.prototype.scrollIntoView = vi.fn();
@@ -327,6 +357,26 @@ describe("ReminderEditorDialog", () => {
       );
 
       await user.click(controls[1]);
+
+      const timePicker = document.querySelector<HTMLElement>(
+        '[data-reminder-time-picker="true"]',
+      );
+      const timeColumns = document.querySelectorAll<HTMLElement>(
+        '[data-reminder-time-picker-column="true"]',
+      );
+
+      expect(timePicker).toHaveClass("rounded-xl", "border", "p-2");
+      expect(timePicker?.style.backgroundColor).toBe(
+        "var(--dropdown-background)",
+      );
+      expect(timePicker?.style.borderColor).toBe("var(--dropdown-border)");
+      expect(timeColumns).toHaveLength(2);
+      timeColumns.forEach((column) => {
+        expect(column).toHaveClass("rounded-lg");
+        expect(column.style.backgroundColor).toBe(
+          "color-mix(in srgb, var(--dropdown-item-hover) 72%, var(--dropdown-background))",
+        );
+      });
 
       const selectedOptions = document.querySelectorAll(
         'button[data-selection-surface="true"][data-selected="true"]',

@@ -89,12 +89,14 @@ export function CustomRepeatDialog({
         overlayClassName="z-[70]"
         overlayStyle={{ backgroundColor: "rgba(0, 0, 0, 0.22)" }}
         onPointerDownOutside={() => onOpenChange(false)}
-        className="z-[71] w-[calc(100%-32px)] max-w-[336px] gap-0 overflow-visible rounded-xl p-0 shadow-[0_12px_28px_rgba(0,0,0,0.24)]"
+        className="z-[71] w-[calc(100%-32px)] max-w-[336px] gap-0 overflow-visible rounded-xl p-0"
         data-custom-repeat-dialog="true"
         style={{
           backgroundColor:
-            "color-mix(in srgb, var(--bg-tertiary) 36%, var(--bg-primary))",
-          border: "none",
+            "color-mix(in srgb, var(--bg-tertiary) 56%, var(--bg-primary))",
+          border:
+            "1px solid color-mix(in srgb, var(--border-color) 84%, var(--text-muted))",
+          boxShadow: "0 6px 8px rgb(0 0 0 / 38%)",
           color: "var(--text-primary)",
         }}
       >

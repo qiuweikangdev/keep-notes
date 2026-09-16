@@ -115,6 +115,32 @@ describe("shared selection interaction styles", () => {
   });
 });
 
+describe("deep-black command palette surfaces", () => {
+  it("uses one continuous elevated surface for search and reminder content", () => {
+    expect(stylesheet).toMatch(
+      /\.minimal \.command-palette-surface\s*\{[\s\S]*border-color:\s*color-mix\([\s\S]*background-color:\s*color-mix\(/,
+    );
+    expect(stylesheet).toMatch(
+      /\.minimal \.command-palette-header\s*\{[\s\S]*border-bottom:\s*0;[\s\S]*background-color:\s*transparent;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.minimal\s+\.command-palette-surface\[data-reminder-list-dialog="true"\]\s*\{[\s\S]*border:\s*1px solid[\s\S]*!important;[\s\S]*background-color:\s*color-mix\([\s\S]*!important;/,
+    );
+  });
+
+  it("keeps result rows and reminder controls readable and softly rounded", () => {
+    expect(stylesheet).toMatch(
+      /\.minimal \.command-palette-header input::placeholder\s*\{[\s\S]*color:\s*var\(--text-secondary\);/,
+    );
+    expect(stylesheet).toMatch(
+      /\.minimal \.command-palette-surface \[role="listbox"\]\s*\{[\s\S]*padding-top:\s*4px;/,
+    );
+    expect(stylesheet).toMatch(
+      /\.minimal \.command-palette-surface \[data-selection-surface="true"\]\s*\{[\s\S]*border-radius:\s*10px;/,
+    );
+  });
+});
+
 describe("markdown source editor surface styles", () => {
   it("keeps the editor borderless instead of using form-control focus styles", () => {
     expect(stylesheet).toMatch(
