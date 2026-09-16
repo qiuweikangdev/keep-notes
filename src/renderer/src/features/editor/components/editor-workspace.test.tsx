@@ -615,7 +615,7 @@ describe("EditorWorkspace split rich editor mount", () => {
     );
   });
 
-  it("cancels pending rich work before repairing source content", async () => {
+  it("preserves empty nested list items when opening source mode", () => {
     useEditorStore.setState((state) => ({
       panelGroups: state.panelGroups.map((group) =>
         group.id === "group-1"
@@ -637,14 +637,16 @@ describe("EditorWorkspace split rich editor mount", () => {
 
     render(<EditorWorkspace groupId="group-1" tabId="tab-1" />);
 
-    await waitFor(() => {
-      expect(backgroundEditorSaveCoordinator.cancel).toHaveBeenCalledWith(
-        "large.md",
-      );
-      expect(
-        richDocumentSessionManager.discardPendingChange,
-      ).toHaveBeenCalledWith("large.md");
-    });
+    expect(screen.getByRole("textbox", { name: "Markdown 源码" })).toHaveValue(
+      "* item\n  * nested\n    *\n",
+    );
+    expect(useEditorStore.getState().panelGroups[0].tabs[0].content).toBe(
+      "* item\n  * nested\n    *\n",
+    );
+    expect(backgroundEditorSaveCoordinator.cancel).not.toHaveBeenCalled();
+    expect(
+      richDocumentSessionManager.discardPendingChange,
+    ).not.toHaveBeenCalled();
   });
 });
 

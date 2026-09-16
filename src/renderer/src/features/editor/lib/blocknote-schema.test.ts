@@ -876,20 +876,15 @@ describe("editor BlockNote schema", () => {
     });
   });
 
-  it("preserves the recovered first line in a malformed bash code block", async () => {
+  it("keeps fence metadata separate from code content", async () => {
     const editor = CoreEditorFactory.create({ schema: editorSchema });
-    const repaired = repairMarkdownSourceBeforeParse(
-      "```bash写一个 while True 无限循环\n不断从数据库查任务\n```",
-    );
-    const blocks = await editor.tryParseMarkdownToBlocks(repaired);
-
+    const source = '```bash title="任务轮询"\n不断从数据库查任务\n```';
+    const blocks = await parseMarkdown(editor, source);
     expect(blocks[0]).toMatchObject({
       type: "codeBlock",
-      props: { language: "bash" },
+      props: { language: 'bash title="任务轮询"' },
     });
-    expect(getInlineText(blocks[0])).toBe(
-      "写一个 while True 无限循环\n不断从数据库查任务",
-    );
+    expect(getInlineText(blocks[0])).toBe("不断从数据库查任务");
   });
 
   it("parses markdown inline code as styled text instead of source markers", async () => {
@@ -945,7 +940,48 @@ describe("editor BlockNote schema", () => {
     expect(editor.document.map(getInlineText).join("")).not.toContain("*");
   });
 
-  it("does not persist a transient empty bullet at the end of a list", async () => {
+  it("round-trips an Enter-created empty list item before code", async () => {
+    setupMatchMedia();
+    const editor = CoreEditorFactory.create({
+      schema: editorSchema,
+      initialContent: [
+        { type: "bulletListItem", content: "第一项" },
+        { type: "bulletListItem", content: "第二项" },
+        {
+          type: "codeBlock",
+          content: "var p *int = &a",
+          props: { language: "text" },
+        },
+      ],
+    });
+    render(createElement(BlockNoteView, { editor }));
+    const source = "- 第一项\n- 第二项\n\n```text\nvar p *int = &a\n```\n";
+    const baseline = await serializeMarkdown(editor, editor.document);
+    editor.setTextCursorPosition(editor.document[1].id, "end");
+    pressKey(editor, "Enter");
+    const exported = await serializeMarkdown(editor, editor.document);
+    const saved = preserveMarkdownSource(source, baseline, exported);
+    const reopened = await parseMarkdown(editor, saved);
+    expect(
+      reopened.map((block) => ({
+        type: block.type,
+        text: getInlineText(block),
+      })),
+    ).toEqual([
+      { type: "bulletListItem", text: "第一项" },
+      { type: "bulletListItem", text: "第二项" },
+      { type: "bulletListItem", text: "" },
+      { type: "codeBlock", text: "var p *int = &a" },
+    ]);
+    typeString(editor, "第三项");
+    const filled = await serializeMarkdown(editor, editor.document);
+    const filledSource = preserveMarkdownSource(saved, exported, filled);
+    expect(
+      (await parseMarkdown(editor, filledSource)).map(getInlineText),
+    ).toEqual(["第一项", "第二项", "第三项", "var p *int = &a"]);
+  });
+
+  it("persists an empty bullet at the end of a list", async () => {
     const editor = CoreEditorFactory.create({
       schema: editorSchema,
       initialContent: [
@@ -962,7 +998,7 @@ describe("editor BlockNote schema", () => {
     });
 
     await expect(serializeMarkdown(editor, editor.document)).resolves.toBe(
-      ["* 列表1", "* 列表2", "* 列表3", "  * 列表3-3", "* 列表4", ""].join(
+      ["* 列表1", "* 列表2", "* 列表3", "  * 列表3-3", "* 列表4", "*", ""].join(
         "\n",
       ),
     );

@@ -44,6 +44,7 @@ const ROOT_UNORDERED_LIST_LINE_PATTERN = /^([ \t]{0,3})([-+*])([ \t]+)(.*)$/u;
 const UNORDERED_LIST_LINE_PATTERN = /^([ \t]*)([-+*])([ \t]+)(.*)$/u;
 const FENCED_CODE_LINE_PATTERN = /^ {0,3}(```+|~~~+)/u;
 const FENCED_CODE_OPENING_PATTERN = /^( {0,3})(```+|~~~+)(.*)$/u;
+const EMPTY_LIST_ITEM_CONTAINER_MARKER = "<!-- keep-notes:empty-list-item -->";
 const SERIALIZED_TABLE_ROW_PATTERN = /^\s*\|.*\|\s*$/u;
 const SERIALIZED_TABLE_SEPARATOR_PATTERN = /^\s*\|(?:\s*:?-{3,}:?\s*\|)+\s*$/u;
 
@@ -963,6 +964,30 @@ function repairJoinedUnorderedListSource(
   );
 }
 
+function collectNonListSegments(
+  lines: MarkdownLine[],
+  runs: UnorderedListRun[],
+) {
+  let cursor = 0;
+  const segments: string[] = [];
+  for (const run of runs) {
+    segments.push(
+      lines
+        .slice(cursor, run.startLineIndex)
+        .map((line) => `${line.text}${line.ending}`)
+        .join(""),
+    );
+    cursor = run.endLineIndex;
+  }
+  segments.push(
+    lines
+      .slice(cursor)
+      .map((line) => `${line.text}${line.ending}`)
+      .join(""),
+  );
+  return segments;
+}
+
 function preserveChangedUnorderedListStructure(
   source: string,
   baseline: string,
@@ -993,6 +1018,15 @@ function preserveChangedUnorderedListStructure(
     sourceRuns.length === 0 ||
     sourceRuns.length !== baselineRuns.length ||
     baselineRuns.length !== editedRuns.length
+  ) {
+    return preserveSourceEnding(source, edited);
+  }
+
+  const baselineSegments = collectNonListSegments(baselineLines, baselineRuns);
+  const editedSegments = collectNonListSegments(editedLines, editedRuns);
+  // 只重建列表会漏掉同一次保存中的代码或段落修改；存在列表外变更时采用完整编辑结果。
+  if (
+    baselineSegments.some((segment, index) => segment !== editedSegments[index])
   ) {
     return preserveSourceEnding(source, edited);
   }
@@ -1122,135 +1156,14 @@ function repairJoinedUnorderedListMarkers(
   );
 }
 
-function repairTrailingOrphanUnorderedListMarker(
-  markdown: string,
-): string | null {
-  const lines = splitMarkdownLines(markdown);
-  let markerLineIndex = lines.length - 1;
-
-  while (
-    markerLineIndex >= 0 &&
-    lines[markerLineIndex].text.trim().length === 0
-  ) {
-    markerLineIndex -= 1;
-  }
-
-  if (
-    markerLineIndex < 0 ||
-    !/^[ \t]*\*[ \t]*$/u.test(lines[markerLineIndex].text)
-  ) {
-    return null;
-  }
-
-  let previousContentLineIndex = markerLineIndex - 1;
-  while (
-    previousContentLineIndex >= 0 &&
-    lines[previousContentLineIndex].text.trim().length === 0
-  ) {
-    previousContentLineIndex -= 1;
-  }
-
-  // 仅清理紧随真实列表内容的末尾裸 marker；普通正文后的独立 `*` 保持原样。
-  if (!getUnorderedListLineIndexes(lines).has(previousContentLineIndex)) {
-    return null;
-  }
-
-  lines.splice(markerLineIndex, 1);
-  return preserveSourceEnding(
-    markdown,
-    lines.map((line) => `${line.text}${line.ending}`).join(""),
-  );
-}
-
-function splitJoinedFencedCodeOpening(
-  line: MarkdownLine,
-): MarkdownLine[] | null {
-  const match = line.text.match(FENCED_CODE_OPENING_PATTERN);
-  if (!match) return null;
-
-  const [, indent, fence, rawInfo] = match;
-  const info = rawInfo.trimStart();
-  if (!info) return null;
-
-  const normalizedInfo = info.toLowerCase();
-  // 优先移除最长的受支持语言或别名；其后必须是空白或非 ASCII 内容，剩余部分才作为首行代码。
-  const candidate = FENCED_CODE_LANGUAGE_CANDIDATES.find(({ value }) => {
-    if (!normalizedInfo.startsWith(value.toLowerCase())) return false;
-    const boundary = info[value.length];
-    return (
-      boundary !== undefined && (/\s/u.test(boundary) || boundary > "\x7f")
-    );
-  });
-  if (!candidate) return null;
-
-  const firstLine = info.slice(candidate.value.length).trimStart();
-  if (!firstLine) return null;
-
-  return [
-    {
-      text: `${indent}${fence}${candidate.canonicalId}`,
-      ending: line.ending || "\n",
-    },
-    {
-      text: firstLine,
-      ending: line.ending,
-    },
-  ];
-}
-
-function repairJoinedFencedCodeFirstLines(markdown: string): string | null {
-  const lines = splitMarkdownLines(markdown);
-  const nextLines: MarkdownLine[] = [];
-  let openingFence: string | null = null;
-  let changed = false;
-
-  for (const line of lines) {
-    if (openingFence) {
-      const closingMatch = getClosingFenceMatch(line.text, openingFence);
-      if (closingMatch) openingFence = null;
-      nextLines.push(line);
-      continue;
-    }
-
-    const openingMatch = line.text.match(FENCED_CODE_OPENING_PATTERN);
-    if (!openingMatch) {
-      nextLines.push(line);
-      continue;
-    }
-
-    const repairedLines = splitJoinedFencedCodeOpening(line);
-    if (repairedLines) {
-      changed = true;
-      nextLines.push(...repairedLines);
-    } else {
-      nextLines.push(line);
-    }
-    openingFence = openingMatch[2];
-  }
-
-  if (!changed) return null;
-
-  return preserveSourceEnding(
-    markdown,
-    nextLines.map((line) => `${line.text}${line.ending}`).join(""),
-  );
-}
-
 export function repairMarkdownSourceBeforeParse(markdown: string): string {
   const tableHardBreaksRepaired = normalizeSerializedTableHardBreaks(markdown);
   // 打开历史文件时先补回表格块级边界，避免标准 GFM 把相邻表格或表格后的段落吞进同一张表。
   const tableBoundariesRepaired = normalizeSerializedTableBoundaries(
     tableHardBreaksRepaired,
   );
-  const fencedCodeRepaired =
-    repairJoinedFencedCodeFirstLines(tableBoundariesRepaired) ??
-    tableBoundariesRepaired;
-  // 不在无基线的打开阶段猜测 `*` 是否是拼接列表标记；正文中的 `* ` 也可能是合法内容。
-  // 有富文本序列化基线时，preserveMarkdownSource 会通过 repairJoinedUnorderedListSource 精确恢复。
-  return (
-    repairTrailingOrphanUnorderedListMarker(fencedCodeRepaired) ??
-    fencedCodeRepaired
-  );
+  // 无富文本基线时不猜测列表项或围栏信息是否损坏；语言后的说明也可能是合法元数据。
+  return tableBoundariesRepaired;
 }
 
 function preserveReorderedUnorderedLists(
@@ -1783,6 +1696,18 @@ function protectMarkupForParser(markdown: string): ProtectedMarkup {
       continue;
     }
 
+    const listPrefix = line.text.match(
+      /^\s*(?:[-+*]|\d+[.)])\s+(?:\[[ xX]\]\s+)?/u,
+    )?.[0];
+    if (
+      listPrefix &&
+      line.text.slice(listPrefix.length).trimEnd() ===
+        EMPTY_LIST_ITEM_CONTAINER_MARKER
+    ) {
+      protectedLines.push(false);
+      continue;
+    }
+
     if (
       !markupBlockActive &&
       !/^(?: {4}|\t)/u.test(line.text) &&
@@ -2248,6 +2173,26 @@ function removeExcessCanonicalBlankLines(
     .join("");
 }
 
+function getMarkdownSemanticSignature(markdown: string): string {
+  const tokens = listMarkdownParser.parse(markdown, {});
+  const summarize = (items: typeof tokens): unknown[] =>
+    items.map((token, index) => [
+      ["softbreak", "hardbreak"].includes(token.type)
+        ? "linebreak"
+        : token.type,
+      token.tag,
+      token.nesting,
+      token.attrs,
+      token.type === "fence" ? normalizeFencedCodeInfo(token.info) : "",
+      token.children
+        ? summarize(token.children)
+        : token.type === "text" && items[index - 1]?.type === "hardbreak"
+          ? token.content.replace(/^[ \t]/u, "")
+          : token.content,
+    ]);
+  return JSON.stringify(summarize(tokens));
+}
+
 export function preserveMarkdownSource(
   source: string,
   baseline: string,
@@ -2269,10 +2214,20 @@ export function preserveMarkdownSource(
       markdown,
       edited,
     );
-    return restoreStableSourceFormatting(
+    const candidate = restoreStableSourceFormatting(
       preservationSource,
       removeExcessCanonicalBlankLines(edited, repaired),
     );
+    // 保留源码排版只能改变写法，不能改变内容或块结构；不一致时以富文本导出为准。
+    if (
+      baseline !== edited &&
+      candidate !== edited &&
+      getMarkdownSemanticSignature(candidate) !==
+        getMarkdownSemanticSignature(edited)
+    ) {
+      return preserveSourceEnding(source, edited);
+    }
+    return candidate;
   };
 
   // 空白文件没有可供差异映射的源码边界，直接采用编辑器结果可避免换行被映射成空格或空段落。
@@ -3051,6 +3006,12 @@ function getBlockChildren<TBlock>(block: TBlock): TBlock[] {
 function hasNestedBlockSerializationRisk<TBlock>(block: TBlock): boolean {
   // 表格必须单独导出，才能按对应块恢复列对齐，避免误改代码围栏中的表格示例。
   if (getMarkdownBlockType(block) === "table") return true;
+  if (
+    getMarkdownListKind(block) &&
+    isRecord(block) &&
+    getInlineText(block.content).includes("\n")
+  )
+    return true;
   const children = getBlockChildren(block);
   return (
     children.length > 0 &&
@@ -3145,10 +3106,20 @@ async function serializeBlockTree<TBlock>(
     await serializer.blocksToMarkdownLossy([serializedBlock]),
     serializedBlock,
   );
+  const indentWidth =
+    getMarkdownListKind(block) === "ordered"
+      ? String(numberedListStart ?? getNumberedListStart(block)).length + 2
+      : 2;
   const blockMarkdown = (
     isCompactParagraphBlock(blockWithoutChildren)
       ? normalizeSerializedPlainParagraphBreaks(rawBlockMarkdown)
-      : rawBlockMarkdown
+      : getMarkdownListKind(block)
+        ? // 列表内硬换行需要完整的续行缩进，不能保留导出器附加的单个空格。
+          rawBlockMarkdown.replace(
+            /\\\n[ \t]?/gu,
+            `\\\n${" ".repeat(indentWidth)}`,
+          )
+        : rawBlockMarkdown
   ).trimEnd();
 
   if (children.length === 0) return blockMarkdown;
@@ -3158,16 +3129,23 @@ async function serializeBlockTree<TBlock>(
     children,
     block,
   );
-  const indentWidth =
-    getMarkdownListKind(block) === "ordered"
-      ? String(numberedListStart ?? getNumberedListStart(block)).length + 2
-      : 2;
   const nestedMarkdown = indentNestedMarkdown(
     childrenMarkdown.trimEnd(),
     indentWidth,
   );
-  const separator = getNestedBlockSeparator(block, block, children[0]);
-  return `${blockMarkdown}${separator}${nestedMarkdown}`;
+  const emptyParagraphContainer =
+    getMarkdownListKind(block) &&
+    isRecord(block) &&
+    getInlineText(block.content) === "" &&
+    getMarkdownBlockType(children[0]) === "paragraph";
+  // Markdown 无法区分空列表正文与首个子段落，用不可见注释明确保留空父项的边界。
+  const headMarkdown = emptyParagraphContainer
+    ? `${blockMarkdown} ${EMPTY_LIST_ITEM_CONTAINER_MARKER}`
+    : blockMarkdown;
+  const separator = emptyParagraphContainer
+    ? "\n\n"
+    : getNestedBlockSeparator(block, block, children[0]);
+  return `${headMarkdown}${separator}${nestedMarkdown}`;
 }
 
 async function serializeBlockTreeSequence<TBlock>(
@@ -3315,42 +3293,6 @@ async function serializeBlockBatches<TBlock>(
   return `${serialized}\n`;
 }
 
-const TRANSIENT_EMPTY_LIST_ITEM_TYPES = new Set([
-  "bulletListItem",
-  "numberedListItem",
-  "toggleListItem",
-]);
-
-function omitTransientEmptyListItems<TBlock>(blocks: TBlock[]): TBlock[] {
-  let changed = false;
-  const normalizedBlocks = blocks.map((block) => {
-    if (!isRecord(block) || !Array.isArray(block.children)) return block;
-
-    const children = omitTransientEmptyListItems(block.children as TBlock[]);
-    if (children === block.children) return block;
-
-    changed = true;
-    return { ...block, children } as TBlock;
-  });
-  let endIndex = normalizedBlocks.length;
-
-  while (endIndex > 0) {
-    const block = normalizedBlocks[endIndex - 1];
-    if (
-      !isRecord(block) ||
-      !TRANSIENT_EMPTY_LIST_ITEM_TYPES.has(getMarkdownBlockType(block) ?? "") ||
-      getInlineText(block.content).trim() ||
-      (Array.isArray(block.children) && block.children.length > 0)
-    ) {
-      break;
-    }
-    endIndex -= 1;
-    changed = true;
-  }
-
-  return changed ? normalizedBlocks.slice(0, endIndex) : blocks;
-}
-
 // BlockNote 序列化非列表父块时会提升其子块，需要手动补回标准引用列表前缀。
 async function serializeQuoteListBlocks<TBlock>(
   serializer: MarkdownSerializer<TBlock>,
@@ -3408,12 +3350,19 @@ async function serializeQuoteListBlocks<TBlock>(
 }
 
 const listMarkdownParser = new MarkdownIt({ html: false });
+// 软换行对应列表的段落续行，硬换行保留在当前正文中；HTML 分隔符不进入持久化源码。
+listMarkdownParser.renderer.rules.softbreak = () =>
+  "<span data-keep-notes-soft-break></span>";
+listMarkdownParser.renderer.rules.hardbreak = () => "<br>";
 
 async function parseMarkdownWithStructuredLists<TBlock>(
   parser: MarkdownParser<TBlock>,
   markdown: string,
 ): Promise<TBlock[]> {
-  if (!parser.tryParseHTMLToBlocks || !/^\s*\d+[.)]\s/mu.test(markdown)) {
+  if (
+    !parser.tryParseHTMLToBlocks ||
+    !/^\s*(?:[-+*]|\d+[.)])(?:[ \t]|$)/mu.test(markdown)
+  ) {
     return parser.tryParseMarkdownToBlocks(markdown);
   }
   const parseHTML = parser.tryParseHTMLToBlocks.bind(parser);
@@ -3435,7 +3384,9 @@ async function parseMarkdownWithStructuredLists<TBlock>(
         if (
           node.nodeType === 3 &&
           !node.textContent?.trim() &&
-          (childrenStarted || !head.hasChildNodes())
+          (childrenStarted ||
+            !head.hasChildNodes() ||
+            node.textContent?.includes("\n"))
         )
           continue;
         if (
@@ -3455,26 +3406,62 @@ async function parseMarkdownWithStructuredLists<TBlock>(
           (node instanceof Element &&
             (childrenStarted ||
               (node.tagName !== "P" &&
-                !["A", "STRONG", "EM", "CODE", "S", "IMG", "BR"].includes(
-                  node.tagName,
-                )))) ||
+                ![
+                  "A",
+                  "STRONG",
+                  "EM",
+                  "CODE",
+                  "S",
+                  "IMG",
+                  "BR",
+                  "SPAN",
+                ].includes(node.tagName)))) ||
           (node instanceof Element && node.tagName === "P")
         ) {
           childrenStarted = true;
+          if (node instanceof Element && node.tagName === "PRE") {
+            // Markdown 渲染器添加的末尾换行属于围栏边界，不能进入真实代码正文。
+            const code = node.querySelector("code");
+            if (code)
+              code.textContent = code.textContent?.replace(/\n$/u, "") ?? "";
+          }
           children.push(...(await parseHTML((node as Element).outerHTML)));
         } else {
-          head.append(node.cloneNode(true));
+          const inline = node.cloneNode(true);
+          // 紧凑列表的 HTML 会在 li 正文后输出分隔换行，该换行不属于用户文本。
+          if (inline.nodeType === 3)
+            inline.textContent = inline.textContent?.replace(/\n$/u, "") ?? "";
+          head.append(inline);
         }
       }
       const task =
         !ordered && head.firstChild?.nodeType === 3
-          ? head.firstChild.textContent?.match(/^\[([ xX])\]\s+/u)
+          ? head.firstChild.textContent?.match(/^\[([ xX])\](?:\s+|$)/u)
           : null;
       if (task && head.firstChild)
         head.firstChild.textContent = head.firstChild.textContent!.slice(
           task[0].length,
         );
-      const headBlocks = await parseHTML(head.outerHTML);
+      const headBlocks: TBlock[] = [];
+      if (head.textContent !== EMPTY_LIST_ITEM_CONTAINER_MARKER) {
+        const range = document.createRange();
+        range.setStart(head, 0);
+        const appendParagraph = async () => {
+          const paragraph = document.createElement("p");
+          paragraph.append(range.cloneContents());
+          headBlocks.push(...(await parseHTML(paragraph.outerHTML)));
+        };
+        // 按软换行拆出子段落，同时保留跨行的粗体、链接等行内结构；硬换行仍是同一正文的 br。
+        for (const softBreak of Array.from(
+          head.querySelectorAll("[data-keep-notes-soft-break]"),
+        )) {
+          range.setEndBefore(softBreak);
+          await appendParagraph();
+          range.setStartAfter(softBreak);
+        }
+        range.setEnd(head, head.childNodes.length);
+        await appendParagraph();
+      }
       const first: unknown = headBlocks[0] ?? {
         type: "paragraph",
         content: [],
@@ -3516,13 +3503,20 @@ async function parseMarkdownWithStructuredLists<TBlock>(
     const hasOrderedList = subtree.some(
       (part) => part.type === "ordered_list_open",
     );
-    const hasComplexItems = subtree.some(
-      (part) =>
+    const needsStructuredParsing = subtree.some(
+      (part, offset) =>
         (part.type === "paragraph_open" && !part.hidden) ||
-        (part.level > 0 &&
+        (part.type === "list_item_open" &&
+          subtree[offset + 1]?.type === "list_item_close") ||
+        (part.type === "inline" && /^\[([ xX])\]$/u.test(part.content)) ||
+        (part.type === "inline" &&
+          part.children?.some((child) => child.type === "hardbreak")) ||
+        ["fence", "code_block"].includes(part.type) ||
+        (hasOrderedList &&
+          part.level > 0 &&
           ["ordered_list_open", "bullet_list_open"].includes(part.type)),
     );
-    if (!hasOrderedList || !hasComplexItems) continue;
+    if (!needsStructuredParsing) continue;
     const [from, to] = token.map;
     const preceding = lines.slice(cursor, from).join("\n");
     if (preceding.trim())
@@ -3651,11 +3645,8 @@ export async function serializeMarkdown<TBlock>(
 ): Promise<string> {
   // 大文档序列化可能阻塞数百毫秒；让出主线程确保用户交互不被延迟。
   await yieldToMain();
-  // 列表末尾第一次 Enter 会短暂产生空列表项；BlockNote 会把它导出为裸 `*`/`1.`，
-  // 且这种无内容、无子块的编辑态占位不应进入 Markdown 或后续解析缓存。
-  const serializableBlocks = markStandaloneHardBreakParagraphs(
-    omitTransientEmptyListItems(blocks),
-  );
+  // 空列表项同样是文档内容，序列化时必须保留，不能推测为临时占位。
+  const serializableBlocks = markStandaloneHardBreakParagraphs(blocks);
   const markdown = await serializeQuoteListBlocks(
     serializer,
     protectLiteralBackticks(serializableBlocks, true) as TBlock[],

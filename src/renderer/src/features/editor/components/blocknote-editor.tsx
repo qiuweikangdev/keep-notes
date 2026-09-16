@@ -1788,7 +1788,7 @@ function persistRichPaneScroll(
   store.setTabScrollTop(owner.groupId, owner.tabId, scrollTop);
 }
 
-const MARKDOWN_PARSER_VERSION = "blocknote-v15";
+const MARKDOWN_PARSER_VERSION = "blocknote-v16";
 
 export function getMarkdownParserCacheVersion(_reloadKey?: number) {
   return MARKDOWN_PARSER_VERSION;
