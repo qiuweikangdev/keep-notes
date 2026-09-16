@@ -29,6 +29,7 @@ const testState = vi.hoisted(() => ({
   setAppearance: vi.fn(),
   onOpenFloatingWindow: vi.fn(),
   onNewTab: vi.fn(),
+  onModeToggle: vi.fn(),
   onSplitRight: vi.fn(),
   onSplitDown: vi.fn(),
 }));
@@ -205,6 +206,7 @@ describe("TitleBar", () => {
           canOpenFloatingWindow: true,
           onOpenFloatingWindow: testState.onOpenFloatingWindow,
           onNewTab: testState.onNewTab,
+          onModeToggle: testState.onModeToggle,
           onSplitRight: testState.onSplitRight,
           onSplitDown: testState.onSplitDown,
         }}
@@ -223,6 +225,7 @@ describe("TitleBar", () => {
     ).toEqual([
       "新建标签页",
       "打开方式",
+      "编辑模式切换",
       "向右拆分",
       "向下拆分",
       "Git 操作",
@@ -231,7 +234,13 @@ describe("TitleBar", () => {
       "设置",
     ]);
 
-    await user.click(within(menu).getByRole("menuitem", { name: "浮动窗口" }));
+    await user.click(
+      within(menu).getByRole("menuitem", { name: "编辑模式切换" }),
+    );
+    expect(testState.onModeToggle).toHaveBeenCalledOnce();
+
+    await user.click(screen.getByRole("button", { name: "更多操作" }));
+    await user.click(screen.getByRole("menuitem", { name: "浮动窗口" }));
     expect(testState.onOpenFloatingWindow).toHaveBeenCalledOnce();
 
     await user.click(screen.getByRole("button", { name: "更多操作" }));
@@ -261,6 +270,7 @@ describe("TitleBar", () => {
           canOpenFloatingWindow: true,
           onOpenFloatingWindow,
           onNewTab: vi.fn(),
+          onModeToggle: vi.fn(),
           onSplitRight: vi.fn(),
           onSplitDown: vi.fn(),
         }}
@@ -373,6 +383,7 @@ describe("TitleBar", () => {
     testState.setAppearance.mockReset();
     testState.onOpenFloatingWindow.mockReset();
     testState.onNewTab.mockReset();
+    testState.onModeToggle.mockReset();
     testState.onSplitRight.mockReset();
     testState.onSplitDown.mockReset();
 

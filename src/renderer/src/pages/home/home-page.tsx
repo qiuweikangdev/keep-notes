@@ -280,6 +280,7 @@ function HomePageContent() {
             void editorActions.handleOpenFloatingWindow();
           },
           onNewTab: editorActions.onNewTab,
+          onModeToggle: editorActions.handleModeToggle,
           onSplitRight: editorActions.onSplitRight,
           onSplitDown: editorActions.onSplitDown,
         }}
