@@ -768,14 +768,7 @@ export function FileTree() {
             </div>
           </div>
 
-          <div
-            className={cn(
-              "flex-1 py-2",
-              sidebarView === "file"
-                ? "flex min-h-0 flex-col overflow-hidden"
-                : "overflow-auto",
-            )}
-          >
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden py-2">
             {sidebarView === "file" ? (
               <>
                 {isRootCreating ? (

@@ -24,6 +24,9 @@ describe("OutlinePanel", () => {
     expect(
       container.querySelector(".file-tree-scroll-container"),
     ).toBeVisible();
+    expect(container.querySelector(".file-tree-scroll-container")).toHaveClass(
+      "pb-10",
+    );
     expect(container.querySelector(".file-tree-scrollbar-track")).toBeVisible();
     expect(
       container.querySelector(".file-tree-scrollbar-thumb"),

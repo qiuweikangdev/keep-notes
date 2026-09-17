@@ -72,7 +72,7 @@ export function OutlinePanel({
       <div className="file-tree-scroll-shell relative min-h-0 flex-1">
         <div
           ref={scrollContainerRef}
-          className="file-tree-scroll-container h-full overflow-auto py-2"
+          className="file-tree-scroll-container h-full overflow-auto pb-10 pt-2"
           onScroll={syncScrollbarThumb}
         >
           {headings.length === 0 ? (
