@@ -216,6 +216,9 @@ describe("GitPanel", () => {
       "color-mix(in srgb, var(--border-color) 84%, var(--text-muted))",
     );
     expect(dialog?.style.boxShadow).toBe("0 8px 8px rgb(0 0 0 / 38%)");
+    expect(dialog).toHaveAttribute("role", "dialog");
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    expect(dialog).toHaveAttribute("aria-labelledby", "git-panel-title");
     expect(
       dialog?.querySelector("[data-dialog-drag-handle]"),
     ).toBeInTheDocument();
@@ -1228,7 +1231,10 @@ describe("GitPanel", () => {
     ).toBeInTheDocument();
     expect(historyButton).toHaveAttribute("data-selected", "true");
     expect(changesButton).not.toHaveAttribute("data-selected");
-    expect(screen.queryByText("1111111")).not.toBeInTheDocument();
+    expect(screen.getByText("1111111")).toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText("提交信息（留空将自动生成）..."),
+    ).not.toBeInTheDocument();
     expect(electronMocks.getCommitHistory).toHaveBeenCalledWith("/notes", 0, 5);
     expect(electronMocks.getCommitDetail).not.toHaveBeenCalled();
     expect(
