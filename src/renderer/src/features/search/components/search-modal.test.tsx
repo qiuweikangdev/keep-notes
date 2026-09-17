@@ -108,6 +108,10 @@ describe("SearchModal", () => {
   it("shows five recent files followed by five recent folders by default", () => {
     render(<SearchModal isOpen onClose={vi.fn()} />);
 
+    expect(screen.getByRole("dialog", { name: "搜索文件" })).toHaveAttribute(
+      "aria-modal",
+      "true",
+    );
     const options = screen.getAllByRole("option");
 
     expect(screen.getByText("文件")).toBeInTheDocument();
