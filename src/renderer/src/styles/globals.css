@@ -2044,36 +2044,44 @@ html[data-layout="minimal"]:has(
 }
 [data-layout="minimal"] .editor-tab-bar [role="tab"] {
   background-color: transparent !important;
+  border-right: 0 !important;
+  border-color: transparent !important;
+  min-width: 0 !important;
+  width: max-content;
+  max-width: 200px;
+  flex: 0 1 auto;
+}
+[data-layout="minimal"]
+  .editor-tab-bar
+  [role="tab"][aria-selected="true"]:not(:only-child) {
+  background-color: color-mix(
+    in srgb,
+    var(--bg-secondary) 72%,
+    var(--bg-primary)
+  ) !important;
+  border-radius: 8px;
+  margin: 0 2px;
+  height: calc(100% - 8px);
+  align-self: center;
 }
 [data-layout="minimal"] .editor-tab-bar :is([role="tab"], button, input) {
   -webkit-app-region: no-drag;
 }
 [data-layout="minimal"] .editor-tab-bar [role="tablist"] {
   min-width: 0;
-  position: relative;
   /* 原生拖动区域仅覆盖标签列表，不能包含叠放在按钮下方的预留空间。 */
   -webkit-app-region: drag;
 }
 [data-layout="minimal"] .editor-tab-bar [role="tablist"]::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 1px;
-  border-radius: 1px;
-  background-color: var(--border-color);
-  pointer-events: none;
-}
-[data-layout="minimal"] .editor-tab-bar [role="tablist"]:empty::before,
-[data-layout="minimal"]
-  .workspace-shell[data-sidebar-collapsed="false"]
-  .editor-tab-bar
-  [role="tablist"]::before {
-  /* 空标签栏或菜单栏展开时，不保留没有内容承接的分隔线。 */
   display: none;
 }
 [data-layout="minimal"] .editor-tab-bar [role="tab"]:only-child {
+  /* 单个标签不使用选中背景，保持标题栏的原生连续感。 */
+  background-color: transparent !important;
+  border-radius: 0;
+  margin: 0;
+  height: 100%;
+  align-self: stretch;
   /* 单个标签按内容收紧，避免标题与关闭按钮之间留下过宽空槽。 */
   min-width: 0;
   width: max-content;

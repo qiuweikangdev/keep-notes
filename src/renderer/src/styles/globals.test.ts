@@ -192,18 +192,21 @@ describe("workspace layout surface styles", () => {
     );
   });
 
-  it("aligns minimal tab dividers and compacts the single-tab state", () => {
+  it("removes minimal tab dividers and highlights the active tab", () => {
     expect(stylesheet).toMatch(
-      /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tablist"\]\s*\{[\s\S]*position:\s*relative;/,
+      /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tablist"\]\s*::before\s*\{[\s\S]*display:\s*none;/,
     );
     expect(stylesheet).toMatch(
-      /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tablist"\]::before\s*\{[\s\S]*top:\s*0;[\s\S]*bottom:\s*0;[\s\S]*width:\s*1px;[\s\S]*background-color:\s*var\(--border-color\);/,
+      /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tab"\]\s*\{[\s\S]*border-right:\s*0\s*!important;[\s\S]*border-color:\s*transparent\s*!important;/,
     );
     expect(stylesheet).toMatch(
-      /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tablist"\]:empty::before,[\s\S]*\.workspace-shell\[data-sidebar-collapsed="false"\][\s\S]*\.editor-tab-bar[\s\S]*\[role="tablist"\]::before\s*\{[\s\S]*display:\s*none;/,
+      /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tab"\]\s*\{[\s\S]*min-width:\s*0\s*!important;[\s\S]*width:\s*max-content;[\s\S]*max-width:\s*200px;[\s\S]*flex:\s*0 1 auto;/,
     );
     expect(stylesheet).toMatch(
-      /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tab"\]:only-child\s*\{[\s\S]*min-width:\s*0;[\s\S]*width:\s*max-content;[\s\S]*border-right:\s*0;/,
+      /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tab"\]\[aria-selected="true"\]:not\(:only-child\)\s*\{[\s\S]*background-color:\s*color-mix\([\s\S]*!important;[\s\S]*border-radius:\s*8px;[\s\S]*margin:\s*0 2px;[\s\S]*height:\s*calc\(100% - 8px\);[\s\S]*align-self:\s*center;/,
+    );
+    expect(stylesheet).toMatch(
+      /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tab"\]:only-child\s*\{[\s\S]*background-color:\s*transparent !important;[\s\S]*border-radius:\s*0;[\s\S]*margin:\s*0;[\s\S]*height:\s*100%;[\s\S]*align-self:\s*stretch;[\s\S]*min-width:\s*0;[\s\S]*width:\s*max-content;[\s\S]*border-right:\s*0;/,
     );
   });
 
