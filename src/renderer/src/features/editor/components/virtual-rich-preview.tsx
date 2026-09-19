@@ -510,7 +510,8 @@ export function VirtualRichPreview({
       tabIndex={0}
     >
       {/* 预览层不能复用 .bn-editor；BlockNote 会把文档内所有该元素都当作可拖放编辑器。 */}
-      <div className="bn-editor-preview">
+      {/* 预览必须复用 BlockNote 编辑器的默认样式基类，否则 h1、列表和代码块会回退到浏览器默认排版，激活窗格时会出现跳变。 */}
+      <div className="bn-editor-preview bn-default-styles">
         <div
           style={{
             height: virtualizer.getTotalSize(),

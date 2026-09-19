@@ -314,6 +314,8 @@ describe("RichDocumentSessionManager", () => {
     expect(captureVisualSnapshot).toHaveBeenCalledOnce();
     scheduledFrames.shift()?.(16);
     expect(captureVisualSnapshot).toHaveBeenCalledTimes(2);
+    scheduledFrames.shift()?.(32);
+    expect(captureVisualSnapshot).toHaveBeenCalledTimes(3);
   });
 
   it("leaves no active document when a target surface or host is missing", () => {

@@ -479,7 +479,7 @@ export class RichDocumentSessionManager {
       return;
     }
 
-    // 新分屏先同步当前 live surface，再在下一帧补一次，覆盖 CodeMirror 异步语言高亮刚完成的情况。
+    // 新分屏先同步当前 live surface，再连续补两帧，覆盖 CodeMirror 重新布局和异步语言高亮刚完成的情况。
     runtime.captureVisualSnapshot();
     if (
       record.previewCaptureFrame !== null ||
@@ -499,6 +499,20 @@ export class RichDocumentSessionManager {
         return;
       }
       runtime.captureVisualSnapshot?.();
+
+      const settledFrame = requestAnimationFrame(() => {
+        record.previewCaptureFrame = null;
+        if (
+          this.records.get(record.path) !== record ||
+          record.runtime !== runtime ||
+          record.activePaneKey === null ||
+          record.visibleBindings.size < 2
+        ) {
+          return;
+        }
+        runtime.captureVisualSnapshot?.();
+      });
+      record.previewCaptureFrame = settledFrame;
     });
     record.previewCaptureFrame = frame;
   }

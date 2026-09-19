@@ -310,6 +310,15 @@ export class RichDocumentSurfaceRegistry {
         return;
       }
       requestVisibleCodeMirrorMeasurements(surface);
+
+      // CodeMirror 的 DOM measure 本身也是异步提交；面板切换后补一帧，确保行号 gutter、折叠 gutter 和语法层都按新 viewport 完成重排。
+      entry.measurementFrame = requestAnimationFrame(() => {
+        entry.measurementFrame = null;
+        if (entry.surface !== surface || entry.activePaneKey === null) {
+          return;
+        }
+        requestVisibleCodeMirrorMeasurements(surface);
+      });
     });
   }
 

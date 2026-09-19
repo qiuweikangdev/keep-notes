@@ -210,6 +210,11 @@ describe("RichDocumentSurfaceRegistry", () => {
     scheduledFrames.shift()?.(32);
     expect(firstRequestMeasure).toHaveBeenCalledTimes(2);
     expect(secondRequestMeasure).not.toHaveBeenCalled();
+    expect(scheduledFrames).toHaveLength(1);
+
+    scheduledFrames.shift()?.(48);
+    expect(firstRequestMeasure).toHaveBeenCalledTimes(3);
+    expect(secondRequestMeasure).not.toHaveBeenCalled();
     expect(scheduledFrames).toHaveLength(0);
   });
 
@@ -243,6 +248,11 @@ describe("RichDocumentSurfaceRegistry", () => {
     expect(surface.style.opacity).toBe("1");
     expect(surface.style.pointerEvents).toBe("auto");
     expect(scheduledFrames).toHaveLength(1);
+
+    scheduledFrames.shift()?.(16);
+    expect(scheduledFrames).toHaveLength(1);
+    scheduledFrames.shift()?.(32);
+    expect(scheduledFrames).toHaveLength(0);
   });
 
   it("settles measurements after a tab switch parks and reactivates the surface", () => {
@@ -275,6 +285,11 @@ describe("RichDocumentSurfaceRegistry", () => {
     expect(surface.style.transform).toBe("translate3d(340px, 50px, 0)");
     expect(surface.style.opacity).toBe("1");
     expect(scheduledFrames).toHaveLength(1);
+
+    scheduledFrames.shift()?.(16);
+    expect(scheduledFrames).toHaveLength(1);
+    scheduledFrames.shift()?.(32);
+    expect(scheduledFrames).toHaveLength(0);
   });
 
   it("returns false when the document surface or requested host is missing", () => {
