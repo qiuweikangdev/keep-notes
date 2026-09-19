@@ -1,3 +1,25 @@
+## [2.25.1](https://github.com/qiuweikangdev/keep-notes/compare/v2.25.0...v2.25.1) (2026-09-19)
+
+
+### Bug Fixes
+
+* align minimal mac title bar controls ([af3a1d1](https://github.com/qiuweikangdev/keep-notes/commit/af3a1d1f0221aa78336e1f5884df010024e0ee8e))
+* improve search dialog keyboard flow ([cba91a2](https://github.com/qiuweikangdev/keep-notes/commit/cba91a2f9ac0ab807da0b74825a75023cb0d4b12))
+* keep outline content clear of bottom actions ([9ba5776](https://github.com/qiuweikangdev/keep-notes/commit/9ba577682b29f9a05f33d6e41f9fa8e6bd6e093e))
+* keep rich preview layout in sync ([ad2ea87](https://github.com/qiuweikangdev/keep-notes/commit/ad2ea87ec86ba374abf24a228908319849d4758b))
+* prevent minimal tab width flicker ([7ca096c](https://github.com/qiuweikangdev/keep-notes/commit/7ca096c95ee2d7d5423639ef090951ddcdbe230d))
+* refine minimal tab selection ([304eb1e](https://github.com/qiuweikangdev/keep-notes/commit/304eb1e9e0ad1f91d53f79d37b770ee11341c654))
+* refresh code block layout after pane resize ([b659bca](https://github.com/qiuweikangdev/keep-notes/commit/b659bcad170e24d0b624e2a186a561a39bd23687))
+* settle rich surface after tab activation ([88bbeaa](https://github.com/qiuweikangdev/keep-notes/commit/88bbeaa5e2288a130c53aa3356a75b66d920bb14))
+* sync code preview when splitting panes ([7bb8806](https://github.com/qiuweikangdev/keep-notes/commit/7bb8806d045b910d5c646f67ca7a3fce44b6e1a1))
+* tighten classic outline spacing ([3c6f689](https://github.com/qiuweikangdev/keep-notes/commit/3c6f6896203f88c06ca6bd841e4801fb01f4f95d))
+
+
+## Commit Summary
+
+- Compared with: v2.25.0
+- Total commits: 14
+
 # [2.25.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.24.0...v2.25.0) (2026-09-16)
 
 
