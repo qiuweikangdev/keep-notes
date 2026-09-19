@@ -2032,6 +2032,7 @@ html[data-layout="minimal"]:has(.workspace-shell[data-native-material="true"])
   min-width: 0;
   background-color: transparent !important;
 }
+/* 标签切换只改变背景，几何属性保持一致，避免 flex 重新测量造成宽度闪烁。 */
 [data-layout="minimal"] .editor-tab-bar [role="tab"] {
   background-color: transparent !important;
   border-right: 0 !important;
@@ -2039,7 +2040,11 @@ html[data-layout="minimal"]:has(.workspace-shell[data-native-material="true"])
   min-width: 0 !important;
   width: max-content;
   max-width: 200px;
-  flex: 0 1 auto;
+  flex: 0 0 auto;
+  margin: 0 2px 0px 6px;
+  height: auto;
+  padding: 6px 2px 6px 6px;
+  align-self: center;
 }
 [data-layout="minimal"]
   .editor-tab-bar
@@ -2050,10 +2055,6 @@ html[data-layout="minimal"]:has(.workspace-shell[data-native-material="true"])
     var(--bg-primary)
   ) !important;
   border-radius: 8px;
-  margin: 0 2px 0px 6px;
-  height: auto;
-  padding: 6px 2px 6px 6px;
-  align-self: center;
 }
 [data-layout="minimal"] .editor-tab-bar :is([role="tab"], button, input) {
   -webkit-app-region: no-drag;

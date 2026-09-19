@@ -200,10 +200,10 @@ describe("workspace layout surface styles", () => {
       /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tab"\]\s*\{[\s\S]*border-right:\s*0\s*!important;[\s\S]*border-color:\s*transparent\s*!important;/,
     );
     expect(stylesheet).toMatch(
-      /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tab"\]\s*\{[\s\S]*min-width:\s*0\s*!important;[\s\S]*width:\s*max-content;[\s\S]*max-width:\s*200px;[\s\S]*flex:\s*0 1 auto;/,
+      /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tab"\]\s*\{[\s\S]*min-width:\s*0\s*!important;[\s\S]*width:\s*max-content;[\s\S]*max-width:\s*200px;[\s\S]*flex:\s*0 0 auto;[\s\S]*margin:\s*0 2px 0px 6px;[\s\S]*height:\s*auto;[\s\S]*padding:\s*6px 2px 6px 6px;[\s\S]*align-self:\s*center;/,
     );
     expect(stylesheet).toMatch(
-      /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tab"\]\[aria-selected="true"\]:not\(:only-child\)\s*\{[\s\S]*background-color:\s*color-mix\([\s\S]*!important;[\s\S]*border-radius:\s*8px;[\s\S]*margin:\s*0 2px;[\s\S]*height:\s*calc\(100% - 8px\);[\s\S]*align-self:\s*center;/,
+      /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tab"\]\[aria-selected="true"\]:not\(:only-child\)\s*\{[\s\S]*background-color:\s*color-mix\([\s\S]*!important;[\s\S]*border-radius:\s*8px;/,
     );
     expect(stylesheet).toMatch(
       /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tab"\]:only-child\s*\{[\s\S]*background-color:\s*transparent !important;[\s\S]*border-radius:\s*0;[\s\S]*margin:\s*0;[\s\S]*height:\s*100%;[\s\S]*align-self:\s*stretch;[\s\S]*min-width:\s*0;[\s\S]*width:\s*max-content;[\s\S]*border-right:\s*0;/,
