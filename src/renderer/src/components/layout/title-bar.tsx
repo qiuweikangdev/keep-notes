@@ -357,7 +357,7 @@ export function TitleBar({
         style={{
           // macOS 与原生红绿灯共享同一高度基准，避免左上角操作区视觉偏移。
           height: isMinimal
-            ? `${MINIMAL_TITLE_BAR_HEIGHT}px`
+            ? `${isMac ? MAC_TITLE_BAR_HEIGHT : MINIMAL_TITLE_BAR_HEIGHT}px`
             : isMac
               ? `${MAC_TITLE_BAR_HEIGHT}px`
               : "44px",

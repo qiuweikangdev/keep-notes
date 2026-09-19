@@ -132,6 +132,28 @@ describe("TitleBar", () => {
     expect(screen.queryByTitle("切换亮色主题")).not.toBeInTheDocument();
     expect(screen.getByTitle("设置")).toBeInTheDocument();
     expect(screen.getByTestId("title-bar")).toHaveStyle({
+      height: `${MAC_TITLE_BAR_HEIGHT}px`,
+    });
+  });
+
+  it("keeps the compact title bar height on non-macOS platforms", () => {
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: {
+        ...window.electronAPI,
+        getPlatform: () => "win32",
+      },
+    });
+
+    render(
+      <TitleBar
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+        compactTabs={<div role="tablist" aria-label="编辑器标签页" />}
+      />,
+    );
+
+    expect(screen.getByTestId("title-bar")).toHaveStyle({
       height: `${MINIMAL_TITLE_BAR_HEIGHT}px`,
     });
   });
