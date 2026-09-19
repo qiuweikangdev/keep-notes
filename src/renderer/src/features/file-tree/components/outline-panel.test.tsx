@@ -33,6 +33,20 @@ describe("OutlinePanel", () => {
     ).toBeInTheDocument();
   });
 
+  it("uses compact heading rows when requested", () => {
+    const { container } = render(
+      <OutlinePanel
+        headings={[{ id: "heading-1", text: "Heading", level: 1 }]}
+        activeHeadingId={null}
+        resetKey="note.md"
+        onHeadingClick={vi.fn()}
+        compact
+      />,
+    );
+
+    expect(container.querySelector("button")).toHaveClass("py-1");
+  });
+
   it("does not add hover styling to the active heading", () => {
     render(
       <OutlinePanel

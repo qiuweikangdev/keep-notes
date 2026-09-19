@@ -710,7 +710,10 @@ export function FileTree() {
           onMouseLeave={handleSidebarMouseLeave}
         >
           <div
-            className="flex h-[35px] flex-shrink-0 items-center gap-1 px-2"
+            className={cn(
+              "file-tree-sidebar__view-header flex flex-shrink-0 items-center gap-1",
+              layout === "minimal" ? "h-7 px-1.5" : "h-[35px] px-2",
+            )}
             style={{
               backgroundColor: "var(--sidebar-header-background)",
               borderBottom: "var(--sidebar-header-border)",
@@ -768,7 +771,14 @@ export function FileTree() {
             </div>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden py-2">
+          <div
+            className={cn(
+              "file-tree-sidebar__view-content flex min-h-0 flex-1 flex-col overflow-hidden",
+              layout === "minimal" || sidebarView === "outline"
+                ? "py-0"
+                : "py-2",
+            )}
+          >
             {sidebarView === "file" ? (
               <>
                 {isRootCreating ? (
@@ -973,6 +983,7 @@ export function FileTree() {
                 activeHeadingId={activeHeadingId}
                 resetKey={`${activeOutlinePaneKey ?? "none"}:${normalizedActiveDocumentPath ?? ""}`}
                 onHeadingClick={handleHeadingClick}
+                compact={sidebarView === "outline"}
               />
             )}
           </div>
