@@ -38,6 +38,7 @@ interface SessionRecord {
   visibleBindings: Map<RichPaneKey, RichDocumentBinding>;
   backgroundTabIds: Set<string>;
   activePaneKey: RichPaneKey | null;
+  previewCaptureFrame: number | null;
   runtime: RichDocumentRuntime | null;
   lastActiveAt: number;
 }
@@ -101,6 +102,7 @@ export class RichDocumentSessionManager {
   retainVisible(path: string, binding: RichDocumentBinding): () => void {
     const normalizedPath = normalizeRichDocumentPath(path);
     const record = this.getOrCreateRecord(normalizedPath);
+    const hadAnotherVisiblePane = record.visibleBindings.size > 0;
     // 每次保留都复制绑定作为注册身份，避免复用同一入参时旧回调误删新绑定。
     const retainedBinding = { ...binding };
     const token = Symbol(binding.paneKey);
@@ -111,6 +113,7 @@ export class RichDocumentSessionManager {
     });
     record.lastActiveAt = this.now();
     this.finishMutation();
+    if (hadAnotherVisiblePane) this.capturePreviewForVisiblePanes(record);
 
     return () => {
       if (record.visibleBindings.get(binding.paneKey) !== retainedBinding) {
@@ -396,6 +399,7 @@ export class RichDocumentSessionManager {
       visibleBindings: new Map(),
       backgroundTabIds: new Set(),
       activePaneKey: null,
+      previewCaptureFrame: null,
       runtime: null,
       lastActiveAt: this.now(),
     };
@@ -463,6 +467,40 @@ export class RichDocumentSessionManager {
 
     this.records.delete(record.path);
     this.backgroundRetentionTokens.delete(record.path);
+  }
+
+  private capturePreviewForVisiblePanes(record: SessionRecord): void {
+    const runtime = record.runtime;
+    if (
+      !runtime?.captureVisualSnapshot ||
+      record.activePaneKey === null ||
+      record.visibleBindings.size < 2
+    ) {
+      return;
+    }
+
+    // 新分屏先同步当前 live surface，再在下一帧补一次，覆盖 CodeMirror 异步语言高亮刚完成的情况。
+    runtime.captureVisualSnapshot();
+    if (
+      record.previewCaptureFrame !== null ||
+      typeof requestAnimationFrame !== "function"
+    ) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      record.previewCaptureFrame = null;
+      if (
+        this.records.get(record.path) !== record ||
+        record.runtime !== runtime ||
+        record.activePaneKey === null ||
+        record.visibleBindings.size < 2
+      ) {
+        return;
+      }
+      runtime.captureVisualSnapshot?.();
+    });
+    record.previewCaptureFrame = frame;
   }
 
   private finishMutation(): void {
