@@ -487,11 +487,7 @@
 
 /* 深黑主题的搜索与提醒事项面板使用连续的中深灰表面，内容共享同一层级。 */
 .minimal .command-palette-surface {
-  border-color: color-mix(
-    in srgb,
-    var(--border-color) 82%,
-    var(--text-muted)
-  );
+  border-color: color-mix(in srgb, var(--border-color) 82%, var(--text-muted));
   background-color: color-mix(
     in srgb,
     var(--bg-tertiary) 88%,
@@ -501,8 +497,7 @@
 }
 
 /* 提醒事项保留了内联材质声明，这里用主题覆盖让它与搜索面板保持一致。 */
-.minimal
-  .command-palette-surface[data-reminder-list-dialog="true"] {
+.minimal .command-palette-surface[data-reminder-list-dialog="true"] {
   border: 1px solid
     color-mix(in srgb, var(--border-color) 82%, var(--text-muted)) !important;
   background-color: color-mix(
@@ -566,11 +561,8 @@ textarea[aria-label="Markdown 源码"] {
 
 /* 源码模式用完整细边框标记编辑面板，保持背景统一且不干扰正文。 */
 .editor-source-pane {
-  border: 1px solid color-mix(
-    in srgb,
-    var(--border-color) 70%,
-    var(--text-secondary)
-  );
+  border: 1px solid
+    color-mix(in srgb, var(--border-color) 70%, var(--text-secondary));
 }
 
 ::highlight(keep-notes-find-match) {
@@ -1979,9 +1971,7 @@ html[data-layout="minimal"] .settings-sidebar::before {
 }
 
 [data-layout="minimal"] .workspace-shell[data-native-material="true"]::before,
-html[data-layout="minimal"]:has(
-    .workspace-shell[data-native-material="true"]
-  )
+html[data-layout="minimal"]:has(.workspace-shell[data-native-material="true"])
   .settings-sidebar::before {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
@@ -2060,8 +2050,9 @@ html[data-layout="minimal"]:has(
     var(--bg-primary)
   ) !important;
   border-radius: 8px;
-  margin: 0 2px;
-  height: calc(100% - 8px);
+  margin: 0 2px 0px 6px;
+  height: auto;
+  padding: 6px 2px 6px 6px;
   align-self: center;
 }
 [data-layout="minimal"] .editor-tab-bar :is([role="tab"], button, input) {
@@ -2188,8 +2179,7 @@ html[data-layout="minimal"]:has(
   }
 
   [data-layout="minimal"] .workspace-shell::before,
-  [data-layout="minimal"]
-    .workspace-shell[data-native-material="true"]::before,
+  [data-layout="minimal"] .workspace-shell[data-native-material="true"]::before,
   html[data-layout="minimal"] .settings-sidebar::before {
     background: var(--bg-secondary);
     -webkit-backdrop-filter: none;
