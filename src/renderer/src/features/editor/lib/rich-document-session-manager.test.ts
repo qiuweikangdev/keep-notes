@@ -279,6 +279,45 @@ describe("RichDocumentSessionManager", () => {
     expect(runtime.surface.dataset.activePaneKey).toBe("g2:t2");
   });
 
+  it("captures the live surface when a second visible pane is added", () => {
+    const scheduledFrames: FrameRequestCallback[] = [];
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn((callback: FrameRequestCallback) => {
+        scheduledFrames.push(callback);
+        return scheduledFrames.length;
+      }),
+    );
+    const surfaces = new RichDocumentSurfaceRegistry();
+    const manager = createManager({ surfaces });
+    const runtime = createRuntime("note.md", []);
+    const captureVisualSnapshot = vi.fn();
+    Object.assign(runtime, { captureVisualSnapshot });
+    const firstHost = document.createElement("div");
+
+    manager.retainVisible("note.md", {
+      paneKey: "g1:t1",
+      groupId: "g1",
+      tabId: "t1",
+    });
+    manager.registerRuntime("note.md", runtime);
+    surfaces.registerHost("note.md", "g1:t1", firstHost);
+    expect(manager.setActivePane("note.md", "g1:t1")).toBe(true);
+    captureVisualSnapshot.mockClear();
+
+    manager.retainVisible("note.md", {
+      paneKey: "g2:t2",
+      groupId: "g2",
+      tabId: "t2",
+    });
+
+    expect(captureVisualSnapshot).toHaveBeenCalledOnce();
+    scheduledFrames.shift()?.(16);
+    expect(captureVisualSnapshot).toHaveBeenCalledTimes(2);
+    scheduledFrames.shift()?.(32);
+    expect(captureVisualSnapshot).toHaveBeenCalledTimes(3);
+  });
+
   it("leaves no active document when a target surface or host is missing", () => {
     const surfaces = new RichDocumentSurfaceRegistry();
     const manager = createManager({ surfaces });

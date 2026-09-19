@@ -157,7 +157,7 @@ function GitPanelTooltip({
       onPointerDown={handleSuppress}
       onClick={handleSuppress}
       onMouseLeave={handleHide}
-      onBlur={handleHide}
+      onBlur={() => setIsVisible(false)}
     >
       {children}
       <span className="git-panel-tooltip__content" role="tooltip">
@@ -320,6 +320,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
   const [branchNameDraft, setBranchNameDraft] = useState("");
   const [branchToDelete, setBranchToDelete] = useState("");
   const branchMenuRef = useRef<HTMLDivElement>(null);
+  const commitMessageRef = useRef<HTMLTextAreaElement>(null);
+  const previousFocusedElementRef = useRef<HTMLElement | null>(null);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -443,10 +445,54 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
 
   useEffect(() => {
     if (isOpen) {
+      previousFocusedElementRef.current =
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null;
       resetPanelState();
       loadGitInfo();
+      return;
     }
+
+    previousFocusedElementRef.current?.focus();
+    previousFocusedElementRef.current = null;
   }, [isOpen, resetPanelState, loadGitInfo]);
+
+  useEffect(() => {
+    if (!isMainDialogOpen || activeTab !== "changes") return;
+    commitMessageRef.current?.focus();
+  }, [activeTab, isMainDialogOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape" || event.isComposing) return;
+      if (showCreateBranch || confirmDialog.open) return;
+      // 分支名称输入框会自行处理 Escape，用它保留当前浮层便于继续操作。
+      if (renamingBranchName) return;
+
+      if (showBranchList) {
+        setShowBranchList(false);
+        setRenamingBranchName("");
+        setBranchNameDraft("");
+        return;
+      }
+
+      event.preventDefault();
+      onClose();
+    };
+
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [
+    confirmDialog.open,
+    isOpen,
+    onClose,
+    renamingBranchName,
+    showBranchList,
+    showCreateBranch,
+  ]);
 
   useEffect(() => {
     if (!showBranchList) return;
@@ -1609,11 +1655,14 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
   const renderHistoryContent = () => (
     <div
       className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
-      style={{ backgroundColor: "var(--bg-primary)" }}
+      style={{ backgroundColor: "transparent" }}
     >
       <div
-        className="grid grid-cols-[minmax(0,1fr)_96px_88px] border-b px-4 py-2 text-xs font-medium"
+        data-git-history-header="true"
+        className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_96px_88px] border-b px-4 py-2 text-xs font-medium"
         style={{
+          backgroundColor:
+            "color-mix(in srgb, var(--bg-secondary) 54%, var(--bg-primary))",
           borderColor: "var(--border-color)",
           color: "var(--text-muted)",
         }}
@@ -1633,6 +1682,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             onClick={() => handleSelectCommit(commit)}
             data-selection-surface="true"
             data-selected={selected ? "true" : undefined}
+            aria-pressed={selected}
             className="grid h-9 w-full grid-cols-[minmax(0,1fr)_96px_88px] items-center border-b px-4 text-left text-sm transition-colors"
             style={{
               backgroundColor: selected
@@ -1643,8 +1693,16 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             }}
             title={commit.subject}
           >
-            <span className="min-w-0 truncate">
-              {commit.subject || "(无提交信息)"}
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="min-w-0 truncate">
+                {commit.subject || "(无提交信息)"}
+              </span>
+              <span
+                className="shrink-0 font-mono text-[11px]"
+                style={{ color: "var(--text-muted)" }}
+              >
+                {commit.shortHash}
+              </span>
             </span>
             <span
               className="truncate text-xs"
@@ -1691,24 +1749,29 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             </div>
           ) : selectedCommitDetail ? (
             <div
-              className="rounded-lg border"
+              data-git-history-detail="true"
+              className="border-t"
               style={{
                 borderColor: "var(--border-color)",
-                backgroundColor: "var(--bg-secondary)",
+                backgroundColor: "transparent",
               }}
             >
               <div
-                className="border-b p-3"
-                style={{ borderColor: "var(--border-color)" }}
+                className="border-b px-3 py-3"
+                style={{
+                  backgroundColor:
+                    "color-mix(in srgb, var(--bg-secondary) 52%, var(--bg-primary))",
+                  borderColor: "var(--border-color)",
+                }}
               >
                 <div
-                  className="mb-2 truncate text-sm font-medium"
+                  className="mb-1.5 truncate text-sm font-medium"
                   style={{ color: "var(--text-primary)" }}
                 >
                   {selectedCommitDetail.subject || "(无提交信息)"}
                 </div>
                 <div
-                  className="grid gap-1 text-xs"
+                  className="flex flex-wrap gap-x-4 gap-y-1 text-xs"
                   style={{ color: "var(--text-muted)" }}
                 >
                   <span>
@@ -1729,7 +1792,12 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                   </span>
                 </div>
               </div>
-              <div>
+              <div
+                style={{
+                  backgroundColor:
+                    "color-mix(in srgb, var(--bg-secondary) 24%, var(--bg-primary))",
+                }}
+              >
                 {selectedCommitDetail.files.length > 0 ? (
                   selectedCommitDetail.files.map((file) => {
                     const statusMeta = getCommitFileStatusMeta(file.status);
@@ -1836,6 +1904,9 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       >
         <div
           data-git-dialog="not-repository"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="git-not-repository-title"
           className="max-h-[calc(100vh-32px)] w-[calc(100vw-32px)] max-w-[400px] overflow-auto rounded-xl shadow-2xl"
           style={{ backgroundColor: "var(--bg-secondary)" }}
           onClick={(e) => e.stopPropagation()}
@@ -1850,6 +1921,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                 style={{ color: "var(--text-muted)" }}
               />
               <span
+                id="git-not-repository-title"
                 className="font-medium"
                 style={{ color: "var(--text-primary)" }}
               >
@@ -1893,10 +1965,16 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       <div
         ref={contentRef}
         data-git-dialog="main"
-        className="fixed left-1/2 top-1/2 flex h-[min(82vh,calc(100vh-32px))] max-h-none w-[min(680px,calc(100vw-32px))] max-w-none -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl shadow-2xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="git-panel-title"
+        className="fixed left-1/2 top-1/2 flex h-[min(82vh,calc(100vh-32px))] max-h-none w-[min(680px,calc(100vw-32px))] max-w-none -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border shadow-2xl"
         style={{
-          backgroundColor: "var(--bg-primary)",
-          boxShadow: "0 6px 8px rgba(0, 0, 0, 0.2)",
+          backgroundColor:
+            "color-mix(in srgb, var(--bg-tertiary) 56%, var(--bg-primary))",
+          borderColor:
+            "color-mix(in srgb, var(--border-color) 84%, var(--text-muted))",
+          boxShadow: "0 8px 8px rgb(0 0 0 / 38%)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -1928,7 +2006,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
               className="text-sm font-semibold"
               style={{ color: "var(--text-primary)" }}
             >
-              Git 操作
+              <span id="git-panel-title">Git 操作</span>
             </span>
           </div>
 
@@ -1968,13 +2046,17 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
 
         {/* 固定区域：分支管理与提交信息 */}
         <div
-          className="relative shrink-0 px-5 py-4"
+          className={`relative shrink-0 ${
+            activeTab === "changes" ? "px-5 py-4" : "h-11 px-5"
+          }`}
           style={{ borderBottom: "1px solid var(--border-color)" }}
         >
           {/* 分支管理 */}
           <div
             ref={branchMenuRef}
-            className="absolute right-5 top-4 z-20 max-w-[55%]"
+            className={`absolute right-5 z-20 max-w-[55%] ${
+              activeTab === "changes" ? "top-4" : "top-1.5"
+            }`}
           >
             <div className="flex items-center">
               <button
@@ -2164,47 +2246,50 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           </div>
 
           {/* 提交信息 */}
-          <div>
-            <div className="mb-1.5 flex h-8 items-center">
-              <label
-                htmlFor="gitCommitMessage"
-                className="text-xs font-medium"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                提交信息
-              </label>
-            </div>
-            <textarea
-              id="gitCommitMessage"
-              value={commitMessage}
-              onChange={(e) => setCommitMessage(e.target.value)}
-              placeholder="提交信息（留空将自动生成）..."
-              rows={1}
-              className="git-dialog-field h-10 w-full resize-none overflow-hidden rounded-md px-3 py-2.5 text-sm outline-none"
-              style={{
-                backgroundColor: "var(--bg-primary)",
-                border: "1px solid var(--border-color)",
-                color: "var(--text-primary)",
-              }}
-            />
-            <div className="mt-2 flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="includeUntracked"
-                checked={includeUntracked}
-                onChange={(e) => setIncludeUntracked(e.target.checked)}
-                className="rounded w-3.5 h-3.5 cursor-pointer"
-                style={{ accentColor: "var(--accent-color)" }}
+          {activeTab === "changes" ? (
+            <div>
+              <div className="mb-1.5 flex h-8 items-center">
+                <label
+                  htmlFor="gitCommitMessage"
+                  className="text-xs font-medium"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  提交信息
+                </label>
+              </div>
+              <textarea
+                ref={commitMessageRef}
+                id="gitCommitMessage"
+                value={commitMessage}
+                onChange={(e) => setCommitMessage(e.target.value)}
+                placeholder="提交信息（留空将自动生成）..."
+                rows={1}
+                className="git-dialog-field h-10 w-full resize-none overflow-hidden rounded-md px-3 py-2.5 text-sm outline-none"
+                style={{
+                  backgroundColor: "var(--bg-secondary)",
+                  border: "1px solid var(--border-color)",
+                  color: "var(--text-primary)",
+                }}
               />
-              <label
-                htmlFor="includeUntracked"
-                className="cursor-pointer text-xs"
-                style={{ color: "var(--text-muted)" }}
-              >
-                包含未暂存的更改
-              </label>
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="includeUntracked"
+                  checked={includeUntracked}
+                  onChange={(e) => setIncludeUntracked(e.target.checked)}
+                  className="h-3.5 w-3.5 cursor-pointer rounded"
+                  style={{ accentColor: "var(--accent-color)" }}
+                />
+                <label
+                  htmlFor="includeUntracked"
+                  className="cursor-pointer text-xs"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  包含未暂存的更改
+                </label>
+              </div>
             </div>
-          </div>
+          ) : null}
         </div>
 
         {/* 视图切换与文件状态摘要 */}
@@ -2233,7 +2318,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                   onClick={() => handleSwitchTab("changes")}
                   data-selection-surface="true"
                   data-selected={activeTab === "changes" ? "true" : undefined}
-                  className="flex h-6 w-6 items-center justify-center rounded"
+                  className="flex h-8 w-8 items-center justify-center rounded"
                   style={{
                     backgroundColor:
                       activeTab === "changes"
@@ -2256,7 +2341,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                   onClick={() => handleSwitchTab("history")}
                   data-selection-surface="true"
                   data-selected={activeTab === "history" ? "true" : undefined}
-                  className="flex h-6 w-6 items-center justify-center rounded"
+                  className="flex h-8 w-8 items-center justify-center rounded"
                   style={{
                     backgroundColor:
                       activeTab === "history"
@@ -2293,7 +2378,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                   type="button"
                   onClick={() => setTreeView(!treeView)}
                   data-theme-control="true"
-                  className="flex h-7 w-7 items-center justify-center rounded-md"
+                  className="flex h-8 w-8 items-center justify-center rounded-md"
                   style={{ color: "var(--text-muted)" }}
                   title={treeView ? "切换为列表视图" : "切换为树形视图"}
                   aria-label={treeView ? "切换为列表视图" : "切换为树形视图"}
@@ -2315,7 +2400,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                     onClick={() => loadCommitHistory("append")}
                     disabled={historyLoading}
                     data-theme-control="true"
-                    className="flex h-7 w-7 items-center justify-center rounded-md disabled:opacity-50"
+                    className="flex h-8 w-8 items-center justify-center rounded-md disabled:opacity-50"
                     style={{ color: "var(--text-muted)" }}
                     title="加载更多历史"
                     aria-label="加载更多历史"
@@ -2345,7 +2430,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           allFiles.length > 0 && (
             <div
               className="relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
-              style={{ backgroundColor: "var(--bg-primary)" }}
+              style={{ backgroundColor: "transparent" }}
             >
               {renderFileSection("已暂存的更改", stagedFilePaths, "staged")}
               {renderFileSection("更改", unstagedFilePaths, "unstaged")}
@@ -2387,7 +2472,9 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             data-dialog-footer="true"
             className="dialog-footer-surface flex shrink-0 items-center justify-between px-5 py-3"
             style={{
-              borderTop: "1px solid var(--border-color)",
+              backgroundColor: "transparent",
+              borderTop:
+                "1px solid color-mix(in srgb, var(--border-color) 82%, transparent)",
             }}
           >
             <div className="flex items-center gap-2">

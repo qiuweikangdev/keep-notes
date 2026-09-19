@@ -210,6 +210,11 @@ describe("RichDocumentSurfaceRegistry", () => {
     scheduledFrames.shift()?.(32);
     expect(firstRequestMeasure).toHaveBeenCalledTimes(2);
     expect(secondRequestMeasure).not.toHaveBeenCalled();
+    expect(scheduledFrames).toHaveLength(1);
+
+    scheduledFrames.shift()?.(48);
+    expect(firstRequestMeasure).toHaveBeenCalledTimes(3);
+    expect(secondRequestMeasure).not.toHaveBeenCalled();
     expect(scheduledFrames).toHaveLength(0);
   });
 
@@ -243,6 +248,48 @@ describe("RichDocumentSurfaceRegistry", () => {
     expect(surface.style.opacity).toBe("1");
     expect(surface.style.pointerEvents).toBe("auto");
     expect(scheduledFrames).toHaveLength(1);
+
+    scheduledFrames.shift()?.(16);
+    expect(scheduledFrames).toHaveLength(1);
+    scheduledFrames.shift()?.(32);
+    expect(scheduledFrames).toHaveLength(0);
+  });
+
+  it("settles measurements after a tab switch parks and reactivates the surface", () => {
+    const scheduledFrames: FrameRequestCallback[] = [];
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn((callback: FrameRequestCallback) => {
+        scheduledFrames.push(callback);
+        return scheduledFrames.length;
+      }),
+    );
+    const registry = new RichDocumentSurfaceRegistry();
+    const surface = document.createElement("div");
+    const firstHost = document.createElement("div");
+    const secondHost = document.createElement("div");
+    vi.spyOn(firstHost, "getBoundingClientRect").mockReturnValue(
+      rect(20, 50, 300, 200),
+    );
+    vi.spyOn(secondHost, "getBoundingClientRect").mockReturnValue(
+      rect(340, 50, 300, 200),
+    );
+
+    registry.registerSurface("note.md", surface);
+    registry.registerHost("note.md", "g1:t1", firstHost);
+    registry.registerHost("note.md", "g2:t2", secondHost);
+    registry.activate("note.md", "g1:t1");
+    registry.deactivate("note.md");
+
+    expect(registry.activate("note.md", "g2:t2")).toBe(true);
+    expect(surface.style.transform).toBe("translate3d(340px, 50px, 0)");
+    expect(surface.style.opacity).toBe("1");
+    expect(scheduledFrames).toHaveLength(1);
+
+    scheduledFrames.shift()?.(16);
+    expect(scheduledFrames).toHaveLength(1);
+    scheduledFrames.shift()?.(32);
+    expect(scheduledFrames).toHaveLength(0);
   });
 
   it("returns false when the document surface or requested host is missing", () => {

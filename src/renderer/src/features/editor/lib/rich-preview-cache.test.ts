@@ -72,6 +72,7 @@ function createHarness(requestAll = true) {
 
 describe("RichPreviewCache", () => {
   afterEach(() => {
+    Reflect.deleteProperty(document, "elementsFromPoint");
     vi.unstubAllEnvs();
   });
 
@@ -179,6 +180,10 @@ describe("RichPreviewCache", () => {
       '[data-id="block-a"]',
     );
     expect(liveBlock).not.toBeNull();
+    liveBlock!.setAttribute("data-prev-type", "paragraph");
+    liveBlock!.setAttribute("data-prev-level", "1");
+    liveBlock!.setAttribute("data-prev-index", "none");
+    liveBlock!.firstElementChild?.setAttribute("data-prev-depth-change", "1");
     liveBlock!.innerHTML = `
       <div class="cm-editor cm-focused">
         <div class="cm-foldGutter"><span title="Fold line">⌄</span></div>
@@ -187,6 +192,9 @@ describe("RichPreviewCache", () => {
         <div contenteditable="true">live code</div>
       </div>
     `;
+    liveBlock!
+      .querySelector(".cm-editor")
+      ?.setAttribute("data-prev-depth-change", "1");
     const liveSurface = document.createElement("div");
     liveSurface.append(liveBlock!);
     const listener = vi.fn();
@@ -198,9 +206,61 @@ describe("RichPreviewCache", () => {
     expect(capturedHtml).toContain('title="Fold line"');
     expect(capturedHtml).toContain("live code");
     expect(capturedHtml).toContain('contenteditable="false"');
+    expect(capturedHtml).not.toContain("data-prev-");
     expect(capturedHtml).not.toContain("cm-focused");
     expect(capturedHtml).not.toContain("cm-cursor");
     expect(listener).toHaveBeenCalledOnce();
+  });
+
+  it("preserves the outer wrapper required by heading styles during hit testing", () => {
+    const { cache } = createHarness();
+    const initialHtml = cache.getBlockSnapshot("block-a")?.html ?? "";
+    const template = document.createElement("template");
+    template.innerHTML = initialHtml;
+    const liveBlockOuter = template.content.querySelector<HTMLElement>(
+      '.bn-block-outer[data-id="block-a"]',
+    );
+    const liveBlockContent =
+      liveBlockOuter?.querySelector<HTMLElement>(".bn-block-content");
+    expect(liveBlockOuter).not.toBeNull();
+    expect(liveBlockContent).not.toBeNull();
+    liveBlockContent!.dataset.contentType = "heading";
+    liveBlockContent!.innerHTML = '<h1 class="bn-inline-content">alpha</h1>';
+
+    const liveSurface = document.createElement("div");
+    liveSurface.append(liveBlockOuter!);
+    vi.spyOn(liveSurface, "getBoundingClientRect").mockReturnValue({
+      bottom: 32,
+      height: 32,
+      left: 0,
+      right: 120,
+      top: 0,
+      width: 120,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    Object.defineProperty(document, "elementsFromPoint", {
+      configurable: true,
+      value: vi.fn(() => [liveBlockContent!]),
+    });
+
+    cache.captureVisualSnapshot(liveSurface);
+
+    const captured = document.createElement("template");
+    captured.innerHTML = cache.getBlockSnapshot("block-a")?.html ?? "";
+    const capturedOuter = captured.content.querySelector<HTMLElement>(
+      '.bn-block-outer[data-id="block-a"]',
+    );
+    expect(capturedOuter).not.toBeNull();
+    expect(
+      capturedOuter?.firstElementChild?.classList.contains("bn-block"),
+    ).toBe(true);
+    expect(
+      capturedOuter?.querySelector(
+        ':scope > .bn-block > .bn-block-content[data-content-type="heading"]',
+      ),
+    ).not.toBeNull();
   });
 
   it("merges repeated block edits into one frame export", () => {

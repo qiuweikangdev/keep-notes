@@ -117,6 +117,49 @@ describe("FileTree context menu", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("keeps the minimal sidebar view header compact", () => {
+    const { container } = render(<FileTree />);
+
+    expect(
+      container.querySelector(".file-tree-sidebar__view-header"),
+    ).toHaveClass("h-7", "px-1.5");
+    expect(
+      container.querySelector(".file-tree-sidebar__view-content"),
+    ).toHaveClass("py-0");
+  });
+
+  it("keeps the minimal outline content close to its header", () => {
+    useEditorStore.setState({
+      appearance: {
+        ...useEditorStore.getState().appearance,
+        sidebarView: "outline",
+      },
+    });
+    const { container } = render(<FileTree />);
+
+    expect(container.querySelector(".file-tree-scroll-container")).toHaveClass(
+      "pt-0",
+    );
+  });
+
+  it("keeps the classic outline content close to its header", () => {
+    useUIStore.setState({ layout: "classic" });
+    useEditorStore.setState({
+      appearance: {
+        ...useEditorStore.getState().appearance,
+        sidebarView: "outline",
+      },
+    });
+    const { container } = render(<FileTree />);
+
+    expect(
+      container.querySelector(".file-tree-sidebar__view-content"),
+    ).toHaveClass("py-0");
+    expect(container.querySelector(".file-tree-scroll-container")).toHaveClass(
+      "pt-0",
+    );
+  });
+
   it("uses the same restrained empty state in the minimal layout", () => {
     useTreeStore.setState({ treeRoot: null, treeData: [], recentFolders: [] });
 
@@ -297,7 +340,7 @@ describe("FileTree context menu", () => {
       },
     });
 
-    expect(content).toHaveClass("flex-1", "py-2");
+    expect(content).toHaveClass("flex-1", "py-0");
     expect(content).not.toHaveClass("pb-12");
     expect(bottomBar).toHaveClass(
       "transition-opacity",

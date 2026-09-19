@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import { createPortal } from "react-dom";
 import { FileText, FolderOpen, Search, X } from "lucide-react";
 import { useTreeStore } from "@/store/tree.store";
@@ -150,6 +157,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+  const previousFocusedElementRef = useRef<HTMLElement | null>(null);
   const resultRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const isComposingRef = useRef(false);
   const treeData = useTreeStore((state) => state.treeData);
@@ -289,6 +297,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
       if (isComposing) return;
 
       if (event.key === "Escape") {
+        event.stopPropagation();
         onClose();
         return;
       }
@@ -339,11 +348,51 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
       setQuery("");
       setSelectedIndex(0);
       isComposingRef.current = false;
+      previousFocusedElementRef.current?.focus();
+      previousFocusedElementRef.current = null;
       return;
     }
 
+    previousFocusedElementRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
     inputRef.current?.focus();
   }, [isOpen]);
+
+  const handleModalKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const modal = modalRef.current;
+      if (!modal) return;
+
+      const focusableElements = Array.from(
+        modal.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => !element.hasAttribute("hidden"));
+      const firstFocusable = focusableElements[0];
+      const lastFocusable = focusableElements.at(-1);
+
+      if (!firstFocusable || !lastFocusable) return;
+
+      if (event.shiftKey && document.activeElement === firstFocusable) {
+        event.preventDefault();
+        lastFocusable.focus();
+      } else if (!event.shiftKey && document.activeElement === lastFocusable) {
+        event.preventDefault();
+        firstFocusable.focus();
+      }
+    },
+    [onClose],
+  );
 
   useEffect(() => {
     if (!isOpen) return;
@@ -366,6 +415,10 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
     <div className="pointer-events-none fixed inset-x-0 top-0 z-50 flex items-start justify-center pt-[12vh]">
       <div
         ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="搜索文件"
+        onKeyDown={handleModalKeyDown}
         className="command-palette-surface pointer-events-auto relative w-[520px] max-w-[calc(100vw-32px)] overflow-hidden"
       >
         <div className="command-palette-header flex h-11 items-center gap-2.5 px-3.5">

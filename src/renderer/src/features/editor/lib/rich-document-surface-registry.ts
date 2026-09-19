@@ -49,6 +49,8 @@ interface SurfaceEntry {
   surface: HTMLElement | null;
   hosts: Map<RichPaneKey, HTMLElement>;
   activePaneKey: RichPaneKey | null;
+  // surface 在标签切换期间可能先被停用再重新激活；保留上一个 owner，避免把跨 pane 移动误判为首次挂载。
+  lastPaneKey: RichPaneKey | null;
   focusTarget: HTMLElement | null;
   measurementGeneration: number;
   measurementFrame: number | null;
@@ -69,6 +71,7 @@ export class RichDocumentSurfaceRegistry {
       entry.focusTarget = null;
     }
     entry.surface = surface;
+    entry.lastPaneKey = null;
     this.mountSurface(surface);
 
     const activePaneKey = entry.activePaneKey;
@@ -139,8 +142,10 @@ export class RichDocumentSurfaceRegistry {
     // 表面节点始终留在 body，只用合成层 transform 在窗格间移动，避免大型 DOM 重挂触发黑帧。
     this.captureFocus(entry);
     const movedBetweenPanes =
-      entry.activePaneKey !== null && entry.activePaneKey !== paneKey;
+      (entry.activePaneKey ?? entry.lastPaneKey) !== null &&
+      (entry.activePaneKey ?? entry.lastPaneKey) !== paneKey;
     entry.activePaneKey = paneKey;
+    entry.lastPaneKey = paneKey;
     this.showAtHost(entry, host, paneKey, movedBetweenPanes);
     return true;
   }
@@ -170,6 +175,7 @@ export class RichDocumentSurfaceRegistry {
       surface: null,
       hosts: new Map(),
       activePaneKey: null,
+      lastPaneKey: null,
       focusTarget: null,
       measurementGeneration: 0,
       measurementFrame: null,
@@ -304,6 +310,15 @@ export class RichDocumentSurfaceRegistry {
         return;
       }
       requestVisibleCodeMirrorMeasurements(surface);
+
+      // CodeMirror 的 DOM measure 本身也是异步提交；面板切换后补一帧，确保行号 gutter、折叠 gutter 和语法层都按新 viewport 完成重排。
+      entry.measurementFrame = requestAnimationFrame(() => {
+        entry.measurementFrame = null;
+        if (entry.surface !== surface || entry.activePaneKey === null) {
+          return;
+        }
+        requestVisibleCodeMirrorMeasurements(surface);
+      });
     });
   }
 

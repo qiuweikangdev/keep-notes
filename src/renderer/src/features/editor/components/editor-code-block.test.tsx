@@ -280,6 +280,53 @@ describe("EditorCodeBlock", () => {
     );
   });
 
+  it("remeasures CodeMirror after a split pane changes its size", async () => {
+    setupMatchMedia();
+
+    const resizeObservers: Array<{ trigger: () => void }> = [];
+    class TestResizeObserver {
+      private readonly callback: ResizeObserverCallback;
+
+      constructor(callback: ResizeObserverCallback) {
+        this.callback = callback;
+        resizeObservers.push({
+          trigger: () => this.callback([], this as unknown as ResizeObserver),
+        });
+      }
+
+      observe() {}
+
+      disconnect() {}
+
+      unobserve() {}
+    }
+    vi.stubGlobal("ResizeObserver", TestResizeObserver);
+
+    const editor = CoreBlockNoteEditor.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "codeBlock",
+          props: { language: "go" },
+          content: "package main\n\nfunc main() {}",
+        },
+      ],
+    });
+    render(createElement(BlockNoteView, { editor }));
+
+    await waitFor(() => {
+      expect(getCodeMirrorView().state.doc.toString()).toContain("func main");
+    });
+
+    const requestMeasure = vi.spyOn(getCodeMirrorView(), "requestMeasure");
+    expect(resizeObservers.length).toBeGreaterThan(0);
+    resizeObservers.forEach((resizeObserver) => resizeObserver.trigger());
+
+    await waitFor(() => {
+      expect(requestMeasure).toHaveBeenCalled();
+    });
+  });
+
   it("serializes highlighted code lines without block-level wrappers", () => {
     const element = document.createElement("code");
     element.innerHTML = [

@@ -7,12 +7,16 @@ interface OutlineHeadingItemProps {
   level: number;
   isActive: boolean;
   onClick: (id: string) => void;
+  compact?: boolean;
 }
 
 const OutlineHeadingItemBase = forwardRef<
   HTMLButtonElement,
   OutlineHeadingItemProps
->(function OutlineHeadingItem({ id, text, level, isActive, onClick }, ref) {
+>(function OutlineHeadingItem(
+  { id, text, level, isActive, onClick, compact = false },
+  ref,
+) {
   const handleClick = useCallback(() => {
     onClick(id);
   }, [id, onClick]);
@@ -28,7 +32,8 @@ const OutlineHeadingItemBase = forwardRef<
       data-selection-surface="true"
       data-selection-context="secondary"
       className={cn(
-        "flex w-full items-center py-1.5 text-left text-[13px] transition-colors duration-200",
+        "flex w-full items-center text-left text-[13px] transition-colors duration-200",
+        compact ? "py-1" : "py-1.5",
         isActive
           ? "bg-[var(--file-tree-row-selected)] text-[var(--text-primary)] font-medium"
           : "bg-transparent text-[var(--text-secondary)] hover:bg-[var(--file-tree-row-hover)] hover:text-[var(--text-primary)]",

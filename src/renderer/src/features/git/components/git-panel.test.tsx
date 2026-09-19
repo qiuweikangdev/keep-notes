@@ -207,7 +207,18 @@ describe("GitPanel", () => {
       "max-h-none",
       "w-[min(680px,calc(100vw-32px))]",
       "max-w-none",
+      "border",
     );
+    expect(dialog?.style.backgroundColor).toBe(
+      "color-mix(in srgb, var(--bg-tertiary) 56%, var(--bg-primary))",
+    );
+    expect(dialog?.style.borderColor).toBe(
+      "color-mix(in srgb, var(--border-color) 84%, var(--text-muted))",
+    );
+    expect(dialog?.style.boxShadow).toBe("0 8px 8px rgb(0 0 0 / 38%)");
+    expect(dialog).toHaveAttribute("role", "dialog");
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    expect(dialog).toHaveAttribute("aria-labelledby", "git-panel-title");
     expect(
       dialog?.querySelector("[data-dialog-drag-handle]"),
     ).toBeInTheDocument();
@@ -608,15 +619,15 @@ describe("GitPanel", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("uses the same subtle surface for the Git panel and create branch footers", async () => {
+  it("keeps the Git footer visually continuous with the main surface", async () => {
     render(<GitPanel isOpen onClose={vi.fn()} />);
 
     await screen.findByText("changed.md");
-    expect(
-      screen
-        .getByRole("button", { name: "提交" })
-        .closest('[data-dialog-footer="true"]'),
-    ).toHaveClass("dialog-footer-surface");
+    const gitFooter = screen
+      .getByRole("button", { name: "提交" })
+      .closest<HTMLElement>('[data-dialog-footer="true"]');
+    expect(gitFooter).toHaveClass("dialog-footer-surface");
+    expect(gitFooter?.style.backgroundColor).toBe("transparent");
 
     fireEvent.click(screen.getByTitle("管理分支"));
     fireEvent.click(screen.getByLabelText("创建新分支"));
@@ -1220,7 +1231,10 @@ describe("GitPanel", () => {
     ).toBeInTheDocument();
     expect(historyButton).toHaveAttribute("data-selected", "true");
     expect(changesButton).not.toHaveAttribute("data-selected");
-    expect(screen.queryByText("1111111")).not.toBeInTheDocument();
+    expect(screen.getByText("1111111")).toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText("提交信息（留空将自动生成）..."),
+    ).not.toBeInTheDocument();
     expect(electronMocks.getCommitHistory).toHaveBeenCalledWith("/notes", 0, 5);
     expect(electronMocks.getCommitDetail).not.toHaveBeenCalled();
     expect(
@@ -1307,9 +1321,22 @@ describe("GitPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "查看 Git 历史" }));
     fireEvent.click(await screen.findByText("feat: add git history"));
 
+    const historyHeader = document.querySelector<HTMLElement>(
+      "[data-git-history-header='true']",
+    );
+    expect(historyHeader).toHaveClass("sticky", "top-0", "z-10");
+    expect(historyHeader?.style.backgroundColor).toBe(
+      "color-mix(in srgb, var(--bg-secondary) 54%, var(--bg-primary))",
+    );
+
     const diffButtons = await screen.findAllByRole("button", {
       name: "查看差异",
     });
+    const detail = document.querySelector<HTMLElement>(
+      "[data-git-history-detail='true']",
+    );
+    expect(detail).toHaveClass("border-t");
+    expect(detail).not.toHaveClass("rounded-lg");
     expect(diffButtons).toHaveLength(2);
     expect(
       screen.getByRole("button", { name: "打开 changed.md" }),

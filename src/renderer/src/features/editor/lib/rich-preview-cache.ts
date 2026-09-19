@@ -39,11 +39,28 @@ interface PendingFrame {
 }
 
 function findBlockElement(root: ParentNode, id: string): HTMLElement | null {
-  return (
-    Array.from(root.querySelectorAll<HTMLElement>("[data-id]")).find(
-      (element) => element.dataset.id === id,
-    ) ?? null
+  const candidates = root.querySelectorAll<HTMLElement>(
+    ".bn-block-outer[data-id]",
   );
+  return (
+    Array.from(candidates).find((element) => element.dataset.id === id) ?? null
+  );
+}
+
+function findLiveBlockOuter(
+  element: Element | null,
+  surface: HTMLElement,
+  snapshotIds: ReadonlySet<string>,
+): HTMLElement | null {
+  let block = element?.closest<HTMLElement>(".bn-block-outer[data-id]") ?? null;
+  while (block && surface.contains(block)) {
+    const id = block.dataset.id;
+    if (id && snapshotIds.has(id)) return block;
+    block =
+      block.parentElement?.closest<HTMLElement>(".bn-block-outer[data-id]") ??
+      null;
+  }
+  return null;
 }
 
 function isVisibleInSurface(block: HTMLElement, surfaceRect: DOMRect): boolean {
@@ -56,6 +73,14 @@ function isVisibleInSurface(block: HTMLElement, surfaceRect: DOMRect): boolean {
 
 function clonePreviewBlock(block: HTMLElement): HTMLElement {
   const clone = block.cloneNode(true) as HTMLElement;
+  // BlockNote 的 data-prev-* 只用于实时层的块类型/层级过渡动画；复制到只读预览后会让标题、列表命中过渡态选择器，导致激活标签后字号和序号错乱。
+  for (const element of [clone, ...clone.querySelectorAll<HTMLElement>("*")]) {
+    for (const attribute of Array.from(element.attributes)) {
+      if (attribute.name.startsWith("data-prev-")) {
+        element.removeAttribute(attribute.name);
+      }
+    }
+  }
   for (const editable of clone.querySelectorAll<HTMLElement>(
     "[contenteditable]",
   )) {
@@ -223,20 +248,14 @@ export class RichPreviewCache<
         const element = ownerDocument
           .elementsFromPoint(x, y)
           .find((candidate) => surface.contains(candidate));
-        let block = element?.closest<HTMLElement>("[data-id]") ?? null;
-        while (block && surface.contains(block)) {
-          const id = block.dataset.id;
-          if (id && snapshotIds.has(id)) {
-            visibleLiveBlocks.set(id, block);
-            break;
-          }
-          block =
-            block.parentElement?.closest<HTMLElement>("[data-id]") ?? null;
-        }
+        // 内层 .bn-block 与外层 .bn-block-outer 共用 data-id；预览必须复制外层，否则标题和列表的结构选择器会失效。
+        const block = findLiveBlockOuter(element ?? null, surface, snapshotIds);
+        const id = block?.dataset.id;
+        if (block && id) visibleLiveBlocks.set(id, block);
       }
     } else {
       for (const liveBlock of surface.querySelectorAll<HTMLElement>(
-        "[data-id]",
+        ".bn-block-outer[data-id]",
       )) {
         const id = liveBlock.dataset.id;
         if (

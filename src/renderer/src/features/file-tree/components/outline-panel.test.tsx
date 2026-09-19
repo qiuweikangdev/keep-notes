@@ -24,10 +24,27 @@ describe("OutlinePanel", () => {
     expect(
       container.querySelector(".file-tree-scroll-container"),
     ).toBeVisible();
+    expect(container.querySelector(".file-tree-scroll-container")).toHaveClass(
+      "pb-10",
+    );
     expect(container.querySelector(".file-tree-scrollbar-track")).toBeVisible();
     expect(
       container.querySelector(".file-tree-scrollbar-thumb"),
     ).toBeInTheDocument();
+  });
+
+  it("uses compact heading rows when requested", () => {
+    const { container } = render(
+      <OutlinePanel
+        headings={[{ id: "heading-1", text: "Heading", level: 1 }]}
+        activeHeadingId={null}
+        resetKey="note.md"
+        onHeadingClick={vi.fn()}
+        compact
+      />,
+    );
+
+    expect(container.querySelector("button")).toHaveClass("py-1");
   });
 
   it("does not add hover styling to the active heading", () => {

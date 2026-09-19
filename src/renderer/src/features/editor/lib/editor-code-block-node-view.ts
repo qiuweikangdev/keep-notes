@@ -524,6 +524,22 @@ class EditorCodeBlockNodeView {
 
   private focusAfterMountFrame: number | null = null;
 
+  private resizeMeasureFrame: number | null = null;
+
+  private resizeObserver: ResizeObserver | null = null;
+
+  private readonly scheduleCodeMirrorMeasure = () => {
+    if (this.resizeMeasureFrame !== null) return;
+
+    this.resizeMeasureFrame = window.requestAnimationFrame(() => {
+      this.resizeMeasureFrame = null;
+      if (!this.dom.isConnected) return;
+
+      // 拆分面板初次显示或尺寸变化后，重新测量 CodeMirror，确保行号和高亮视口同步。
+      this.codeMirror.requestMeasure();
+    });
+  };
+
   private readonly clearCodeMirrorSelectionOnPointerLeave = () => {
     const selection = this.codeMirror.state.selection.main;
     if (selection.empty) return;
@@ -631,6 +647,11 @@ class EditorCodeBlockNodeView {
       true,
     );
     this.loadDeferredLanguage(this.language);
+    if (typeof ResizeObserver !== "undefined") {
+      this.resizeObserver = new ResizeObserver(this.scheduleCodeMirrorMeasure);
+      this.resizeObserver.observe(this.dom);
+    }
+    this.scheduleCodeMirrorMeasure();
     this.dom.addEventListener("mousedown", this.focusCodeMirrorFromShell);
     this.dom.addEventListener(
       "mouseleave",
@@ -638,9 +659,11 @@ class EditorCodeBlockNodeView {
     );
     this.focusAfterMountFrame = window.requestAnimationFrame(() => {
       this.focusAfterMountFrame = null;
-      if (!this.dom.isConnected || !this.isProseMirrorSelectionInsideBlock()) {
+      if (!this.dom.isConnected) {
         return;
       }
+      this.codeMirror.requestMeasure();
+      if (!this.isProseMirrorSelectionInsideBlock()) return;
       if (!this.codeMirror.hasFocus && !this.prosemirrorView?.hasFocus())
         return;
 
@@ -667,6 +690,12 @@ class EditorCodeBlockNodeView {
       window.cancelAnimationFrame(this.focusAfterMountFrame);
       this.focusAfterMountFrame = null;
     }
+    if (this.resizeMeasureFrame !== null) {
+      window.cancelAnimationFrame(this.resizeMeasureFrame);
+      this.resizeMeasureFrame = null;
+    }
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.dom.removeEventListener("mousedown", this.focusCodeMirrorFromShell);
     this.dom.removeEventListener(
       "mouseleave",
@@ -708,6 +737,7 @@ class EditorCodeBlockNodeView {
     this.node = node;
     this.syncCodeMirrorDocument(node.textContent);
     this.setLanguage(this.getLanguage(this.block, node), false);
+    this.scheduleCodeMirrorMeasure();
 
     return true;
   };
@@ -969,6 +999,7 @@ class EditorCodeBlockNodeView {
         getCodeMirrorLanguageExtension(normalizedLanguage),
       ),
     });
+    this.scheduleCodeMirrorMeasure();
     this.loadDeferredLanguage(normalizedLanguage);
 
     if (!shouldDispatch) return;
@@ -1008,6 +1039,7 @@ class EditorCodeBlockNodeView {
       this.codeMirror.dispatch({
         effects: this.codeMirrorLanguage.reconfigure(extension),
       });
+      this.scheduleCodeMirrorMeasure();
     });
   }
 

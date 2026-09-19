@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useOverlayScrollbar } from "@/hooks/use-overlay-scrollbar";
+import { cn } from "@/lib/cn";
 import { OutlineHeadingItem } from "./outline-heading-item";
 
 interface Heading {
@@ -13,6 +14,7 @@ interface OutlinePanelProps {
   activeHeadingId: string | null;
   resetKey: string | null;
   onHeadingClick: (id: string) => void;
+  compact?: boolean;
 }
 
 export function OutlinePanel({
@@ -20,6 +22,7 @@ export function OutlinePanel({
   activeHeadingId,
   resetKey,
   onHeadingClick,
+  compact = false,
 }: OutlinePanelProps) {
   const activeItemRef = useRef<HTMLButtonElement>(null);
   const {
@@ -72,12 +75,15 @@ export function OutlinePanel({
       <div className="file-tree-scroll-shell relative min-h-0 flex-1">
         <div
           ref={scrollContainerRef}
-          className="file-tree-scroll-container h-full overflow-auto py-2"
+          className={cn(
+            "file-tree-scroll-container h-full overflow-auto pb-10",
+            compact ? "pt-0" : "pt-2",
+          )}
           onScroll={syncScrollbarThumb}
         >
           {headings.length === 0 ? (
             <div
-              className="px-3 py-2 text-[13px]"
+              className={cn("px-3 text-[13px]", compact ? "py-1" : "py-2")}
               style={{ color: "var(--text-muted)" }}
             >
               暂无标题
@@ -91,6 +97,7 @@ export function OutlinePanel({
                 level={heading.level}
                 isActive={heading.id === activeHeadingId}
                 onClick={onHeadingClick}
+                compact={compact}
                 ref={heading.id === activeHeadingId ? activeItemRef : undefined}
               />
             ))
