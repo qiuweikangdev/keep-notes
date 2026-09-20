@@ -1224,6 +1224,14 @@ describe("GitPanel", () => {
     const historyButton = screen.getByRole("button", { name: "查看 Git 历史" });
     expect(changesButton).toHaveAttribute("data-selected", "true");
     expect(historyButton).not.toHaveAttribute("data-selected");
+    expect(changesButton).toHaveAttribute("aria-pressed", "true");
+    expect(historyButton).toHaveAttribute("aria-pressed", "false");
+    expect(changesButton).toHaveClass("h-7", "w-7", "rounded-md");
+    expect(changesButton.parentElement?.parentElement).toHaveClass(
+      "rounded-lg",
+      "border",
+      "p-0.5",
+    );
     fireEvent.click(historyButton);
 
     expect(
@@ -1231,6 +1239,8 @@ describe("GitPanel", () => {
     ).toBeInTheDocument();
     expect(historyButton).toHaveAttribute("data-selected", "true");
     expect(changesButton).not.toHaveAttribute("data-selected");
+    expect(historyButton).toHaveAttribute("aria-pressed", "true");
+    expect(changesButton).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByText("1111111")).toBeInTheDocument();
     expect(
       screen.queryByPlaceholderText("提交信息（留空将自动生成）..."),

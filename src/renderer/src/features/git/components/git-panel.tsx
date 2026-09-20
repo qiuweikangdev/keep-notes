@@ -2305,7 +2305,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
               {activeTab === "history" ? "Git 历史" : "文件状态"}
             </span>
             <div
-              className="flex items-center gap-0.5 rounded-md p-0.5"
+              className="inline-flex items-center gap-0.5 rounded-lg border border-[var(--border-color)] p-0.5"
               style={{ backgroundColor: "var(--bg-tertiary)" }}
             >
               <GitPanelTooltip
@@ -2318,7 +2318,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                   onClick={() => handleSwitchTab("changes")}
                   data-selection-surface="true"
                   data-selected={activeTab === "changes" ? "true" : undefined}
-                  className="flex h-8 w-8 items-center justify-center rounded"
+                  aria-pressed={activeTab === "changes"}
+                  className="flex h-7 w-7 items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-color)]"
                   style={{
                     backgroundColor:
                       activeTab === "changes"
@@ -2328,7 +2329,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                   }}
                   aria-label="查看文件状态"
                 >
-                  <List className="h-3.5 w-3.5" />
+                  <List className="h-4 w-4" />
                 </button>
               </GitPanelTooltip>
               <GitPanelTooltip
@@ -2341,7 +2342,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                   onClick={() => handleSwitchTab("history")}
                   data-selection-surface="true"
                   data-selected={activeTab === "history" ? "true" : undefined}
-                  className="flex h-8 w-8 items-center justify-center rounded"
+                  aria-pressed={activeTab === "history"}
+                  className="flex h-7 w-7 items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-color)]"
                   style={{
                     backgroundColor:
                       activeTab === "history"
@@ -2351,7 +2353,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                   }}
                   aria-label="查看 Git 历史"
                 >
-                  <GitCommit className="h-3.5 w-3.5" />
+                  <GitCommit className="h-4 w-4" />
                 </button>
               </GitPanelTooltip>
             </div>
