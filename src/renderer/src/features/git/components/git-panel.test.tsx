@@ -606,6 +606,32 @@ describe("GitPanel", () => {
     fireEvent.click(screen.getByLabelText("创建新分支"));
 
     const branchInput = await screen.findByLabelText("分支名称");
+    const createBranchDialog = document.querySelector<HTMLElement>(
+      '[data-git-dialog="create-branch"]',
+    );
+    expect(createBranchDialog).toHaveAttribute(
+      "data-dialog-surface",
+      "create-branch",
+    );
+    expect(
+      createBranchDialog?.querySelector(
+        ".create-branch-dialog__header .lucide-git-branch",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      createBranchDialog?.querySelector(".create-branch-dialog__body"),
+    ).toBeInTheDocument();
+    expect(
+      createBranchDialog?.querySelector(".create-branch-dialog__footer"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "取消" })).toHaveClass(
+      "h-7",
+      "min-w-[72px]",
+    );
+    expect(screen.getByRole("button", { name: "创建并检出" })).toHaveClass(
+      "h-7",
+      "min-w-[88px]",
+    );
     fireEvent.click(branchInput);
     fireEvent.change(branchInput, { target: { value: "feature/new" } });
     expect(onClose).not.toHaveBeenCalled();
@@ -887,6 +913,24 @@ describe("GitPanel", () => {
     expect(screen.queryByText("可选，留空将自动生成")).not.toBeInTheDocument();
     fireEvent.click(branchControl);
     expect(screen.getByLabelText("创建新分支")).toBeInTheDocument();
+    const branchMenu = screen.getByLabelText("分支列表");
+    expect(branchMenu).toHaveAttribute("data-branch-menu", "true");
+    expect(branchMenu).toHaveStyle({
+      backgroundColor: "var(--dropdown-background)",
+      border: "1px solid var(--dropdown-border)",
+      boxShadow: "var(--dropdown-shadow)",
+    });
+    expect(branchMenu.querySelector(".git-branch-menu__create")).toHaveClass(
+      "border-t",
+      "pt-1",
+    );
+    const selectedBranchButton = screen.getByRole("button", {
+      name: /^main$/,
+    });
+    expect(selectedBranchButton).toHaveClass("rounded-md", "py-1");
+    expect(selectedBranchButton.closest(".git-branch-row")).toHaveClass(
+      "min-h-8",
+    );
     expect(screen.getByTitle("切换为树形视图")).toBeInTheDocument();
     expect(screen.getByLabelText("全部暂存")).toBeInTheDocument();
     expect(screen.getByLabelText("全部暂存").parentElement).toHaveClass(

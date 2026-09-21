@@ -1053,6 +1053,47 @@ button[data-theme-control="true"][data-selected="true"]:hover {
   color: var(--warning-color, #d6a449) !important;
 }
 
+/* 创建分支弹窗沿用 Git 主弹窗的表面层级，同时收紧嵌套弹窗的视觉边界。 */
+[data-dialog-surface="create-branch"] {
+  --create-branch-surface: color-mix(
+    in srgb,
+    var(--bg-secondary) 82%,
+    var(--bg-primary)
+  );
+  --create-branch-header: color-mix(
+    in srgb,
+    var(--bg-secondary) 92%,
+    var(--bg-primary)
+  );
+  --create-branch-footer: color-mix(
+    in srgb,
+    var(--bg-secondary) 66%,
+    var(--bg-primary)
+  );
+  background-color: var(--create-branch-surface) !important;
+  border: 1px solid
+    color-mix(in srgb, var(--border-color) 92%, var(--text-muted)) !important;
+  box-shadow: 0 6px 8px color-mix(in srgb, #000 30%, transparent);
+}
+
+[data-dialog-surface="create-branch"] .create-branch-dialog__header {
+  background-color: var(--create-branch-header);
+  border-color: color-mix(in srgb, var(--border-color) 82%, transparent);
+}
+
+[data-dialog-surface="create-branch"] .create-branch-dialog__body {
+  background-color: var(--create-branch-surface);
+}
+
+[data-dialog-surface="create-branch"] .create-branch-dialog__footer {
+  background-color: var(--create-branch-footer);
+  border-color: color-mix(in srgb, var(--border-color) 82%, transparent);
+}
+
+[data-dialog-surface="create-branch"] [data-dialog-footer="true"] button {
+  border-radius: 7px;
+}
+
 [data-git-dialog] .git-branch-row {
   transition: background-color 120ms ease;
 }
@@ -1065,7 +1106,15 @@ button[data-theme-control="true"][data-selected="true"]:hover {
 [data-git-dialog] .git-branch-row[data-current="true"],
 [data-git-dialog] .git-branch-row[data-current="true"]:hover,
 [data-git-dialog] .git-branch-row[data-current="true"]:focus-within {
-  background-color: var(--selection-row-selected);
+  background-color: color-mix(
+    in srgb,
+    var(--selection-row-selected) 72%,
+    var(--dropdown-background)
+  );
+}
+
+[data-git-dialog] .git-branch-menu__create {
+  border-color: color-mix(in srgb, var(--border-color) 78%, transparent);
 }
 
 [data-git-dialog] .git-branch-row-actions {

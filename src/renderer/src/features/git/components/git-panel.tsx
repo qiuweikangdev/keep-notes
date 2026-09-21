@@ -197,30 +197,36 @@ function CreateBranchDialog({
       <Dialog.Root modal={false} open={open} onOpenChange={onOpenChange}>
         <DialogContent
           data-git-dialog="create-branch"
+          data-dialog-surface="create-branch"
           showCloseButton={false}
-          className="w-[calc(100vw-32px)] max-w-[460px] gap-0 overflow-hidden rounded-xl p-0 shadow-[0_2px_8px_rgba(0,0,0,0.18)]"
+          className="w-[calc(100vw-32px)] max-w-[420px] gap-0 overflow-hidden rounded-xl p-0 outline-none"
           onOpenAutoFocus={(event) => {
             event.preventDefault();
             inputRef.current?.focus();
           }}
         >
-          <div className="flex h-14 items-center justify-between border-b border-[var(--border-color)] px-5">
-            <Dialog.Title className="text-base font-semibold">
+          <div className="create-branch-dialog__header flex h-14 items-center justify-between border-b px-5">
+            <Dialog.Title className="flex items-center gap-2.5 text-sm font-semibold leading-5">
+              <GitBranchIcon
+                aria-hidden="true"
+                className="h-[18px] w-[18px] shrink-0"
+                style={{ color: "var(--text-muted)" }}
+              />
               创建并检出分支
             </Dialog.Title>
             <Dialog.Close
               aria-label="关闭创建分支弹窗"
               disabled={loading}
-              className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--text-muted)] outline-none hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-color)] disabled:opacity-50"
+              className="-mr-2 flex h-9 w-9 items-center justify-center rounded-md text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-color)] disabled:opacity-50"
             >
-              <X aria-hidden="true" className="h-4 w-4" />
+              <X aria-hidden="true" className="h-5 w-5" />
             </Dialog.Close>
           </div>
 
-          <div className="px-5 py-5">
+          <div className="create-branch-dialog__body px-5 py-4">
             <label
               htmlFor="gitNewBranchName"
-              className="mb-2 block text-sm font-medium"
+              className="mb-1.5 block text-sm font-medium"
               style={{ color: "var(--text-secondary)" }}
             >
               分支名称
@@ -253,18 +259,25 @@ function CreateBranchDialog({
 
           <div
             data-dialog-footer="true"
-            className="dialog-footer-surface flex items-center justify-end gap-2 border-t border-[var(--border-color)] px-5 py-4"
+            className="create-branch-dialog__footer dialog-footer-surface flex items-center justify-end gap-2 border-t px-5 py-3"
           >
             <Dialog.Close asChild>
-              <Button type="button" variant="outline" disabled={loading}>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={loading}
+                className="min-w-[72px]"
+              >
                 取消
               </Button>
             </Dialog.Close>
             <Button
               type="button"
+              size="sm"
               onClick={onConfirm}
               disabled={!branchName.trim() || loading}
-              className="gap-1.5"
+              className="min-w-[88px] gap-1.5"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               创建并检出
@@ -2097,10 +2110,13 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
             {/* 分支列表下拉 */}
             {showBranchList && (
               <div
-                className="absolute right-0 top-10 z-20 max-h-72 w-[min(320px,calc(100vw-72px))] overflow-y-auto rounded-lg p-1 shadow-lg"
+                data-branch-menu="true"
+                aria-label="分支列表"
+                className="git-branch-menu absolute right-0 top-10 z-20 max-h-72 w-[min(320px,calc(100vw-72px))] overflow-y-auto rounded-lg p-1"
                 style={{
-                  backgroundColor: "var(--bg-primary)",
-                  border: "1px solid var(--border-color)",
+                  backgroundColor: "var(--dropdown-background)",
+                  border: "1px solid var(--dropdown-border)",
+                  boxShadow: "var(--dropdown-shadow)",
                 }}
               >
                 {branches.map((branch) => {
@@ -2110,7 +2126,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                     <div
                       key={branch.name}
                       data-current={branch.current ? "true" : undefined}
-                      className="git-branch-row group flex min-h-9 items-center rounded-md px-1"
+                      className="git-branch-row group flex min-h-8 items-center rounded-md px-1"
                     >
                       {isRenaming ? (
                         <div className="flex w-full items-center gap-1.5 px-1 py-1">
@@ -2180,7 +2196,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                             data-branch-switch="true"
                             data-selection-surface="true"
                             data-selected={branch.current ? "true" : undefined}
-                            className="flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1.5 text-left text-sm"
+                            className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1 text-left text-sm"
                             style={{ color: "var(--text-primary)" }}
                           >
                             <GitBranchIcon
@@ -2227,20 +2243,25 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
                     </div>
                   );
                 })}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowBranchList(false);
-                    setShowCreateBranch(true);
-                  }}
-                  data-theme-control="true"
-                  className="mt-1 flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm"
-                  style={{ color: "var(--text-muted)" }}
-                  aria-label="创建新分支"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  新分支
-                </button>
+                <div className="git-branch-menu__create mt-1 border-t px-1 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowBranchList(false);
+                      setShowCreateBranch(true);
+                    }}
+                    data-theme-control="true"
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm"
+                    style={{ color: "var(--text-secondary)" }}
+                    aria-label="创建新分支"
+                  >
+                    <Plus
+                      className="h-3.5 w-3.5"
+                      style={{ color: "var(--text-muted)" }}
+                    />
+                    新分支
+                  </button>
+                </div>
               </div>
             )}
           </div>
