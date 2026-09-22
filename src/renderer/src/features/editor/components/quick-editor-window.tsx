@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type ClipboardEvent as ReactClipboardEvent,
+  type DragEvent as ReactDragEvent,
   type KeyboardEvent,
 } from "react";
 import { BlockNoteView } from "@blocknote/mantine";
@@ -65,6 +66,7 @@ import {
 import { FindWidget } from "./find-widget";
 import { MarkdownSourceEditor } from "./markdown-source-editor";
 import {
+  createRichEditorBlockDragAutoScroller,
   createRichEditorSelectionDragGuardPlugin,
   EditorFormattingToolbar,
   EditorSideMenuController,
@@ -79,6 +81,7 @@ import {
   RICH_EDITOR_SELECTION_DRAG_LOCK_CLASS,
   registerRichEditorSelectionDragGuardPlugin,
   richEditorDefaultUIProps,
+  scrollRichEditorDuringBlockDrag,
   shouldPreventRichEditorGutterSelectionDrag,
   unregisterRichEditorSelectionDragGuardPlugin,
   type RichEditorSelectionDragBounds,
@@ -242,6 +245,10 @@ export function QuickEditorWindow() {
     null,
   );
   const selectionDragAnchorRef = useRef<number | null>(null);
+  const blockDragActiveRef = useRef(false);
+  const blockDragAutoScrollerRef = useRef<ReturnType<
+    typeof createRichEditorBlockDragAutoScroller
+  > | null>(null);
   const activeHeadingFrameRef = useRef<number | null>(null);
   const outlineScrollTokenRef = useRef(0);
   const programmaticOutlineScrollRef = useRef(false);
@@ -260,6 +267,10 @@ export function QuickEditorWindow() {
   >(null);
   const [isGitRepo, setIsGitRepo] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+
+  blockDragAutoScrollerRef.current ??= createRichEditorBlockDragAutoScroller(
+    () => scrollContainerRef.current,
+  );
   const [diffState, setDiffState] = useState<QuickEditorDiffState | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [editorMode, setEditorMode] = useState<EditorMode>("rich");
@@ -753,6 +764,43 @@ export function QuickEditorWindow() {
     [editor, setOutlineVisibility],
   );
 
+  const handleBlockDragStart = useCallback(
+    (event: ReactDragEvent<HTMLDivElement>) => {
+      if (!event.dataTransfer.types.includes("blocknote/html")) return;
+      blockDragAutoScrollerRef.current?.stop();
+      blockDragActiveRef.current = true;
+    },
+    [],
+  );
+
+  const handleBlockDragEnd = useCallback(() => {
+    blockDragAutoScrollerRef.current?.stop();
+    blockDragActiveRef.current = false;
+  }, []);
+
+  const handleBlockDragOver = useCallback(
+    (event: ReactDragEvent<HTMLDivElement>) => {
+      if (!event.dataTransfer.types.includes("blocknote/html")) return;
+      blockDragAutoScrollerRef.current?.update(event.clientY);
+    },
+    [],
+  );
+
+  const handleBlockDragLeave = useCallback(
+    (event: ReactDragEvent<HTMLDivElement>) => {
+      if (!event.dataTransfer.types.includes("blocknote/html")) return;
+      const nextTarget = event.relatedTarget;
+      if (
+        nextTarget instanceof Node &&
+        event.currentTarget.contains(nextTarget)
+      ) {
+        return;
+      }
+      blockDragAutoScrollerRef.current?.stop();
+    },
+    [],
+  );
+
   const handleEditorScroll = useCallback(() => {
     scheduleActiveHeadingUpdate();
   }, [scheduleActiveHeadingUpdate]);
@@ -790,6 +838,8 @@ export function QuickEditorWindow() {
       );
     };
     const resetSelectionDrag = () => {
+      blockDragAutoScrollerRef.current?.stop();
+      blockDragActiveRef.current = false;
       setSelectionDragLocked(false);
       selectionDragBoundsRef.current = null;
       selectionDragPointerRef.current = null;
@@ -841,9 +891,17 @@ export function QuickEditorWindow() {
       // 进入异常区域后由 ProseMirror 接管当前拖选，避免 Chrome 原生选区与状态选区反复争抢而闪烁。
       event.preventDefault();
     };
+    const handleBlockDragWheel = (event: WheelEvent) => {
+      if (!blockDragActiveRef.current) return;
+      scrollRichEditorDuringBlockDrag(scrollContainerRef.current, event);
+    };
 
     document.addEventListener("mousemove", handleSelectionDragMouseMove, true);
     document.addEventListener("mouseup", resetSelectionDrag, true);
+    document.addEventListener("wheel", handleBlockDragWheel, {
+      capture: true,
+      passive: false,
+    });
     window.addEventListener("blur", resetSelectionDrag);
     document.addEventListener("dragend", resetSelectionDrag, true);
     return () => {
@@ -853,6 +911,7 @@ export function QuickEditorWindow() {
         true,
       );
       document.removeEventListener("mouseup", resetSelectionDrag, true);
+      document.removeEventListener("wheel", handleBlockDragWheel, true);
       window.removeEventListener("blur", resetSelectionDrag);
       document.removeEventListener("dragend", resetSelectionDrag, true);
       resetSelectionDrag();
@@ -1467,6 +1526,11 @@ export function QuickEditorWindow() {
             className="quick-editor-window__scroll"
             onPasteCapture={handleRichEditorPasteCapture}
             onPointerDownCapture={handleRichEditorPointerDownCapture}
+            onDragStart={handleBlockDragStart}
+            onDragEnd={handleBlockDragEnd}
+            onDragOverCapture={handleBlockDragOver}
+            onDragLeaveCapture={handleBlockDragLeave}
+            onDropCapture={handleBlockDragEnd}
             onScroll={handleEditorScroll}
             onWheelCapture={handleOutlineScrollIntent}
             onTouchStartCapture={handleOutlineScrollIntent}

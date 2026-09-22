@@ -41,6 +41,7 @@ import { parseMarkdown } from "../lib/markdown";
 import { RichPreviewCache } from "../lib/rich-preview-cache";
 import {
   BlockNoteEditor,
+  createRichEditorBlockDragAutoScroller,
   getMarkdownParserCacheVersion,
   createRichEditorSelectionDragGuardPlugin,
   copyMarkupSelectionAsPlainText,
@@ -67,6 +68,7 @@ import {
   shouldMarkRichEditorPointerIntent,
   shouldPreventRichEditorGutterSelectionDrag,
   shouldRejectRichEditorGutterSelectionTransaction,
+  scrollRichEditorDuringBlockDrag,
   unregisterRichEditorSelectionDragGuardPlugin,
   type RichBlockNoteRuntime,
   type RichEditorSessionController,
@@ -312,6 +314,77 @@ describe("BlockNoteEditor rich text selection", () => {
     expect(shouldPreventRichEditorGutterSelectionDrag(1, 23, 8, null)).toBe(
       false,
     );
+  });
+
+  it("scrolls the editor container while a block drag owns the wheel", () => {
+    const scrollContainer = document.createElement("div");
+    const event = new WheelEvent("wheel", {
+      cancelable: true,
+      deltaMode: 1,
+      deltaX: 2,
+      deltaY: 3,
+    });
+    const preventDefault = vi.spyOn(event, "preventDefault");
+
+    expect(scrollRichEditorDuringBlockDrag(scrollContainer, event)).toBe(true);
+    expect(scrollContainer.scrollLeft).toBe(32);
+    expect(scrollContainer.scrollTop).toBe(48);
+    expect(preventDefault).toHaveBeenCalledOnce();
+  });
+
+  it("keeps scrolling while a block drag stays near the bottom edge", () => {
+    const scrollContainer = document.createElement("div");
+    scrollContainer.scrollTop = 100;
+    vi.spyOn(scrollContainer, "getBoundingClientRect").mockReturnValue({
+      bottom: 500,
+      height: 400,
+      left: 0,
+      right: 300,
+      top: 100,
+      width: 300,
+      x: 0,
+      y: 100,
+      toJSON: () => ({}),
+    });
+    const frames = new Map<number, FrameRequestCallback>();
+    let nextFrameId = 0;
+    const requestFrame = vi.fn((callback: FrameRequestCallback) => {
+      nextFrameId += 1;
+      frames.set(nextFrameId, callback);
+      return nextFrameId;
+    });
+    const cancelFrame = vi.fn((frameId: number) => {
+      frames.delete(frameId);
+    });
+    const runNextFrame = () => {
+      const entry = frames.entries().next().value;
+      expect(entry).toBeDefined();
+      const [frameId, callback] = entry!;
+      frames.delete(frameId);
+      callback(0);
+    };
+    const autoScroller = createRichEditorBlockDragAutoScroller(
+      () => scrollContainer,
+      requestFrame,
+      cancelFrame,
+    );
+
+    autoScroller.update(490);
+    runNextFrame();
+    const firstScrollTop = scrollContainer.scrollTop;
+    expect(firstScrollTop).toBeGreaterThan(100);
+
+    runNextFrame();
+    expect(scrollContainer.scrollTop).toBeGreaterThan(firstScrollTop);
+
+    autoScroller.update(300);
+    runNextFrame();
+    expect(frames.size).toBe(0);
+
+    autoScroller.update(490);
+    autoScroller.stop();
+    expect(cancelFrame).toHaveBeenCalledOnce();
+    expect(frames.size).toBe(0);
   });
 
   it("locks native selection after a same-line gutter drag and releases it", async () => {
