@@ -188,6 +188,9 @@ describe("workspace layout surface styles", () => {
       /\[data-layout="minimal"\]\s+\.editor-tab-bar\s*\{[\s\S]*background-color:\s*transparent !important;/,
     );
     expect(stylesheet).toMatch(
+      /\[data-layout="minimal"\]\s+\.workspace-shell\[data-sidebar-collapsed="false"\]\s+\.editor-tab-bar\s*\{[\s\S]*padding-left:\s*8px;/,
+    );
+    expect(stylesheet).toMatch(
       /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tab"\]\s*\{[\s\S]*background-color:\s*transparent !important;/,
     );
   });
@@ -206,7 +209,7 @@ describe("workspace layout surface styles", () => {
       /\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tab"\]\[aria-selected="true"\]:not\(:only-child\)\s*\{[\s\S]*background-color:\s*var\(--selection-row-selected\)\s*!important;[\s\S]*border-radius:\s*8px;/,
     );
     expect(stylesheet).toMatch(
-      /html\.dark\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tab"\]\[aria-selected="true"\]:not\(:only-child\)\s*\{[\s\S]*background-color:\s*color-mix\([\s\S]*var\(--bg-secondary\) 92%[\s\S]*var\(--bg-primary\)[\s\S]*!important;/,
+      /html\.dark\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tab"\]\[aria-selected="true"\]:not\(:only-child\)\s*\{[\s\S]*background-color:\s*color-mix\([\s\S]*var\(--bg-secondary\) 100%[\s\S]*var\(--bg-primary\)[\s\S]*!important;/,
     );
     expect(stylesheet).toMatch(
       /html\.minimal\[data-layout="minimal"\]\s+\.editor-tab-bar\s+\[role="tab"\]\[aria-selected="true"\]:not\(:only-child\)\s*\{[\s\S]*background-color:\s*color-mix\([\s\S]*var\(--bg-secondary\) 85%[\s\S]*var\(--bg-primary\)[\s\S]*!important;/,

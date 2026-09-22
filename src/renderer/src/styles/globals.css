@@ -2081,6 +2081,12 @@ html[data-layout="minimal"]:has(.workspace-shell[data-native-material="true"])
   min-width: 0;
   background-color: transparent !important;
 }
+/* 侧栏展开时给首行标签留出呼吸空间，收起状态继续使用导航区预留宽度。 */
+[data-layout="minimal"]
+  .workspace-shell[data-sidebar-collapsed="false"]
+  .editor-tab-bar {
+  padding-left: 8px;
+}
 /* 标签切换只改变背景，几何属性保持一致，避免 flex 重新测量造成宽度闪烁。 */
 [data-layout="minimal"] .editor-tab-bar [role="tab"] {
   background-color: transparent !important;
