@@ -2098,12 +2098,29 @@ html[data-layout="minimal"]:has(.workspace-shell[data-native-material="true"])
 [data-layout="minimal"]
   .editor-tab-bar
   [role="tab"][aria-selected="true"]:not(:only-child) {
+  /* 复用主题选中态色值，确保浅色与深色下都能清晰区分当前标签。 */
+  background-color: var(--selection-row-selected) !important;
+  border-radius: 8px;
+}
+/* 深色与深黑主题的选中标签保持中性灰层级，深色主题略微收敛。 */
+html.dark[data-layout="minimal"]
+  .editor-tab-bar
+  [role="tab"][aria-selected="true"]:not(:only-child) {
   background-color: color-mix(
     in srgb,
-    var(--bg-secondary) 72%,
+    var(--bg-secondary) 100%,
     var(--bg-primary)
   ) !important;
-  border-radius: 8px;
+}
+
+html.minimal[data-layout="minimal"]
+  .editor-tab-bar
+  [role="tab"][aria-selected="true"]:not(:only-child) {
+  background-color: color-mix(
+    in srgb,
+    var(--bg-secondary) 85%,
+    var(--bg-primary)
+  ) !important;
 }
 [data-layout="minimal"] .editor-tab-bar :is([role="tab"], button, input) {
   -webkit-app-region: no-drag;
