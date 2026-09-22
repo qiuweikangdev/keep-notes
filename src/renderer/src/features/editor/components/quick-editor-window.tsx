@@ -70,6 +70,7 @@ import {
   createRichEditorSelectionDragGuardPlugin,
   EditorFormattingToolbar,
   EditorSideMenuController,
+  RichEditorSlashMenuController,
   copyMarkupSelectionAsPlainText,
   focusEditorOutlineBlock,
   getRichEditorInlineContentFromTarget,
@@ -1564,6 +1565,7 @@ export function QuickEditorWindow() {
             >
               <EditorFormattingToolbar />
               <EditorSideMenuController />
+              <RichEditorSlashMenuController />
             </BlockNoteView>
           </div>
         ) : (

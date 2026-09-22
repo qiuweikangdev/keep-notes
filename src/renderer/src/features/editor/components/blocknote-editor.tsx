@@ -20,6 +20,8 @@ import {
   getFormattingToolbarItems,
   SideMenu,
   SideMenuController,
+  SuggestionMenuController,
+  getDefaultReactSlashMenuItems,
   useBlockNoteEditor,
   useEditorState,
   useEditorChange,
@@ -35,7 +37,10 @@ import {
   getNodeById,
   selectedFragmentToHTML,
 } from "@blocknote/core";
-import { SideMenuExtension } from "@blocknote/core/extensions";
+import {
+  filterSuggestionItems,
+  SideMenuExtension,
+} from "@blocknote/core/extensions";
 import {
   AllSelection,
   NodeSelection,
@@ -1809,7 +1814,35 @@ const INLINE_CODE_MARKDOWN_SELECTION = /^`([^`\n]+)`$/;
 
 export const richEditorDefaultUIProps = {
   sideMenu: false,
+  slashMenu: false,
 } as const;
+
+export function getRichEditorSlashMenuItems(
+  editor: CoreBlockNoteEditor,
+  query: string,
+) {
+  return filterSuggestionItems(
+    getDefaultReactSlashMenuItems(editor).map((item) => ({
+      ...item,
+      badge: undefined,
+    })),
+    query,
+  );
+}
+
+export function RichEditorSlashMenuController() {
+  const editor = useBlockNoteEditor<
+    typeof editorSchema.blockSchema,
+    typeof editorSchema.inlineContentSchema,
+    typeof editorSchema.styleSchema
+  >();
+  const getItems = useCallback(
+    async (query: string) => getRichEditorSlashMenuItems(editor, query),
+    [editor],
+  );
+
+  return <SuggestionMenuController triggerCharacter="/" getItems={getItems} />;
+}
 
 function EditorSideMenu(props: ComponentProps<typeof SideMenu>) {
   const editor = useBlockNoteEditor<
@@ -4559,6 +4592,7 @@ function MountedBlockNoteEditor({
       >
         <EditorFormattingToolbar />
         <EditorSideMenuController />
+        <RichEditorSlashMenuController />
       </BlockNoteView>
     </div>
   );

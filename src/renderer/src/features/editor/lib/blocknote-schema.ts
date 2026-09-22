@@ -2378,6 +2378,44 @@ const blockBoundarySelectionNormalizerExtension = createExtension({
 
 const baseCodeBlockSpec = createCodeBlockSpec(codeBlockOptions);
 
+function stripModKeyboardShortcuts<T extends object>(extension: T): T {
+  const keyboardShortcuts = (
+    extension as {
+      keyboardShortcuts?: Record<string, unknown>;
+    }
+  ).keyboardShortcuts;
+  if (!keyboardShortcuts) return extension;
+
+  const filteredShortcuts = Object.fromEntries(
+    Object.entries(keyboardShortcuts).filter(
+      ([shortcut]) => !shortcut.startsWith("Mod-"),
+    ),
+  );
+
+  return {
+    ...extension,
+    keyboardShortcuts: filteredShortcuts,
+  } as T;
+}
+
+type BlockExtensionFactory = NonNullable<
+  typeof defaultBlockSpecs.paragraph.extensions
+>[number];
+
+function stripModShortcutsFromExtensions(
+  extensions: readonly BlockExtensionFactory[] | undefined,
+) {
+  return (extensions ?? []).map((extensionFactory) =>
+    createExtension(({ editor }) => {
+      const extension =
+        typeof extensionFactory === "function"
+          ? extensionFactory({ editor })
+          : extensionFactory;
+      return stripModKeyboardShortcuts(extension);
+    })(),
+  );
+}
+
 const editorCodeBlockExtensions = [
   ...(baseCodeBlockSpec.extensions?.filter(
     (extension) =>
@@ -2564,7 +2602,7 @@ const editorQuoteBlockSpec = {
     },
   },
   extensions: [
-    ...(baseQuoteBlockSpec.extensions ?? []),
+    ...stripModShortcutsFromExtensions(baseQuoteBlockSpec.extensions),
     createExtension(({ editor }) => ({
       key: "editor-quote-side-menu-parent",
       mount() {
@@ -2832,11 +2870,13 @@ const quoteAwareBulletListItemExtensions = (
       typeof extensionFactory === "function"
         ? extensionFactory({ editor })
         : extensionFactory;
-    if (extension.key !== "bullet-list-item-shortcuts") return extension;
+    const strippedExtension = stripModKeyboardShortcuts(extension);
+    if (extension.key !== "bullet-list-item-shortcuts")
+      return strippedExtension;
 
     return {
-      ...extension,
-      inputRules: extension.inputRules?.map((inputRule) => ({
+      ...strippedExtension,
+      inputRules: strippedExtension.inputRules?.map((inputRule) => ({
         ...inputRule,
         replace(props) {
           if (props.editor.getTextCursorPosition().block.type === "quote") {
@@ -2858,10 +2898,38 @@ const editorBulletListItemSpec = {
   ],
 };
 
+const editorHeadingSpec = {
+  ...defaultBlockSpecs.heading,
+  extensions: stripModShortcutsFromExtensions(
+    defaultBlockSpecs.heading.extensions,
+  ),
+};
+
+const editorNumberedListItemSpec = {
+  ...defaultBlockSpecs.numberedListItem,
+  extensions: stripModShortcutsFromExtensions(
+    defaultBlockSpecs.numberedListItem.extensions,
+  ),
+};
+
+const editorToggleListItemSpec = {
+  ...defaultBlockSpecs.toggleListItem,
+  extensions: stripModShortcutsFromExtensions(
+    defaultBlockSpecs.toggleListItem.extensions,
+  ),
+};
+
+const editorCheckListItemSpec = {
+  ...defaultBlockSpecs.checkListItem,
+  extensions: stripModShortcutsFromExtensions(
+    defaultBlockSpecs.checkListItem.extensions,
+  ),
+};
+
 const editorParagraphSpec = {
   ...defaultBlockSpecs.paragraph,
   extensions: [
-    ...(defaultBlockSpecs.paragraph.extensions ?? []),
+    ...stripModShortcutsFromExtensions(defaultBlockSpecs.paragraph.extensions),
     blockBoundarySelectionNormalizerExtension,
     fullDocumentClearExtension,
     inlineCodeBackspaceExtension,
@@ -2881,10 +2949,14 @@ const editorTableSpec = {
 export const editorBlockSpecs = {
   ...defaultBlockSpecs,
   bulletListItem: editorBulletListItemSpec,
+  checkListItem: editorCheckListItemSpec,
   codeBlock: editorCodeBlockSpec,
+  heading: editorHeadingSpec,
+  numberedListItem: editorNumberedListItemSpec,
   paragraph: editorParagraphSpec,
   quote: editorQuoteBlockSpec,
   table: editorTableSpec,
+  toggleListItem: editorToggleListItemSpec,
 };
 
 export const editorStyleSpecs = {
