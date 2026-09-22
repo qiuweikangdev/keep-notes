@@ -1,18 +1,21 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   selectAddRecentFolder,
   selectIncrementReloadKey,
   selectSetContent,
   selectSetTreeData,
+  selectSetWorkspaceTree,
 } from "./electron-store-selectors";
 
 describe("electron store selectors", () => {
   it("keeps tree action references stable across unrelated state updates", () => {
     const setTreeData = () => undefined;
+    const setWorkspaceTree = vi.fn();
     const addRecentFolder = () => undefined;
     const initialState = {
       setTreeData,
+      setWorkspaceTree,
       addRecentFolder,
       selectedKey: null,
     } as unknown as Parameters<typeof selectSetTreeData>[0];
@@ -22,6 +25,7 @@ describe("electron store selectors", () => {
     };
 
     expect(selectSetTreeData(updatedState)).toBe(setTreeData);
+    expect(selectSetWorkspaceTree(updatedState)).toBe(setWorkspaceTree);
     expect(selectAddRecentFolder(updatedState)).toBe(addRecentFolder);
   });
 

@@ -229,6 +229,9 @@ describe("useElectron workspace tree loading", () => {
     useTreeStore.setState({
       treeRoot: { title: "old", key: "/workspace/old" },
       treeData: [],
+      selectedKey: "/workspace/old/note.md",
+      expandedKeys: new Set(["/workspace/old", "/workspace/old/docs"]),
+      loadingDirectoryKeys: new Set(["/workspace/old/docs"]),
     });
     useEditorStore.setState({
       activeGroupId: "group-old",
@@ -274,6 +277,11 @@ describe("useElectron workspace tree loading", () => {
       title: "new",
       key: "/workspace/new",
     });
+    expect(useTreeStore.getState().selectedKey).toBeNull();
+    expect(useTreeStore.getState().expandedKeys).toEqual(
+      new Set(["/workspace/new"]),
+    );
+    expect(useTreeStore.getState().loadingDirectoryKeys).toEqual(new Set());
     expect(useEditorStore.getState().panelGroups).toHaveLength(1);
     expect(useEditorStore.getState().panelGroups[0].tabs).toEqual([]);
   });
@@ -321,87 +329,93 @@ describe("useElectron file reuse", () => {
     });
   });
 
-  it("opens the target before a previous large rich-text serialization settles", async () => {
-    vi.useFakeTimers();
-    const previousPath = "C:/notes/large-previous.md";
-    const targetPath = "C:/notes/large-target.md";
-    const deferredSerialization = createDeferred<void>();
-    const serializePendingChange = vi.fn(async () => {
-      await deferredSerialization.promise;
-      editorSaveCoordinator.schedule(previousPath, "# Latest");
-    });
-    const runtime: RichDocumentRuntime = {
-      path: previousPath,
-      surface: document.createElement("div"),
-      serializePendingChange,
-      cancelPendingWork: vi.fn(),
-      destroy: vi.fn(),
-      isDirty: () => true,
-      isSaving: () => false,
-      isReloading: () => false,
-    };
-    const unregisterRuntime = richDocumentSessionManager.registerRuntime(
-      previousPath,
-      runtime,
-    );
-    const unregisterFlusher = registerEditorChangeFlusher(
-      "group-open-file",
-      "tab-open-file",
-      () => richDocumentSessionManager.serializePendingChange(previousPath),
-    );
-    setupOpenFileTab(previousPath, "x".repeat(10_000), "rich");
-    readFile.mockResolvedValue("# Target");
-    const { result } = renderHook(() => useElectron());
-    let openPromise: Promise<void> | undefined;
-
-    try {
-      openPromise = result.current.openFile(targetPath);
-
-      expect(readFile).toHaveBeenCalledWith(targetPath);
-      await act(async () => openPromise);
-      expect(useEditorStore.getState().panelGroups[0].tabs[0]).toMatchObject({
-        filePath: targetPath,
-        content: "# Target",
-        loadStatus: "ready",
+  it.each([
+    { label: "small", contentLength: 9_999 },
+    { label: "large", contentLength: 10_000 },
+  ])(
+    "opens the target before a previous $label rich-text serialization settles",
+    async ({ contentLength }) => {
+      vi.useFakeTimers();
+      const previousPath = `C:/notes/rich-${contentLength}-previous.md`;
+      const targetPath = `C:/notes/rich-${contentLength}-target.md`;
+      const deferredSerialization = createDeferred<void>();
+      const serializePendingChange = vi.fn(async () => {
+        await deferredSerialization.promise;
+        editorSaveCoordinator.schedule(previousPath, "# Latest");
       });
-      expect(richDocumentSessionManager.getBoundTabIds(previousPath)).toContain(
+      const runtime: RichDocumentRuntime = {
+        path: previousPath,
+        surface: document.createElement("div"),
+        serializePendingChange,
+        cancelPendingWork: vi.fn(),
+        destroy: vi.fn(),
+        isDirty: () => true,
+        isSaving: () => false,
+        isReloading: () => false,
+      };
+      const unregisterRuntime = richDocumentSessionManager.registerRuntime(
+        previousPath,
+        runtime,
+      );
+      const unregisterFlusher = registerEditorChangeFlusher(
+        "group-open-file",
         "tab-open-file",
+        () => richDocumentSessionManager.serializePendingChange(previousPath),
       );
-      expect(backgroundEditorSaveCoordinator.hasPending(previousPath)).toBe(
-        true,
-      );
+      setupOpenFileTab(previousPath, "x".repeat(contentLength), "rich");
+      readFile.mockResolvedValue("# Target");
+      const { result } = renderHook(() => useElectron());
+      let openPromise: Promise<void> | undefined;
 
-      await act(async () => vi.runOnlyPendingTimersAsync());
-      expect(serializePendingChange).toHaveBeenCalledOnce();
-      expect(richDocumentSessionManager.getBoundTabIds(previousPath)).toContain(
-        "tab-open-file",
-      );
+      try {
+        openPromise = result.current.openFile(targetPath);
 
-      await act(async () => {
+        expect(readFile).toHaveBeenCalledWith(targetPath);
+        await act(async () => openPromise);
+        expect(useEditorStore.getState().panelGroups[0].tabs[0]).toMatchObject({
+          filePath: targetPath,
+          content: "# Target",
+          loadStatus: "ready",
+        });
+        expect(
+          richDocumentSessionManager.getBoundTabIds(previousPath),
+        ).toContain("tab-open-file");
+        expect(backgroundEditorSaveCoordinator.hasPending(previousPath)).toBe(
+          true,
+        );
+
+        await act(async () => vi.runOnlyPendingTimersAsync());
+        expect(serializePendingChange).toHaveBeenCalledOnce();
+        expect(
+          richDocumentSessionManager.getBoundTabIds(previousPath),
+        ).toContain("tab-open-file");
+
+        await act(async () => {
+          deferredSerialization.resolve();
+          await Promise.resolve();
+          await Promise.resolve();
+          await Promise.resolve();
+        });
+        expect(writeFile).toHaveBeenCalledWith(previousPath, "# Latest");
+        expect(
+          richDocumentSessionManager.getBoundTabIds(previousPath),
+        ).not.toContain("tab-open-file");
+        expect(backgroundEditorSaveCoordinator.hasPending(previousPath)).toBe(
+          false,
+        );
+      } finally {
         deferredSerialization.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-      expect(writeFile).toHaveBeenCalledWith(previousPath, "# Latest");
-      expect(
-        richDocumentSessionManager.getBoundTabIds(previousPath),
-      ).not.toContain("tab-open-file");
-      expect(backgroundEditorSaveCoordinator.hasPending(previousPath)).toBe(
-        false,
-      );
-    } finally {
-      deferredSerialization.resolve();
-      await act(async () => {
-        await vi.runOnlyPendingTimersAsync();
-        await openPromise;
-      });
-      unregisterFlusher();
-      unregisterRuntime();
-      editorSaveCoordinator.cancel(previousPath);
-      vi.useRealTimers();
-    }
-  });
+        await act(async () => {
+          await vi.runOnlyPendingTimersAsync();
+          await openPromise;
+        });
+        unregisterFlusher();
+        unregisterRuntime();
+        editorSaveCoordinator.cancel(previousPath);
+        vi.useRealTimers();
+      }
+    },
+  );
 
   it("retains and retries a large rich-text background save after serialization fails", async () => {
     vi.useFakeTimers();
@@ -461,10 +475,9 @@ describe("useElectron file reuse", () => {
     }
   });
 
-  it.each([
-    { label: "small rich-text", content: "x".repeat(9_999), mode: "rich" },
-    { label: "large source-mode", content: "x".repeat(10_000), mode: "source" },
-  ] as const)("keeps $label reuse synchronous", async ({ content, mode }) => {
+  it("keeps source-mode reuse synchronous", async () => {
+    const content = "x".repeat(10_000);
+    const mode = "source";
     const previousPath = `C:/notes/${mode}-${content.length}-previous.md`;
     const targetPath = `C:/notes/${mode}-${content.length}-target.md`;
     const deferredFlush = createDeferred<void>();

@@ -1417,7 +1417,6 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
   const isRenameComposingRef = useRef(false);
   const dragDepthRef = useRef(0);
   const setTreeData = useTreeStore((state) => state.setTreeData);
-  const expandedKeys = useTreeStore((state) => state.expandedKeys);
   const toggleExpandedKey = useTreeStore((state) => state.toggleExpandedKey);
   const isExpanded = useTreeStore((state) =>
     state.expandedKeys.has(flatNode.key),
@@ -1698,12 +1697,12 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
     );
     if (result.code === CodeResult.Success && result.data) {
       setTreeData(result.data.treeData);
-      if (!expandedKeys.has(moveConfirm.targetPath)) {
+      // 仅在确认移动时读取展开集合，避免每个可见节点订阅整份集合并集体重渲染。
+      if (!useTreeStore.getState().expandedKeys.has(moveConfirm.targetPath)) {
         toggleExpandedKey(moveConfirm.targetPath);
       }
     }
   }, [
-    expandedKeys,
     moveConfirm.sourcePath,
     moveConfirm.targetPath,
     moveItem,

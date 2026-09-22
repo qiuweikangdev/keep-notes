@@ -6,6 +6,8 @@ type TreeState = ReturnType<typeof useTreeStore.getState>;
 
 export const selectSetTreeData = (state: TreeState) => state.setTreeData;
 export const selectSetTreeRoot = (state: TreeState) => state.setTreeRoot;
+export const selectSetWorkspaceTree = (state: TreeState) =>
+  state.setWorkspaceTree;
 export const selectAddRecentFolder = (state: TreeState) =>
   state.addRecentFolder;
 

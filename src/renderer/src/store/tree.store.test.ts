@@ -49,4 +49,58 @@ describe("tree store lazy directory state", () => {
 
     expect(useTreeStore.getState().isTreeFullyLoaded).toBe(false);
   });
+
+  it("replaces workspace tree state atomically and clears stale navigation", () => {
+    useTreeStore.setState({
+      fullTreeData: [{ title: "old.md", key: "/notes/old.md" }],
+      selectedKey: "/notes/old.md",
+      expandedKeys: new Set(["/notes", "/notes/docs"]),
+      loadingDirectoryKeys: new Set(["/notes/docs"]),
+      isTreeFullyLoaded: true,
+    });
+    const snapshots: Array<{
+      root: string | undefined;
+      firstNode: string | undefined;
+    }> = [];
+    const unsubscribe = useTreeStore.subscribe((state) => {
+      snapshots.push({
+        root: state.treeRoot?.key,
+        firstNode: state.treeData[0]?.key,
+      });
+    });
+
+    useTreeStore
+      .getState()
+      .setWorkspaceTree([{ title: "new.md", key: "/other/new.md" }], {
+        title: "other",
+        key: "/other",
+      });
+    unsubscribe();
+
+    const state = useTreeStore.getState();
+    expect(snapshots).toEqual([{ root: "/other", firstNode: "/other/new.md" }]);
+    expect(state.selectedKey).toBeNull();
+    expect(state.expandedKeys).toEqual(new Set(["/other"]));
+    expect(state.loadingDirectoryKeys).toEqual(new Set());
+    expect(state.fullTreeData).toBeNull();
+    expect(state.isTreeFullyLoaded).toBe(false);
+  });
+
+  it("preserves navigation when refreshing the current workspace", () => {
+    useTreeStore.setState({
+      selectedKey: "/notes/docs/daily.md",
+      expandedKeys: new Set(["/notes", "/notes/docs"]),
+    });
+
+    useTreeStore
+      .getState()
+      .setWorkspaceTree([{ title: "docs", key: "/notes/docs", children: [] }], {
+        title: "notes",
+        key: "/notes",
+      });
+
+    const state = useTreeStore.getState();
+    expect(state.selectedKey).toBe("/notes/docs/daily.md");
+    expect(state.expandedKeys).toEqual(new Set(["/notes", "/notes/docs"]));
+  });
 });

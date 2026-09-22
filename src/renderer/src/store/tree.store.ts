@@ -23,6 +23,7 @@ interface TreeState {
   setTreeData: (data: TreeNode[]) => void;
   setFullTreeData: (data: TreeNode[]) => void;
   setTreeRoot: (root: TreeRoot) => void;
+  setWorkspaceTree: (data: TreeNode[], root: TreeRoot) => void;
   setSelectedKey: (key: string | null) => void;
   toggleExpandedKey: (key: string) => void;
   setExpandedKeys: (keys: Iterable<string>) => void;
@@ -60,9 +61,10 @@ export const useTreeStore = create<TreeState>()(
       setFullTreeData: (data) => set({ fullTreeData: data }),
       setTreeRoot: (root) =>
         set((state) => {
-          const expandedKeys = new Set(state.expandedKeys);
-          expandedKeys.add(root.key);
           const isNewWorkspace = state.treeRoot?.key !== root.key;
+          const expandedKeys = isNewWorkspace
+            ? new Set([root.key])
+            : new Set(state.expandedKeys).add(root.key);
           return {
             treeRoot: root,
             expandedKeys,
@@ -70,9 +72,26 @@ export const useTreeStore = create<TreeState>()(
               ? {
                   fullTreeData: null,
                   isTreeFullyLoaded: false,
+                  selectedKey: null,
                   loadingDirectoryKeys: new Set<string>(),
                 }
               : {}),
+          };
+        }),
+      setWorkspaceTree: (data, root) =>
+        set((state) => {
+          const isNewWorkspace = state.treeRoot?.key !== root.key;
+          // 目录数据与根节点必须一次提交，避免渲染到新旧工作区混合的中间状态。
+          return {
+            treeData: data,
+            treeRoot: root,
+            fullTreeData: null,
+            isTreeFullyLoaded: false,
+            loadingDirectoryKeys: new Set<string>(),
+            expandedKeys: isNewWorkspace
+              ? new Set([root.key])
+              : new Set(state.expandedKeys).add(root.key),
+            ...(isNewWorkspace ? { selectedKey: null } : {}),
           };
         }),
       setSelectedKey: (key) => set({ selectedKey: key }),

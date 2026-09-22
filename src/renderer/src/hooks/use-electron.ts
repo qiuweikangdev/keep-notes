@@ -19,10 +19,7 @@ import {
   richDocumentSessionManager,
 } from "@/features/editor/lib/editor-runtime";
 import { editorNavigationPaintCoordinator } from "@/features/editor/lib/editor-performance";
-import {
-  isLargeEditorDocument,
-  scheduleAfterEditorPaint,
-} from "@/features/editor/lib/editor-large-document";
+import { scheduleAfterEditorPaint } from "@/features/editor/lib/editor-large-document";
 import { selectFileOpenTabId } from "@/features/editor/lib/editor-tab-opening";
 import { normalizeRichDocumentPath } from "@/features/editor/lib/rich-document-surface-registry";
 import { findNodeByKey } from "@/features/file-tree/utils";
@@ -32,8 +29,7 @@ import {
   selectIncrementReloadKey,
   selectSetContent,
   selectSetFilePath,
-  selectSetTreeData,
-  selectSetTreeRoot,
+  selectSetWorkspaceTree,
 } from "./electron-store-selectors";
 
 let watchedWorkspacePath: string | null = null;
@@ -285,8 +281,7 @@ async function startWorkspaceWatch(rootPath: string): Promise<void> {
 
 export function useElectron() {
   // 公共 hook 只订阅稳定 action，避免调用方随完整 store 的每次变化重渲染。
-  const setTreeData = useTreeStore(selectSetTreeData);
-  const setTreeRoot = useTreeStore(selectSetTreeRoot);
+  const setWorkspaceTree = useTreeStore(selectSetWorkspaceTree);
   const addRecentFolder = useTreeStore(selectAddRecentFolder);
   const setContent = useEditorStore(selectSetContent);
   const setFilePath = useEditorStore(selectSetFilePath);
@@ -316,9 +311,7 @@ export function useElectron() {
       ) {
         return null;
       }
-      setTreeData(result.data.treeData);
-      setTreeRoot(result.data.treeRoot);
-      useTreeStore.getState().setTreeFullyLoaded(false);
+      setWorkspaceTree(result.data.treeData, result.data.treeRoot);
       // 记录到最近使用的目录
       addRecentFolder({
         title: result.data.treeRoot.title,
@@ -328,7 +321,7 @@ export function useElectron() {
       return result.data.selectedPath;
     }
     return null;
-  }, [setTreeData, setTreeRoot, addRecentFolder]);
+  }, [setWorkspaceTree, addRecentFolder]);
 
   const loadTree = useCallback(
     async (path: string) => {
@@ -343,9 +336,7 @@ export function useElectron() {
         ) {
           return;
         }
-        setTreeData(result.data.treeData);
-        setTreeRoot(result.data.treeRoot);
-        useTreeStore.getState().setTreeFullyLoaded(false);
+        setWorkspaceTree(result.data.treeData, result.data.treeRoot);
         // 记录到最近使用的目录
         addRecentFolder({
           title: result.data.treeRoot.title,
@@ -354,7 +345,7 @@ export function useElectron() {
         await startWorkspaceWatch(result.data.treeRoot.key);
       }
     },
-    [setTreeData, setTreeRoot, addRecentFolder],
+    [setWorkspaceTree, addRecentFolder],
   );
 
   const openFile = useCallback(
@@ -418,12 +409,12 @@ export function useElectron() {
           );
         let flushPreviousInBackground: (() => void) | null = null;
 
-        // 大富文本保留旧路径运行时，先完成目标切换；其他模式维持原有同步冲刷顺序。
+        // 富文本运行时保留到后台完成序列化，避免文件切换被 Markdown 转换阻塞。
         if (activeTab.filePath) {
           const previousPath = activeTab.filePath;
           const shouldFlushInBackground =
             activeTab.mode === "rich" &&
-            isLargeEditorDocument(activeTab.content);
+            richDocumentSessionManager.getRuntime(previousPath) !== null;
 
           if (shouldFlushInBackground) {
             const releaseBackground =
