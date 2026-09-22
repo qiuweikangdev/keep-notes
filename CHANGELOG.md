@@ -1,3 +1,27 @@
+## [2.25.2](https://github.com/qiuweikangdev/keep-notes/compare/v2.25.1...v2.25.2) (2026-09-22)
+
+
+### Bug Fixes
+
+* add spacing before expanded minimal tabs ([0538bc4](https://github.com/qiuweikangdev/keep-notes/commit/0538bc4e7e9ad30929b5e557f5ce8570d0732230))
+* adjust slash menu shortcuts ([b70aa6e](https://github.com/qiuweikangdev/keep-notes/commit/b70aa6e0d5e1e23a6cc7ea2bd9865e84ea46babd))
+* enable scrolling during block drag ([36cfad9](https://github.com/qiuweikangdev/keep-notes/commit/36cfad91d9a353c74228ced0956883a6c7a603c1))
+* prevent excessive markdown trailing blank lines ([b4dfada](https://github.com/qiuweikangdev/keep-notes/commit/b4dfada10cd3806fd53a615948c38c2c8088328a))
+* refine dark minimal tab selection background ([e108465](https://github.com/qiuweikangdev/keep-notes/commit/e1084658d8d843a9b2f5d1e2fc34db854db8bbf6))
+* refine git branch menu styling ([7bb8768](https://github.com/qiuweikangdev/keep-notes/commit/7bb87689b3cc3e8e6623d2d32957a6cee4876c77))
+* refine git view toggle controls ([31a5b33](https://github.com/qiuweikangdev/keep-notes/commit/31a5b33e977d4e041f6d916a0179060822b9eef3))
+
+
+### Performance Improvements
+
+* smooth editor and workspace switching ([db32129](https://github.com/qiuweikangdev/keep-notes/commit/db3212991dc99d70bc293911d26e815b3a1d885a))
+
+
+## Commit Summary
+
+- Compared with: v2.25.1
+- Total commits: 8
+
 ## [2.25.1](https://github.com/qiuweikangdev/keep-notes/compare/v2.25.0...v2.25.1) (2026-09-19)
 
 
