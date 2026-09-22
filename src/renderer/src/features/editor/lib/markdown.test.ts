@@ -509,6 +509,20 @@ describe("markdownEquals", () => {
 });
 
 describe("repairMarkdownSourceBeforeParse", () => {
+  it("collapses an excessive trailing blank-line run before parsing", () => {
+    const source = `| A | B |\r\n| --- | --- |\r\n| 1 | 2 |${"\r\n".repeat(2_000)}`;
+
+    expect(repairMarkdownSourceBeforeParse(source)).toBe(
+      "| A | B |\r\n| --- | --- |\r\n| 1 | 2 |\r\n\r\n",
+    );
+  });
+
+  it("keeps trailing blank lines that belong to an unclosed code fence", () => {
+    const source = `\`\`\`text\nvalue${"\n".repeat(8)}`;
+
+    expect(repairMarkdownSourceBeforeParse(source)).toBe(source);
+  });
+
   it("preserves a terminal empty nested list item", () => {
     const source = [
       "* 列表1",
@@ -610,6 +624,26 @@ describe("repairMarkdownSourceBeforeParse", () => {
 });
 
 describe("preserveMarkdownSource", () => {
+  it("does not carry an excessive table tail into a structural edit", () => {
+    const source = `| A | B |\n| --- | --- |\n| 1 | 2 |${"\n".repeat(2_000)}`;
+    const baseline = "| A | B |\n| --- | --- |\n| 1 | 2 |\n";
+    const edited = "| A | B |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |\n";
+
+    expect(preserveMarkdownSource(source, baseline, edited)).toBe(
+      "| A | B |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |\n\n",
+    );
+  });
+
+  it("does not carry an excessive list tail into a structural edit", () => {
+    const source = `* alpha\n* beta${"\n".repeat(2_000)}`;
+    const baseline = "- alpha\n- beta\n";
+    const edited = "- alpha\n- beta\n- gamma\n";
+
+    expect(preserveMarkdownSource(source, baseline, edited)).toBe(
+      "* alpha\n* beta\n* gamma\n\n",
+    );
+  });
+
   it("does not restore serializer-added blank lines after a rich-text edit", () => {
     const source = "First\n\nSecond\n\nThird\n";
     const baseline = "First\nSecond\nThird\n";

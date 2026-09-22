@@ -342,11 +342,41 @@ function locateExactChangedText(
   return bestOffset;
 }
 
+function hasUnclosedFencedCode(markdown: string): boolean {
+  let openingFence: string | null = null;
+
+  for (const line of splitMarkdownLines(markdown)) {
+    if (openingFence) {
+      if (getClosingFenceMatch(line.text, openingFence)) openingFence = null;
+      continue;
+    }
+
+    const openingMatch = line.text.match(FENCED_CODE_LINE_PATTERN);
+    if (openingMatch) openingFence = openingMatch[1];
+  }
+
+  return openingFence !== null;
+}
+
+function normalizeExcessiveTrailingBlankLines(markdown: string): string {
+  const excessiveEnding = /(?:(?:\r\n|\r|\n)[\t ]*){3,}$/u.exec(markdown);
+  if (!excessiveEnding) return markdown;
+
+  const content = markdown.slice(0, excessiveEnding.index);
+  // 未闭合围栏后的换行属于代码正文，不能按文档尾部空行压缩。
+  if (hasUnclosedFencedCode(content)) return markdown;
+
+  const lineEnding = excessiveEnding[0].match(/\r\n|\r|\n/u)?.[0] ?? "\n";
+  return `${content}${lineEnding}${lineEnding}`;
+}
+
 function preserveSourceEnding(source: string, edited: string): string {
   if (!edited) return edited;
 
   const sourceEnding = source.match(/(?:\r\n|\r|\n)+$/)?.[0] ?? "";
-  return `${edited.replace(/(?:\r\n|\r|\n)+$/g, "")}${sourceEnding}`;
+  return normalizeExcessiveTrailingBlankLines(
+    `${edited.replace(/(?:\r\n|\r|\n)+$/g, "")}${sourceEnding}`,
+  );
 }
 
 function splitMarkdownLines(markdown: string): MarkdownLine[] {
@@ -1157,7 +1187,12 @@ function repairJoinedUnorderedListMarkers(
 }
 
 export function repairMarkdownSourceBeforeParse(markdown: string): string {
-  const tableHardBreaksRepaired = normalizeSerializedTableHardBreaks(markdown);
+  // 先截断异常的文档尾部换行，避免旧文件把海量空行交给后续解析和富文本渲染。
+  const trailingBlankLinesRepaired =
+    normalizeExcessiveTrailingBlankLines(markdown);
+  const tableHardBreaksRepaired = normalizeSerializedTableHardBreaks(
+    trailingBlankLinesRepaired,
+  );
   // 打开历史文件时先补回表格块级边界，避免标准 GFM 把相邻表格或表格后的段落吞进同一张表。
   const tableBoundariesRepaired = normalizeSerializedTableBoundaries(
     tableHardBreaksRepaired,
@@ -2214,9 +2249,11 @@ export function preserveMarkdownSource(
       markdown,
       edited,
     );
-    const candidate = restoreStableSourceFormatting(
-      preservationSource,
-      removeExcessCanonicalBlankLines(edited, repaired),
+    const candidate = normalizeExcessiveTrailingBlankLines(
+      restoreStableSourceFormatting(
+        preservationSource,
+        removeExcessCanonicalBlankLines(edited, repaired),
+      ),
     );
     // 保留源码排版只能改变写法，不能改变内容或块结构；不一致时以富文本导出为准。
     if (
