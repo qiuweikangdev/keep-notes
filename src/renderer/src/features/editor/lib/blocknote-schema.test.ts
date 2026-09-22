@@ -342,6 +342,30 @@ describe("editor BlockNote schema", () => {
     expect(editorBlockSpecs.codeBlock.config.type).toBe("codeBlock");
   });
 
+  it("removes Mod shortcuts from slash menu block commands", () => {
+    const editor = CoreEditorFactory.create({ schema: editorSchema });
+    const shortcutExtensionKeys = [
+      "heading-shortcuts",
+      "paragraph-shortcuts",
+      "quote-block-shortcuts",
+      "toggle-list-item-shortcuts",
+      "numbered-list-item-shortcuts",
+      "bullet-list-item-shortcuts",
+      "check-list-item-shortcuts",
+    ];
+
+    for (const key of shortcutExtensionKeys) {
+      const extension = editor.getExtension(key) as
+        | { keyboardShortcuts?: Record<string, unknown> }
+        | undefined;
+      expect(
+        Object.keys(extension?.keyboardShortcuts ?? {}).filter((shortcut) =>
+          shortcut.startsWith("Mod-"),
+        ),
+      ).toEqual([]);
+    }
+  });
+
   it("configures code block supported language metadata", () => {
     expect(editorCodeBlockSupportedLanguages.javascript).toEqual({
       name: "JavaScript",

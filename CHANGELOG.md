@@ -1,3 +1,112 @@
+## [2.25.1](https://github.com/qiuweikangdev/keep-notes/compare/v2.25.0...v2.25.1) (2026-09-19)
+
+
+### Bug Fixes
+
+* align minimal mac title bar controls ([af3a1d1](https://github.com/qiuweikangdev/keep-notes/commit/af3a1d1f0221aa78336e1f5884df010024e0ee8e))
+* improve search dialog keyboard flow ([cba91a2](https://github.com/qiuweikangdev/keep-notes/commit/cba91a2f9ac0ab807da0b74825a75023cb0d4b12))
+* keep outline content clear of bottom actions ([9ba5776](https://github.com/qiuweikangdev/keep-notes/commit/9ba577682b29f9a05f33d6e41f9fa8e6bd6e093e))
+* keep rich preview layout in sync ([ad2ea87](https://github.com/qiuweikangdev/keep-notes/commit/ad2ea87ec86ba374abf24a228908319849d4758b))
+* prevent minimal tab width flicker ([7ca096c](https://github.com/qiuweikangdev/keep-notes/commit/7ca096c95ee2d7d5423639ef090951ddcdbe230d))
+* refine minimal tab selection ([304eb1e](https://github.com/qiuweikangdev/keep-notes/commit/304eb1e9e0ad1f91d53f79d37b770ee11341c654))
+* refresh code block layout after pane resize ([b659bca](https://github.com/qiuweikangdev/keep-notes/commit/b659bcad170e24d0b624e2a186a561a39bd23687))
+* settle rich surface after tab activation ([88bbeaa](https://github.com/qiuweikangdev/keep-notes/commit/88bbeaa5e2288a130c53aa3356a75b66d920bb14))
+* sync code preview when splitting panes ([7bb8806](https://github.com/qiuweikangdev/keep-notes/commit/7bb8806d045b910d5c646f67ca7a3fce44b6e1a1))
+* tighten classic outline spacing ([3c6f689](https://github.com/qiuweikangdev/keep-notes/commit/3c6f6896203f88c06ca6bd841e4801fb01f4f95d))
+
+
+## Commit Summary
+
+- Compared with: v2.25.0
+- Total commits: 14
+
+# [2.25.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.24.0...v2.25.0) (2026-09-16)
+
+
+### Bug Fixes
+
+* add frosted glass to settings sidebar ([9e56329](https://github.com/qiuweikangdev/keep-notes/commit/9e56329940894da501cd527f26aa2815c578cde7))
+* add spacing to collapsed compact navigation ([3552cb1](https://github.com/qiuweikangdev/keep-notes/commit/3552cb199d3e85d6542e7a022aeabac0962204b2))
+* align collapsed sidebar tab divider ([ce56b74](https://github.com/qiuweikangdev/keep-notes/commit/ce56b74b776af10215f6275c9c4a9fb994bdf4f1))
+* align empty state text sizes ([bbb4e25](https://github.com/qiuweikangdev/keep-notes/commit/bbb4e25c31c9a0d255e650765069ef33b284b52e))
+* align minimal sidebar action bar ([0cde357](https://github.com/qiuweikangdev/keep-notes/commit/0cde357f94b2b83d06912f50b780e7ca827fee5f))
+* align settings sidebar material ([38c15aa](https://github.com/qiuweikangdev/keep-notes/commit/38c15aaf61c121be1f0030f0f91800f878edaff6))
+* align sidebar bottom action bar background ([929c1dc](https://github.com/qiuweikangdev/keep-notes/commit/929c1dc7eb4d7b1999ff359e940dd74529d82c56))
+* align sidebar material and action menu ([07657bc](https://github.com/qiuweikangdev/keep-notes/commit/07657bc0f8fc01f49e8b8449c3d7242bcd18b1ec))
+* align split pane headers in minimal layout ([fa310db](https://github.com/qiuweikangdev/keep-notes/commit/fa310db37042795f2e7cc3897c287f9f7cf977bc))
+* allow dragging from compact header whitespace ([d9c44a9](https://github.com/qiuweikangdev/keep-notes/commit/d9c44a9239c823b3f9315f0eb34c1b37bb9b8914))
+* clarify editor mode switch actions ([733381d](https://github.com/qiuweikangdev/keep-notes/commit/733381d92cdcbfc1f5b514098d322bcf447c1c99))
+* constrain minimal workspace panel height ([9155f40](https://github.com/qiuweikangdev/keep-notes/commit/9155f4054c50edb20214336d9ee0d4fa33733814))
+* disable push without pending commits ([4602c1f](https://github.com/qiuweikangdev/keep-notes/commit/4602c1fd216284eff4120f42f848b36f63679566))
+* enforce minimal layout corner clipping ([b571a9b](https://github.com/qiuweikangdev/keep-notes/commit/b571a9b102f0b63be3aa5fd1f3248208d6498682))
+* fix layout preview cards ([fe390e2](https://github.com/qiuweikangdev/keep-notes/commit/fe390e2b3d666fdfa0aee0d0be01636800580e94))
+* fix recent folder row actions ([88b8bd2](https://github.com/qiuweikangdev/keep-notes/commit/88b8bd2a661fc1797ed475f541f43a8862858ac9))
+* fix system theme preview icon ([7e296fb](https://github.com/qiuweikangdev/keep-notes/commit/7e296fbdb7c7f46398565b15d34f5e990bf7b531))
+* handle empty minimal layout actions ([03cf49c](https://github.com/qiuweikangdev/keep-notes/commit/03cf49c7505d3a7a36241ae762f8f2fe3a13f398))
+* hide minimal tab divider when menu is expanded ([c4f3471](https://github.com/qiuweikangdev/keep-notes/commit/c4f34717dfd969f3e6248d121899a528d572014a))
+* improve rich text contrast and inline code consistency ([a6e2dd2](https://github.com/qiuweikangdev/keep-notes/commit/a6e2dd23b5d5be2c0a5c874638fe31d249798052))
+* keep editor chrome opaque when adjusting opacity ([d0218d7](https://github.com/qiuweikangdev/keep-notes/commit/d0218d744e9d3461773e9075d7391f118dbba96a))
+* keep title bar controls outside window drag regions ([9c05c27](https://github.com/qiuweikangdev/keep-notes/commit/9c05c27ef5e81969e8e231b9c6a9631463fe2630))
+* lighten dark sidebar material ([5164643](https://github.com/qiuweikangdev/keep-notes/commit/51646430682952d4be2c759ef7c33dd4946931a5))
+* lighten translucent sidebar in light theme ([25e1baf](https://github.com/qiuweikangdev/keep-notes/commit/25e1baf5ac027d9e036c00964ea639a025e964e6))
+* preserve minimal layout corner radius ([b340dc3](https://github.com/qiuweikangdev/keep-notes/commit/b340dc3f443038750bc5d720f9d28b4bf961a236))
+* preserve rich text markdown structure ([f011600](https://github.com/qiuweikangdev/keep-notes/commit/f011600b21f583aa9bd2073e44ee85c61f2dcf2c))
+* preserve workspace corner clipping ([dba7e18](https://github.com/qiuweikangdev/keep-notes/commit/dba7e1846128fd4e237c25594018040f41fa15d9))
+* refine classic deep dark sidebar ([bd7286b](https://github.com/qiuweikangdev/keep-notes/commit/bd7286bfdf9f32fed89bc01fcd4e96e884eac92a))
+* refine layout preview styling ([90f8fd5](https://github.com/qiuweikangdev/keep-notes/commit/90f8fd5edae500bbc0643d93657feb3affbbbe64))
+* refine minimal layout visuals ([b4e42b0](https://github.com/qiuweikangdev/keep-notes/commit/b4e42b0d6ad43481c0c5780dfc1f2f3230e6802f))
+* refine theme selector presentation ([4aabe4d](https://github.com/qiuweikangdev/keep-notes/commit/4aabe4d340b5135b99213461e97d05c0e8a97941))
+* remove minimal panel padding ([d7dbe6b](https://github.com/qiuweikangdev/keep-notes/commit/d7dbe6ba11efecb6817ca7814a26a0e232094522))
+* remove minimal tab bar surfaces ([4606e6d](https://github.com/qiuweikangdev/keep-notes/commit/4606e6d2ec1caa590440911b159fc171452418f5))
+* remove minimal workspace content corners ([f073a69](https://github.com/qiuweikangdev/keep-notes/commit/f073a69beb9ee33ba36d4d8666911c9bcce3019c))
+* remove sidebar editor gap ([304b845](https://github.com/qiuweikangdev/keep-notes/commit/304b8456d7d7fac2d5880adbc937058bad3f07cf))
+* scope inline code styling to minimal theme ([d0b2761](https://github.com/qiuweikangdev/keep-notes/commit/d0b276155b7528ce0ff42f907010607ce0a938be))
+* show expanded file history navigation ([c0023e0](https://github.com/qiuweikangdev/keep-notes/commit/c0023e02c64d4ae4900da32fd6f6a5fc1544d7e8))
+* show floating action without tabs ([60dbfee](https://github.com/qiuweikangdev/keep-notes/commit/60dbfeea79a1aa7c3f100aa94457ce978c8c928e))
+* show floating scrollbars only when needed ([576052c](https://github.com/qiuweikangdev/keep-notes/commit/576052c3a4fe81e72b1072b59d237f0f92b81133))
+* simplify empty state and stabilize hover icon ([80063f8](https://github.com/qiuweikangdev/keep-notes/commit/80063f8107677f3a5351f94c777e09c15b58a3fa))
+* simplify minimal layout open method icon ([bd2ff2c](https://github.com/qiuweikangdev/keep-notes/commit/bd2ff2c3547b0dd252c9bdc4c07cf0fcf7f12436))
+* soften minimal theme sidebar material ([fa26c08](https://github.com/qiuweikangdev/keep-notes/commit/fa26c087f39fb03ed14c4ab4f9dc158f1c9e6587))
+* stabilize inline code input boundaries ([cb162f3](https://github.com/qiuweikangdev/keep-notes/commit/cb162f327d77cab190b8d14f8b9366be11fed827))
+* stabilize sidebar actions and compact layout ([fa2860a](https://github.com/qiuweikangdev/keep-notes/commit/fa2860ab3a28475ea816d85fc935d8425c591e15))
+* unify rounded application window ([b86a4c2](https://github.com/qiuweikangdev/keep-notes/commit/b86a4c2e988d7494d0179420405c0e5050626b48))
+
+
+### Features
+
+* add configurable themes and layouts ([fe45246](https://github.com/qiuweikangdev/keep-notes/commit/fe45246a8063a7bd472618be5e3e62483a84fc8e))
+* add edit mode toggle to minimal layout menu ([91f7e80](https://github.com/qiuweikangdev/keep-notes/commit/91f7e809e3d6238798f36366174aef15f0faedbf))
+* move tab actions into context menu ([e00c760](https://github.com/qiuweikangdev/keep-notes/commit/e00c760e558c2b718a78999b20840d1eca988a00))
+* organize minimal layout actions menu ([83e688a](https://github.com/qiuweikangdev/keep-notes/commit/83e688a67d73d7a5000a979c4c9be1447dfdd1aa))
+* refine themes and minimal layout ([0f8cb0d](https://github.com/qiuweikangdev/keep-notes/commit/0f8cb0dbc6d1601747f56a497e713678a4fb7598))
+* streamline minimal layout actions ([6a806dd](https://github.com/qiuweikangdev/keep-notes/commit/6a806ddb4447c73a8be6778dacc508a6c2f5bee3))
+
+
+## Commit Summary
+
+- Compared with: v2.24.0
+- Total commits: 54
+
+# [2.24.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.23.2...v2.24.0) (2026-09-11)
+
+
+### Features
+
+* add multi-language code highlighting ([a9e3c25](https://github.com/qiuweikangdev/keep-notes/commit/a9e3c257139591ce0b6639ceb64a6299e5fab5b1))
+* open files in new tabs from tree ([6102d05](https://github.com/qiuweikangdev/keep-notes/commit/6102d0556eade50d07c793e3b76d5156baca759e))
+
+
+### Performance Improvements
+
+* optimize large document editor switching ([44969a3](https://github.com/qiuweikangdev/keep-notes/commit/44969a3185c3391df327de437613155653ad9577))
+* reduce renderer syntax assets ([934d2a4](https://github.com/qiuweikangdev/keep-notes/commit/934d2a4b3116470b28df6cfe6e82c840562890a5))
+
+
+## Commit Summary
+
+- Compared with: v2.23.2
+- Total commits: 4
+
 ## [2.23.2](https://github.com/qiuweikangdev/keep-notes/compare/v2.23.1...v2.23.2) (2026-09-09)
 
 

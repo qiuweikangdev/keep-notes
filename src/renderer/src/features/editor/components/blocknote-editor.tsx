@@ -20,6 +20,8 @@ import {
   getFormattingToolbarItems,
   SideMenu,
   SideMenuController,
+  SuggestionMenuController,
+  getDefaultReactSlashMenuItems,
   useBlockNoteEditor,
   useEditorState,
   useEditorChange,
@@ -35,7 +37,10 @@ import {
   getNodeById,
   selectedFragmentToHTML,
 } from "@blocknote/core";
-import { SideMenuExtension } from "@blocknote/core/extensions";
+import {
+  filterSuggestionItems,
+  SideMenuExtension,
+} from "@blocknote/core/extensions";
 import {
   AllSelection,
   NodeSelection,
@@ -1809,7 +1814,35 @@ const INLINE_CODE_MARKDOWN_SELECTION = /^`([^`\n]+)`$/;
 
 export const richEditorDefaultUIProps = {
   sideMenu: false,
+  slashMenu: false,
 } as const;
+
+export function getRichEditorSlashMenuItems(
+  editor: CoreBlockNoteEditor,
+  query: string,
+) {
+  return filterSuggestionItems(
+    getDefaultReactSlashMenuItems(editor).map((item) => ({
+      ...item,
+      badge: undefined,
+    })),
+    query,
+  );
+}
+
+export function RichEditorSlashMenuController() {
+  const editor = useBlockNoteEditor<
+    typeof editorSchema.blockSchema,
+    typeof editorSchema.inlineContentSchema,
+    typeof editorSchema.styleSchema
+  >();
+  const getItems = useCallback(
+    async (query: string) => getRichEditorSlashMenuItems(editor, query),
+    [editor],
+  );
+
+  return <SuggestionMenuController triggerCharacter="/" getItems={getItems} />;
+}
 
 function EditorSideMenu(props: ComponentProps<typeof SideMenu>) {
   const editor = useBlockNoteEditor<
@@ -1863,6 +1896,115 @@ export interface RichEditorSelectionDragPointer {
 
 export const RICH_EDITOR_SELECTION_DRAG_LOCK_CLASS =
   "rich-editor-selection-drag-locked";
+
+const RICH_EDITOR_BLOCK_DRAG_EDGE_SIZE = 80;
+const RICH_EDITOR_BLOCK_DRAG_MAX_SPEED = 24;
+
+function getRichEditorBlockDragScrollVelocity(
+  scrollContainer: HTMLElement,
+  clientY: number,
+) {
+  const bounds = scrollContainer.getBoundingClientRect();
+  if (
+    !Number.isFinite(clientY) ||
+    bounds.height <= 0 ||
+    clientY < bounds.top ||
+    clientY > bounds.bottom
+  ) {
+    return 0;
+  }
+
+  const edgeSize = Math.min(
+    RICH_EDITOR_BLOCK_DRAG_EDGE_SIZE,
+    bounds.height / 2,
+  );
+  const topDistance = clientY - bounds.top;
+  const bottomDistance = bounds.bottom - clientY;
+  const getSpeed = (distance: number) =>
+    Math.max(
+      4,
+      Math.round(RICH_EDITOR_BLOCK_DRAG_MAX_SPEED * (1 - distance / edgeSize)),
+    );
+
+  if (topDistance < edgeSize) return -getSpeed(topDistance);
+  if (bottomDistance < edgeSize) return getSpeed(bottomDistance);
+  return 0;
+}
+
+export function createRichEditorBlockDragAutoScroller(
+  getScrollContainer: () => HTMLElement | null,
+  requestFrame: (
+    callback: FrameRequestCallback,
+  ) => number = requestAnimationFrame,
+  cancelFrame: (handle: number) => void = cancelAnimationFrame,
+) {
+  let frameId: number | null = null;
+  let pointerY: number | null = null;
+
+  const stop = () => {
+    pointerY = null;
+    if (frameId === null) return;
+    cancelFrame(frameId);
+    frameId = null;
+  };
+
+  // Windows 原生拖拽可能吞掉 wheel；dragover 只更新指针位置，由动画帧持续推动边缘滚动。
+  const scrollFrame: FrameRequestCallback = () => {
+    frameId = null;
+    if (pointerY === null) return;
+
+    const scrollContainer = getScrollContainer();
+    if (!scrollContainer) {
+      stop();
+      return;
+    }
+
+    const velocity = getRichEditorBlockDragScrollVelocity(
+      scrollContainer,
+      pointerY,
+    );
+    if (velocity === 0) return;
+
+    const previousScrollTop = scrollContainer.scrollTop;
+    scrollContainer.scrollTop += velocity;
+    if (scrollContainer.scrollTop === previousScrollTop) return;
+
+    frameId = requestFrame(scrollFrame);
+  };
+
+  return {
+    update(clientY: number) {
+      pointerY = clientY;
+      if (frameId === null) frameId = requestFrame(scrollFrame);
+    },
+    stop,
+  };
+}
+
+export function scrollRichEditorDuringBlockDrag(
+  scrollContainer: HTMLElement | null,
+  event: WheelEvent,
+) {
+  if (!scrollContainer) return false;
+
+  // Windows 原生块拖拽期间，滚轮默认行为不会稳定地驱动自定义滚动容器；
+  // 按事件单位换算后直接更新容器，保留横向滚动和触控板的 delta 行为。
+  const deltaMultiplier =
+    event.deltaMode === 1
+      ? 16
+      : event.deltaMode === 2
+        ? scrollContainer.clientHeight
+        : 1;
+  const deltaX = event.deltaX * deltaMultiplier;
+  const deltaY = event.deltaY * deltaMultiplier;
+  if (!Number.isFinite(deltaX) || !Number.isFinite(deltaY)) return false;
+  if (deltaX === 0 && deltaY === 0) return false;
+
+  if (event.cancelable) event.preventDefault();
+  scrollContainer.scrollLeft += deltaX;
+  scrollContainer.scrollTop += deltaY;
+  return true;
+}
 
 export function shouldPreventRichEditorGutterSelectionDrag(
   buttons: number,
@@ -3024,6 +3166,10 @@ function MountedBlockNoteEditor({
   );
   const selectionDragAnchorRef = useRef<number | null>(null);
   const draggedBlockIdsRef = useRef<string[] | null>(null);
+  const blockDragActiveRef = useRef(false);
+  const blockDragAutoScrollerRef = useRef<ReturnType<
+    typeof createRichEditorBlockDragAutoScroller
+  > | null>(null);
   const documentEndDropActiveRef = useRef(false);
   const applyTokenRef = useRef(0);
   const lifecycleGenerationRef = useRef(0);
@@ -3034,6 +3180,9 @@ function MountedBlockNoteEditor({
   const previewCacheRef = useRef<RichPreviewCache | null>(null);
   const previewTransactionCleanupRef = useRef<(() => void) | null>(null);
 
+  blockDragAutoScrollerRef.current ??= createRichEditorBlockDragAutoScroller(
+    () => scrollContainerRef.current,
+  );
   editorRef.current = editor;
 
   useLayoutEffect(() => {
@@ -3957,6 +4106,7 @@ function MountedBlockNoteEditor({
   const handleFileDragOverCapture = useCallback(
     (event: React.DragEvent) => {
       if (event.dataTransfer?.types.includes("blocknote/html")) {
+        blockDragAutoScrollerRef.current?.update(event.clientY);
         // dragover 期间只记录原块和落点，不修改文档，避免原生 drop 同时插入拖拽切片。
         draggedBlockIdsRef.current ??= readRichEditorDraggedBlockIds(editor);
         const isDocumentEndDrop = Boolean(
@@ -3990,6 +4140,7 @@ function MountedBlockNoteEditor({
         ) {
           return;
         }
+        blockDragAutoScrollerRef.current?.stop();
         setDocumentEndDropActive(false);
         return;
       }
@@ -4017,6 +4168,9 @@ function MountedBlockNoteEditor({
   const handleBlockDragStart = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
       if (!event.dataTransfer.types.includes("blocknote/html")) return;
+
+      blockDragAutoScrollerRef.current?.stop();
+      blockDragActiveRef.current = true;
 
       // BlockNote 会先在拖拽手柄的 target 阶段选中原块并写入 dataTransfer；
       // 必须在随后冒泡到容器时记录，capture/dragover 阶段读取会拿到旧光标或空选择。
@@ -4063,6 +4217,8 @@ function MountedBlockNoteEditor({
 
   const handleDropCapture = useCallback(
     (event: React.DragEvent) => {
+      blockDragAutoScrollerRef.current?.stop();
+      blockDragActiveRef.current = false;
       const draggedBlockIds = draggedBlockIdsRef.current;
       setDocumentEndDropActive(false);
       if (
@@ -4100,6 +4256,8 @@ function MountedBlockNoteEditor({
   );
 
   const handleDragEndCapture = useCallback(() => {
+    blockDragAutoScrollerRef.current?.stop();
+    blockDragActiveRef.current = false;
     draggedBlockIdsRef.current = null;
     setDocumentEndDropActive(false);
   }, [setDocumentEndDropActive]);
@@ -4330,6 +4488,10 @@ function MountedBlockNoteEditor({
       // 进入异常区域后由 ProseMirror 接管本次拖选，避免 Chrome 原生选区与状态选区反复争抢而闪烁。
       event.preventDefault();
     };
+    const handleBlockDragWheel = (event: WheelEvent) => {
+      if (!blockDragActiveRef.current) return;
+      scrollRichEditorDuringBlockDrag(scrollContainerRef.current, event);
+    };
     const resetSelectionDrag = () => {
       setSelectionDragLocked(false);
       selectionDragBoundsRef.current = null;
@@ -4351,6 +4513,10 @@ function MountedBlockNoteEditor({
     );
     document.addEventListener("mousemove", handleSelectionDragMouseMove, true);
     document.addEventListener("mouseup", resetSelectionDrag, true);
+    document.addEventListener("wheel", handleBlockDragWheel, {
+      capture: true,
+      passive: false,
+    });
     window.addEventListener("blur", resetSelectionDrag);
     document.addEventListener(
       "dragstart",
@@ -4359,6 +4525,7 @@ function MountedBlockNoteEditor({
     );
     document.addEventListener("dragend", resetSelectionDrag, true);
     return () => {
+      blockDragAutoScrollerRef.current?.stop();
       document.removeEventListener(
         "pointerdown",
         handleFloatingControlPointerDown,
@@ -4370,6 +4537,7 @@ function MountedBlockNoteEditor({
         true,
       );
       document.removeEventListener("mouseup", resetSelectionDrag, true);
+      document.removeEventListener("wheel", handleBlockDragWheel, true);
       window.removeEventListener("blur", resetSelectionDrag);
       document.removeEventListener(
         "dragstart",
@@ -4424,6 +4592,7 @@ function MountedBlockNoteEditor({
       >
         <EditorFormattingToolbar />
         <EditorSideMenuController />
+        <RichEditorSlashMenuController />
       </BlockNoteView>
     </div>
   );
