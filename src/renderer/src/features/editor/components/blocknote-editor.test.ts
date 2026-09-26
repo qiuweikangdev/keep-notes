@@ -6114,14 +6114,12 @@ describe("BlockNoteEditor persistent session runtime", () => {
     session.view.unmount();
   });
 
-  it("reconciles source spacing when explicitly flushed without a rich edit", async () => {
+  it("does not rewrite source spacing when explicitly flushed without a rich edit", async () => {
     setupMatchMedia();
     setupDomMeasurements();
     const path = "C:/notes/nested-list-spacing.md";
     const source =
       "# 测试\n\n\n\n* 列表1\n  * 列表2\n  * test22233223222322222`行32内代码` \n  * `2行内代码`\n";
-    const expected =
-      "# 测试\n\n* 列表1\n  * 列表2\n  * test22233223222322222`行32内代码` \n  * `2行内代码`\n";
     setupSessionTab(path, { content: source });
     const session = renderRealSession(path, false, source);
 
@@ -6131,7 +6129,7 @@ describe("BlockNoteEditor persistent session runtime", () => {
       reconcileSource: true,
     });
 
-    expect(session.callbacks.onMarkdownChange).toHaveBeenCalledWith(expected);
+    expect(session.callbacks.onMarkdownChange).not.toHaveBeenCalled();
     session.view.unmount();
   });
 

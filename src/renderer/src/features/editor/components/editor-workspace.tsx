@@ -21,7 +21,6 @@ import {
   shouldApplyExternalFileChange,
   shouldDeferExternalFileChange,
 } from "../lib/editor-external-change";
-import { repairMarkdownSourceBeforeParse } from "../lib/markdown";
 import { getEditorDocumentPath } from "../lib/editor-document-path";
 import { normalizeRichDocumentPath } from "../lib/rich-document-surface-registry";
 import {
@@ -298,30 +297,6 @@ export function EditorWorkspace({
     },
     [getCurrentTab, groupId, setTabContent, syncFileContent, tabId],
   );
-
-  useEffect(() => {
-    if (!tab || tabMode !== "source") return;
-    const repairedContent = repairMarkdownSourceBeforeParse(tabContent);
-    if (repairedContent === tabContent) return;
-
-    // 源码模式也要修复历史拖拽导致的粘连列表，避免富文本解析正常但源码面板仍显示坏内容。
-    if (tabFilePath) {
-      takeOverSourceDocument(tabFilePath);
-    }
-    setTabContent(groupId, tabId, repairedContent);
-    if (!tabFilePath) return;
-    syncFileContent(tabFilePath, repairedContent, tabId);
-    editorSaveCoordinator.schedule(tabFilePath, repairedContent);
-  }, [
-    groupId,
-    setTabContent,
-    syncFileContent,
-    tab,
-    tabContent,
-    tabFilePath,
-    tabId,
-    tabMode,
-  ]);
 
   const openFindWidget = useCallback(() => {
     setIsFindOpen(true);

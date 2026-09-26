@@ -1804,6 +1804,7 @@ export function resolveSerializedMarkdownChange(
   baseline: string,
   serialized: string,
 ): string | null {
+  if (baseline === serialized) return null;
   const markdown = preserveMarkdownSource(source, baseline, serialized);
   return markdownEquals(markdown, source) ? null : markdown;
 }
@@ -3866,12 +3867,8 @@ function MountedBlockNoteEditor({
     const applyContent = async () => {
       try {
         const rawSource = contentRef.current;
+        // 历史内容的修复只用于解析；未发生富文本编辑时，源码和磁盘仍保留用户原文。
         const source = repairMarkdownSourceBeforeParse(rawSource);
-        const sourceWasRepaired = !markdownEquals(source, rawSource);
-        if (sourceWasRepaired) {
-          // 打开历史异常文件时先修复列表源码，避免富文本和源码继续分叉。
-          contentRef.current = source;
-        }
         const currentPath = appliedPathRef.current;
         const currentScrollTop = readEditorScrollTop(
           scrollContainerRef.current,
@@ -3879,7 +3876,7 @@ function MountedBlockNoteEditor({
         // 解析规则升级后不能复用旧块缓存，否则会继续显示错误的列表或代码块结构。
         const parserCacheVersion = getMarkdownParserCacheVersion(reloadKey);
         const cached = path
-          ? editorCache.getBlocks(path, source, parserCacheVersion)
+          ? editorCache.getBlocks(path, rawSource, parserCacheVersion)
           : null;
         const parsedBlocks =
           cached?.blocks ??
@@ -3891,10 +3888,6 @@ function MountedBlockNoteEditor({
         });
         // Markdown 解析可能晚于下一次切换完成，旧结果不得再写入编辑器。
         if (applyToken !== applyTokenRef.current) return;
-        if (sourceWasRepaired) {
-          controllerRef.current.onWordCountChange(source.length);
-          controllerRef.current.onMarkdownChange(source);
-        }
         window.getSelection()?.removeAllRanges();
         if (currentPath === null) {
           runWithoutRichTextUndoHistory(editor, () =>
@@ -3913,7 +3906,7 @@ function MountedBlockNoteEditor({
         // 规范化可能把旧缓存中的反引号文本升级为 code mark；后续缓存和基线必须使用升级后的文档。
         const normalizedBlocks = editor.document;
         appliedPathRef.current = path;
-        appliedSourceRef.current = source;
+        appliedSourceRef.current = rawSource;
         const restoredScrollTop = chooseRestoredEditorScrollTop({
           currentPath,
           nextPath: path,
@@ -3924,10 +3917,10 @@ function MountedBlockNoteEditor({
         serializedBaselineRef.current = cached?.serializedBaseline ?? null;
         if (path) {
           editorCache.finishReparse(path);
-          editorCache.setContent(path, source);
+          editorCache.setContent(path, rawSource);
           editorCache.setBlocks(
             path,
-            source,
+            rawSource,
             normalizedBlocks,
             parserCacheVersion,
             cached?.serializedBaseline,
@@ -3939,7 +3932,7 @@ function MountedBlockNoteEditor({
 
         if (serializedBaselineRef.current === null) {
           const baselinePath = path;
-          const baselineSource = source;
+          const baselineSource = rawSource;
           const baselineBlocks = normalizedBlocks;
           baselineRetryBlocksRef.current = baselineBlocks;
           const baselineParserCacheVersion = parserCacheVersion;

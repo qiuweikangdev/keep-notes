@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useEditorStore } from "@/store/editor.store";
 import {
   backgroundEditorSaveCoordinator,
+  editorSaveCoordinator,
   richDocumentSessionManager,
   subscribeToEditorFile,
 } from "../lib/editor-runtime";
@@ -99,6 +100,38 @@ afterEach(() => {
 });
 
 describe("EditorWorkspace split rich editor mount", () => {
+  it("opens source mode without rewriting trailing blank lines", () => {
+    const source = `# Original${"\n".repeat(6)}`;
+    useEditorStore.setState((state) => ({
+      panelGroups: state.panelGroups.map((group) =>
+        group.id === "group-1"
+          ? {
+              ...group,
+              tabs: group.tabs.map((tab) =>
+                tab.id === "tab-1"
+                  ? { ...tab, content: source, mode: "source" as const }
+                  : tab,
+              ),
+            }
+          : group,
+      ),
+    }));
+
+    render(<EditorWorkspace groupId="group-1" tabId="tab-1" />);
+
+    expect(screen.getByRole("textbox", { name: "Markdown 源码" })).toHaveValue(
+      source,
+    );
+    expect(useEditorStore.getState().panelGroups[0].tabs[0].content).toBe(
+      source,
+    );
+    expect(backgroundEditorSaveCoordinator.cancel).not.toHaveBeenCalled();
+    expect(
+      richDocumentSessionManager.discardPendingChange,
+    ).not.toHaveBeenCalled();
+    expect(editorSaveCoordinator.schedule).not.toHaveBeenCalled();
+  });
+
   it("leaves rich file watching to the document session host", () => {
     render(<EditorWorkspace groupId="group-1" tabId="tab-1" />);
 
