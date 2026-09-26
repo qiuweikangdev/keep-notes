@@ -2,8 +2,14 @@ import { BlockNoteEditor } from "@blocknote/core";
 import { expect, it, vi } from "vitest";
 import { EditorDocumentIndex } from "./editor-document-index";
 import { EditorPerformanceSamples } from "./editor-performance";
-import { parseMarkdown } from "./markdown";
+import { parseMarkdown, repairMarkdownSourceBeforeParse } from "./markdown";
 import { RichPreviewCache } from "./rich-preview-cache";
+
+function contentSignature(value: unknown): string {
+  return JSON.stringify(value, (key, item: unknown) =>
+    key === "id" ? undefined : item,
+  );
+}
 
 it.each([10_000, 50_000, 100_000])(
   "keeps ordinary input and preview work bounded for a %i character mixed document",
@@ -13,9 +19,35 @@ it.each([10_000, 50_000, 100_000])(
       .repeat(Math.ceil(size / section.length))
       .slice(0, size);
     const editor = BlockNoteEditor.create();
+    const parseDurations: number[] = [];
+    const parseFullDocument = editor.tryParseMarkdownToBlocks.bind(editor);
+    const parseCalls = vi
+      .spyOn(editor, "tryParseMarkdownToBlocks")
+      .mockImplementation((markdown) => {
+        const started = performance.now();
+        const parsed = parseFullDocument(markdown);
+        parseDurations.push(performance.now() - started);
+        return parsed;
+      });
     const startedAt = performance.now();
     const blocks = await parseMarkdown(editor, source);
     const parseMs = performance.now() - startedAt;
+    const maxParseChunkMs = Math.max(...parseDurations);
+    if (size >= 50_000) {
+      expect(parseCalls.mock.calls.length).toBeGreaterThan(1);
+      expect(parseCalls.mock.calls.map(([markdown]) => markdown).join("")).toBe(
+        repairMarkdownSourceBeforeParse(source),
+      );
+    }
+    let fullDocumentParseMs: number | undefined;
+    if (size === 100_000) {
+      const directStartedAt = performance.now();
+      const directBlocks = await parseFullDocument(
+        repairMarkdownSourceBeforeParse(source),
+      );
+      fullDocumentParseMs = performance.now() - directStartedAt;
+      expect(contentSignature(blocks)).toBe(contentSignature(directBlocks));
+    }
     editor.replaceBlocks(editor.document, blocks);
     const index = new EditorDocumentIndex();
     const initialOutline = index.read(editor.prosemirrorState.doc);
@@ -52,6 +84,8 @@ it.each([10_000, 50_000, 100_000])(
             characters: size,
             blocks: blocks.length,
             parseMs,
+            maxParseChunkMs,
+            fullDocumentParseMs,
             timings: samples.read(),
             preview: preview.getDiagnostics(),
           }),
@@ -64,3 +98,33 @@ it.each([10_000, 50_000, 100_000])(
     }
   },
 );
+
+it("keeps document-wide reference definitions on the single parse path", async () => {
+  const source = `${"# Section\n\n[site][reference]\n\n".repeat(1_300)}[reference]: https://example.com\n`;
+  const editor = BlockNoteEditor.create();
+  const parseCalls = vi.spyOn(editor, "tryParseMarkdownToBlocks");
+
+  const blocks = await parseMarkdown(editor, source);
+
+  expect(parseCalls).toHaveBeenCalledOnce();
+  expect(blocks[1].content).toContainEqual(
+    expect.objectContaining({ text: "[site][reference]" }),
+  );
+});
+
+it("splits a large headingless document only at top-level block boundaries", async () => {
+  const source = "A paragraph with **bold** text.\n\n".repeat(1_500);
+  const editor = BlockNoteEditor.create();
+  const parseCalls = vi.spyOn(editor, "tryParseMarkdownToBlocks");
+
+  const blocks = await parseMarkdown(editor, source);
+  const directBlocks = await editor.tryParseMarkdownToBlocks(source);
+  expect(parseCalls.mock.calls.length).toBeGreaterThan(2);
+  expect(
+    parseCalls.mock.calls
+      .slice(0, -1)
+      .map(([markdown]) => markdown)
+      .join(""),
+  ).toBe(source);
+  expect(contentSignature(blocks)).toBe(contentSignature(directBlocks));
+});

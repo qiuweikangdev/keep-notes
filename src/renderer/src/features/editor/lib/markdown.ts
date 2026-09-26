@@ -40,6 +40,8 @@ interface MarkdownEdit {
 const SOURCE_PRESERVATION_DIFF_CHAR_LIMIT = 16_000;
 const LARGE_DOC_LIST_PRESERVE_LIMIT = 8_000;
 const MARKDOWN_SERIALIZATION_BATCH_SIZE = 24;
+const LARGE_MARKDOWN_PARSE_THRESHOLD = 30_000;
+const MARKDOWN_PARSE_BATCH_LENGTH = 10_000;
 const ROOT_UNORDERED_LIST_LINE_PATTERN = /^([ \t]{0,3})([-+*])([ \t]+)(.*)$/u;
 const UNORDERED_LIST_LINE_PATTERN = /^([ \t]*)([-+*])([ \t]+)(.*)$/u;
 const FENCED_CODE_LINE_PATTERN = /^ {0,3}(```+|~~~+)/u;
@@ -3574,6 +3576,52 @@ async function parseMarkdownWithStructuredLists<TBlock>(
   return output;
 }
 
+async function parseLargeMarkdownInBatches<TBlock>(
+  parser: MarkdownParser<TBlock>,
+  markdown: string,
+): Promise<TBlock[]> {
+  if (
+    markdown.length < LARGE_MARKDOWN_PARSE_THRESHOLD ||
+    /^ {0,3}\[[^\]\n]+\]:[ \t]*\S/mu.test(markdown)
+  ) {
+    return parseMarkdownWithStructuredLists(parser, markdown);
+  }
+
+  // 只在 Markdown 解析器确认的顶层块边界切分，避免围栏、引用和列表内部的伪边界破坏结构。
+  const tokens = listMarkdownParser.parse(markdown, {});
+  const lineOffsets = [0];
+  for (let index = 0; index < markdown.length; index += 1) {
+    if (markdown[index] === "\n") lineOffsets.push(index + 1);
+  }
+  const boundaries = [0];
+  let batchStart = 0;
+  for (const token of tokens) {
+    if (token.level !== 0 || !token.map || token.type.endsWith("_close"))
+      continue;
+    const offset = lineOffsets[token.map[0]];
+    if (
+      offset - batchStart < MARKDOWN_PARSE_BATCH_LENGTH ||
+      markdown.length - offset < MARKDOWN_PARSE_BATCH_LENGTH
+    )
+      continue;
+    boundaries.push(offset);
+    batchStart = offset;
+  }
+  if (boundaries.length === 1)
+    return parseMarkdownWithStructuredLists(parser, markdown);
+
+  const blocks: TBlock[] = [];
+  for (let index = 0; index < boundaries.length; index += 1) {
+    if (index > 0) await yieldToMain();
+    const chunk = markdown.slice(
+      boundaries[index],
+      boundaries[index + 1] ?? markdown.length,
+    );
+    blocks.push(...(await parseMarkdownWithStructuredLists(parser, chunk)));
+  }
+  return blocks;
+}
+
 export async function parseMarkdown<TBlock>(
   parser: MarkdownParser<TBlock>,
   markdown: string,
@@ -3585,10 +3633,7 @@ export async function parseMarkdown<TBlock>(
     .replace(/^\uFEFF/, "")
     .replace(/\r\n?/g, "\n");
   const normalized = normalizeQuoteListsForParser(parseInput);
-  const blocks = await parseMarkdownWithStructuredLists(
-    parser,
-    normalized.markdown,
-  );
+  const blocks = await parseLargeMarkdownInBatches(parser, normalized.markdown);
   // BlockNote 0.51 的 Markdown 解析器不再识别裸 URL；在恢复受保护源码前补回链接节点。
   const linkedBlocks = blocks.map(linkifyBareUrlsInBlock);
   const restoredBlocks =
