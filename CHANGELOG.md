@@ -1,3 +1,25 @@
+## [2.25.3](https://github.com/qiuweikangdev/keep-notes/compare/v2.25.2...v2.25.3) (2026-09-26)
+
+
+### Bug Fixes
+
+* constrain root create input width ([47a3f45](https://github.com/qiuweikangdev/keep-notes/commit/47a3f451cf17ce315ba68b2f88d5ab6dd2b9e125))
+* omit transient terminal list marker from source ([78fc06d](https://github.com/qiuweikangdev/keep-notes/commit/78fc06d9bd9ec1473f77231beff8a0bb5c8a4340))
+* place root create input below root ([4eff54e](https://github.com/qiuweikangdev/keep-notes/commit/4eff54ecf4e6cd052a7d0e7ba2f1abc881e94ca7))
+* preserve markdown source until edited ([030ef52](https://github.com/qiuweikangdev/keep-notes/commit/030ef529318cdca8326503addf223a03d929cb39))
+* preserve multi-backtick inline code while typing ([64f49ee](https://github.com/qiuweikangdev/keep-notes/commit/64f49ee2657fc084ec62ab4de6cd841ac1c44443))
+
+
+### Performance Improvements
+
+* yield between large markdown parse batches ([d09f358](https://github.com/qiuweikangdev/keep-notes/commit/d09f358e56a57f8fc39e1cb555824004407a4980))
+
+
+## Commit Summary
+
+- Compared with: v2.25.2
+- Total commits: 6
+
 ## [2.25.2](https://github.com/qiuweikangdev/keep-notes/compare/v2.25.1...v2.25.2) (2026-09-22)
 
 
