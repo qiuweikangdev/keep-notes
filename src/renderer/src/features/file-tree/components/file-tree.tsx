@@ -1949,13 +1949,12 @@ function CreateInput({
       style={{
         position: "absolute",
         top: 0,
-        left: 0,
-        width: "calc(100% - 16px)",
+        left: "8px",
+        right: "8px",
         height: `${ROW_HEIGHT}px`,
         transform: `translateY(${top}px)`,
         paddingLeft: `${creatingInfo.level * 14 + 8}px`,
         paddingRight: "8px",
-        marginLeft: "8px",
         zIndex: 10,
       }}
     >
@@ -1996,7 +1995,7 @@ function CreateInput({
         placeholder={
           creatingInfo?.type === "file" ? "输入文件名称" : "输入文件夹名称"
         }
-        className="h-[22px] flex-1 rounded-[3px] px-[6px] text-[13px] outline-none focus:ring-1 focus:ring-[var(--border-color)]"
+        className="h-[22px] min-w-0 flex-1 rounded-[3px] px-[6px] text-[13px] outline-none focus:ring-1 focus:ring-[var(--border-color)]"
         style={{
           backgroundColor: "transparent",
           color: "var(--text-primary)",
