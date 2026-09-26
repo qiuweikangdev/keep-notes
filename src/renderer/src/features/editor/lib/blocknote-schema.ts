@@ -104,6 +104,7 @@ const editorInlineCodeStyleSpec = createStyleSpecFromTipTapMark(
         new InputRule({
           find: /(^|[^`])`([^`]+)`(?!`)$/,
           handler: ({ state, range, match }) => {
+            if (!isCompleteInlineCodeInput(match)) return null;
             const { tr, schema } = state;
             const leadingText = match[1] ?? "";
             const codeText = match[2] ?? "";
@@ -117,6 +118,7 @@ const editorInlineCodeStyleSpec = createStyleSpecFromTipTapMark(
         new InputRule({
           find: /(^|[^`])`([^`]+)`(?!`) $/,
           handler: ({ state, range, match }) => {
+            if (!isCompleteInlineCodeInput(match)) return null;
             const { tr, schema } = state;
             const leadingText = match[1] ?? "";
             const codeText = match[2] ?? "";
@@ -135,7 +137,65 @@ const editorInlineCodeStyleSpec = createStyleSpecFromTipTapMark(
 );
 
 const INLINE_CODE_NORMALIZER_META = "editor-inline-code-normalizer";
-const inlineCodeMarkerPattern = /`([^`\n]+)`/g;
+
+function getInlineCodeMarkerSpans(text: string) {
+  const spans: Array<{
+    from: number;
+    markerLength: number;
+    to: number;
+    text: string;
+  }> = [];
+  let position = 0;
+
+  while (position < text.length) {
+    const opening = text.indexOf("`", position);
+    if (opening === -1) break;
+    let openingEnd = opening;
+    while (text[openingEnd] === "`") openingEnd += 1;
+    const markerLength = openingEnd - opening;
+    const lineEnd = text.indexOf("\n", openingEnd);
+    let closing = openingEnd;
+    let matched = false;
+
+    // 相同长度的连续反引号才构成结束标记；输入尚未闭合时不能把内部的单反引号提前转成代码。
+    while (closing < text.length) {
+      closing = text.indexOf("`", closing);
+      if (closing === -1 || (lineEnd !== -1 && closing > lineEnd)) break;
+      let closingEnd = closing;
+      while (text[closingEnd] === "`") closingEnd += 1;
+      if (closingEnd - closing === markerLength && closing > openingEnd) {
+        spans.push({
+          from: opening,
+          markerLength,
+          to: closingEnd,
+          text: text.slice(openingEnd, closing),
+        });
+        position = closingEnd;
+        matched = true;
+        break;
+      }
+      closing = closingEnd;
+    }
+    if (!matched) {
+      if (lineEnd === -1) break;
+      position = lineEnd + 1;
+    }
+  }
+
+  return spans;
+}
+
+function isCompleteInlineCodeInput(match: RegExpMatchArray) {
+  const input = match.input;
+  const start = match.index;
+  if (input === undefined || start === undefined) return false;
+  const leadingLength = match[1]?.length ?? 0;
+  const markerStart = start + leadingLength;
+  const markerEnd = markerStart + (match[2]?.length ?? 0) + 2;
+  return getInlineCodeMarkerSpans(input).some(
+    (span) => span.from === markerStart && span.to === markerEnd,
+  );
+}
 const INLINE_CODE_EDITING_CONTENT_CLASS = "editor-inline-code__editing-content";
 const INLINE_CODE_EDITING_CARET_CLASS = "editor-inline-code__editing-caret";
 const INLINE_CODE_EDITING_CLOSING_BOUNDARY_CLASS =
@@ -177,6 +237,7 @@ const inlineCodeEditingPluginKey = new PluginKey<InlineCodeEditingState>(
 
 type InlineCodeMarkerReplacement = {
   from: number;
+  markerLength: number;
   marks: Mark[];
   text: string;
   to: number;
@@ -198,16 +259,13 @@ function collectInlineCodeMarkerReplacements(
       return true;
     if (state.doc.resolve(pos).parent.type.spec.code) return true;
 
-    for (const match of node.text.matchAll(inlineCodeMarkerPattern)) {
-      const matchIndex = match.index;
-      const codeText = match[1];
-      if (matchIndex === undefined || !codeText) continue;
-
+    for (const span of getInlineCodeMarkerSpans(node.text)) {
       replacements.push({
-        from: pos + matchIndex,
+        from: pos + span.from,
+        markerLength: span.markerLength,
         marks: [...node.marks, codeMark.create()],
-        text: codeText,
-        to: pos + matchIndex + match[0].length,
+        text: span.text,
+        to: pos + span.to,
       });
     }
 
@@ -230,6 +288,39 @@ function createInlineCodeMarkerNormalizationTransaction(
       replacement.to,
       state.schema.text(replacement.text, replacement.marks),
     );
+  }
+
+  if (
+    state.selection.empty &&
+    replacements.some((replacement) => replacement.to === state.selection.from)
+  ) {
+    tr.setStoredMarks(
+      state.selection.$from
+        .marks()
+        .filter((mark) => mark.type !== state.schema.marks.code),
+    );
+  }
+
+  const completedMultiBacktickCode = replacements.find(
+    (replacement) =>
+      replacement.markerLength > 1 &&
+      state.selection.empty &&
+      replacement.to === state.selection.from,
+  );
+  if (completedMultiBacktickCode) {
+    const activeRange = {
+      from: tr.mapping.map(completedMultiBacktickCode.from, -1),
+      to: tr.mapping.map(completedMultiBacktickCode.to, 1),
+    };
+    // 多反引号的结束标记刚输入完毕时，下一次输入应接在代码外侧。
+    tr.setMeta(inlineCodeEditingPluginKey, {
+      activeRange,
+      openingBoundaryPosition: null,
+      closingBoundaryPosition: activeRange.to,
+      isComposing: false,
+      isBlurred: false,
+      suppressedSelectionPosition: null,
+    });
   }
 
   return tr.docChanged ? tr.setMeta(INLINE_CODE_NORMALIZER_META, true) : null;

@@ -1510,6 +1510,46 @@ describe("editor BlockNote schema", () => {
     ).toBe("测试");
   });
 
+  it("keeps a literal backtick inside double-backtick inline code while typing", async () => {
+    setupMatchMedia();
+    const editor = CoreEditorFactory.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[0].id, "start");
+    typeString(editor, "前 ``a`b`` 后");
+
+    expect(editor.document[0].content).toEqual([
+      { type: "text", text: "前 ", styles: {} },
+      { type: "text", text: "a`b", styles: { code: true } },
+      { type: "text", text: " 后", styles: {} },
+    ]);
+    expect(await serializeMarkdown(editor, editor.document)).toBe(
+      "前 ``a`b`` 后\n",
+    );
+  });
+
+  it("normalizes a pasted double-backtick code span without losing its inner backtick", () => {
+    setupMatchMedia();
+    const editor = CoreEditorFactory.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    render(createElement(BlockNoteView, { editor }));
+
+    editor.setTextCursorPosition(editor.document[0].id, "start");
+    const view = editor.prosemirrorView;
+    view.dispatch(view.state.tr.insertText("前 ``a`b`` 后"));
+
+    expect(editor.document[0].content).toEqual([
+      { type: "text", text: "前 ", styles: {} },
+      { type: "text", text: "a`b", styles: { code: true } },
+      { type: "text", text: " 后", styles: {} },
+    ]);
+  });
+
   it("converts keyboard-entered markdown inline code into styled text", async () => {
     setupMatchMedia();
     const user = userEvent.setup();
