@@ -146,6 +146,19 @@ describe("buildFileTreeRows", () => {
     ]);
   });
 
+  it("places a root create row before its children", () => {
+    expect(buildFileTreeRows(flatNodes, "D:/notes", "D:/notes")).toEqual([
+      {
+        type: "create",
+        key: "create:D:/notes",
+        parentKey: "D:/notes",
+      },
+      { type: "node", key: "D:/notes/work", node: flatNodes[0] },
+      { type: "node", key: "D:/notes/work/daily.md", node: flatNodes[1] },
+    ]);
+    expect(buildFileTreeRows([], "D:/notes", "D:/notes")).toHaveLength(1);
+  });
+
   it("keeps only real nodes when there is no visible parent for the create row", () => {
     expect(buildFileTreeRows(flatNodes, "D:/notes/missing")).toEqual([
       { type: "node", key: "D:/notes/work", node: flatNodes[0] },

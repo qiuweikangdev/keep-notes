@@ -115,8 +115,18 @@ export function findNodeByKey(nodes: TreeNode[], key: string): TreeNode | null {
 export function buildFileTreeRows(
   flatNodes: FlatNode[],
   creatingParentKey?: string | null,
+  rootKey?: string,
 ): FileTreeRow[] {
   const rows: FileTreeRow[] = [];
+
+  // 根节点单独渲染，新建行放在子列表首位，与根节点保持父子层级。
+  if (creatingParentKey && creatingParentKey === rootKey) {
+    rows.push({
+      type: "create",
+      key: `create:${rootKey}`,
+      parentKey: rootKey,
+    });
+  }
 
   for (const node of flatNodes) {
     rows.push({ type: "node", key: node.key, node });

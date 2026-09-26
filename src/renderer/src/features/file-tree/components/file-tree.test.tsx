@@ -767,6 +767,26 @@ describe("FileTree context menu", () => {
     });
   });
 
+  it("shows a new root folder under the root and expands a collapsed tree", async () => {
+    useTreeStore.setState({ expandedKeys: new Set() });
+    const { container } = render(<FileTree />);
+    const rootNode = container.querySelector(".tree-node-root");
+    expect(rootNode).not.toBeNull();
+
+    fireEvent.contextMenu(rootNode!);
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: /新建文件夹$/ }),
+    );
+
+    const input = await screen.findByPlaceholderText("输入文件夹名称");
+    expect(useTreeStore.getState().expandedKeys.has("/notes")).toBe(true);
+    expect(input.closest(".file-tree-scroll-container")).not.toBeNull();
+    expect(rootNode!.compareDocumentPosition(input)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(input.parentElement).toHaveStyle({ transform: "translateY(0px)" });
+  });
+
   it("waits for IME composition to finish before creating a nested file", async () => {
     useTreeStore.setState({
       treeData: [

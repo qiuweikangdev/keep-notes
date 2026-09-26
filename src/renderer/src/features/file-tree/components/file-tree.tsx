@@ -122,8 +122,6 @@ export function FileTree() {
     openFolder,
     openInExplorer,
     openFile,
-    createFile,
-    createFolder,
     deleteItem,
     copyPath,
     openInNewWindow,
@@ -156,7 +154,6 @@ export function FileTree() {
   const openCreateReminder = useReminderStore((s) => s.openCreateDialog);
 
   const [creatingInfo, setCreatingInfo] = useState<CreatingInfo | null>(null);
-  const [createValue, setCreateValue] = useState("");
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const [isBottomMenuOpen, setIsBottomMenuOpen] = useState(false);
   const sidebarHoverResetFrameRef = useRef<number | null>(null);
@@ -166,9 +163,6 @@ export function FileTree() {
     title: string;
   }>({ open: false, key: "", title: "" });
   const [isRootDropTarget, setIsRootDropTarget] = useState(false);
-  const createInputRef = useRef<HTMLInputElement>(null);
-  const confirmedRef = useRef(false);
-  const isRootCreateComposingRef = useRef(false);
   const rootDragDepthRef = useRef(0);
   const previousSidebarViewRef = useRef(sidebarView);
   const lastSelectedRevealKeyRef = useRef<string | null>(null);
@@ -176,7 +170,6 @@ export function FileTree() {
   const revealGenerationRef = useRef(0);
   const [fileTreeRevealRequest, setFileTreeRevealRequest] =
     useState<FileTreeRevealRequest | null>(null);
-  const isRootCreating = creatingInfo?.parentKey === treeRoot?.key;
   const revealInFileManagerLabel = getRevealInFileManagerLabel(
     window.electronAPI?.getPlatform(),
   );
@@ -372,12 +365,6 @@ export function FileTree() {
   }, [revealTreeNode]);
 
   useEffect(() => {
-    if (isRootCreating && createInputRef.current) {
-      requestAnimationFrame(() => createInputRef.current?.focus());
-    }
-  }, [isRootCreating]);
-
-  useEffect(() => {
     const previousSidebarView = previousSidebarViewRef.current;
     previousSidebarViewRef.current = sidebarView;
 
@@ -429,78 +416,9 @@ export function FileTree() {
     void revealTreeNode(selectedKey, "center");
   }, [revealTreeNode, selectedKey, sidebarView, treeRootKey]);
 
-  const doRootCreate = useCallback(async () => {
-    const title = createValue.trim();
-    if (!title || !creatingInfo || !treeRoot) {
-      setCreateValue("");
-      setCreatingInfo(null);
-      return;
-    }
-    const fn = creatingInfo?.type === "file" ? createFile : createFolder;
-    const r = await fn(treeRoot.key, title, treeData);
-    if (r.code === CodeResult.Success && r.data) {
-      const newKey = buildCreatedNodeKey(
-        treeRoot.key,
-        title,
-        creatingInfo.type,
-      );
-      setTreeData(r.data.treeData);
-      setCreateValue("");
-      setCreatingInfo(null);
-      revealCreatedNode(treeRoot.key, newKey);
-      return;
-    }
-    if (r.message) showAppToast(r.message);
-    setCreateValue("");
-    setCreatingInfo(null);
-  }, [
-    createValue,
-    creatingInfo,
-    treeRoot,
-    treeData,
-    createFile,
-    createFolder,
-    setTreeData,
-    revealCreatedNode,
-  ]);
-
-  const handleRootCreateKeyDown = useCallback(
-    (e: KeyboardEvent<HTMLInputElement>) => {
-      const isComposing =
-        isRootCreateComposingRef.current ||
-        e.nativeEvent.isComposing ||
-        e.keyCode === 229;
-
-      // 输入法组合态下的 Enter 仅用于确认候选字，不能提前创建节点。
-      if (isComposing) return;
-
-      if (e.key === "Enter") {
-        e.preventDefault();
-        confirmedRef.current = true;
-        void doRootCreate();
-      }
-      if (e.key === "Escape") {
-        confirmedRef.current = true;
-        setCreateValue("");
-        setCreatingInfo(null);
-      }
-    },
-    [doRootCreate],
-  );
-
   const handleSelectDir = useCallback(async () => {
     await openFolder();
   }, [openFolder]);
-
-  const handleStartCreateFile = useCallback(() => {
-    if (!treeRoot) return;
-    setCreatingInfo({ type: "file", parentKey: treeRoot.key, level: 0 });
-  }, [treeRoot]);
-
-  const handleStartCreateFolder = useCallback(() => {
-    if (!treeRoot) return;
-    setCreatingInfo({ type: "folder", parentKey: treeRoot.key, level: 0 });
-  }, [treeRoot]);
 
   // 根节点拖拽处理
   const isTreeFileDrag = useCallback((e: React.DragEvent) => {
@@ -781,65 +699,6 @@ export function FileTree() {
           >
             {sidebarView === "file" ? (
               <>
-                {isRootCreating ? (
-                  <div
-                    className="mx-2 mb-1 flex h-7 items-center rounded-md"
-                    style={{
-                      paddingLeft: "8px",
-                      paddingRight: "8px",
-                      backgroundColor: "var(--bg-tertiary)",
-                      border: "1px solid var(--border-color)",
-                    }}
-                  >
-                    <div className="flex h-[26px] w-[12px] flex-shrink-0 items-center justify-center" />
-                    <div className="mr-[6px] flex h-[26px] w-[16px] flex-shrink-0 items-center justify-center">
-                      {creatingInfo?.type === "file" ? (
-                        <File
-                          className="h-[14px] w-[14px]"
-                          style={{ color: "var(--text-muted)" }}
-                        />
-                      ) : (
-                        <Folder
-                          className="h-[14px] w-[14px]"
-                          style={{ color: "var(--text-secondary)" }}
-                        />
-                      )}
-                    </div>
-                    <input
-                      ref={createInputRef}
-                      autoFocus
-                      value={createValue}
-                      onChange={(e) => setCreateValue(e.target.value)}
-                      onKeyDown={handleRootCreateKeyDown}
-                      onCompositionStart={() => {
-                        isRootCreateComposingRef.current = true;
-                      }}
-                      onCompositionEnd={() => {
-                        isRootCreateComposingRef.current = false;
-                      }}
-                      onBlur={() => {
-                        if (confirmedRef.current) {
-                          confirmedRef.current = false;
-                          return;
-                        }
-                        setTimeout(() => void doRootCreate(), 100);
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      placeholder={
-                        creatingInfo?.type === "file"
-                          ? "输入文件名称"
-                          : "输入文件夹名称"
-                      }
-                      className="h-[22px] flex-1 rounded-[3px] px-[6px] text-[13px] outline-none"
-                      style={{
-                        backgroundColor: "transparent",
-                        border: "1px solid transparent",
-                        color: "var(--text-primary)",
-                      }}
-                    />
-                  </div>
-                ) : null}
-
                 {/* 根节点 */}
                 <ContextMenu.Root modal={false}>
                   <ContextMenu.Trigger asChild>
@@ -919,13 +778,17 @@ export function FileTree() {
                     <ContextMenu.Content className={MENU_CONTENT_CLASS}>
                       <ContextMenu.Item
                         className={MENU_ITEM_CLASS}
-                        onClick={handleStartCreateFile}
+                        onClick={() =>
+                          handleCreateInFolder(treeRoot.key, "file", 1)
+                        }
                       >
                         <Plus className="h-4 w-4" /> 新建文件
                       </ContextMenu.Item>
                       <ContextMenu.Item
                         className={MENU_ITEM_CLASS}
-                        onClick={handleStartCreateFolder}
+                        onClick={() =>
+                          handleCreateInFolder(treeRoot.key, "folder", 1)
+                        }
                       >
                         <FolderPlus className="h-4 w-4" /> 新建文件夹
                       </ContextMenu.Item>
@@ -962,6 +825,7 @@ export function FileTree() {
                 {/* 虚拟化子节点列表 */}
                 <VirtualizedTreeList
                   flatNodes={flatNodes}
+                  rootKey={treeRoot.key}
                   isExpanded={isRootExpanded}
                   selectedKey={selectedKey}
                   revealRequest={fileTreeRevealRequest}
@@ -1007,13 +871,13 @@ export function FileTree() {
         <ContextMenu.Content className={MENU_CONTENT_CLASS}>
           <ContextMenu.Item
             className={MENU_ITEM_CLASS}
-            onClick={handleStartCreateFile}
+            onClick={() => handleCreateInFolder(treeRoot.key, "file", 1)}
           >
             <Plus className="h-4 w-4" /> 新建文件
           </ContextMenu.Item>
           <ContextMenu.Item
             className={MENU_ITEM_CLASS}
-            onClick={handleStartCreateFolder}
+            onClick={() => handleCreateInFolder(treeRoot.key, "folder", 1)}
           >
             <FolderPlus className="h-4 w-4" /> 新建文件夹
           </ContextMenu.Item>
@@ -1060,6 +924,7 @@ export function FileTree() {
 
 interface VirtualizedTreeListProps {
   flatNodes: FlatNode[];
+  rootKey: string;
   isExpanded: boolean;
   selectedKey: string | null;
   revealRequest: FileTreeRevealRequest | null;
@@ -1081,6 +946,7 @@ interface VirtualizedTreeListProps {
 
 const VirtualizedTreeList = memo(function VirtualizedTreeList({
   flatNodes,
+  rootKey,
   isExpanded,
   selectedKey,
   revealRequest,
@@ -1096,8 +962,11 @@ const VirtualizedTreeList = memo(function VirtualizedTreeList({
   openCreateReminder,
 }: VirtualizedTreeListProps) {
   const rows = useMemo(
-    () => buildFileTreeRows(flatNodes, creatingInfo?.parentKey),
-    [creatingInfo?.parentKey, flatNodes],
+    () =>
+      isExpanded
+        ? buildFileTreeRows(flatNodes, creatingInfo?.parentKey, rootKey)
+        : [],
+    [creatingInfo?.parentKey, flatNodes, isExpanded, rootKey],
   );
   const previousRowsRef = useRef<FileTreeRow[]>([]);
   const hasRenderedRowsRef = useRef(false);
