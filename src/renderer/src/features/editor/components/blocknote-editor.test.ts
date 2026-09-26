@@ -62,6 +62,7 @@ import {
   resolveEditorTextPositions,
   registerRichEditorSelectionDragGuardPlugin,
   richEditorDefaultUIProps,
+  resolveSerializedMarkdownChange,
   uploadEditorImageFileAsAttachment,
   selectEntireRichEditorContent,
   shouldLetCodeMirrorHandleKeyboardEvent,
@@ -136,6 +137,81 @@ afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+});
+
+describe("rich list source snapshots", () => {
+  it("omits a newly created terminal empty bullet and saves it once filled", async () => {
+    const editor = CoreEditorFactory.create({
+      schema: editorSchema,
+      initialContent: [{ type: "bulletListItem", content: "first" }],
+    });
+    const source = "- first\n";
+    const baseline = await markdownMocks.actualSerializeMarkdown!(
+      editor,
+      editor.document,
+    );
+    editor.insertBlocks(
+      [{ type: "bulletListItem", content: "" }],
+      editor.document[0],
+      "after",
+    );
+    const emptySnapshot = await markdownMocks.actualSerializeMarkdown!(
+      editor,
+      editor.document,
+    );
+
+    expect(
+      resolveSerializedMarkdownChange(
+        source,
+        baseline,
+        emptySnapshot,
+        editor.document,
+      ),
+    ).toBeNull();
+
+    editor.updateBlock(editor.document[1], { content: "second" });
+    const filledSnapshot = await markdownMocks.actualSerializeMarkdown!(
+      editor,
+      editor.document,
+    );
+    expect(
+      resolveSerializedMarkdownChange(
+        source,
+        emptySnapshot,
+        filledSnapshot,
+        editor.document,
+      ),
+    ).toBe("- first\n- second\n");
+  });
+
+  it("keeps an empty terminal bullet that already exists in the source", async () => {
+    const editor = CoreEditorFactory.create({
+      schema: editorSchema,
+      initialContent: [
+        { type: "bulletListItem", content: "first" },
+        { type: "bulletListItem", content: "" },
+      ],
+    });
+    const source = "- first\n-\n";
+    const baseline = await markdownMocks.actualSerializeMarkdown!(
+      editor,
+      editor.document,
+    );
+    editor.updateBlock(editor.document[0], { content: "first edited" });
+    const edited = await markdownMocks.actualSerializeMarkdown!(
+      editor,
+      editor.document,
+    );
+
+    expect(
+      resolveSerializedMarkdownChange(
+        source,
+        baseline,
+        edited,
+        editor.document,
+      ),
+    ).toBe("- first edited\n-\n");
+  });
 });
 
 function createRect() {

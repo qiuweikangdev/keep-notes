@@ -1803,9 +1803,23 @@ export function resolveSerializedMarkdownChange(
   source: string,
   baseline: string,
   serialized: string,
+  blocks: Block[],
 ): string | null {
-  if (baseline === serialized) return null;
-  const markdown = preserveMarkdownSource(source, baseline, serialized);
+  const lastBlock = blocks.at(-1);
+  const hasNewTerminalEmptyBullet =
+    lastBlock?.type === "bulletListItem" &&
+    lastBlock.content.length === 0 &&
+    lastBlock.children.length === 0 &&
+    !/(?:^|\r\n|\r|\n)[ \t]{0,3}[-+*]$/u.test(source.trimEnd());
+  const terminalBullet = hasNewTerminalEmptyBullet
+    ? /(^|(\r\n|\r|\n))[ \t]{0,3}[-+*][ \t]*(?:\r\n|\r|\n)?$/u.exec(serialized)
+    : null;
+  // 末尾刚按 Enter 产生的空列表项只是继续输入的占位；源码原本有空项时仍原样保留。
+  const edited = terminalBullet
+    ? serialized.slice(0, terminalBullet.index) + (terminalBullet[2] ?? "")
+    : serialized;
+  if (baseline === edited) return null;
+  const markdown = preserveMarkdownSource(source, baseline, edited);
   return markdownEquals(markdown, source) ? null : markdown;
 }
 
@@ -3729,6 +3743,7 @@ function MountedBlockNoteEditor({
           contentRef.current,
           baseline,
           serialized,
+          serializedBlocks,
         );
         if (!isCurrentLifecycle()) return;
         serializedBaselineRef.current = serialized;
