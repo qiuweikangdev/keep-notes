@@ -138,6 +138,7 @@ describe("GitPanel", () => {
     electronMocks.unstageFiles.mockResolvedValue({
       code: CodeResult.Success,
     });
+    electronMocks.pushToRemote.mockResolvedValue({ code: CodeResult.Success });
     electronMocks.loadTree.mockResolvedValue(undefined);
     electronMocks.openFile.mockResolvedValue(undefined);
     electronMocks.getCommitHistory.mockResolvedValue({
@@ -465,6 +466,128 @@ describe("GitPanel", () => {
       ).not.toBeInTheDocument();
     },
   );
+
+  it("loads file status while the independent branch request is still pending", async () => {
+    let resolveBranches: (value: unknown) => void;
+    electronMocks.getBranches.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveBranches = resolve;
+        }),
+    );
+
+    render(<GitPanel isOpen onClose={vi.fn()} />);
+
+    expect(await screen.findByText("changed.md")).toBeInTheDocument();
+    expect(electronMocks.getGitStatus).toHaveBeenCalledOnce();
+    resolveBranches!({
+      code: CodeResult.Success,
+      data: [{ name: "main", current: true }],
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "推送" })).toBeEnabled(),
+    );
+  });
+
+  it("keeps a successful local commit when push fails and retries only the push", async () => {
+    electronMocks.commitChanges.mockResolvedValue({ code: CodeResult.Success });
+    let resolvePush: (value: unknown) => void;
+    electronMocks.pushToRemote.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolvePush = resolve;
+        }),
+    );
+    render(<GitPanel isOpen onClose={vi.fn()} />);
+    await screen.findByText("changed.md");
+    electronMocks.getGitStatus.mockResolvedValueOnce({
+      code: CodeResult.Success,
+      data: {
+        current: "main",
+        tracking: "origin/main",
+        files: [],
+        ahead: 1,
+        behind: 0,
+        created: [],
+        not_added: [],
+        modified: [],
+        deleted: [],
+        renamed: [],
+        staged: [],
+        conflicted: [],
+      },
+    });
+    const messageInput = screen.getByPlaceholderText(
+      "提交信息（留空将自动生成）...",
+    );
+    fireEvent.change(messageInput, { target: { value: "fix: update notes" } });
+    fireEvent.click(screen.getByRole("button", { name: "提交并推送" }));
+
+    await waitFor(() =>
+      expect(electronMocks.pushToRemote).toHaveBeenCalledOnce(),
+    );
+    expect(electronMocks.commitChanges).toHaveBeenCalledWith(
+      "/notes",
+      expect.objectContaining({ push: false }),
+    );
+    expect(messageInput).toHaveValue("");
+    expect(screen.getByText("正在推送到远程…")).toBeInTheDocument();
+    // 两个阶段之间不扫描状态，推送直接接在本地提交之后。
+    expect(electronMocks.getGitStatus).toHaveBeenCalledTimes(1);
+
+    resolvePush!({ code: CodeResult.Fail, message: "network unavailable" });
+    expect(
+      await screen.findByText("提交成功，但推送失败：network unavailable"),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("无更改")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "推送" })).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "推送" }));
+    expect(await screen.findByText("推送成功")).toBeInTheDocument();
+    expect(electronMocks.pushToRemote).toHaveBeenCalledTimes(2);
+    expect(electronMocks.commitChanges).toHaveBeenCalledOnce();
+  });
+
+  it("keeps push success visible when the following status refresh fails", async () => {
+    render(<GitPanel isOpen onClose={vi.fn()} />);
+    await screen.findByText("changed.md");
+    let rejectStatus: (error: Error) => void;
+    electronMocks.getGitStatus.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectStatus = reject;
+        }),
+    );
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "推送" }));
+      expect(await screen.findByText("推送成功")).toBeInTheDocument();
+      expect(screen.getByText("正在更新文件状态…")).toBeInTheDocument();
+      rejectStatus!(new Error("status unavailable"));
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("status", { name: "Git 操作进行中" }),
+        ).not.toBeInTheDocument(),
+      );
+      expect(screen.getByText("推送成功")).toBeInTheDocument();
+      expect(screen.queryByText("推送失败")).not.toBeInTheDocument();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("does not push when the local commit fails", async () => {
+    electronMocks.commitChanges.mockResolvedValue({
+      code: CodeResult.Fail,
+      message: "commit hook failed",
+    });
+    render(<GitPanel isOpen onClose={vi.fn()} />);
+    await screen.findByText("changed.md");
+    fireEvent.click(screen.getByRole("button", { name: "提交并推送" }));
+    expect(await screen.findByText("commit hook failed")).toBeInTheDocument();
+    expect(electronMocks.pushToRemote).not.toHaveBeenCalled();
+  });
 
   it("disables push when there is no local commit to push", async () => {
     electronMocks.getGitStatus.mockResolvedValueOnce({
@@ -895,6 +1018,8 @@ describe("GitPanel", () => {
       expect(electronMocks.getGitStatus).toHaveBeenCalledTimes(2);
       expect(screen.queryByText("changed.md")).not.toBeInTheDocument();
     });
+    expect(electronMocks.detectGitRepo).toHaveBeenCalledOnce();
+    expect(electronMocks.getBranches).toHaveBeenCalledOnce();
   });
 
   it("adds tips to icon-only controls and hides the single-line commit scrollbar", async () => {

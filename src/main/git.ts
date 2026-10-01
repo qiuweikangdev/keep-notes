@@ -37,8 +37,7 @@ function getGitInstance(
       "core.quotepath=false",
       ...(options.remote
         ? [
-            // 网络连接失败或传输持续低于 1 B/s 时，让 Git 尽快结束，而不是等待系统默认超时。
-            "http.connectTimeout=15",
+            // 传输持续低于 1 B/s 时结束请求，连接及凭据等待由 block timeout 兜底。
             "http.lowSpeedLimit=1",
             "http.lowSpeedTime=30",
           ]
@@ -48,19 +47,53 @@ function getGitInstance(
       ? {
           // simple-git 的 block timeout 是滚动超时，可同时覆盖无输出的凭据/网络卡死。
           timeout: { block: GIT_REMOTE_TIMEOUT_MS },
+          // 只信任主进程已有的工具配置，不接收渲染进程传入的 SSH 或凭据命令。
+          unsafe: {
+            allowUnsafeSshCommand:
+              process.env.GIT_SSH !== undefined ||
+              process.env.GIT_SSH_COMMAND !== undefined,
+            allowUnsafeAskPass:
+              process.env.GIT_ASKPASS !== undefined ||
+              process.env.SSH_ASKPASS !== undefined,
+            allowUnsafePager:
+              process.env.PAGER !== undefined ||
+              process.env.GIT_PAGER !== undefined,
+            allowUnsafeEditor:
+              process.env.EDITOR !== undefined ||
+              process.env.GIT_EDITOR !== undefined,
+          },
         }
       : {}),
   });
 
   if (options.remote) {
-    // Electron 子进程没有可用的交互式终端，禁止 Git 等待用户名或密码输入。
-    git.env("GIT_TERMINAL_PROMPT", "0");
+    // env() 会替换整个子进程环境，必须保留代理、PATH 和 SSH agent 等配置。
+    git.env({ ...process.env, GIT_TERMINAL_PROMPT: "0" });
   }
 
   return git;
 }
 
 const normalizeGitPath = (p: string) => p.replace(/\\/g, "/");
+
+async function measureGitOperation<T>(
+  phase: "stage" | "commit" | "push" | "status",
+  operation: () => Promise<T>,
+): Promise<T> {
+  const startedAt = performance.now();
+  let success = false;
+  try {
+    const result = await operation();
+    success = true;
+    return result;
+  } finally {
+    // 只记录阶段和耗时，避免远程地址、文件名或凭据进入诊断日志。
+    const durationMs = Math.round(performance.now() - startedAt);
+    if (phase !== "status" || durationMs >= 1_000 || !success) {
+      console.info("[Git operation]", { phase, durationMs, success });
+    }
+  }
+}
 
 const getGitErrorMessage = (e: unknown) =>
   e instanceof Error ? e.toString() : String(e);
@@ -294,7 +327,9 @@ export async function getStatus(
 ): Promise<ApiResponse<GitStatus>> {
   try {
     const git = getGitInstance(dirPath);
-    const status: StatusResult = await git.status();
+    const status: StatusResult = await measureGitOperation("status", async () =>
+      git.status(),
+    );
 
     // 确保路径使用正斜杠
     const normalizePath = (p: string) => p.replace(/\\/g, "/");
@@ -380,39 +415,46 @@ export async function commit(
   dirPath: string,
   options: GitCommitOptions,
 ): Promise<ApiResponse> {
+  let committed = false;
   try {
     const git = getGitInstance(dirPath);
     const commitMessage =
       options.message || dayjs().format("YYYY-MM-DD HH:mm:ss");
+    const files = options.files;
 
     // 未指定文件时包含全部工作区更改；空数组表示仅提交当前暂存区，避免部分暂存文件被重新完整暂存。
-    if (options.files === undefined) {
-      await git.add(".");
-    } else if (options.files.length > 0) {
-      await git.add(options.files);
+    if (files === undefined) {
+      await measureGitOperation("stage", async () => git.add("."));
+    } else if (files.length > 0) {
+      await measureGitOperation("stage", async () => git.add(files));
     }
 
     // 提交
-    await git.commit(commitMessage);
+    await measureGitOperation("commit", async () => git.commit(commitMessage));
+    committed = true;
 
     // 如果需要推送
     if (options.push) {
       // 直接推送当前 HEAD，与命令行 `git push origin HEAD` 保持一致，避免额外查询分支及 simple-git 的附加参数。
-      await getGitInstance(dirPath, { remote: true }).raw([
-        "push",
-        "origin",
-        "HEAD",
-      ]);
+      await measureGitOperation("push", async () =>
+        getGitInstance(dirPath, { remote: true }).raw([
+          "push",
+          "origin",
+          "HEAD",
+        ]),
+      );
     }
 
     return {
       code: CodeResult.Success,
       message: options.push ? "提交并推送成功" : "提交成功",
     };
-  } catch (e: any) {
+  } catch (e: unknown) {
     return {
       code: CodeResult.Fail,
-      message: getRemoteGitErrorMessage(e),
+      message: committed
+        ? `提交成功，但推送失败：${getRemoteGitErrorMessage(e)}`
+        : getGitErrorMessage(e),
     };
   }
 }
@@ -422,12 +464,14 @@ export async function push(dirPath: string): Promise<ApiResponse> {
   try {
     const git = getGitInstance(dirPath, { remote: true });
     // 直接推送当前 HEAD，与用户在终端验证过的快速路径一致。
-    await git.raw(["push", "origin", "HEAD"]);
+    await measureGitOperation("push", async () =>
+      git.raw(["push", "origin", "HEAD"]),
+    );
     return {
       code: CodeResult.Success,
       message: "推送成功",
     };
-  } catch (e: any) {
+  } catch (e: unknown) {
     return {
       code: CodeResult.Fail,
       message: getRemoteGitErrorMessage(e),

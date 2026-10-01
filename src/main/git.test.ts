@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CodeResult } from "../shared/types";
 import {
   commit,
@@ -20,6 +20,10 @@ const gitMocks = vi.hoisted(() => ({
   simpleGit: vi.fn(),
   status: vi.fn(),
 }));
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 vi.mock("simple-git", () => ({
   simpleGit: gitMocks.simpleGit,
@@ -172,14 +176,16 @@ describe("git working tree operations", () => {
     expect(gitMocks.simpleGit.mock.calls[1][0]).toEqual(
       expect.objectContaining({
         config: expect.arrayContaining([
-          "http.connectTimeout=15",
           "http.lowSpeedLimit=1",
           "http.lowSpeedTime=30",
         ]),
         timeout: { block: 120_000 },
       }),
     );
-    expect(gitMocks.env).toHaveBeenCalledWith("GIT_TERMINAL_PROMPT", "0");
+    const environment = gitMocks.env.mock.calls[0]?.[0] as
+      | NodeJS.ProcessEnv
+      | undefined;
+    expect(environment?.GIT_TERMINAL_PROMPT).toBe("0");
     expect(result.code).toBe(CodeResult.Success);
   });
 
@@ -189,6 +195,53 @@ describe("git working tree operations", () => {
     expect(gitMocks.branchLocal).not.toHaveBeenCalled();
     expect(gitMocks.raw).toHaveBeenCalledWith(["push", "origin", "HEAD"]);
     expect(result.code).toBe(CodeResult.Success);
+  });
+
+  it("preserves the inherited environment needed by proxies and SSH authentication", async () => {
+    vi.stubEnv("HTTPS_PROXY", "http://proxy.invalid:8080");
+    vi.stubEnv("SSH_AUTH_SOCK", "/tmp/keep-notes-test-agent.sock");
+    vi.stubEnv("PATH", "/keep-notes-test/bin");
+    vi.stubEnv("GIT_SSH_COMMAND", "ssh -o BatchMode=yes");
+    vi.stubEnv("GIT_ASKPASS", "/keep-notes-test/askpass");
+    vi.stubEnv("PAGER", "");
+
+    await push("/notes");
+
+    const environment = gitMocks.env.mock.calls[0]?.[0] as
+      | NodeJS.ProcessEnv
+      | undefined;
+    // 逐项断言测试注入的值，失败时也不把整个进程环境输出到测试日志。
+    expect(environment?.HTTPS_PROXY).toBe("http://proxy.invalid:8080");
+    expect(environment?.SSH_AUTH_SOCK).toBe("/tmp/keep-notes-test-agent.sock");
+    expect(environment?.PATH).toBe("/keep-notes-test/bin");
+    expect(environment?.GIT_SSH_COMMAND).toBe("ssh -o BatchMode=yes");
+    expect(environment?.GIT_ASKPASS).toBe("/keep-notes-test/askpass");
+    expect(environment?.GIT_TERMINAL_PROMPT).toBe("0");
+    expect(gitMocks.simpleGit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        unsafe: expect.objectContaining({
+          allowUnsafeSshCommand: true,
+          allowUnsafeAskPass: true,
+          allowUnsafePager: true,
+        }),
+      }),
+    );
+  });
+
+  it("reports that the local commit succeeded when the following push fails", async () => {
+    gitMocks.raw.mockRejectedValueOnce(new Error("network unavailable"));
+
+    const result = await commit("/notes", {
+      message: "test: preserve local commit",
+      files: [],
+      push: true,
+    });
+
+    expect(gitMocks.commit).toHaveBeenCalledOnce();
+    expect(result).toEqual({
+      code: CodeResult.Fail,
+      message: "提交成功，但推送失败：Error: network unavailable",
+    });
   });
 
   it("returns a retryable message when a remote operation times out", async () => {

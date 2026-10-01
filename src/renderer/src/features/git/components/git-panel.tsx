@@ -79,6 +79,14 @@ const DISCARD_ALL_CHANGES = "__ALL_GIT_CHANGES__";
 type GitPanelTab = "changes" | "history";
 type GitFooterOperation = "pull" | "push" | "commit" | "commit-and-push";
 type GitChangeSection = "staged" | "unstaged";
+type GitOperationPhase = "commit" | "push" | "pull" | "refresh";
+
+const GIT_OPERATION_LABELS: Record<GitOperationPhase, string> = {
+  commit: "正在提交更改…",
+  push: "正在推送到远程…",
+  pull: "正在从远程拉取…",
+  refresh: "正在更新文件状态…",
+};
 
 const formatGitHistoryDate = (date: string) => {
   const parsed = new Date(date);
@@ -325,6 +333,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
   const [loading, setLoading] = useState(false);
   const [activeFooterOperation, setActiveFooterOperation] =
     useState<GitFooterOperation | null>(null);
+  const [operationPhase, setOperationPhase] =
+    useState<GitOperationPhase | null>(null);
   const [isGitInfoLoading, setIsGitInfoLoading] = useState(false);
   const [showBranchList, setShowBranchList] = useState(false);
   const [showCreateBranch, setShowCreateBranch] = useState(false);
@@ -383,6 +393,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     setIncludeUntracked(true);
     setLoading(false);
     setActiveFooterOperation(null);
+    setOperationPhase(null);
     setIsGitInfoLoading(false);
     setShowBranchList(false);
     setShowCreateBranch(false);
@@ -408,13 +419,18 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
 
   const refreshGitStatus = useCallback(
     async (dir: string): Promise<void> => {
-      const statusResult = await getGitStatus(dir);
-      if (statusResult?.code !== CodeResult.Success || !statusResult.data) {
-        return;
-      }
+      try {
+        const statusResult = await getGitStatus(dir);
+        if (statusResult?.code !== CodeResult.Success || !statusResult.data) {
+          return;
+        }
 
-      setGitStatus(statusResult.data);
-      setStagedFiles(new Set(statusResult.data.staged));
+        setGitStatus(statusResult.data);
+        setStagedFiles(new Set(statusResult.data.staged));
+      } catch {
+        // 状态读取失败不应把已经成功的提交或推送误报为失败。
+        console.warn("[Git operation] 文件状态刷新失败");
+      }
     },
     [getGitStatus],
   );
@@ -433,7 +449,10 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       if (detectResult?.code === CodeResult.Success && detectResult.data) {
         setIsGitRepo(detectResult.data.isGitRepo);
         if (detectResult.data.isGitRepo) {
-          const branchResult = await getBranches(dir);
+          const [branchResult] = await Promise.all([
+            getBranches(dir),
+            refreshGitStatus(dir),
+          ]);
           if (branchResult?.code === CodeResult.Success && branchResult.data) {
             setBranches(branchResult.data);
             const current = branchResult.data.find((b) => b.current);
@@ -441,8 +460,6 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
               setCurrentBranch(current.name);
             }
           }
-
-          await refreshGitStatus(dir);
         }
       } else {
         setIsGitRepo(false);
@@ -536,7 +553,8 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         return;
       }
 
-      void loadGitInfo();
+      // 文件变化只影响状态，避免重复检测仓库及枚举分支，也避免重置操作中的 loading。
+      void refreshGitStatus(getCurrentDir());
     };
 
     window.addEventListener(GIT_STATUS_CHANGE_EVENT, handleGitStatusChange);
@@ -546,7 +564,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         handleGitStatusChange,
       );
     };
-  }, [isOpen, getCurrentDir, loadGitInfo]);
+  }, [isOpen, getCurrentDir, refreshGitStatus]);
 
   const loadCommitHistory = useCallback(
     async (mode: "reset" | "append" = "reset") => {
@@ -819,10 +837,12 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     try {
       setLoading(true);
       setActiveFooterOperation("push");
+      setOperationPhase("push");
       const result = await pushToRemote(dir);
       if (result.code === CodeResult.Success) {
-        await refreshGitStatus(dir);
         showMessage("success", "推送成功");
+        setOperationPhase("refresh");
+        await refreshGitStatus(dir);
       } else {
         showMessage("error", result.message || "推送失败");
       }
@@ -830,6 +850,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       showMessage("error", "推送失败");
     } finally {
       setActiveFooterOperation(null);
+      setOperationPhase(null);
       setLoading(false);
     }
   }, [canPush, getCurrentDir, pushToRemote, refreshGitStatus]);
@@ -841,9 +862,11 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
     try {
       setLoading(true);
       setActiveFooterOperation("pull");
+      setOperationPhase("pull");
       const result = await pullFromRemote(dir);
       if (result.code === CodeResult.Success) {
         showMessage("success", "拉取成功");
+        setOperationPhase("refresh");
         await loadGitInfo();
         await loadTree(dir);
       } else {
@@ -853,6 +876,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       showMessage("error", "拉取失败");
     } finally {
       setActiveFooterOperation(null);
+      setOperationPhase(null);
       setLoading(false);
     }
   }, [getCurrentDir, pullFromRemote, loadGitInfo, loadTree]);
@@ -1082,9 +1106,11 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         setActiveFooterOperation(
           pushAfterCommit ? "commit-and-push" : "commit",
         );
+        setOperationPhase("commit");
         const options: GitCommitOptions = {
           message,
-          push: pushAfterCommit,
+          // 本地提交成功后再启动推送，让失败重试只重试网络阶段。
+          push: false,
           // 状态列表已经包含当前所有待提交文件，按路径暂存可避免 `git add .` 扫描整个工作区。
           files: includeUntracked ? allFilePaths : [],
         };
@@ -1095,12 +1121,27 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           setHistoryHasMore(true);
           setSelectedCommitHash("");
           setSelectedCommitDetail(null);
-          // 提交不会改变磁盘文件树，只刷新 Git 状态即可；推送后的 ahead/behind 也会同步更新。
+          if (pushAfterCommit) {
+            setOperationPhase("push");
+            try {
+              const pushResult = await pushToRemote(dir);
+              if (pushResult.code === CodeResult.Success) {
+                showMessage("success", "提交并推送成功");
+              } else {
+                showMessage(
+                  "error",
+                  `提交成功，但推送失败：${pushResult.message || "请点击推送重试"}`,
+                );
+              }
+            } catch {
+              showMessage("error", "提交成功，但推送失败，请点击推送重试");
+            }
+          } else {
+            showMessage("success", "提交成功");
+          }
+          // 推送立即接在提交之后，最后统一刷新；推送失败也要同步本地已提交的状态。
+          setOperationPhase("refresh");
           await refreshGitStatus(dir);
-          showMessage(
-            "success",
-            pushAfterCommit ? "提交并推送成功" : "提交成功",
-          );
         } else {
           showMessage("error", result.message || "提交失败");
         }
@@ -1108,6 +1149,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
         showMessage("error", "提交失败");
       } finally {
         setActiveFooterOperation(null);
+        setOperationPhase(null);
         setLoading(false);
       }
     },
@@ -1117,6 +1159,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       includeUntracked,
       allFilePaths,
       commitChanges,
+      pushToRemote,
       refreshGitStatus,
     ],
   );
@@ -1993,14 +2036,23 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       >
         {activeFooterOperation ? (
           <div
-            className="absolute inset-0 z-20 flex items-center justify-center bg-black/20"
+            className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/20"
             role="status"
             aria-label="Git 操作进行中"
+            aria-live="polite"
           >
             <Loader2
               className="h-7 w-7 animate-spin"
               style={{ color: "var(--accent-color)" }}
             />
+            {operationPhase ? (
+              <span
+                className="text-sm"
+                style={{ color: "var(--text-primary)" }}
+              >
+                {GIT_OPERATION_LABELS[operationPhase]}
+              </span>
+            ) : null}
           </div>
         ) : null}
         {/* 头部 */}
