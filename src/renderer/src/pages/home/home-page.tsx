@@ -1,8 +1,9 @@
 ﻿import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { CircleAlert, Info, PanelRightOpen, Undo2, X } from "lucide-react";
+import { CircleAlert, Info, Undo2, X } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { DialogResizeHandles } from "@/components/ui/dialog-resize-handles";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Tooltip } from "@/components/ui/tooltip";
 import { Editor } from "@/features/editor";
 import { EditorBridge } from "@/features/editor/components/editor-bridge";
 import { useEditorTabActions } from "@/features/editor/lib/use-editor-tab-actions";
@@ -89,7 +90,6 @@ function HomePageContent() {
   const diffSource = useDiffStore((state) => state.source);
   const closeDiff = useDiffStore((state) => state.closeDiff);
   const isDiffPanelOpen = useDiffPanelStore((state) => state.isOpen);
-  const openDiffPanel = useDiffPanelStore((state) => state.open);
   const { contentRef, dragHandleProps, resizeHandleProps } = useResizableDialog(
     { isOpen },
   );
@@ -193,13 +193,6 @@ function HomePageContent() {
       window.removeEventListener(APP_TOAST_EVENT, handleAppToast);
     };
   }, [showToastMessage]);
-
-  const handleMoveToPanel = () => {
-    if (!filePath) return;
-    // 右侧面板使用独立 store，避免关闭弹窗时把面板也一起关闭。
-    openDiffPanel({ filePath, oldContent, newContent });
-    closeDiff();
-  };
 
   const handleRequestDiscard = useCallback(() => {
     confirmDiscardOpenRef.current = true;
@@ -378,7 +371,6 @@ function HomePageContent() {
         repositoryRoot={repositoryRoot}
         showMutableActions={diffSource !== "history"}
         onDiscard={handleRequestDiscard}
-        onMoveToPanel={handleMoveToPanel}
       />
 
       <ConfirmDialog
@@ -438,7 +430,6 @@ function DiffDialog({
   repositoryRoot,
   showMutableActions,
   onDiscard,
-  onMoveToPanel,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -453,7 +444,6 @@ function DiffDialog({
   repositoryRoot: string | null;
   showMutableActions: boolean;
   onDiscard: () => void;
-  onMoveToPanel: () => void;
 }) {
   // 防止弹窗打开时触发的 pointer 事件导致 DismissableLayer 立即关闭弹窗
   const openTimeRef = useRef(0);
@@ -495,45 +485,43 @@ function DiffDialog({
         <div
           data-dialog-drag-handle
           {...dragHandleProps}
-          className="relative z-10 flex flex-shrink-0 select-none items-center justify-between border-b border-[var(--border-color)] px-4 py-3 pr-12"
+          className="relative z-10 flex flex-shrink-0 select-none items-center gap-2 border-b border-[var(--border-color)] px-4 py-3 pr-12"
           style={{ cursor: "default" }}
         >
-          <Dialog.Title className="min-w-0 flex-1 truncate text-left text-sm font-semibold">
+          <Dialog.Title className="min-w-0 truncate text-left text-sm font-semibold">
             {fileName || "文件"}差异
           </Dialog.Title>
           {showMutableActions && (
-            <div className="flex flex-shrink-0 items-center gap-1">
-              <button
-                type="button"
-                aria-label="放弃当前文件更改"
-                title="放弃当前文件更改"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDiscard();
-                }}
-                onPointerDown={stopPropagation}
-                disabled={!(filePath && repositoryRoot)}
-                className="rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 disabled:opacity-40"
-                style={{ color: "var(--danger-color, #dc2626)" }}
-              >
-                <Undo2 className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                aria-label="将差异移到右侧面板"
-                title="将差异移到右侧面板"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onMoveToPanel();
-                }}
-                onPointerDown={stopPropagation}
-                disabled={!filePath}
-                className="rounded-sm p-1 opacity-70 transition-opacity hover:opacity-100 disabled:opacity-40"
-                style={{ color: "var(--text-muted)" }}
-              >
-                <PanelRightOpen className="h-4 w-4" />
-              </button>
-            </div>
+            <Tooltip.Provider delayDuration={200}>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <button
+                    type="button"
+                    aria-label="放弃当前文件更改"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDiscard();
+                    }}
+                    onPointerDown={stopPropagation}
+                    disabled={!(filePath && repositoryRoot)}
+                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--danger-color)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-color)] disabled:opacity-40"
+                  >
+                    <Undo2 aria-hidden="true" className="h-3.5 w-3.5" />
+                  </button>
+                </Tooltip.Trigger>
+                <Tooltip.Portal>
+                  <Tooltip.Content
+                    className="z-50 rounded-md border bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md"
+                    side="bottom"
+                    sideOffset={5}
+                    style={{ borderColor: "var(--border-color)" }}
+                  >
+                    放弃更改
+                    <Tooltip.Arrow className="fill-popover" />
+                  </Tooltip.Content>
+                </Tooltip.Portal>
+              </Tooltip.Root>
+            </Tooltip.Provider>
           )}
         </div>
 
