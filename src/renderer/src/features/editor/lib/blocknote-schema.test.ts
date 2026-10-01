@@ -964,6 +964,23 @@ describe("editor BlockNote schema", () => {
     expect(editor.document.map(getInlineText).join("")).not.toContain("*");
   });
 
+  it.each(["bulletListItem", "numberedListItem", "checkListItem"] as const)(
+    "keeps a typed dash in an existing %s",
+    (type) => {
+      setupMatchMedia();
+      const editor = CoreEditorFactory.create({
+        schema: editorSchema,
+        initialContent: [{ type, content: "" }],
+      });
+      render(createElement(BlockNoteView, { editor }));
+
+      editor.setTextCursorPosition(editor.document[0].id, "start");
+      typeString(editor, "- text");
+
+      expect(getDocumentSummary(editor)).toEqual([{ type, text: "- text" }]);
+    },
+  );
+
   it("round-trips an Enter-created empty list item before code", async () => {
     setupMatchMedia();
     const editor = CoreEditorFactory.create({

@@ -2994,7 +2994,7 @@ const editorQuoteBlockSpec = {
   ],
 };
 
-const quoteAwareBulletListItemExtensions = (
+const contextAwareBulletListItemExtensions = (
   defaultBlockSpecs.bulletListItem.extensions ?? []
 ).map((extensionFactory) =>
   createExtension(({ editor }) => {
@@ -3011,7 +3011,9 @@ const quoteAwareBulletListItemExtensions = (
       inputRules: strippedExtension.inputRules?.map((inputRule) => ({
         ...inputRule,
         replace(props) {
-          if (props.editor.getTextCursorPosition().block.type === "quote") {
+          const { block } = props.editor.getTextCursorPosition();
+          // 已有列表项中的短横线是正文，不应再次触发列表类型转换。
+          if (block.type === "quote" || LIST_BLOCK_TYPES.has(block.type)) {
             return;
           }
           return inputRule.replace(props);
@@ -3024,7 +3026,7 @@ const quoteAwareBulletListItemExtensions = (
 const editorBulletListItemSpec = {
   ...defaultBlockSpecs.bulletListItem,
   extensions: [
-    ...quoteAwareBulletListItemExtensions,
+    ...contextAwareBulletListItemExtensions,
     listHistoryBoundaryExtension,
     plainBulletListPasteExtension(),
   ],
