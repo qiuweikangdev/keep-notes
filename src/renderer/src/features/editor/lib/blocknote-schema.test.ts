@@ -3090,6 +3090,120 @@ describe("editor BlockNote schema", () => {
     ).not.toBe(null);
   });
 
+  it.each(["Home", "End"])(
+    "lets %s reach the visual line boundary outside a mixed inline code span",
+    (key) => {
+      setupMatchMedia();
+      const editor = CoreEditorFactory.create({
+        schema: editorSchema,
+        initialContent: [
+          {
+            type: "paragraph",
+            content: [
+              { type: "text", text: "before ", styles: {} },
+              { type: "text", text: "code", styles: { code: true } },
+              { type: "text", text: " after", styles: {} },
+            ],
+          },
+        ],
+      });
+      render(createElement(BlockNoteView, { editor }));
+      const view = editor.prosemirrorView;
+      let codeStart: number | undefined;
+      view.state.doc.descendants((node, from) => {
+        if (node.isText && node.text === "code") codeStart = from;
+        return true;
+      });
+      expect(codeStart).toBeTypeOf("number");
+      const position = (codeStart as number) + 2;
+      view.dispatch(
+        view.state.tr.setSelection(
+          TextSelection.create(view.state.doc, position),
+        ),
+      );
+
+      const event = new KeyboardEvent("keydown", {
+        bubbles: true,
+        cancelable: true,
+        key,
+      });
+      view.dom.dispatchEvent(event);
+
+      expect(event.defaultPrevented).toBe(false);
+      expect(view.state.selection.from).toBe(position);
+    },
+  );
+
+  it.each(["Home", "End"])(
+    "keeps native %s movement within a wrapped inline code line",
+    (key) => {
+      const { view } = renderInlineCodeTestEditor();
+      vi.spyOn(view, "endOfTextblock").mockReturnValue(false);
+      const event = new KeyboardEvent("keydown", {
+        bubbles: true,
+        cancelable: true,
+        key,
+      });
+
+      view.dom.dispatchEvent(event);
+
+      expect(event.defaultPrevented).toBe(false);
+    },
+  );
+
+  it("clears inline code markers when native keyboard selection leaves the focused code", () => {
+    setupMatchMedia();
+    const editor = CoreEditorFactory.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "code", styles: { code: true } }],
+        },
+        { type: "paragraph", content: "plain" },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+    const view = editor.prosemirrorView;
+    const positions = new Map<string, number>();
+    view.state.doc.descendants((node, from) => {
+      if (node.isText && node.text) positions.set(node.text, from);
+      return true;
+    });
+    const codeStart = positions.get("code");
+    const plainStart = positions.get("plain");
+    expect(codeStart).toBeTypeOf("number");
+    expect(plainStart).toBeTypeOf("number");
+    view.dispatch(
+      view.state.tr
+        .setSelection(
+          TextSelection.create(view.state.doc, (codeStart as number) + 2),
+        )
+        .setMeta("editor-inline-code-editing$", {
+          activeRange: { from: codeStart, to: (codeStart as number) + 4 },
+          openingBoundaryPosition: null,
+          closingBoundaryPosition: null,
+          isComposing: false,
+          isBlurred: false,
+          suppressedSelectionPosition: null,
+        }),
+    );
+    view.focus();
+    expect(
+      container.querySelectorAll(".editor-inline-code__editing-marker"),
+    ).toHaveLength(2);
+
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, (plainStart as number) + 2),
+      ),
+    );
+
+    expect(
+      container.querySelector(".editor-inline-code__editing-content"),
+    ).toBe(null);
+  });
+
   it.each(["textInput", "beforeinput"])(
     "converts a bullet prefix before inline code through %s",
     (inputMode) => {
@@ -3613,6 +3727,94 @@ describe("editor BlockNote schema", () => {
     expect(
       container.querySelector(".editor-inline-code__editing-caret"),
     ).not.toBe(null);
+  });
+
+  it.each(["ArrowUp", "ArrowDown"])(
+    "keeps native %s movement within a wrapped inline code line",
+    (key) => {
+      setupMatchMedia();
+      const editor = CoreEditorFactory.create({
+        schema: editorSchema,
+        initialContent: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "first", styles: { code: true } }],
+          },
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "second", styles: { code: true } }],
+          },
+        ],
+      });
+      render(createElement(BlockNoteView, { editor }));
+      const view = editor.prosemirrorView;
+      const current = key === "ArrowDown" ? "first" : "second";
+      let position: number | undefined;
+      view.state.doc.descendants((node, from) => {
+        if (node.isText && node.text === current) position = from + 1;
+        return true;
+      });
+      expect(position).toBeTypeOf("number");
+      view.dispatch(
+        view.state.tr.setSelection(
+          TextSelection.create(view.state.doc, position as number),
+        ),
+      );
+      vi.spyOn(view, "endOfTextblock").mockReturnValue(false);
+
+      const event = new KeyboardEvent("keydown", {
+        bubbles: true,
+        cancelable: true,
+        key,
+      });
+      view.dom.dispatchEvent(event);
+
+      expect(event.defaultPrevented).toBe(false);
+      expect(view.state.selection.from).toBe(position);
+    },
+  );
+
+  it("lands on a visible character boundary when moving between code-only blocks", () => {
+    setupMatchMedia();
+    const editor = CoreEditorFactory.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "ab😀", styles: { code: true } }],
+        },
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "😀z", styles: { code: true } }],
+        },
+      ],
+    });
+    render(createElement(BlockNoteView, { editor }));
+    const view = editor.prosemirrorView;
+    const positions = new Map<string, number>();
+    view.state.doc.descendants((node, from) => {
+      if (node.isText && node.text) positions.set(node.text, from);
+      return true;
+    });
+    const source = positions.get("ab😀");
+    const target = positions.get("😀z");
+    expect(source).toBeTypeOf("number");
+    expect(target).toBeTypeOf("number");
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, (source as number) + 1),
+      ),
+    );
+
+    const event = new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      key: "ArrowDown",
+    });
+    view.dom.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(view.state.selection.from).toBe((target as number) + 2);
   });
 
   it("moves vertically when the cursor implicitly activates inline code", () => {

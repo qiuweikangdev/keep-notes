@@ -841,13 +841,27 @@ function findInlineCodeTrailingTextRange(
   };
 }
 
-function getPureInlineCodeBlockRanges(state: EditorState) {
-  const codeMark = state.schema.marks.code;
-  if (!codeMark) return [];
+type PureInlineCodeBlockRanges = {
+  blocks: Array<{ range: { from: number; to: number } | null }>;
+  indexByStart: Map<number, number>;
+};
 
-  const blocks: Array<{
-    range: { from: number; to: number } | null;
-  }> = [];
+const pureInlineCodeBlockRangesByDocument = new WeakMap<
+  ProseMirrorNode,
+  PureInlineCodeBlockRanges
+>();
+
+function getPureInlineCodeBlockRanges(state: EditorState) {
+  const cached = pureInlineCodeBlockRangesByDocument.get(state.doc);
+  if (cached) return cached;
+
+  const codeMark = state.schema.marks.code;
+  const result: PureInlineCodeBlockRanges = {
+    blocks: [],
+    indexByStart: new Map(),
+  };
+  if (!codeMark) return result;
+
   state.doc.descendants((node, position) => {
     if (node.type.name !== "blockContainer") return true;
 
@@ -871,16 +885,37 @@ function getPureInlineCodeBlockRanges(state: EditorState) {
       isPureInlineCode = false;
     });
 
-    blocks.push({
-      range:
-        isPureInlineCode && codeFrom !== null && codeTo !== null
-          ? { from: codeFrom, to: codeTo }
-          : null,
-    });
+    const range =
+      isPureInlineCode && codeFrom !== null && codeTo !== null
+        ? { from: codeFrom, to: codeTo }
+        : null;
+    if (range) result.indexByStart.set(range.from, result.blocks.length);
+    result.blocks.push({ range });
     return true;
   });
 
-  return blocks;
+  // ProseMirror 文档不可变；选区移动时复用索引，正文变更后由新文档自动失效。
+  pureInlineCodeBlockRangesByDocument.set(state.doc, result);
+  return result;
+}
+
+function inlineCodeGraphemeColumn(text: string, offset: number) {
+  let column = 0;
+  for (const segment of inlineCodeGraphemeSegmenter.segment(text)) {
+    if (segment.index + segment.segment.length > offset) break;
+    column += 1;
+  }
+  return column;
+}
+
+function inlineCodeGraphemeOffset(text: string, column: number) {
+  let offset = 0;
+  for (const segment of inlineCodeGraphemeSegmenter.segment(text)) {
+    if (column <= 0) break;
+    offset += segment.segment.length;
+    column -= 1;
+  }
+  return offset;
 }
 
 function isInlineCodeEditingActive(state: EditorState) {
@@ -909,25 +944,34 @@ function movePureInlineCodeCaret(view: EditorView, direction: -1 | 1) {
     findInlineCodeRange(view.state, view.state.selection.from, true);
   if (!activeRange) return false;
 
-  const blocks = getPureInlineCodeBlockRanges(view.state);
-  const currentIndex = blocks.findIndex(
-    ({ range }) =>
-      range?.from === activeRange.from && range.to === activeRange.to,
-  );
-  if (currentIndex < 0) return false;
+  // 自动换行的代码仍应由浏览器在当前段落内上下移动；仅到达首末视觉行时跨块。
+  if (!view.endOfTextblock(direction === -1 ? "up" : "down")) return false;
+
+  const { blocks, indexByStart } = getPureInlineCodeBlockRanges(view.state);
+  const currentIndex = indexByStart.get(activeRange.from);
+  if (currentIndex === undefined) return false;
 
   const targetRange = blocks[currentIndex + direction]?.range;
   if (!targetRange) return false;
 
-  // 纯行内代码块之间纵向移动时保留字符列，避免原生选区落到块间隙后丢失编辑光标。
-  const column = Math.min(
-    view.state.selection.from - activeRange.from,
-    targetRange.to - targetRange.from,
+  // 跨块时按可见字符列落点，不能把光标放进 emoji 或组合字符的 UTF-16 中间。
+  const currentText = view.state.doc.textBetween(
+    activeRange.from,
+    activeRange.to,
   );
+  const targetText = view.state.doc.textBetween(
+    targetRange.from,
+    targetRange.to,
+  );
+  const column = inlineCodeGraphemeColumn(
+    currentText,
+    view.state.selection.from - activeRange.from,
+  );
+  const targetOffset = inlineCodeGraphemeOffset(targetText, column);
   view.dispatch(
     view.state.tr
       .setSelection(
-        TextSelection.create(view.state.doc, targetRange.from + column),
+        TextSelection.create(view.state.doc, targetRange.from + targetOffset),
       )
       .setMeta(inlineCodeEditingPluginKey, {
         activeRange: targetRange,
@@ -1185,6 +1229,20 @@ function moveInlineCodeCaretToBoundary(
     view.state.selection.from < activeRange.from ||
     view.state.selection.from > activeRange.to
   ) {
+    return false;
+  }
+
+  const textblockBoundary =
+    boundary === "start"
+      ? view.state.selection.$from.start()
+      : view.state.selection.$from.end();
+  if (
+    (boundary === "start"
+      ? activeRange.from !== textblockBoundary
+      : activeRange.to !== textblockBoundary) ||
+    !view.endOfTextblock(boundary === "start" ? "up" : "down")
+  ) {
+    // 混排或自动换行时，Home/End 应按视觉行移动，而不是跳到代码片段边界。
     return false;
   }
 
@@ -1628,9 +1686,10 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
             mappedState.activeRange &&
             !selectionWithinActiveRange &&
             !findInlineCodeRangeForSelection(newState) &&
-            !hasExplicitSelectionOrigin
+            !hasExplicitSelectionOrigin &&
+            !editor.prosemirrorView.hasFocus()
           ) {
-            // 失焦时 BlockNote 可能先提交一笔无来源选区事务；保留代码范围，避免编辑态先于失焦事件丢失。
+            // 仅在编辑器确实失焦时保留代码装饰；焦点仍在编辑器内的原生方向键应正常退出代码。
             return {
               ...mappedState,
               isBlurred: true,
