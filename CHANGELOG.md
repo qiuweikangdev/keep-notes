@@ -1,3 +1,21 @@
+## [2.25.4](https://github.com/qiuweikangdev/keep-notes/compare/v2.25.3...v2.25.4) (2026-10-01)
+
+
+### Bug Fixes
+
+* improve inline code editing and performance ([6fbd9f7](https://github.com/qiuweikangdev/keep-notes/commit/6fbd9f7aaabb4c25f55a7ad942fa4769831fb4f7))
+* improve rich text cursor navigation ([8fa4f9c](https://github.com/qiuweikangdev/keep-notes/commit/8fa4f9cf0bf7026ab781a52dec0bda0b7a6292bd))
+* preserve dash input in existing list items ([db8b865](https://github.com/qiuweikangdev/keep-notes/commit/db8b8659bbdc77b20919167fa02275c4dd2edb0a))
+* preserve git environment and streamline push flow ([5c0fc5a](https://github.com/qiuweikangdev/keep-notes/commit/5c0fc5a5f8093a63111e7113aee959f1841ab384))
+* refine diff discard action ([7ac4ac7](https://github.com/qiuweikangdev/keep-notes/commit/7ac4ac7bba7cd05ec6473a812b1e41af15b48c85))
+* unify editor undo history ([b40d87f](https://github.com/qiuweikangdev/keep-notes/commit/b40d87f418dc6e58d9c3fbb03d69a465eb41e9a6))
+
+
+## Commit Summary
+
+- Compared with: v2.25.3
+- Total commits: 6
+
 ## [2.25.3](https://github.com/qiuweikangdev/keep-notes/compare/v2.25.2...v2.25.3) (2026-09-26)
 
 
