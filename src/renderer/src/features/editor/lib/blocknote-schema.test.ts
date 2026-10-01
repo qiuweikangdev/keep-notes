@@ -1901,6 +1901,186 @@ describe("editor BlockNote schema", () => {
     ]);
   });
 
+  it.each(["input", "textarea", "contenteditable"])(
+    "does not steal typing or arrow keys from an external %s after inline code blur",
+    (type) => {
+      const { editor, inlineCodePosition, view } = renderInlineCodeTestEditor();
+      view.dispatch(
+        view.state.tr.setSelection(
+          TextSelection.create(view.state.doc, inlineCodePosition + 2),
+        ),
+      );
+      editor.focus();
+      const field = document.createElement(
+        type === "contenteditable" ? "div" : type,
+      );
+      if (type === "contenteditable") {
+        field.contentEditable = "true";
+        field.tabIndex = 0;
+      }
+      document.body.append(field);
+      try {
+        field.focus();
+        const selection = view.state.selection;
+        const input = new InputEvent("beforeinput", {
+          bubbles: true,
+          cancelable: true,
+          inputType: "insertText",
+          data: "x",
+        });
+        field.dispatchEvent(input);
+        const arrow = new KeyboardEvent("keydown", {
+          bubbles: true,
+          cancelable: true,
+          key: "ArrowLeft",
+        });
+        field.dispatchEvent(arrow);
+        expect(input.defaultPrevented).toBe(false);
+        expect(arrow.defaultPrevented).toBe(false);
+        expect(view.state.selection.eq(selection)).toBe(true);
+        expect(getInlineText(editor.document[0])).toBe("test");
+      } finally {
+        field.remove();
+      }
+    },
+  );
+
+  it("does not steal text input from a second rich editor", () => {
+    const first = renderInlineCodeTestEditor();
+    first.view.dispatch(
+      first.view.state.tr.setSelection(
+        TextSelection.create(
+          first.view.state.doc,
+          first.inlineCodePosition + 2,
+        ),
+      ),
+    );
+    first.editor.focus();
+    const second = renderInlineCodeTestEditor();
+    second.view.dispatch(
+      second.view.state.tr.setSelection(
+        TextSelection.create(
+          second.view.state.doc,
+          second.inlineCodePosition + 2,
+        ),
+      ),
+    );
+    second.editor.focus();
+    second.view.dom.dispatchEvent(
+      new InputEvent("beforeinput", {
+        bubbles: true,
+        cancelable: true,
+        inputType: "insertText",
+        data: "x",
+      }),
+    );
+    expect(getInlineText(first.editor.document[0])).toBe("test");
+    expect(getInlineText(second.editor.document[0])).toBe("texst");
+  });
+
+  it.each(["😀", "👨‍👩‍👧‍👦", "e\u0301"])(
+    "moves and deletes the complete visible inline code character %s",
+    (character) => {
+      const { editor, inlineCodePosition, view } = renderInlineCodeTestEditor();
+      editor.updateBlock(editor.document[0], {
+        content: [
+          { type: "text", text: `a${character}b`, styles: { code: true } },
+        ],
+      });
+      view.dispatch(
+        view.state.tr.setSelection(
+          TextSelection.create(view.state.doc, inlineCodePosition + 1),
+        ),
+      );
+      editor.focus();
+      pressKey(editor, "ArrowRight");
+      expect(view.state.selection.from).toBe(
+        inlineCodePosition + 1 + character.length,
+      );
+      pressKey(editor, "ArrowLeft");
+      expect(view.state.selection.from).toBe(inlineCodePosition + 1);
+      pressKey(editor, "ArrowRight");
+      pressKey(editor, "Backspace");
+      expect(editor.document[0].content).toEqual([
+        { type: "text", text: "ab", styles: { code: true } },
+      ]);
+    },
+  );
+
+  it("keeps typing inside code when an arrow reaches the content end before the closing marker", () => {
+    const { editor, inlineCodePosition, view } =
+      renderInlineCodeTestEditor(" trailing");
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, inlineCodePosition + 3),
+      ),
+    );
+    editor.focus();
+    pressKey(editor, "ArrowRight");
+    simulateTextInput(editor, "x");
+    expect(editor.document[0].content).toEqual([
+      { type: "text", text: "testx", styles: { code: true } },
+      { type: "text", text: " trailing", styles: {} },
+    ]);
+  });
+
+  it("selects a complete inline code word across the caret widget on double click", () => {
+    const { container, inlineCodePosition, view } =
+      renderInlineCodeTestEditor();
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, inlineCodePosition + 2),
+      ),
+    );
+    vi.spyOn(view, "posAtCoords").mockReturnValue({
+      inside: -1,
+      pos: inlineCodePosition + 1,
+    });
+    fireEvent.doubleClick(container.querySelector("code")!);
+    expect(view.state.selection.from).toBe(inlineCodePosition);
+    expect(view.state.selection.to).toBe(inlineCodePosition + 4);
+  });
+
+  it("uses native text hit testing without measuring every inline code character", () => {
+    const { container, inlineCodePosition, view } =
+      renderInlineCodeTestEditor();
+    const code = container.querySelector("code")!;
+    vi.spyOn(view, "posAtCoords").mockReturnValue({
+      inside: -1,
+      pos: inlineCodePosition,
+    });
+    Object.defineProperty(document, "caretPositionFromPoint", {
+      configurable: true,
+      value: () => ({
+        offsetNode: document
+          .createTreeWalker(code, NodeFilter.SHOW_TEXT)
+          .nextNode(),
+        offset: 2,
+      }),
+    });
+    const measure = vi.spyOn(Range.prototype, "getBoundingClientRect");
+    try {
+      code.dispatchEvent(
+        new MouseEvent("mousedown", {
+          bubbles: true,
+          cancelable: true,
+          button: 0,
+        }),
+      );
+      document.dispatchEvent(
+        new MouseEvent("mouseup", {
+          bubbles: true,
+          cancelable: true,
+          button: 0,
+        }),
+      );
+      expect(view.state.selection.from).toBe(inlineCodePosition + 2);
+      expect(measure).not.toHaveBeenCalled();
+    } finally {
+      Reflect.deleteProperty(document, "caretPositionFromPoint");
+    }
+  });
+
   it("expands Vditor-style markers only while the native cursor is in code", () => {
     const { container, editor, inlineCodePosition, view } =
       renderInlineCodeTestEditor();
@@ -2632,7 +2812,7 @@ describe("editor BlockNote schema", () => {
     );
     editor.focus();
 
-    for (let index = 0; index < 2; index += 1) {
+    for (let index = 0; index < 3; index += 1) {
       view.dom.dispatchEvent(
         new KeyboardEvent("keydown", {
           bubbles: true,
@@ -2648,7 +2828,7 @@ describe("editor BlockNote schema", () => {
     ).not.toBe(null);
   });
 
-  it("shows the closing boundary on the first move past the last code character", () => {
+  it("moves through the content end before crossing the closing marker", () => {
     const { container, editor, inlineCodePosition, view } =
       renderInlineCodeTestEditor(" trailing");
     const lastCharacterPosition = inlineCodePosition + 3;
@@ -2676,6 +2856,11 @@ describe("editor BlockNote schema", () => {
 
     pressKey(editor, "ArrowRight");
 
+    expect(view.state.selection.from).toBe(codeEnd);
+    expect(
+      container.querySelector(".editor-inline-code__editing-closing-boundary"),
+    ).toBe(null);
+    pressKey(editor, "ArrowRight");
     expect(view.state.selection.from).toBe(codeEnd);
     expect(
       container.querySelector(".editor-inline-code__editing-closing-boundary"),
@@ -2731,6 +2916,7 @@ describe("editor BlockNote schema", () => {
         handler(view, inlineCodePosition + 3, click),
       );
       editor.focus();
+      pressKey(editor, "ArrowRight");
       pressKey(editor, "ArrowRight");
       expect(
         container.querySelector(

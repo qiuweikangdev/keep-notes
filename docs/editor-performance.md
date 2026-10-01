@@ -46,3 +46,38 @@ EDITOR_PERF_REPORT=1 pnpm_config_verify_deps_before_run=false pnpm test src/rend
 这些数字不是优化前后对比，也不是 GUI 延迟；首组受 JIT 预热影响。大文档冷解析仍存在同步开销，本轮通过缓存复用和取消首屏全文预览导出来减少重复工作，没有替换解析器或虚拟化完整可编辑文档。
 
 验证脚本前临时设置 `pnpm_config_verify_deps_before_run=false` 是为了使用已有依赖，避免当前 pnpm 自动重新安装；不修改项目配置或锁文件。
+
+
+## 2026-10-01 行内代码体验与输入链路排查
+
+对照实际操作的 [Vditor 即时渲染 demo](https://dxsm.github.io/tools/markdown/)，确认代码末尾光标应先到达关闭反引号左侧，再跨过关闭标记。此次修复：
+
+- 全局 `beforeinput` / `keydown` 的兜底处理只允许所属编辑器，或者没有其他控件占用焦点时的 body/document 事件。原先保留的编辑器引用会截获外部输入框和其他编辑器的输入。
+- 保留关闭反引号左侧的输入位置，避免从最后一个字符右移后直接输入到代码外。
+- 水平移动和退格按可见字符处理 emoji、ZWJ 组合和组合音标；双击选词按完整代码内容计算，避免光标 widget 分割单词。Shift 点击保留浏览器扩选行为。
+- 点击和拖选优先使用浏览器原生文字命中接口，仅在映射失效时测量字符矩形。
+- 反引号兜底归一化不再读取全文 `textContent` 或遍历全文后过滤，只访问事务修改范围。多步事务的位置映射、重叠范围合并及无 StepMap 的样式修改均有测试。
+- 引用列表输入只检查修改范围及所属引用，直接比较子块结构；删除每次输入遍历所有引用、逐个全文查找和转换 BlockNote 对象的开销。
+
+### Chromium 优化前后采样
+
+使用已有依赖启动临时 Vite 页面，挂载项目实际 `editorSchema`、`BlockNoteView` 和编辑器样式；优化前页面使用当前 Git HEAD 的同一文件。两页使用相同生成文档，每块正文 42 个字符，每 10 块含一个引用。先预热 5 次，再在首块输入 30 次，记录包含 DOM 更新的同步 `dispatch` 耗时。临时验证页面和基线文件完成后移除。
+
+| 总块数 / 引用块数 | 优化前 p50 / p95（ms） | 优化后 p50 / p95（ms） |
+| --- | --- | --- |
+| 180 / 18 | 0.4 / 0.8 | 0.2 / 0.5 |
+| 1,800 / 180 | 12.8 / 14.3 | 1.7 / 2.4 |
+
+上述为本机一次采样，不包含输入到屏幕绘制的完整延迟，不代表 Electron 整体性能承诺。纯段落文档的采样分位数存在噪声，不能据此宣称所有文档都获得同等比例改善。长段落的反引号扫描仍需检查当前文本节点；纵向纯代码导航仍遍历块结构，本次没有虚拟化可编辑文档。
+
+浏览器交互已验证代码内外输入、外部输入框、方向键、emoji、双击选词；组合输入有事件和事务回归覆盖，真实 macOS 中文输入法候选窗口仍需在 Electron 中手工验证。
+
+自动化计算量约束：200 和 2,000 块文档的单次局部输入，两个归一化插件合计访问不超过两个文本节点，不调用全文 `descendants`，不读取全文 `textContent`。
+
+```sh
+pnpm_config_verify_deps_before_run=false pnpm test src/renderer/src/features/editor/lib/blocknote-schema.test.ts src/renderer/src/features/editor/lib/editor-transaction-ranges.test.ts src/renderer/src/features/editor/lib/inline-code-performance.test.ts
+```
+
+验证结果：编辑器及 store 相关测试 874/874 通过；新增回归 17 项。`pnpm typecheck`、`pnpm lint` 和 `pnpm build` 通过，lint 保留仓库既有警告。全量测试 1,503/1,504 通过；唯一失败是未修改的 `styles/globals.test.ts` 中源码编辑器边框断言，正则在 `solid color-mix` 之间只允许字面空格，而原有 CSS 已被格式化为换行，单独执行也能复现。
+
+涉及文件：`blocknote-schema.ts` 的行内代码交互与归一化、`editor-transaction-ranges.ts` 的局部修改范围计算，以及 `blocknote-schema.test.ts`、`editor-transaction-ranges.test.ts`、`inline-code-performance.test.ts` 的体验和计算量回归。

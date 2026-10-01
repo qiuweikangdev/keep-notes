@@ -39,6 +39,7 @@ import {
   createEditorCodeBlockNodeView,
 } from "./editor-code-block-node-view";
 import { CODE_BLOCK_LANGUAGE_OPTIONS } from "./editor-code-block-languages";
+import { collectTransactionChangedRanges } from "./editor-transaction-ranges";
 
 export const editorCodeBlockSupportedLanguages: NonNullable<
   CodeBlockOptions["supportedLanguages"]
@@ -137,6 +138,16 @@ const editorInlineCodeStyleSpec = createStyleSpecFromTipTapMark(
 );
 
 const INLINE_CODE_NORMALIZER_META = "editor-inline-code-normalizer";
+const inlineCodeNormalizerPluginKey = new PluginKey(
+  "editor-inline-code-normalizer",
+);
+const quoteListInputPluginKey = new PluginKey("editor-quote-list-input");
+const inlineCodeGraphemeSegmenter = new Intl.Segmenter(undefined, {
+  granularity: "grapheme",
+});
+const inlineCodeWordSegmenter = new Intl.Segmenter(undefined, {
+  granularity: "word",
+});
 
 function getInlineCodeMarkerSpans(text: string) {
   const spans: Array<{
@@ -245,15 +256,18 @@ type InlineCodeMarkerReplacement = {
 
 function collectInlineCodeMarkerReplacements(
   state: EditorState,
-  shouldScanNode: (position: number, nodeSize: number) => boolean,
+  ranges?: readonly { from: number; to: number }[],
 ) {
   const codeMark = state.schema.marks.code;
   if (!codeMark) return [];
 
   const replacements: InlineCodeMarkerReplacement[] = [];
-  state.doc.descendants((node, pos) => {
+  const visited = new Set<number>();
+  const collect = (node: ProseMirrorNode, pos: number) => {
+    if (node.type.spec.code) return false;
     if (!node.isText || !node.text) return true;
-    if (!shouldScanNode(pos, node.nodeSize)) return true;
+    if (visited.has(pos)) return false;
+    visited.add(pos);
     if (node.marks.some((mark) => mark.type === codeMark)) return true;
     if (node.marks.some((mark) => mark.type.name === "literalBacktick"))
       return true;
@@ -270,8 +284,14 @@ function collectInlineCodeMarkerReplacements(
     }
 
     return true;
-  });
-  return replacements;
+  };
+  if (ranges) {
+    // 输入只访问修改范围所在的文本节点，不能先读取全文长度或遍历全文再过滤。
+    ranges.forEach(({ from, to }) => state.doc.nodesBetween(from, to, collect));
+  } else {
+    state.doc.descendants(collect);
+  }
+  return replacements.toSorted((left, right) => left.from - right.from);
 }
 
 function createInlineCodeMarkerNormalizationTransaction(
@@ -330,10 +350,7 @@ export function normalizeInlineCodeMarkers(editor: {
   prosemirrorView: EditorView;
 }) {
   const view = editor.prosemirrorView;
-  const replacements = collectInlineCodeMarkerReplacements(
-    view.state,
-    () => true,
-  );
+  const replacements = collectInlineCodeMarkerReplacements(view.state);
   const transaction = createInlineCodeMarkerNormalizationTransaction(
     view.state,
     replacements,
@@ -345,6 +362,7 @@ const inlineCodeNormalizerExtension = createExtension({
   key: "editor-inline-code-normalizer",
   prosemirrorPlugins: [
     new Plugin({
+      key: inlineCodeNormalizerPluginKey,
       appendTransaction(transactions, _oldState, newState) {
         if (!transactions.some((transaction) => transaction.docChanged)) {
           return null;
@@ -357,57 +375,10 @@ const inlineCodeNormalizerExtension = createExtension({
           return null;
         }
 
-        const scanWholeDocument = newState.doc.textContent.length <= 6000;
-        const changedRanges: Array<{ from: number; to: number }> = [];
-        if (!scanWholeDocument) {
-          transactions.forEach((transaction, transactionIndex) => {
-            transaction.mapping.maps.forEach((stepMap, stepMapIndex) => {
-              stepMap.forEach((_oldFrom, _oldTo, newFrom, newTo) => {
-                let from = newFrom;
-                let to = newTo;
-
-                // 把每一步的修改位置映射到 appendTransaction 接收到的最终文档。
-                for (
-                  let mapIndex = stepMapIndex + 1;
-                  mapIndex < transaction.mapping.maps.length;
-                  mapIndex += 1
-                ) {
-                  const laterMap = transaction.mapping.maps[mapIndex];
-                  from = laterMap.map(from, -1);
-                  to = laterMap.map(to, 1);
-                }
-                for (
-                  let laterTransactionIndex = transactionIndex + 1;
-                  laterTransactionIndex < transactions.length;
-                  laterTransactionIndex += 1
-                ) {
-                  for (const laterMap of transactions[laterTransactionIndex]
-                    .mapping.maps) {
-                    from = laterMap.map(from, -1);
-                    to = laterMap.map(to, 1);
-                  }
-                }
-
-                changedRanges.push({
-                  from: Math.max(0, Math.min(from, to) - 1),
-                  to: Math.min(
-                    newState.doc.content.size,
-                    Math.max(from, to) + 1,
-                  ),
-                });
-              });
-            });
-          });
-        }
-
+        const { ranges } = collectTransactionChangedRanges(transactions);
         const replacements = collectInlineCodeMarkerReplacements(
           newState,
-          (position, nodeSize) =>
-            scanWholeDocument ||
-            changedRanges.some(
-              (range) =>
-                position <= range.to && position + nodeSize >= range.from,
-            ),
+          ranges,
         );
 
         // 某些输入路径不会触发 input rule，这里在事务尾部兜底清理 Markdown 反引号。
@@ -660,6 +631,30 @@ function isInlineCodeEventForView(view: EditorView, event: Event) {
   );
 }
 
+function isInlineCodeKeyboardEventForView(view: EditorView, event: Event) {
+  const target = event.target;
+  if (target instanceof Node && view.dom.contains(target)) return true;
+
+  const ownerDocument = view.dom.ownerDocument;
+  if (
+    target !== ownerDocument &&
+    target !== ownerDocument.body &&
+    target !== ownerDocument.documentElement &&
+    target !== ownerDocument.defaultView
+  ) {
+    return false;
+  }
+  const focusedElement = ownerDocument.activeElement;
+  // widget 的 body 事件只在没有其他控件占用焦点时兜底，不能把搜索框或其他编辑器的输入写回旧选区。
+  return (
+    (!focusedElement ||
+      focusedElement === ownerDocument.body ||
+      focusedElement === ownerDocument.documentElement ||
+      view.dom.contains(focusedElement)) &&
+    (view.hasFocus() || activeInlineCodeEditorView === view)
+  );
+}
+
 function findInlineCodeRangeFromElement(view: EditorView, inlineCode: Element) {
   const domOffsets = [0, inlineCode.childNodes.length];
   for (const domOffset of domOffsets) {
@@ -682,6 +677,28 @@ function getInlineCodePointerPosition(
   range: { from: number; to: number },
 ) {
   const ownerDocument = inlineCode.ownerDocument;
+  const nativeCaret = ownerDocument.caretPositionFromPoint?.(
+    event.clientX,
+    event.clientY,
+  );
+  const nativeRange = nativeCaret
+    ? null
+    : ownerDocument.caretRangeFromPoint?.(event.clientX, event.clientY);
+  const nativeNode = nativeCaret?.offsetNode ?? nativeRange?.startContainer;
+  const nativeOffset = nativeCaret?.offset ?? nativeRange?.startOffset;
+  if (
+    nativeNode?.nodeType === Node.TEXT_NODE &&
+    inlineCode.contains(nativeNode) &&
+    nativeOffset !== undefined
+  ) {
+    try {
+      // 优先使用浏览器的文字命中结果；长代码点击和拖选无需逐字符读取布局。
+      const position = view.posAtDOM(nativeNode, nativeOffset);
+      if (position >= range.from && position <= range.to) return position;
+    } catch {
+      // 重绘期间 DOM 映射可能失效，继续使用字符矩形兜底。
+    }
+  }
   const walker = ownerDocument.createTreeWalker(
     inlineCode,
     NodeFilter.SHOW_TEXT,
@@ -1090,7 +1107,17 @@ function moveInlineCodeCaretHorizontally(view: EditorView, direction: -1 | 1) {
     return true;
   }
 
-  const targetPosition = view.state.selection.from + direction;
+  const text = view.state.doc.textBetween(activeRange.from, activeRange.to);
+  const offset = view.state.selection.from - activeRange.from;
+  const grapheme = inlineCodeGraphemeSegmenter
+    .segment(text)
+    .containing(direction === -1 ? offset - 1 : offset);
+  // ProseMirror 使用 UTF-16 坐标；方向键必须按可见字符移动，避免把 emoji 或组合字符拆开。
+  const targetPosition = grapheme
+    ? activeRange.from +
+      grapheme.index +
+      (direction === 1 ? grapheme.segment.length : 0)
+    : view.state.selection.from + direction;
   if (targetPosition < activeRange.from || targetPosition > activeRange.to) {
     if (
       direction === -1 &&
@@ -1120,26 +1147,6 @@ function moveInlineCodeCaretHorizontally(view: EditorView, direction: -1 | 1) {
         suppressedSelectionPosition: view.state.selection.from,
       }),
     );
-    return true;
-  }
-
-  if (
-    direction === 1 &&
-    targetPosition === activeRange.to &&
-    hasInlineContentAfterRange(view.state, activeRange)
-  ) {
-    // 从最后一个字符右移到代码末尾时立即进入关闭反引号右侧虚拟边界，避免还要再按一次方向键才显示编辑态光标。
-    view.dispatch(
-      view.state.tr
-        .setSelection(TextSelection.create(view.state.doc, targetPosition))
-        .setMeta(inlineCodeEditingPluginKey, {
-          activeRange,
-          openingBoundaryPosition: null,
-          closingBoundaryPosition: activeRange.to,
-          suppressedSelectionPosition: null,
-        }),
-    );
-    view.focus();
     return true;
   }
 
@@ -1769,7 +1776,7 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
         };
         const handleInlineCodeMouseDown = (event: MouseEvent) => {
           suppressNextInlineCodeClick = false;
-          if (event.button !== 0) {
+          if (event.button !== 0 || event.shiftKey || event.detail >= 2) {
             resetInlineCodeSelectionDrag();
             return;
           }
@@ -2022,16 +2029,7 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
             return;
           }
 
-          const eventTarget = event.target;
-          const eventIsInsideEditor =
-            eventTarget instanceof Node && editorView.dom.contains(eventTarget);
-          if (
-            !eventIsInsideEditor &&
-            !editorView.hasFocus() &&
-            activeInlineCodeEditorView !== editorView
-          ) {
-            return;
-          }
+          if (!isInlineCodeKeyboardEventForView(editorView, event)) return;
 
           const handled =
             insertInlineCodeBoundaryText(editorView, event.data) ||
@@ -2053,15 +2051,7 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
         const handleInlineCodeInput = (event: Event) => {
           if (!suppressNextInlineCodeInput) return;
 
-          const eventTarget = event.target;
-          if (
-            !(eventTarget instanceof Node) ||
-            (!editorView.dom.contains(eventTarget) &&
-              !editorView.hasFocus() &&
-              activeInlineCodeEditorView !== editorView)
-          ) {
-            return;
-          }
+          if (!isInlineCodeKeyboardEventForView(editorView, event)) return;
 
           suppressNextInlineCodeInput = false;
           if (suppressNextInlineCodeInputTimer !== null) {
@@ -2078,18 +2068,9 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
             inlineCodeEditingPluginKey.getState(editorView.state)?.isComposing
           )
             return;
-          const eventTarget = event.target;
-          const eventIsInsideEditor =
-            eventTarget instanceof Node && editorView.dom.contains(eventTarget);
           // 反引号和自定义光标是 contentEditable=false 的 widget；它们可能让事件目标脱离编辑器根节点。
           // 某些 Chromium 路径会把 widget 上的方向键事件目标报告为 document/body；只允许最近交互的编辑器接管。
-          if (
-            !eventIsInsideEditor &&
-            !editorView.hasFocus() &&
-            activeInlineCodeEditorView !== editorView
-          ) {
-            return;
-          }
+          if (!isInlineCodeKeyboardEventForView(editorView, event)) return;
 
           const navigation = getInlineCodeHorizontalNavigation(event);
           if (!navigation) return;
@@ -2297,6 +2278,44 @@ const inlineCodeEditingExtension = createExtension(({ editor }) => ({
           return false;
         },
         handleDOMEvents: {
+          dblclick(view, event) {
+            const inlineCode = getInlineCodeFromPointerEvent(view, event);
+            const range =
+              inlineCode && findInlineCodeRangeFromElement(view, inlineCode);
+            if (!range || !inlineCode) return false;
+            const position =
+              getInlineCodePointerPosition(view, inlineCode, event, range) ??
+              view.posAtCoords({ left: event.clientX, top: event.clientY })
+                ?.pos;
+            if (position === undefined) return false;
+            const text = view.state.doc.textBetween(range.from, range.to);
+            const word = inlineCodeWordSegmenter
+              .segment(text)
+              .containing(
+                Math.min(text.length - 1, Math.max(0, position - range.from)),
+              );
+            if (!word) return false;
+            // 光标 widget 会拆开原生单词选区；按整段代码的单词边界恢复双击选择。
+            view.dispatch(
+              view.state.tr
+                .setSelection(
+                  TextSelection.create(
+                    view.state.doc,
+                    range.from + word.index,
+                    range.from + word.index + word.segment.length,
+                  ),
+                )
+                .setMeta(inlineCodeEditingPluginKey, {
+                  activeRange: range,
+                  openingBoundaryPosition: null,
+                  closingBoundaryPosition: null,
+                  suppressedSelectionPosition: null,
+                  isBlurred: false,
+                }),
+            );
+            event.preventDefault();
+            return true;
+          },
           focus(view) {
             activeInlineCodeEditorView = view;
             const editingState =
@@ -2364,7 +2383,9 @@ const inlineCodeBackspaceExtension = createExtension({
           return false;
         }
 
-        const previousCharacter = Array.from(nodeBefore.text).at(-1);
+        const previousCharacter = inlineCodeGraphemeSegmenter
+          .segment(nodeBefore.text)
+          .containing(nodeBefore.text.length - 1)?.segment;
         if (!previousCharacter) return false;
 
         // 使用原生文档位置删除代码内容，不把反引号序列化回编辑器。
@@ -2802,6 +2823,7 @@ const editorQuoteBlockSpec = {
       ],
       prosemirrorPlugins: [
         new Plugin({
+          key: quoteListInputPluginKey,
           props: {
             handlePaste(_view, event, slice) {
               const pasteContent = getQuoteListPasteContent(slice);
@@ -2898,37 +2920,56 @@ const editorQuoteBlockSpec = {
               return null;
             }
 
-            let insertedChildId: string | null = null;
-            oldState.doc.descendants((node, position) => {
-              if (node.type.name !== "blockContainer") return true;
-
-              const oldInfo = getBlockInfo({
-                node,
-                posBeforeNode: position,
-              });
-              if (!oldInfo.isBlockContainer) return true;
-              if (oldInfo.blockNoteType !== "quote") return true;
-
-              const id = node.attrs.id;
-              if (typeof id !== "string") return true;
-              const nextNode = getNodeById(id, newState.doc);
-              if (!nextNode) return true;
-
-              const oldQuote = nodeToBlock(node, oldState.doc.type.schema);
-              const nextQuote = nodeToBlock(
-                nextNode.node,
-                newState.doc.type.schema,
-              );
-              if (nextQuote.type !== "quote") return true;
-              if (nextQuote.children.length !== oldQuote.children.length + 1) {
-                return true;
+            const { ranges, mapping } =
+              collectTransactionChangedRanges(transactions);
+            const candidates = new Map<number, ProseMirrorNode>();
+            const collectQuote = (node: ProseMirrorNode, position: number) => {
+              if (
+                node.type.name === "blockContainer" &&
+                node.firstChild?.type.name === "quote"
+              ) {
+                candidates.set(position, node);
               }
+            };
+            for (const { from, to } of ranges) {
+              // nodesBetween 不会返回范围起点的祖先；引用子列表中的输入也要检查所属引用。
+              const $from = newState.doc.resolve(from);
+              for (let depth = 1; depth <= $from.depth; depth++) {
+                collectQuote($from.node(depth), $from.before(depth));
+              }
+              newState.doc.nodesBetween(from, to, collectQuote);
+            }
 
-              const child = nextQuote.children.at(-1);
-              if (child?.type !== "bulletListItem") return true;
-              insertedChildId = child.id;
-              return false;
-            });
+            let insertedChildId: string | null = null;
+            const inverseMapping = mapping.invert();
+            for (const [position, node] of candidates) {
+              const previous = oldState.doc.nodeAt(
+                inverseMapping.map(position, 1),
+              );
+              if (
+                previous?.attrs.id !== node.attrs.id ||
+                previous?.firstChild?.type.name !== "quote"
+              )
+                continue;
+              const oldChildren =
+                previous.lastChild?.type.name === "blockGroup"
+                  ? previous.lastChild
+                  : null;
+              const nextChildren =
+                node.lastChild?.type.name === "blockGroup"
+                  ? node.lastChild
+                  : null;
+              if (
+                !nextChildren ||
+                nextChildren.childCount !== (oldChildren?.childCount ?? 0) + 1
+              )
+                continue;
+              const child = nextChildren.lastChild;
+              if (child?.firstChild?.type.name !== "bulletListItem") continue;
+              // 直接比较修改引用的子块结构，避免每次输入为所有引用全文查找并转换 BlockNote 对象。
+              insertedChildId = child.attrs.id as string;
+              break;
+            }
             if (!insertedChildId) return null;
 
             const tr = newState.tr;
