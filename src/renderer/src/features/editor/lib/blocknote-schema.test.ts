@@ -9,6 +9,7 @@ import { syntaxTree } from "@codemirror/language";
 import { EditorSelection } from "@codemirror/state";
 import { EditorView, getDrawSelectionConfig } from "@codemirror/view";
 import { AllSelection, NodeSelection, TextSelection } from "@tiptap/pm/state";
+import { closeHistory, undoDepth } from "@tiptap/pm/history";
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import MarkdownIt from "markdown-it";
@@ -622,7 +623,7 @@ describe("editor BlockNote schema", () => {
     });
   });
 
-  it("continues undoing in BlockNote after CodeMirror history is exhausted", async () => {
+  it("undoes code input before undoing code block creation", async () => {
     setupMatchMedia();
     const editor = CoreEditorFactory.create({
       schema: editorSchema,
@@ -729,6 +730,267 @@ describe("editor BlockNote schema", () => {
 
     undoInCodeMirror();
     expect(codeMirror.state.doc.toString()).toBe("a");
+  });
+
+  it("undoes code input from the document history after leaving the code block", () => {
+    setupMatchMedia();
+    const editor = CoreEditorFactory.create({
+      schema: editorSchema,
+      initialContent: [
+        { type: "codeBlock", content: "original" },
+        { type: "paragraph", content: "paragraph" },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+    const codeMirror = getCodeMirrorView(container);
+    codeMirror.focus();
+    codeMirror.dispatch({
+      changes: { from: 8, insert: " edited" },
+      selection: { anchor: 15 },
+      userEvent: "input.type",
+    });
+    editor.setTextCursorPosition(editor.document[1].id, "end");
+    editor.focus();
+
+    expect(editor.undo()).toBe(true);
+    expect(codeMirror.state.doc.toString()).toBe("original");
+    expect(editor.prosemirrorState.doc.textContent).toBe("originalparagraph");
+    expect(editor.redo()).toBe(true);
+    expect(codeMirror.state.doc.toString()).toBe("original edited");
+  });
+
+  it("undoes the latest document edit even when an older code block has focus", () => {
+    setupMatchMedia();
+    const editor = CoreEditorFactory.create({
+      schema: editorSchema,
+      initialContent: [
+        { type: "codeBlock", content: "original" },
+        { type: "paragraph", content: "paragraph" },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+    const codeMirror = getCodeMirrorView(container);
+    codeMirror.focus();
+    codeMirror.dispatch({
+      changes: { from: 8, insert: " edited" },
+      userEvent: "input.type",
+    });
+    editor.setTextCursorPosition(editor.document[1].id, "end");
+    const view = editor.prosemirrorView;
+    view.dispatch(closeHistory(view.state.tr.insertText(" latest")));
+    codeMirror.focus();
+    const modifier = /Mac|iPhone|iPad/.test(navigator.platform)
+      ? { metaKey: true }
+      : { ctrlKey: true };
+    fireEvent.keyDown(codeMirror.contentDOM, { key: "z", ...modifier });
+
+    expect(editor.prosemirrorState.doc.textContent).toBe(
+      "original editedparagraph",
+    );
+    expect(codeMirror.state.doc.toString()).toBe("original edited");
+  });
+
+  it("keeps code input undoable after deleting and restoring the code block", () => {
+    setupMatchMedia();
+    const editor = CoreEditorFactory.create({
+      schema: editorSchema,
+      initialContent: [
+        { type: "codeBlock", content: "original" },
+        { type: "paragraph", content: "paragraph" },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+    const codeMirror = getCodeMirrorView(container);
+    codeMirror.focus();
+    codeMirror.dispatch({
+      changes: { from: 8, insert: " edited" },
+      userEvent: "input.type",
+    });
+    editor.transact((tr) => {
+      closeHistory(tr);
+      editor.removeBlocks([editor.document[0]]);
+    });
+
+    expect(editor.undo()).toBe(true);
+    expect(getCodeMirrorView(container).state.doc.toString()).toBe(
+      "original edited",
+    );
+    expect(editor.undo()).toBe(true);
+    expect(getCodeMirrorView(container).state.doc.toString()).toBe("original");
+  });
+
+  it("routes native code block undo and redo to the document history", () => {
+    setupMatchMedia();
+    const editor = CoreEditorFactory.create({
+      schema: editorSchema,
+      initialContent: [{ type: "codeBlock", content: "original" }],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+    const codeMirror = getCodeMirrorView(container);
+    codeMirror.focus();
+    codeMirror.dispatch({
+      changes: { from: 8, insert: " edited" },
+      userEvent: "input.type",
+    });
+    expect(undoDepth(editor.prosemirrorState)).toBe(1);
+
+    codeMirror.contentDOM.dispatchEvent(
+      new InputEvent("beforeinput", {
+        bubbles: true,
+        cancelable: true,
+        inputType: "historyUndo",
+      }),
+    );
+    expect(codeMirror.state.doc.toString()).toBe("original");
+    codeMirror.contentDOM.dispatchEvent(
+      new InputEvent("beforeinput", {
+        bubbles: true,
+        cancelable: true,
+        inputType: "historyRedo",
+      }),
+    );
+    expect(codeMirror.state.doc.toString()).toBe("original edited");
+  });
+
+  it.each(["z", "y"])("redoes code input with the %s shortcut", (key) => {
+    setupMatchMedia();
+    const editor = CoreEditorFactory.create({
+      schema: editorSchema,
+      initialContent: [{ type: "codeBlock", content: "original" }],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+    const codeMirror = getCodeMirrorView(container);
+    codeMirror.focus();
+    codeMirror.dispatch({
+      changes: { from: 8, insert: " edited" },
+      userEvent: "input.type",
+    });
+    const modifier = /Mac|iPhone|iPad/.test(navigator.platform)
+      ? { metaKey: true }
+      : { ctrlKey: true };
+    fireEvent.keyDown(codeMirror.contentDOM, { key: "z", ...modifier });
+    expect(codeMirror.state.doc.toString()).toBe("original");
+    fireEvent.keyDown(codeMirror.contentDOM, {
+      key,
+      shiftKey: key === "z",
+      ...modifier,
+    });
+    expect(codeMirror.state.doc.toString()).toBe("original edited");
+  });
+
+  it("invalidates document redo when typing a new change in a code block", () => {
+    setupMatchMedia();
+    const editor = CoreEditorFactory.create({
+      schema: editorSchema,
+      initialContent: [{ type: "codeBlock", content: "original" }],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+    const codeMirror = getCodeMirrorView(container);
+    codeMirror.focus();
+    codeMirror.dispatch({
+      changes: { from: 8, insert: " old" },
+      userEvent: "input.type",
+    });
+    expect(editor.undo()).toBe(true);
+    codeMirror.focus();
+    codeMirror.dispatch({
+      changes: { from: 8, insert: " new" },
+      userEvent: "input.type",
+    });
+
+    expect(editor.redo()).toBe(false);
+    expect(codeMirror.state.doc.toString()).toBe("original new");
+  });
+
+  it("undoes edits in multiple code blocks in document order", () => {
+    setupMatchMedia();
+    const editor = CoreEditorFactory.create({
+      schema: editorSchema,
+      initialContent: [
+        { type: "codeBlock", content: "first" },
+        { type: "codeBlock", content: "second" },
+      ],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+    const codeMirrors = Array.from(
+      container.querySelectorAll<HTMLElement>(".cm-editor"),
+    ).map((element) => EditorView.findFromDOM(element)!);
+    for (const codeMirror of codeMirrors) {
+      codeMirror.focus();
+      codeMirror.dispatch({
+        changes: { from: codeMirror.state.doc.length, insert: " edited" },
+        userEvent: "input.type",
+      });
+    }
+    codeMirrors[0].focus();
+    const modifier = /Mac|iPhone|iPad/.test(navigator.platform)
+      ? { metaKey: true }
+      : { ctrlKey: true };
+    fireEvent.keyDown(codeMirrors[0].contentDOM, { key: "z", ...modifier });
+    expect(codeMirrors.map((view) => view.state.doc.toString())).toEqual([
+      "first edited",
+      "second",
+    ]);
+    expect(editor.undo()).toBe(true);
+    expect(codeMirrors.map((view) => view.state.doc.toString())).toEqual([
+      "first",
+      "second",
+    ]);
+  });
+
+  it("keeps paste separate from adjacent code typing", () => {
+    setupMatchMedia();
+    const editor = CoreEditorFactory.create({
+      schema: editorSchema,
+      initialContent: [{ type: "codeBlock", content: "" }],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+    const codeMirror = getCodeMirrorView(container);
+    codeMirror.focus();
+    for (const [insert, inputEvent] of [
+      ["typed", "input.type"],
+      [" pasted", "input.paste"],
+      [" after", "input.type"],
+    ]) {
+      const from = codeMirror.state.doc.length;
+      codeMirror.dispatch({
+        changes: { from, insert },
+        selection: { anchor: from + insert.length },
+        userEvent: inputEvent,
+      });
+    }
+    for (const expected of ["typed pasted", "typed", ""]) {
+      expect(editor.undo()).toBe(true);
+      expect(codeMirror.state.doc.toString()).toBe(expected);
+    }
+  });
+
+  it("keeps one code input composition together across long candidate updates", () => {
+    setupMatchMedia();
+    const editor = CoreEditorFactory.create({
+      schema: editorSchema,
+      initialContent: [{ type: "codeBlock", content: "" }],
+    });
+    const { container } = render(createElement(BlockNoteView, { editor }));
+    const codeMirror = getCodeMirrorView(container);
+    codeMirror.focus();
+    let now = Date.now();
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    for (const [insert, inputEvent] of [
+      ["n", "input.type.compose.start"],
+      ["ni", "input.type.compose"],
+      ["你", "input.type.compose"],
+    ]) {
+      now += 1000;
+      codeMirror.dispatch({
+        changes: { from: 0, to: codeMirror.state.doc.length, insert },
+        selection: { anchor: insert.length },
+        userEvent: inputEvent,
+      });
+    }
+    expect(undoDepth(editor.prosemirrorState)).toBe(1);
+    expect(editor.undo()).toBe(true);
+    expect(codeMirror.state.doc.toString()).toBe("");
   });
 
   it("does not expose a BlockNote Shiki highlighter for editor code blocks", () => {

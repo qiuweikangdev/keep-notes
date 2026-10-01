@@ -1,4 +1,10 @@
-import { act, cleanup, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -150,6 +156,17 @@ describe("FindWidget", () => {
 
     await user.keyboard("{Meta>}z{/Meta}");
     expect(onUndoReplace).toHaveBeenCalled();
+    onUndoReplace.mockClear();
+    await user.keyboard("{Meta>}{Shift>}z{/Shift}{/Meta}");
+    await user.keyboard("{Control>}{Shift>}z{/Shift}{/Control}");
+    await user.keyboard("{Meta>}{Alt>}z{/Alt}{/Meta}");
+    fireEvent.keyDown(searchInput, {
+      key: "z",
+      ctrlKey: true,
+      isComposing: true,
+    });
+    fireEvent.keyDown(searchInput, { key: "z", ctrlKey: true, keyCode: 229 });
+    expect(onUndoReplace).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: "全选匹配" }));
     expect(onSelectAllMatches).toHaveBeenCalled();

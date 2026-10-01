@@ -219,7 +219,14 @@ export function FindWidget({
 
   const handleWidgetKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     event.stopPropagation();
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
+    if (
+      (event.metaKey || event.ctrlKey) &&
+      event.key.toLowerCase() === "z" &&
+      !event.shiftKey &&
+      !event.altKey &&
+      !event.nativeEvent.isComposing &&
+      event.keyCode !== 229
+    ) {
       event.preventDefault();
       onUndoReplace();
     }

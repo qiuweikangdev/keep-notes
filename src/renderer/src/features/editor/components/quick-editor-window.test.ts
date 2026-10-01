@@ -8,6 +8,8 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
+import { closeHistory, undo, undoDepth } from "@tiptap/pm/history";
+import type { EditorView } from "@tiptap/pm/view";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createQuickEditorImageUploader,
@@ -35,6 +37,41 @@ afterEach(() => {
 });
 
 describe("quick editor content detection", () => {
+  it("starts a fresh undo baseline when opening content in the quick editor", async () => {
+    vi.stubGlobal("matchMedia", (media: string) => ({
+      media,
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    let receiveInitial!: (value: { content: string; source: null }) => void;
+    vi.stubGlobal("electronAPI", {
+      getQuickEditorCollapsed: async () => false,
+      onQuickEditorInitialContent: (callback: typeof receiveInitial) => {
+        receiveInitial = callback;
+        callback({ content: "Initial draft", source: null });
+        return () => {};
+      },
+      onQuickEditorContentUpdated: () => () => {},
+      syncQuickEditorContent: vi.fn(),
+      updateDirtyState: vi.fn(),
+    });
+    render(createElement(QuickEditorWindow));
+    await screen.findByText("Initial draft");
+    const view = (Reflect.get(window, "ProseMirror") as { view: EditorView })
+      .view;
+    expect(undoDepth(view.state)).toBe(0);
+    expect(undo(view.state, view.dispatch)).toBe(false);
+
+    act(() => view.dispatch(closeHistory(view.state.tr.insertText("edited "))));
+    expect(undoDepth(view.state)).toBe(1);
+    act(() => receiveInitial({ content: "Next draft", source: null }));
+    await screen.findByText("Next draft");
+    expect(undoDepth(view.state)).toBe(0);
+    expect(undo(view.state, view.dispatch)).toBe(false);
+    expect(view.state.doc.textContent).toBe("Next draft");
+  });
+
   it("keeps an opened actions menu focused when initial focus is delayed", async () => {
     const frames = new Map<number, FrameRequestCallback>();
     let frameId = 0;

@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { editorSchema } from "./blocknote-schema";
 import {
   configureRichTextUndoHistory,
+  resetRichTextUndoHistory,
   runWithoutRichTextUndoHistory,
 } from "./editor-undo-history";
 
@@ -90,5 +91,25 @@ describe("rich text undo history", () => {
 
     expect(editor.undo()).toBe(true);
     expect(editor.prosemirrorState.doc.textContent).toBe("existing content");
+  });
+
+  it("clears old undo and redo when opening another document and retains history depth", () => {
+    const editor = createMountedEditor();
+    configureRichTextUndoHistory(editor);
+    insertSeparateHistoryEvent(editor);
+    expect(editor.undo()).toBe(true);
+    runWithoutRichTextUndoHistory(editor, () =>
+      editor.replaceBlocks(editor.document, [
+        { type: "paragraph", content: "next" },
+      ]),
+    );
+    expect(resetRichTextUndoHistory(editor)).toBe(true);
+    expect(editor.undo()).toBe(false);
+    expect(editor.redo()).toBe(false);
+    expect(editor.prosemirrorState.doc.textContent).toBe("next");
+    for (let index = 0; index < 150; index += 1) {
+      insertSeparateHistoryEvent(editor);
+    }
+    expect(undoDepth(editor.prosemirrorState)).toBe(150);
   });
 });

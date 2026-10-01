@@ -40,7 +40,12 @@ import {
   type UploadedImageCursorEditor,
 } from "../lib/editor-image";
 import { EDITOR_EMPTY_PLACEHOLDER } from "../lib/editor-placeholder";
-import { configureRichTextUndoHistory } from "../lib/editor-undo-history";
+import { EditorReplacementHistory } from "../lib/editor-replacement-history";
+import {
+  configureRichTextUndoHistory,
+  resetRichTextUndoHistory,
+  runWithoutRichTextUndoHistory,
+} from "../lib/editor-undo-history";
 import { scheduleStableEditorBlockScroll } from "../lib/editor-viewport";
 import {
   clearEditorFindHighlights,
@@ -233,6 +238,7 @@ export function QuickEditorWindow() {
   const returnInProgressRef = useRef(false);
   const sourceRef = useRef<QuickEditorWindowContent["source"]>(null);
   const sourceMarkdownRef = useRef("");
+  const sourceModeRichSnapshotRef = useRef<string | null>(null);
   const lastSyncedContentRef = useRef<string | null>(null);
   const serializedBaselineRef = useRef<string | null>(null);
   const syncRevisionRef = useRef(0);
@@ -258,7 +264,7 @@ export function QuickEditorWindow() {
   const outlineDirtyRef = useRef(true);
   const outlineHeadingsRef = useRef<QuickEditorOutlineHeading[]>([]);
   const activeHeadingIdRef = useRef<string | null>(null);
-  const replacementUndoStackRef = useRef<string[]>([]);
+  const replacementUndoStackRef = useRef(new EditorReplacementHistory());
   const toastTimerRef = useRef<number | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [linkedFilePath, setLinkedFilePath] = useState<string | null>(null);
@@ -605,8 +611,9 @@ export function QuickEditorWindow() {
       setLinkedRepositoryRoot(source?.repositoryRoot ?? null);
       lastSyncedContentRef.current = content;
       serializedBaselineRef.current = baseline;
-      replacementUndoStackRef.current.length = 0;
+      replacementUndoStackRef.current.clear();
       sourceMarkdownRef.current = content;
+      sourceModeRichSnapshotRef.current = content;
       setSourceMarkdown(content);
       setFindContent(content);
       editor.replaceBlocks(editor.document, blocks);
@@ -971,7 +978,7 @@ export function QuickEditorWindow() {
         if (revision !== syncRevisionRef.current) return;
 
         if (shouldPushUndo) {
-          replacementUndoStackRef.current.push(currentContent);
+          replacementUndoStackRef.current.push(currentContent, content);
         }
         const source = sourceRef.current;
         lastSyncedContentRef.current = content;
@@ -1011,11 +1018,12 @@ export function QuickEditorWindow() {
     );
   }, [applyFindReplacement, findContent, rawMatches, replacement]);
 
-  const undoLastReplacement = useCallback(() => {
-    const previousContent = replacementUndoStackRef.current.pop();
-    if (previousContent === undefined) return;
+  const undoLastReplacement = useCallback(async () => {
+    const currentContent = await getCurrentEditorContent();
+    const previousContent = replacementUndoStackRef.current.pop(currentContent);
+    if (previousContent === null) return;
     void applyFindReplacement(previousContent, false);
-  }, [applyFindReplacement]);
+  }, [applyFindReplacement, getCurrentEditorContent]);
 
   const selectAllMatches = useCallback(() => {
     if (!findQuery || rawMatches.length === 0) return;
@@ -1105,11 +1113,16 @@ export function QuickEditorWindow() {
         setLinkedRepositoryRoot(initialContent.source?.repositoryRoot ?? null);
         lastSyncedContentRef.current = initialContent.content;
         serializedBaselineRef.current = baseline;
-        replacementUndoStackRef.current.length = 0;
+        replacementUndoStackRef.current.clear();
         sourceMarkdownRef.current = initialContent.content;
+        sourceModeRichSnapshotRef.current = initialContent.content;
         setSourceMarkdown(initialContent.content);
         setFindContent(initialContent.content);
-        editor.replaceBlocks(editor.document, blocks);
+        // 打开文档只建立初始基线，不能撤回到空白占位或上一次浮窗的文档。
+        runWithoutRichTextUndoHistory(editor, () =>
+          editor.replaceBlocks(editor.document, blocks),
+        );
+        resetRichTextUndoHistory(editor);
         // 未命名标签虽有关联来源，但没有可落盘路径，关闭时仍需进入保存确认。
         syncDirtyState(
           hasUnsavedQuickEditorContent(
@@ -1169,8 +1182,9 @@ export function QuickEditorWindow() {
         setLinkedRepositoryRoot(content.source?.repositoryRoot ?? null);
         lastSyncedContentRef.current = content.content;
         serializedBaselineRef.current = baseline;
-        replacementUndoStackRef.current.length = 0;
+        replacementUndoStackRef.current.clear();
         sourceMarkdownRef.current = content.content;
+        sourceModeRichSnapshotRef.current = content.content;
         setSourceMarkdown(content.content);
         setFindContent(content.content);
         editor.replaceBlocks(editor.document, blocks);
@@ -1340,6 +1354,7 @@ export function QuickEditorWindow() {
     if (editorMode === "rich") {
       const content = await getCurrentEditorContent();
       sourceMarkdownRef.current = content;
+      sourceModeRichSnapshotRef.current = content;
       setSourceMarkdown(content);
       closeFindWidget();
       setOutlineVisibility(false);
@@ -1349,6 +1364,11 @@ export function QuickEditorWindow() {
 
     const revision = ++syncRevisionRef.current;
     const sourceContent = sourceMarkdownRef.current;
+    // 源码未编辑时复用原富文本文档，避免仅切换模式就生成整篇替换的撤销记录。
+    if (sourceContent === sourceModeRichSnapshotRef.current) {
+      setEditorMode("rich");
+      return;
+    }
     try {
       const blocks = await parseMarkdown(editor, sourceContent);
       const baseline = await serializeMarkdown(editor, blocks);

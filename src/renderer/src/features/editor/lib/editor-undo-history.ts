@@ -42,3 +42,21 @@ export function configureRichTextUndoHistory(
 
   return true;
 }
+
+export function resetRichTextUndoHistory(editor: CoreBlockNoteEditor): boolean {
+  const state = editor.prosemirrorState;
+  const historyKey = history().spec.key;
+  const historyIndex = state.plugins.findIndex(
+    (plugin) => plugin.spec.key === historyKey,
+  );
+  if (historyIndex < 0) return false;
+
+  // 同一个浮窗接收新文档时先移除历史状态再恢复插件，保留深度配置和其他插件状态。
+  const withoutHistory = state.reconfigure({
+    plugins: state.plugins.filter((_plugin, index) => index !== historyIndex),
+  });
+  editor.prosemirrorView.updateState(
+    withoutHistory.reconfigure({ plugins: state.plugins }),
+  );
+  return true;
+}

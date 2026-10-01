@@ -1,11 +1,4 @@
-import {
-  defaultKeymap,
-  history,
-  historyKeymap,
-  indentWithTab,
-  isolateHistory,
-  undoDepth,
-} from "@codemirror/commands";
+import { defaultKeymap, indentWithTab } from "@codemirror/commands";
 import {
   bracketMatching,
   codeFolding,
@@ -43,6 +36,7 @@ import { tags as t } from "@lezer/highlight";
 import type { BlockNoteEditor as CoreBlockNoteEditor } from "@blocknote/core";
 import type { Node as ProseMirrorNode, Schema } from "@tiptap/pm/model";
 import { TextSelection } from "@tiptap/pm/state";
+import { closeHistory, redo, undo } from "@tiptap/pm/history";
 import type { EditorView as ProseMirrorView } from "@tiptap/pm/view";
 
 import {
@@ -501,6 +495,10 @@ class EditorCodeBlockNodeView {
 
   private isUpdatingFromProseMirror = false;
 
+  private needsHistoryBoundary = true;
+
+  private codeComposition: symbol | null = null;
+
   private language: string;
   private languageLoadGeneration = 0;
 
@@ -778,21 +776,27 @@ class EditorCodeBlockNodeView {
           },
           {
             key: "Enter",
-            run: (view) => {
+            run: () => {
               // 换行与下一行内容组成独立撤销单元，避免一次撤回清空多行输入。
-              view.dispatch({ annotations: isolateHistory.of("before") });
+              this.needsHistoryBoundary = true;
 
               return false;
             },
           },
           {
             key: "Mod-z",
-            run: (view) => {
-              if (undoDepth(view.state) > 0) return false;
-
-              // 代码内容已全部撤回后，继续撤销外层的代码块创建等结构操作。
-              return this.editor.undo();
-            },
+            run: () => this.runDocumentHistory(false),
+            preventDefault: true,
+          },
+          {
+            key: "Mod-Shift-z",
+            run: () => this.runDocumentHistory(true),
+            preventDefault: true,
+          },
+          {
+            key: "Mod-y",
+            run: () => this.runDocumentHistory(true),
+            preventDefault: true,
           },
         ]),
       ),
@@ -816,7 +820,6 @@ class EditorCodeBlockNodeView {
       }),
       foldService.of(getCodeMirrorFallbackFoldRange),
       codeFolding(),
-      history(),
       drawSelection({ cursorBlinkRate: 0 }),
       dropCursor(),
       crosshairCursor(),
@@ -833,6 +836,18 @@ class EditorCodeBlockNodeView {
       EditorState.readOnly.of(!this.editor.isEditable),
       EditorState.changeFilter.of(() => this.editor.isEditable),
       CodeMirrorView.domEventHandlers({
+        beforeinput: (event) => {
+          if (
+            event.inputType !== "historyUndo" &&
+            event.inputType !== "historyRedo"
+          )
+            return false;
+
+          // Electron 菜单和系统编辑命令也必须使用文档历史，不能落入浏览器原生撤销栈。
+          event.preventDefault();
+          this.runDocumentHistory(event.inputType === "historyRedo");
+          return true;
+        },
         keydown: (event) => {
           if (
             event.key.toLowerCase() === "a" &&
@@ -856,16 +871,22 @@ class EditorCodeBlockNodeView {
         },
       }),
       CodeMirrorView.updateListener.of((update) => this.forwardUpdate(update)),
-      keymap.of([
-        indentWithTab,
-        ...defaultKeymap,
-        ...historyKeymap,
-        ...foldKeymap,
-      ]),
+      keymap.of([indentWithTab, ...defaultKeymap, ...foldKeymap]),
     ];
   }
 
+  private runDocumentHistory(isRedo: boolean) {
+    const view = this.prosemirrorView;
+    if (!view || !this.editor.isEditable) return false;
+
+    // 所有代码块与正文共享同一时间顺序，节点重建后仍能继续撤销和重做。
+    const handled = (isRedo ? redo : undo)(view.state, view.dispatch);
+    if (handled) view.focus();
+    return handled;
+  }
+
   private forwardUpdate(update: ViewUpdate) {
+    if (update.focusChanged) this.needsHistoryBoundary = true;
     if (this.isUpdatingFromProseMirror || !this.codeMirror.hasFocus) return;
 
     const view = this.prosemirrorView;
@@ -877,19 +898,48 @@ class EditorCodeBlockNodeView {
 
     const offset = pos + 1;
     const selection = update.state.selection.main;
-    const nextSelectionFrom = offset + selection.from;
-    const nextSelectionTo = offset + selection.to;
+    const nextSelectionFrom = offset + selection.anchor;
+    const nextSelectionTo = offset + selection.head;
     const currentSelection = view.state.selection;
 
     if (
       !update.docChanged &&
-      currentSelection.from === nextSelectionFrom &&
-      currentSelection.to === nextSelectionTo
+      currentSelection.anchor === nextSelectionFrom &&
+      currentSelection.head === nextSelectionTo
     ) {
       return;
     }
 
     let tr = view.state.tr;
+    if (update.docChanged) {
+      const isComposition = update.transactions.some((transaction) =>
+        transaction.isUserEvent("input.type.compose"),
+      );
+      if (isComposition) {
+        if (
+          !this.codeComposition ||
+          update.transactions.some((transaction) =>
+            transaction.isUserEvent("input.type.compose.start"),
+          )
+        )
+          this.codeComposition = Symbol("code-composition");
+        // 同一次输入法组词可能跨越防抖时间，候选文字更新仍属于一个撤销单元。
+        tr.setMeta("composition", this.codeComposition);
+      } else {
+        this.codeComposition = null;
+      }
+    }
+    if (update.docChanged && this.needsHistoryBoundary) {
+      // 首次输入与代码块创建分开；再次进入代码块也不能合并此前的正文操作。
+      closeHistory(tr);
+      this.needsHistoryBoundary = false;
+    }
+    const isIsolatedInput = update.transactions.some(
+      (transaction) =>
+        transaction.isUserEvent("input.paste") ||
+        transaction.isUserEvent("input.drop"),
+    );
+    if (isIsolatedInput) closeHistory(tr);
     let changeOffset = offset;
 
     update.changes.iterChanges((fromA, toA, fromB, toB, text) => {
@@ -911,8 +961,8 @@ class EditorCodeBlockNodeView {
     tr = tr.setSelection(
       TextSelection.create(tr.doc, nextSelectionFrom, nextSelectionTo),
     );
-    // 代码文本由 CodeMirror 维护撤销栈，外层只记录代码块创建、删除等结构历史。
-    view.dispatch(tr.setMeta("addToHistory", false));
+    view.dispatch(tr);
+    if (isIsolatedInput) this.needsHistoryBoundary = true;
   }
 
   private selectAllCode() {
@@ -960,14 +1010,17 @@ class EditorCodeBlockNodeView {
     if (this.codeMirror.state.doc.toString() === nextCodeText) return;
 
     this.isUpdatingFromProseMirror = true;
-    this.codeMirror.dispatch({
-      changes: {
-        from: 0,
-        to: this.codeMirror.state.doc.length,
-        insert: nextCodeText,
-      },
-    });
-    this.isUpdatingFromProseMirror = false;
+    try {
+      this.codeMirror.dispatch({
+        changes: {
+          from: 0,
+          to: this.codeMirror.state.doc.length,
+          insert: nextCodeText,
+        },
+      });
+    } finally {
+      this.isUpdatingFromProseMirror = false;
+    }
   }
 
   private getLanguage(block: Block, node?: ProseMirrorNode) {

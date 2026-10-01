@@ -38,6 +38,7 @@ import {
   scrollRangeIntoView,
 } from "../lib/editor-find-highlights";
 import { editorFindController } from "../lib/editor-find-controller";
+import { EditorReplacementHistory } from "../lib/editor-replacement-history";
 import { EditorStateView } from "./editor-state-view";
 import { FindWidget } from "./find-widget";
 import { MarkdownSourceEditor } from "./markdown-source-editor";
@@ -60,7 +61,9 @@ export function EditorWorkspace({
   const lastFindQueryRef = useRef<string | null>(null);
   const findScrollTargetRef = useRef<string | null>(null);
   const sourceEditorRef = useRef<HTMLTextAreaElement>(null);
-  const replacementUndoStacksRef = useRef(new Map<string, string[]>());
+  const replacementUndoStacksRef = useRef(
+    new Map<string, EditorReplacementHistory>(),
+  );
   const [isFindOpen, setIsFindOpen] = useState(false);
   const [findFocusRequestKey, setFindFocusRequestKey] = useState(0);
   const [isReplaceOpen, setIsReplaceOpen] = useState(false);
@@ -340,8 +343,10 @@ export function EditorWorkspace({
       if (content === currentTab.content) return;
       if (shouldPushUndo) {
         const undoKey = `${groupId}:${tabId}:${getEditorDocumentPath(currentTab)}`;
-        const undoStack = replacementUndoStacksRef.current.get(undoKey) ?? [];
-        undoStack.push(currentTab.content);
+        const undoStack =
+          replacementUndoStacksRef.current.get(undoKey) ??
+          new EditorReplacementHistory();
+        undoStack.push(currentTab.content, content);
         replacementUndoStacksRef.current.set(undoKey, undoStack);
       }
       setTabContent(groupId, tabId, content);
@@ -419,19 +424,17 @@ export function EditorWorkspace({
     replacement,
   ]);
 
-  const undoLastReplacement = useCallback(() => {
-    const currentTab = getCurrentTab();
+  const undoLastReplacement = useCallback(async () => {
+    const currentTab = await getCurrentReplacementTab();
     if (!currentTab) return;
     const undoKey = `${groupId}:${tabId}:${getEditorDocumentPath(currentTab)}`;
     const undoStack = replacementUndoStacksRef.current.get(undoKey);
     if (!undoStack) return;
-    const previousContent = undoStack.pop();
-    if (previousContent === undefined) return;
-    if (undoStack.length === 0) {
-      replacementUndoStacksRef.current.delete(undoKey);
-    }
+    const previousContent = undoStack.pop(currentTab.content);
+    if (previousContent === null) return;
+    if (undoStack.size === 0) replacementUndoStacksRef.current.delete(undoKey);
     applyFindReplacement(previousContent, false);
-  }, [applyFindReplacement, getCurrentTab, groupId, tabId]);
+  }, [applyFindReplacement, getCurrentReplacementTab, groupId, tabId]);
 
   const selectAllMatches = useCallback(() => {
     if (!findQuery || matchCount === 0) return;

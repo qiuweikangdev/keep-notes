@@ -7,6 +7,8 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
+import type { EditorView } from "@tiptap/pm/view";
+import { undoDepth } from "@tiptap/pm/history";
 import type {
   CloseSaveSnapshot,
   QuickEditorSaveState,
@@ -59,17 +61,34 @@ it("preserves the unsaved draft close snapshot across mode switches", async () =
   };
   render(<QuickEditorWindow />);
   await screen.findByText("未保存草稿");
+  const tiptap = Reflect.get(window, "ProseMirror") as { view: EditorView };
+  const richDocument = tiptap.view.state.doc;
+  const historyDepth = undoDepth(tiptap.view.state);
   await waitFor(() => expect(updateDirtyState).toHaveBeenLastCalledWith(true));
   updateDirtyState.mockClear();
 
   fireEvent.click(screen.getByRole("button", { name: "切换模式" }));
   const source = await screen.findByRole("textbox", { name: "Markdown 源码" });
+  expect(source).toHaveValue("未保存草稿");
   expect(await bridge.__getNextDirtyEditor()).toMatchObject({
     content: "未保存草稿",
   });
   expect(updateDirtyState).not.toHaveBeenCalledWith(false);
 
-  fireEvent.change(source, { target: { value: "更新后的草稿" } });
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "切换模式" }));
+  });
+  await waitFor(() =>
+    expect(screen.queryByRole("textbox", { name: "Markdown 源码" })).toBeNull(),
+  );
+  expect(tiptap.view.state.doc.eq(richDocument)).toBe(true);
+  expect(undoDepth(tiptap.view.state)).toBe(historyDepth);
+  fireEvent.click(screen.getByRole("button", { name: "切换模式" }));
+  const updatedSource = await screen.findByRole("textbox", {
+    name: "Markdown 源码",
+  });
+
+  fireEvent.change(updatedSource, { target: { value: "更新后的草稿" } });
   await act(async () => {
     fireEvent.click(screen.getByRole("button", { name: "切换模式" }));
   });

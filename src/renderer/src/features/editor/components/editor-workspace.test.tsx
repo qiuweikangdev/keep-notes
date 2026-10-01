@@ -648,6 +648,49 @@ describe("EditorWorkspace split rich editor mount", () => {
     );
   });
 
+  it("flushes live edits before replacement undo and preserves newer input", async () => {
+    useEditorStore
+      .getState()
+      .setTabContent("group-1", "tab-1", "token original");
+    render(<EditorWorkspace groupId="group-1" tabId="tab-1" />);
+    act(() => editorFindController.open("group-1", "tab-1"));
+    fireEvent.change(screen.getByPlaceholderText("查找"), {
+      target: { value: "token" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "展开替换" }));
+    fireEvent.change(screen.getByPlaceholderText("替换"), {
+      target: { value: "changed" },
+    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "替换全部匹配" }),
+    );
+    await waitFor(() =>
+      expect(useEditorStore.getState().panelGroups[0].tabs[0].content).toBe(
+        "changed original",
+      ),
+    );
+
+    vi.mocked(
+      richDocumentSessionManager.serializePendingChange,
+    ).mockImplementationOnce(async () => {
+      useEditorStore
+        .getState()
+        .setTabContent("group-1", "tab-1", "changed original with new input");
+    });
+    await act(async () => {
+      fireEvent.keyDown(screen.getByRole("search"), {
+        key: "z",
+        ctrlKey: true,
+      });
+    });
+    expect(
+      richDocumentSessionManager.serializePendingChange,
+    ).toHaveBeenCalledTimes(2);
+    expect(useEditorStore.getState().panelGroups[0].tabs[0].content).toBe(
+      "changed original with new input",
+    );
+  });
+
   it("preserves empty nested list items when opening source mode", () => {
     useEditorStore.setState((state) => ({
       panelGroups: state.panelGroups.map((group) =>
