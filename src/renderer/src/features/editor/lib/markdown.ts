@@ -1993,6 +1993,13 @@ function splitMarkdownTableRow(text: string): MarkdownTableRow | null {
 
 function preserveTableCellSpacing(sourceCell: string, editedCell: string) {
   const leadingWhitespace = sourceCell.match(/^\s*/u)?.[0] ?? "";
+  if (leadingWhitespace.length === sourceCell.length) {
+    const content = editedCell.trim();
+    if (!content) return sourceCell;
+    // 空单元格的首尾空白是同一段，不能重复拼接；填入内容时将原有空白分到两侧。
+    const paddingBoundary = Math.ceil(sourceCell.length / 2);
+    return `${sourceCell.slice(0, paddingBoundary)}${content}${sourceCell.slice(paddingBoundary)}`;
+  }
   const trailingWhitespace = sourceCell.match(/\s*$/u)?.[0] ?? "";
   return `${leadingWhitespace}${editedCell.trim()}${trailingWhitespace}`;
 }

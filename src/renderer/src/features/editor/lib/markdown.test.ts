@@ -1070,6 +1070,65 @@ describe("preserveMarkdownSource", () => {
     );
   });
 
+  it.each(["", " ", "  ", "   ", " \t  "])(
+    "does not duplicate whitespace in empty table cells (%j)",
+    (spacing) => {
+      const source = [
+        `| Name |${spacing}|`,
+        "| --- | --- |",
+        `| Alpha |${spacing}|`,
+      ].join("\n");
+      const baseline = [
+        "| Name       |            |",
+        "| ---------- | ---------- |",
+        "| Alpha      |            |",
+      ].join("\n");
+      const edited = baseline.replace("Alpha", "Beta ");
+
+      expect(preserveMarkdownSource(source, baseline, edited)).toBe(
+        source.replace("Alpha", "Beta"),
+      );
+    },
+  );
+
+  it("keeps empty table cell padding bounded across repeated edits", () => {
+    const initialSource = [
+      "| at | in | on |",
+      "| --- | --- | --- |",
+      "|  |  |  |",
+      "",
+    ].join("\n");
+    let source = initialSource;
+    let baseline = initialSource;
+
+    for (let index = 0; index < 12; index += 1) {
+      const edited = initialSource.replace("at", `at${index}`);
+      source = preserveMarkdownSource(source, baseline, edited);
+      baseline = edited;
+
+      expect(source).toBe(edited);
+    }
+  });
+
+  it("keeps padding stable when a table cell is filled, cleared, and filled again", () => {
+    const emptySource = "| Name | Value |\n| --- | --- |\n| Alpha |  |\n";
+    const filled = emptySource.replace("| Alpha |  |", "| Alpha | 点 |");
+    const firstFilled = preserveMarkdownSource(
+      emptySource,
+      emptySource,
+      filled,
+    );
+    expect(firstFilled).toBe(
+      emptySource.replace("| Alpha |  |", "| Alpha | 点 |"),
+    );
+
+    const cleared = preserveMarkdownSource(firstFilled, filled, emptySource);
+    expect(cleared).toBe(emptySource);
+    expect(preserveMarkdownSource(cleared, emptySource, filled)).toBe(
+      firstFilled,
+    );
+  });
+
   it("keeps GFM table alignment markers when a cell changes", () => {
     const source = [
       "| Name | Value | Notes |",

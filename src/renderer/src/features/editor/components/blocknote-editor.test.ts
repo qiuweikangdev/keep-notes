@@ -4332,6 +4332,137 @@ describe("BlockNoteEditor markup copy", () => {
 });
 
 describe("BlockNoteEditor persistent session runtime", () => {
+  it("keeps table source and pending saves bounded while typing around empty cells", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const path = "C:/notes/table-empty-cell-input.md";
+    setupSessionTab(path);
+    const session = renderRealSession(path, false, "");
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      await waitFor(() =>
+        expect(markdownMocks.serializeMarkdown).toHaveBeenCalled(),
+      );
+      await act(async () => {
+        await markdownMocks.serializeMarkdown.mock.results[0]?.value;
+      });
+      const editor = session.runtime.current!.editor;
+      const scrollContainer = session.view.container.querySelector<HTMLElement>(
+        ".editor-rich-scroll",
+      )!;
+      fireEvent.keyDown(scrollContainer, { key: "Enter" });
+      act(() => {
+        editor.replaceBlocks(editor.document, [
+          {
+            type: "table",
+            content: {
+              type: "tableContent",
+              rows: [{ cells: [[], [], []] }, { cells: [[], [], []] }],
+            },
+          },
+        ]);
+      });
+      await act(async () => {
+        await session.runtime.current!.serializePendingChange();
+      });
+      const initialSource = editorSaveCoordinator.getPendingContent(path)!;
+      expect(initialSource).toContain(
+        "|            |            |            |",
+      );
+      session.callbacks.onMarkdownChange.mockClear();
+
+      const inputs = [
+        [0, 0, "a"],
+        [0, 0, "at"],
+        [0, 1, "i"],
+        [0, 1, "in"],
+        [0, 2, "o"],
+        [0, 2, "on"],
+        [1, 0, "d"],
+        [1, 0, "点"],
+        [1, 1, "m"],
+        [1, 1, "面"],
+        [1, 2, "s"],
+        [1, 2, "时"],
+        [1, 1, ""],
+        [1, 1, "面"],
+      ] as const;
+
+      for (const [rowIndex, columnIndex, text] of inputs) {
+        const table = editor.document[0];
+        if (table.type !== "table") throw new Error("Expected table");
+        const rows = table.content.rows.map((row, index) => ({
+          ...row,
+          cells: row.cells.map((cell, cellIndex) => {
+            const tableCell = Array.isArray(cell)
+              ? { type: "tableCell" as const, content: cell }
+              : cell;
+            return index === rowIndex && cellIndex === columnIndex
+              ? {
+                  ...tableCell,
+                  content: text
+                    ? [{ type: "text" as const, text, styles: {} }]
+                    : [],
+                }
+              : tableCell;
+          }),
+        }));
+        fireEvent.keyDown(scrollContainer, { key: text || "Backspace" });
+        act(() => {
+          editor.updateBlock(table, { content: { ...table.content, rows } });
+        });
+        await act(async () => {
+          await session.runtime.current!.serializePendingChange();
+        });
+
+        const pending = editorSaveCoordinator.getPendingContent(path)!;
+        expect(pending.length).toBeLessThan(initialSource.length + 20);
+        expect(pending.split("\n")).toHaveLength(
+          initialSource.split("\n").length,
+        );
+        expect(pending).not.toMatch(/[ \t]{13}/u);
+      }
+
+      const saved = editorSaveCoordinator.getPendingContent(path)!;
+      expect(session.callbacks.onMarkdownChange).toHaveBeenCalledTimes(
+        inputs.length,
+      );
+      expect(session.callbacks.onSerializationError).not.toHaveBeenCalledWith(
+        expect.any(Error),
+      );
+      expect(saved).toContain("at");
+      expect(saved).toContain("点");
+      const reopened = await parseMarkdown(editor, saved);
+      expect(reopened).toHaveLength(1);
+      expect(reopened[0]).toMatchObject({
+        type: "table",
+        content: {
+          rows: [
+            {
+              cells: [
+                { content: [{ text: "at" }] },
+                { content: [{ text: "in" }] },
+                { content: [{ text: "on" }] },
+              ],
+            },
+            {
+              cells: [
+                { content: [{ text: "点" }] },
+                { content: [{ text: "面" }] },
+                { content: [{ text: "时" }] },
+              ],
+            },
+          ],
+        },
+      });
+    } finally {
+      session.view.unmount();
+      editorSaveCoordinator.cancel(path);
+      editorCache.delete(path);
+    }
+  });
+
   it("keeps newly inserted multiline rich paragraphs separated when reconciling the source", async () => {
     setupMatchMedia();
     setupDomMeasurements();
