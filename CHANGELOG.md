@@ -1,3 +1,17 @@
+## [2.25.5](https://github.com/qiuweikangdev/keep-notes/compare/v2.25.4...v2.25.5) (2026-10-06)
+
+
+### Bug Fixes
+
+* bound rich editor diffing and stabilize composition and saves ([b43fc75](https://github.com/qiuweikangdev/keep-notes/commit/b43fc75d3e45a9cdebca01884cc1f62a8e3bba89))
+* prevent table cell whitespace growth ([41298b4](https://github.com/qiuweikangdev/keep-notes/commit/41298b40c274b28cfb928b4ed60cf1f9817a4db7))
+
+
+## Commit Summary
+
+- Compared with: v2.25.4
+- Total commits: 2
+
 ## [2.25.4](https://github.com/qiuweikangdev/keep-notes/compare/v2.25.3...v2.25.4) (2026-10-01)
 
 
