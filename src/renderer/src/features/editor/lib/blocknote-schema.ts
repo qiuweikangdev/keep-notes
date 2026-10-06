@@ -138,9 +138,11 @@ const editorInlineCodeStyleSpec = createStyleSpecFromTipTapMark(
 );
 
 const INLINE_CODE_NORMALIZER_META = "editor-inline-code-normalizer";
-const inlineCodeNormalizerPluginKey = new PluginKey(
-  "editor-inline-code-normalizer",
-);
+type InlineCodeNormalizationRange = { from: number; to: number };
+const inlineCodeNormalizerPluginKey =
+  new PluginKey<InlineCodeNormalizationRange | null>(
+    "editor-inline-code-normalizer",
+  );
 const quoteListInputPluginKey = new PluginKey("editor-quote-list-input");
 const inlineCodeGraphemeSegmenter = new Intl.Segmenter(undefined, {
   granularity: "grapheme",
@@ -361,10 +363,47 @@ export function normalizeInlineCodeMarkers(editor: {
 const inlineCodeNormalizerExtension = createExtension({
   key: "editor-inline-code-normalizer",
   prosemirrorPlugins: [
-    new Plugin({
+    new Plugin<InlineCodeNormalizationRange | null>({
       key: inlineCodeNormalizerPluginKey,
+      state: {
+        init: () => null,
+        apply(transaction, pendingRange, oldState) {
+          if (transaction.getMeta(INLINE_CODE_NORMALIZER_META)) return null;
+          const isComposing =
+            transaction.getMeta(inlineCodeEditingPluginKey)?.isComposing ??
+            inlineCodeEditingPluginKey.getState(oldState)?.isComposing;
+          if (!transaction.docChanged || (!isComposing && !pendingRange))
+            return pendingRange;
+
+          const ranges = isComposing
+            ? collectTransactionChangedRanges([transaction]).ranges
+            : [];
+          if (pendingRange) {
+            ranges.push({
+              from: Math.max(0, transaction.mapping.map(pendingRange.from, -1)),
+              to: Math.min(
+                transaction.doc.content.size,
+                transaction.mapping.map(pendingRange.to, 1),
+              ),
+            });
+          }
+          // 候选词可能连续替换、删除和移动；只记录映射后的局部范围，结束时再转换。
+          return ranges.length === 0
+            ? null
+            : {
+                from: Math.min(...ranges.map((range) => range.from)),
+                to: Math.max(...ranges.map((range) => range.to)),
+              };
+        },
+      },
       appendTransaction(transactions, _oldState, newState) {
-        if (!transactions.some((transaction) => transaction.docChanged)) {
+        if (inlineCodeEditingPluginKey.getState(newState)?.isComposing)
+          return null;
+        const pendingRange = inlineCodeNormalizerPluginKey.getState(newState);
+        if (
+          !pendingRange &&
+          !transactions.some((transaction) => transaction.docChanged)
+        ) {
           return null;
         }
         if (
@@ -376,15 +415,25 @@ const inlineCodeNormalizerExtension = createExtension({
         }
 
         const { ranges } = collectTransactionChangedRanges(transactions);
+        if (pendingRange) ranges.push(pendingRange);
         const replacements = collectInlineCodeMarkerReplacements(
           newState,
           ranges,
         );
 
         // 某些输入路径不会触发 input rule，这里在事务尾部兜底清理 Markdown 反引号。
-        return createInlineCodeMarkerNormalizationTransaction(
+        const normalized = createInlineCodeMarkerNormalizationTransaction(
           newState,
           replacements,
+        );
+        // 即使用户最终撤销了成对标记，也要清除候选期范围，避免后续选区移动反复扫描。
+        return (
+          normalized ??
+          (pendingRange
+            ? newState.tr
+                .setMeta(INLINE_CODE_NORMALIZER_META, true)
+                .setMeta("addToHistory", false)
+            : null)
         );
       },
     }),

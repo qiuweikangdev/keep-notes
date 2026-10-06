@@ -4332,6 +4332,50 @@ describe("BlockNoteEditor markup copy", () => {
 });
 
 describe("BlockNoteEditor persistent session runtime", () => {
+  it("flushes an edit even when the initial baseline receives no animation frame", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn(() => 1),
+    );
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    const path = "C:/notes/hidden-initial-baseline.md";
+    setupSessionTab(path);
+    const session = renderRealSession(path);
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const runtime = session.runtime.current!;
+      fireEvent.keyDown(
+        session.view.container.querySelector<HTMLElement>(
+          ".editor-rich-scroll",
+        )!,
+        { key: "x" },
+      );
+      act(() => {
+        runtime.editor.updateBlock(runtime.editor.document[0], {
+          content: "Latest while hidden",
+        });
+      });
+      const flush = runtime.serializePendingChange();
+      await waitFor(() =>
+        expect(session.callbacks.onMarkdownChange).toHaveBeenCalledWith(
+          "# Latest while hidden",
+        ),
+      );
+      await flush;
+      expect(editorSaveCoordinator.getPendingContent(path)).toBe(
+        "# Latest while hidden",
+      );
+    } finally {
+      session.view.unmount();
+      editorSaveCoordinator.cancel(path);
+      editorCache.delete(path);
+    }
+  });
+
   it("keeps table source and pending saves bounded while typing around empty cells", async () => {
     setupMatchMedia();
     setupDomMeasurements();

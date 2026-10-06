@@ -81,3 +81,20 @@ pnpm_config_verify_deps_before_run=false pnpm test src/renderer/src/features/edi
 验证结果：编辑器及 store 相关测试 874/874 通过；新增回归 17 项。`pnpm typecheck`、`pnpm lint` 和 `pnpm build` 通过，lint 保留仓库既有警告。全量测试 1,503/1,504 通过；唯一失败是未修改的 `styles/globals.test.ts` 中源码编辑器边框断言，正则在 `solid color-mix` 之间只允许字面空格，而原有 CSS 已被格式化为换行，单独执行也能复现。
 
 涉及文件：`blocknote-schema.ts` 的行内代码交互与归一化、`editor-transaction-ranges.ts` 的局部修改范围计算，以及 `blocknote-schema.test.ts`、`editor-transaction-ranges.test.ts`、`inline-code-performance.test.ts` 的体验和计算量回归。
+
+## 2026-10-06 富文本编辑与保存复查
+
+此次复查发现并修复三处问题：
+
+- 字符级源码保留只限制文档长度，未限制编辑距离。将约 4,000 字的一段正文整体替换成不同内容，仍会触发昂贵的字符 diff。两个 diff 现在都限制最多 512 步编辑距离和 8ms 计算预算，超限复用大文档的保留路径，以完整富文本导出为准，并继续检查 Markdown 语义和文件结尾。超限时，部分原始源码排版可能采用编辑器的规范格式。
+- 输入法组合输入过程中，行内代码兜底归一化会提前转换候选文本中的成对反引号。现在等待组合输入结束，期间只记录并映射一个局部修改范围；候选词被替换、取消或删除后，清除待处理范围。
+- 初始序列化基线依赖两次动画帧，隐藏窗口收不到动画帧时，后续显式保存会一直等待。现在复用两帧绘制调度的 100ms 定时器兜底，覆盖基线尚未完成时编辑并冲刷的情况。
+
+本机 jsdom 单次样本：`old:` 加 4,000 个 `a` 替换为 `new:` 加 4,000 个 `b`，源码结尾使用 CRLF、序列化基线使用 LF。`preserveMarkdownSource` 修复前约 1,013ms，修复后约 13ms。该样本只衡量源码保留计算，不包含 Electron 布局、绘制、磁盘保存或真实输入法延迟。
+
+```sh
+EDITOR_PERF_REPORT=1 pnpm test src/renderer/src/features/editor/lib/markdown.test.ts -t 'bulk replacements'
+pnpm test src/renderer/src/features/editor --reporter=dot
+```
+
+编辑器回归 894/894 通过，新增 7 个用例覆盖计算预算、超时后内容完整性、组合输入确认/取消及无动画帧时初始保存。既有表格连续编辑、局部事务计算量和光标移动用例也通过。真实 macOS 输入法候选窗口仍需在 Electron 中手工验证；单个超大段落、列表或表格的冷解析和导出仍有同步开销。

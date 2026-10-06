@@ -73,6 +73,7 @@ import {
 } from "../lib/editor-document-path";
 import {
   getEditorSerializationQuietPeriodForLength,
+  scheduleAfterEditorPaint,
   scheduleEditorIdleTask,
 } from "../lib/editor-large-document";
 import type { RichDocumentRuntime } from "../lib/rich-document-session-manager";
@@ -2827,9 +2828,8 @@ function yieldToMain(): Promise<void> {
 
 function waitForNextPaint(): Promise<void> {
   return new Promise((resolve) => {
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => resolve());
-    });
+    // 隐藏窗口可能暂停动画帧；复用带超时兜底的绘制调度，避免基线等待卡住保存。
+    scheduleAfterEditorPaint(resolve);
   });
 }
 

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { characterDiff } from "diff";
 
 import {
   ensureEditableBlocks,
@@ -624,6 +625,59 @@ describe("repairMarkdownSourceBeforeParse", () => {
 });
 
 describe("preserveMarkdownSource", () => {
+  it("bounds source preservation for bulk replacements below the document size limit", () => {
+    const source = `old:${"a".repeat(4_000)}\r\n`;
+    const baseline = source.replace("\r\n", "\n");
+    const edited = `new:${"b".repeat(4_000)}\n`;
+    const diff = vi.spyOn(characterDiff, "diff");
+
+    try {
+      const started = performance.now();
+      const saved = preserveMarkdownSource(source, baseline, edited);
+      if (process.env.EDITOR_PERF_REPORT === "1") {
+        console.info("[editor-source-preservation-benchmark]", {
+          characters: edited.length,
+          durationMs: performance.now() - started,
+        });
+      }
+      expect(saved).toBe(edited.replace(/\n$/u, "\r\n"));
+      expect(diff).toHaveBeenCalled();
+      for (const [, , options] of diff.mock.calls) {
+        expect(options).toEqual(
+          expect.objectContaining({
+            maxEditLength: expect.any(Number),
+            timeout: expect.any(Number),
+          }),
+        );
+      }
+    } finally {
+      diff.mockRestore();
+    }
+  });
+
+  it("keeps the complete edited content when source diffing times out", () => {
+    const source = "Old text\r\n";
+    const baseline = "Old text\n";
+    const edited = "New **content**\n\nAnother paragraph\n";
+    const diff = vi.spyOn(characterDiff, "diff");
+    const clock = vi
+      .spyOn(Date, "now")
+      .mockReturnValueOnce(0)
+      .mockReturnValue(1000);
+
+    try {
+      expect(preserveMarkdownSource(source, baseline, edited)).toBe(
+        edited.replace(/\n$/u, "\r\n"),
+      );
+      expect(
+        diff.mock.results.some((result) => result.value === undefined),
+      ).toBe(true);
+    } finally {
+      diff.mockRestore();
+      clock.mockRestore();
+    }
+  });
+
   it("does not carry an excessive table tail into a structural edit", () => {
     const source = `| A | B |\n| --- | --- |\n| 1 | 2 |${"\n".repeat(2_000)}`;
     const baseline = "| A | B |\n| --- | --- |\n| 1 | 2 |\n";

@@ -2088,6 +2088,73 @@ describe("editor BlockNote schema", () => {
     expect(container.querySelector("code")?.textContent).toBe("23");
   });
 
+  it("defers inline code normalization until composition has finished", async () => {
+    setupMatchMedia();
+    const editor = CoreEditorFactory.create({
+      schema: editorSchema,
+      initialContent: [{ type: "paragraph", content: "" }],
+    });
+    render(createElement(BlockNoteView, { editor }));
+    const view = editor.prosemirrorView;
+
+    view.dom.dispatchEvent(
+      new CompositionEvent("compositionstart", { bubbles: true }),
+    );
+    view.dispatch(view.state.tr.insertText("`候选`", 3));
+    expect(editor.document[0].content).toEqual([
+      { type: "text", text: "`候选`", styles: {} },
+    ]);
+    view.dispatch(view.state.tr.insertText("`确认`", 3, 7));
+    expect(editor.document[0].content).toEqual([
+      { type: "text", text: "`确认`", styles: {} },
+    ]);
+
+    view.dom.dispatchEvent(
+      new CompositionEvent("compositionend", { bubbles: true }),
+    );
+    await waitFor(() =>
+      expect(editor.document[0].content).toEqual([
+        { type: "text", text: "确认", styles: { code: true } },
+      ]),
+    );
+  });
+
+  it.each(["候选", "`候选", ""])(
+    "keeps a cancelled inline code candidate as plain text (%j)",
+    async (text) => {
+      setupMatchMedia();
+      const editor = CoreEditorFactory.create({
+        schema: editorSchema,
+        initialContent: [{ type: "paragraph", content: "" }],
+      });
+      render(createElement(BlockNoteView, { editor }));
+      const view = editor.prosemirrorView;
+      view.dom.dispatchEvent(
+        new CompositionEvent("compositionstart", { bubbles: true }),
+      );
+      view.dispatch(view.state.tr.insertText("`候选`", 3));
+      view.dispatch(view.state.tr.insertText(text, 3, 7));
+      view.dom.dispatchEvent(
+        new CompositionEvent("compositionend", { bubbles: true }),
+      );
+      const editing = view.state.plugins.find(
+        (plugin) => plugin.key === "editor-inline-code-editing$",
+      )!;
+      await waitFor(() =>
+        expect(editing.getState(view.state)).toMatchObject({
+          isComposing: false,
+        }),
+      );
+      expect(editor.document[0].content).toEqual(
+        text ? [{ type: "text", text, styles: {} }] : [],
+      );
+      const normalizer = view.state.plugins.find(
+        (plugin) => plugin.key === "editor-inline-code-normalizer$",
+      )!;
+      expect(normalizer.getState(view.state)).toBeNull();
+    },
+  );
+
   it("normalizes stale inline code markers already held by an editor session", () => {
     setupMatchMedia();
     const editor = CoreEditorFactory.create({

@@ -38,6 +38,7 @@ interface MarkdownEdit {
 }
 
 const SOURCE_PRESERVATION_DIFF_CHAR_LIMIT = 16_000;
+const SOURCE_PRESERVATION_DIFF_OPTIONS = { maxEditLength: 512, timeout: 8 };
 const LARGE_DOC_LIST_PRESERVE_LIMIT = 8_000;
 const MARKDOWN_SERIALIZATION_BATCH_SIZE = 24;
 const LARGE_MARKDOWN_PARSE_THRESHOLD = 30_000;
@@ -90,7 +91,9 @@ interface UnorderedListRun {
 function createSourceBoundaryMap(
   baseline: string,
   source: string,
-): SourceBoundaryMap {
+): SourceBoundaryMap | null {
+  const changes = diffChars(baseline, source, SOURCE_PRESERVATION_DIFF_OPTIONS);
+  if (!changes) return null;
   const left: number[] = [];
   const right: number[] = [];
   left.length = baseline.length + 1;
@@ -98,7 +101,7 @@ function createSourceBoundaryMap(
   let baselineOffset = 0;
   let sourceOffset = 0;
 
-  for (const change of diffChars(baseline, source)) {
+  for (const change of changes) {
     if (change.added) {
       left[baselineOffset] ??= sourceOffset;
       sourceOffset += change.value.length;
@@ -2315,21 +2318,31 @@ export function preserveMarkdownSource(
     if (movedListSource !== null) return finalizeMarkdown(movedListSource);
   }
 
+  const preserveWithoutCharacterDiff = () =>
+    finalizeMarkdown(
+      preserveLargeDocumentListMarkers(preservationSource, edited),
+    );
   if (
     source.length + baseline.length + edited.length >
     SOURCE_PRESERVATION_DIFF_CHAR_LIMIT
   ) {
     // 大文档避免字符级 diff 阻塞输入；保留行级列表标记和文件结尾，正文采用编辑器序列化结果。
-    return finalizeMarkdown(
-      preserveLargeDocumentListMarkers(preservationSource, edited),
-    );
+    return preserveWithoutCharacterDiff();
   }
 
+  // 文档长度不能代表差异计算量；大段替换超过预算时采用完整导出，避免阻塞输入。
+  const editedChanges = diffChars(
+    baseline,
+    edited,
+    SOURCE_PRESERVATION_DIFF_OPTIONS,
+  );
+  if (!editedChanges) return preserveWithoutCharacterDiff();
   const boundaryMap = createSourceBoundaryMap(baseline, preservationSource);
+  if (!boundaryMap) return preserveWithoutCharacterDiff();
   const changes = separateMisplacedTerminalLineEnding(
     baseline,
     edited,
-    diffChars(baseline, edited),
+    editedChanges,
   );
   // 整篇替换时，基线末尾换行可能被字符 diff 错配到新内容中间，不能让源码保留逻辑吞掉真实换行。
   if (
