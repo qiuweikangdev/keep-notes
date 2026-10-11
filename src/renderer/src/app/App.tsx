@@ -140,7 +140,10 @@ function restoreQuickEditorSource(
   if (isNewFileAssociation) {
     state.setTabDirty(target.groupId, target.tab.id, false);
   }
-  state.setActiveTab(target.groupId, target.tab.id);
+  // 后台同步只更新来源文档；用户显式返回主窗口时才切换到来源标签。
+  if (openDraftWhenTargetMissing) {
+    state.setActiveTab(target.groupId, target.tab.id);
+  }
 }
 
 /**

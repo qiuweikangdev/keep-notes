@@ -671,6 +671,7 @@ describe("App shortcuts", () => {
     expect(
       readEditorViewportPreservation("/workspace/notes/today.md"),
     ).not.toBeNull();
+    expect(appMocks.setActiveTab).not.toHaveBeenCalled();
   });
 
   it("does not recreate a source tab closed while its floating editor remains open", async () => {
