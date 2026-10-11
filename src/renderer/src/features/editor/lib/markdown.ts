@@ -2,6 +2,11 @@ import { diffChars, type Change } from "diff";
 import MarkdownIt from "markdown-it";
 
 import { CODE_BLOCK_LANGUAGE_OPTIONS } from "./editor-code-block-languages";
+import {
+  needsRichMarkdownHTML,
+  parseRichMarkdownHTML,
+  serializeRichMarkdownHTML,
+} from "./markdown-rich-blocks";
 
 export interface MarkdownParser<TBlock> {
   tryParseMarkdownToBlocks(markdown: string): Promise<TBlock[]> | TBlock[];
@@ -10,6 +15,8 @@ export interface MarkdownParser<TBlock> {
 
 export interface MarkdownSerializer<TBlock> {
   blocksToMarkdownLossy(blocks: TBlock[]): Promise<string> | string;
+  blocksToFullHTML?(blocks: TBlock[]): Promise<string> | string;
+  blocksToHTMLLossy?(blocks: TBlock[]): Promise<string> | string;
 }
 
 interface MarkdownTreeBlock {
@@ -3248,6 +3255,8 @@ async function serializeBlockTree<TBlock>(
   block: TBlock,
   numberedListStart?: number,
 ): Promise<string> {
+  const richHTML = await serializeRichMarkdownHTML(serializer, block);
+  if (richHTML) return richHTML;
   if (getMarkdownBlockType(block) === "quote" && getQuoteListChildren(block)) {
     return (await serializeQuoteListBlocks(serializer, [block])).trimEnd();
   }
@@ -3453,6 +3462,9 @@ async function serializeQuoteListBlocks<TBlock>(
   serializer: MarkdownSerializer<TBlock>,
   blocks: TBlock[],
 ): Promise<string> {
+  if (serializer.blocksToFullHTML && blocks.some(needsRichMarkdownHTML)) {
+    return serializeBlockTreeSequence(serializer, blocks, null);
+  }
   if (!blocks.some((block) => getQuoteListChildren(block))) {
     return serializeBlockBatches(serializer, blocks);
   }
@@ -3723,7 +3735,7 @@ async function parseMarkdownWithStructuredQuotes<TBlock>(
       .slice(start, end)
       .map((line) => line.replace(/^ {0,3}> ?/u, ""))
       .join("\n");
-    const children = await parseMarkdownWithStructuredQuotes(parser, inner);
+    const children = await parseMarkdown(parser, inner);
     const [container] = await parser.tryParseMarkdownToBlocks(
       "> keep-notes-quote-container\n",
     );
@@ -3798,6 +3810,10 @@ export async function parseMarkdown<TBlock>(
   parser: MarkdownParser<TBlock>,
   markdown: string,
 ): Promise<TBlock[]> {
+  const richBlocks = await parseRichMarkdownHTML(parser, markdown, (source) =>
+    parseMarkdown(parser, source),
+  );
+  if (richBlocks) return richBlocks;
   // 仅规范化传给 BlockNote 的解析副本；原始源码仍用于编辑、比较和保存。
   const repairedMarkdown = repairMarkdownSourceBeforeParse(markdown);
   const protectedMarkup = protectMarkupForParser(repairedMarkdown);
