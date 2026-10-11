@@ -3046,11 +3046,7 @@ function getQuoteListChildren<TBlock>(block: TBlock): TBlock[] | null {
   if (!isRecord(block) || block.type !== "quote") return null;
   if (!Array.isArray(block.children) || block.children.length === 0)
     return null;
-  return block.children.every(
-    (child) => getMarkdownBlockType(child) === "bulletListItem",
-  )
-    ? (block.children as TBlock[])
-    : null;
+  return block.children as TBlock[];
 }
 
 const CONTIGUOUS_LIST_ITEM_TYPES = new Set([
@@ -3252,6 +3248,9 @@ async function serializeBlockTree<TBlock>(
   block: TBlock,
   numberedListStart?: number,
 ): Promise<string> {
+  if (getMarkdownBlockType(block) === "quote" && getQuoteListChildren(block)) {
+    return (await serializeQuoteListBlocks(serializer, [block])).trimEnd();
+  }
   const children = getBlockChildren(block);
   const blockWithoutChildren = stripBlockChildren(block);
   const serializedBlock =
@@ -3479,7 +3478,7 @@ async function serializeQuoteListBlocks<TBlock>(
     const quoteMarkdown = await serializer.blocksToMarkdownLossy([
       { ...quote, children: [] } as TBlock,
     ]);
-    const listMarkdown = await serializeBlockBatches(serializer, children);
+    const listMarkdown = await serializeQuoteListBlocks(serializer, children);
     const quotedList = listMarkdown
       .trimEnd()
       .split("\n")
@@ -3693,6 +3692,62 @@ async function parseMarkdownWithStructuredLists<TBlock>(
   return output;
 }
 
+async function parseMarkdownWithStructuredQuotes<TBlock>(
+  parser: MarkdownParser<TBlock>,
+  markdown: string,
+): Promise<TBlock[]> {
+  if (!parser.tryParseHTMLToBlocks || !/^ {0,3}>/mu.test(markdown)) {
+    return parseMarkdownWithStructuredLists(parser, markdown);
+  }
+  const quotes = listMarkdownParser
+    .parse(markdown, {})
+    .filter(
+      (token) =>
+        token.type === "blockquote_open" && token.level === 0 && token.map,
+    );
+  if (!quotes.length) return parseMarkdownWithStructuredLists(parser, markdown);
+  const lines = markdown.split("\n");
+  const blocks: TBlock[] = [];
+  let cursor = 0;
+  for (const token of quotes) {
+    const [start, end] = token.map!;
+    if (start > cursor)
+      blocks.push(
+        ...(await parseMarkdownWithStructuredLists(
+          parser,
+          lines.slice(cursor, start).join("\n"),
+        )),
+      );
+    // 引用只剥离当前层的前缀，内部再按完整 Markdown 解析，保留任意子块和嵌套引用。
+    const inner = lines
+      .slice(start, end)
+      .map((line) => line.replace(/^ {0,3}> ?/u, ""))
+      .join("\n");
+    const children = await parseMarkdownWithStructuredQuotes(parser, inner);
+    const [container] = await parser.tryParseMarkdownToBlocks(
+      "> keep-notes-quote-container\n",
+    );
+    if (isRecord(container)) {
+      const first = children[0];
+      const hasLead = isRecord(first) && first.type === "paragraph";
+      blocks.push({
+        ...container,
+        content: hasLead ? first.content : [],
+        children: hasLead ? children.slice(1) : children,
+      } as TBlock);
+    }
+    cursor = end;
+  }
+  if (cursor < lines.length && lines.slice(cursor).join("\n").trim())
+    blocks.push(
+      ...(await parseMarkdownWithStructuredLists(
+        parser,
+        lines.slice(cursor).join("\n"),
+      )),
+    );
+  return blocks;
+}
+
 async function parseLargeMarkdownInBatches<TBlock>(
   parser: MarkdownParser<TBlock>,
   markdown: string,
@@ -3701,7 +3756,7 @@ async function parseLargeMarkdownInBatches<TBlock>(
     markdown.length < LARGE_MARKDOWN_PARSE_THRESHOLD ||
     /^ {0,3}\[[^\]\n]+\]:[ \t]*\S/mu.test(markdown)
   ) {
-    return parseMarkdownWithStructuredLists(parser, markdown);
+    return parseMarkdownWithStructuredQuotes(parser, markdown);
   }
 
   // 只在 Markdown 解析器确认的顶层块边界切分，避免围栏、引用和列表内部的伪边界破坏结构。
@@ -3725,7 +3780,7 @@ async function parseLargeMarkdownInBatches<TBlock>(
     batchStart = offset;
   }
   if (boundaries.length === 1)
-    return parseMarkdownWithStructuredLists(parser, markdown);
+    return parseMarkdownWithStructuredQuotes(parser, markdown);
 
   const blocks: TBlock[] = [];
   for (let index = 0; index < boundaries.length; index += 1) {
@@ -3734,7 +3789,7 @@ async function parseLargeMarkdownInBatches<TBlock>(
       boundaries[index],
       boundaries[index + 1] ?? markdown.length,
     );
-    blocks.push(...(await parseMarkdownWithStructuredLists(parser, chunk)));
+    blocks.push(...(await parseMarkdownWithStructuredQuotes(parser, chunk)));
   }
   return blocks;
 }
@@ -3749,7 +3804,9 @@ export async function parseMarkdown<TBlock>(
   const parseInput = protectedMarkup.markdown
     .replace(/^\uFEFF/, "")
     .replace(/\r\n?/g, "\n");
-  const normalized = normalizeQuoteListsForParser(parseInput);
+  const normalized = parser.tryParseHTMLToBlocks
+    ? { markdown: parseInput, descriptors: [] }
+    : normalizeQuoteListsForParser(parseInput);
   const blocks = await parseLargeMarkdownInBatches(parser, normalized.markdown);
   // BlockNote 0.51 的 Markdown 解析器不再识别裸 URL；在恢复受保护源码前补回链接节点。
   const linkedBlocks = blocks.map(linkifyBareUrlsInBlock);
