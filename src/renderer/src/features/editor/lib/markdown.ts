@@ -3145,8 +3145,8 @@ function hasAdjacentCompactParagraphs<TBlock>(blocks: TBlock[]): boolean {
 }
 
 function normalizeSerializedPlainParagraphBreaks(markdown: string): string {
-  // BlockNote 会把普通段落里的软换行导出为反斜杠加前置空格，源码模式应恢复为用户看到的单换行。
-  return markdown.replace(/\\\n[ \t]?/gu, "\n");
+  // 富文本段内换行对应 Markdown 硬换行；只移除导出器附加的缩进，保留换行语义。
+  return markdown.replace(/\\\n[ \t]?/gu, "\\\n");
 }
 
 function stripBlockChildren<TBlock>(block: TBlock): TBlock {
@@ -3518,8 +3518,13 @@ async function serializeQuoteListBlocks<TBlock>(
 
 const listMarkdownParser = new MarkdownIt({ html: false });
 // 软换行对应列表的段落续行，硬换行保留在当前正文中；HTML 分隔符不进入持久化源码。
-listMarkdownParser.renderer.rules.softbreak = () =>
-  "<span data-keep-notes-soft-break></span>";
+listMarkdownParser.renderer.rules.softbreak = (
+  _tokens,
+  _index,
+  _options,
+  env: { paragraphSoftBreak?: boolean },
+) =>
+  env.paragraphSoftBreak ? " " : "<span data-keep-notes-soft-break></span>";
 listMarkdownParser.renderer.rules.hardbreak = () => "<br>";
 
 async function parseMarkdownWithStructuredLists<TBlock>(
@@ -3528,7 +3533,8 @@ async function parseMarkdownWithStructuredLists<TBlock>(
 ): Promise<TBlock[]> {
   if (
     !parser.tryParseHTMLToBlocks ||
-    !/^\s*(?:[-+*]|\d+[.)])(?:[ \t]|$)/mu.test(markdown)
+    (!/^\s*(?:[-+*]|\d+[.)])(?:[ \t]|$)/mu.test(markdown) &&
+      !/(?:\\| {2,})\n/u.test(markdown))
   ) {
     return parser.tryParseMarkdownToBlocks(markdown);
   }
@@ -3658,6 +3664,27 @@ async function parseMarkdownWithStructuredLists<TBlock>(
   };
   for (let index = 0; index < tokens.length; index++) {
     const token = tokens[index];
+    if (
+      token.level === 0 &&
+      token.type === "paragraph_open" &&
+      token.map &&
+      tokens[index + 1]?.children?.some((child) => child.type === "hardbreak")
+    ) {
+      const [from, to] = token.map;
+      const preceding = lines.slice(cursor, from).join("\n");
+      if (preceding.trim())
+        output.push(...(await parser.tryParseMarkdownToBlocks(preceding)));
+      // 直接解析 br，避开依赖在硬换行后的文本节点中额外插入空格。
+      const html = listMarkdownParser.renderer.render(
+        tokens.slice(index, index + 3),
+        listMarkdownParser.options,
+        { paragraphSoftBreak: true },
+      );
+      output.push(...(await parseHTML(html)));
+      cursor = to;
+      index += 2;
+      continue;
+    }
     if (
       token.level !== 0 ||
       !["ordered_list_open", "bullet_list_open"].includes(token.type) ||
