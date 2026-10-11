@@ -136,4 +136,72 @@ describe("closeEditorTab", () => {
     expect(saveAs).toHaveBeenCalledWith("# Draft", "关闭测试");
     expect(useEditorStore.getState().panelGroups[0]?.tabs).toHaveLength(0);
   });
+  it("saves edits arriving while Save As is pending before closing", async () => {
+    seedTab(null, "Before");
+    const groupId = useEditorStore.getState().activeGroupId;
+    let finish!: (result: {
+      code: CodeResult;
+      data: { filePath: string };
+    }) => void;
+    saveAs.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const closing = closeEditorTab(groupId, "tab-close");
+    await vi.waitFor(() => expect(saveAs).toHaveBeenCalled());
+    useEditorStore
+      .getState()
+      .setTabContent(groupId, "tab-close", "During Save As");
+    finish({
+      code: CodeResult.Success,
+      data: { filePath: "C:/notes/saved-draft.md" },
+    });
+    await expect(closing).resolves.toBe(true);
+    expect(writeFile).toHaveBeenLastCalledWith(
+      "C:/notes/saved-draft.md",
+      "During Save As",
+    );
+    expect(useEditorStore.getState().panelGroups[0].tabs).toHaveLength(0);
+  });
+
+  it("uses edits arriving while the close confirmation is pending", async () => {
+    seedTab(null, "Before");
+    const groupId = useEditorStore.getState().activeGroupId;
+    let confirm!: (action: string) => void;
+    confirmCloseUntitled.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          confirm = resolve;
+        }),
+    );
+    const closing = closeEditorTab(groupId, "tab-close");
+    await vi.waitFor(() => expect(confirmCloseUntitled).toHaveBeenCalled());
+    useEditorStore
+      .getState()
+      .setTabContent(groupId, "tab-close", "During confirmation");
+    confirm("save");
+    await expect(closing).resolves.toBe(true);
+    expect(saveAs).toHaveBeenCalledWith("During confirmation", "关闭测试");
+  });
+
+  it("keeps newer edits open when the follow-up write fails", async () => {
+    seedTab(null, "Before");
+    const groupId = useEditorStore.getState().activeGroupId;
+    saveAs.mockImplementationOnce(async () => {
+      useEditorStore.getState().setTabContent(groupId, "tab-close", "Newer");
+      return {
+        code: CodeResult.Success,
+        data: { filePath: "C:/notes/saved-draft.md" },
+      };
+    });
+    writeFile.mockRejectedValueOnce(new Error("write failed"));
+    await expect(closeEditorTab(groupId, "tab-close")).resolves.toBe(false);
+    expect(useEditorStore.getState().panelGroups[0].tabs[0]).toMatchObject({
+      content: "Newer",
+      isDirty: true,
+    });
+    editorSaveCoordinator.cancel("C:/notes/saved-draft.md");
+  });
 });
