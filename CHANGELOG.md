@@ -1,3 +1,27 @@
+## [2.25.6](https://github.com/qiuweikangdev/keep-notes/compare/v2.25.5...v2.25.6) (2026-10-11)
+
+
+### Bug Fixes
+
+* enable find and replace in floating Markdown source ([577561a](https://github.com/qiuweikangdev/keep-notes/commit/577561ad7ec07f5249db6a497de71163d41d579f))
+* hide git operation status text ([676dfac](https://github.com/qiuweikangdev/keep-notes/commit/676dfac0b5d1b4cf6c6473d5a83ac12b7a3addbc))
+* keep the active tab during floating editor sync ([5ad3ab5](https://github.com/qiuweikangdev/keep-notes/commit/5ad3ab500cb4de3f908f7faafd5c0a2816c8856d))
+* paste fenced code blocks into rich editor ([5653cef](https://github.com/qiuweikangdev/keep-notes/commit/5653cef0669bd1680c8c746cea388d622fef13a6))
+* persist rich text styles in Markdown HTML blocks ([9b1d836](https://github.com/qiuweikangdev/keep-notes/commit/9b1d836b5b080cf2231f75e74e4a784628fa417c))
+* persist table widths and individual cell alignment ([f734c94](https://github.com/qiuweikangdev/keep-notes/commit/f734c9465f7cf57e7352de9470d3578fe407db03))
+* preserve inline Markdown images and link titles ([50bdedc](https://github.com/qiuweikangdev/keep-notes/commit/50bdedcad80cd981dd078f2acd3f34cfce72d495))
+* preserve paragraph hard breaks in Markdown ([52408c2](https://github.com/qiuweikangdev/keep-notes/commit/52408c284d14991eaeb0ff58686bd7e271d44cd0))
+* preserve structured Markdown quotes ([66a033d](https://github.com/qiuweikangdev/keep-notes/commit/66a033d27f5a36990ccd0500d5be40af10669e52))
+* reject stale floating editor source updates ([a10f987](https://github.com/qiuweikangdev/keep-notes/commit/a10f987fee449f87672c430c58934db91b32aeb8))
+* save newer edits before closing untitled tabs ([8cf75b3](https://github.com/qiuweikangdev/keep-notes/commit/8cf75b338a4d8fec64309f1db2e627d4ffaab81d))
+* share untitled documents across split panes ([dd1ccfa](https://github.com/qiuweikangdev/keep-notes/commit/dd1ccfadd56f3b0bb809b7747328a857688c382a))
+
+
+## Commit Summary
+
+- Compared with: v2.25.5
+- Total commits: 12
+
 ## [2.25.5](https://github.com/qiuweikangdev/keep-notes/compare/v2.25.4...v2.25.5) (2026-10-06)
 
 
