@@ -624,6 +624,8 @@ export function QuickEditorWindow() {
 
   const handleSourceChange = useCallback(
     (content: string) => {
+      // 本地源码输入同样推进版本，丢弃输入前已开始解析的远端快照。
+      syncRevisionRef.current += 1;
       const previousContent = lastSyncedContentRef.current;
       const source = sourceRef.current;
       sourceMarkdownRef.current = content;
