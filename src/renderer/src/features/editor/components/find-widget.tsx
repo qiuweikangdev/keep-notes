@@ -39,6 +39,7 @@ interface FindWidgetProps {
   onOptionsChange: (options: FindTextOptions) => void;
   onReplaceCurrent: () => void;
   onReplaceAll: () => void;
+  canSelectAllMatches?: boolean;
   onSelectAllMatches: () => void;
   onUndoReplace: () => void;
 }
@@ -156,6 +157,7 @@ export function FindWidget({
   onOptionsChange,
   onReplaceCurrent,
   onReplaceAll,
+  canSelectAllMatches = true,
   onSelectAllMatches,
   onUndoReplace,
 }: FindWidgetProps) {
@@ -310,7 +312,7 @@ export function FindWidget({
             </IconButton>
             <IconButton
               label="全选匹配"
-              disabled={matchCount === 0}
+              disabled={!canSelectAllMatches || matchCount === 0}
               onClick={onSelectAllMatches}
             >
               <List className="h-4 w-4" />

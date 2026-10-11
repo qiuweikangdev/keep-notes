@@ -540,6 +540,7 @@ export function QuickEditorWindow() {
   }, []);
 
   const syncContentToSource = useCallback(() => {
+    if (editorMode === "source") return;
     const source = sourceRef.current;
     const sourceContent = lastSyncedContentRef.current;
     const baseline = serializedBaselineRef.current;
@@ -566,7 +567,7 @@ export function QuickEditorWindow() {
 
       window.electronAPI.syncQuickEditorContent({ content, source });
     });
-  }, [editor]);
+  }, [editor, editorMode]);
 
   useEffect(
     () =>
@@ -673,6 +674,26 @@ export function QuickEditorWindow() {
       return;
     }
 
+    if (editorMode === "source") {
+      clearEditorFindHighlights();
+      const input = sourceEditorRef.current;
+      const match = rawMatches[activeFindIndex];
+      if (input && match) {
+        // 源码搜索使用真实字符范围，不依赖未挂载的富文本 DOM，也不抢走查找输入框焦点。
+        input.setSelectionRange(match.start, match.end);
+        const line =
+          sourceMarkdownRef.current.slice(0, match.start).split("\n").length -
+          1;
+        const lineHeight =
+          Number.parseFloat(window.getComputedStyle(input).lineHeight) || 24;
+        input.scrollTop = Math.max(
+          0,
+          line * lineHeight - input.clientHeight / 3,
+        );
+      }
+      return;
+    }
+
     let clearFallbackHighlights: () => void = () => undefined;
     const frame = window.requestAnimationFrame(() => {
       const root = editor.domElement;
@@ -694,6 +715,8 @@ export function QuickEditorWindow() {
   }, [
     activeFindIndex,
     editor,
+    editorMode,
+    rawMatches,
     findContent,
     findOptions,
     findQuery,
@@ -712,8 +735,9 @@ export function QuickEditorWindow() {
     setIsFindOpen(true);
     setFindFocusRequestKey((current) => current + 1);
     // 独立浮窗平时无需持续序列化；打开搜索时再刷新当前 Markdown 快照。
-    syncContentToSource();
-  }, [syncContentToSource]);
+    if (editorMode === "source") setFindContent(sourceMarkdownRef.current);
+    else syncContentToSource();
+  }, [editorMode, syncContentToSource]);
 
   const closeFindWidget = useCallback(() => {
     isFindOpenRef.current = false;
@@ -972,6 +996,12 @@ export function QuickEditorWindow() {
     async (content: string, shouldPushUndo = true) => {
       const currentContent = findContent;
       if (content === currentContent) return;
+      if (editorMode === "source") {
+        if (shouldPushUndo)
+          replacementUndoStackRef.current.push(currentContent, content);
+        handleSourceChange(content);
+        return;
+      }
       const revision = ++syncRevisionRef.current;
 
       try {
@@ -996,7 +1026,7 @@ export function QuickEditorWindow() {
         // 替换后的 Markdown 无法解析时保留当前内容，避免损坏浮窗草稿。
       }
     },
-    [editor, findContent],
+    [editor, editorMode, findContent, handleSourceChange],
   );
 
   const replaceCurrentMatch = useCallback(() => {
@@ -1521,28 +1551,27 @@ export function QuickEditorWindow() {
         aria-label="快速编辑器"
         className="quick-editor-window__editor"
       >
-        {editorMode === "rich" ? (
-          <FindWidget
-            isOpen={isFindOpen}
-            focusRequestKey={findFocusRequestKey}
-            isReplaceOpen={isReplaceOpen}
-            query={findQuery}
-            replacement={replacement}
-            activeIndex={activeFindIndex}
-            matchCount={rawMatches.length}
-            options={findOptions}
-            onQueryChange={setFindQuery}
-            onReplacementChange={setReplacement}
-            onStep={stepMatch}
-            onClose={closeFindWidget}
-            onToggleReplace={() => setIsReplaceOpen((current) => !current)}
-            onOptionsChange={setFindOptions}
-            onReplaceCurrent={replaceCurrentMatch}
-            onReplaceAll={replaceAllMatches}
-            onSelectAllMatches={selectAllMatches}
-            onUndoReplace={undoLastReplacement}
-          />
-        ) : null}
+        <FindWidget
+          isOpen={isFindOpen}
+          focusRequestKey={findFocusRequestKey}
+          isReplaceOpen={isReplaceOpen}
+          query={findQuery}
+          replacement={replacement}
+          activeIndex={activeFindIndex}
+          matchCount={rawMatches.length}
+          options={findOptions}
+          onQueryChange={setFindQuery}
+          onReplacementChange={setReplacement}
+          onStep={stepMatch}
+          onClose={closeFindWidget}
+          onToggleReplace={() => setIsReplaceOpen((current) => !current)}
+          onOptionsChange={setFindOptions}
+          onReplaceCurrent={replaceCurrentMatch}
+          onReplaceAll={replaceAllMatches}
+          onSelectAllMatches={selectAllMatches}
+          canSelectAllMatches={editorMode === "rich"}
+          onUndoReplace={undoLastReplacement}
+        />
         {editorMode === "rich" ? (
           <div
             ref={scrollContainerRef}

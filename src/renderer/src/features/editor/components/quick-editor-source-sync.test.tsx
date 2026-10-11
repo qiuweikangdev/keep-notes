@@ -87,3 +87,29 @@ it("retains newer source input while an older remote update is parsing", async (
   await new Promise((resolve) => setTimeout(resolve, 20));
   expect(input).toHaveValue("LOCAL NEWER");
 });
+
+it("finds and replaces the current source content", async () => {
+  const { input, sync, source } = await renderSource();
+  fireEvent.change(input, { target: { value: "Alpha Beta Alpha" } });
+  fireEvent.keyDown(input, { key: "f", metaKey: true });
+  const find = screen.getByPlaceholderText("查找");
+  expect(find).toBeVisible();
+  fireEvent.change(find, { target: { value: "Alpha" } });
+  await waitFor(() => expect(screen.getByText("1/2")).toBeVisible());
+  expect((input as HTMLTextAreaElement).selectionStart).toBe(0);
+  expect((input as HTMLTextAreaElement).selectionEnd).toBe(5);
+  fireEvent.click(screen.getByRole("button", { name: /下一个/ }));
+  await waitFor(() =>
+    expect((input as HTMLTextAreaElement).selectionStart).toBe(11),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "展开替换" }));
+  fireEvent.change(screen.getByPlaceholderText("替换"), {
+    target: { value: "Gamma" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "替换全部匹配" }));
+  await waitFor(() => expect(input).toHaveValue("Gamma Beta Gamma"));
+  expect(sync).toHaveBeenLastCalledWith({
+    content: "Gamma Beta Gamma",
+    source,
+  });
+});
