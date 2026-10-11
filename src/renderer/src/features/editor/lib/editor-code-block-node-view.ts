@@ -1256,10 +1256,19 @@ export function createEditorCodeBlockNodeView(
   block: Block,
   editor: BlockNoteEditor,
 ) {
+  const { props, renderType } = this;
+  if (renderType === "dom") {
+    // 剪贴板序列化需要静态正文节点；创建 CodeMirror 会丢失 contentDOM，导致 Markdown 粘贴解析失败。
+    const pre = document.createElement("pre");
+    const code = document.createElement("code");
+    pre.appendChild(code);
+    return { dom: pre, contentDOM: code };
+  }
+
   return new EditorCodeBlockNodeView({
     block,
     editor,
-    props: this.props,
+    props,
   });
 }
 

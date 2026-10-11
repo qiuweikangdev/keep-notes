@@ -1017,6 +1017,48 @@ function parseInternalHTMLWithCodeBlocks(
     : null;
 }
 
+function hasPastedCodeBlock(blocks: readonly PartialBlock[]): boolean {
+  return blocks.some(
+    (block) =>
+      block.type === "codeBlock" || hasPastedCodeBlock(block.children ?? []),
+  );
+}
+
+function pasteMarkdownCodeBlocks(
+  editor: CoreBlockNoteEditor,
+  clipboardData: DataTransfer,
+): boolean {
+  if (
+    ["blocknote/html", "vscode-editor-data", "Files"].some((type) =>
+      clipboardData.types.includes(type),
+    )
+  ) {
+    return false;
+  }
+
+  const source = clipboardData.getData(
+    clipboardData.types.includes("text/markdown")
+      ? "text/markdown"
+      : "text/plain",
+  );
+  if (!/(?:`{3,}|~{3,})/u.test(source)) return false;
+
+  const blocks = editor.tryParseMarkdownToBlocks(source);
+  if (!hasPastedCodeBlock(blocks)) return false;
+
+  // 围栏代码先解析为结构化块，复用关闭切片边界的粘贴流程，避免代码被合并进当前段落。
+  if (
+    editor.document.length === 1 &&
+    isEmptyRichEditorParagraph(editor.document[0])
+  ) {
+    editor.replaceBlocks(editor.document, blocks);
+  } else {
+    pasteParsedRichBlocks(editor, blocks);
+  }
+  clearInlineCodeEditingState(editor);
+  return true;
+}
+
 export function pasteExternalHTMLTables(
   editor: CoreBlockNoteEditor,
   event: ClipboardEvent,
@@ -1030,6 +1072,8 @@ export function pasteExternalHTMLTables(
     // 代码块内的粘贴必须交给 CodeMirror，避免外部 HTML 先被转换成新的 BlockNote 块。
     return false;
   }
+
+  if (pasteMarkdownCodeBlocks(editor, clipboardData)) return true;
 
   if (clipboardData.types.includes("blocknote/html")) {
     const internalHTML = clipboardData.getData("blocknote/html");

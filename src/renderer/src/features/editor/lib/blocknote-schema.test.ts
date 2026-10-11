@@ -385,6 +385,26 @@ describe("editor BlockNote schema", () => {
     );
   });
 
+  it("round-trips code block language and multiline content through internal clipboard HTML", () => {
+    const editor = CoreEditorFactory.create({ schema: editorSchema });
+    const code = '// 声明\nvar age int = 18\n\n  fmt.Println("<div>")';
+    const html = editor.blocksToFullHTML([
+      {
+        type: "codeBlock",
+        props: { language: "go" },
+        content: code,
+      },
+    ]);
+
+    expect(editor.tryParseHTMLToBlocks(html)).toMatchObject([
+      {
+        type: "codeBlock",
+        props: { language: "go" },
+        content: [{ type: "text", text: code, styles: {} }],
+      },
+    ]);
+  });
+
   it("lets parent editor continue selection drags over CodeMirror node views", () => {
     const codeMirror = document.createElement("div");
     codeMirror.className = "editor-code-block__codemirror";

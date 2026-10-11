@@ -1231,6 +1231,129 @@ describe("BlockNoteEditor user intent tracking", () => {
 });
 
 describe("BlockNoteEditor code paste", () => {
+  it.each(["text/plain", "text/markdown"])(
+    "pastes a fenced Go code block copied as %s from Markdown source",
+    async (mimeType) => {
+      setupMatchMedia();
+      setupDomMeasurements();
+      vi.stubGlobal("ClipboardEvent", Event);
+      const path = `C:/notes/markdown-go-code-paste-${mimeType.replace("/", "-")}.md`;
+      const code = [
+        "// 语法",
+        "var 变量名 类型",
+        "",
+        "// 声明",
+        "var age int = 18",
+        "",
+        "// 多变量声明",
+        "var a, b int",
+      ].join("\n");
+      const source = `\`\`\`go\n${code}\n\`\`\``;
+      setupSessionTab(path);
+      const session = renderRealSession(path, false, "");
+
+      try {
+        await waitFor(() => expect(session.runtime.current).not.toBeNull());
+        const editor = session.runtime.current!.editor;
+        const event = new Event("paste", { bubbles: true, cancelable: true });
+        Object.defineProperty(event, "clipboardData", {
+          value: {
+            getData: (type: string) => (type === mimeType ? source : ""),
+            types: [mimeType],
+          },
+        });
+
+        act(() => {
+          editor.prosemirrorView.dom.dispatchEvent(event);
+        });
+
+        await waitFor(() => {
+          expect(editor.document).toMatchObject([
+            {
+              type: "codeBlock",
+              props: { language: "go" },
+              content: [{ type: "text", text: code, styles: {} }],
+            },
+          ]);
+        });
+        expect(
+          await markdownMocks.actualSerializeMarkdown!(editor, editor.document),
+        ).toBe(`${source}\n`);
+        act(() => {
+          expect(editor.undo()).toBe(true);
+        });
+        expect(editor.document).toMatchObject([
+          { type: "paragraph", content: [] },
+        ]);
+        act(() => {
+          expect(editor.redo()).toBe(true);
+        });
+        expect(editor.document[0]).toMatchObject({
+          type: "codeBlock",
+          props: { language: "go" },
+          content: [{ text: code }],
+        });
+      } finally {
+        session.view.unmount();
+      }
+    },
+  );
+
+  it("pastes Markdown code between paragraph text without losing either side", async () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    vi.stubGlobal("ClipboardEvent", Event);
+    const path = "C:/notes/markdown-code-middle-paste.md";
+    const source = "```go\nvar age int = 18\n```";
+    setupSessionTab(path);
+    const session = renderRealSession(path, false, "BeforeAfter");
+
+    try {
+      await waitFor(() => expect(session.runtime.current).not.toBeNull());
+      const editor = session.runtime.current!.editor;
+      const position = resolveEditorTextPosition(
+        editor,
+        editor.document[0].id,
+        "Before".length,
+      );
+      expect(position).not.toBeNull();
+      editor.prosemirrorView.dispatch(
+        editor.prosemirrorView.state.tr.setSelection(
+          TextSelection.create(editor.prosemirrorView.state.doc, position!),
+        ),
+      );
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "clipboardData", {
+        value: {
+          getData: (type: string) => (type === "text/plain" ? source : ""),
+          types: ["text/plain"],
+        },
+      });
+
+      act(() => {
+        editor.prosemirrorView.dom.dispatchEvent(event);
+      });
+
+      expect(editor.document).toMatchObject([
+        { type: "paragraph", content: [{ text: "Before" }] },
+        {
+          type: "codeBlock",
+          props: { language: "go" },
+          content: [{ text: "var age int = 18" }],
+        },
+        { type: "paragraph", content: [{ text: "After" }] },
+      ]);
+      act(() => {
+        expect(editor.undo()).toBe(true);
+      });
+      expect(editor.document).toMatchObject([
+        { type: "paragraph", content: [{ text: "BeforeAfter" }] },
+      ]);
+    } finally {
+      session.view.unmount();
+    }
+  });
+
   it("pastes a standalone external HTML code block as a code block", async () => {
     setupMatchMedia();
     setupDomMeasurements();
