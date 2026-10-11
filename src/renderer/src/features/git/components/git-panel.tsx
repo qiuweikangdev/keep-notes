@@ -2046,10 +2046,7 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
               style={{ color: "var(--accent-color)" }}
             />
             {operationPhase ? (
-              <span
-                className="text-sm"
-                style={{ color: "var(--text-primary)" }}
-              >
+              <span className="sr-only">
                 {GIT_OPERATION_LABELS[operationPhase]}
               </span>
             ) : null}
