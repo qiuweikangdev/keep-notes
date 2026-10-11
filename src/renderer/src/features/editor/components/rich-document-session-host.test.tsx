@@ -210,6 +210,55 @@ describe("RichDocumentSessionHost", () => {
     release();
   });
 
+  it("updates all unnamed split snapshots through one shared rich session", () => {
+    const tab = { ...createTab("tab-untitled", null), reloadKey: 0 };
+    useEditorStore.setState({
+      activeGroupId: "group-1",
+      panelGroups: [
+        {
+          id: "group-1",
+          activeTabId: tab.id,
+          direction: "horizontal",
+          tabs: [tab],
+        },
+      ],
+    });
+    useEditorStore.getState().addPanelGroup("horizontal", "group-1");
+    const split = useEditorStore.getState().panelGroups[1];
+    const path = getEditorDocumentPath(tab);
+    expect(getEditorDocumentPath(split.tabs[0])).toBe(path);
+    const release = richDocumentSessionManager.retainVisible(path, {
+      paneKey: `group-1:${tab.id}`,
+      groupId: "group-1",
+      tabId: tab.id,
+    });
+    const releaseSplit = richDocumentSessionManager.retainVisible(path, {
+      paneKey: `${split.id}:${split.activeTabId}`,
+      groupId: split.id,
+      tabId: split.activeTabId,
+    });
+    render(<RichDocumentSessionHost path={path} />);
+    act(() => {
+      sessionMocks.controller?.onDocumentChange();
+      sessionMocks.controller?.onMarkdownChange("# Shared rich draft");
+    });
+    expect(
+      useEditorStore
+        .getState()
+        .panelGroups.every(
+          (group) =>
+            group.tabs[0].content === "# Shared rich draft" &&
+            group.tabs[0].isDirty,
+        ),
+    ).toBe(true);
+    expect(sessionMocks.mounts.get(path)).toBe(1);
+    expect(
+      sessionMocks.runtimes[0].editor.replaceBlocks,
+    ).not.toHaveBeenCalled();
+    releaseSplit();
+    release();
+  });
+
   it("marks the live document dirty before its Markdown snapshot is serialized", () => {
     const path = "C:/notes/live-dirty.md";
     useEditorStore.setState({

@@ -39,4 +39,18 @@ describe("editor document path", () => {
       false,
     );
   });
+
+  it("shares an unnamed document identity across distinct split tabs", () => {
+    const first = {
+      id: "tab-1",
+      documentId: "draft-1",
+      filePath: null,
+      pendingFilePath: null,
+    };
+    const split = { ...first, id: "tab-2" };
+    expect(getEditorDocumentPath(first)).toBe(getEditorDocumentPath(split));
+    expect(
+      matchesEditorDocumentPath(split, "keep-notes-untitled://draft-1"),
+    ).toBe(true);
+  });
 });

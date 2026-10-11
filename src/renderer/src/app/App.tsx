@@ -21,6 +21,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { QuickEditorWindow } from "@/features/editor/components/quick-editor-window";
 import { editorFindController } from "@/features/editor/lib/editor-find-controller";
 import { requestEditorViewportPreservation } from "@/features/editor/lib/editor-viewport";
+import { getEditorDocumentPath } from "@/features/editor/lib/editor-document-path";
 import type {
   QuickEditorWindowContent,
   ReminderEditorRequest,
@@ -130,9 +131,11 @@ function restoreQuickEditorSource(
       requestEditorViewportPreservation(targetFilePath);
     }
     state.setTabContent(target.groupId, target.tab.id, content.content);
-    if (targetFilePath) {
-      state.syncFileContent(targetFilePath, content.content, target.tab.id);
-    }
+    state.syncFileContent(
+      targetFilePath ?? getEditorDocumentPath(target.tab),
+      content.content,
+      target.tab.id,
+    );
     if (target.tab.mode === "rich") {
       state.incrementTabReloadKey(target.groupId, target.tab.id);
     }

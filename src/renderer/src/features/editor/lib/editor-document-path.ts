@@ -5,7 +5,7 @@ const UNTITLED_DOCUMENT_PREFIX = "keep-notes-untitled://";
 
 type EditorDocumentIdentity = Pick<
   EditorTab,
-  "filePath" | "id" | "pendingFilePath"
+  "filePath" | "id" | "documentId" | "pendingFilePath"
 >;
 
 /**
@@ -17,7 +17,7 @@ export function getEditorDocumentPath(tab: EditorDocumentIdentity): string {
   return (
     tab.filePath ??
     tab.pendingFilePath ??
-    `${UNTITLED_DOCUMENT_PREFIX}${tab.id}`
+    `${UNTITLED_DOCUMENT_PREFIX}${tab.documentId ?? tab.id}`
   );
 }
 

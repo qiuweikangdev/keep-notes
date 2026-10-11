@@ -290,12 +290,11 @@ export function EditorWorkspace({
     (content: string) => {
       const currentTab = getCurrentTab();
       if (!currentTab) return;
-      if (currentTab.filePath) {
-        takeOverSourceDocument(currentTab.filePath);
-      }
+      const documentPath = getEditorDocumentPath(currentTab);
+      takeOverSourceDocument(documentPath);
       setTabContent(groupId, tabId, content);
+      syncFileContent(documentPath, content, tabId);
       if (!currentTab.filePath) return;
-      syncFileContent(currentTab.filePath, content, tabId);
       editorSaveCoordinator.schedule(currentTab.filePath, content);
     },
     [getCurrentTab, groupId, setTabContent, syncFileContent, tabId],
@@ -349,10 +348,11 @@ export function EditorWorkspace({
         undoStack.push(currentTab.content, content);
         replacementUndoStacksRef.current.set(undoKey, undoStack);
       }
+      const documentPath = getEditorDocumentPath(currentTab);
+      takeOverSourceDocument(documentPath);
       setTabContent(groupId, tabId, content);
+      syncFileContent(documentPath, content, tabId);
       if (currentTab.filePath) {
-        takeOverSourceDocument(currentTab.filePath);
-        syncFileContent(currentTab.filePath, content, tabId);
         editorSaveCoordinator.schedule(currentTab.filePath, content);
       }
       if (currentTab.mode === "rich") {

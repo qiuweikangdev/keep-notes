@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useEditorStore } from "./editor.store";
 import { richPaneViewStateRegistry } from "@/features/editor/lib/rich-pane-view-state";
+import { getEditorDocumentPath } from "@/features/editor/lib/editor-document-path";
 
 describe("editor store", () => {
   beforeEach(() => {
@@ -346,6 +347,52 @@ describe("editor store", () => {
       );
 
     expect(useEditorStore.getState()).toBe(before);
+  });
+
+  it("keeps an unnamed split attached to the same draft when either pane edits", () => {
+    const store = useEditorStore.getState();
+    store.setTabFilePath("group-1", "tab-1", null);
+    store.setTabContent("group-1", "tab-1", "Original");
+    store.addPanelGroup("horizontal", "group-1");
+    const split = useEditorStore.getState().panelGroups[1];
+    const source = useEditorStore.getState().panelGroups[0].tabs[0];
+    const path = getEditorDocumentPath(source);
+    expect(split.tabs[0].id).not.toBe(source.id);
+    expect(getEditorDocumentPath(split.tabs[0])).toBe(path);
+
+    store.addTab("group-1");
+    const unrelatedId = useEditorStore.getState().panelGroups[0].activeTabId;
+    store.setTabContent("group-1", "tab-1", "First edit");
+    store.syncFileContent(path, "First edit", "tab-1");
+    expect(useEditorStore.getState().panelGroups[1].tabs[0]).toMatchObject({
+      content: "First edit",
+      isDirty: true,
+      saveStatus: "dirty",
+      reloadKey: 1,
+    });
+    store.setTabContent(split.id, split.activeTabId, "Second edit");
+    store.syncFileContent(path, "Second edit", split.activeTabId);
+    expect(
+      useEditorStore
+        .getState()
+        .panelGroups[0].tabs.find((tab) => tab.id === "tab-1")?.content,
+    ).toBe("Second edit");
+    expect(
+      useEditorStore
+        .getState()
+        .panelGroups[0].tabs.find((tab) => tab.id === unrelatedId)?.content,
+    ).toBe("");
+
+    store.setTabFilePath(split.id, split.activeTabId, "/notes/shared-draft.md");
+    const savedSource = useEditorStore
+      .getState()
+      .panelGroups[0].tabs.find((tab) => tab.id === "tab-1")!;
+    const savedSplit = useEditorStore.getState().panelGroups[1].tabs[0];
+    expect(savedSource.filePath).toBe("/notes/shared-draft.md");
+    expect(savedSplit.filePath).toBe(savedSource.filePath);
+    expect(savedSource.content).toBe(savedSplit.content);
+    expect(savedSource.isDirty).toBe(false);
+    expect(savedSplit.isDirty).toBe(false);
   });
 
   it("updates parse state for every canonical-path tab without changing unrelated identities", () => {

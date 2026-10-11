@@ -100,6 +100,39 @@ afterEach(() => {
 });
 
 describe("EditorWorkspace split rich editor mount", () => {
+  it("syncs source edits to an unnamed split without scheduling a disk save", () => {
+    const source = {
+      ...createTab("tab-1", "large.md", "# Draft"),
+      filePath: null,
+      mode: "source" as const,
+    };
+    useEditorStore.setState({
+      panelGroups: [
+        {
+          id: "group-1",
+          activeTabId: source.id,
+          direction: "horizontal",
+          tabs: [source],
+        },
+      ],
+    });
+    useEditorStore.getState().addPanelGroup("horizontal", "group-1");
+    render(<EditorWorkspace groupId="group-1" tabId="tab-1" />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Markdown 源码" }), {
+      target: { value: "# Edited draft" },
+    });
+
+    expect(useEditorStore.getState().panelGroups[1].tabs[0]).toMatchObject({
+      content: "# Edited draft",
+      isDirty: true,
+      reloadKey: 1,
+    });
+    expect(
+      richDocumentSessionManager.discardPendingChange,
+    ).toHaveBeenCalledWith("keep-notes-untitled://tab-1");
+    expect(editorSaveCoordinator.schedule).not.toHaveBeenCalled();
+  });
+
   it("opens source mode without rewriting trailing blank lines", () => {
     const source = `# Original${"\n".repeat(6)}`;
     useEditorStore.setState((state) => ({

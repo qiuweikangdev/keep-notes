@@ -15,6 +15,11 @@ import {
 } from "@/features/editor/lib/editor-file-transition";
 import { normalizeRichDocumentPath } from "@/features/editor/lib/rich-document-surface-registry";
 import {
+  getEditorDocumentPath,
+  isUntitledDocumentPath,
+  matchesEditorDocumentPath,
+} from "@/features/editor/lib/editor-document-path";
+import {
   richPaneViewStateRegistry,
   toRichPaneKey,
 } from "@/features/editor/lib/rich-pane-view-state";
@@ -48,6 +53,8 @@ export type EditorSaveStatus = "clean" | "dirty" | "saving" | "error";
 
 export interface EditorTab {
   id: string;
+  // 标签 ID 标识视图；文档 ID 让未命名文档的多个视图共用同一会话。
+  documentId?: string;
   filePath: string | null;
   pendingFilePath: string | null;
   temporaryTitle?: string | null;
@@ -246,23 +253,27 @@ function areOutlineHeadingsEqual(
 }
 
 // 创建默认标签页
-const createDefaultTab = (filePath?: string | null): EditorTab => ({
-  id: generateId(),
-  filePath: filePath ?? null,
-  pendingFilePath: null,
-  temporaryTitle: null,
-  content: "",
-  wordCount: 0,
-  isDirty: false,
-  reloadKey: 0,
-  mode: "rich",
-  // 未命名文档无需读取磁盘，可直接创建富文本会话。
-  loadStatus: filePath ? "loading" : "ready",
-  saveStatus: "clean",
-  errorMessage: null,
-  parseErrorMessage: null,
-  scrollTop: 0,
-});
+const createDefaultTab = (filePath?: string | null): EditorTab => {
+  const id = generateId();
+  return {
+    id,
+    documentId: id,
+    filePath: filePath ?? null,
+    pendingFilePath: null,
+    temporaryTitle: null,
+    content: "",
+    wordCount: 0,
+    isDirty: false,
+    reloadKey: 0,
+    mode: "rich",
+    // 未命名文档无需读取磁盘，可直接创建富文本会话。
+    loadStatus: filePath ? "loading" : "ready",
+    saveStatus: "clean",
+    errorMessage: null,
+    parseErrorMessage: null,
+    scrollTop: 0,
+  };
+};
 
 // 创建默认面板组
 const createDefaultPanelGroup = (): EditorPanelGroup => {
@@ -330,7 +341,12 @@ export const useEditorStore = create<EditorState>()(
 
           // 创建新面板组，复制当前活动标签页
           const newTab = activeTab
-            ? { ...activeTab, id: generateId() }
+            ? {
+                ...activeTab,
+                id: generateId(),
+                // 分屏创建新的视图身份，未命名文档继续共用原来的文档身份。
+                documentId: activeTab.documentId ?? activeTab.id,
+              }
             : createDefaultTab();
           const newGroup: EditorPanelGroup = {
             id: generateId(),
@@ -622,26 +638,40 @@ export const useEditorStore = create<EditorState>()(
           tabId: string,
           path: string | null,
         ) => {
-          set((state) => ({
-            panelGroups: state.panelGroups.map((g) =>
-              g.id === groupId
-                ? {
-                    ...g,
-                    tabs: g.tabs.map((t) =>
-                      t.id === tabId
-                        ? {
-                            ...t,
-                            filePath: path,
-                            pendingFilePath: null,
-                            temporaryTitle: path ? null : t.temporaryTitle,
-                            isDirty: false,
-                          }
-                        : t,
-                    ),
-                  }
-                : g,
-            ),
-          }));
+          set((state) => {
+            const target = state.panelGroups
+              .find((group) => group.id === groupId)
+              ?.tabs.find((tab) => tab.id === tabId);
+            if (!target) return state;
+            const documentPath = getEditorDocumentPath(target);
+            const saveSharedDraft =
+              path !== null && isUntitledDocumentPath(documentPath);
+            return {
+              panelGroups: state.panelGroups.map((group) => {
+                let groupChanged = false;
+                const tabs = group.tabs.map((tab) => {
+                  if (
+                    !(group.id === groupId && tab.id === tabId) &&
+                    !(
+                      saveSharedDraft &&
+                      matchesEditorDocumentPath(tab, documentPath)
+                    )
+                  )
+                    return tab;
+                  groupChanged = true;
+                  // 另存为绑定整份草稿，其他分屏不能继续保留一个独立的未命名副本。
+                  return {
+                    ...tab,
+                    filePath: path,
+                    pendingFilePath: null,
+                    temporaryTitle: path ? null : tab.temporaryTitle,
+                    isDirty: false,
+                  };
+                });
+                return groupChanged ? { ...group, tabs } : group;
+              }),
+            };
+          });
         },
 
         // 未命名标签只更新临时显示名称，不触发任何磁盘文件操作。
@@ -949,6 +979,7 @@ export const useEditorStore = create<EditorState>()(
 
         syncFileContent: (path, content, sourceTabId, synchronizedTabIds) => {
           set((state) => {
+            const isUntitled = isUntitledDocumentPath(path);
             const synchronizedIds = synchronizedTabIds
               ? new Set(synchronizedTabIds)
               : null;
@@ -957,7 +988,7 @@ export const useEditorStore = create<EditorState>()(
               let groupChanged = false;
               const tabs = group.tabs.map((tab) => {
                 if (
-                  !matchesEditorFilePath(tab.filePath, path) ||
+                  !matchesEditorDocumentPath(tab, path) ||
                   tab.id === sourceTabId
                 ) {
                   return tab;
@@ -981,6 +1012,16 @@ export const useEditorStore = create<EditorState>()(
                   content,
                   wordCount: content.length,
                   reloadKey,
+                  ...(isUntitled
+                    ? {
+                        isDirty: content.trim().length > 0,
+                        saveStatus:
+                          content.trim().length > 0
+                            ? ("dirty" as const)
+                            : ("clean" as const),
+                        errorMessage: null,
+                      }
+                    : {}),
                 };
               });
               return groupChanged ? { ...group, tabs } : group;
