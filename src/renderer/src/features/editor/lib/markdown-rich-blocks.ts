@@ -12,6 +12,35 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function needsRichMarkdownHTML(value: unknown): boolean {
   if (Array.isArray(value)) return value.some(needsRichMarkdownHTML);
   if (!isRecord(value)) return false;
+  if (value.type === "table" && isRecord(value.content)) {
+    const content = value.content;
+    if (
+      Array.isArray(content.columnWidths) &&
+      content.columnWidths.some(
+        (width) => typeof width === "number" && Number.isFinite(width),
+      )
+    )
+      return true;
+    const rows = Array.isArray(content.rows) ? content.rows : [];
+    const first =
+      isRecord(rows[0]) && Array.isArray(rows[0].cells) ? rows[0].cells : [];
+    const alignment = (cell: unknown) =>
+      isRecord(cell) && isRecord(cell.props)
+        ? (cell.props.textAlignment ?? "left")
+        : "left";
+    // GFM 仅支持整列对齐；单独单元格的布局必须使用可往返的 HTML 表格。
+    if (
+      rows.some(
+        (row) =>
+          isRecord(row) &&
+          Array.isArray(row.cells) &&
+          row.cells.some(
+            (cell, column) => alignment(cell) !== alignment(first[column]),
+          ),
+      )
+    )
+      return true;
+  }
   const styles = isRecord(value.styles) ? value.styles : {};
   const props = isRecord(value.props) ? value.props : {};
   return (
