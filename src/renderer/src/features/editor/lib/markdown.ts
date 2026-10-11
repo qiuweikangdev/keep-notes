@@ -2220,24 +2220,111 @@ function removeExcessCanonicalBlankLines(
     .join("");
 }
 
-function getMarkdownSemanticSignature(markdown: string): string {
+function getMarkdownSemanticSignature(
+  markdown: string,
+  ignoreInlineMetadata = false,
+): string {
   const tokens = listMarkdownParser.parse(markdown, {});
-  const summarize = (items: typeof tokens): unknown[] =>
-    items.map((token, index) => [
-      ["softbreak", "hardbreak"].includes(token.type)
-        ? "linebreak"
-        : token.type,
-      token.tag,
-      token.nesting,
-      token.attrs,
-      token.type === "fence" ? normalizeFencedCodeInfo(token.info) : "",
-      token.children
-        ? summarize(token.children)
-        : token.type === "text" && items[index - 1]?.type === "hardbreak"
+  const summarize = (items: typeof tokens): unknown[] => {
+    const result: unknown[][] = [];
+    for (const [index, token] of items.entries()) {
+      if (ignoreInlineMetadata && token.type === "image") continue;
+      const content =
+        token.type === "text" && items[index - 1]?.type === "hardbreak"
           ? token.content.replace(/^[ \t]/u, "")
-          : token.content,
-    ]);
+          : token.content;
+      const previous = result.at(-1);
+      // 删除解析器未建模的图片后合并相邻文本，仍严格比较正文和块结构。
+      if (
+        ignoreInlineMetadata &&
+        token.type === "text" &&
+        previous?.[0] === "text"
+      ) {
+        previous[5] = `${previous[5]}${content}`;
+        continue;
+      }
+      result.push([
+        ["softbreak", "hardbreak"].includes(token.type)
+          ? "linebreak"
+          : token.type,
+        token.tag,
+        token.nesting,
+        ignoreInlineMetadata && token.type === "link_open"
+          ? (token.attrs?.filter(([name]) => name !== "title") ?? null)
+          : token.attrs,
+        token.type === "fence" ? normalizeFencedCodeInfo(token.info) : "",
+        token.children ? summarize(token.children) : content,
+      ]);
+    }
+    return result;
+  };
   return JSON.stringify(summarize(tokens));
+}
+
+function restoreUnchangedInlineSourceMetadata(
+  source: string,
+  baseline: string,
+  edited: string,
+): string {
+  if (!/!\[|\]\([^\n)]*[ \t]+["']/u.test(source)) return edited;
+  const readRegions = (markdown: string) => {
+    const lines = splitMarkdownLines(markdown);
+    const offsets = [0];
+    for (const line of lines)
+      offsets.push(offsets.at(-1)! + line.text.length + line.ending.length);
+    return listMarkdownParser
+      .parse(markdown, {})
+      .filter((token) => token.level === 0 && token.map)
+      .map((token) => {
+        const start = offsets[token.map![0]];
+        const end = offsets[token.map![1]];
+        const text = markdown.slice(start, end);
+        return {
+          start,
+          end,
+          text,
+          signature: getMarkdownSemanticSignature(text, true),
+        };
+      });
+  };
+  const sourceRegions = readRegions(source);
+  const indexRegions = (regions: ReturnType<typeof readRegions>) => {
+    const index = new Map<string, (typeof regions)[number] | null>();
+    for (const region of regions)
+      index.set(region.signature, index.has(region.signature) ? null : region);
+    return index;
+  };
+  const sourceIndex = indexRegions(sourceRegions);
+  const baselineIndex = indexRegions(readRegions(baseline));
+  const editedIndex = indexRegions(readRegions(edited));
+  const replacements: MarkdownEdit[] = [];
+  for (const region of sourceRegions) {
+    if (getMarkdownSemanticSignature(region.text) === region.signature)
+      continue;
+    // 仅恢复可唯一定位且正文没有改动的区块；用户删除或改写区块时不复活旧内容。
+    const match = editedIndex.get(region.signature);
+    if (
+      !sourceIndex.get(region.signature) ||
+      !baselineIndex.get(region.signature) ||
+      !match
+    )
+      continue;
+    replacements.push({
+      start: match.start,
+      end: match.end,
+      replacement: region.text,
+    });
+  }
+  let result = edited;
+  for (const replacement of replacements.toSorted(
+    (left, right) => right.start - left.start,
+  )) {
+    result =
+      result.slice(0, replacement.start) +
+      replacement.replacement +
+      result.slice(replacement.end);
+  }
+  return result;
 }
 
 export function preserveMarkdownSource(
@@ -2261,10 +2348,14 @@ export function preserveMarkdownSource(
       markdown,
       edited,
     );
-    const candidate = normalizeExcessiveTrailingBlankLines(
-      restoreStableSourceFormatting(
-        preservationSource,
-        removeExcessCanonicalBlankLines(edited, repaired),
+    const candidate = restoreUnchangedInlineSourceMetadata(
+      preservationSource,
+      baseline,
+      normalizeExcessiveTrailingBlankLines(
+        restoreStableSourceFormatting(
+          preservationSource,
+          removeExcessCanonicalBlankLines(edited, repaired),
+        ),
       ),
     );
     // 保留源码排版只能改变写法，不能改变内容或块结构；不一致时以富文本导出为准。
@@ -2272,7 +2363,13 @@ export function preserveMarkdownSource(
       baseline !== edited &&
       candidate !== edited &&
       getMarkdownSemanticSignature(candidate) !==
-        getMarkdownSemanticSignature(edited)
+        getMarkdownSemanticSignature(edited) &&
+      !(
+        getMarkdownSemanticSignature(preservationSource, true) ===
+          getMarkdownSemanticSignature(baseline, true) &&
+        getMarkdownSemanticSignature(candidate, true) ===
+          getMarkdownSemanticSignature(edited, true)
+      )
     ) {
       return preserveSourceEnding(source, edited);
     }
