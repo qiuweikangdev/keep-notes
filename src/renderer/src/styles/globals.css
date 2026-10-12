@@ -1777,6 +1777,15 @@ button:focus-visible {
   background-color: var(--selection-row-hover) !important;
 }
 
+/* 深黑主题的图片画布贴近弹窗底色，避免大面积侧栏灰色造成视觉断层。 */
+.minimal .image-preview {
+  --image-preview-canvas-background: color-mix(
+    in srgb,
+    var(--bg-primary) 88%,
+    var(--bg-secondary)
+  );
+}
+
 /* Git diff 面板主题适配 */
 .diff-viewer {
   background: var(--bg-primary);

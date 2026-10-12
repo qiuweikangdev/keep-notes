@@ -85,7 +85,10 @@ function ImagePreviewContent({
       <div
         ref={viewportRef}
         className="image-preview__canvas min-h-0 flex-1 overflow-auto"
-        style={{ backgroundColor: "var(--bg-secondary)" }}
+        style={{
+          backgroundColor:
+            "var(--image-preview-canvas-background, var(--bg-secondary))",
+        }}
       >
         <div className="flex min-h-full min-w-full w-max items-center justify-center p-6">
           {!source ? (
