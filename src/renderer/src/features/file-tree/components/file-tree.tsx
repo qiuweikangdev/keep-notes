@@ -151,6 +151,20 @@ export function FileTree() {
     );
     return activeTab ? getEditorDocumentPath(activeTab) : null;
   });
+  const hasActiveDraftContent = useEditorStore((state) => {
+    const activeGroup = state.panelGroups.find(
+      (group) => group.id === state.activeGroupId,
+    );
+    const activeTab = activeGroup?.tabs.find(
+      (tab) => tab.id === activeGroup.activeTabId,
+    );
+    return Boolean(
+      activeTab &&
+      !activeTab.filePath &&
+      !activeTab.pendingFilePath &&
+      activeTab.content.trim(),
+    );
+  });
   const openCreateReminder = useReminderStore((s) => s.openCreateDialog);
 
   const [creatingInfo, setCreatingInfo] = useState<CreatingInfo | null>(null);
@@ -586,22 +600,114 @@ export function FileTree() {
     setConfirmState({ open: false, key: "", title: "" });
   }, [confirmState, deleteItem, setTreeData]);
 
+  // 草稿和文件共用同一标题栏，保持大纲的图标、分隔线和列表对齐一致。
+  const displayedSidebarView = treeRoot ? sidebarView : "outline";
+  const sidebarHeader = (
+    <div
+      className={cn(
+        "file-tree-sidebar__view-header flex flex-shrink-0 items-center gap-1",
+        layout === "minimal" ? "h-7 px-1.5" : "h-[35px] px-2",
+      )}
+      style={{
+        backgroundColor: "var(--sidebar-header-background)",
+        borderBottom: "var(--sidebar-header-border)",
+      }}
+    >
+      {treeRoot ? (
+        <Tooltip.Provider>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <button
+                type="button"
+                className={TOOL_BUTTON_CLASS}
+                style={{ color: "var(--text-muted)" }}
+                onClick={() =>
+                  setSidebarView(
+                    displayedSidebarView === "file" ? "outline" : "file",
+                  )
+                }
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "var(--hover-bg)";
+                  e.currentTarget.style.color = "var(--text-primary)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = "var(--text-muted)";
+                }}
+              >
+                {displayedSidebarView === "file" ? (
+                  <List className="h-3.5 w-3.5" />
+                ) : (
+                  <ListTree className="h-3.5 w-3.5" />
+                )}
+              </button>
+            </Tooltip.Trigger>
+            <Tooltip.Portal>
+              <Tooltip.Content
+                className="z-50 rounded-md bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md"
+                side="bottom"
+                sideOffset={5}
+              >
+                {displayedSidebarView === "file"
+                  ? "切换到大纲视图"
+                  : "切换到文件树视图"}
+                <Tooltip.Arrow className="fill-popover" />
+              </Tooltip.Content>
+            </Tooltip.Portal>
+          </Tooltip.Root>
+        </Tooltip.Provider>
+      ) : (
+        <div
+          aria-hidden="true"
+          className={TOOL_BUTTON_CLASS}
+          style={{ color: "var(--text-muted)" }}
+        >
+          <ListTree className="h-3.5 w-3.5" />
+        </div>
+      )}
+      <div className="flex min-w-0 flex-1 items-center pl-1">
+        <span
+          className="truncate text-xs font-medium"
+          style={{ color: "var(--text-secondary)" }}
+        >
+          {displayedSidebarView === "file" ? "文件" : "大纲"}
+        </span>
+      </div>
+    </div>
+  );
+
   if (!treeRoot) {
     return (
       <div
         className={cn(
-          "relative h-full",
+          "relative flex h-full flex-col",
           layout === "minimal" && "file-tree-empty-state--minimal",
         )}
         data-testid="file-tree-empty-state"
         onMouseEnter={handleSidebarMouseEnter}
         onMouseLeave={handleSidebarMouseLeave}
       >
-        <div className="absolute inset-0 flex items-center justify-center p-4 pb-16">
-          <p className="text-[13px]" style={{ color: "var(--text-muted)" }}>
-            没有打开的文件夹
-          </p>
-        </div>
+        {/* 恢复有内容的草稿时直接展示当前标签的大纲，无需先打开文件夹。 */}
+        {hasActiveDraftContent ? (
+          <>
+            {sidebarHeader}
+            <div className="file-tree-sidebar__view-content flex min-h-0 flex-1 flex-col overflow-hidden py-0">
+              <OutlinePanel
+                headings={headings}
+                activeHeadingId={activeHeadingId}
+                resetKey={`${activeOutlinePaneKey ?? "none"}:${normalizedActiveDocumentPath ?? ""}`}
+                onHeadingClick={handleHeadingClick}
+                compact
+              />
+            </div>
+          </>
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center p-4 pb-16">
+            <p className="text-[13px]" style={{ color: "var(--text-muted)" }}>
+              没有打开的文件夹
+            </p>
+          </div>
+        )}
 
         <div
           className={cn(
@@ -627,67 +733,7 @@ export function FileTree() {
           onMouseEnter={handleSidebarMouseEnter}
           onMouseLeave={handleSidebarMouseLeave}
         >
-          <div
-            className={cn(
-              "file-tree-sidebar__view-header flex flex-shrink-0 items-center gap-1",
-              layout === "minimal" ? "h-7 px-1.5" : "h-[35px] px-2",
-            )}
-            style={{
-              backgroundColor: "var(--sidebar-header-background)",
-              borderBottom: "var(--sidebar-header-border)",
-            }}
-          >
-            <Tooltip.Provider>
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <button
-                    type="button"
-                    className={TOOL_BUTTON_CLASS}
-                    style={{ color: "var(--text-muted)" }}
-                    onClick={() =>
-                      setSidebarView(
-                        sidebarView === "file" ? "outline" : "file",
-                      )
-                    }
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = "var(--hover-bg)";
-                      e.currentTarget.style.color = "var(--text-primary)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "transparent";
-                      e.currentTarget.style.color = "var(--text-muted)";
-                    }}
-                  >
-                    {sidebarView === "file" ? (
-                      <List className="h-3.5 w-3.5" />
-                    ) : (
-                      <ListTree className="h-3.5 w-3.5" />
-                    )}
-                  </button>
-                </Tooltip.Trigger>
-                <Tooltip.Portal>
-                  <Tooltip.Content
-                    className="z-50 rounded-md bg-popover px-3 py-1.5 text-xs text-popover-foreground shadow-md"
-                    side="bottom"
-                    sideOffset={5}
-                  >
-                    {sidebarView === "file"
-                      ? "切换到大纲视图"
-                      : "切换到文件树视图"}
-                    <Tooltip.Arrow className="fill-popover" />
-                  </Tooltip.Content>
-                </Tooltip.Portal>
-              </Tooltip.Root>
-            </Tooltip.Provider>
-            <div className="flex min-w-0 flex-1 items-center pl-1">
-              <span
-                className="truncate text-xs font-medium"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                {sidebarView === "file" ? "文件" : "大纲"}
-              </span>
-            </div>
-          </div>
+          {sidebarHeader}
 
           <div
             className={cn(

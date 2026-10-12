@@ -548,53 +548,143 @@ describe("FileTree context menu", () => {
     unregisterSecond();
   });
 
-  it("shows the outline for a pasted document in an untitled tab", () => {
-    const tab = {
-      id: "untitled-tab",
-      filePath: null,
-      pendingFilePath: null,
-      temporaryTitle: null,
-      content: "# Intro\n## Details",
-      wordCount: 16,
-      isDirty: true,
-      reloadKey: 1,
-      mode: "rich" as const,
-      loadStatus: "ready" as const,
-      saveStatus: "dirty" as const,
-      errorMessage: null,
-      parseErrorMessage: null,
-      scrollTop: 0,
-    };
-    const path = getEditorDocumentPath(tab);
-    useEditorStore.setState({
-      activeGroupId: "group-untitled",
-      appearance: {
-        ...useEditorStore.getState().appearance,
-        sidebarView: "outline",
-      },
-      panelGroups: [
-        {
-          id: "group-untitled",
-          activeTabId: tab.id,
-          direction: "horizontal",
-          tabs: [tab],
+  it.each([
+    { hasFolder: true, sidebarView: "outline" as const },
+    { hasFolder: false, sidebarView: "file" as const },
+    { hasFolder: false, sidebarView: "outline" as const },
+  ])(
+    "shows an untitled document outline with $hasFolder folder and $sidebarView view",
+    ({ hasFolder, sidebarView }) => {
+      const tab = {
+        id: "untitled-tab",
+        filePath: null,
+        pendingFilePath: null,
+        temporaryTitle: null,
+        content: "# Intro\n## Details",
+        wordCount: 16,
+        isDirty: true,
+        reloadKey: 1,
+        mode: "rich" as const,
+        loadStatus: "ready" as const,
+        saveStatus: "dirty" as const,
+        errorMessage: null,
+        parseErrorMessage: null,
+        scrollTop: 0,
+      };
+      const path = getEditorDocumentPath(tab);
+      useEditorStore.setState({
+        activeGroupId: "group-untitled",
+        appearance: {
+          ...useEditorStore.getState().appearance,
+          sidebarView,
         },
-      ],
-      outlineHeadingsByPath: {
-        [path]: [
-          { id: "heading-1", text: "Intro", level: 1 },
-          { id: "heading-2", text: "Details", level: 2 },
+        panelGroups: [
+          {
+            id: "group-untitled",
+            activeTabId: tab.id,
+            direction: "horizontal",
+            tabs: [tab],
+          },
         ],
-      },
-      activeHeadingIdByPane: {
-        "group-untitled:untitled-tab": "heading-1",
-      },
+        outlineHeadingsByPath: {
+          [path]: [
+            { id: "heading-1", text: "Intro", level: 1 },
+            { id: "heading-2", text: "Details", level: 2 },
+          ],
+        },
+        activeHeadingIdByPane: {
+          "group-untitled:untitled-tab": "heading-1",
+        },
+      });
+      if (!hasFolder) {
+        useTreeStore.setState({ treeRoot: null, treeData: [] });
+      }
+
+      render(<FileTree />);
+
+      expect(screen.getByRole("button", { name: "Intro" })).toBeVisible();
+      expect(screen.getByRole("button", { name: "Details" })).toBeVisible();
+      expect(screen.queryByText("没有打开的文件夹")).not.toBeInTheDocument();
+      if (!hasFolder) {
+        expect(
+          screen.getByRole("button", { name: "打开文件夹..." }),
+        ).toBeInTheDocument();
+      }
+    },
+  );
+
+  it("updates the folderless outline after draft restoration and tab switching", () => {
+    const group = useEditorStore.getInitialState().panelGroups[0];
+    const firstTab = { ...group.tabs[0], content: "# First draft" };
+    const secondTab = {
+      ...firstTab,
+      id: "second-draft",
+      documentId: "second-draft-document",
+      content: "# Second draft",
+    };
+    const firstPath = getEditorDocumentPath(firstTab);
+    const secondPath = getEditorDocumentPath(secondTab);
+    useTreeStore.setState({ treeRoot: null, treeData: [] });
+    useEditorStore.setState({
+      activeGroupId: group.id,
+      panelGroups: [{ ...group, tabs: [firstTab, secondTab] }],
+      outlineHeadingsByPath: {},
+      activeHeadingIdByPane: {},
     });
 
     render(<FileTree />);
+    expect(screen.queryByText("没有打开的文件夹")).not.toBeInTheDocument();
 
-    expect(screen.getByRole("button", { name: "Intro" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Details" })).toBeVisible();
+    act(() => {
+      useEditorStore
+        .getState()
+        .setOutlineHeadingsForPath(firstPath, [
+          { id: "first-heading", text: "First draft", level: 1 },
+        ]);
+      useEditorStore
+        .getState()
+        .setOutlineHeadingsForPath(secondPath, [
+          { id: "second-heading", text: "Second draft", level: 1 },
+        ]);
+    });
+    expect(screen.getByRole("button", { name: "First draft" })).toBeVisible();
+
+    act(() => useEditorStore.getState().setActiveTab(group.id, secondTab.id));
+    expect(
+      screen.queryByRole("button", { name: "First draft" }),
+    ).not.toBeInTheDocument();
+    const navigate = vi.fn(() => true);
+    const unregister = registerEditorOutlineNavigator(
+      group.id,
+      secondTab.id,
+      navigate,
+    );
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Second draft" }));
+      expect(navigate).toHaveBeenCalledWith("second-heading", {
+        isRetry: false,
+      });
+    } finally {
+      unregister();
+    }
+
+    act(() =>
+      useEditorStore
+        .getState()
+        .setTabContent(group.id, secondTab.id, "Plain text"),
+    );
+    act(() =>
+      useEditorStore.getState().setOutlineHeadingsForPath(secondPath, []),
+    );
+    expect(screen.getByText("暂无标题")).toBeVisible();
+
+    act(() =>
+      useEditorStore.getState().setTabContent(group.id, secondTab.id, " \n "),
+    );
+    expect(screen.getByText("没有打开的文件夹")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "First draft" }),
+    ).not.toBeInTheDocument();
   });
 
   it("opens the diff dialog from the virtualized file node menu", async () => {
