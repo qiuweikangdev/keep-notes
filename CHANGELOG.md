@@ -1,3 +1,23 @@
+# [2.26.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.25.6...v2.26.0) (2026-10-12)
+
+
+### Bug Fixes
+
+* show diff discard tooltip only on hover ([c8cf90f](https://github.com/qiuweikangdev/keep-notes/commit/c8cf90fb2d63ac4a121e80edaaaa8def0821c36e))
+* show draft outlines without an open folder ([a32dcaf](https://github.com/qiuweikangdev/keep-notes/commit/a32dcaf377a4c0fbbf122d0d6f398bcde412edf8))
+
+
+### Features
+
+* add attachment image previews and image diffs ([80b24e8](https://github.com/qiuweikangdev/keep-notes/commit/80b24e806d473d19ccda6b349f1cfaa455addaa3))
+* background optimization ([8e67364](https://github.com/qiuweikangdev/keep-notes/commit/8e6736467357b29b5468875ca60fb734680fc5ce))
+
+
+## Commit Summary
+
+- Compared with: v2.25.6
+- Total commits: 4
+
 ## [2.25.6](https://github.com/qiuweikangdev/keep-notes/compare/v2.25.5...v2.25.6) (2026-10-11)
 
 
