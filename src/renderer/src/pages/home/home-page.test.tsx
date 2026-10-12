@@ -227,6 +227,7 @@ describe("HomePage", () => {
 
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
   });
 
   it("keeps the main workspace aligned with the rounded window surface", () => {
@@ -289,6 +290,29 @@ describe("HomePage", () => {
     expect(
       screen.getByRole("button", { name: "放弃当前文件更改" }),
     ).toBeInTheDocument();
+  });
+
+  it("shows the discard tooltip on hover without opening it on dialog focus", async () => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      vi.fn().mockImplementation(() => ({
+        observe: vi.fn(),
+        unobserve: vi.fn(),
+        disconnect: vi.fn(),
+      })),
+    );
+    render(<HomePage />);
+    const button = screen.getByRole("button", { name: "放弃当前文件更改" });
+
+    act(() => button.focus());
+    expect(button).toHaveFocus();
+    expect(button).toHaveAttribute("data-state", "closed");
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+
+    fireEvent.pointerMove(button, { pointerType: "mouse" });
+    await waitFor(() => {
+      expect(screen.getByRole("tooltip")).toHaveTextContent("放弃更改");
+    });
   });
 
   it("uses the shared drag handle and all resize handles", () => {

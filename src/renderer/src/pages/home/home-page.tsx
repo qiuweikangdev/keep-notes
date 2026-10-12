@@ -509,6 +509,10 @@ function DiffDialog({
                   <button
                     type="button"
                     aria-label="放弃当前文件更改"
+                    onFocus={(event) => {
+                      // 弹窗自动聚焦时保留按钮焦点，只阻止 Tooltip 的焦点触发。
+                      event.preventDefault();
+                    }}
                     onClick={(e) => {
                       e.stopPropagation();
                       onDiscard();
