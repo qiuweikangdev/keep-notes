@@ -10,6 +10,7 @@ import {
   cancelEditorChange,
 } from "./editor-runtime";
 import { toGitRelativePath } from "./editor-git-actions";
+import { isImageFile } from "@shared/image-file";
 
 interface DiscardFileChangesResult {
   success: boolean;
@@ -90,6 +91,12 @@ export async function discardFileChanges(
     return { success: false };
   }
   notifyGitStatusChange(repositoryRoot);
+
+  // 图片恢复只更新文件树，不能将二进制文件按文本写入编辑器缓存。
+  if (isImageFile(editorFilePath)) {
+    await electron.loadTree(repositoryRoot);
+    return { success: true };
+  }
 
   editorSaveCoordinator.cancel(editorFilePath);
   editorCache.delete(editorFilePath);

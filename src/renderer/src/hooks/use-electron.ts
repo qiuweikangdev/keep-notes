@@ -1,4 +1,6 @@
 import { useCallback } from "react";
+import { isImageFile } from "@shared/image-file";
+import { useImagePreviewStore } from "@/features/image-preview/store/image-preview.store";
 import { CodeResult } from "@/types";
 import type {
   TreeNode,
@@ -354,6 +356,12 @@ export function useElectron() {
       targetGroupId?: string,
       options: { openInNewTab?: boolean } = {},
     ) => {
+      if (isImageFile(filePath)) {
+        // 图片预览独立于编辑器标签，避免读取图片时覆盖未保存的草稿。
+        useTreeStore.getState().setSelectedKey(filePath);
+        useImagePreviewStore.getState().open(filePath);
+        return;
+      }
       let state = useEditorStore.getState();
       let targetGroup = targetGroupId
         ? state.panelGroups.find((group) => group.id === targetGroupId)

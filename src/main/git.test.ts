@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CodeResult } from "../shared/types";
+import { MAX_IMAGE_BYTES } from "../shared/image-file";
 import {
   commit,
   deleteBranch,
@@ -17,6 +18,7 @@ const gitMocks = vi.hoisted(() => ({
   deleteLocalBranch: vi.fn(),
   env: vi.fn(),
   raw: vi.fn(),
+  showBuffer: vi.fn(),
   simpleGit: vi.fn(),
   status: vi.fn(),
 }));
@@ -89,6 +91,7 @@ describe("git file content", () => {
       commit: gitMocks.commit,
       env: gitMocks.env,
       raw: gitMocks.raw,
+      showBuffer: gitMocks.showBuffer,
       status: gitMocks.status,
     });
   });
@@ -107,6 +110,30 @@ describe("git file content", () => {
       code: CodeResult.Success,
       data: "index content",
     });
+  });
+
+  it("returns SVG and ICO versions as correctly typed data URLs", async () => {
+    const bytes = Buffer.from([0, 255, 128, 10]);
+    gitMocks.raw.mockResolvedValue("4");
+    gitMocks.showBuffer.mockResolvedValue(bytes);
+    expect(
+      (await getFileHeadContent("/notes", "attachments/logo.SVG")).data,
+    ).toBe(`data:image/svg+xml;base64,${bytes.toString("base64")}`);
+    expect(
+      (await getFileHeadContent("/notes", "attachments/icon.ico", "INDEX"))
+        .data,
+    ).toBe(`data:image/x-icon;base64,${bytes.toString("base64")}`);
+    expect(gitMocks.showBuffer).toHaveBeenCalledWith([":attachments/icon.ico"]);
+  });
+
+  it("reports oversized images as preview errors instead of missing versions", async () => {
+    gitMocks.raw.mockResolvedValue(String(MAX_IMAGE_BYTES + 1));
+    const result = await getFileHeadContent("/notes", "attachments/photo.png");
+    expect(result).toMatchObject({
+      code: CodeResult.Fail,
+      imagePreviewError: true,
+    });
+    expect(gitMocks.showBuffer).not.toHaveBeenCalled();
   });
 });
 

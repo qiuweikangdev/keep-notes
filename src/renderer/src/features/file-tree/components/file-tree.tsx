@@ -13,6 +13,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   File,
   FileText,
+  Image as ImageIcon,
   Folder,
   FolderInput,
   FolderOpen,
@@ -31,6 +32,7 @@ import {
   FileOutput,
   LoaderCircle,
 } from "lucide-react";
+import { isImageFile } from "@shared/image-file";
 import { useEditorStore } from "@/store/editor.store";
 import { useUIStore } from "@/store/ui.store";
 import { OutlinePanel } from "./outline-panel";
@@ -59,6 +61,7 @@ import {
   buildCreatedNodeKey,
   buildFileTreeRows,
   buildRenamedFileKey,
+  getFileRenameTitle,
   canMoveNodeToFolder,
   findAncestorKeys,
   findNodeByKey,
@@ -545,6 +548,8 @@ export function FileTree() {
         if (isExpanding && flatNode.isLoaded === false) {
           void loadDirectory(flatNode.key);
         }
+      } else if (isImageFile(flatNode.title)) {
+        void openFile(flatNode.key);
       } else if (isMarkdownFileName(flatNode.title)) {
         // 调用标题栏的 addToHistory
         window.__addFileToHistory?.(flatNode.key);
@@ -1366,9 +1371,11 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
     setRenameInputWidth(
       renameLabelRef.current?.getBoundingClientRect().width ?? null,
     );
-    setRenameValue(flatNode.title.replace(/\.md$/iu, ""));
+    setRenameValue(
+      flatNode.isFolder ? flatNode.title : getFileRenameTitle(flatNode.title),
+    );
     setIsRenaming(true);
-  }, [flatNode.title]);
+  }, [flatNode.isFolder, flatNode.title]);
 
   const handleRowKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
@@ -1391,7 +1398,9 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
   // 确认重命名
   const handleRenameConfirm = useCallback(async () => {
     const title = renameValue.trim();
-    const current = flatNode.title.replace(/\.md$/iu, "");
+    const current = flatNode.isFolder
+      ? flatNode.title
+      : getFileRenameTitle(flatNode.title);
     if (!title || title === current) {
       setIsRenaming(false);
       return;
@@ -1535,6 +1544,11 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
   );
 
   const readEditorContentForDiff = useCallback(async () => {
+    if (isImageFile(flatNode.key)) {
+      const source = await window.electronAPI.loadImageAsDataUrl(flatNode.key);
+      if (!source) throw new Error("图片无法加载");
+      return source;
+    }
     const matchedTab = useEditorStore
       .getState()
       .panelGroups.flatMap((group) => group.tabs)
@@ -1559,11 +1573,14 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
       if (treeRoot?.key) {
         const relativePath = toGitRelativePath(treeRoot.key, flatNode.key);
         const headResult = await getFileHeadContent(treeRoot.key, relativePath);
+        if (headResult.imagePreviewError) throw new Error(headResult.message);
         if (headResult.code === CodeResult.Success) {
           baseContent = headResult.data ?? "";
         }
       } else {
-        baseContent = await window.electronAPI.readFile(flatNode.key);
+        baseContent = isImageFile(flatNode.key)
+          ? editorContent
+          : await window.electronAPI.readFile(flatNode.key);
       }
 
       if (areDiffContentsEqual(baseContent, editorContent)) {
@@ -1575,6 +1592,7 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
       updateContent(baseContent, editorContent);
     } catch (error) {
       console.error("Failed to read file for diff:", error);
+      showAppToast("加载文件差异失败", "error");
       closeDiff();
     }
   }, [
@@ -1716,6 +1734,11 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
                     className="h-[14px] w-[14px]"
                     style={{ color: "var(--file-tree-folder-icon)" }}
                   />
+                ) : isImageFile(flatNode.title) ? (
+                  <ImageIcon
+                    className="h-[14px] w-[14px]"
+                    style={{ color: "var(--file-tree-file-icon)" }}
+                  />
                 ) : (
                   <FileText
                     className="h-[14px] w-[14px]"
@@ -1769,7 +1792,9 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
 
         <ContextMenu.Portal>
           <ContextMenu.Content className={MENU_CONTENT_CLASS}>
-            {isMarkdownFileName(flatNode.title) ? (
+            {!flatNode.isFolder &&
+            (isMarkdownFileName(flatNode.title) ||
+              isImageFile(flatNode.title)) ? (
               <ContextMenu.Item
                 className={MENU_ITEM_CLASS}
                 onClick={() => {
@@ -1839,7 +1864,7 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
               <FolderPlus className="h-4 w-4" /> 新建文件夹
             </ContextMenu.Item>
 
-            {!flatNode.isFolder ? (
+            {!flatNode.isFolder && isMarkdownFileName(flatNode.title) ? (
               <ContextMenu.Item
                 className={MENU_ITEM_CLASS}
                 onClick={handleExport}
@@ -1848,7 +1873,9 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
               </ContextMenu.Item>
             ) : null}
 
-            {isMarkdownFileName(flatNode.title) ? (
+            {!flatNode.isFolder &&
+            (isMarkdownFileName(flatNode.title) ||
+              isImageFile(flatNode.title)) ? (
               <ContextMenu.Item
                 className={MENU_ITEM_CLASS}
                 onClick={() => {
@@ -1879,12 +1906,14 @@ const VirtualTreeNode = memo(function VirtualTreeNode({
             >
               <Copy className="h-4 w-4" /> 复制路径
             </ContextMenu.Item>
-            <ContextMenu.Item
-              className={MENU_ITEM_CLASS}
-              onClick={() => void openInNewWindow(flatNode.key)}
-            >
-              <ExternalLink className="h-4 w-4" /> 在新窗口中打开
-            </ContextMenu.Item>
+            {!isImageFile(flatNode.title) ? (
+              <ContextMenu.Item
+                className={MENU_ITEM_CLASS}
+                onClick={() => void openInNewWindow(flatNode.key)}
+              >
+                <ExternalLink className="h-4 w-4" /> 在新窗口中打开
+              </ContextMenu.Item>
+            ) : null}
             <ContextMenu.Item
               className={MENU_ITEM_CLASS}
               onClick={() => void openInExplorer(flatNode.key)}

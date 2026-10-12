@@ -11,6 +11,7 @@ import type { RichDocumentRuntime } from "@/features/editor/lib/rich-document-se
 import { useEditorStore, type EditorMode } from "@/store/editor.store";
 import { useTreeStore } from "@/store/tree.store";
 import { useElectron } from "./use-electron";
+import { useImagePreviewStore } from "@/features/image-preview/store/image-preview.store";
 
 describe("useElectron workspace tree loading", () => {
   const readDirectory = vi.fn();
@@ -329,6 +330,23 @@ describe("useElectron file reuse", () => {
     });
   });
 
+  it("previews an image without replacing a dirty draft or reading it as Markdown", async () => {
+    setupOpenFileTab(null, "# Unsaved draft", "source");
+    const before = useEditorStore.getState().panelGroups;
+    const { result } = renderHook(() => useElectron());
+    const filePath = "C:/notes/attachments/icon.ico";
+    try {
+      await act(() => result.current.openFile(filePath));
+      expect(useImagePreviewStore.getState().filePath).toBe(filePath);
+      expect(useEditorStore.getState().panelGroups).toBe(before);
+      expect(useTreeStore.getState().selectedKey).toBe(filePath);
+      expect(readFile).not.toHaveBeenCalled();
+      expect(writeFile).not.toHaveBeenCalled();
+    } finally {
+      useImagePreviewStore.getState().close();
+    }
+  });
+
   it.each([
     { label: "small", contentLength: 9_999 },
     { label: "large", contentLength: 10_000 },
@@ -506,7 +524,7 @@ describe("useElectron file reuse", () => {
 });
 
 function setupOpenFileTab(
-  path: string,
+  path: string | null,
   content: string,
   mode: EditorMode,
 ): void {

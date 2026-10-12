@@ -1,4 +1,4 @@
-import { render, waitFor } from "@testing-library/react";
+import { fireEvent, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DiffViewer } from "./diff-viewer";
 
@@ -36,6 +36,42 @@ describe("DiffViewer", () => {
   beforeEach(() => {
     fileDiffSpy.mockClear();
     parseDiffFromFileSpy.mockClear();
+  });
+
+  it("renders image versions and dimensions without text diff computation", () => {
+    const oldSource = "data:image/png;base64,b2xk";
+    const newSource = "data:image/png;base64,bmV3";
+    const { getByAltText, getByText, rerender } = render(
+      <DiffViewer
+        fileName="icon.PNG"
+        oldContent={oldSource}
+        newContent={newSource}
+        oldTitle="HEAD"
+        newTitle="暂存区"
+      />,
+    );
+    const oldImage = getByAltText("HEAD");
+    expect(oldImage).toHaveAttribute("src", oldSource);
+    expect(getByAltText("暂存区")).toHaveAttribute("src", newSource);
+    Object.defineProperties(oldImage, {
+      naturalWidth: { value: 32 },
+      naturalHeight: { value: 32 },
+    });
+    fireEvent.load(oldImage);
+    expect(getByText("32 × 32 px")).toBeInTheDocument();
+    expect(parseDiffFromFileSpy).not.toHaveBeenCalled();
+    expect(fileDiffSpy).not.toHaveBeenCalled();
+
+    rerender(
+      <DiffViewer fileName="icon.PNG" oldContent="" newContent={newSource} />,
+    );
+    expect(getByText("此版本中没有图片（新增）")).toBeInTheDocument();
+    rerender(
+      <DiffViewer fileName="icon.PNG" oldContent={oldSource} newContent="" />,
+    );
+    expect(getByText("此版本中没有图片（删除）")).toBeInTheDocument();
+    fireEvent.error(getByAltText("原始图片"));
+    expect(getByText("图片无法预览")).toBeInTheDocument();
   });
 
   it("does not render a diff when content only differs by line endings", () => {

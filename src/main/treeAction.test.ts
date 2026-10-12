@@ -68,6 +68,23 @@ describe("tree actions", () => {
     expect(fs.existsSync(filePath)).toBe(false);
   });
 
+  it("preserves an image extension and bytes when renaming an attachment", async () => {
+    const root = createTempRoot();
+    const filePath = path.join(root, "icon.ICO");
+    const bytes = Buffer.from([0, 0, 1, 0, 255, 128]);
+    fs.writeFileSync(filePath, bytes);
+    const treeData: TreeNode[] = [{ title: "icon.ICO", key: filePath }];
+    expect((await rename(filePath, "renamed", treeData)).code).toBe(
+      CodeResult.Success,
+    );
+    expect(fs.readFileSync(path.join(root, "renamed.ICO"))).toEqual(bytes);
+    expect(treeData[0]).toMatchObject({
+      title: "renamed.ICO",
+      key: path.join(root, "renamed.ICO"),
+    });
+    expect(fs.existsSync(path.join(root, "renamed.md"))).toBe(false);
+  });
+
   it("moves a file without showing a native confirmation dialog", async () => {
     const root = createTempRoot();
     const sourcePath = path.join(root, "daily.md");

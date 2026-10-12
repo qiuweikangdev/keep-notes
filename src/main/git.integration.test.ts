@@ -5,9 +5,101 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { expect, it, vi } from "vitest";
 import { CodeResult } from "../shared/types";
-import { commit, push } from "./git";
+import { commit, getCommitFileContent, getFileHeadContent, push } from "./git";
 
 const execute = promisify(execFile);
+
+it("preserves binary image bytes across HEAD, INDEX, additions, deletions and history renames", async () => {
+  const root = await fs.mkdtemp(
+    path.join(os.tmpdir(), "keep-notes-git-images-"),
+  );
+  const git = (args: string[]) => execute("git", args, { cwd: root });
+  const first = Buffer.from([137, 80, 78, 71, 0, 255, 128, 10]);
+  const staged = Buffer.from([137, 80, 78, 71, 0, 254, 129, 13]);
+  const url = (buffer: Buffer) =>
+    `data:image/png;base64,${buffer.toString("base64")}`;
+  try {
+    await git(["init", "--initial-branch=main"]);
+    await git(["config", "user.name", "Image test"]);
+    await git(["config", "user.email", "image@invalid.test"]);
+    await git(["config", "core.hooksPath", ".git/hooks"]);
+    await git(["config", "commit.gpgsign", "false"]);
+    await fs.mkdir(path.join(root, "attachments"));
+    const filePath = path.join(root, "attachments", "image.png");
+    await fs.writeFile(filePath, first);
+    await git(["add", "."]);
+    await git(["commit", "-m", "test: add image"]);
+    const addedHash = (await git(["rev-parse", "HEAD"])).stdout.trim();
+    expect(await getFileHeadContent(root, "attachments/image.png")).toEqual({
+      code: CodeResult.Success,
+      data: url(first),
+    });
+    expect(
+      (
+        await getCommitFileContent(
+          root,
+          addedHash,
+          "attachments/image.png",
+          "A",
+        )
+      ).data,
+    ).toEqual({ oldContent: "", newContent: url(first) });
+
+    await fs.writeFile(filePath, staged);
+    await git(["add", "."]);
+    await fs.writeFile(filePath, Buffer.from([0, 255, 200]));
+    expect(
+      (await getFileHeadContent(root, "attachments/image.png", "INDEX")).data,
+    ).toBe(url(staged));
+    expect(
+      (await getFileHeadContent(root, "attachments/image.png", "HEAD")).data,
+    ).toBe(url(first));
+    await git(["commit", "-m", "test: update image"]);
+    const modifiedHash = (await git(["rev-parse", "HEAD"])).stdout.trim();
+    expect(
+      (
+        await getCommitFileContent(
+          root,
+          modifiedHash,
+          "attachments/image.png",
+          "M",
+        )
+      ).data,
+    ).toEqual({ oldContent: url(first), newContent: url(staged) });
+
+    await fs.writeFile(filePath, staged);
+    await git(["mv", "attachments/image.png", "attachments/renamed.png"]);
+    await git(["commit", "-m", "test: rename image"]);
+    const renamedHash = (await git(["rev-parse", "HEAD"])).stdout.trim();
+    expect(
+      (
+        await getCommitFileContent(
+          root,
+          renamedHash,
+          "attachments/renamed.png",
+          "R",
+          "attachments/image.png",
+        )
+      ).data,
+    ).toEqual({ oldContent: url(staged), newContent: url(staged) });
+
+    await git(["rm", "attachments/renamed.png"]);
+    await git(["commit", "-m", "test: delete image"]);
+    const deletedHash = (await git(["rev-parse", "HEAD"])).stdout.trim();
+    expect(
+      (
+        await getCommitFileContent(
+          root,
+          deletedHash,
+          "attachments/renamed.png",
+          "D",
+        )
+      ).data,
+    ).toEqual({ oldContent: url(staged), newContent: "" });
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
 
 it("commits and pushes to a local remote with the inherited hook environment", async () => {
   const root = await fs.mkdtemp(

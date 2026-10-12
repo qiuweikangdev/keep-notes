@@ -2,6 +2,7 @@ import { simpleGit, SimpleGit, StatusResult, BranchSummary } from "simple-git";
 import dayjs from "dayjs";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { getImageMimeType, MAX_IMAGE_BYTES } from "../shared/image-file";
 import { CodeResult } from "../shared/types";
 import type {
   ApiResponse,
@@ -16,6 +17,7 @@ import type {
   GitCommitFileStatus,
   GitCommitLogItem,
   GitFileContentSource,
+  GitFileContentResponse,
 } from "../shared/types";
 
 const GIT_REMOTE_TIMEOUT_MS = 120_000;
@@ -76,6 +78,29 @@ function getGitInstance(
 
 const normalizeGitPath = (p: string) => p.replace(/\\/g, "/");
 
+class GitImagePreviewError extends Error {}
+
+async function readGitFileContent(
+  git: SimpleGit,
+  revision: string,
+  filePath: string,
+) {
+  const mimeType = getImageMimeType(filePath);
+  if (!mimeType) return git.raw(["show", revision]);
+
+  // Git 图片必须读取原始字节，UTF-8 解码会破坏 PNG、ICO 等二进制文件。
+  const size = Number((await git.raw(["cat-file", "-s", revision])).trim());
+  if (!Number.isFinite(size) || size > MAX_IMAGE_BYTES) {
+    throw new GitImagePreviewError("图片超过 20 MB，无法预览");
+  }
+  const buffer = await git.showBuffer([revision]).catch(() => {
+    throw new GitImagePreviewError("读取图片版本失败");
+  });
+  if (buffer.byteLength > MAX_IMAGE_BYTES)
+    throw new GitImagePreviewError("图片超过 20 MB，无法预览");
+  return `data:${mimeType};base64,${buffer.toString("base64")}`;
+}
+
 async function measureGitOperation<T>(
   phase: "stage" | "commit" | "push" | "status",
   operation: () => Promise<T>,
@@ -134,6 +159,13 @@ const readCommitFileContent = async (
   ref: string,
   filePath: string,
 ) => {
+  if (getImageMimeType(filePath)) {
+    return readGitFileContent(
+      git,
+      `${ref}:${normalizeGitPath(filePath)}`,
+      filePath,
+    );
+  }
   try {
     return await git.raw(["show", `${ref}:${normalizeGitPath(filePath)}`]);
   } catch {
@@ -741,7 +773,7 @@ export async function getFileHeadContent(
   dirPath: string,
   filePath: string,
   source: GitFileContentSource = "HEAD",
-): Promise<ApiResponse<string>> {
+): Promise<GitFileContentResponse> {
   try {
     const git = getGitInstance(dirPath);
     const relativePath = path.isAbsolute(filePath)
@@ -749,16 +781,21 @@ export async function getFileHeadContent(
       : filePath;
     const gitPath = relativePath.replace(/\\/g, "/");
     const revision = source === "INDEX" ? "" : "HEAD";
-    const content = await git.raw(["show", `${revision}:${gitPath}`]);
+    const content = await readGitFileContent(
+      git,
+      `${revision}:${gitPath}`,
+      gitPath,
+    );
 
     return {
       code: CodeResult.Success,
       data: content,
     };
-  } catch (e: any) {
+  } catch (e: unknown) {
     return {
       code: CodeResult.Fail,
-      message: e.toString(),
+      message: String(e),
+      ...(e instanceof GitImagePreviewError ? { imagePreviewError: true } : {}),
     };
   }
 }

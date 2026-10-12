@@ -1,3 +1,4 @@
+import { isImageFile } from "@shared/image-file";
 import {
   useState,
   useEffect,
@@ -937,10 +938,17 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
 
         const readGitContent = async (source: "HEAD" | "INDEX") => {
           const result = await getFileHeadContent(dir, filePath, source);
+          if (result.imagePreviewError) throw new Error(result.message);
           return result.code === CodeResult.Success ? (result.data ?? "") : "";
         };
         const readWorkingContent = async () => {
           if (isDeleted) return "";
+          if (isImageFile(filePath)) {
+            const source =
+              await window.electronAPI.loadImageAsDataUrl(fullPath);
+            if (!source) throw new Error("图片无法加载");
+            return source;
+          }
 
           const matchedTab = useEditorStore
             .getState()
@@ -970,10 +978,18 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
           return;
         }
 
-        openDiff(filePath, baseContent, changedContent);
+        if (isImageFile(filePath)) {
+          openDiff(filePath, baseContent, changedContent, {
+            oldTitle: variant === "staged" ? "HEAD" : "暂存区",
+            newTitle: variant === "staged" ? "暂存区" : "工作区",
+          });
+        } else {
+          openDiff(filePath, baseContent, changedContent);
+        }
         updateContent(baseContent, changedContent);
       } catch (error) {
         console.error("Failed to read file for diff:", error);
+        showMessage("error", "加载文件差异失败");
         closeDiff();
       }
     },
@@ -986,7 +1002,12 @@ export function GitPanel({ isOpen, onClose }: GitPanelProps) {
       if (!dir || !selectedCommitHash) return;
 
       const displayPath = getCommitFileDisplayPath(file);
-      openDiff(displayPath, "", "", { source: "history" });
+      openDiff(displayPath, "", "", {
+        source: "history",
+        ...(isImageFile(file.path)
+          ? { oldTitle: "父提交", newTitle: "当前提交" }
+          : {}),
+      });
 
       try {
         const result = await getCommitFileContent(

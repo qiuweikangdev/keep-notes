@@ -9,6 +9,7 @@ import {
 import {
   ChevronRight,
   File,
+  Image as ImageIcon,
   FilePlus2,
   Folder,
   FolderInput,
@@ -22,6 +23,7 @@ import {
   GitCompare,
   FileOutput,
 } from "lucide-react";
+import { isImageFile } from "@shared/image-file";
 import { useTreeStore } from "@/store/tree.store";
 import { useElectron } from "@/hooks/use-electron";
 import { cn } from "@/lib/cn";
@@ -36,6 +38,7 @@ import { showNoDiffContentToast } from "@/features/diff/lib/diff-toast";
 import { areDiffContentsEqual } from "@/features/diff/lib/diff-content";
 import {
   buildRenamedFileKey,
+  getFileRenameTitle,
   getRevealInFileManagerLabel,
   isMarkdownFileName,
 } from "../utils";
@@ -134,6 +137,7 @@ export const TreeNode = memo(function TreeNode({
   const isFolder = Array.isArray(node.children);
   const hasChildren = Boolean(node.children?.length);
   const isMarkdown = isMarkdownFileName(node.title);
+  const isImage = !isFolder && isImageFile(node.title);
   const revealInFileManagerLabel = getRevealInFileManagerLabel(
     window.electronAPI?.getPlatform(),
   );
@@ -161,24 +165,25 @@ export const TreeNode = memo(function TreeNode({
       toggleExpandedKey(node.key);
       return;
     }
-    if (isMarkdown) {
+    if (isMarkdown || isImage) {
       void openFile(node.key);
     }
   }, [
     node.key,
     isFolder,
     isMarkdown,
+    isImage,
     setSelectedKey,
     toggleExpandedKey,
     openFile,
   ]);
 
   const handleOpen = useCallback(() => {
-    if (isMarkdown) {
+    if (isMarkdown || isImage) {
       void openFile(node.key);
       setSelectedKey(node.key);
     }
-  }, [isMarkdown, node.key, openFile, setSelectedKey]);
+  }, [isMarkdown, isImage, node.key, openFile, setSelectedKey]);
 
   const handleOpenInNewTab = useCallback(() => {
     if (isMarkdown) {
@@ -282,13 +287,13 @@ export const TreeNode = memo(function TreeNode({
     setRenameInputWidth(
       renameLabelRef.current?.getBoundingClientRect().width ?? null,
     );
-    setRenameValue(node.title.replace(/\.md$/iu, ""));
+    setRenameValue(isFolder ? node.title : getFileRenameTitle(node.title));
     setIsRenaming(true);
-  }, [node.title]);
+  }, [node.title, isFolder]);
 
   const handleRenameConfirm = useCallback(async () => {
     const title = renameValue.trim();
-    const current = node.title.replace(/\.md$/iu, "");
+    const current = isFolder ? node.title : getFileRenameTitle(node.title);
     if (!title || title === current) {
       setIsRenaming(false);
       return;
@@ -475,7 +480,11 @@ export const TreeNode = memo(function TreeNode({
         .find((t) => t.filePath === filePath);
       let editorContent = matchedTab?.content ?? "";
       // 内存中不存在时回退到磁盘内容（已落盘版本）。
-      if (!editorContent) {
+      if (isImage) {
+        const source = await window.electronAPI.loadImageAsDataUrl(filePath);
+        if (!source) throw new Error("图片无法加载");
+        editorContent = source;
+      } else if (!editorContent) {
         editorContent = await window.electronAPI.readFile(filePath);
       }
 
@@ -484,11 +493,14 @@ export const TreeNode = memo(function TreeNode({
       if (treeRoot?.key) {
         const relativePath = toGitRelativePath(treeRoot.key, filePath);
         const headResult = await getFileHeadContent(treeRoot.key, relativePath);
+        if (headResult.imagePreviewError) throw new Error(headResult.message);
         if (headResult.code === CodeResult.Success) {
           baseContent = headResult.data ?? "";
         }
       } else {
-        baseContent = await window.electronAPI.readFile(filePath);
+        baseContent = isImage
+          ? editorContent
+          : await window.electronAPI.readFile(filePath);
       }
 
       if (areDiffContentsEqual(baseContent, editorContent)) {
@@ -500,9 +512,17 @@ export const TreeNode = memo(function TreeNode({
       updateContent(baseContent, editorContent);
     } catch (error) {
       console.error("Failed to read file for diff:", error);
+      showAppToast("加载文件差异失败", "error");
       closeDiff();
     }
-  }, [closeDiff, getFileHeadContent, node.key, openDiff, updateContent]);
+  }, [
+    closeDiff,
+    getFileHeadContent,
+    isImage,
+    node.key,
+    openDiff,
+    updateContent,
+  ]);
 
   /** 触发文件导出入口，实际导出流程由后续导出功能监听并处理 */
   const handleExport = useCallback(() => {
@@ -525,6 +545,11 @@ export const TreeNode = memo(function TreeNode({
         style={{ color: "var(--text-secondary)" }}
       />
     )
+  ) : isImage ? (
+    <ImageIcon
+      className="h-[14px] w-[14px]"
+      style={{ color: "var(--text-muted)" }}
+    />
   ) : (
     <File
       className="h-[14px] w-[14px]"
@@ -692,7 +717,7 @@ export const TreeNode = memo(function TreeNode({
 
         <ContextMenu.Portal>
           <ContextMenu.Content className={MENU_CONTENT_CLASS}>
-            {isMarkdown ? (
+            {isMarkdown || isImage ? (
               <ContextMenu.Item
                 className={MENU_ITEM_CLASS}
                 onClick={handleOpen}
@@ -710,7 +735,7 @@ export const TreeNode = memo(function TreeNode({
               </ContextMenu.Item>
             ) : null}
 
-            {!isFolder ? (
+            {!isFolder && isMarkdown ? (
               <ContextMenu.Item
                 className={MENU_ITEM_CLASS}
                 onClick={handleExport}
@@ -719,7 +744,7 @@ export const TreeNode = memo(function TreeNode({
               </ContextMenu.Item>
             ) : null}
 
-            {isMarkdown ? (
+            {isMarkdown || isImage ? (
               <ContextMenu.Item
                 className={MENU_ITEM_CLASS}
                 onClick={() => {
@@ -764,12 +789,14 @@ export const TreeNode = memo(function TreeNode({
             >
               <Copy className="h-4 w-4" /> 复制路径
             </ContextMenu.Item>
-            <ContextMenu.Item
-              className={MENU_ITEM_CLASS}
-              onClick={() => void openInNewWindow(node.key)}
-            >
-              <ExternalLink className="h-4 w-4" /> 在新窗口中打开
-            </ContextMenu.Item>
+            {!isImage ? (
+              <ContextMenu.Item
+                className={MENU_ITEM_CLASS}
+                onClick={() => void openInNewWindow(node.key)}
+              >
+                <ExternalLink className="h-4 w-4" /> 在新窗口中打开
+              </ContextMenu.Item>
+            ) : null}
             <ContextMenu.Item
               className={MENU_ITEM_CLASS}
               onClick={() => void openInExplorer(node.key)}

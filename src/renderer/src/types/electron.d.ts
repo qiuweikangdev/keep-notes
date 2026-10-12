@@ -11,6 +11,7 @@ import type {
   GitCommitFileStatus,
   GitCommitLogItem,
   GitFileContentSource,
+  GitFileContentResponse,
   GitDetectResult,
   WindowOpenTarget,
   AppInfo,
@@ -256,7 +257,7 @@ export interface GitAPI {
     dirPath: string,
     filePath: string,
     source?: GitFileContentSource,
-  ) => Promise<ApiResponse<string>>;
+  ) => Promise<GitFileContentResponse>;
   discardChanges: (dirPath: string, filePath: string) => Promise<ApiResponse>;
   openFile: (dirPath: string, filePath: string) => Promise<ApiResponse<string>>;
   getCommitHistory: (

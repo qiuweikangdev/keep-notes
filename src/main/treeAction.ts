@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import { randomUUID } from "node:crypto";
-import { basename, dirname, join, normalize, sep } from "node:path";
+import { basename, dirname, extname, join, normalize, sep } from "node:path";
 import { shell } from "electron";
 import { CodeResult } from "../shared/types";
 import { moveFilePath } from "./file-path-move";
@@ -131,7 +131,8 @@ export async function createFolder(
 export async function rename(pathStr: string, title: string, treeData: any[]) {
   const result = await fsPromises.stat(pathStr);
   const parentPath = dirname(pathStr);
-  const curTitle = result.isFile() ? `${title}.md` : title;
+  // 图片和 Markdown 重命名都保留原扩展名，避免附件被错误改成 .md。
+  const curTitle = result.isFile() ? `${title}${extname(pathStr)}` : title;
   const newPath = `${parentPath}${sep}${curTitle}`;
   const currentTitle = basename(pathStr);
   if (currentTitle === curTitle) {

@@ -32,6 +32,35 @@ function createEditorTab(
 }
 
 describe("discardFileChanges", () => {
+  it("restores an image without decoding it into the Markdown cache", async () => {
+    useEditorStore.setState({ panelGroups: [] });
+    const readFile = vi.fn();
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: { readFile },
+    });
+    const electron = {
+      getGitStatus: vi.fn().mockResolvedValue({ code: CodeResult.Success }),
+      getFileHeadContent: vi.fn(),
+      discardChanges: vi.fn().mockResolvedValue({ code: CodeResult.Success }),
+      loadTree: vi.fn().mockResolvedValue(undefined),
+    };
+    expect(
+      await discardFileChanges(
+        "/notes",
+        "/notes/attachments/icon.ico",
+        electron,
+        { skipChangeCheck: true },
+      ),
+    ).toEqual({ success: true });
+    expect(electron.discardChanges).toHaveBeenCalledWith(
+      "/notes",
+      "attachments/icon.ico",
+    );
+    expect(electron.loadTree).toHaveBeenCalledWith("/notes");
+    expect(readFile).not.toHaveBeenCalled();
+  });
+
   it("returns noChanges without discarding when git status has no matching file", async () => {
     useEditorStore.setState({ panelGroups: [] });
     const electron = {

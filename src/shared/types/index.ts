@@ -74,6 +74,11 @@ export interface GitStatus {
 
 export type GitFileContentSource = "HEAD" | "INDEX";
 
+export interface GitFileContentResponse extends ApiResponse<string> {
+  /** 图片存在但无法预览时为 true，防止误当作新增/删除文件的空版本。 */
+  imagePreviewError?: boolean;
+}
+
 // Git 分支信息
 export interface GitBranch {
   name: string;
@@ -109,7 +114,7 @@ export interface GitCommitChangedFile {
   oldPath?: string;
 }
 
-// Git 历史提交中文件在父提交和当前提交中的内容
+// Git 历史提交中文件在父提交和当前提交中的内容；图片返回 data URL，缺失的一侧为空字符串。
 export interface GitCommitFileContent {
   oldContent: string;
   newContent: string;

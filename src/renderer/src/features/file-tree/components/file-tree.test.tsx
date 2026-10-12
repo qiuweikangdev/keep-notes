@@ -708,6 +708,52 @@ describe("FileTree context menu", () => {
     });
   });
 
+  it("opens and compares image attachments without reading binary files as text", async () => {
+    const imagePath = "/notes/attachments/logo.svg";
+    useTreeStore.setState({
+      treeData: [
+        {
+          title: "attachments",
+          key: "/notes/attachments",
+          isLoaded: true,
+          children: [{ title: "logo.svg", key: imagePath }],
+        },
+      ],
+      expandedKeys: new Set(["/notes", "/notes/attachments"]),
+    });
+    const oldSource = "data:image/svg+xml;base64,b2xk";
+    const newSource = "data:image/svg+xml;base64,bmV3";
+    window.electronAPI.loadImageAsDataUrl = vi
+      .fn()
+      .mockResolvedValue(newSource);
+    electronMocks.getFileHeadContent.mockResolvedValue({
+      code: CodeResult.Success,
+      data: oldSource,
+    });
+    render(<FileTree />);
+    fireEvent.click(screen.getByText("logo.svg"));
+    expect(electronMocks.openFile).toHaveBeenCalledWith(imagePath);
+
+    fireEvent.contextMenu(screen.getByText("logo.svg"));
+    expect(screen.getByRole("menuitem", { name: "打开" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "导出" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "比较差异" }));
+    await waitFor(() =>
+      expect(diffStoreMock.openDiff).toHaveBeenCalledWith(
+        imagePath,
+        oldSource,
+        newSource,
+      ),
+    );
+    expect(window.electronAPI.readFile).not.toHaveBeenCalled();
+    expect(electronMocks.getFileHeadContent).toHaveBeenCalledWith(
+      "/notes",
+      "attachments/logo.svg",
+    );
+  });
+
   it("shows a no-diff toast instead of opening diff from the virtualized file node menu", async () => {
     const toastSpy = vi.fn();
     window.addEventListener(DIFF_TOAST_EVENT, toastSpy);

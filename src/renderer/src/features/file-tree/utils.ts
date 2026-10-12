@@ -45,7 +45,12 @@ export function buildRenamedFileKey(fileKey: string, title: string) {
     fileKey.lastIndexOf("/"),
     fileKey.lastIndexOf("\\"),
   );
-  return `${fileKey.slice(0, separatorIndex + 1)}${title}.md`;
+  const extension = fileKey.match(/\.[^./\\]+$/u)?.[0] ?? "";
+  return `${fileKey.slice(0, separatorIndex + 1)}${title}${extension}`;
+}
+
+export function getFileRenameTitle(fileName: string) {
+  return fileName.replace(/\.[^./\\]+$/u, "");
 }
 
 export function canMoveNodeToFolder(

@@ -4,6 +4,8 @@ export type DiffSource = "worktree" | "history";
 
 interface OpenDiffOptions {
   source?: DiffSource;
+  oldTitle?: string;
+  newTitle?: string;
 }
 
 interface DiffState {
@@ -19,6 +21,8 @@ interface DiffState {
   newContent: string;
   // diff 来源：工作区变更可放弃，历史记录只读
   source: DiffSource;
+  oldTitle: string | null;
+  newTitle: string | null;
 
   // 打开 diff 面板：先打开弹窗占位并标记 isLoading，调用方拿到内容后再调 updateContent。
   openDiff: (
@@ -40,6 +44,8 @@ export const useDiffStore = create<DiffState>()((set) => ({
   oldContent: "",
   newContent: "",
   source: "worktree",
+  oldTitle: null,
+  newTitle: null,
 
   openDiff: (filePath, oldContent, newContent, options) =>
     set({
@@ -50,6 +56,8 @@ export const useDiffStore = create<DiffState>()((set) => ({
       oldContent,
       newContent,
       source: options?.source ?? "worktree",
+      oldTitle: options?.oldTitle ?? null,
+      newTitle: options?.newTitle ?? null,
     }),
 
   closeDiff: () =>
@@ -60,6 +68,8 @@ export const useDiffStore = create<DiffState>()((set) => ({
       oldContent: "",
       newContent: "",
       source: "worktree",
+      oldTitle: null,
+      newTitle: null,
     }),
 
   updateContent: (oldContent, newContent) =>

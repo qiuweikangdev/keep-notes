@@ -43,6 +43,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
+import { ImagePreviewDialog } from "@/features/image-preview/components/image-preview-dialog";
+import { isImageFile } from "@shared/image-file";
 
 export function HomePage() {
   return <HomePageContent />;
@@ -86,6 +88,8 @@ function HomePageContent() {
   const isLoading = useDiffStore((state) => state.isLoading);
   const oldContent = useDiffStore((state) => state.oldContent);
   const newContent = useDiffStore((state) => state.newContent);
+  const oldTitle = useDiffStore((state) => state.oldTitle);
+  const newTitle = useDiffStore((state) => state.newTitle);
   const filePath = useDiffStore((state) => state.filePath);
   const diffSource = useDiffStore((state) => state.source);
   const closeDiff = useDiffStore((state) => state.closeDiff);
@@ -357,6 +361,7 @@ function HomePageContent() {
         </PanelGroup>
       </div>
 
+      <ImagePreviewDialog />
       <DiffDialog
         isOpen={isOpen}
         onClose={handleDiffClose}
@@ -367,6 +372,8 @@ function HomePageContent() {
         isLoading={isLoading}
         oldContent={oldContent}
         newContent={newContent}
+        oldTitle={oldTitle}
+        newTitle={newTitle}
         filePath={filePath}
         repositoryRoot={repositoryRoot}
         showMutableActions={diffSource !== "history"}
@@ -426,6 +433,8 @@ function DiffDialog({
   isLoading,
   oldContent,
   newContent,
+  oldTitle,
+  newTitle,
   filePath,
   repositoryRoot,
   showMutableActions,
@@ -440,6 +449,8 @@ function DiffDialog({
   isLoading: boolean;
   oldContent: string;
   newContent: string;
+  oldTitle: string | null;
+  newTitle: string | null;
   filePath: string | null;
   repositoryRoot: string | null;
   showMutableActions: boolean;
@@ -546,8 +557,11 @@ function DiffDialog({
               oldContent={oldContent}
               newContent={newContent}
               fileName={fileName}
-              oldTitle={`${fileName} (HEAD)`}
-              newTitle={`${fileName} (编辑器)`}
+              oldTitle={oldTitle ?? `${fileName} (HEAD)`}
+              newTitle={
+                newTitle ??
+                `${fileName} (${isImageFile(fileName) ? "工作区" : "编辑器"})`
+              }
               reserveDialogResizeHandleSpace
             />
           )}

@@ -13,19 +13,12 @@ import {
 import { compareFileTreeTitles } from "../shared/file-tree-sort";
 import { listExternalOpenApps, openWithExternalApp } from "./external-open";
 import { shouldIgnoreFsWatchPath } from "./file-watch";
+import {
+  IMAGE_MIME_BY_EXTENSION,
+  MAX_IMAGE_BYTES,
+  isImageFile,
+} from "../shared/image-file";
 
-const IMAGE_MIME_BY_EXTENSION = new Map([
-  [".avif", "image/avif"],
-  [".bmp", "image/bmp"],
-  [".gif", "image/gif"],
-  [".ico", "image/x-icon"],
-  [".jpeg", "image/jpeg"],
-  [".jpg", "image/jpeg"],
-  [".png", "image/png"],
-  [".svg", "image/svg+xml"],
-  [".webp", "image/webp"],
-]);
-const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 const ATTACHMENTS_DIR_NAME = "attachments";
 
 function isMarkdownFile(fileName: string) {
@@ -58,7 +51,7 @@ export async function readDirectory(
   try {
     const files = await fs.promises.readdir(directoryPath);
     const directories: string[] = [];
-    const markdownFiles: string[] = [];
+    const visibleFiles: string[] = [];
 
     for (const file of files) {
       const filePath = path.join(directoryPath, file);
@@ -68,13 +61,16 @@ export async function readDirectory(
 
       if (stats.isDirectory() && !file.startsWith(".")) {
         directories.push(file);
-      } else if (isMarkdownFile(file)) {
-        markdownFiles.push(file);
+      } else if (
+        stats.isFile() &&
+        (isMarkdownFile(file) || isImageFile(file))
+      ) {
+        visibleFiles.push(file);
       }
     }
 
     directories.sort(compareFileTreeTitles);
-    markdownFiles.sort(compareFileTreeTitles);
+    visibleFiles.sort(compareFileTreeTitles);
 
     const directoryTrees = await Promise.all(
       directories.map(async (dir) => {
@@ -91,7 +87,7 @@ export async function readDirectory(
 
     const tree = [
       ...directoryTrees,
-      ...markdownFiles.map((file) => ({
+      ...visibleFiles.map((file) => ({
         title: file,
         key: path.join(directoryPath, file),
       })),
@@ -112,7 +108,7 @@ export async function readDirectoryShallow(
       withFileTypes: true,
     });
     const directories: TreeNode[] = [];
-    const markdownFiles: TreeNode[] = [];
+    const visibleFiles: TreeNode[] = [];
 
     for (const entry of entries) {
       const entryPath = path.join(directoryPath, entry.name);
@@ -134,14 +130,17 @@ export async function readDirectoryShallow(
           children: [],
           isLoaded: false,
         });
-      } else if (isFile && isMarkdownFile(entry.name)) {
-        markdownFiles.push({ title: entry.name, key: entryPath });
+      } else if (
+        isFile &&
+        (isMarkdownFile(entry.name) || isImageFile(entry.name))
+      ) {
+        visibleFiles.push({ title: entry.name, key: entryPath });
       }
     }
 
     directories.sort((a, b) => compareFileTreeTitles(a.title, b.title));
-    markdownFiles.sort((a, b) => compareFileTreeTitles(a.title, b.title));
-    return [...directories, ...markdownFiles];
+    visibleFiles.sort((a, b) => compareFileTreeTitles(a.title, b.title));
+    return [...directories, ...visibleFiles];
   } catch (error) {
     console.error("Error while reading directory:", error);
     return null;

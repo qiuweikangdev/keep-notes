@@ -35,6 +35,32 @@ vi.mock("electron", () => ({
 describe("readDirectory", () => {
   const tempRoots: string[] = [];
 
+  it("includes image attachments and icons in shallow and complete trees", async () => {
+    const root = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "keep-notes-tree-images-"),
+    );
+    tempRoots.push(root);
+    const attachments = path.join(root, "attachments");
+    await fs.promises.mkdir(attachments);
+    const names = ["logo.SVG", "icon.ico", "photo.PNG", "animation.gif"];
+    await Promise.all(
+      [...names, "ignored.txt"].map((name) =>
+        fs.promises.writeFile(path.join(attachments, name), ""),
+      ),
+    );
+
+    const shallow = await readDirectoryShallow(attachments);
+    expect(shallow?.map((node) => node.title).toSorted()).toEqual(names.toSorted());
+    const complete = await readDirectory(root);
+    expect(complete?.[0].title).toBe("attachments");
+    expect(complete?.[0].children?.map((node) => node.title).toSorted()).toEqual(
+      names.toSorted(),
+    );
+    expect(
+      complete?.[0].children?.every((node) => node.children === undefined),
+    ).toBe(true);
+  });
+
   afterEach(async () => {
     await Promise.all(
       tempRoots.map((root) =>

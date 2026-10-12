@@ -11,6 +11,8 @@ import {
 import { useTheme } from "@/hooks/use-theme";
 import { getBundledShikiLanguage } from "@/lib/shiki-bundle";
 import { normalizeDiffContent } from "../lib/diff-content";
+import { isImageFile } from "@shared/image-file";
+import { ImageDiffViewer } from "./image-diff-viewer";
 
 interface DiffViewerProps {
   oldContent: string;
@@ -210,7 +212,16 @@ function computeFileDiff(input: DiffInput) {
   return parseDiffFromFile(input.oldFile, input.newFile, parseOptions, true);
 }
 
-export function DiffViewer({
+export function DiffViewer(props: DiffViewerProps) {
+  // 图片直接展示两侧预览，不进入文本差异计算和语法高亮流程。
+  return isImageFile(props.fileName ?? "") ? (
+    <ImageDiffViewer {...props} />
+  ) : (
+    <TextDiffViewer {...props} />
+  );
+}
+
+function TextDiffViewer({
   oldContent,
   newContent,
   oldTitle = "原始内容",

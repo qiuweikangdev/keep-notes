@@ -936,6 +936,61 @@ describe("GitPanel", () => {
     });
   });
 
+  it.each(["staged", "modified", "added", "deleted"] as const)(
+    "previews %s image changes from the correct Git versions",
+    async (kind) => {
+      const filePath = "icon.ico";
+      const head = "data:image/x-icon;base64,aGVhZA==";
+      const index = "data:image/x-icon;base64,aW5kZXg=";
+      const working = "data:image/x-icon;base64,d29yaw==";
+      window.electronAPI.loadImageAsDataUrl = vi
+        .fn()
+        .mockResolvedValue(working);
+      electronMocks.getGitStatus.mockResolvedValue({
+        code: CodeResult.Success,
+        data: {
+          current: "main",
+          tracking: "",
+          files: [],
+          ahead: 0,
+          behind: 0,
+          created: [],
+          renamed: [],
+          conflicted: [],
+          not_added: kind === "added" ? [filePath] : [],
+          staged: kind === "staged" ? [filePath] : [],
+          modified: kind === "modified" ? [filePath] : [],
+          deleted: kind === "deleted" ? [filePath] : [],
+        },
+      });
+      electronMocks.getFileHeadContent.mockImplementation(
+        async (_dir: string, _path: string, source: string) =>
+          kind === "added"
+            ? { code: CodeResult.Fail }
+            : {
+                code: CodeResult.Success,
+                data: source === "HEAD" ? head : index,
+              },
+      );
+      render(<GitPanel isOpen onClose={vi.fn()} />);
+      fireEvent.click(await screen.findByText(filePath));
+      await waitFor(() =>
+        expect(diffStoreMock.openDiff).toHaveBeenCalledWith(
+          filePath,
+          kind === "staged" ? head : kind === "added" ? "" : index,
+          kind === "staged" ? index : kind === "deleted" ? "" : working,
+          {
+            oldTitle: kind === "staged" ? "HEAD" : "暂存区",
+            newTitle: kind === "staged" ? "暂存区" : "工作区",
+          },
+        ),
+      );
+      expect(window.electronAPI.readFile).not.toHaveBeenCalled();
+      if (kind === "staged" || kind === "deleted")
+        expect(window.electronAPI.loadImageAsDataUrl).not.toHaveBeenCalled();
+    },
+  );
+
   it("opens a staged diff between HEAD and the index", async () => {
     electronMocks.getGitStatus.mockResolvedValue({
       code: CodeResult.Success,
