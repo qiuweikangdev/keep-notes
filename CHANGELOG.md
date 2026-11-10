@@ -1,3 +1,16 @@
+## [2.26.1](https://github.com/qiuweikangdev/keep-notes/compare/v2.26.0...v2.26.1) (2026-11-10)
+
+
+### Bug Fixes
+
+* normalize pasted rich text and trailing markdown breaks ([04c4971](https://github.com/qiuweikangdev/keep-notes/commit/04c4971da8c2b56b0c68d45b8f07eaf30bb4323c))
+
+
+## Commit Summary
+
+- Compared with: v2.26.0
+- Total commits: 1
+
 # [2.26.0](https://github.com/qiuweikangdev/keep-notes/compare/v2.25.6...v2.26.0) (2026-10-12)
 
 
