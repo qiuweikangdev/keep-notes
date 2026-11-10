@@ -1230,6 +1230,175 @@ describe("BlockNoteEditor user intent tracking", () => {
   });
 });
 
+describe("BlockNoteEditor external paste Markdown", () => {
+  it.each([
+    { content: "", structured: false },
+    { content: "Before", structured: false },
+    { content: "", structured: true },
+    { content: "Before", structured: true },
+  ])(
+    "normalizes external presentation styles to Markdown (%j)",
+    async ({ content, structured }) => {
+      setupMatchMedia();
+      setupDomMeasurements();
+      vi.stubGlobal("ClipboardEvent", Event);
+      const path = `C:/notes/external-styled-paste-${content || "empty"}-${structured ? "mixed" : "inline"}.md`;
+      setupSessionTab(path, { content });
+      const session = renderRealSession(path, false, content);
+
+      try {
+        await waitFor(() => expect(session.runtime.current).not.toBeNull());
+        const editor = session.runtime.current!.editor;
+        editor.setTextCursorPosition(editor.document[0], "end");
+        const html = [
+          '<h2 style="color: rgb(50, 60, 70); text-align: center">Title</h2>',
+          '<p style="background-color: rgb(240, 240, 240)">',
+          "<u><strong>Bold</strong></u> and <em>italic</em> ",
+          '<a href="https://example.com" style="color: blue">link</a></p>',
+          '<p><u style="font-weight: bold; color: red">CSS bold</u> <span style="text-decoration: underline line-through">deleted</span></p>',
+          '<ul><li style="color: red">Item</li></ul>',
+          structured
+            ? '<table><tr><th>Column</th></tr><tr><td><u><span style="color: red">Cell</span></u></td></tr></table><pre><code class="language-js">const value = 1;</code></pre>'
+            : "",
+        ].join("");
+        const event = new Event("paste", { bubbles: true, cancelable: true });
+        Object.defineProperty(event, "clipboardData", {
+          value: {
+            getData: (type: string) =>
+              type === "text/html" ? html : "Title\nBold and italic link\nItem",
+            types: ["text/html", "text/plain"],
+          },
+        });
+
+        act(() => {
+          editor.prosemirrorView.dom.dispatchEvent(event);
+        });
+
+        const saved = await markdownMocks.actualSerializeMarkdown!(
+          editor,
+          editor.document,
+        );
+        expect(saved).not.toContain("keep-notes:rich-block");
+        expect(saved).toContain(
+          content && !structured ? "BeforeTitle" : "## Title",
+        );
+        expect(saved).toContain("**Bold**");
+        expect(saved.match(/\*\*Bold\*\*/gu)).toHaveLength(1);
+        expect(saved).toContain("*italic*");
+        expect(saved).toContain("**CSS bold**");
+        expect(saved).toContain("~~deleted~~");
+        expect(saved).toContain("[link](https://example.com)");
+        expect(saved).toContain("Item");
+        if (content) expect(saved).toContain(content);
+        if (structured) {
+          expect(saved).toMatch(/\| Column\s+\|/u);
+          expect(saved).toContain("| Cell");
+          expect(saved).toContain("```javascript\nconst value = 1;\n```");
+        }
+      } finally {
+        session.view.unmount();
+      }
+    },
+  );
+
+  it("retains presentation styles copied through the internal clipboard", () => {
+    setupMatchMedia();
+    setupDomMeasurements();
+    const sourceEditor = CoreEditorFactory.create({
+      schema: editorSchema,
+      initialContent: [
+        {
+          type: "paragraph",
+          props: { textAlignment: "center" },
+          content: [
+            {
+              type: "text",
+              text: "Styled",
+              styles: { underline: true, textColor: "red" },
+            },
+          ],
+        },
+      ],
+    });
+    const editor = CoreEditorFactory.create({ schema: editorSchema });
+    const view = render(createElement(BlockNoteView, { editor }));
+    try {
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "clipboardData", {
+        value: {
+          getData: (type: string) =>
+            type === "blocknote/html"
+              ? sourceEditor.blocksToFullHTML(sourceEditor.document)
+              : type === "text/html"
+                ? sourceEditor.blocksToHTMLLossy(sourceEditor.document)
+                : "Styled",
+          types: ["blocknote/html", "text/html", "text/plain"],
+        },
+      });
+      expect(pasteExternalHTMLTables(editor, event as ClipboardEvent)).toBe(
+        true,
+      );
+      expect(editor.document[0].props).toMatchObject({
+        textAlignment: "center",
+      });
+      expect(editor.document[0].content).toEqual(
+        sourceEditor.document[0].content,
+      );
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it.each([
+    ["text/plain", "Text\n"],
+    ["text/html", "<p>Text<br></p>"],
+    ["text/html", "<p><strong>Text<br></strong></p>"],
+    ["text/html", "<p>First<br>Text<br></p>"],
+    ["text/html", "<p>Text<br> </p>"],
+    ["text/html", "<h2>Text<br></h2>"],
+    ["text/html", "<ul><li>Text<br></li></ul>"],
+    ["text/html", '<p><a href="https://example.com">Text<br></a></p>'],
+  ])(
+    "does not leave a terminal backslash after pasting %s %j",
+    async (mime, source) => {
+      setupMatchMedia();
+      setupDomMeasurements();
+      vi.stubGlobal("ClipboardEvent", Event);
+      const path = `C:/notes/external-terminal-break-${encodeURIComponent(source)}.md`;
+      setupSessionTab(path, { content: "" });
+      const session = renderRealSession(path, false, "");
+
+      try {
+        await waitFor(() => expect(session.runtime.current).not.toBeNull());
+        const editor = session.runtime.current!.editor;
+        const event = new Event("paste", { bubbles: true, cancelable: true });
+        Object.defineProperty(event, "clipboardData", {
+          value: {
+            getData: (type: string) => (type === mime ? source : "Text\n"),
+            types: [mime],
+          },
+        });
+        act(() => {
+          editor.prosemirrorView.dom.dispatchEvent(event);
+        });
+        const saved = await markdownMocks.actualSerializeMarkdown!(
+          editor,
+          editor.document,
+        );
+        expect(saved.trimEnd()).not.toMatch(/\\(?:\*\*)?$/u);
+        expect(saved).toContain("Text");
+        const reopened = await parseMarkdown(editor, saved);
+        expect(JSON.stringify(reopened)).not.toContain("Text\\\\");
+        if (source.includes("First")) {
+          expect(saved).toContain("First\\\nText");
+        }
+      } finally {
+        session.view.unmount();
+      }
+    },
+  );
+});
+
 describe("BlockNoteEditor code paste", () => {
   it.each(["text/plain", "text/markdown"])(
     "pastes a fenced Go code block copied as %s from Markdown source",

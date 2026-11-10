@@ -3908,9 +3908,32 @@ function yieldToMain(): Promise<void> {
 const STANDALONE_HARD_BREAK_SERIALIZATION_MARKER =
   "KEEP_NOTES_STANDALONE_HARD_BREAK_7B24E0F7";
 
-function markStandaloneHardBreakParagraphs<TBlock>(blocks: TBlock[]): TBlock[] {
+function trimInlineContentEnd(content: unknown[], length: number): unknown[] {
+  const trimmed = [...content];
+  for (let index = trimmed.length - 1; index >= 0 && length > 0; index -= 1) {
+    const item = trimmed[index];
+    if (!isRecord(item)) break;
+    if (typeof item.text === "string") {
+      const removed = Math.min(length, item.text.length);
+      const text = item.text.slice(0, item.text.length - removed);
+      length -= removed;
+      if (text) trimmed[index] = { ...item, text };
+      else trimmed.splice(index, 1);
+    } else if (item.type === "link" && Array.isArray(item.content)) {
+      const removed = Math.min(length, getInlineText(item.content).length);
+      const children = trimInlineContentEnd(item.content, removed);
+      length -= removed;
+      if (children.length) trimmed[index] = { ...item, content: children };
+      else trimmed.splice(index, 1);
+    } else break;
+  }
+  return trimmed;
+}
+
+function prepareMarkdownBlocks<TBlock>(blocks: TBlock[]): TBlock[] {
   return blocks.map((block) => {
-    if (!isRecord(block)) return block;
+    // 富文本 HTML 可完整保存末尾换行，无须按标准 Markdown 的限制裁剪内容。
+    if (!isRecord(block) || needsRichMarkdownHTML(block)) return block;
 
     let markedBlock: Record<string, unknown> = block;
     if (block.type === "paragraph" && getInlineText(block.content) === "\n") {
@@ -3925,12 +3948,26 @@ function markStandaloneHardBreakParagraphs<TBlock>(blocks: TBlock[]): TBlock[] {
           },
         ],
       };
+    } else if (block.type !== "codeBlock" && Array.isArray(block.content)) {
+      const text = getInlineText(block.content);
+      const trailingBreaks = text.match(/\n[\n\t \u00a0]*$/u);
+      if (trailingBreaks && text.trim()) {
+        // 块末尾的硬换行没有后续正文，导出后会成为字面反斜杠；只清理序列化副本，
+        // 保留段内换行、独立空行、真实反斜杠以及代码块的原始空白。
+        markedBlock = {
+          ...markedBlock,
+          content: trimInlineContentEnd(
+            block.content,
+            trailingBreaks[0].length,
+          ),
+        };
+      }
     }
 
     if (Array.isArray(markedBlock.children)) {
       markedBlock = {
         ...markedBlock,
-        children: markStandaloneHardBreakParagraphs(markedBlock.children),
+        children: prepareMarkdownBlocks(markedBlock.children),
       };
     }
 
@@ -3945,7 +3982,7 @@ export async function serializeMarkdown<TBlock>(
   // 大文档序列化可能阻塞数百毫秒；让出主线程确保用户交互不被延迟。
   await yieldToMain();
   // 空列表项同样是文档内容，序列化时必须保留，不能推测为临时占位。
-  const serializableBlocks = markStandaloneHardBreakParagraphs(blocks);
+  const serializableBlocks = prepareMarkdownBlocks(blocks);
   const markdown = await serializeQuoteListBlocks(
     serializer,
     protectLiteralBackticks(serializableBlocks, true) as TBlock[],

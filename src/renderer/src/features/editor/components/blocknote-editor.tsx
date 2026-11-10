@@ -512,6 +512,52 @@ function normalizePastedPlainText(source: string): string {
   return source.replace(/\r\n?/gu, "\n").replace(/\n$/u, "");
 }
 
+function normalizeExternalPasteStyles(container: HTMLDivElement): boolean {
+  const originalHTML = container.innerHTML;
+  // 外部页面的展示样式不属于 Markdown 内容；保留粗体、斜体、删除线等语义样式，
+  // 避免继承的颜色、背景和对齐触发应用内部的 rich-block 持久化格式。
+  for (const element of container.querySelectorAll<HTMLElement>("*")) {
+    for (const property of ["color", "background", "background-color"])
+      element.style.removeProperty(property);
+    for (const attribute of [
+      "color",
+      "bgcolor",
+      "data-text-color",
+      "data-background-color",
+    ])
+      element.removeAttribute(attribute);
+    if (!element.matches("td, th")) {
+      element.style.removeProperty("text-align");
+      element.removeAttribute("align");
+      element.removeAttribute("data-text-alignment");
+    }
+    for (const property of ["text-decoration", "text-decoration-line"]) {
+      const decoration = element.style.getPropertyValue(property);
+      if (decoration.includes("underline"))
+        element.style.setProperty(
+          property,
+          decoration.replace(/\bunderline\b/gu, "").trim(),
+        );
+    }
+    if (
+      ["underline", "textColor", "backgroundColor"].includes(
+        element.dataset.styleType ?? "",
+      )
+    ) {
+      element.removeAttribute("data-style-type");
+      element.removeAttribute("data-value");
+    }
+    if (element.tagName === "U") {
+      const span = document.createElement("span");
+      for (const attribute of element.attributes)
+        span.setAttribute(attribute.name, attribute.value);
+      span.append(...element.childNodes);
+      element.replaceWith(span);
+    }
+  }
+  return container.innerHTML !== originalHTML;
+}
+
 function getPastedTablePlainText(container: ParentNode): string | null {
   const table = container.querySelector("table");
   if (!table) return null;
@@ -1185,6 +1231,7 @@ export function pasteExternalHTMLTables(
   completeContainer.innerHTML = normalizedExternalHTML;
   const container = document.createElement("div");
   container.innerHTML = normalizedFragmentHTML;
+  const normalizedStyles = normalizeExternalPasteStyles(container);
   const completeHasStructuredBlock = Boolean(
     completeContainer.querySelector("table, pre"),
   );
@@ -1199,7 +1246,7 @@ export function pasteExternalHTMLTables(
     // Chromium/Office 会保留完整祖先 HTML，但 StartFragment/EndFragment 才是用户真正选择的单元格或代码文字。
     return insertPastedTextContent(
       editor,
-      normalizedFragmentHTML,
+      container.innerHTML,
       clipboardData.getData("text/plain"),
     );
   }
@@ -1224,6 +1271,11 @@ export function pasteExternalHTMLTables(
         clearInlineCodeEditingState(editor);
         return true;
       }
+    }
+    if (isRichClipboard && normalizedStyles) {
+      // 已有正文时仍走原生 HTML 选区替换，只将清理后的 HTML 交给编辑器。
+      editor.pasteHTML(container.innerHTML);
+      return true;
     }
     return false;
   }
